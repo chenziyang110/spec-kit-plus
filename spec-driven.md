@@ -74,16 +74,17 @@ The key is treating specifications as the source of truth, with code as the gene
 
 The SDD methodology is significantly enhanced through three powerful commands that automate the specification → planning → tasking workflow:
 
-### The `/speckit.specify` Command
+### The `/sp.specify` Command
 
-This command transforms a simple feature description (the user-prompt) into a complete, structured specification with automatic repository management:
+This command transforms a simple feature description into an aligned, planning-ready specification with automatic repository management:
 
 1. **Automatic Feature Numbering**: Scans existing specs to determine the next feature number (e.g., 001, 002, 003, …, 1000 — expands beyond 3 digits automatically)
 2. **Branch Creation**: Generates a semantic branch name from your description and creates it automatically
-3. **Template-Based Generation**: Copies and customizes the feature specification template with your requirements
-4. **Directory Structure**: Creates the proper `specs/[branch-name]/` structure for all related documents
+3. **Requirement Alignment Loop**: Uses repository context plus targeted follow-up questions to remove high-impact ambiguity before planning
+4. **Template-Based Generation**: Writes both `spec.md` and an `alignment.md` report that records why the request is ready for planning or why it was force-continued
+5. **Directory Structure**: Creates the proper `specs/[branch-name]/` structure for all related documents
 
-### The `/speckit.plan` Command
+### The `/sp.plan` Command
 
 Once a feature specification exists, this command creates a comprehensive implementation plan:
 
@@ -93,7 +94,7 @@ Once a feature specification exists, this command creates a comprehensive implem
 4. **Detailed Documentation**: Generates supporting documents for data models, API contracts, and test scenarios
 5. **Quickstart Validation**: Produces a quickstart guide capturing key validation scenarios
 
-### The `/speckit.tasks` Command
+### The `/sp.tasks` Command
 
 After a plan is created, this command analyzes the plan and related design documents to generate an executable task list:
 
@@ -121,7 +122,7 @@ Total: ~12 hours of documentation work
 
 ```bash
 # Step 1: Create the feature specification (5 minutes)
-/speckit.specify Real-time chat system with message history and user presence
+/sp.specify Real-time chat system with message history and user presence
 
 # This automatically:
 # - Creates branch "003-chat-system"
@@ -129,10 +130,10 @@ Total: ~12 hours of documentation work
 # - Populates it with structured requirements
 
 # Step 2: Generate implementation plan (5 minutes)
-/speckit.plan WebSocket for real-time messaging, PostgreSQL for history, Redis for presence
+/sp.plan WebSocket for real-time messaging, PostgreSQL for history, Redis for presence
 
 # Step 3: Generate executable tasks (5 minutes)
-/speckit.tasks
+/sp.tasks
 
 # This automatically creates:
 # - specs/003-chat-system/plan.md
@@ -177,17 +178,9 @@ The feature specification template explicitly instructs:
 
 This constraint forces the LLM to maintain proper abstraction levels. When an LLM might naturally jump to "implement using React with Redux," the template keeps it focused on "users need real-time updates of their data." This separation ensures specifications remain stable even as implementation technologies change.
 
-#### 2. **Forcing Explicit Uncertainty Markers**
+#### 2. **Alignment Before Planning**
 
-Both templates mandate the use of `[NEEDS CLARIFICATION]` markers:
-
-```text
-When creating this spec from a user prompt:
-1. **Mark all ambiguities**: Use [NEEDS CLARIFICATION: specific question]
-2. **Don't guess**: If the prompt doesn't specify something, mark it
-```
-
-This prevents the common LLM behavior of making plausible but potentially incorrect assumptions. Instead of guessing that a "login system" uses email/password authentication, the LLM must mark it as `[NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]`.
+The modern `specify` workflow no longer treats ambiguity as something to merely annotate and push downstream. It is responsible for resolving high-impact uncertainty before planning begins. Low-risk defaults can still be adopted quietly, but anything that would materially affect scope, user flow, data shape, compatibility, or acceptance testing must be clarified or explicitly recorded as a known risk.
 
 #### 3. **Structured Thinking Through Checklists**
 
@@ -199,6 +192,7 @@ The templates include comprehensive checklists that act as "unit tests" for the 
 - [ ] No [NEEDS CLARIFICATION] markers remain
 - [ ] Requirements are testable and unambiguous
 - [ ] Success criteria are measurable
+- [ ] alignment.md exists with a release decision
 ```
 
 These checklists force the LLM to self-review its output systematically, catching gaps that might otherwise slip through. It's like giving the LLM a quality assurance framework.

@@ -70,7 +70,7 @@ class MarkdownIntegrationTests:
         cmd_files = [f for f in created if "scripts" not in f.parts]
         for f in cmd_files:
             assert f.exists()
-            assert f.name.startswith("speckit.")
+            assert f.name.startswith("sp.")
             assert f.name.endswith(".md")
 
     def test_setup_writes_to_correct_directory(self, tmp_path):
@@ -200,7 +200,7 @@ class MarkdownIntegrationTests:
         i = get_integration(self.KEY)
         cmd_dir = i.commands_dest(project)
         assert cmd_dir.is_dir(), f"Commands directory {cmd_dir} not created"
-        commands = sorted(cmd_dir.glob("speckit.*"))
+        commands = sorted(cmd_dir.glob("sp.*"))
         assert len(commands) > 0, f"No command files in {cmd_dir}"
 
     # -- Complete file inventory ------------------------------------------
@@ -218,7 +218,7 @@ class MarkdownIntegrationTests:
 
         # Command files
         for stem in self.COMMAND_STEMS:
-            files.append(f"{cmd_dir}/speckit.{stem}.md")
+            files.append(f"{cmd_dir}/sp.{stem}.md")
 
         # Integration scripts
         files.append(f".specify/integrations/{self.KEY}/scripts/update-context.ps1")
@@ -239,9 +239,10 @@ class MarkdownIntegrationTests:
                          "setup-plan.ps1", "update-agent-context.ps1"]:
                 files.append(f".specify/scripts/powershell/{name}")
 
-        for name in ["agent-file-template.md", "checklist-template.md",
-                     "constitution-template.md", "plan-template.md",
-                     "spec-template.md", "tasks-template.md"]:
+        for name in ["agent-file-template.md", "alignment-template.md",
+                     "checklist-template.md", "constitution-template.md",
+                     "plan-template.md", "spec-template.md",
+                     "tasks-template.md"]:
             files.append(f".specify/templates/{name}")
 
         files.append(".specify/memory/constitution.md")

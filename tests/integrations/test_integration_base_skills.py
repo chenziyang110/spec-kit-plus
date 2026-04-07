@@ -5,7 +5,7 @@ Each per-agent test file sets ``KEY``, ``FOLDER``, ``COMMANDS_SUBDIR``,
 logic from ``SkillsIntegrationTests``.
 
 Mirrors ``MarkdownIntegrationTests`` / ``TomlIntegrationTests`` closely,
-adapted for the ``speckit-<name>/SKILL.md`` skills layout.
+adapted for the ``sp-<name>/SKILL.md`` skills layout.
 """
 
 import os
@@ -76,7 +76,7 @@ class SkillsIntegrationTests:
         for f in skill_files:
             assert f.exists()
             assert f.name == "SKILL.md"
-            assert f.parent.name.startswith("speckit-")
+            assert f.parent.name.startswith("sp-")
 
     def test_setup_writes_to_correct_directory(self, tmp_path):
         i = get_integration(self.KEY)
@@ -87,13 +87,13 @@ class SkillsIntegrationTests:
         skill_files = [f for f in created if "scripts" not in f.parts]
         assert len(skill_files) > 0, "No skill files were created"
         for f in skill_files:
-            # Each SKILL.md is in speckit-<name>/ under the skills directory
+            # Each SKILL.md is in sp-<name>/ under the skills directory
             assert f.resolve().parent.parent == expected_dir.resolve(), (
                 f"{f} is not under {expected_dir}"
             )
 
     def test_skill_directory_structure(self, tmp_path):
-        """Each command produces speckit-<name>/SKILL.md."""
+        """Each command produces sp-<name>/SKILL.md."""
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         created = i.setup(tmp_path, m)
@@ -107,9 +107,9 @@ class SkillsIntegrationTests:
         # Derive command names from the skill directory names
         actual_commands = set()
         for f in skill_files:
-            skill_dir_name = f.parent.name  # e.g. "speckit-plan"
-            assert skill_dir_name.startswith("speckit-")
-            actual_commands.add(skill_dir_name.removeprefix("speckit-"))
+            skill_dir_name = f.parent.name  # e.g. "sp-plan"
+            assert skill_dir_name.startswith("sp-")
+            actual_commands.add(skill_dir_name.removeprefix("sp-"))
 
         assert actual_commands == expected_commands
 
@@ -310,7 +310,7 @@ class SkillsIntegrationTests:
         files = []
         # Skill files
         for cmd in self._SKILL_COMMANDS:
-            files.append(f"{skills_prefix}/speckit-{cmd}/SKILL.md")
+            files.append(f"{skills_prefix}/sp-{cmd}/SKILL.md")
         # Integration metadata
         files += [
             ".specify/init-options.json",
@@ -341,6 +341,7 @@ class SkillsIntegrationTests:
         # Templates
         files += [
             ".specify/templates/agent-file-template.md",
+            ".specify/templates/alignment-template.md",
             ".specify/templates/checklist-template.md",
             ".specify/templates/constitution-template.md",
             ".specify/templates/plan-template.md",

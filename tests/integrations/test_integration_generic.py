@@ -85,7 +85,7 @@ class TestGenericIntegration:
         cmd_files = [f for f in created if "scripts" not in f.parts]
         assert len(cmd_files) > 0
         for f in cmd_files:
-            assert f.name.startswith("speckit.")
+            assert f.name.startswith("sp.")
             assert f.name.endswith(".md")
 
     def test_templates_are_processed(self, tmp_path):
@@ -221,15 +221,15 @@ class TestGenericIntegration:
             for p in project.rglob("*") if p.is_file()
         )
         expected = sorted([
-            ".myagent/commands/speckit.analyze.md",
-            ".myagent/commands/speckit.checklist.md",
-            ".myagent/commands/speckit.clarify.md",
-            ".myagent/commands/speckit.constitution.md",
-            ".myagent/commands/speckit.implement.md",
-            ".myagent/commands/speckit.plan.md",
-            ".myagent/commands/speckit.specify.md",
-            ".myagent/commands/speckit.tasks.md",
-            ".myagent/commands/speckit.taskstoissues.md",
+            ".myagent/commands/sp.analyze.md",
+            ".myagent/commands/sp.checklist.md",
+            ".myagent/commands/sp.clarify.md",
+            ".myagent/commands/sp.constitution.md",
+            ".myagent/commands/sp.implement.md",
+            ".myagent/commands/sp.plan.md",
+            ".myagent/commands/sp.specify.md",
+            ".myagent/commands/sp.tasks.md",
+            ".myagent/commands/sp.taskstoissues.md",
             ".specify/init-options.json",
             ".specify/integration.json",
             ".specify/integrations/generic.manifest.json",
@@ -243,6 +243,7 @@ class TestGenericIntegration:
             ".specify/scripts/bash/setup-plan.sh",
             ".specify/scripts/bash/update-agent-context.sh",
             ".specify/templates/agent-file-template.md",
+            ".specify/templates/alignment-template.md",
             ".specify/templates/checklist-template.md",
             ".specify/templates/constitution-template.md",
             ".specify/templates/plan-template.md",
@@ -277,15 +278,15 @@ class TestGenericIntegration:
             for p in project.rglob("*") if p.is_file()
         )
         expected = sorted([
-            ".myagent/commands/speckit.analyze.md",
-            ".myagent/commands/speckit.checklist.md",
-            ".myagent/commands/speckit.clarify.md",
-            ".myagent/commands/speckit.constitution.md",
-            ".myagent/commands/speckit.implement.md",
-            ".myagent/commands/speckit.plan.md",
-            ".myagent/commands/speckit.specify.md",
-            ".myagent/commands/speckit.tasks.md",
-            ".myagent/commands/speckit.taskstoissues.md",
+            ".myagent/commands/sp.analyze.md",
+            ".myagent/commands/sp.checklist.md",
+            ".myagent/commands/sp.clarify.md",
+            ".myagent/commands/sp.constitution.md",
+            ".myagent/commands/sp.implement.md",
+            ".myagent/commands/sp.plan.md",
+            ".myagent/commands/sp.specify.md",
+            ".myagent/commands/sp.tasks.md",
+            ".myagent/commands/sp.taskstoissues.md",
             ".specify/init-options.json",
             ".specify/integration.json",
             ".specify/integrations/generic.manifest.json",
@@ -299,6 +300,7 @@ class TestGenericIntegration:
             ".specify/scripts/powershell/setup-plan.ps1",
             ".specify/scripts/powershell/update-agent-context.ps1",
             ".specify/templates/agent-file-template.md",
+            ".specify/templates/alignment-template.md",
             ".specify/templates/checklist-template.md",
             ".specify/templates/constitution-template.md",
             ".specify/templates/plan-template.md",

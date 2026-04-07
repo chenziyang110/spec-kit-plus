@@ -47,7 +47,7 @@ class TestClaudeIntegration:
         skills_dir = tmp_path / ".claude" / "skills"
         assert skills_dir.is_dir()
 
-        plan_skill = skills_dir / "speckit-plan" / "SKILL.md"
+        plan_skill = skills_dir / "sp-plan" / "SKILL.md"
         assert plan_skill.exists()
 
         content = plan_skill.read_text(encoding="utf-8")
@@ -57,7 +57,7 @@ class TestClaudeIntegration:
 
         parts = content.split("---", 2)
         parsed = yaml.safe_load(parts[1])
-        assert parsed["name"] == "speckit-plan"
+        assert parsed["name"] == "sp-plan"
         assert parsed["user-invocable"] is True
         assert parsed["disable-model-invocation"] is True
         assert parsed["metadata"]["source"] == "templates/commands/plan.md"
@@ -104,7 +104,7 @@ class TestClaudeIntegration:
             os.chdir(old_cwd)
 
         assert result.exit_code == 0, result.output
-        assert (project / ".claude" / "skills" / "speckit-plan" / "SKILL.md").exists()
+        assert (project / ".claude" / "skills" / "sp-plan" / "SKILL.md").exists()
         assert not (project / ".claude" / "commands").exists()
 
         init_options = json.loads(
@@ -142,7 +142,7 @@ class TestClaudeIntegration:
             os.chdir(old_cwd)
 
         assert result.exit_code == 0, result.output
-        assert (project / ".claude" / "skills" / "speckit-specify" / "SKILL.md").exists()
+        assert (project / ".claude" / "skills" / "sp-specify" / "SKILL.md").exists()
         assert (project / ".specify" / "integrations" / "claude.manifest.json").exists()
 
     def test_interactive_claude_selection_uses_integration_path(self, tmp_path):
@@ -175,7 +175,7 @@ class TestClaudeIntegration:
         assert (project / ".specify" / "integration.json").exists()
         assert (project / ".specify" / "integrations" / "claude.manifest.json").exists()
 
-        skill_file = project / ".claude" / "skills" / "speckit-plan" / "SKILL.md"
+        skill_file = project / ".claude" / "skills" / "sp-plan" / "SKILL.md"
         assert skill_file.exists()
         skill_content = skill_file.read_text(encoding="utf-8")
         assert "user-invocable: true" in skill_content
@@ -202,7 +202,7 @@ class TestClaudeIntegration:
         )
 
         assert result.exit_code == 0
-        assert (target / ".claude" / "skills" / "speckit-specify" / "SKILL.md").exists()
+        assert (target / ".claude" / "skills" / "sp-specify" / "SKILL.md").exists()
 
     def test_claude_hooks_render_skill_invocation(self, tmp_path):
         from specify_cli.extensions import HookExecutor
@@ -219,15 +219,15 @@ class TestClaudeIntegration:
             [
                 {
                     "extension": "test-ext",
-                    "command": "speckit.plan",
+                    "command": "sp.plan",
                     "optional": False,
                 }
             ],
         )
 
-        assert "Executing: `/speckit-plan`" in message
-        assert "EXECUTE_COMMAND: speckit.plan" in message
-        assert "EXECUTE_COMMAND_INVOCATION: /speckit-plan" in message
+        assert "Executing: `/sp-plan`" in message
+        assert "EXECUTE_COMMAND: sp.plan" in message
+        assert "EXECUTE_COMMAND_INVOCATION: /sp-plan" in message
 
     def test_claude_preset_creates_new_skill_without_commands_dir(self, tmp_path):
         from specify_cli import save_init_options
@@ -243,7 +243,7 @@ class TestClaudeIntegration:
         preset_dir = tmp_path / "claude-skill-command"
         preset_dir.mkdir()
         (preset_dir / "commands").mkdir()
-        (preset_dir / "commands" / "speckit.research.md").write_text(
+        (preset_dir / "commands" / "sp.research.md").write_text(
             "---\n"
             "description: Research workflow\n"
             "---\n\n"
@@ -262,8 +262,8 @@ class TestClaudeIntegration:
                 "templates": [
                     {
                         "type": "command",
-                        "name": "speckit.research",
-                        "file": "commands/speckit.research.md",
+                        "name": "sp.research",
+                        "file": "commands/sp.research.md",
                     }
                 ]
             },
@@ -274,16 +274,16 @@ class TestClaudeIntegration:
         manager = PresetManager(project)
         manager.install_from_directory(preset_dir, "0.1.5")
 
-        skill_file = skills_dir / "speckit-research" / "SKILL.md"
+        skill_file = skills_dir / "sp-research" / "SKILL.md"
         assert skill_file.exists()
         content = skill_file.read_text(encoding="utf-8")
         assert "preset:claude-skill-command" in content
-        assert "name: speckit-research" in content
+        assert "name: sp-research" in content
         assert "user-invocable: true" in content
         assert "disable-model-invocation: true" in content
 
         metadata = manager.registry.get("claude-skill-command")
-        assert "speckit-research" in metadata.get("registered_skills", [])
+        assert "sp-research" in metadata.get("registered_skills", [])
 
 
 class TestClaudeArgumentHints:
@@ -309,10 +309,10 @@ class TestClaudeArgumentHints:
         created = i.setup(tmp_path, m, script_type="sh")
         skill_files = [f for f in created if f.name == "SKILL.md"]
         for f in skill_files:
-            # Extract stem: speckit-plan -> plan
+            # Extract stem: sp-plan -> plan
             stem = f.parent.name
-            if stem.startswith("speckit-"):
-                stem = stem[len("speckit-"):]
+            if stem.startswith("sp-"):
+                stem = stem[len("sp-"):]
             expected_hint = ARGUMENT_HINTS.get(stem)
             assert expected_hint is not None, (
                 f"No expected hint defined for skill '{stem}'"

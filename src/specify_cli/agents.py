@@ -310,6 +310,8 @@ class CommandRegistrar:
             init_opts = {}
 
         script_variant = init_opts.get("script")
+        needs_agent_script = "{AGENT_SCRIPT}" in body
+
         if script_variant not in {"sh", "ps"}:
             fallback_order = []
             default_variant = "ps" if platform.system().lower().startswith("win") else "sh"
@@ -327,7 +329,15 @@ class CommandRegistrar:
                 if key not in fallback_order:
                     fallback_order.append(key)
 
-            script_variant = fallback_order[0] if fallback_order else None
+            script_variant = None
+            for candidate in fallback_order:
+                has_script = candidate in scripts
+                has_agent_script = candidate in agent_scripts
+                if has_script and (not needs_agent_script or has_agent_script):
+                    script_variant = candidate
+                    break
+            if script_variant is None and fallback_order:
+                script_variant = fallback_order[0]
 
         script_command = scripts.get(script_variant) if script_variant else None
         if script_command:
@@ -362,11 +372,11 @@ class CommandRegistrar:
             return cmd_name
 
         short_name = cmd_name
-        if short_name.startswith("speckit."):
-            short_name = short_name[len("speckit."):]
+        if short_name.startswith("sp."):
+            short_name = short_name[len("sp."):]
         short_name = short_name.replace(".", "-")
 
-        return f"speckit-{short_name}"
+        return f"sp-{short_name}"
 
     def register_commands(
         self,
@@ -489,7 +499,7 @@ class CommandRegistrar:
 
         Args:
             project_root: Path to project root
-            cmd_name: Command name (e.g. 'speckit.my-ext.example')
+            cmd_name: Command name (e.g. 'sp.my-ext.example')
         """
         prompts_dir = project_root / ".github" / "prompts"
         prompts_dir.mkdir(parents=True, exist_ok=True)

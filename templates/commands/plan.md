@@ -1,12 +1,12 @@
 ---
 description: Execute the implementation planning workflow using the plan template to generate design artifacts.
-handoffs: 
+handoffs:
   - label: Create Tasks
-    agent: speckit.tasks
+    agent: sp.tasks
     prompt: Break the plan into tasks
     send: true
   - label: Create Checklist
-    agent: speckit.checklist
+    agent: sp.checklist
     prompt: Create a checklist for the following domain...
 scripts:
   sh: scripts/bash/setup-plan.sh --json
@@ -60,22 +60,41 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, BRANCH. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for `FEATURE_SPEC`, `IMPL_PLAN`, `SPECS_DIR`, `BRANCH`, and `FEATURE_DIR`.
 
-2. **Load context**: Read FEATURE_SPEC and `/memory/constitution.md`. Load IMPL_PLAN template (already copied).
+2. **Load context**:
+   - Read `FEATURE_SPEC`
+   - Read `FEATURE_DIR/alignment.md`
+   - Read `/memory/constitution.md`
+   - Load the copied IMPL_PLAN template
 
-3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
-   - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
-   - Fill Constitution Check section from constitution
-   - Evaluate gates (ERROR if violations unjustified)
-   - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION)
-   - Phase 1: Generate data-model.md, contracts/, quickstart.md
-   - Phase 1: Update agent context by running the agent script
-   - Re-evaluate Constitution Check post-design
+3. **Validate alignment status before planning**:
+   - If `alignment.md` is missing:
+     - ERROR "Missing alignment report. Run /sp.specify first or re-run it to complete requirement alignment."
+   - If the alignment report status is `Aligned: ready for plan`:
+     - continue
+   - If the alignment report status is `Force proceed with known risks`:
+     - continue, but carry all remaining risks into planning as explicit planning constraints and open risks
+   - Otherwise:
+     - ERROR "Specification is not aligned enough for planning."
 
-4. **Stop and report**: Command ends after Phase 2 planning. Report branch, IMPL_PLAN path, and generated artifacts.
+4. **Execute the plan workflow** using the IMPL_PLAN template:
+   - Fill Technical Context (mark unknowns as `NEEDS CLARIFICATION`)
+   - Fill Constitution Check from the constitution
+   - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
+   - Evaluate gates (ERROR if violations are unjustified)
+   - Phase 0: generate `research.md` and resolve all `NEEDS CLARIFICATION`
+   - Phase 1: generate `data-model.md`, `contracts/`, and `quickstart.md`
+   - Phase 1: update agent context by running the agent script
+   - Re-evaluate Constitution Check after design artifacts exist
 
-5. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
+5. **Stop and report**:
+   - branch
+   - plan path
+   - alignment status
+   - generated artifacts
+
+6. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_plan` key
    - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
    - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
@@ -108,52 +127,36 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ### Phase 0: Outline & Research
 
-1. **Extract unknowns from Technical Context** above:
-   - For each NEEDS CLARIFICATION → research task
-   - For each dependency → best practices task
-   - For each integration → patterns task
+1. Extract unknowns from Technical Context:
+   - For each `NEEDS CLARIFICATION` -> research task
+   - For each dependency -> best-practices task
+   - For each integration -> patterns task
 
-2. **Generate and dispatch research agents**:
+2. Generate and dispatch research tasks.
 
-   ```text
-   For each unknown in Technical Context:
-     Task: "Research {unknown} for {feature context}"
-   For each technology choice:
-     Task: "Find best practices for {tech} in {domain}"
-   ```
+3. Consolidate findings in `research.md` using:
+   - Decision
+   - Rationale
+   - Alternatives considered
 
-3. **Consolidate findings** in `research.md` using format:
-   - Decision: [what was chosen]
-   - Rationale: [why chosen]
-   - Alternatives considered: [what else evaluated]
-
-**Output**: research.md with all NEEDS CLARIFICATION resolved
+**Output**: `research.md` with all `NEEDS CLARIFICATION` resolved
 
 ### Phase 1: Design & Contracts
 
 **Prerequisites:** `research.md` complete
 
-1. **Extract entities from feature spec** → `data-model.md`:
-   - Entity name, fields, relationships
-   - Validation rules from requirements
-   - State transitions if applicable
+1. Extract entities from the feature spec -> `data-model.md`
+2. Define interface contracts if the project exposes external interfaces -> `contracts/`
+3. Run `{AGENT_SCRIPT}` to update agent-specific context
 
-2. **Define interface contracts** (if project has external interfaces) → `/contracts/`:
-   - Identify what interfaces the project exposes to users or other systems
-   - Document the contract format appropriate for the project type
-   - Examples: public APIs for libraries, command schemas for CLI tools, endpoints for web services, grammars for parsers, UI contracts for applications
-   - Skip if project is purely internal (build scripts, one-off tools, etc.)
+**Output**: `data-model.md`, `contracts/*`, `quickstart.md`, agent-specific file
 
-3. **Agent context update**:
-   - Run `{AGENT_SCRIPT}`
-   - These scripts detect which AI agent is in use
-   - Update the appropriate agent-specific context file
-   - Add only new technology from current plan
-   - Preserve manual additions between markers
+## Input Risks From Alignment
 
-**Output**: data-model.md, /contracts/*, quickstart.md, agent-specific file
+- [Risk 1 from alignment.md, or "None"]
+- [Risk 2 from alignment.md, or omit if none]
 
-## Key rules
+## Key Rules
 
 - Use absolute paths
 - ERROR on gate failures or unresolved clarifications

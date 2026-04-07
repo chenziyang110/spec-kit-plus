@@ -36,7 +36,7 @@ _FALLBACK_CORE_COMMAND_NAMES = frozenset({
     "tasks",
     "taskstoissues",
 })
-EXTENSION_COMMAND_NAME_PATTERN = re.compile(r"^speckit\.([a-z0-9-]+)\.([a-z0-9-]+)$")
+EXTENSION_COMMAND_NAME_PATTERN = re.compile(r"^sp\.([a-z0-9-]+)\.([a-z0-9-]+)$")
 
 
 def _load_core_command_names() -> frozenset[str]:
@@ -195,7 +195,7 @@ class ExtensionManifest:
             if EXTENSION_COMMAND_NAME_PATTERN.match(cmd["name"]) is None:
                 raise ValidationError(
                     f"Invalid command name '{cmd['name']}': "
-                    "must follow pattern 'speckit.{extension}.{command}'"
+                    "must follow pattern 'sp.{extension}.{command}'"
                 )
 
     @property
@@ -494,7 +494,7 @@ class ExtensionManager:
         """Collect command and alias names declared by a manifest.
 
         Performs install-time validation for extension-specific constraints:
-        - commands and aliases must use the canonical `speckit.{extension}.{command}` shape
+        - commands and aliases must use the canonical `sp.{extension}.{command}` shape
         - commands and aliases must use this extension's namespace
         - command namespaces must not shadow core commands
         - duplicate command/alias names inside one manifest are rejected
@@ -538,7 +538,7 @@ class ExtensionManager:
                 if match is None:
                     raise ValidationError(
                         f"Invalid {kind} '{name}': "
-                        "must follow pattern 'speckit.{extension}.{command}'"
+                        "must follow pattern 'sp.{extension}.{command}'"
                     )
 
                 namespace = match.group(1)
@@ -766,9 +766,9 @@ class ExtensionManager:
             # Derive skill name from command name using the same hyphenated
             # convention as hook rendering and preset skill registration.
             short_name_raw = cmd_name
-            if short_name_raw.startswith("speckit."):
-                short_name_raw = short_name_raw[len("speckit."):]
-            skill_name = f"speckit-{short_name_raw.replace('.', '-')}"
+            if short_name_raw.startswith("sp."):
+                short_name_raw = short_name_raw[len("sp."):]
+            skill_name = f"sp-{short_name_raw.replace('.', '-')}"
 
             # Check if skill already exists before creating the directory
             skill_subdir = skills_dir / skill_name
@@ -811,8 +811,8 @@ class ExtensionManager:
 
             # Derive a human-friendly title from the command name
             short_name = cmd_name
-            if short_name.startswith("speckit."):
-                short_name = short_name[len("speckit."):]
+            if short_name.startswith("sp."):
+                short_name = short_name[len("sp."):]
             title_name = short_name.replace(".", " ").replace("-", " ").title()
 
             skill_content = (
@@ -2115,13 +2115,13 @@ class HookExecutor:
 
     @staticmethod
     def _skill_name_from_command(command: Any) -> str:
-        """Map a command id like speckit.plan to speckit-plan skill name."""
+        """Map a command id like sp.plan to sp-plan skill name."""
         if not isinstance(command, str):
             return ""
         command_id = command.strip()
-        if not command_id.startswith("speckit."):
+        if not command_id.startswith("sp."):
             return ""
-        return f"speckit-{command_id[len('speckit.'):].replace('.', '-')}"
+        return f"sp-{command_id[len('sp.'):].replace('.', '-')}"
 
     def _render_hook_invocation(self, command: Any) -> str:
         """Render an agent-specific invocation string for a hook command."""

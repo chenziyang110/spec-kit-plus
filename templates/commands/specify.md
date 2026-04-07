@@ -1,11 +1,11 @@
 ---
 description: Create or update the feature specification from a natural language feature description.
-handoffs: 
+handoffs:
   - label: Build Technical Plan
-    agent: speckit.plan
+    agent: sp.plan
     prompt: Create a plan for the spec. I am building with...
   - label: Clarify Spec Requirements
-    agent: speckit.clarify
+    agent: sp.clarify
     prompt: Clarify specification requirements
     send: true
 scripts:
@@ -57,166 +57,212 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-The text the user typed after `/speckit.specify` in the triggering message **is** the feature description. Assume you always have it available in this conversation even if `{ARGS}` appears literally below. Do not ask the user to repeat it unless they provided an empty command.
+The text the user typed after `/sp.specify` is the initial idea. Your responsibility is to align the requirement until it is planning-ready, or explicitly record that the user chose to force proceed with known risks.
 
-Given that feature description, do this:
+1. Parse the user description.
+   - If empty: ERROR "No feature description provided"
 
-1. **Generate a concise short name** (2-4 words) for the branch:
-   - Analyze the feature description and extract the most meaningful keywords
-   - Create a 2-4 word short name that captures the essence of the feature
-   - Use action-noun format when possible (e.g., "add-user-auth", "fix-payment-bug")
-   - Preserve technical terms and acronyms (OAuth2, API, JWT, etc.)
-   - Keep it concise but descriptive enough to understand the feature at a glance
-   - Examples:
-     - "I want to add user authentication" → "user-auth"
-     - "Implement OAuth2 integration for the API" → "oauth2-api-integration"
-     - "Create a dashboard for analytics" → "analytics-dashboard"
-     - "Fix payment processing timeout bug" → "fix-payment-timeout"
+2. Generate a concise short name (2-4 words) for the branch.
+   - Keep it descriptive and action-oriented when possible.
 
-2. **Create the feature branch** by running the script with `--short-name` (and `--json`). In sequential mode, do NOT pass `--number` — the script auto-detects the next available number. In timestamp mode, the script generates a `YYYYMMDD-HHMMSS` prefix automatically:
+3. Create the feature branch by running the script once with `--json`/`-Json` and `--short-name`/`-ShortName`.
+   - Before running the script, check if `.specify/init-options.json` exists and read `branch_numbering`.
+   - If the value is `"timestamp"`, add `--timestamp` or `-Timestamp`.
+   - If the value is `"sequential"` or missing, use default numbering.
+   - Do not pass `--number`.
+   - Parse `BRANCH_NAME`, `SPEC_FILE`, and `FEATURE_DIR` from the JSON response.
+   - Set `ALIGNMENT_FILE` to `FEATURE_DIR/alignment.md`.
 
-   **Branch numbering mode**: Before running the script, check if `.specify/init-options.json` exists and read the `branch_numbering` value.
-   - If `"timestamp"`, add `--timestamp` (Bash) or `-Timestamp` (PowerShell) to the script invocation
-   - If `"sequential"` or absent, do not add any extra flag (default behavior)
+4. Load context.
+   - Read `templates/spec-template.md`.
+   - Read `templates/alignment-template.md`.
+   - Read repository context relevant to the request.
+   - Read existing specs/docs if relevant.
+   - Read constitution/project guidance if present.
 
-   - Bash example: `{SCRIPT} --json --short-name "user-auth" "Add user authentication"`
-   - Bash (timestamp): `{SCRIPT} --json --timestamp --short-name "user-auth" "Add user authentication"`
-   - PowerShell example: `{SCRIPT} -Json -ShortName "user-auth" "Add user authentication"`
-   - PowerShell (timestamp): `{SCRIPT} -Json -Timestamp -ShortName "user-auth" "Add user authentication"`
+5. Infer task classification.
+   Infer exactly one:
+   - greenfield project
+   - existing feature addition
+   - bug fix
+   - technical refactor
+   - docs/config/process change
 
-   **IMPORTANT**:
-   - Do NOT pass `--number` — the script determines the correct next number automatically
-   - Always include the JSON flag (`--json` for Bash, `-Json` for PowerShell) so the output can be parsed reliably
-   - You must only ever run this script once per feature
-   - The JSON is provided in the terminal as output - always refer to it to get the actual content you're looking for
-   - The JSON output will contain BRANCH_NAME and SPEC_FILE paths
-   - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot")
+   Briefly tell the user your inferred classification and allow correction before continuing.
 
-3. Load `templates/spec-template.md` to understand required sections.
+6. Choose alignment mode.
+   - Lightweight mode for local, context-rich changes.
+   - Deep mode for greenfield or materially ambiguous work.
 
-4. Follow this execution flow:
+7. Run task-type mandatory clarity gates.
 
-    1. Parse user description from Input
-       If empty: ERROR "No feature description provided"
-    2. Extract key concepts from description
-       Identify: actors, actions, data, constraints
-    3. For unclear aspects:
-       - Make informed guesses based on context and industry standards
-       - Only mark with [NEEDS CLARIFICATION: specific question] if:
-         - The choice significantly impacts feature scope or user experience
-         - Multiple reasonable interpretations exist with different implications
-         - No reasonable default exists
-       - **LIMIT: Maximum 3 [NEEDS CLARIFICATION] markers total**
-       - Prioritize clarifications by impact: scope > security/privacy > user experience > technical details
-    4. Fill User Scenarios & Testing section
-       If no clear user flow: ERROR "Cannot determine user scenarios"
-    5. Generate Functional Requirements
-       Each requirement must be testable
-       Use reasonable defaults for unspecified details (document assumptions in Assumptions section)
-    6. Define Success Criteria
-       Create measurable, technology-agnostic outcomes
-       Include both quantitative metrics (time, performance, volume) and qualitative measures (user satisfaction, task completion)
-       Each criterion must be verifiable without implementation details
-    7. Identify Key Entities (if data involved)
-    8. Return: SUCCESS (spec ready for planning)
+   Greenfield project:
+   - target users
+   - core problem
+   - MVP scope
+   - out-of-scope boundary
+   - core user flows
+   - key domain entities
+   - success criteria
+   - hard constraints if any
 
-5. Write the specification to SPEC_FILE using the template structure, replacing placeholders with concrete details derived from the feature description (arguments) while preserving section order and headings.
+   Existing feature addition:
+   - affected module or workflow
+   - intended users
+   - relationship to existing behavior
+   - compatibility expectations
+   - data/state impact
+   - acceptance criteria
 
-6. **Specification Quality Validation**: After writing the initial spec, validate it against quality criteria:
+   Bug fix:
+   - current incorrect behavior
+   - expected correct behavior
+   - reproduction conditions
+   - impact scope
+   - regression-sensitive areas
+   - completion criteria
 
-   a. **Create Spec Quality Checklist**: Generate a checklist file at `FEATURE_DIR/checklists/requirements.md` using the checklist template structure with these validation items:
+   Technical refactor:
+   - reason for change
+   - change boundary
+   - behavior that must remain unchanged
+   - risk tolerance
+   - migration/transition allowance
+   - completion criteria
 
-      ```markdown
-      # Specification Quality Checklist: [FEATURE NAME]
-      
-      **Purpose**: Validate specification completeness and quality before proceeding to planning
-      **Created**: [DATE]
-      **Feature**: [Link to spec.md]
-      
-      ## Content Quality
-      
-      - [ ] No implementation details (languages, frameworks, APIs)
-      - [ ] Focused on user value and business needs
-      - [ ] Written for non-technical stakeholders
-      - [ ] All mandatory sections completed
-      
-      ## Requirement Completeness
-      
-      - [ ] No [NEEDS CLARIFICATION] markers remain
-      - [ ] Requirements are testable and unambiguous
-      - [ ] Success criteria are measurable
-      - [ ] Success criteria are technology-agnostic (no implementation details)
-      - [ ] All acceptance scenarios are defined
-      - [ ] Edge cases are identified
-      - [ ] Scope is clearly bounded
-      - [ ] Dependencies and assumptions identified
-      
-      ## Feature Readiness
-      
-      - [ ] All functional requirements have clear acceptance criteria
-      - [ ] User scenarios cover primary flows
-      - [ ] Feature meets measurable outcomes defined in Success Criteria
-      - [ ] No implementation details leak into specification
-      
-      ## Notes
-      
-      - Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`
-      ```
+   Docs/config/process change:
+   - changed artifact
+   - change objective
+   - affected users or teams
+   - compatibility/process constraints
+   - validation method
+   - completion criteria
 
-   b. **Run Validation Check**: Review the spec against each checklist item:
-      - For each item, determine if it passes or fails
-      - Document specific issues found (quote relevant spec sections)
+   Rules:
+   - If an item is already clear from context, do not ask.
+   - If it is low-risk and inferable, adopt a default silently and record it later under low-risk defaults.
+   - If it is high-impact and unclear, ask.
 
-   c. **Handle Validation Results**:
+8. Run a high-impact ambiguity scan.
+   Detect unresolved ambiguity affecting:
+   - scope
+   - users/roles
+   - security/permissions
+   - workflow behavior
+   - data/entities
+   - compatibility
+   - acceptance tests
+   - success criteria
+   - rollout/migration impact
 
-      - **If all items pass**: Mark checklist complete and proceed to step 7
+   The user saying "I already explained it" is not sufficient reason to stop. Judge clarity from the perspective of a future planner, implementer, and tester.
 
-      - **If items fail (excluding [NEEDS CLARIFICATION])**:
-        1. List the failing items and specific issues
-        2. Update the spec to address each issue
-        3. Re-run validation until all items pass (max 3 iterations)
-        4. If still failing after 3 iterations, document remaining issues in checklist notes and warn user
+9. Clarification loop.
+   - Ask only high-value questions.
+   - Use grouped questions for simple/local changes.
+   - Use one question at a time for complex/high-risk cases.
+   - Challenge contradictions or vague answers when important ambiguity remains.
+   - After every round, restate current understanding.
 
-      - **If [NEEDS CLARIFICATION] markers remain**:
-        1. Extract all [NEEDS CLARIFICATION: ...] markers from the spec
-        2. **LIMIT CHECK**: If more than 3 markers exist, keep only the 3 most critical (by scope/security/UX impact) and make informed guesses for the rest
-        3. For each clarification needed (max 3), present options to user in this format:
+   Use this exact format:
 
-           ```markdown
-           ## Question [N]: [Topic]
-           
-           **Context**: [Quote relevant spec section]
-           
-           **What we need to know**: [Specific question from NEEDS CLARIFICATION marker]
-           
-           **Suggested Answers**:
-           
-           | Option | Answer | Implications |
-           |--------|--------|--------------|
-           | A      | [First suggested answer] | [What this means for the feature] |
-           | B      | [Second suggested answer] | [What this means for the feature] |
-           | C      | [Third suggested answer] | [What this means for the feature] |
-           | Custom | Provide your own answer | [Explain how to provide custom input] |
-           
-           **Your choice**: _[Wait for user response]_
-           ```
+   ```text
+   My current understanding:
+   - You want ...
+   - For ...
+   - In/around ...
+   - It should ...
+   - It should not ...
+   - I still need to confirm ...
+   ```
 
-        4. **CRITICAL - Table Formatting**: Ensure markdown tables are properly formatted:
-           - Use consistent spacing with pipes aligned
-           - Each cell should have spaces around content: `| Content |` not `|Content|`
-           - Header separator must have at least 3 dashes: `|--------|`
-           - Test that the table renders correctly in markdown preview
-        5. Number questions sequentially (Q1, Q2, Q3 - max 3 total)
-        6. Present all questions together before waiting for responses
-        7. Wait for user to respond with their choices for all questions (e.g., "Q1: A, Q2: Custom - [details], Q3: B")
-        8. Update the spec by replacing each [NEEDS CLARIFICATION] marker with the user's selected or provided answer
-        9. Re-run validation after all clarifications are resolved
+10. Alignment decision gate.
+    Decide exactly one:
+    - `Aligned: ready for plan`
+      Use only when:
+      - mandatory clarity gates are sufficiently resolved
+      - no unresolved high-impact ambiguity remains
+      - the spec can be written as a bounded, testable document
+      - no `[NEEDS CLARIFICATION]` markers are needed
+    - `Force proceed with known risks`
+      Use only when:
+      - unresolved high-impact ambiguity remains
+      - the user explicitly chooses to continue anyway
 
-   d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
+    If neither condition is met, continue clarification.
 
-7. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+11. Write `spec.md` to `SPEC_FILE` using the template structure.
+    Requirements:
+    - clean result-state document only
+    - no `[NEEDS CLARIFICATION]`
+    - no speculative implementation details
+    - requirements must be testable
+    - scope must be bounded
 
-8. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
+12. Write `alignment.md` to `ALIGNMENT_FILE`.
+    It must include:
+    - task classification
+    - current aligned understanding
+    - confirmed key decisions
+    - low-risk defaults adopted
+    - clarification summary
+    - remaining risks (if any)
+    - release decision:
+      - `Aligned: ready for plan`
+      - or `Force proceed with known risks`
+    - reason for the release decision
+
+13. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
+
+    ```markdown
+    # Specification Quality Checklist: [FEATURE NAME]
+
+    **Purpose**: Validate specification completeness and alignment before planning
+    **Created**: [DATE]
+    **Feature**: [Link to spec.md]
+    **Alignment Report**: [Link to alignment.md]
+
+    ## Content Quality
+
+    - [ ] No implementation details (languages, frameworks, APIs)
+    - [ ] Focused on user value and business needs
+    - [ ] Written for non-technical stakeholders
+    - [ ] All mandatory sections completed
+
+    ## Requirement Completeness
+
+    - [ ] No [NEEDS CLARIFICATION] markers remain
+    - [ ] Requirements are testable and unambiguous
+    - [ ] Success criteria are measurable
+    - [ ] Scope boundaries are explicit
+    - [ ] All acceptance scenarios are defined
+    - [ ] Edge cases are identified
+    - [ ] Dependencies and assumptions identified
+
+    ## Alignment Readiness
+
+    - [ ] alignment.md exists
+    - [ ] Task classification is recorded
+    - [ ] Release decision is recorded
+    - [ ] Release decision is either `Aligned: ready for plan` or `Force proceed with known risks`
+    - [ ] Remaining risks are empty for normal completion
+
+    ## Notes
+
+    - Items marked incomplete require spec updates before `/sp.plan`
+    ```
+
+14. Re-run validation after edits. Normal completion must pass all required checks.
+
+15. Report completion with:
+    - branch name
+    - spec file path
+    - alignment report path
+    - checklist results
+    - release decision
+    - readiness for the next phase (`/sp.clarify` or `/sp.plan`)
+
+16. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_specify` key
    - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
    - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
@@ -245,45 +291,29 @@ Given that feature description, do this:
        ```
    - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
 
-**NOTE:** The script creates and checks out the new branch and initializes the spec file before writing.
-
 ## Quick Guidelines
 
 - Focus on **WHAT** users need and **WHY**.
 - Avoid HOW to implement (no tech stack, APIs, code structure).
-- Written for business stakeholders, not developers.
-- DO NOT create any checklists that are embedded in the spec. That will be a separate command.
+- Write for business stakeholders, not developers.
+- Do not embed checklists in the spec itself.
+- Low-risk defaults may be adopted silently.
+- High-impact ambiguity must be resolved or explicitly force-continued.
 
 ### Section Requirements
 
 - **Mandatory sections**: Must be completed for every feature
 - **Optional sections**: Include only when relevant to the feature
-- When a section doesn't apply, remove it entirely (don't leave as "N/A")
+- When a section doesn't apply, remove it entirely (do not leave "N/A")
 
 ### For AI Generation
 
-When creating this spec from a user prompt:
-
-1. **Make informed guesses**: Use context, industry standards, and common patterns to fill gaps
-2. **Document assumptions**: Record reasonable defaults in the Assumptions section
-3. **Limit clarifications**: Maximum 3 [NEEDS CLARIFICATION] markers - use only for critical decisions that:
-   - Significantly impact feature scope or user experience
-   - Have multiple reasonable interpretations with different implications
-   - Lack any reasonable default
-4. **Prioritize clarifications**: scope > security/privacy > user experience > technical details
-5. **Think like a tester**: Every vague requirement should fail the "testable and unambiguous" checklist item
-6. **Common areas needing clarification** (only if no reasonable default exists):
-   - Feature scope and boundaries (include/exclude specific use cases)
-   - User types and permissions (if multiple conflicting interpretations possible)
-   - Security/compliance requirements (when legally/financially significant)
-
-**Examples of reasonable defaults** (don't ask about these):
-
-- Data retention: Industry-standard practices for the domain
-- Performance targets: Standard web/mobile app expectations unless specified
-- Error handling: User-friendly messages with appropriate fallbacks
-- Authentication method: Standard session-based or OAuth2 for web apps
-- Integration patterns: Use project-appropriate patterns (REST/GraphQL for web services, function calls for libraries, CLI args for tools, etc.)
+1. Do not guess high-impact decisions that materially affect scope, UX, compatibility, security, data shape, or acceptance testing.
+2. Use low-risk defaults quietly and record them in `alignment.md` plus the Assumptions section when relevant.
+3. If the user thinks they have explained the request clearly but important ambiguity remains, keep clarifying.
+4. Think like a planner and tester: if a requirement cannot be planned or tested reliably, it is not aligned enough yet.
+5. Normal completion requires no open clarification markers.
+6. If the user insists on continuing anyway, allow `Force proceed with known risks`, but record the unresolved items and likely downstream impact.
 
 ### Success Criteria Guidelines
 
@@ -293,17 +323,3 @@ Success criteria must be:
 2. **Technology-agnostic**: No mention of frameworks, languages, databases, or tools
 3. **User-focused**: Describe outcomes from user/business perspective, not system internals
 4. **Verifiable**: Can be tested/validated without knowing implementation details
-
-**Good examples**:
-
-- "Users can complete checkout in under 3 minutes"
-- "System supports 10,000 concurrent users"
-- "95% of searches return results in under 1 second"
-- "Task completion rate improves by 40%"
-
-**Bad examples** (implementation-focused):
-
-- "API response time is under 200ms" (too technical, use "Users see results instantly")
-- "Database can handle 1000 TPS" (implementation detail, use user-facing metric)
-- "React components render efficiently" (framework-specific)
-- "Redis cache hit rate above 80%" (technology-specific)

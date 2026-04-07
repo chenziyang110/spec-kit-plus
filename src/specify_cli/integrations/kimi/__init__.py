@@ -1,11 +1,11 @@
 """Kimi Code integration — skills-based agent (Moonshot AI).
 
-Kimi uses the ``.kimi/skills/speckit-<name>/SKILL.md`` layout with
-``/skill:speckit-<name>`` invocation syntax.
+Kimi uses the ``.kimi/skills/sp-<name>/SKILL.md`` layout with
+``/skill:sp-<name>`` invocation syntax.
 
 Includes legacy migration logic for projects initialised before Kimi
-moved from dotted skill directories (``speckit.xxx``) to hyphenated
-(``speckit-xxx``).
+moved from dotted skill directories (``sp.xxx``) to hyphenated
+(``sp-xxx``).
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ class KimiIntegration(SkillsIntegration):
                 "--migrate-legacy",
                 is_flag=True,
                 default=False,
-                help="Migrate legacy dotted skill dirs (speckit.xxx → speckit-xxx)",
+                help="Migrate legacy dotted skill dirs (sp.xxx → sp-xxx)",
             ),
         ]
 
@@ -64,7 +64,7 @@ class KimiIntegration(SkillsIntegration):
         """Install skills with optional legacy dotted-name migration."""
         parsed_options = parsed_options or {}
 
-        # Run base setup first so hyphenated targets (speckit-*) exist,
+        # Run base setup first so hyphenated targets (sp-*) exist,
         # then migrate/clean legacy dotted dirs without risking user content loss.
         created = super().setup(
             project_root, manifest, parsed_options=parsed_options, **opts
@@ -79,7 +79,7 @@ class KimiIntegration(SkillsIntegration):
 
 
 def _migrate_legacy_kimi_dotted_skills(skills_dir: Path) -> tuple[int, int]:
-    """Migrate legacy Kimi dotted skill dirs (speckit.xxx) to hyphenated format.
+    """Migrate legacy Kimi dotted skill dirs (sp.xxx) to hyphenated format.
 
     Returns ``(migrated_count, removed_count)``.
     """
@@ -89,17 +89,17 @@ def _migrate_legacy_kimi_dotted_skills(skills_dir: Path) -> tuple[int, int]:
     migrated_count = 0
     removed_count = 0
 
-    for legacy_dir in sorted(skills_dir.glob("speckit.*")):
+    for legacy_dir in sorted(skills_dir.glob("sp.*")):
         if not legacy_dir.is_dir():
             continue
         if not (legacy_dir / "SKILL.md").exists():
             continue
 
-        suffix = legacy_dir.name[len("speckit."):]
+        suffix = legacy_dir.name[len("sp."):]
         if not suffix:
             continue
 
-        target_dir = skills_dir / f"speckit-{suffix.replace('.', '-')}"
+        target_dir = skills_dir / f"sp-{suffix.replace('.', '-')}"
 
         if not target_dir.exists():
             shutil.move(str(legacy_dir), str(target_dir))

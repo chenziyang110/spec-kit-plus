@@ -94,7 +94,7 @@ class ClaudeIntegration(SkillsIntegration):
 
     def _render_skill(self, template_name: str, frontmatter: dict[str, Any], body: str) -> str:
         """Render a processed command template as a Claude skill."""
-        skill_name = f"speckit-{template_name.replace('.', '-')}"
+        skill_name = f"sp-{template_name.replace('.', '-')}"
         description = frontmatter.get(
             "description",
             f"Spec-kit workflow command: {template_name}",
@@ -180,10 +180,10 @@ class ClaudeIntegration(SkillsIntegration):
             updated = self._inject_frontmatter_flag(updated, "disable-model-invocation")
 
             # Inject argument-hint if available for this skill
-            skill_dir_name = path.parent.name  # e.g. "speckit-plan"
+            skill_dir_name = path.parent.name  # e.g. "sp-plan"
             stem = skill_dir_name
-            if stem.startswith("speckit-"):
-                stem = stem[len("speckit-"):]
+            if stem.startswith("sp-"):
+                stem = stem[len("sp-"):]
             hint = ARGUMENT_HINTS.get(stem, "")
             if hint:
                 updated = self.inject_argument_hint(updated, hint)

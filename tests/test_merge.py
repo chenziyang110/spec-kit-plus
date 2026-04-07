@@ -77,8 +77,8 @@ def test_merge_vscode_realistic_scenario(tmp_path):
     
     template_settings = {
         "chat.promptFilesRecommendations": {
-            "speckit.specify": True,
-            "speckit.plan": True
+            "sp.specify": True,
+            "sp.plan": True
         },
         "chat.tools.terminal.autoApprove": {
             ".specify/scripts/bash/": True
@@ -93,7 +93,7 @@ def test_merge_vscode_realistic_scenario(tmp_path):
     assert merged["chat.promptFilesRecommendations"]["existing.tool"] is True
     
     # Check additions
-    assert merged["chat.promptFilesRecommendations"]["speckit.specify"] is True
+    assert merged["chat.promptFilesRecommendations"]["sp.specify"] is True
     assert merged["chat.tools.terminal.autoApprove"][".specify/scripts/bash/"] is True
 
 # --- Dimension 4: Error Handling & Robustness ---

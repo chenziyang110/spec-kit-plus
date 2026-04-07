@@ -60,7 +60,7 @@ class TestIntegrationBase:
         assert len(created) > 0
         for f in created:
             assert f.parent == tmp_path / ".stub" / "commands"
-            assert f.name.startswith("speckit.")
+            assert f.name.startswith("sp.")
             assert f.name.endswith(".md")
 
     def test_setup_copies_templates(self, tmp_path, monkeypatch):
@@ -76,8 +76,8 @@ class TestIntegrationBase:
         project.mkdir()
         created = i.setup(project, IntegrationManifest("stub", project))
         assert len(created) == 2
-        assert (project / ".stub" / "commands" / "speckit.plan.md").exists()
-        assert (project / ".stub" / "commands" / "speckit.specify.md").exists()
+        assert (project / ".stub" / "commands" / "sp.plan.md").exists()
+        assert (project / ".stub" / "commands" / "sp.specify.md").exists()
 
     def test_install_delegates_to_setup(self, tmp_path):
         i = StubIntegration()
@@ -122,7 +122,7 @@ class TestBasePrimitives:
 
     def test_command_filename_default(self):
         i = StubIntegration()
-        assert i.command_filename("plan") == "speckit.plan.md"
+        assert i.command_filename("plan") == "sp.plan.md"
 
     def test_commands_dest(self, tmp_path):
         i = StubIntegration()
@@ -139,8 +139,8 @@ class TestBasePrimitives:
         src = tmp_path / "source.md"
         src.write_text("content", encoding="utf-8")
         dest_dir = tmp_path / "output"
-        result = IntegrationBase.copy_command_to_directory(src, dest_dir, "speckit.plan.md")
-        assert result == dest_dir / "speckit.plan.md"
+        result = IntegrationBase.copy_command_to_directory(src, dest_dir, "sp.plan.md")
+        assert result == dest_dir / "sp.plan.md"
         assert result.read_text(encoding="utf-8") == "content"
 
     def test_record_file_in_manifest(self, tmp_path):
@@ -165,5 +165,5 @@ class TestBasePrimitives:
         assert len(created) > 0
         for f in created:
             assert f.parent.name == "commands"
-            assert f.name.startswith("speckit.")
+            assert f.name.startswith("sp.")
             assert f.name.endswith(".md")

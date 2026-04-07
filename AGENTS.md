@@ -370,7 +370,7 @@ Command content with {SCRIPT} and $ARGUMENTS placeholders.
 ```markdown
 ---
 description: "Command description"
-mode: speckit.command-name
+mode: sp.command-name
 ---
 
 Command content with {SCRIPT} and $ARGUMENTS placeholders.
@@ -397,9 +397,9 @@ Command content with {SCRIPT} and {{args}} placeholders.
   - Tabnine: `.tabnine/agent/commands/` (extra `agent/` segment)
 - **Shared `.agents/` folder**:
   - Amp: `.agents/commands/` (shared folder, not `.amp/`)
-  - Codex: `.agents/skills/` (shared folder; requires `--ai-skills`; invoked as `$speckit-<command>`)
+  - Codex: `.agents/skills/` (shared folder; requires `--ai-skills`; invoked as `$sp-<command>`)
 - **Skills-based exceptions**:
-  - Kimi Code: `.kimi/skills/` (skills, invoked as `/skill:speckit-<command>`)
+  - Kimi Code: `.kimi/skills/` (skills, invoked as `/skill:sp-<command>`)
 - **Prompt-based exceptions**:
   - Kiro CLI: `.kiro/prompts/`
   - Pi: `.pi/prompts/`

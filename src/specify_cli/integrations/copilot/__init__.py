@@ -39,7 +39,7 @@ class CopilotIntegration(IntegrationBase):
 
     def command_filename(self, template_name: str) -> str:
         """Copilot commands use ``.agent.md`` extension."""
-        return f"speckit.{template_name}.agent.md"
+        return f"sp.{template_name}.agent.md"
 
     def setup(
         self,
@@ -93,7 +93,7 @@ class CopilotIntegration(IntegrationBase):
         # 2. Generate companion .prompt.md files from the templates we just wrote
         prompts_dir = project_root / ".github" / "prompts"
         for src_file in templates:
-            cmd_name = f"speckit.{src_file.stem}"
+            cmd_name = f"sp.{src_file.stem}"
             prompt_content = f"---\nagent: {cmd_name}\n---\n"
             prompt_file = self.write_file_and_record(
                 prompt_content,

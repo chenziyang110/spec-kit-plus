@@ -24,4 +24,4 @@ class TestAgyAutoPromote:
         result = runner.invoke(app, ["init", str(target), "--ai", "agy", "--no-git", "--script", "sh"])
 
         assert result.exit_code == 0, f"init --ai agy failed: {result.output}"
-        assert (target / ".agent" / "skills" / "speckit-plan" / "SKILL.md").exists()
+        assert (target / ".agent" / "skills" / "sp-plan" / "SKILL.md").exists()

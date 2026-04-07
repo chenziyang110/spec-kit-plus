@@ -136,6 +136,7 @@ presets/
     ├── commands/
     │   └── speckit.specify.md
     └── templates/
+        ├── alignment-template.md
         ├── spec-template.md
         ├── plan-template.md
         ├── tasks-template.md

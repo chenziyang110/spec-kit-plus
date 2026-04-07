@@ -32,7 +32,7 @@ class TestKimiLegacyMigration:
 
     def test_migrate_dotted_to_hyphenated(self, tmp_path):
         skills_dir = tmp_path / ".kimi" / "skills"
-        legacy = skills_dir / "speckit.plan"
+        legacy = skills_dir / "sp.plan"
         legacy.mkdir(parents=True)
         (legacy / "SKILL.md").write_text("# Plan Skill\n")
 
@@ -41,15 +41,15 @@ class TestKimiLegacyMigration:
         assert migrated == 1
         assert removed == 0
         assert not legacy.exists()
-        assert (skills_dir / "speckit-plan" / "SKILL.md").exists()
+        assert (skills_dir / "sp-plan" / "SKILL.md").exists()
 
     def test_skip_when_target_exists_different_content(self, tmp_path):
         skills_dir = tmp_path / ".kimi" / "skills"
-        legacy = skills_dir / "speckit.plan"
+        legacy = skills_dir / "sp.plan"
         legacy.mkdir(parents=True)
         (legacy / "SKILL.md").write_text("# Old\n")
 
-        target = skills_dir / "speckit-plan"
+        target = skills_dir / "sp-plan"
         target.mkdir(parents=True)
         (target / "SKILL.md").write_text("# New (different)\n")
 
@@ -63,11 +63,11 @@ class TestKimiLegacyMigration:
     def test_remove_when_target_exists_same_content(self, tmp_path):
         skills_dir = tmp_path / ".kimi" / "skills"
         content = "# Identical\n"
-        legacy = skills_dir / "speckit.plan"
+        legacy = skills_dir / "sp.plan"
         legacy.mkdir(parents=True)
         (legacy / "SKILL.md").write_text(content)
 
-        target = skills_dir / "speckit-plan"
+        target = skills_dir / "sp-plan"
         target.mkdir(parents=True)
         (target / "SKILL.md").write_text(content)
 
@@ -81,12 +81,12 @@ class TestKimiLegacyMigration:
     def test_preserve_legacy_with_extra_files(self, tmp_path):
         skills_dir = tmp_path / ".kimi" / "skills"
         content = "# Same\n"
-        legacy = skills_dir / "speckit.plan"
+        legacy = skills_dir / "sp.plan"
         legacy.mkdir(parents=True)
         (legacy / "SKILL.md").write_text(content)
         (legacy / "extra.md").write_text("user file")
 
-        target = skills_dir / "speckit-plan"
+        target = skills_dir / "sp-plan"
         target.mkdir(parents=True)
         (target / "SKILL.md").write_text(content)
 
@@ -108,7 +108,7 @@ class TestKimiLegacyMigration:
         i = get_integration("kimi")
 
         skills_dir = tmp_path / ".kimi" / "skills"
-        legacy = skills_dir / "speckit.oldcmd"
+        legacy = skills_dir / "sp.oldcmd"
         legacy.mkdir(parents=True)
         (legacy / "SKILL.md").write_text("# Legacy\n")
 
@@ -116,16 +116,16 @@ class TestKimiLegacyMigration:
         i.setup(tmp_path, m, parsed_options={"migrate_legacy": True})
 
         assert not legacy.exists()
-        assert (skills_dir / "speckit-oldcmd" / "SKILL.md").exists()
+        assert (skills_dir / "sp-oldcmd" / "SKILL.md").exists()
         # New skills from templates should also exist
-        assert (skills_dir / "speckit-specify" / "SKILL.md").exists()
+        assert (skills_dir / "sp-specify" / "SKILL.md").exists()
 
 
 class TestKimiNextSteps:
     """CLI output tests for kimi next-steps display."""
 
     def test_next_steps_show_skill_invocation(self, tmp_path):
-        """Kimi next-steps guidance should display /skill:speckit-* usage."""
+        """Kimi next-steps guidance should display /skill:sp-* usage."""
         import os
         from typer.testing import CliRunner
         from specify_cli import app
@@ -144,6 +144,6 @@ class TestKimiNextSteps:
             os.chdir(old_cwd)
 
         assert result.exit_code == 0
-        assert "/skill:speckit-constitution" in result.output
-        assert "/speckit.constitution" not in result.output
+        assert "/skill:sp-constitution" in result.output
+        assert "/sp.constitution" not in result.output
         assert "Optional skills that you can use for your specs" in result.output

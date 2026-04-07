@@ -153,7 +153,7 @@ class PresetManifest:
 
             # Validate template name format
             if tmpl["type"] == "command":
-                # Commands use dot notation (e.g. speckit.specify)
+                # Commands use dot notation (e.g. sp.specify)
                 if not re.match(r'^[a-z0-9.-]+$', tmpl["name"]):
                     raise PresetValidationError(
                         f"Invalid command name '{tmpl['name']}': "
@@ -516,13 +516,13 @@ class PresetManager:
             return {}
 
         # Filter out extension command overrides if the extension isn't installed.
-        # Command names follow the pattern: speckit.<ext-id>.<cmd-name>
-        # Core commands (e.g. speckit.specify) have only one dot — always register.
+        # Command names follow the pattern: sp.<ext-id>.<cmd-name>
+        # Core commands (e.g. sp.specify) have only one dot — always register.
         extensions_dir = self.project_root / ".specify" / "extensions"
         filtered = []
         for cmd in command_templates:
             parts = cmd["name"].split(".")
-            if len(parts) >= 3 and parts[0] == "speckit":
+            if len(parts) >= 3 and parts[0] == "sp":
                 ext_id = parts[1]
                 if not (extensions_dir / ext_id).is_dir():
                     continue
@@ -593,19 +593,19 @@ class PresetManager:
     def _skill_names_for_command(cmd_name: str) -> tuple[str, str]:
         """Return the modern and legacy skill directory names for a command."""
         raw_short_name = cmd_name
-        if raw_short_name.startswith("speckit."):
-            raw_short_name = raw_short_name[len("speckit."):]
+        if raw_short_name.startswith("sp."):
+            raw_short_name = raw_short_name[len("sp."):]
 
-        modern_skill_name = f"speckit-{raw_short_name.replace('.', '-')}"
-        legacy_skill_name = f"speckit.{raw_short_name}"
+        modern_skill_name = f"sp-{raw_short_name.replace('.', '-')}"
+        legacy_skill_name = f"sp.{raw_short_name}"
         return modern_skill_name, legacy_skill_name
 
     @staticmethod
     def _skill_title_from_command(cmd_name: str) -> str:
         """Return a human-friendly title for a skill command name."""
         title_name = cmd_name
-        if title_name.startswith("speckit."):
-            title_name = title_name[len("speckit."):]
+        if title_name.startswith("sp."):
+            title_name = title_name[len("sp."):]
         return title_name.replace(".", " ").replace("-", " ").title()
 
     def _build_extension_skill_restore_index(self) -> Dict[str, Dict[str, Any]]:
@@ -732,10 +732,10 @@ class PresetManager:
             if not source_file.exists():
                 continue
 
-            # Derive the short command name (e.g. "specify" from "speckit.specify")
+            # Derive the short command name (e.g. "specify" from "sp.specify")
             raw_short_name = cmd_name
-            if raw_short_name.startswith("speckit."):
-                raw_short_name = raw_short_name[len("speckit."):]
+            if raw_short_name.startswith("sp."):
+                raw_short_name = raw_short_name[len("sp."):]
             short_name = raw_short_name.replace(".", "-")
             skill_name, legacy_skill_name = self._skill_names_for_command(cmd_name)
             skill_title = self._skill_title_from_command(cmd_name)
@@ -827,12 +827,12 @@ class PresetManager:
         extension_restore_index = self._build_extension_skill_restore_index()
 
         for skill_name in skill_names:
-            # Derive command name from skill name (speckit-specify -> specify)
+            # Derive command name from skill name (sp-specify -> specify)
             short_name = skill_name
-            if short_name.startswith("speckit-"):
-                short_name = short_name[len("speckit-"):]
-            elif short_name.startswith("speckit."):
-                short_name = short_name[len("speckit."):]
+            if short_name.startswith("sp-"):
+                short_name = short_name[len("sp-"):]
+            elif short_name.startswith("sp."):
+                short_name = short_name[len("sp."):]
 
             skill_subdir = skills_dir / skill_name
             skill_file = skill_subdir / "SKILL.md"

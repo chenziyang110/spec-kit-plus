@@ -18,7 +18,7 @@ class TestForgeIntegration:
 
     def test_command_filename_md(self):
         forge = get_integration("forge")
-        assert forge.command_filename("plan") == "speckit.plan.md"
+        assert forge.command_filename("plan") == "sp.plan.md"
 
     def test_setup_creates_md_files(self, tmp_path):
         from specify_cli.integrations.forge import ForgeIntegration
@@ -97,9 +97,9 @@ class TestForgeIntegration:
         assert len(expected_commands) > 0, "No command templates found"
 
         # Check generated files match templates
-        command_files = sorted(commands_dir.glob("speckit.*.md"))
+        command_files = sorted(commands_dir.glob("sp.*.md"))
         assert len(command_files) == len(expected_commands)
-        actual_commands = {f.name.removeprefix("speckit.").removesuffix(".md") for f in command_files}
+        actual_commands = {f.name.removeprefix("sp.").removesuffix(".md") for f in command_files}
         assert actual_commands == expected_commands
 
     def test_templates_are_processed(self, tmp_path):
@@ -108,7 +108,7 @@ class TestForgeIntegration:
         m = IntegrationManifest("forge", tmp_path)
         forge.setup(tmp_path, m)
         commands_dir = tmp_path / ".forge" / "commands"
-        for cmd_file in commands_dir.glob("speckit.*.md"):
+        for cmd_file in commands_dir.glob("sp.*.md"):
             content = cmd_file.read_text(encoding="utf-8")
             # Check standard replacements
             assert "{SCRIPT}" not in content, f"{cmd_file.name} has unprocessed {{SCRIPT}}"
@@ -128,7 +128,7 @@ class TestForgeIntegration:
         forge.setup(tmp_path, m)
         commands_dir = tmp_path / ".forge" / "commands"
 
-        for cmd_file in commands_dir.glob("speckit.*.md"):
+        for cmd_file in commands_dir.glob("sp.*.md"):
             content = cmd_file.read_text(encoding="utf-8")
 
             # Check that name field is injected in frontmatter
@@ -152,7 +152,7 @@ class TestForgeIntegration:
         commands_dir = tmp_path / ".forge" / "commands"
 
         # Check all generated command files
-        for cmd_file in commands_dir.glob("speckit.*.md"):
+        for cmd_file in commands_dir.glob("sp.*.md"):
             content = cmd_file.read_text(encoding="utf-8")
             # $ARGUMENTS should be replaced with {{parameters}}
             assert "$ARGUMENTS" not in content, (
@@ -162,7 +162,7 @@ class TestForgeIntegration:
             # We'll check the checklist file specifically as it has a User Input section
 
         # Verify checklist specifically has {{parameters}} in the User Input section
-        checklist = commands_dir / "speckit.checklist.md"
+        checklist = commands_dir / "sp.checklist.md"
         if checklist.exists():
             content = checklist.read_text(encoding="utf-8")
             assert "{{parameters}}" in content, (

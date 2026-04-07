@@ -41,6 +41,7 @@ your-preset/
 │
 ├── templates/                 # Template overrides
 │   ├── spec-template.md
+│   ├── alignment-template.md
 │   ├── plan-template.md
 │   └── ...
 │

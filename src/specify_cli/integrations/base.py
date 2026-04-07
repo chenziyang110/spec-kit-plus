@@ -8,7 +8,7 @@ Provides:
 - ``TomlIntegration`` — concrete base for TOML-format integrations
   (Gemini, Tabnine — subclass, set three class attrs, done).
 - ``SkillsIntegration`` — concrete base for integrations that install
-  commands as agent skills (``speckit-<name>/SKILL.md`` layout).
+  commands as agent skills (``sp-<name>/SKILL.md`` layout).
 """
 
 from __future__ import annotations
@@ -137,10 +137,10 @@ class IntegrationBase(ABC):
         """Return the destination filename for a command template.
 
         *template_name* is the stem of the source file (e.g. ``"plan"``).
-        Default: ``speckit.{template_name}.md``.  Subclasses override
+        Default: ``sp.{template_name}.md``.  Subclasses override
         to change the extension or naming convention.
         """
-        return f"speckit.{template_name}.md"
+        return f"sp.{template_name}.md"
 
     def commands_dest(self, project_root: Path) -> Path:
         """Return the absolute path to the commands output directory.
@@ -526,7 +526,7 @@ class TomlIntegration(IntegrationBase):
 
     def command_filename(self, template_name: str) -> str:
         """TOML commands use ``.toml`` extension."""
-        return f"speckit.{template_name}.toml"
+        return f"sp.{template_name}.toml"
 
     @staticmethod
     def _extract_description(content: str) -> str:
@@ -690,7 +690,7 @@ class TomlIntegration(IntegrationBase):
 class SkillsIntegration(IntegrationBase):
     """Concrete base for integrations that install commands as agent skills.
 
-    Skills use the ``speckit-<name>/SKILL.md`` directory layout following
+    Skills use the ``sp-<name>/SKILL.md`` directory layout following
     the `agentskills.io <https://agentskills.io/specification>`_ spec.
 
     Subclasses set ``key``, ``config``, ``registrar_config`` (and
@@ -699,7 +699,7 @@ class SkillsIntegration(IntegrationBase):
     ``--skills``, ``--migrate-legacy``).
 
     ``setup()`` processes each shared command template into a
-    ``speckit-<name>/SKILL.md`` file with skills-oriented frontmatter.
+    ``sp-<name>/SKILL.md`` file with skills-oriented frontmatter.
     """
 
     def skills_dest(self, project_root: Path) -> Path:
@@ -731,7 +731,7 @@ class SkillsIntegration(IntegrationBase):
     ) -> list[Path]:
         """Install command templates as agent skills.
 
-        Creates ``speckit-<name>/SKILL.md`` for each shared command
+        Creates ``sp-<name>/SKILL.md`` for each shared command
         template.  Each SKILL.md has normalised frontmatter containing
         ``name``, ``description``, ``compatibility``, and ``metadata``.
         """
@@ -770,7 +770,7 @@ class SkillsIntegration(IntegrationBase):
 
             # Derive the skill name from the template stem
             command_name = src_file.stem  # e.g. "plan"
-            skill_name = f"speckit-{command_name.replace('.', '-')}"
+            skill_name = f"sp-{command_name.replace('.', '-')}"
 
             # Parse frontmatter for description
             frontmatter: dict[str, Any] = {}
@@ -822,7 +822,7 @@ class SkillsIntegration(IntegrationBase):
                 f"{processed_body}"
             )
 
-            # Write speckit-<name>/SKILL.md
+            # Write sp-<name>/SKILL.md
             skill_dir = skills_dir / skill_name
             skill_file = skill_dir / "SKILL.md"
             dst = self.write_file_and_record(

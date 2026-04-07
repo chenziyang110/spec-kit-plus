@@ -5,6 +5,18 @@
 **Status**: Draft  
 **Input**: User description: "$ARGUMENTS"
 
+## Scope Boundaries *(mandatory)*
+
+### In Scope
+
+- [Primary capability or workflow included in this feature]
+- [Secondary capability that is explicitly included]
+
+### Out of Scope
+
+- [Explicitly excluded capability or workflow]
+- [Deferred or unrelated enhancement]
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -90,11 +102,6 @@
 - **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
 - **FR-005**: System MUST [behavior, e.g., "log all security events"]
 
-*Example of marking unclear requirements:*
-
-- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
-- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
-
 ### Key Entities *(include if feature involves data)*
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]
@@ -119,7 +126,8 @@
 <!--
   ACTION REQUIRED: The content in this section represents placeholders.
   Fill them out with the right assumptions based on reasonable defaults
-  chosen when the feature description did not specify certain details.
+  chosen when the feature description did not specify certain LOW-RISK details.
+  Do not use this section to hide unresolved high-impact ambiguity.
 -->
 
 - [Assumption about target users, e.g., "Users have stable internet connectivity"]

@@ -6,7 +6,7 @@ This directory contains a mock project to verify that LLM agents correctly ident
 
 1. Open a chat with an LLM (like GitHub Copilot) in this project.
 2. Ask it to generate tasks for the current directory:
-   > "Please follow `/speckit.tasks` for the `./tests/hooks` directory."
+   > "Please follow `/sp.tasks` for the `./tests/hooks` directory."
 3. **Expected Behavior**: 
    - Before doing any generation, the LLM should notice the `AUTOMATIC Pre-Hook` in `.specify/extensions.yml` under `before_tasks`.
    - It should state it is executing `EXECUTE_COMMAND: pre_tasks_test`.
@@ -18,7 +18,7 @@ This directory contains a mock project to verify that LLM agents correctly ident
 *(Requires `tasks.md` from Test 1 to exist)*
 
 1. In the same (or new) chat, ask the LLM to implement the tasks:
-   > "Please follow `/speckit.implement` for the `./tests/hooks` directory."
+   > "Please follow `/sp.implement` for the `./tests/hooks` directory."
 2. **Expected Behavior**:
    - The LLM should first check for `before_implement` hooks.
    - It should state it is executing `EXECUTE_COMMAND: pre_implement_test` BEFORE doing any actual task execution.

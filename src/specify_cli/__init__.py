@@ -817,7 +817,7 @@ SKILL_DESCRIPTIONS = {
     "tasks": "Break down implementation plans into actionable task lists.",
     "implement": "Execute all tasks from the task breakdown to build the feature.",
     "analyze": "Perform cross-artifact consistency analysis across spec.md, plan.md, and tasks.md.",
-    "clarify": "Structured clarification workflow for underspecified requirements.",
+    "clarify": "Re-open the spec to clarify, correct, or extend requirements and update alignment status.",
     "constitution": "Create or update project governing principles and development guidelines.",
     "checklist": "Generate custom quality checklists for validating requirements completeness and clarity.",
     "taskstoissues": "Convert tasks from tasks.md into GitHub issues.",
@@ -1308,12 +1308,12 @@ def init(
 
     def _display_cmd(name: str) -> str:
         if codex_skill_mode or agy_skill_mode:
-            return f"$speckit-{name}"
+            return f"$sp-{name}"
         if claude_skill_mode:
-            return f"/speckit-{name}"
+            return f"/sp-{name}"
         if kimi_skill_mode:
-            return f"/skill:speckit-{name}"
-        return f"/speckit.{name}"
+            return f"/skill:sp-{name}"
+        return f"/sp.{name}"
 
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
 

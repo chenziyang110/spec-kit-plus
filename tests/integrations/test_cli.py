@@ -40,8 +40,8 @@ class TestInitIntegrationFlag:
         finally:
             os.chdir(old_cwd)
         assert result.exit_code == 0, f"init failed: {result.output}"
-        assert (project / ".github" / "agents" / "speckit.plan.agent.md").exists()
-        assert (project / ".github" / "prompts" / "speckit.plan.prompt.md").exists()
+        assert (project / ".github" / "agents" / "sp.plan.agent.md").exists()
+        assert (project / ".github" / "prompts" / "sp.plan.prompt.md").exists()
         assert (project / ".specify" / "scripts" / "bash" / "common.sh").exists()
 
         data = json.loads((project / ".specify" / "integration.json").read_text(encoding="utf-8"))
@@ -73,7 +73,7 @@ class TestInitIntegrationFlag:
         finally:
             os.chdir(old_cwd)
         assert result.exit_code == 0
-        assert (project / ".github" / "agents" / "speckit.plan.agent.md").exists()
+        assert (project / ".github" / "agents" / "sp.plan.agent.md").exists()
 
     def test_ai_claude_here_preserves_preexisting_commands(self, tmp_path):
         from typer.testing import CliRunner
@@ -83,7 +83,7 @@ class TestInitIntegrationFlag:
         project.mkdir()
         commands_dir = project / ".claude" / "skills"
         commands_dir.mkdir(parents=True)
-        skill_dir = commands_dir / "speckit-specify"
+        skill_dir = commands_dir / "sp-specify"
         skill_dir.mkdir(parents=True)
         command_file = skill_dir / "SKILL.md"
         command_file.write_text("# preexisting command\n", encoding="utf-8")
@@ -102,8 +102,8 @@ class TestInitIntegrationFlag:
         assert command_file.exists()
         # init replaces skills (not additive); verify the file has valid skill content
         assert command_file.exists()
-        assert "speckit-specify" in command_file.read_text(encoding="utf-8")
-        assert (project / ".claude" / "skills" / "speckit-plan" / "SKILL.md").exists()
+        assert "sp-specify" in command_file.read_text(encoding="utf-8")
+        assert (project / ".claude" / "skills" / "sp-plan" / "SKILL.md").exists()
 
     def test_shared_infra_skips_existing_files(self, tmp_path):
         """Pre-existing shared files are not overwritten by _install_shared_infra."""
@@ -146,4 +146,5 @@ class TestInitIntegrationFlag:
 
         # Other shared files should still be installed
         assert (scripts_dir / "setup-plan.sh").exists()
+        assert (templates_dir / "alignment-template.md").exists()
         assert (templates_dir / "plan-template.md").exists()
