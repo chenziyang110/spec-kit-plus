@@ -110,7 +110,7 @@ If your environment blocks access to PyPI or GitHub, see the [Enterprise / Air-G
 
 ### 2. Establish project principles
 
-Launch your AI assistant in the project directory. Most agents expose spec-kit as `/sp.*` slash commands; Codex CLI in skills mode uses `$sp-*` instead.
+Launch your AI assistant in the project directory. Most integrations now expose the built-in workflow with the `sp` prefix: slash-command agents use `/sp.*`, while skills-based agents use `sp-*` forms such as `$sp-specify`.
 
 Use the **`/sp.constitution`** command to create your project's governing principles and development guidelines that will guide all subsequent development.
 
@@ -288,9 +288,9 @@ Community projects that extend, visualize, or build on Spec Kit:
 | [Kiro CLI](https://kiro.dev/docs/cli/)                                               | ✅      | Use `--ai kiro-cli` (alias: `--ai kiro`)                                                                                                 |
 | [Amp](https://ampcode.com/)                                                          | ✅      |                                                                                                                                           |
 | [Auggie CLI](https://docs.augmentcode.com/cli/overview)                              | ✅      |                                                                                                                                           |
-| [Claude Code](https://www.anthropic.com/claude-code)                                 | ✅      | Installs skills in `.claude/skills`; invoke spec-kit as `/sp-constitution`, `/sp-plan`, etc.                                  |
+| [Claude Code](https://www.anthropic.com/claude-code)                                 | ✅      | Installs skills in `.claude/skills`; invoke workflow skills as `/sp-constitution`, `/sp-plan`, etc.                            |
 | [CodeBuddy CLI](https://www.codebuddy.ai/cli)                                        | ✅      |                                                                                                                                           |
-| [Codex CLI](https://github.com/openai/codex)                                         | ✅      | Requires `--ai-skills`. Codex recommends [skills](https://developers.openai.com/codex/skills) and treats [custom prompts](https://developers.openai.com/codex/custom-prompts) as deprecated. Spec-kit installs Codex skills into `.agents/skills` and invokes them as `$sp-<command>`. |
+| [Codex CLI](https://github.com/openai/codex)                                         | ✅      | Requires `--ai-skills`. Codex recommends [skills](https://developers.openai.com/codex/skills) and treats [custom prompts](https://developers.openai.com/codex/custom-prompts) as deprecated. Spec Kit installs skills into `.agents/skills` and invokes them as `$sp-<command>`. |
 | [Cursor](https://cursor.sh/)                                                         | ✅      |                                                                                                                                           |
 | [Forge](https://forgecode.dev/)                                                      | ✅      | CLI tool: `forge`                                                                                                                         |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli)                            | ✅      |                                                                                                                                           |
@@ -305,7 +305,7 @@ Community projects that extend, visualize, or build on Spec Kit:
 | [SHAI (OVHcloud)](https://github.com/ovh/shai)                                       | ✅      |                                                                                                                                           |
 | [Tabnine CLI](https://docs.tabnine.com/main/getting-started/tabnine-cli)             | ✅      |                                                                                                                                           |
 | [Mistral Vibe](https://github.com/mistralai/mistral-vibe)                            | ✅      |                                                                                                                                           |
-| [Kimi Code](https://code.kimi.com/)                                                  | ✅      |                                                                                                                                           |
+| [Kimi Code](https://code.kimi.com/)                                                  | ✅      | Installs skills in `.kimi/skills`; invoke them as `/skill:sp-<command>`.                                                              |
 | [iFlow CLI](https://docs.iflow.cn/en/cli/quickstart)                                 | ✅      |                                                                                                                                           |
 | [Windsurf](https://windsurf.com/)                                                    | ✅      |                                                                                                                                           |
 | [Junie](https://junie.jetbrains.com/)                                                | ✅      |                                                                                                                                           |
@@ -429,11 +429,11 @@ specify check
 
 After running `specify init`, your AI coding agent will have access to these structured development commands.
 
-Most agents expose the traditional dotted slash commands shown below, like `/sp.plan`.
+Most slash-command integrations expose the traditional dotted commands shown below, like `/sp.plan`.
 
-Claude Code installs spec-kit as skills and invokes them as `/sp-constitution`, `/sp-specify`, `/sp-plan`, `/sp-tasks`, and `/sp-implement`.
+Claude Code installs workflow skills and invokes them as `/sp-constitution`, `/sp-specify`, `/sp-plan`, `/sp-tasks`, and `/sp-implement`.
 
-For Codex CLI, `--ai-skills` installs spec-kit as agent skills instead of slash-command prompt files. In Codex skills mode, invoke spec-kit as `$sp-constitution`, `$sp-specify`, `$sp-plan`, `$sp-tasks`, and `$sp-implement`.
+For Codex CLI, `--ai-skills` installs agent skills instead of slash-command prompt files. In Codex skills mode, invoke them as `$sp-constitution`, `$sp-specify`, `$sp-plan`, `$sp-tasks`, and `$sp-implement`.
 
 #### Core Commands
 
