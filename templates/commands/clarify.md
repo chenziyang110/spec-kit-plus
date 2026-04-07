@@ -92,6 +92,7 @@ Execution steps:
    - Prefer concise multiple-choice answers when useful.
    - For short-answer prompts, constrain to a short phrase.
    - Allow the user to provide new requirements, new constraints, corrections, or scope changes, not just answers to ambiguity.
+   - Use the user's current language for all user-visible clarification content, including questions, summaries, follow-up prompts, and completion reporting.
    - Stop when:
      - all critical ambiguities are resolved, or
      - the user signals completion, or
@@ -138,5 +139,6 @@ Behavior rules:
 - Never exceed 5 total asked questions (clarification retries for a single question do not count as new questions).
 - Respect user early termination signals ("stop", "done", "proceed").
 - Use this command to add newly provided requirements or constraints, not just to answer old questions.
+- Match the user's current language for all user-visible output unless a literal command name, file path, or fixed status value must remain unchanged.
 
 Context for prioritization: {ARGS}

@@ -94,12 +94,17 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
    - Lightweight mode for local, context-rich changes.
    - Deep mode for greenfield or materially ambiguous work.
 
-7. Run task-type mandatory clarity gates.
+7. Decomposition gate.
+   - If the request spans multiple independent subsystems, business domains, or release tracks, do not continue as though it were one bounded feature.
+   - Stop and help the user decompose it into separate specs or clearly phased releases first.
+   - Only continue once the current spec scope is narrow enough to be planned and tested coherently.
+
+8. Run task-type mandatory clarity gates.
 
    Greenfield project:
    - target users
    - core problem
-   - MVP scope
+   - first-release scope
    - out-of-scope boundary
    - core user flows
    - key domain entities
@@ -143,7 +148,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
    - If it is low-risk and inferable, adopt a default silently and record it later under low-risk defaults.
    - If it is high-impact and unclear, ask.
 
-8. Run a high-impact ambiguity scan.
+9. Run a high-impact ambiguity scan.
    Detect unresolved ambiguity affecting:
    - scope
    - users/roles
@@ -157,26 +162,48 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
 
    The user saying "I already explained it" is not sufficient reason to stop. Judge clarity from the perspective of a future planner, implementer, and tester.
 
-9. Clarification loop.
+10. Clarification loop.
    - Ask only high-value questions.
    - Use grouped questions for simple/local changes.
    - Use one question at a time for complex/high-risk cases.
    - Challenge contradictions or vague answers when important ambiguity remains.
    - After every round, restate current understanding.
+   - Use the user's current language for all user-visible clarification content, including questions, summaries, status updates, and the current-understanding restatement.
+   - Restate current understanding in grouped sections by information layer, not as a flat list.
+   - Prefer this grouped structure even when the summary is short; omit sections only when they would be empty or misleading.
 
-   Use this exact format:
+   Use this structure in the user's current language:
 
    ```text
-   My current understanding:
-   - You want ...
-   - For ...
-   - In/around ...
-   - It should ...
-   - It should not ...
-   - I still need to confirm ...
+   [Current understanding heading]
+
+   [Business Goals]
+   - [Requested outcome]
+   - [Why it matters / intended business value]
+
+   [Users & Roles]
+   - [Target users / audience]
+   - [Relevant roles or permission groups]
+
+   [Scope Boundaries]
+   - [First-release scope]
+   - [Out-of-scope boundary]
+
+   [Business Rules]
+   - [Expected behaviors / capabilities]
+   - [Rules, workflows, or policy constraints]
+
+   [Technical Constraints / Assumptions]
+   - [Given platform, integration, architecture, or deployment constraints]
+
+   [Confirmed Decisions]
+   - [Decisions already fixed enough to plan against]
+
+   [Outstanding Questions]
+   - [Open question / confirmation still needed]
    ```
 
-10. Alignment decision gate.
+11. Alignment decision gate.
     Decide exactly one:
     - `Aligned: ready for plan`
       Use only when:
@@ -191,7 +218,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
 
     If neither condition is met, continue clarification.
 
-11. Write `spec.md` to `SPEC_FILE` using the template structure.
+12. Write `spec.md` to `SPEC_FILE` using the template structure.
     Requirements:
     - clean result-state document only
     - no `[NEEDS CLARIFICATION]`
@@ -199,7 +226,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
     - requirements must be testable
     - scope must be bounded
 
-12. Write `alignment.md` to `ALIGNMENT_FILE`.
+13. Write `alignment.md` to `ALIGNMENT_FILE`.
     It must include:
     - task classification
     - current aligned understanding
@@ -212,7 +239,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
       - or `Force proceed with known risks`
     - reason for the release decision
 
-13. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
+14. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
 
     ```markdown
     # Specification Quality Checklist: [FEATURE NAME]
@@ -252,17 +279,18 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
     - Items marked incomplete require spec updates before `/sp.plan`
     ```
 
-14. Re-run validation after edits. Normal completion must pass all required checks.
+15. Re-run validation after edits. Normal completion must pass all required checks.
 
-15. Report completion with:
+16. Report completion with:
     - branch name
     - spec file path
     - alignment report path
     - checklist results
     - release decision
     - readiness for the next phase (`/sp.clarify` or `/sp.plan`)
+    - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
-16. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
+17. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_specify` key
    - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
    - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
@@ -314,6 +342,8 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
 4. Think like a planner and tester: if a requirement cannot be planned or tested reliably, it is not aligned enough yet.
 5. Normal completion requires no open clarification markers.
 6. If the user insists on continuing anyway, allow `Force proceed with known risks`, but record the unresolved items and likely downstream impact.
+7. Match the user's current language for all user-visible output unless a literal command name, file path, or fixed status value must remain unchanged.
+8. Do not treat MVP minimization as the default strategy; scope the first release to a coherent, quality-appropriate slice unless the user explicitly asks for an MVP.
 
 ### Success Criteria Guidelines
 

@@ -93,6 +93,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - plan path
    - alignment status
    - generated artifacts
+   - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
 6. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_plan` key
@@ -160,3 +161,4 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 - Use absolute paths
 - ERROR on gate failures or unresolved clarifications
+- Match the user's current language for all user-visible output unless a literal command name, file path, or fixed status value must remain unchanged.
