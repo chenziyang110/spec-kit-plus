@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-04-06T06:30:00Z",
+  "catalog_url": "https://raw.githubusercontent.com/github/spec-kit/main/presets/catalog.community.json",
+  "presets": {
+    "aide-in-place": {
+      "name": "AIDE In-Place Migration",
+      "id": "aide-in-place",
+      "version": "1.0.0",
+      "description": "Adapts the AIDE workflow for in-place technology migrations (X → Y pattern). Overrides vision, roadmap, progress, and work item commands with migration-specific guidance.",
+      "author": "mnriem",
+      "repository": "https://github.com/mnriem/spec-kit-presets",
+      "download_url": "https://github.com/mnriem/spec-kit-presets/releases/download/aide-in-place-v1.0.0/aide-in-place.zip",
+      "homepage": "https://github.com/mnriem/spec-kit-presets",
+      "documentation": "https://github.com/mnriem/spec-kit-presets/blob/main/aide-in-place/README.md",
+      "license": "MIT",
+      "requires": {
+        "speckit_version": ">=0.2.0",
+        "extensions": ["aide"]
+      },
+      "provides": {
+        "templates": 2,
+        "commands": 8
+      },
+      "tags": [
+        "migration",
+        "in-place",
+        "brownfield",
+        "aide"
+      ]
+    },
+    "canon-core": {
+      "name": "Canon Core",
+      "id": "canon-core",
+      "version": "0.1.0",
+      "description": "Adapts original Spec Kit workflow to work together with Canon extension.",
+      "author": "Maxim Stupakov",
+      "download_url": "https://github.com/maximiliamus/spec-kit-canon/releases/download/v0.1.0/spec-kit-canon-core-v0.1.0.zip",
+      "repository": "https://github.com/maximiliamus/spec-kit-canon",
+      "homepage": "https://github.com/maximiliamus/spec-kit-canon",
+      "documentation": "https://github.com/maximiliamus/spec-kit-canon/blob/master/README.md",
+      "license": "MIT",
+      "requires": {
+        "speckit_version": ">=0.4.3"
+      },
+      "provides": {
+        "templates": 2,
+        "commands": 8
+      },
+      "tags": [
+        "baseline",
+        "canon",
+        "spec-first"
+      ]
+    },
+    "pirate": {
+      "name": "Pirate Speak (Full)",
+      "id": "pirate",
+      "version": "1.0.0",
+      "description": "Arrr! Transforms all Spec Kit output into pirate speak. Specs, plans, and tasks be written fer scallywags.",
+      "author": "mnriem",
+      "repository": "https://github.com/mnriem/spec-kit-presets",
+      "download_url": "https://github.com/mnriem/spec-kit-presets/releases/download/pirate-v1.0.0/pirate.zip",
+      "homepage": "https://github.com/mnriem/spec-kit-presets",
+      "documentation": "https://github.com/mnriem/spec-kit-presets/blob/main/pirate/README.md",
+      "license": "MIT",
+      "requires": {
+        "speckit_version": ">=0.1.0"
+      },
+      "provides": {
+        "templates": 6,
+        "commands": 9
+      },
+      "tags": [
+        "pirate",
+        "theme",
+        "fun",
+        "experimental"
+      ]
+    },
+    "vscode-ask-questions": {
+      "name": "VS Code Ask Questions",
+      "id": "vscode-ask-questions",
+      "version": "1.0.0",
+      "description": "Enhances the clarify command to use vscode/askQuestions for batched interactive questioning, reducing API request costs in GitHub Copilot.",
+      "author": "fdcastel",
+      "repository": "https://github.com/fdcastel/spec-kit-presets",
+      "download_url": "https://github.com/fdcastel/spec-kit-presets/releases/download/vscode-ask-questions-v1.0.0/vscode-ask-questions.zip",
+      "homepage": "https://github.com/fdcastel/spec-kit-presets",
+      "documentation": "https://github.com/fdcastel/spec-kit-presets/blob/main/vscode-ask-questions/README.md",
+      "license": "MIT",
+      "requires": {
+        "speckit_version": ">=0.1.0"
+      },
+      "provides": {
+        "templates": 0,
+        "commands": 1
+      },
+      "tags": [
+        "vscode",
+        "askquestions",
+        "clarify",
+        "interactive"
+      ]
+    }
+  }
+}
