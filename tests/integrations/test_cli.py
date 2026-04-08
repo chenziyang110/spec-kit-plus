@@ -148,3 +148,41 @@ class TestInitIntegrationFlag:
         assert (scripts_dir / "setup-plan.sh").exists()
         assert (templates_dir / "alignment-template.md").exists()
         assert (templates_dir / "plan-template.md").exists()
+
+    def test_codex_init_uses_plus_branded_visible_output(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "codex-plus-brand"
+        project.mkdir()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "codex",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert "Spec Kit Plus" in result.output
+        assert "Specify Plus Project Setup" in result.output
+        assert "Initialize Spec Kit Plus Project" in result.output
+        assert "Spec Kit Plus project ready." in result.output
+        assert "Plus Next Steps" in result.output
+        assert "Plus Enhancement Skills" in result.output
+        assert "Spec Kit Plus skills were" in result.output
+        assert ".agents/skills" in result.output

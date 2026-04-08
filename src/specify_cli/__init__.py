@@ -107,7 +107,19 @@ BANNER = """
 ╚══════╝╚═╝     ╚══════╝ ╚═════╝╚═╝╚═╝        ╚═╝
 """
 
-TAGLINE = "GitHub Spec Kit - Spec-Driven Development Toolkit"
+APP_NAME = "Spec Kit Plus"
+TAGLINE = "Spec Kit Plus - Spec-Driven Development Toolkit"
+
+
+def _require_spec_kit_plus_project(project_root: Path) -> Path:
+    specify_dir = project_root / ".specify"
+    if not specify_dir.exists():
+        console.print("[red]Error:[/red] Not a Spec Kit Plus project (no .specify/ directory)")
+        console.print("Run this command from a Spec Kit Plus project root")
+        raise typer.Exit(1)
+    return specify_dir
+
+
 class StepTracker:
     """Track and render hierarchical steps without emojis, similar to Claude Code tree output.
     Supports live auto-refresh via an attached refresh callback.
@@ -1051,7 +1063,7 @@ def init(
     current_dir = Path.cwd()
 
     setup_lines = [
-        "[cyan]Specify Project Setup[/cyan]",
+        "[cyan]Specify Plus Project Setup[/cyan]",
         "",
         f"{'Project':<15} [green]{project_path.name}[/green]",
         f"{'Working Path':<15} [dim]{current_dir}[/dim]",
@@ -1102,7 +1114,7 @@ def init(
     console.print(f"[cyan]Selected AI assistant:[/cyan] {selected_ai}")
     console.print(f"[cyan]Selected script type:[/cyan] {selected_script}")
 
-    tracker = StepTracker("Initialize Specify Project")
+    tracker = StepTracker("Initialize Spec Kit Plus Project")
 
     sys._specify_tracker_active = True
 
@@ -1265,7 +1277,7 @@ def init(
             pass
 
     console.print(tracker.render())
-    console.print("\n[bold green]Project ready.[/bold green]")
+    console.print("\n[bold green]Spec Kit Plus project ready.[/bold green]")
 
     # Show git error details if initialization failed
     if git_error_message:
@@ -1320,10 +1332,10 @@ def init(
 
     if codex_skill_mode and not ai_skills:
         # Integration path installed skills; show the helpful notice
-        steps_lines.append(f"{step_num}. Start Codex in this project directory; spec-kit skills were installed to [cyan].agents/skills[/cyan]")
+        steps_lines.append(f"{step_num}. Start Codex in this project directory; Spec Kit Plus skills were installed to [cyan].agents/skills[/cyan]")
         step_num += 1
     if claude_skill_mode and not ai_skills:
-        steps_lines.append(f"{step_num}. Start Claude in this project directory; spec-kit skills were installed to [cyan].claude/skills[/cyan]")
+        steps_lines.append(f"{step_num}. Start Claude in this project directory; Spec Kit Plus skills were installed to [cyan].claude/skills[/cyan]")
         step_num += 1
     usage_label = "skills" if native_skill_mode else "slash commands"
 
@@ -1344,7 +1356,7 @@ def init(
     steps_lines.append(f"   {step_num}.4 [cyan]{_display_cmd('tasks')}[/] - Generate actionable tasks")
     steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
 
-    steps_panel = Panel("\n".join(steps_lines), title="Next Steps", border_style="cyan", padding=(1,2))
+    steps_panel = Panel("\n".join(steps_lines), title="Plus Next Steps", border_style="cyan", padding=(1,2))
     console.print()
     console.print(steps_panel)
 
@@ -1360,7 +1372,7 @@ def init(
         f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
         f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
     ]
-    enhancements_title = "Enhancement Skills" if native_skill_mode else "Enhancement Commands"
+    enhancements_title = "Plus Enhancement Skills" if native_skill_mode else "Plus Enhancement Commands"
     enhancements_panel = Panel("\n".join(enhancement_lines), title=enhancements_title, border_style="cyan", padding=(1,2))
     console.print()
     console.print(enhancements_panel)
@@ -1599,11 +1611,7 @@ def integration_list():
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     current = _read_integration_json(project_root)
     installed_key = current.get("integration")
@@ -1649,11 +1657,7 @@ def integration_install(
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     integration = get_integration(key)
     if integration is None:
@@ -1797,11 +1801,7 @@ def integration_uninstall(
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     current = _read_integration_json(project_root)
     installed_key = current.get("integration")
@@ -1880,11 +1880,7 @@ def integration_switch(
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     target_integration = get_integration(target)
     if target_integration is None:
@@ -2004,11 +2000,7 @@ def preset_list():
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     manager = PresetManager(project_root)
     installed = manager.list_installed()
@@ -2050,11 +2042,7 @@ def preset_add(
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    specify_dir = _require_spec_kit_plus_project(project_root)
 
     # Validate priority
     if priority < 1:
@@ -2149,11 +2137,7 @@ def preset_remove(
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     manager = PresetManager(project_root)
 
@@ -2179,11 +2163,7 @@ def preset_search(
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     catalog = PresetCatalog(project_root)
 
@@ -2216,11 +2196,7 @@ def preset_resolve(
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     resolver = PresetResolver(project_root)
     result = resolver.resolve_with_source(template_name)
@@ -2243,11 +2219,7 @@ def preset_info(
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     # Check if installed locally first
     manager = PresetManager(project_root)
@@ -2318,11 +2290,7 @@ def preset_set_priority(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     # Validate priority
     if priority < 1:
@@ -2369,11 +2337,7 @@ def preset_enable(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     manager = PresetManager(project_root)
 
@@ -2410,11 +2374,7 @@ def preset_disable(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     manager = PresetManager(project_root)
 
@@ -2452,11 +2412,7 @@ def preset_catalog_list():
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     catalog = PresetCatalog(project_root)
 
@@ -2521,11 +2477,7 @@ def preset_catalog_add(
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    specify_dir = _require_spec_kit_plus_project(project_root)
 
     # Validate URL
     tmp_catalog = PresetCatalog(project_root)
@@ -2584,11 +2536,7 @@ def preset_catalog_remove(
     """Remove a catalog from .specify/preset-catalogs.yml."""
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    specify_dir = _require_spec_kit_plus_project(project_root)
 
     config_path = specify_dir / "preset-catalogs.yml"
     if not config_path.exists():
@@ -2754,11 +2702,7 @@ def extension_list(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     manager = ExtensionManager(project_root)
     installed = manager.list_installed()
@@ -2794,11 +2738,7 @@ def catalog_list():
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     catalog = ExtensionCatalog(project_root)
 
@@ -2863,11 +2803,7 @@ def catalog_add(
 
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    specify_dir = _require_spec_kit_plus_project(project_root)
 
     # Validate URL
     tmp_catalog = ExtensionCatalog(project_root)
@@ -2926,11 +2862,7 @@ def catalog_remove(
     """Remove a catalog from .specify/extension-catalogs.yml."""
     project_root = Path.cwd()
 
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    specify_dir = _require_spec_kit_plus_project(project_root)
 
     config_path = specify_dir / "extension-catalogs.yml"
     if not config_path.exists():
@@ -2975,11 +2907,7 @@ def extension_add(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     # Validate priority
     if priority < 1:
@@ -3127,11 +3055,7 @@ def extension_remove(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     manager = ExtensionManager(project_root)
 
@@ -3190,11 +3114,7 @@ def extension_search(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     catalog = ExtensionCatalog(project_root)
 
@@ -3274,11 +3194,7 @@ def extension_info(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     catalog = ExtensionCatalog(project_root)
     manager = ExtensionManager(project_root)
@@ -3476,11 +3392,7 @@ def extension_update(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     manager = ExtensionManager(project_root)
     catalog = ExtensionCatalog(project_root)
@@ -3872,11 +3784,7 @@ def extension_enable(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     manager = ExtensionManager(project_root)
     hook_executor = HookExecutor(project_root)
@@ -3919,11 +3827,7 @@ def extension_disable(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     manager = ExtensionManager(project_root)
     hook_executor = HookExecutor(project_root)
@@ -3969,11 +3873,7 @@ def extension_set_priority(
     project_root = Path.cwd()
 
     # Check if we're in a spec-kit project
-    specify_dir = project_root / ".specify"
-    if not specify_dir.exists():
-        console.print("[red]Error:[/red] Not a spec-kit project (no .specify/ directory)")
-        console.print("Run this command from a spec-kit project root")
-        raise typer.Exit(1)
+    _require_spec_kit_plus_project(project_root)
 
     # Validate priority
     if priority < 1:
