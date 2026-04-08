@@ -1,5 +1,5 @@
 ---
-description: Identify underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding answers back into the spec.
+description: Identify underspecified areas in the current feature spec by asking at least 5 highly targeted clarification questions and encoding answers back into the spec.
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -95,9 +95,11 @@ Execution steps:
    - TODO markers / unresolved decisions
    - Ambiguous adjectives lacking quantification
 
-4. Generate an internal prioritized queue of candidate clarification questions (maximum 5). Do not output them all at once.
+4. Generate an internal prioritized queue of candidate clarification questions (minimum 5). Do not output them all at once.
    - Only include questions whose answers materially impact architecture, data modeling, task decomposition, test design, UX behavior, operational readiness, or compliance validation.
    - Skip questions already answered or better deferred to planning.
+   - Prepare at least 5 high-value questions unless the user has already
+     explicitly terminated the clarification phase.
 
 5. Sequential questioning loop:
    - Present exactly one question at a time.
@@ -106,9 +108,11 @@ Execution steps:
    - Allow the user to provide new requirements, new constraints, corrections, or scope changes, not just answers to ambiguity.
    - Use the user's current language for all user-visible clarification content, including questions, summaries, follow-up prompts, and completion reporting.
    - Stop when:
-     - all critical ambiguities are resolved, or
      - the user signals completion, or
-     - you reach 5 asked questions.
+     - you have asked at least 5 questions and all critical ambiguities are resolved.
+   - If critical ambiguities remain after 5 questions, continue asking beyond 5
+     until the remaining ambiguity is either resolved or explicitly deferred by
+     the user.
 
 6. Integration after each accepted answer:
    - Update the spec in memory and on disk.
@@ -146,9 +150,11 @@ Execution steps:
 
 Behavior rules:
 
-- If no meaningful ambiguities are found, respond: "No critical ambiguities detected worth formal clarification."
+- If the user has already terminated clarification explicitly, stop and report
+  the current state.
 - If the spec file is missing, instruct the user to run `/sp.specify` first.
-- Never exceed 5 total asked questions (clarification retries for a single question do not count as new questions).
+- Ask at least 5 total questions unless the user explicitly stops early.
+- Clarification retries for a single question do not count as new questions.
 - Respect user early termination signals ("stop", "done", "proceed").
 - Use this command to add newly provided requirements or constraints, not just to answer old questions.
 - Match the user's current language for all user-visible output unless a literal command name, file path, or fixed status value must remain unchanged.
