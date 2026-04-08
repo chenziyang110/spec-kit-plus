@@ -21,6 +21,9 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Users & Roles" in content
     assert "Technical Constraints / Assumptions" in content
     assert "Outstanding Questions" in content
+    assert "Do not repeat the same question" in content
+    assert "Ask at most one unanswered high-impact question per message" in content
+    assert "Do not add a second recap after the question" in content
     assert "decompose" in content.lower()
     assert "first-release scope" in content.lower()
     assert "mvp scope" not in content.lower()

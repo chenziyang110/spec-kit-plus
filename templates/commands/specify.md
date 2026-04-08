@@ -180,11 +180,15 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
    - Ask only high-value questions.
    - Use grouped questions for simple/local changes.
    - Use one question at a time for complex/high-risk cases.
+   - Ask at most one unanswered high-impact question per message.
    - Challenge contradictions or vague answers when important ambiguity remains.
    - After every round, restate current understanding.
    - Use the user's current language for all user-visible clarification content, including questions, summaries, status updates, and the current-understanding restatement.
    - Restate current understanding in grouped sections by information layer, not as a flat list.
    - Prefer this grouped structure even when the summary is short; omit sections only when they would be empty or misleading.
+   - Do not repeat the same question in both the summary and the follow-up ask.
+   - If you are about to ask the next question immediately, summarize it briefly under `Outstanding Questions` instead of restating the full wording there.
+   - Do not add a second recap after the question; each clarification turn should contain one summary block and one question block only.
 
    Use this structure in the user's current language:
 
