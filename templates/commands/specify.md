@@ -73,14 +73,28 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
    - Parse `BRANCH_NAME`, `SPEC_FILE`, and `FEATURE_DIR` from the JSON response.
    - Set `ALIGNMENT_FILE` to `FEATURE_DIR/alignment.md`.
 
-4. Load context.
+4. Ensure repository technical documentation exists.
+   - Check whether `项目技术文档.md` exists at the repository root.
+   - If it is missing, analyze the repository and create `项目技术文档.md`
+     before continuing.
+   - The generated document must summarize project architecture, directory
+     responsibilities, module dependencies, core data flows, external
+     interfaces, and project conventions based only on actual repository
+     evidence.
+   - Use this standard section structure:
+     `项目架构概览`, `目录结构及其职责`, `关键模块依赖关系图`,
+     `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`,
+     `常见的代码模式与约定`.
+
+5. Load context.
    - Read `templates/spec-template.md`.
    - Read `templates/alignment-template.md`.
+   - Read `项目技术文档.md` if present.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
    - Read constitution/project guidance if present.
 
-5. Infer task classification.
+6. Infer task classification.
    Infer exactly one:
    - greenfield project
    - existing feature addition
@@ -90,16 +104,16 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
 
    Briefly tell the user your inferred classification and allow correction before continuing.
 
-6. Choose alignment mode.
+7. Choose alignment mode.
    - Lightweight mode for local, context-rich changes.
    - Deep mode for greenfield or materially ambiguous work.
 
-7. Decomposition gate.
+8. Decomposition gate.
    - If the request spans multiple independent subsystems, business domains, or release tracks, do not continue as though it were one bounded feature.
    - Stop and help the user decompose it into separate specs or clearly phased releases first.
    - Only continue once the current spec scope is narrow enough to be planned and tested coherently.
 
-8. Run task-type mandatory clarity gates.
+9. Run task-type mandatory clarity gates.
 
    Greenfield project:
    - target users
@@ -148,7 +162,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
    - If it is low-risk and inferable, adopt a default silently and record it later under low-risk defaults.
    - If it is high-impact and unclear, ask.
 
-9. Run a high-impact ambiguity scan.
+10. Run a high-impact ambiguity scan.
    Detect unresolved ambiguity affecting:
    - scope
    - users/roles
@@ -162,7 +176,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
 
    The user saying "I already explained it" is not sufficient reason to stop. Judge clarity from the perspective of a future planner, implementer, and tester.
 
-10. Clarification loop.
+11. Clarification loop.
    - Ask only high-value questions.
    - Use grouped questions for simple/local changes.
    - Use one question at a time for complex/high-risk cases.
@@ -203,7 +217,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
    - [Open question / confirmation still needed]
    ```
 
-11. Alignment decision gate.
+12. Alignment decision gate.
     Decide exactly one:
     - `Aligned: ready for plan`
       Use only when:
@@ -218,7 +232,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
 
     If neither condition is met, continue clarification.
 
-12. Write `spec.md` to `SPEC_FILE` using the template structure.
+13. Write `spec.md` to `SPEC_FILE` using the template structure.
     Requirements:
     - clean result-state document only
     - no `[NEEDS CLARIFICATION]`
@@ -226,7 +240,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
     - requirements must be testable
     - scope must be bounded
 
-13. Write `alignment.md` to `ALIGNMENT_FILE`.
+14. Write `alignment.md` to `ALIGNMENT_FILE`.
     It must include:
     - task classification
     - current aligned understanding
@@ -239,7 +253,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
       - or `Force proceed with known risks`
     - reason for the release decision
 
-14. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
+15. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
 
     ```markdown
     # Specification Quality Checklist: [FEATURE NAME]
@@ -279,9 +293,9 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
     - Items marked incomplete require spec updates before `/sp.plan`
     ```
 
-15. Re-run validation after edits. Normal completion must pass all required checks.
+16. Re-run validation after edits. Normal completion must pass all required checks.
 
-16. Report completion with:
+17. Report completion with:
     - branch name
     - spec file path
     - alignment report path
@@ -290,7 +304,7 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
     - readiness for the next phase (`/sp.clarify` or `/sp.plan`)
     - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
-17. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
+18. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_specify` key
    - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
    - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.

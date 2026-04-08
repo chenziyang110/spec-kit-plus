@@ -34,6 +34,7 @@ import json
 import json5
 import stat
 import yaml
+from datetime import date
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
@@ -730,6 +731,22 @@ def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = 
             for f in failures:
                 console.print(f"  - {f}")
 
+def _materialize_constitution_template(template_text: str, project_path: Path) -> str:
+    """Replace basic constitution template tokens with init-time defaults."""
+    today = date.today().isoformat()
+    replacements = {
+        "[PROJECT_NAME]": project_path.resolve().name,
+        "[CONSTITUTION_VERSION]": "1.0.0",
+        "[RATIFICATION_DATE]": today,
+        "[LAST_AMENDED_DATE]": today,
+    }
+
+    for token, value in replacements.items():
+        template_text = template_text.replace(token, value)
+
+    return template_text
+
+
 def ensure_constitution_from_template(project_path: Path, tracker: StepTracker | None = None) -> None:
     """Copy constitution template to memory if it doesn't exist (preserves existing constitution on reinitialization)."""
     memory_constitution = project_path / ".specify" / "memory" / "constitution.md"
@@ -749,15 +766,19 @@ def ensure_constitution_from_template(project_path: Path, tracker: StepTracker |
             tracker.error("constitution", "template not found")
         return
 
-    # Copy template to memory directory
+    # Copy a materialized version of the template to memory directory
     try:
         memory_constitution.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(template_constitution, memory_constitution)
+        template_text = template_constitution.read_text(encoding="utf-8")
+        memory_constitution.write_text(
+            _materialize_constitution_template(template_text, project_path),
+            encoding="utf-8",
+        )
         if tracker:
             tracker.add("constitution", "Constitution setup")
-            tracker.complete("constitution", "copied from template")
+            tracker.complete("constitution", "initialized from template defaults")
         else:
-            console.print("[cyan]Initialized constitution from template[/cyan]")
+            console.print("[cyan]Initialized constitution from template defaults[/cyan]")
     except Exception as e:
         if tracker:
             tracker.add("constitution", "Constitution setup")

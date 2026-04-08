@@ -83,6 +83,15 @@ You **MUST** consider the user input before proceeding (if not empty).
      - Automatically proceed to step 3
 
 3. Load and analyze the implementation context:
+   - **REQUIRED**: Check whether `项目技术文档.md` exists at the repository
+     root.
+   - **IF MISSING**: Analyze the repository and create `项目技术文档.md`
+     before continuing.
+   - **DOCUMENT STRUCTURE**: The generated document must use these sections:
+     `项目架构概览`, `目录结构及其职责`, `关键模块依赖关系图`,
+     `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`,
+     `常见的代码模式与约定`.
+   - **REQUIRED**: Read `项目技术文档.md` after the check above completes.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
    - **IF EXISTS**: Read data-model.md for entities and relationships

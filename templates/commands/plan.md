@@ -62,13 +62,23 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for `FEATURE_SPEC`, `IMPL_PLAN`, `SPECS_DIR`, `BRANCH`, and `FEATURE_DIR`.
 
-2. **Load context**:
+2. **Ensure repository technical documentation exists**:
+   - Check whether `项目技术文档.md` exists at the repository root.
+   - If it is missing, analyze the repository and create `项目技术文档.md`
+     before continuing.
+   - Use this standard section structure:
+     `项目架构概览`, `目录结构及其职责`, `关键模块依赖关系图`,
+     `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`,
+     `常见的代码模式与约定`.
+
+3. **Load context**:
    - Read `FEATURE_SPEC`
    - Read `FEATURE_DIR/alignment.md`
    - Read `/memory/constitution.md`
+   - Read `项目技术文档.md` if present
    - Load the copied IMPL_PLAN template
 
-3. **Validate alignment status before planning**:
+4. **Validate alignment status before planning**:
    - If `alignment.md` is missing:
      - ERROR "Missing alignment report. Run /sp.specify first or re-run it to complete requirement alignment."
    - If the alignment report status is `Aligned: ready for plan`:
@@ -78,7 +88,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Otherwise:
      - ERROR "Specification is not aligned enough for planning."
 
-4. **Execute the plan workflow** using the IMPL_PLAN template:
+5. **Execute the plan workflow** using the IMPL_PLAN template:
    - Fill Technical Context (mark unknowns as `NEEDS CLARIFICATION`)
    - Fill Constitution Check from the constitution
    - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
@@ -88,14 +98,14 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Phase 1: update agent context by running the agent script
    - Re-evaluate Constitution Check after design artifacts exist
 
-5. **Stop and report**:
+6. **Stop and report**:
    - branch
    - plan path
    - alignment status
    - generated artifacts
    - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
-6. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
+7. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_plan` key
    - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
    - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.

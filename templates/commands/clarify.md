@@ -31,7 +31,19 @@ Execution steps:
    - (Optionally `IMPL_PLAN`, `TASKS` for chained flows.)
    - If JSON parsing fails, abort and instruct the user to re-run `/sp.specify` or verify feature branch environment.
 
-2. Load the current spec file and `FEATURE_DIR/alignment.md` if present. Perform a structured ambiguity and coverage scan using this taxonomy. For each category, mark status: Clear / Partial / Missing.
+2. Ensure repository technical documentation exists.
+   - Check whether `项目技术文档.md` exists at the repository root.
+   - If it is missing, analyze the repository and create `项目技术文档.md`
+     before continuing.
+   - Use this standard section structure:
+     `项目架构概览`, `目录结构及其职责`, `关键模块依赖关系图`,
+     `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`,
+     `常见的代码模式与约定`.
+
+3. Load the current spec file, `FEATURE_DIR/alignment.md` if present, and
+   `项目技术文档.md` if present. Perform a structured ambiguity and coverage
+   scan using this taxonomy. For each category, mark status: Clear / Partial /
+   Missing.
 
    Functional Scope & Behavior:
    - Core user goals & success criteria
@@ -83,11 +95,11 @@ Execution steps:
    - TODO markers / unresolved decisions
    - Ambiguous adjectives lacking quantification
 
-3. Generate an internal prioritized queue of candidate clarification questions (maximum 5). Do not output them all at once.
+4. Generate an internal prioritized queue of candidate clarification questions (maximum 5). Do not output them all at once.
    - Only include questions whose answers materially impact architecture, data modeling, task decomposition, test design, UX behavior, operational readiness, or compliance validation.
    - Skip questions already answered or better deferred to planning.
 
-4. Sequential questioning loop:
+5. Sequential questioning loop:
    - Present exactly one question at a time.
    - Prefer concise multiple-choice answers when useful.
    - For short-answer prompts, constrain to a short phrase.
@@ -98,7 +110,7 @@ Execution steps:
      - the user signals completion, or
      - you reach 5 asked questions.
 
-5. Integration after each accepted answer:
+6. Integration after each accepted answer:
    - Update the spec in memory and on disk.
    - Update `alignment.md` in parallel. If it does not exist, create it using the current best understanding.
    - Apply each answer to the most appropriate section:
@@ -110,20 +122,20 @@ Execution steps:
      - Terminology conflict -> normalize throughout the spec
    - Preserve formatting and do not reorder unrelated sections.
 
-6. Validation after each write plus final pass:
+7. Validation after each write plus final pass:
    - Clarification summary is updated without duplication.
    - No contradictory earlier statement remains.
    - Markdown structure stays valid.
    - Terminology stays consistent.
 
-7. Update the alignment decision before reporting:
+8. Update the alignment decision before reporting:
    - Use `Aligned: ready for plan` only when no unresolved high-impact ambiguity remains.
    - Use `Force proceed with known risks` if unresolved high-impact ambiguity remains and the user explicitly wants to continue.
    - Record new requirements, constraints, or corrections in both the spec and `alignment.md`.
 
-8. Write the updated spec back to `FEATURE_SPEC` and write the updated alignment report to `FEATURE_DIR/alignment.md`.
+9. Write the updated spec back to `FEATURE_SPEC` and write the updated alignment report to `FEATURE_DIR/alignment.md`.
 
-9. Report completion:
+10. Report completion:
    - Number of questions asked & answered
    - Path to updated spec
    - Path to updated alignment report
