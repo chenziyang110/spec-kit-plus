@@ -31,6 +31,12 @@ uv tool install specify-cli --force --from git+https://github.com/chenziyang110/
 uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init my-project --ai codex
 ```
 
+Initialize the current directory with the latest fork version, without relying on whatever `specify` is currently on your `PATH`:
+
+```bash
+uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init . --ai codex
+```
+
 ### Local editable install for development
 
 ```bash
