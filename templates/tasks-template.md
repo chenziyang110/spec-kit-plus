@@ -14,7 +14,8 @@ description: "Task list template for feature implementation"
 
 ## Format: `[ID] [P?] [Story] Description`
 
-- **[P]**: Can run in parallel (different files, no dependencies)
+- **[P]**: Can run in parallel only when the task has an isolated write set, no incomplete dependencies, stable upstream inputs, and its own verification path
+- **Write set**: Include all files and shared coordination surfaces the task will modify, including routers, registries, export barrels, schema indexes, and dependency injection containers
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
 - Include exact file paths in descriptions
 
@@ -83,13 +84,17 @@ Examples of foundational tasks (adjust based on your project):
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
+**Parallel Batch 1.1**: Independent failing tests with non-overlapping write sets
 - [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
 - [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+**Join Point 1.1**: Confirm both tests fail for the expected reasons before writing production code
 
 ### Implementation for User Story 1
 
+**Parallel Batch 1.2**: Independent models or DTOs with isolated write sets
 - [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
 - [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
+**Join Point 1.2**: Resolve any shared exports, registrations, or schema indexes before service work
 - [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
 - [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
 - [ ] T016 [US1] Add validation and error handling
@@ -183,6 +188,10 @@ Examples of foundational tasks (adjust based on your project):
 - Services before endpoints
 - Core implementation before integration
 - Story complete before moving to next priority
+- Build parallel batches from ready tasks only
+- End every parallel batch with a join point before downstream tasks continue
+- Do not run tasks from the same batch together if their write sets overlap
+- Treat shared registration files and export barrels as write-set conflicts
 
 ### Parallel Opportunities
 
@@ -193,18 +202,30 @@ Examples of foundational tasks (adjust based on your project):
 - Models within a story marked [P] can run in parallel
 - Different user stories can be worked on in parallel by different team members
 
+### Parallel Prioritization
+
+- Prefer batches that unblock more downstream tasks before consumer work
+- Prefer tasks with stable contracts and schemas before tasks that depend on them
+- Prefer tasks with fast, independent verification before long feedback-loop work
+- Prefer the longest safe path early so it does not become the final serial tail
+- If the current agent cannot truly parallelize, execute each parallel batch sequentially but keep the same join point boundaries
+
 ---
 
 ## Parallel Example: User Story 1
 
 ```bash
-# Launch all tests for User Story 1 together (if tests requested):
+# Parallel Batch 1.1: launch all tests for User Story 1 together (if tests requested):
 Task: "Contract test for [endpoint] in tests/contract/test_[name].py"
 Task: "Integration test for [user journey] in tests/integration/test_[name].py"
 
-# Launch all models for User Story 1 together:
+# Join Point 1.1: verify both tests fail for the expected reasons
+
+# Parallel Batch 1.2: launch all models for User Story 1 together:
 Task: "Create [Entity1] model in src/models/[entity1].py"
 Task: "Create [Entity2] model in src/models/[entity2].py"
+
+# Join Point 1.2: update shared exports or registrations before service implementation
 ```
 
 ---
@@ -236,16 +257,17 @@ With multiple developers:
    - Developer A: User Story 1
    - Developer B: User Story 2
    - Developer C: User Story 3
-3. Stories complete and integrate independently
+3. Within each story, developers or agents take one parallel batch at a time and merge at each join point
+4. Stories complete and integrate independently
 
 ---
 
 ## Notes
 
-- [P] tasks = different files, no dependencies
+- [P] tasks = isolated write set, stable inputs, no incomplete dependencies, independent verification
 - [Story] label maps task to specific user story for traceability
 - Each user story should be independently completable and testable
 - Verify tests fail before implementing
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
-- Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
+- Avoid: vague tasks, same file conflicts, shared registration file conflicts, and cross-story dependencies that break independence

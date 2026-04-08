@@ -83,6 +83,9 @@ You **MUST** consider the user input before proceeding (if not empty).
    - If research.md exists: Extract decisions for setup tasks
    - Generate tasks organized by user story (see Task Generation Rules below)
    - Generate dependency graph showing user story completion order
+   - Derive a write set for each task (files or shared registration surfaces it will modify)
+   - Group ready tasks into each phase's parallel batches using those write sets
+   - Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
    - Create parallel execution examples per user story
    - Validate task completeness (each user story has all needed tasks, independently testable)
 
@@ -96,13 +99,15 @@ You **MUST** consider the user input before proceeding (if not empty).
    - All tasks must follow the strict checklist format (see Task Generation Rules below)
    - Clear file paths for each task
    - Dependencies section showing story completion order
+   - Parallel batches and join points for each phase where they matter
    - Parallel execution examples per story
-   - Implementation strategy section (phased delivery, priority-ordered delivery)
+   - Implementation strategy section (phased delivery, priority-ordered delivery, capability-aware parallel execution)
 
 6. **Report**: Output path to generated tasks.md and summary:
    - Total task count
    - Task count per user story
    - Parallel opportunities identified
+   - Parallel batch count and the join points that gate downstream work
    - Independent test criteria for each story
    - Suggested first release scope (based on the smallest coherent release slice, not automatically limited to just User Story 1)
    - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
@@ -158,7 +163,9 @@ Every task MUST strictly follow this format:
 
 1. **Checkbox**: ALWAYS start with `- [ ]` (markdown checkbox)
 2. **Task ID**: Sequential number (T001, T002, T003...) in execution order
-3. **[P] marker**: Include ONLY if task is parallelizable (different files, no dependencies on incomplete tasks)
+3. **[P] marker**: Include ONLY if task is parallelizable
+   - Parallelizable means the task has an isolated write set, no dependencies on incomplete tasks, stable upstream inputs, and an independent verification path
+   - Treat shared registration files, index/exports, router tables, dependency injection containers, and other coordination surfaces as part of the write set
 4. **[Story] label**: REQUIRED for user story phase tasks only
    - Format: [US1], [US2], [US3], etc. (maps to user stories from spec.md)
    - Setup phase: NO story label
@@ -202,6 +209,14 @@ Every task MUST strictly follow this format:
    - Shared infrastructure → Setup phase (Phase 1)
    - Foundational/blocking tasks → Foundational phase (Phase 2)
    - Story-specific setup → within that story's phase
+
+### Parallelization Rules
+
+- Prefer parallel tasks that unblock more downstream work before consumer tasks
+- Only place tasks in the same parallel batch when their write sets do not overlap
+- Do not batch tasks together if they rely on changing contracts, schemas, or interfaces that are not yet stable
+- Every parallel batch MUST be followed by a join point before dependent tasks continue
+- If a task touches a shared registration file, it should usually be the join point task or run after the batch sequentially
 
 ### Phase Structure
 

@@ -63,14 +63,30 @@ def test_tasks_templates_default_to_phased_delivery_not_mvp():
 
     assert "phased delivery" in command_content.lower()
     assert "suggested first release scope" in command_content.lower()
+    assert "parallel batch" in command_content.lower()
+    assert "join point" in command_content.lower()
+    assert "write set" in command_content.lower()
     assert "mvp first" not in command_content.lower()
     assert "suggested mvp scope" not in command_content.lower()
 
     assert "phased delivery" in template_content.lower()
     assert "first release candidate" in template_content.lower()
+    assert "parallel batch" in template_content.lower()
+    assert "join point" in template_content.lower()
+    assert "write set" in template_content.lower()
     assert "mvp first" not in template_content.lower()
     assert "mvp increment" not in template_content.lower()
     assert "mvp!" not in template_content.lower()
+
+
+def test_implement_template_supports_capability_aware_parallel_batches():
+    content = _read("templates/commands/implement.md")
+
+    assert "parallel batches" in content.lower()
+    assert "current agent" in content.lower()
+    assert "ready tasks" in content.lower()
+    assert "join point" in content.lower()
+    assert "shared registration files" in content.lower()
 
 
 def test_alignment_template_exists():
