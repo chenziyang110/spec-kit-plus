@@ -9,8 +9,12 @@ on:
 jobs:
   analyze:
     name: Analyze
+    # Private repos on GitHub Free cannot enable code scanning, so skip instead
+    # of failing every push. When the repo becomes public, this runs again.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       security-events: write
       contents: read
     strategy:
@@ -19,7 +23,7 @@ jobs:
         language: [ 'actions', 'python' ]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
