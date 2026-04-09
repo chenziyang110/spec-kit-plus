@@ -9,3 +9,6 @@ def test_clarify_template_requires_at_least_five_questions():
     assert "candidate clarification questions (minimum 5)." in content
     assert "you have asked at least 5 questions" in content
     assert "Ask at least 5 total questions" in content
+    assert "Default to concise clarification turns" in content
+    assert "Do not restate the full current understanding after every answer" in content
+    assert "Save the full synthesis for the final clarification report" in content

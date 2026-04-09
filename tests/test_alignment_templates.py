@@ -15,15 +15,17 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Aligned: ready for plan" in content
     assert "Force proceed with known risks" in content
     assert "Task Classification" in content or "task classification" in content.lower()
-    assert "After every round, restate current understanding" in content
     assert "user's current language" in content.lower()
     assert "Business Goals" in content
     assert "Users & Roles" in content
     assert "Technical Constraints / Assumptions" in content
     assert "Outstanding Questions" in content
+    assert "Default to concise clarification turns" in content
+    assert "Do not restate the full current understanding after every answer" in content
+    assert "Save the full synthesis for the alignment-ready turn" in content
     assert "Do not repeat the same question" in content
     assert "Ask at most one unanswered high-impact question per message" in content
-    assert "Do not add a second recap after the question" in content
+    assert "each clarification turn should contain at most one short checkpoint" in content
     assert "decompose" in content.lower()
     assert "first-release scope" in content.lower()
     assert "mvp scope" not in content.lower()

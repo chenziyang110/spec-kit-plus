@@ -107,6 +107,12 @@ Execution steps:
    - For short-answer prompts, constrain to a short phrase.
    - Allow the user to provide new requirements, new constraints, corrections, or scope changes, not just answers to ambiguity.
    - Use the user's current language for all user-visible clarification content, including questions, summaries, follow-up prompts, and completion reporting.
+   - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
+   - Do not restate the full current understanding after every answer.
+   - Use at most a one-line checkpoint when helpful, for example `Confirmed so far:` or `Still open:`.
+   - Reserve grouped recaps for moments when they add clear value: the user asks for a recap, the thread is long enough that context may drift, a contradiction must be reconciled, or you are about to finish clarification.
+   - Keep any recap compact and focused on what materially changed.
+   - Save the full synthesis for the final clarification report, the updated written artifacts, or when the user explicitly asks to see everything collected so far.
    - Stop when:
      - the user signals completion, or
      - you have asked at least 5 questions and all critical ambiguities are resolved.
