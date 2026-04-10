@@ -6,6 +6,8 @@ Commands are deprecated; ``--skills`` defaults to ``True``.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from ..base import IntegrationOption, SkillsIntegration
 
 
@@ -38,3 +40,16 @@ class CodexIntegration(SkillsIntegration):
                 help="Install as agent skills (default for Codex)",
             ),
         ]
+
+    def list_command_templates(self) -> list[Path]:
+        """Return the shared skills plus the Codex-only team skill."""
+        templates = list(super().list_command_templates())
+        team_template = (
+            Path(__file__).resolve().parents[4]
+            / "templates"
+            / "commands"
+            / "team.md"
+        )
+        if team_template.exists():
+            templates.append(team_template)
+        return sorted(templates, key=lambda path: path.name)

@@ -85,3 +85,13 @@ class TestRegistrarKeyAlignment:
         """The old 'cursor' shorthand must not appear in AGENT_CONFIGS."""
         from specify_cli.agents import CommandRegistrar
         assert "cursor" not in CommandRegistrar.AGENT_CONFIGS
+
+    def test_team_skill_is_not_global_template_surface(self):
+        """The team skill should stay Codex-only instead of leaking to every integration."""
+        codex = get_integration("codex")
+        claude = get_integration("claude")
+
+        assert codex is not None
+        assert claude is not None
+        assert any(path.name == "team.md" for path in codex.list_command_templates())
+        assert all(path.name != "team.md" for path in claude.list_command_templates())

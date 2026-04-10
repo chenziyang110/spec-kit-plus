@@ -131,7 +131,11 @@ class IntegrationBase(ABC):
         cmd_dir = self.shared_commands_dir()
         if not cmd_dir or not cmd_dir.is_dir():
             return []
-        return sorted(f for f in cmd_dir.iterdir() if f.is_file() and f.suffix == ".md")
+        return sorted(
+            f
+            for f in cmd_dir.iterdir()
+            if f.is_file() and f.suffix == ".md" and f.name != "team.md"
+        )
 
     def command_filename(self, template_name: str) -> str:
         """Return the destination filename for a command template.

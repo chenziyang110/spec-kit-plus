@@ -129,6 +129,34 @@ After `specify init`, use the generated workflow commands in your agent:
 
 For Codex and other skills-based integrations, the generated commands are installed in skills form.
 
+## Codex Team Runtime
+
+This fork now exposes a Codex-only first-release team/runtime surface through:
+
+```bash
+specify team
+```
+
+Current release scope:
+
+- Codex-only for first release
+- requires a tmux-capable environment
+- installs the Codex team skill as `sp-team`
+- keeps non-Codex integrations free of the team/runtime surface by default
+- installs runtime helper assets only under `.specify/codex-team/` for Codex projects
+
+Existing Codex projects may use an optional upgrade path, but that upgrade remains optional, non-blocking release support rather than a first-release requirement.
+
+Release isolation guidance:
+
+- `specify init --ai codex` may generate `sp-team` and `.specify/codex-team/*`
+- non-Codex init flows must not generate `sp-team`, `.specify/codex-team/*`, or advertise `specify team`
+- `omx` and `$team` are not the supported product surface for this repository
+
+Maintainer note:
+
+- keep Codex team assets and messaging behind Codex-only install and help paths unless the release boundary is intentionally widened
+
 ## Key Commands
 
 ```bash

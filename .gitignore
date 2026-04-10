@@ -38,7 +38,12 @@ env/
 *.log
 .env
 .env.local
+.env*
 *.lock
+node_modules/
+target/
+coverage/
+Thumbs.db
 
 # Spec Kit-specific files
 .genreleases/

@@ -9,6 +9,17 @@ class TestCodexIntegration(SkillsIntegrationTests):
     COMMANDS_SUBDIR = "skills"
     REGISTRAR_DIR = ".agents/skills"
     CONTEXT_FILE = "AGENTS.md"
+    _SKILL_COMMANDS = SkillsIntegrationTests._SKILL_COMMANDS + ["team"]
+
+    def _expected_files(self, script_variant: str) -> list[str]:
+        files = super()._expected_files(script_variant)
+        files.extend(
+            [
+                ".specify/codex-team/README.md",
+                ".specify/codex-team/runtime.json",
+            ]
+        )
+        return sorted(files)
 
 
 class TestCodexAutoPromote:
@@ -25,3 +36,5 @@ class TestCodexAutoPromote:
 
         assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
         assert (target / ".agents" / "skills" / "sp-plan" / "SKILL.md").exists()
+        assert (target / ".agents" / "skills" / "sp-team" / "SKILL.md").exists()
+        assert (target / ".specify" / "codex-team" / "runtime.json").exists()

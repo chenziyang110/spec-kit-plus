@@ -857,6 +857,21 @@ SKILL_DESCRIPTIONS = {
 }
 
 
+def _install_codex_team_assets_if_needed(
+    project_root: Path,
+    manifest: Any,
+    integration_key: str,
+) -> list[Path]:
+    """Install Codex-only helper assets when the active integration is codex."""
+    from .codex_team import install_codex_team_assets
+
+    return install_codex_team_assets(
+        project_root,
+        manifest,
+        integration_key=integration_key,
+    )
+
+
 @app.command()
 def init(
     project_name: str = typer.Argument(None, help="Name for your new project directory (optional if using --here, or use '.' for current directory)"),
@@ -1164,19 +1179,18 @@ def init(
                 script_type=selected_script,
                 raw_options=integration_options,
             )
+            _install_codex_team_assets_if_needed(
+                project_path,
+                manifest,
+                resolved_integration.key,
+            )
             manifest.save()
 
-            # Write .specify/integration.json
-            script_ext = "sh" if selected_script == "sh" else "ps1"
-            integration_json = project_path / ".specify" / "integration.json"
-            integration_json.parent.mkdir(parents=True, exist_ok=True)
-            integration_json.write_text(json.dumps({
-                "integration": resolved_integration.key,
-                "version": get_speckit_version(),
-                "scripts": {
-                    "update-context": f".specify/integrations/{resolved_integration.key}/scripts/update-context.{script_ext}",
-                },
-            }, indent=2) + "\n", encoding="utf-8")
+            _write_integration_json(
+                project_path,
+                resolved_integration.key,
+                selected_script,
+            )
 
             tracker.complete("integration", resolved_integration.config.get("name", resolved_integration.key))
 
@@ -1334,6 +1348,10 @@ def init(
         # Integration path installed skills; show the helpful notice
         steps_lines.append(f"{step_num}. Start Codex in this project directory; Spec Kit Plus skills were installed to [cyan].agents/skills[/cyan]")
         step_num += 1
+        steps_lines.append(f"{step_num}. Use [cyan]specify team[/cyan] to inspect the Codex-only team/runtime surface")
+        step_num += 1
+        steps_lines.append(f"{step_num}. The Codex team skill is available as [cyan]$sp-team[/cyan]")
+        step_num += 1
     if claude_skill_mode and not ai_skills:
         steps_lines.append(f"{step_num}. Start Claude in this project directory; Spec Kit Plus skills were installed to [cyan].claude/skills[/cyan]")
         step_num += 1
@@ -1368,6 +1386,7 @@ def init(
     enhancement_lines = [
         enhancement_intro,
         "",
+        f"○ [cyan]{'specify team' if codex_skill_mode else _display_cmd('team')}[/] [bright_black](codex-only)[/bright_black] - Inspect the official Codex team/runtime surface and environment status",
         f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Ask structured questions to de-risk ambiguous areas before planning (run before [cyan]{_display_cmd('plan')}[/] if used)",
         f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
         f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
@@ -1376,6 +1395,87 @@ def init(
     enhancements_panel = Panel("\n".join(enhancement_lines), title=enhancements_title, border_style="cyan", padding=(1,2))
     console.print()
     console.print(enhancements_panel)
+
+
+@app.command("team")
+def team_status(
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    bootstrap: bool = typer.Option(False, "--bootstrap", help="Bootstrap a runtime session"),
+    dispatch: str | None = typer.Option(None, "--dispatch", help="Dispatch request identifier"),
+    worker: str = typer.Option("worker-1", "--worker", help="Target worker name for dispatched work"),
+    fail: bool = typer.Option(False, "--fail", help="Mark a dispatched request as failed"),
+    reason: str = typer.Option("synthetic failure", "--reason", help="Failure reason for --fail"),
+    cleanup: bool = typer.Option(False, "--cleanup", help="Clean up the runtime session"),
+):
+    """Inspect the Codex-only team/runtime surface for the current project."""
+    from .codex_team import (
+        RuntimeEnvironmentError,
+        bootstrap_runtime_session,
+        cleanup_runtime_session,
+        codex_team_runtime_status,
+        dispatch_runtime_task,
+        ensure_tmux_available,
+        mark_runtime_failure,
+        runtime_state_summary,
+        team_availability_message,
+        team_help_text,
+    )
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+
+    current = _read_integration_json(project_root)
+    integration_key = current.get("integration")
+
+    console.print(team_help_text())
+    console.print(team_availability_message(integration_key))
+
+    if integration_key != "codex":
+        raise typer.Exit(1)
+
+    if fail and not dispatch:
+        console.print("[red]Error:[/red] --fail requires --dispatch <request-id>.")
+        raise typer.Exit(1)
+
+    if bootstrap:
+        session = bootstrap_runtime_session(project_root, session_id)
+        console.print(f"Bootstrapped session [cyan]{session.session_id}[/cyan] with status [green]{session.status}[/green].")
+        return
+
+    if dispatch:
+        record = dispatch_runtime_task(
+            project_root,
+            session_id=session_id,
+            request_id=dispatch,
+            target_worker=worker,
+        )
+        console.print(f"Dispatched [cyan]{record.request_id}[/cyan] to [cyan]{record.target_worker}[/cyan].")
+        if fail:
+            session, failed_record = mark_runtime_failure(
+                project_root,
+                session_id=session_id,
+                request_id=dispatch,
+                reason=reason,
+            )
+            console.print(f"Marked request [cyan]{failed_record.request_id}[/cyan] failed; session is now [yellow]{session.status}[/yellow].")
+        return
+
+    if cleanup:
+        session = cleanup_runtime_session(project_root, session_id)
+        console.print(f"Cleaned session [cyan]{session.session_id}[/cyan].")
+        return
+
+    try:
+        ensure_tmux_available()
+    except RuntimeEnvironmentError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+    status = codex_team_runtime_status(project_root, integration_key=integration_key)
+    console.print(runtime_state_summary(project_root))
+    console.print(f"tmux available: {status['tmux_available']}")
+    console.print(f"runtime config: [cyan].specify/codex-team/runtime.json[/cyan]")
+
 
 @app.command()
 def check():
@@ -1565,13 +1665,19 @@ def _write_integration_json(
     script_ext = "sh" if script_type == "sh" else "ps1"
     dest = project_root / INTEGRATION_JSON
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps({
+    payload: dict[str, Any] = {
         "integration": integration_key,
         "version": get_speckit_version(),
         "scripts": {
             "update-context": f".specify/integrations/{integration_key}/scripts/update-context.{script_ext}",
         },
-    }, indent=2) + "\n", encoding="utf-8")
+    }
+    if integration_key == "codex":
+        payload["team"] = {
+            "surface": "specify team",
+            "runtime_config": ".specify/codex-team/runtime.json",
+        }
+    dest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
 def _remove_integration_json(project_root: Path) -> None:
@@ -1702,6 +1808,11 @@ def integration_install(
             parsed_options=parsed_options,
             script_type=selected_script,
             raw_options=integration_options,
+        )
+        _install_codex_team_assets_if_needed(
+            project_root,
+            manifest,
+            integration.key,
         )
         manifest.save()
         _write_integration_json(project_root, integration.key, selected_script)
@@ -1970,6 +2081,11 @@ def integration_switch(
             parsed_options=parsed_options,
             script_type=selected_script,
             raw_options=integration_options,
+        )
+        _install_codex_team_assets_if_needed(
+            project_root,
+            manifest,
+            target_integration.key,
         )
         manifest.save()
         _write_integration_json(project_root, target_integration.key, selected_script)

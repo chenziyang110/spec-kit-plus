@@ -397,7 +397,10 @@ function Update-SpecificAgent {
         'cursor-agent' { Update-AgentFile -TargetFile $CURSOR_FILE   -AgentName 'Cursor IDE' }
         'qwen'     { Update-AgentFile -TargetFile $QWEN_FILE     -AgentName 'Qwen Code' }
         'opencode' { Update-AgentFile -TargetFile $AGENTS_FILE   -AgentName 'opencode' }
-        'codex'    { Update-AgentFile -TargetFile $AGENTS_FILE   -AgentName 'Codex CLI' }
+        'codex'    {
+            Update-AgentFile -TargetFile $AGENTS_FILE -AgentName 'Codex CLI'
+            Write-Info 'Codex team/runtime uses the specify-owned surface: specify team'
+        }
         'windsurf' { Update-AgentFile -TargetFile $WINDSURF_FILE -AgentName 'Windsurf' }
         'junie'    { Update-AgentFile -TargetFile $JUNIE_FILE    -AgentName 'Junie' }
         'kilocode' { Update-AgentFile -TargetFile $KILOCODE_FILE -AgentName 'Kilo Code' }

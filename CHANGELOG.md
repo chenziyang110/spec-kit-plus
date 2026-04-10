@@ -2,6 +2,14 @@
 
 <!-- insert new changelog below this comment -->
 
+## [Unreleased]
+
+### Changed
+
+- feat(codex): ship the Codex-only `specify team` surface with embedded runtime assets and tmux-gated status/dispatch helpers
+- test(codex): add Codex team contract, runtime-state, upgrade-path, and non-Codex isolation coverage
+- docs(codex): document first-release scope, optional upgrade messaging, and maintainer isolation guidance for the Codex team runtime
+
 ## [0.5.0] - 2026-04-02
 
 ### Changed
@@ -1164,4 +1172,3 @@
 ### Changed
 
 - Update release.yml
-

@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from specify_cli import AGENT_CONFIG, AI_ASSISTANT_ALIASES, AI_ASSISTANT_HELP
+from specify_cli.integrations import get_integration
 from specify_cli.extensions import CommandRegistrar
 
 
@@ -40,6 +41,16 @@ class TestAgentConfigConsistency:
         """Codex runtime config should point at .agents/skills."""
         assert AGENT_CONFIG["codex"]["folder"] == ".agents/"
         assert AGENT_CONFIG["codex"]["commands_subdir"] == "skills"
+
+    def test_codex_includes_team_template_but_claude_does_not(self):
+        """The Codex-only team surface should not leak into non-Codex template lists."""
+        codex = get_integration("codex")
+        claude = get_integration("claude")
+
+        assert codex is not None
+        assert claude is not None
+        assert any(path.name == "team.md" for path in codex.list_command_templates())
+        assert all(path.name != "team.md" for path in claude.list_command_templates())
 
     def test_init_ai_help_includes_roo_and_kiro_alias(self):
         """CLI help text for --ai should stay in sync with agent config and alias guidance."""

@@ -636,6 +636,7 @@ update_specific_agent() {
             ;;
         codex)
             update_agent_file "$AGENTS_FILE" "Codex CLI" || return 1
+            log_info "Codex team/runtime uses the specify-owned surface: specify team"
             ;;
         windsurf)
             update_agent_file "$WINDSURF_FILE" "Windsurf" || return 1

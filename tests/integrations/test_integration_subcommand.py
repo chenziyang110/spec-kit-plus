@@ -149,6 +149,24 @@ class TestIntegrationInstall:
         # Claude uses skills directory (not commands)
         assert (project / ".claude" / "skills" / "sp-plan" / "SKILL.md").exists()
 
+    def test_install_codex_into_bare_project_creates_team_assets(self, tmp_path):
+        """Installing codex into a bare project should create codex team assets only there."""
+        project = tmp_path / "bare-codex"
+        project.mkdir()
+        (project / ".specify").mkdir()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(app, [
+                "integration", "install", "codex",
+                "--script", "sh",
+            ], catch_exceptions=False)
+        finally:
+            os.chdir(old_cwd)
+        assert result.exit_code == 0, result.output
+        assert (project / ".agents" / "skills" / "sp-team" / "SKILL.md").exists()
+        assert (project / ".specify" / "codex-team" / "runtime.json").exists()
+
     def test_install_bare_project_gets_shared_infra(self, tmp_path):
         """Installing into a bare project should create shared scripts and templates."""
         project = tmp_path / "bare"
