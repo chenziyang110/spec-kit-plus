@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
 import shutil
+import sys
 from pathlib import Path
 
 from .manifests import (
@@ -20,12 +23,54 @@ class RuntimeEnvironmentError(RuntimeError):
     """Raised when the runtime cannot be used in the current environment."""
 
 
+def is_wsl() -> bool:
+    """Return whether the current process is running inside WSL."""
+    return bool(
+        os.environ.get("WSL_INTEROP")
+        or os.environ.get("WSL_DISTRO_NAME")
+        or "microsoft" in platform.uname().release.lower()
+    )
+
+
+def is_msys_or_git_bash() -> bool:
+    """Return whether the shell is an MSYS/Git Bash environment on Windows."""
+    return bool(os.environ.get("MSYSTEM"))
+
+
+def is_native_windows() -> bool:
+    """Return whether the current process is running on native Windows."""
+    return sys.platform == "win32" and not is_wsl() and not is_msys_or_git_bash()
+
+
+def detect_team_runtime_backend() -> dict[str, object]:
+    """Detect the available runtime backend for team-mode coordination."""
+    tmux_path = shutil.which("tmux")
+    if tmux_path:
+        return {"available": True, "name": "tmux", "binary": tmux_path}
+
+    if is_native_windows():
+        psmux_path = shutil.which("psmux")
+        if psmux_path:
+            return {"available": True, "name": "psmux", "binary": psmux_path}
+
+    return {"available": False, "name": None, "binary": None}
+
+
 def ensure_tmux_available() -> None:
-    """Fail visibly when tmux is unavailable."""
-    if shutil.which("tmux") is None:
+    """Fail visibly when no supported team runtime backend is available."""
+    backend = detect_team_runtime_backend()
+    if backend["available"]:
+        return
+
+    if is_native_windows():
         raise RuntimeEnvironmentError(
-            "tmux is required for the Codex team runtime in first-release environments."
+            "A tmux-compatible team runtime backend is required on native Windows. "
+            "Install psmux with: winget install psmux"
         )
+
+    raise RuntimeEnvironmentError(
+        "tmux is required for the Codex team runtime in first-release environments."
+    )
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> Path:
@@ -107,12 +152,12 @@ def cleanup_runtime_session(project_root: Path, session_id: str) -> RuntimeSessi
 def codex_team_runtime_status(project_root: Path, *, integration_key: str | None) -> dict[str, object]:
     """Return a compact runtime status payload for help text and tests."""
     available = integration_key == "codex"
-    tmux_available = shutil.which("tmux") is not None
+    backend = detect_team_runtime_backend()
     state_root = codex_team_state_root(project_root)
     session = RuntimeSession(
         session_id="preview",
-        status="ready" if available and tmux_available else "created",
-        environment_check="pass" if tmux_available else "fail",
+        status="ready" if available and backend["available"] else "created",
+        environment_check="pass" if backend["available"] else "fail",
     )
     dispatch = DispatchRecord(
         request_id="preview-request",
@@ -121,7 +166,10 @@ def codex_team_runtime_status(project_root: Path, *, integration_key: str | None
     )
     return {
         "available": available,
-        "tmux_available": tmux_available,
+        "runtime_backend_available": backend["available"],
+        "runtime_backend": backend["name"],
+        "tmux_available": backend["name"] == "tmux",
+        "native_windows": is_native_windows(),
         "state_root": state_root,
         "runtime_state": runtime_state_payload(session, [dispatch]),
     }

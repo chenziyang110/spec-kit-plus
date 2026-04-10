@@ -30,7 +30,7 @@ def team_availability_message(integration_key: str | None) -> str:
     if integration_key == "codex":
         return (
             "Codex team runtime is available. "
-            f"Use `{TEAM_COMMAND_NAME}` inside tmux-capable environments."
+            f"Use `{TEAM_COMMAND_NAME}` inside a supported tmux-compatible environment."
         )
     return (
         "Codex team runtime is only available for Codex integration projects."

@@ -1465,16 +1465,16 @@ def team_status(
         console.print(f"Cleaned session [cyan]{session.session_id}[/cyan].")
         return
 
-    try:
-        ensure_tmux_available()
-    except RuntimeEnvironmentError as exc:
-        console.print(f"[red]Error:[/red] {exc}")
-        raise typer.Exit(1)
-
     status = codex_team_runtime_status(project_root, integration_key=integration_key)
     console.print(runtime_state_summary(project_root))
-    console.print(f"tmux available: {status['tmux_available']}")
-    console.print(f"runtime config: [cyan].specify/codex-team/runtime.json[/cyan]")
+    console.print(f"runtime backend: {status['runtime_backend'] or 'unavailable'}")
+    console.print(f"runtime backend available: {status['runtime_backend_available']}")
+    console.print("runtime config: [cyan].specify/codex-team/runtime.json[/cyan]")
+    if not status["runtime_backend_available"]:
+        try:
+            ensure_tmux_available()
+        except RuntimeEnvironmentError as exc:
+            console.print(f"[yellow]Warning:[/yellow] {exc}")
 
 
 @app.command()
