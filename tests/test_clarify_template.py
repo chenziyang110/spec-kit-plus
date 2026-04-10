@@ -12,3 +12,8 @@ def test_clarify_template_requires_at_least_five_questions():
     assert "Default to concise clarification turns" in content
     assert "Do not restate the full current understanding after every answer" in content
     assert "Save the full synthesis for the final clarification report" in content
+    assert "question-card format" in content.lower()
+    assert "[ RECOMMENDED ]" in content
+    assert "Reply naturally, for example:" in content
+    assert '选 C' in content
+    assert "Recorded: C - Normalize first" in content

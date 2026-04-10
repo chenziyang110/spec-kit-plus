@@ -1,17 +1,12 @@
 ---
-description: Create or update the feature specification from a natural language feature description.
-handoffs:
-  - label: Build Technical Plan
-    agent: sp.plan
-    prompt: Create a plan for the spec. I am building with...
-  - label: Clarify Spec Requirements
-    agent: sp.clarify
-    prompt: Clarify specification requirements
-    send: true
-scripts:
-  sh: scripts/bash/create-new-feature.sh "{ARGS}"
-  ps: scripts/powershell/create-new-feature.ps1 "{ARGS}"
+name: "sp-specify"
+description: "Create or update the feature specification from a natural language feature description."
+compatibility: "Requires spec-kit project structure with .specify/ directory"
+metadata:
+  author: "github-spec-kit"
+  source: "templates/commands/specify.md"
 ---
+
 
 ## User Input
 
@@ -87,8 +82,8 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
      `常见的代码模式与约定`.
 
 5. Load context.
-   - Read `templates/spec-template.md`.
-   - Read `templates/alignment-template.md`.
+   - Read `.specify/templates/spec-template.md`.
+   - Read `.specify/templates/alignment-template.md`.
    - Read `项目技术文档.md` if present.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
@@ -183,12 +178,6 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
    - Ask at most one unanswered high-impact question per message.
    - Challenge contradictions or vague answers when important ambiguity remains.
    - Use the user's current language for all user-visible clarification content, including questions, summaries, status updates, and the current-understanding restatement.
-   - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
-   - Do not restate the full current understanding after every answer.
-   - Use at most a one-line checkpoint when helpful, for example `Confirmed so far:` or `Still open:`.
-   - Reserve the full current-understanding recap for moments when it adds clear value: the user asks for a recap, the thread has become long enough that context may drift, a contradiction must be reconciled, or you are about to conclude alignment.
-   - When you do restate current understanding, organize it in grouped sections by information layer, not as a flat list.
-   - Keep grouped recaps compact; omit sections that would be empty, repetitive, or low-value.
    - Use a shared question-card format for every interactive question in this workflow.
    - Keep the header minimal: `SPECIFY SESSION` plus the current question counter, for example `2 / 5`.
    - Default to a one-sentence question stem. Put extra context into the example line, grouped sub-points, or recommendation line instead of turning the stem into a paragraph.
@@ -199,6 +188,12 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
    - After the options, explicitly invite natural-language replies, for example: `Reply naturally, for example: "A", "选 C", "我选推荐项"`.
    - Accept common natural-language answer forms such as `A`, `选A`, `我选 C`, `推荐的那个`, or a short paraphrase that clearly matches one option.
    - After parsing the answer, acknowledge it with one lightweight confirmation line and continue, for example: `Recorded: C - Normalize first`.
+   - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
+   - Do not restate the full current understanding after every answer.
+   - Use at most a one-line checkpoint when helpful, for example `Confirmed so far:` or `Still open:`.
+   - Reserve the full current-understanding recap for moments when it adds clear value: the user asks for a recap, the thread has become long enough that context may drift, a contradiction must be reconciled, or you are about to conclude alignment.
+   - When you do restate current understanding, organize it in grouped sections by information layer, not as a flat list.
+   - Keep grouped recaps compact; omit sections that would be empty, repetitive, or low-value.
    - Do not repeat the same question in both the summary and the follow-up ask.
    - If you include a grouped recap and are about to ask the next question immediately, summarize it briefly under `Outstanding Questions` instead of restating the full wording there.
    - Save the full synthesis for the alignment-ready turn, the written artifacts (`alignment.md`, `spec.md`), or when the user explicitly asks to see everything collected so far.
@@ -207,24 +202,24 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
    Use this question-card structure in the user's current language:
 
    ```text
-   +-- SPECIFY SESSION ------------------------------ 2 / 5 --+
-   | [Short topic label]                                      |
-   |                                                          |
-   | [One-sentence question stem]                             |
-   |                                                          |
-   | Example                                                  |
-   |   [One-line concrete example]                            |
-   |                                                          |
-   | [ RECOMMENDED ]  [Option letter]                         |
-   | [One short rationale sentence]                           |
-   +----------------------------------------------------------+
+   ┌─ SPECIFY SESSION ─────────────────────────────── 2 / 5 ─┐
+   │ [Short topic label]                                     │
+   │                                                         │
+   │ [One-sentence question stem]                            │
+   │                                                         │
+   │ Example                                                 │
+   │   [One-line concrete example]                           │
+   │                                                         │
+   │ [ RECOMMENDED ]  [Option letter]                        │
+   │ [One short rationale sentence]                          │
+   └─────────────────────────────────────────────────────────┘
 
-   +-- OPTIONS ------------------------------------------------+
-   | A. [Option text]                                          |
-   | B. [Option text]                                          |
-   | C. [Option text]                                          |
-   | D. [Option text]                                          |
-   +-----------------------------------------------------------+
+   ┌─ OPTIONS ───────────────────────────────────────────────┐
+   │ A. [Option text]                                        │
+   │ B. [Option text]                                        │
+   │ C. [Option text]                                        │
+   │ D. [Option text]                                        │
+   └─────────────────────────────────────────────────────────┘
 
    Reply naturally, for example: "A", "选 C", "我选推荐项"
    ```

@@ -1,13 +1,12 @@
 ---
-description: Identify underspecified areas in the current feature spec by asking at least 5 highly targeted clarification questions and encoding answers back into the spec.
-handoffs:
-  - label: Build Technical Plan
-    agent: sp.plan
-    prompt: Create a plan for the spec. I am building with...
-scripts:
-   sh: scripts/bash/check-prerequisites.sh --json --paths-only
-   ps: scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly
+name: "sp-clarify"
+description: "Identify underspecified areas in the current feature spec by asking at least 5 highly targeted clarification questions and encoding answers back into the spec."
+compatibility: "Requires spec-kit project structure with .specify/ directory"
+metadata:
+  author: "github-spec-kit"
+  source: "templates/commands/clarify.md"
 ---
+
 
 ## User Input
 
@@ -25,7 +24,7 @@ Note: This workflow is still expected to complete before `/sp.plan` when require
 
 Execution steps:
 
-1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
+1. Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
    - `FEATURE_DIR`
    - `FEATURE_SPEC`
    - (Optionally `IMPL_PLAN`, `TASKS` for chained flows.)
@@ -107,12 +106,6 @@ Execution steps:
    - For short-answer prompts, constrain to a short phrase.
    - Allow the user to provide new requirements, new constraints, corrections, or scope changes, not just answers to ambiguity.
    - Use the user's current language for all user-visible clarification content, including questions, summaries, follow-up prompts, and completion reporting.
-   - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
-   - Do not restate the full current understanding after every answer.
-   - Use at most a one-line checkpoint when helpful, for example `Confirmed so far:` or `Still open:`.
-   - Reserve grouped recaps for moments when they add clear value: the user asks for a recap, the thread is long enough that context may drift, a contradiction must be reconciled, or you are about to finish clarification.
-   - Keep any recap compact and focused on what materially changed.
-   - Save the full synthesis for the final clarification report, the updated written artifacts, or when the user explicitly asks to see everything collected so far.
    - Use a shared question-card format for every interactive clarification question.
    - Keep the header minimal: `CLARIFY SESSION` plus the current question counter, for example `4 / 6`.
    - Write a one-sentence question stem only. Put extra context into the example line or the recommendation line instead of expanding the stem into a paragraph.
@@ -123,6 +116,12 @@ Execution steps:
    - After the options, explicitly invite natural-language replies, for example: `Reply naturally, for example: "A", "选 C", "我选推荐项"`.
    - Accept common natural-language answer forms such as `A`, `选A`, `我选 C`, `推荐的那个`, or a short paraphrase that clearly matches one option.
    - After parsing the answer, acknowledge it with one lightweight confirmation line and continue, for example: `Recorded: C - Normalize first`.
+   - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
+   - Do not restate the full current understanding after every answer.
+   - Use at most a one-line checkpoint when helpful, for example `Confirmed so far:` or `Still open:`.
+   - Reserve grouped recaps for moments when they add clear value: the user asks for a recap, the thread is long enough that context may drift, a contradiction must be reconciled, or you are about to finish clarification.
+   - Keep any recap compact and focused on what materially changed.
+   - Save the full synthesis for the final clarification report, the updated written artifacts, or when the user explicitly asks to see everything collected so far.
    - Stop when:
      - the user signals completion, or
      - you have asked at least 5 questions and all critical ambiguities are resolved.
@@ -133,24 +132,24 @@ Execution steps:
    Use this question-card structure in the user's current language:
 
    ```text
-   +-- CLARIFY SESSION ------------------------------ 4 / 6 --+
-   | [Short topic label]                                      |
-   |                                                          |
-   | [One-sentence question stem]                             |
-   |                                                          |
-   | Example                                                  |
-   |   [One-line concrete example]                            |
-   |                                                          |
-   | [ RECOMMENDED ]  [Option letter]                         |
-   | [One short rationale sentence]                           |
-   +----------------------------------------------------------+
+   ┌─ CLARIFY SESSION ─────────────────────────────── 4 / 6 ─┐
+   │ [Short topic label]                                     │
+   │                                                         │
+   │ [One-sentence question stem]                            │
+   │                                                         │
+   │ Example                                                 │
+   │   [One-line concrete example]                           │
+   │                                                         │
+   │ [ RECOMMENDED ]  [Option letter]                        │
+   │ [One short rationale sentence]                          │
+   └─────────────────────────────────────────────────────────┘
 
-   +-- OPTIONS ------------------------------------------------+
-   | A. [Option text]                                          |
-   | B. [Option text]                                          |
-   | C. [Option text]                                          |
-   | D. [Option text]                                          |
-   +-----------------------------------------------------------+
+   ┌─ OPTIONS ───────────────────────────────────────────────┐
+   │ A. [Option text]                                        │
+   │ B. [Option text]                                        │
+   │ C. [Option text]                                        │
+   │ D. [Option text]                                        │
+   └─────────────────────────────────────────────────────────┘
 
    Reply naturally, for example: "A", "选 C", "我选推荐项"
    ```
@@ -200,4 +199,4 @@ Behavior rules:
 - Use this command to add newly provided requirements or constraints, not just to answer old questions.
 - Match the user's current language for all user-visible output unless a literal command name, file path, or fixed status value must remain unchanged.
 
-Context for prioritization: {ARGS}
+Context for prioritization: $ARGUMENTS

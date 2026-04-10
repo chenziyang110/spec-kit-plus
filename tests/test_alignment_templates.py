@@ -23,6 +23,11 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Default to concise clarification turns" in content
     assert "Do not restate the full current understanding after every answer" in content
     assert "Save the full synthesis for the alignment-ready turn" in content
+    assert "question-card format" in content.lower()
+    assert "[ RECOMMENDED ]" in content
+    assert "Reply naturally, for example:" in content
+    assert '选 C' in content
+    assert "Recorded: C - Normalize first" in content
     assert "Do not repeat the same question" in content
     assert "Ask at most one unanswered high-impact question per message" in content
     assert "each clarification turn should contain at most one short checkpoint" in content
