@@ -44,12 +44,11 @@ class CodexIntegration(SkillsIntegration):
     def list_command_templates(self) -> list[Path]:
         """Return the shared skills plus the Codex-only team skill."""
         templates = list(super().list_command_templates())
-        team_template = (
-            Path(__file__).resolve().parents[4]
-            / "templates"
-            / "commands"
-            / "team.md"
-        )
+        commands_dir = self.shared_commands_dir()
+        if not commands_dir:
+            return templates
+
+        team_template = commands_dir / "team.md"
         if team_template.exists():
             templates.append(team_template)
         return sorted(templates, key=lambda path: path.name)

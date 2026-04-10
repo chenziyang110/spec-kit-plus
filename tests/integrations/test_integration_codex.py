@@ -38,3 +38,20 @@ class TestCodexAutoPromote:
         assert (target / ".agents" / "skills" / "sp-plan" / "SKILL.md").exists()
         assert (target / ".agents" / "skills" / "sp-team" / "SKILL.md").exists()
         assert (target / ".specify" / "codex-team" / "runtime.json").exists()
+
+
+def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_path):
+    """Codex must discover team.md from the packaged shared commands directory."""
+    from specify_cli.integrations.codex import CodexIntegration
+    from specify_cli.integrations.base import IntegrationBase
+
+    commands_dir = tmp_path / "commands"
+    commands_dir.mkdir()
+    (commands_dir / "plan.md").write_text("---\ndescription: plan\n---\nbody\n", encoding="utf-8")
+    (commands_dir / "team.md").write_text("---\ndescription: team\n---\nbody\n", encoding="utf-8")
+
+    monkeypatch.setattr(IntegrationBase, "shared_commands_dir", lambda self: commands_dir)
+
+    templates = CodexIntegration().list_command_templates()
+
+    assert templates == [commands_dir / "plan.md", commands_dir / "team.md"]
