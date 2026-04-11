@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from specify_cli.codex_team.state_paths import (
+    batch_record_path,
     codex_team_state_root,
     dispatch_record_path,
     event_log_path,
@@ -30,6 +31,7 @@ def test_canonical_runtime_paths_are_under_state_root(codex_team_project_root: P
     root = codex_team_state_root(codex_team_project_root)
 
     assert task_record_path(codex_team_project_root, "task-123") == root / "tasks" / "task-123.json"
+    assert batch_record_path(codex_team_project_root, "batch-1") == root / "batches" / "batch-1.json"
     assert worker_identity_path(codex_team_project_root, "worker-a") == root / "workers" / "identity" / "worker-a.json"
     assert worker_heartbeat_path(codex_team_project_root, "worker-a") == root / "workers" / "heartbeat" / "worker-a.json"
     assert mailbox_path(codex_team_project_root, "worker-a") == root / "mailboxes" / "worker-a.json"

@@ -14,6 +14,7 @@ def test_sp_implement_can_escalate_to_specify_team() -> None:
     content = _read_template().lower()
 
     assert "specify team" in content
+    assert "auto-dispatch" in content
     assert "escalat" in content
     assert "runtime availability" in content
 

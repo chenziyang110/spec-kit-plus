@@ -60,6 +60,13 @@ from specify_cli.codex_team import (
     team_availability_message,
     team_help_text,
 )
+from specify_cli.codex_team.auto_dispatch import (
+    AutoDispatchError,
+    BatchCompletionResult,
+    AutoDispatchUnavailableError,
+    complete_dispatched_batch,
+    route_ready_parallel_batch,
+)
 from specify_cli.codex_team.runtime_bridge import (
     RuntimeEnvironmentError,
     ensure_tmux_available,
@@ -1587,9 +1594,60 @@ def team_cleanup(
     console.print(f"Cleaned session [cyan]{session.session_id}[/cyan].")
 
 
+@team_app.command("auto-dispatch")
+def team_auto_dispatch(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory that contains tasks.md"),
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+    try:
+        result = route_ready_parallel_batch(
+            project_root,
+            feature_dir=(project_root / feature_dir).resolve(),
+            session_id=session_id,
+        )
+    except AutoDispatchUnavailableError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    except AutoDispatchError as exc:
+        console.print(f"[yellow]No auto-dispatch:[/yellow] {exc}")
+        raise typer.Exit(1) from exc
+
+    console.print(
+        f"Auto-dispatched [cyan]{result.batch_name}[/cyan] from [cyan]{result.feature_dir}[/cyan]: "
+        f"{', '.join(result.dispatched_task_ids)}"
+    )
+
+
+@team_app.command("complete-batch")
+def team_complete_batch(
+    batch_id: str = typer.Option(..., "--batch-id", help="Dispatched batch identifier"),
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+    try:
+        result = complete_dispatched_batch(
+            project_root,
+            batch_id=batch_id,
+            session_id=session_id,
+        )
+    except AutoDispatchError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    console.print(
+        f"Completed batch [cyan]{result.batch_name}[/cyan] ({result.batch_id}) with status "
+        f"[green]{result.status}[/green]."
+    )
+
+
 @team_app.command("api")
 def team_api(
-    operation: str = typer.Argument(..., help="API operation (status|tasks)"),
+    operation: str = typer.Argument(..., help="API operation (status|tasks|auto-dispatch|complete-batch)"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for auto-dispatch"),
+    batch_id: str | None = typer.Option(None, "--batch-id", help="Batch identifier for completion"),
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
     project_root = Path.cwd()
@@ -1600,6 +1658,49 @@ def team_api(
     elif operation == "tasks":
         records = task_ops.list_tasks(project_root)
         envelope["payload"] = {"tasks": [asdict(record) for record in records]}
+    elif operation == "auto-dispatch":
+        if not feature_dir:
+            console.print("[red]Error:[/red] --feature-dir is required for auto-dispatch.")
+            raise typer.Exit(1)
+        try:
+            result = route_ready_parallel_batch(
+                project_root,
+                feature_dir=(project_root / feature_dir).resolve(),
+                session_id=session_id,
+            )
+        except AutoDispatchError as exc:
+            envelope["status"] = "error"
+            envelope["payload"] = {"message": str(exc)}
+        else:
+            envelope["payload"] = {
+                "feature_dir": str(result.feature_dir),
+                "batch_id": result.batch_id,
+                "batch_name": result.batch_name,
+                "join_point_name": result.join_point_name,
+                "dispatched_task_ids": result.dispatched_task_ids,
+                "request_ids": result.request_ids,
+            }
+    elif operation == "complete-batch":
+        if not batch_id:
+            console.print("[red]Error:[/red] --batch-id is required for complete-batch.")
+            raise typer.Exit(1)
+        try:
+            result = complete_dispatched_batch(
+                project_root,
+                batch_id=batch_id,
+                session_id=session_id,
+            )
+        except AutoDispatchError as exc:
+            envelope["status"] = "error"
+            envelope["payload"] = {"message": str(exc)}
+        else:
+            envelope["payload"] = {
+                "batch_id": result.batch_id,
+                "batch_name": result.batch_name,
+                "status": result.status,
+                "join_point_name": result.join_point_name,
+                "task_ids": result.task_ids,
+            }
     else:
         console.print(f"[red]Error:[/red] Unknown API operation '{operation}'.")
         raise typer.Exit(1)

@@ -53,6 +53,7 @@ def test_sp_implement_includes_runtime_escalation_language(tmp_path: Path) -> No
 
     assert "runtime" in lower
     assert "escalat" in lower
+    assert "auto-dispatch" in lower
 
 
 def test_team_guidance_declares_codex_only_scope() -> None:

@@ -13,6 +13,25 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 
+## Codex Runtime Rule
+
+When running in Codex and you select the durable team runtime for a ready parallel batch, do not stop at a narrative recommendation.
+You **MUST** call the official CLI surface directly:
+
+```text
+specify team auto-dispatch --feature-dir "<FEATURE_DIR>"
+```
+
+Use the `FEATURE_DIR` discovered in Step 1.
+If the runtime backend is unavailable or there is no ready parallel batch, report that concrete blocker and fall back to the next valid execution strategy.
+Use this exact decision order:
+
+1. Complete Step 1 and capture the absolute `FEATURE_DIR`
+2. Inspect `tasks.md` for the next ready explicit parallel batch
+3. If you choose the durable runtime path, run `specify team auto-dispatch --feature-dir "<FEATURE_DIR>"`
+4. Read the command result before continuing
+5. Only fall back to native subagents or sequential execution when the command reports a concrete blocker such as no ready batch or no runtime backend
+
 ## Pre-Execution Checks
 
 **Check for extension hooks (before implementation)**:

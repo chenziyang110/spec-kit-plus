@@ -107,6 +107,28 @@ class MonitorSnapshot:
             self.created_at = datetime.now(timezone.utc).isoformat()
 
 
+@dataclass(slots=True)
+class BatchRecord:
+    batch_id: str
+    batch_name: str
+    session_id: str
+    feature_dir: str
+    task_ids: list[str]
+    request_ids: list[str]
+    join_point_name: str = ""
+    status: str = "dispatched"
+    schema_version: str = SCHEMA_VERSION
+    created_at: str = ""
+    updated_at: str = ""
+
+    def __post_init__(self) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        if not self.created_at:
+            self.created_at = now
+        if not self.updated_at:
+            self.updated_at = now
+
+
 def team_config_payload(*, team_name: str, session_id: str, config_version: str = "1") -> dict[str, Any]:
     return asdict(
         TeamConfig(
@@ -232,3 +254,33 @@ def monitor_snapshot_payload(
 def monitor_snapshot_from_json(text: str) -> MonitorSnapshot:
     payload = json.loads(text)
     return MonitorSnapshot(**filter_payload(payload, MonitorSnapshot))
+
+
+def batch_record_payload(
+    *,
+    batch_id: str,
+    batch_name: str,
+    session_id: str,
+    feature_dir: str,
+    task_ids: list[str],
+    request_ids: list[str],
+    join_point_name: str = "",
+    status: str = "dispatched",
+) -> dict[str, Any]:
+    return asdict(
+        BatchRecord(
+            batch_id=batch_id,
+            batch_name=batch_name,
+            session_id=session_id,
+            feature_dir=feature_dir,
+            task_ids=task_ids,
+            request_ids=request_ids,
+            join_point_name=join_point_name,
+            status=status,
+        )
+    )
+
+
+def batch_record_from_json(text: str) -> BatchRecord:
+    payload = json.loads(text)
+    return BatchRecord(**filter_payload(payload, BatchRecord))

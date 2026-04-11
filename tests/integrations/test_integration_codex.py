@@ -76,4 +76,6 @@ def test_codex_generated_sp_implement_includes_auto_parallel_team_guidance(tmp_p
 
     assert "native subagents" in content.lower()
     assert "specify team" in content
+    assert "auto-dispatch" in content.lower()
+    assert "feature_dir" in content.lower()
     assert "execution strategy" in content.lower()

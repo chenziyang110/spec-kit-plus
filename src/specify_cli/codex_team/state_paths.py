@@ -20,6 +20,11 @@ def dispatch_record_path(project_root: Path, request_id: str) -> Path:
     return codex_team_state_root(project_root) / "dispatch" / f"{request_id}.json"
 
 
+def batch_record_path(project_root: Path, batch_id: str) -> Path:
+    """Return the persisted batch record path."""
+    return codex_team_state_root(project_root) / "batches" / f"{batch_id}.json"
+
+
 def task_record_path(project_root: Path, task_id: str) -> Path:
     """Return the persisted task record path."""
     return codex_team_state_root(project_root) / "tasks" / f"{task_id}.json"

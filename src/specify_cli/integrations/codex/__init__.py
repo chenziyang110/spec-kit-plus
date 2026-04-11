@@ -80,7 +80,9 @@ class CodexIntegration(SkillsIntegration):
                     "For each ready parallel batch:\n"
                     "- Solo execution (single-worker sequential path) is the default when the change is localized, write sets overlap, or the runtime cannot host subagents. Fall back to this path whenever the Codex team runtime is unavailable.\n"
                     "- Prefer **native subagents** when the batch is small, bounded, and has isolated write sets.\n"
-                    "- Escalate to **`specify team`** when the batch needs durable coordination, explicit status tracking, or wider multi-lane recovery. The Codex runtime will route those batches into the team surface.\n"
+                    "- Escalate to **`specify team`** when the batch needs durable coordination, explicit status tracking, or wider multi-lane recovery.\n"
+                    "- When you choose the durable runtime path, call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** instead of stopping at a recommendation.\n"
+                    "- Follow a fixed order: capture the Step 1 `FEATURE_DIR`, inspect the next ready explicit parallel batch, run the auto-dispatch command, read the result, and only then fall back if the command reports a concrete blocker.\n"
                     "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
                 )
                 self.write_file_and_record(

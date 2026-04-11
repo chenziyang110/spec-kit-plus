@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from specify_cli.codex_team.events import append_event, event_log_path
+from specify_cli.codex_team.batch_ops import sync_batch_for_task
 from specify_cli.codex_team.runtime_state import (
     task_claim_payload,
     task_record_from_json,
@@ -307,6 +308,8 @@ def transition_task_status(
             "owner": owner,
         },
     )
+    if new_status in TERMINAL_STATUSES:
+        sync_batch_for_task(project_root, task_id)
     return record
 
 
