@@ -122,10 +122,28 @@ specify init my-project --ai codex --ignore-agent-tools
 After `specify init`, use the generated workflow commands in your agent:
 
 1. `constitution` to define project principles
-2. `specify` to write the feature spec
+2. `specify` to produce a planning-ready, analysis-first feature spec
 3. `plan` to define implementation design
 4. `tasks` to break work into executable tasks
 5. `implement` to execute the task plan
+
+Mainline pre-planning flow:
+
+```text
+specify -> plan
+```
+
+Optional follow-up commands:
+
+- `spec-extend` to deepen an existing spec before planning when analysis, references, or gaps need more work
+- `explain` to describe the current spec, plan, task, or implement artifact in plain language
+- `clarify` remains available as a compatibility bridge for older workflows, but it is no longer the recommended main path
+
+After planning, continue with:
+
+```text
+tasks -> implement
+```
 
 For Codex and other skills-based integrations, the generated commands are installed in skills form.
 

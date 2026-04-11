@@ -6,6 +6,7 @@
 
 ### Changed
 
+- feat(workflow): make `specify` analysis-first, add `spec-extend` and `explain`, and keep `clarify` as a compatibility bridge instead of the main pre-plan step
 - feat(codex): ship the Codex-only `specify team` surface with embedded runtime assets and tmux-gated status/dispatch helpers
 - test(codex): add Codex team contract, runtime-state, upgrade-path, and non-Codex isolation coverage
 - docs(codex): document first-release scope, optional upgrade messaging, and maintainer isolation guidance for the Codex team runtime

@@ -36,7 +36,7 @@ Update `tests/test_clarify_template.py` so it stops enforcing the old "ask at le
 
 Extend `tests/integrations/test_cli.py` to assert the generated command/skill surfaces include:
 - `sp-spec-extend`
-- `sp-explain` or the final selected explanation command name
+- `sp-explain`
 - updated descriptions for `specify`, `clarify`, and `plan`
 
 - [ ] **Step 4: Run focused tests and confirm they fail before implementation**
@@ -285,6 +285,13 @@ pytest tests/test_alignment_templates.py tests/test_clarify_template.py tests/in
 Expected:
 - All focused tests pass
 - The repository consistently advertises the new workflow and command set
+
+### Post-Implementation Notes
+
+- The stage explanation command name finalized as `explain`.
+- The reference-memory artifact name finalized as `references.md`.
+- `clarify` remains present as a compatibility bridge, not a mainline workflow step.
+- Passive parallelism shipped as policy helpers in the Codex team dispatch layer rather than an eager auto-dispatch behavior change.
 
 ## Verification Notes
 

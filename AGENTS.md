@@ -8,6 +8,16 @@
 
 The toolkit supports multiple AI coding assistants, allowing teams to use their preferred tools while maintaining consistent project structure and development practices.
 
+### Current Workflow Guidance
+
+When describing the generated user workflow, teach the current mainline as:
+
+```text
+specify -> plan
+```
+
+Treat `spec-extend` as the optional enhancement path when an existing spec needs deeper analysis before planning. Treat `clarify` as compatibility-only migration guidance, not as a required step between `specify` and `plan`.
+
 ---
 
 ## Adding New Agent Support

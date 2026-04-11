@@ -1,7 +1,7 @@
 # Specify Analysis Rework Design
 
 **Date:** 2026-04-11
-**Status:** Proposed
+**Status:** Implemented
 **Owner:** Codex
 
 ## Summary
@@ -20,7 +20,7 @@ The proposed system turns `specify` into a requirement-analysis orchestrator tha
 
 `clarify` exits the mainline workflow. Its successor is a new command, `spec-extend`, which revisits an existing spec, runs gap-finding plus optional multi-agent research, and writes targeted improvements back into the spec artifacts.
 
-The design also adds a new stage explanation command that explains the current artifact in plain language with a richer TUI presentation.
+The design also adds a new stage explanation command, `explain`, that explains the current artifact in plain language with a richer TUI presentation.
 
 ## Problem Statement
 
@@ -453,15 +453,15 @@ If passive parallelism is too eager, it will introduce cost and noise. Trigger c
 4. Add passive parallelism for `specify` and `spec-extend`.
 5. Expand passive parallelism policies in `plan` and `implement` using existing runtime support where appropriate.
 
-## Open Decisions
+## Implementation Resolution
 
-These should be finalized during planning:
+The implementation resolved the main naming and scope questions as follows:
 
-- exact command naming for `explain`
-- exact artifact names for reference and supporting analysis files
-- whether stage explanation is one command or multiple stage-specific commands
-- how much passive parallelism should live in template logic versus Python runtime code
-- how long `clarify` should remain as a compatibility alias
+- the stage explanation command shipped as `explain`
+- the reference-memory artifact shipped as `references.md`
+- stage explanation shipped as a single command with stage-aware behavior
+- passive parallelism shipped first as conservative Python-side policy helpers that preserve existing runtime semantics
+- `clarify` shipped as a compatibility bridge that redirects users toward `spec-extend`
 
 ## Decision
 
