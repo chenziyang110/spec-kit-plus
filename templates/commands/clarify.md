@@ -25,7 +25,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 Goal: Preserve existing `/sp.clarify` users during migration by acting as a compatibility bridge. Route to `/sp.spec-extend` for deeper requirement extension, misalignment repair, or evidence refresh, while still preserving alignment updates for users who invoked `/sp.clarify`.
 
-Note: This is not the main path anymore. `/sp.specify` should already have completed deep requirement analysis. Use `/sp.clarify` mainly for backward compatibility, small follow-up corrections, or users who explicitly invoke it. When requirements materially change, recommend `/sp.spec-extend` before `/sp.plan`.
+Note: This runs in compatibility mode, not as the main path. `/sp.specify` should already have completed deep requirement analysis. Use `/sp.clarify` mainly for backward compatibility, small follow-up corrections, or users who explicitly invoke it. When requirements materially change, recommend `/sp.spec-extend` before `/sp.plan`.
 
 Execution steps:
 
@@ -61,6 +61,10 @@ Execution steps:
    - Allow the user to provide new requirements, new constraints, corrections, or scope changes.
    - Use the user's current language for all user-visible clarification content.
    - Keep turns concise and avoid restating the full understanding after every answer.
+   - Use shared open question blocks rather than closed ASCII cards.
+   - Signal the session through a stage header and compatibility wording instead of full box framing.
+   - Make the compatibility mode explicit in the stage header when `/sp.clarify` stays active, for example `CLARIFY · COMPATIBILITY MODE`.
+   - Keep each open question block in the same order as `/sp.specify`: stage header, question header, prompt, example when useful, recommendation, options, and reply instruction.
 
 7. Integration after each accepted answer:
    - Update the spec in memory and on disk.
@@ -89,10 +93,12 @@ Execution steps:
    - Coverage summary table with Status: Resolved / Deferred / Clear / Outstanding
    - Alignment decision: `Aligned: ready for plan` or `Force proceed with known risks`
    - recommended next command: `/sp.spec-extend` when deeper requirement work is still needed, otherwise `/sp.plan`
+   - Present the completion summary as open blocks with a stage header, compatibility status, explanation block, risk block, and next-step block.
 
 ## Behavior rules
 
 - This is a compatibility bridge, not the main path.
+- Make compatibility mode visually explicit through the stage header and compatibility status language.
 - If the user has already terminated clarification explicitly, stop and report the current state.
 - If the spec file is missing, instruct the user to run `/sp.specify` first.
 - Recommend or redirect to `/sp.spec-extend` whenever the request is broader than a narrow compatibility clarification.

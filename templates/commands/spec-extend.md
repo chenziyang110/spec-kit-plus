@@ -68,6 +68,16 @@ Goal: Strengthen an existing spec package after `/sp.specify` by finding weak an
    - remaining planning risks
    - recommended next command
 
+## Output Contract
+
+When communicating findings and completion, use a structured terminal presentation built from open blocks with:
+
+- a stage header that identifies `SPEC-EXTEND` and the current enhancement state
+- a status block that summarizes whether the spec package was strengthened, partially strengthened, or is waiting on user confirmation
+- an explanation block that explains what changed, what weak analysis was improved, and why it matters for planning
+- a risk block that lists unresolved planning risks, remaining contradictions, or evidence gaps
+- a next-step block that gives the recommended next command and whether more enhancement work is still needed before `/sp.plan`
+
 ## Rules
 
 - Use the user's current language for user-visible output unless literal command names, file paths, or fixed status values must remain unchanged.

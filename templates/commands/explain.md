@@ -47,17 +47,17 @@ Goal: Read the current stage artifact and explain it in plain language so the us
    - what remains open or risky
    - what the next stage will do with this information
 
-5. Present the explanation as a structured terminal UI, not a raw dump.
+5. Present the explanation as a structured terminal UI built from open blocks, not a raw dump.
 
 ## TUI Requirements
 
 The output should use a polished terminal presentation with:
 
-- a stage banner
-- a status card
-- a main narrative section
-- an open-risk panel
-- a next-step panel
+- a stage header
+- a status block
+- an explanation block
+- a risk block
+- a next-step block
 
 The explanation must remain stage-aware:
 

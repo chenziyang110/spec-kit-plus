@@ -218,12 +218,14 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Reserve the full current-understanding recap for moments when it adds clear value: the user asks for a recap, the thread has become long enough that context may drift, a contradiction must be reconciled, or you are about to conclude alignment.
     - When you do restate current understanding, organize it in grouped sections by information layer, not as a flat list.
     - Keep grouped recaps compact; omit sections that would be empty, repetitive, or low-value.
-    - Use a shared question-card format for every interactive question in this workflow.
-    - Keep the header minimal: `SPECIFY SESSION` plus the current question counter, for example `2 / 5`.
-    - Default to a one-sentence question stem. Put extra context into the example line, grouped sub-points, or recommendation line instead of turning the stem into a paragraph.
+    - Use shared open question blocks for every interactive question in this workflow.
+    - Each open question block must present, in order: a stage header, question header, prompt, example when useful, recommendation, options, and reply instruction.
+    - Keep the stage header minimal: `SPECIFY SESSION` plus the current question counter, for example `2 / 5`.
+    - Use the question header for a short topic label only.
+    - Default to a one-sentence prompt. Put extra context into the example line, grouped sub-points, or recommendation line instead of turning the prompt into a paragraph.
     - Include a one-line `Example` row whenever the topic benefits from a concrete case.
-    - When you present options, mark exactly one option with a `[ RECOMMENDED ]` badge and follow it with a single short rationale sentence.
-    - Prefer a strong boxed card when the environment supports it. If not, fall back to a simplified card while preserving the same sections and ordering.
+    - When you present options, mark exactly one option in the recommendation with a `[ RECOMMENDED ]` badge and follow it with a single short rationale sentence.
+    - Keep the open block visually structured through ordering, spacing, and labels rather than right-side borders or closed ASCII framing.
     - Do not rely on interactive selection widgets. Assume the user will answer in plain text.
     - After the options, explicitly invite natural-language replies, for example: `Reply naturally, for example: "A", "选 C", "我选推荐项"`.
     - Accept common natural-language answer forms such as `A`, `选A`, `我选 C`, `推荐的那个`, or a short paraphrase that clearly matches one option.
@@ -233,27 +235,32 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Save the full synthesis for the alignment-ready turn, the written artifacts (`alignment.md`, `spec.md`, `references.md`), or when the user explicitly asks to see everything collected so far.
     - each clarification turn should contain at most one short checkpoint or one grouped recap, plus one question block.
 
-    Use this question-card structure in the user's current language:
+    Use this open question block structure in the user's current language:
 
     ```text
-    +-- SPECIFY SESSION ------------------------------ 2 / 5 --+
-    | [Short topic label]                                      |
-    |                                                          |
-    | [One-sentence question stem]                             |
-    |                                                          |
-    | Example                                                  |
-    |   [One-line concrete example]                            |
-    |                                                          |
-    | [ RECOMMENDED ]  [Option letter]                         |
-    | [One short rationale sentence]                           |
-    +----------------------------------------------------------+
+    Stage header
+    SPECIFY SESSION · 2 / 5
 
-    +-- OPTIONS ------------------------------------------------+
-    | A. [Option text]                                          |
-    | B. [Option text]                                          |
-    | C. [Option text]                                          |
-    | D. [Option text]                                          |
-    +-----------------------------------------------------------+
+    Question header
+    [Short topic label]
+
+    Prompt
+    [One-sentence question stem]
+
+    Example
+    [One-line concrete example]
+
+    Recommendation
+    [ RECOMMENDED ] [Option letter]
+    [One short rationale sentence]
+
+    Options
+    A. [Option text]
+    B. [Option text]
+    C. [Option text]
+    D. [Option text]
+
+    Reply instruction
 
     Reply naturally, for example: "A", "选 C", "我选推荐项"
     ```
