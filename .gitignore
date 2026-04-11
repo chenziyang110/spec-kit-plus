@@ -50,6 +50,7 @@ Thumbs.db
 *.zip
 sdd-*/
 docs/dev
+.omx/
 
 # Extension system
 .specify/extensions/.cache/

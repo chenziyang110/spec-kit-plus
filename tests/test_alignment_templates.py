@@ -97,6 +97,10 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "ready tasks" in content.lower()
     assert "join point" in content.lower()
     assert "shared registration files" in content.lower()
+    assert "execution strategy" in content.lower()
+    assert "native subagents" in content.lower()
+    assert "coordinated runtime" in content.lower()
+    assert "sequential execution" in content.lower()
 
 
 def test_alignment_template_exists():

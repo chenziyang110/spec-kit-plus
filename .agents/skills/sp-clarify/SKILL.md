@@ -106,6 +106,12 @@ Execution steps:
    - For short-answer prompts, constrain to a short phrase.
    - Allow the user to provide new requirements, new constraints, corrections, or scope changes, not just answers to ambiguity.
    - Use the user's current language for all user-visible clarification content, including questions, summaries, follow-up prompts, and completion reporting.
+   - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
+   - Do not restate the full current understanding after every answer.
+   - Use at most a one-line checkpoint when helpful, for example `Confirmed so far:` or `Still open:`.
+   - Reserve grouped recaps for moments when they add clear value: the user asks for a recap, the thread is long enough that context may drift, a contradiction must be reconciled, or you are about to finish clarification.
+   - Keep any recap compact and focused on what materially changed.
+   - Save the full synthesis for the final clarification report, the updated written artifacts, or when the user explicitly asks to see everything collected so far.
    - Use a shared question-card format for every interactive clarification question.
    - Keep the header minimal: `CLARIFY SESSION` plus the current question counter, for example `4 / 6`.
    - Write a one-sentence question stem only. Put extra context into the example line or the recommendation line instead of expanding the stem into a paragraph.
@@ -116,12 +122,6 @@ Execution steps:
    - After the options, explicitly invite natural-language replies, for example: `Reply naturally, for example: "A", "选 C", "我选推荐项"`.
    - Accept common natural-language answer forms such as `A`, `选A`, `我选 C`, `推荐的那个`, or a short paraphrase that clearly matches one option.
    - After parsing the answer, acknowledge it with one lightweight confirmation line and continue, for example: `Recorded: C - Normalize first`.
-   - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
-   - Do not restate the full current understanding after every answer.
-   - Use at most a one-line checkpoint when helpful, for example `Confirmed so far:` or `Still open:`.
-   - Reserve grouped recaps for moments when they add clear value: the user asks for a recap, the thread is long enough that context may drift, a contradiction must be reconciled, or you are about to finish clarification.
-   - Keep any recap compact and focused on what materially changed.
-   - Save the full synthesis for the final clarification report, the updated written artifacts, or when the user explicitly asks to see everything collected so far.
    - Stop when:
      - the user signals completion, or
      - you have asked at least 5 questions and all critical ambiguities are resolved.
@@ -132,24 +132,24 @@ Execution steps:
    Use this question-card structure in the user's current language:
 
    ```text
-   ┌─ CLARIFY SESSION ─────────────────────────────── 4 / 6 ─┐
-   │ [Short topic label]                                     │
-   │                                                         │
-   │ [One-sentence question stem]                            │
-   │                                                         │
-   │ Example                                                 │
-   │   [One-line concrete example]                           │
-   │                                                         │
-   │ [ RECOMMENDED ]  [Option letter]                        │
-   │ [One short rationale sentence]                          │
-   └─────────────────────────────────────────────────────────┘
+   +-- CLARIFY SESSION ------------------------------ 4 / 6 --+
+   | [Short topic label]                                      |
+   |                                                          |
+   | [One-sentence question stem]                             |
+   |                                                          |
+   | Example                                                  |
+   |   [One-line concrete example]                            |
+   |                                                          |
+   | [ RECOMMENDED ]  [Option letter]                         |
+   | [One short rationale sentence]                           |
+   +----------------------------------------------------------+
 
-   ┌─ OPTIONS ───────────────────────────────────────────────┐
-   │ A. [Option text]                                        │
-   │ B. [Option text]                                        │
-   │ C. [Option text]                                        │
-   │ D. [Option text]                                        │
-   └─────────────────────────────────────────────────────────┘
+   +-- OPTIONS ------------------------------------------------+
+   | A. [Option text]                                          |
+   | B. [Option text]                                          |
+   | C. [Option text]                                          |
+   | D. [Option text]                                          |
+   +-----------------------------------------------------------+
 
    Reply naturally, for example: "A", "选 C", "我选推荐项"
    ```

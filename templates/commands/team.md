@@ -23,3 +23,7 @@ Validation:
 2. Confirm `tmux` is available
 3. Confirm `.specify/codex-team/runtime.json` exists
 4. Do not treat `omx` or `$team` as the supported product surface for this repository
+
+## Audience
+
+This guidance belongs to the Codex-only team/runtime surface. Do not surface these instructions through other agent integrations or treat non-Codex runtimes as the intended audience.

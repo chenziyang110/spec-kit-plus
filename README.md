@@ -137,6 +137,44 @@ This fork now exposes a Codex-only first-release team/runtime surface through:
 specify team
 ```
 
+### The `specify team` surface
+
+`specify team` is the official CLI surface for the runtime. All operations start from this command, so avoid advertising other entry points such as `omx` or `$team`.
+
+- `specify team status` dumps the latest JSON snapshot of the team phase, worker roster, task queue, and mailbox state.
+- `specify team await` blocks until the runtime reaches a terminal phase so operators can wait for batch completion.
+- `specify team resume` re-attaches to an existing runtime session by replaying the metadata in `.specify/codex-team/` and restarting the tmux backend.
+- `specify team shutdown` requests a graceful stop, letting workers finish or fail their in-flight tasks before tearing down.
+- `specify team cleanup` removes `.specify/codex-team/` state after shutdown succeeds; run it only once shutdown has settled to avoid corrupting the state folder.
+- `specify team api <operation>` proxies structured JSON operations (task claims, worker heartbeats, events) into the runtime; use it when automation needs a predictable channel.
+
+This command suite powers both the `sp-team` skill and the runtime APIs that downstream tooling relies on, which is why the command is restricted to Codex-initiated projects.
+
+### Runtime state location and lifecycle
+
+All runtime state lives under `.specify/codex-team/`:
+
+- `runtime.json` contains the active session metadata and canonical root paths.
+- `state/` holds per-object JSON files (`tasks/*.json`, `workers/*.json`, `mailboxes/*.json`, `dispatch/*.json`) along with `phase.json` and `events.log` for the lifecycle stream.
+- Heartbeats, claims, approvals, and monitor snapshots append to the files under `state/`, guaranteeing the CLI can restart based on the latest saved facts.
+
+Lifecycle notes:
+
+- Tasks run through `pending → in_progress → completed|failed` and emit events that `specify team status` surfaces.
+- Workers claim tasks with identity records, write heartbeats under `state/workers`, and consume mailbox messages from `state/mailboxes`.
+- Shutdown requests append a terminal event, and cleanup removes the `.specify/codex-team/` directory once all JSON files have been archived.
+
+Operators should treat this directory as the single source of truth for resumes, restarts, and audits, and not attempt to recreate state outside the official CLI surface.
+
+### Operator guidance and backend requirements
+
+- The runtime currently requires a tmux-capable backend (`tmux` on Unix/WSL or a Windows-compatible alternative) to host worker panes; the CLI validates the backend before bootstrapping a session.
+- Use `specify team resume` whenever a previously-running session still holds worker heartbeats or task claims to prevent duplicate boots.
+- Issue `specify team shutdown` before terminating the tmux backend so the runtime can flush claims and notify join points, then run `specify team cleanup` once the CLI reports the phase is `shutdown`/`cleaned`.
+- `specify team await` is useful for scripts that need to pause until the team exits the `dispatch` phase without polling `state/` files directly.
+
+### Release isolation guidance
+
 Current release scope:
 
 - Codex-only for first release

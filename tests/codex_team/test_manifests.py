@@ -7,6 +7,7 @@ from specify_cli.codex_team.manifests import (
     runtime_session_from_json,
     runtime_state_payload,
 )
+from specify_cli.codex_team.schema import SCHEMA_VERSION
 
 
 def test_runtime_state_payload_serializes_session_and_dispatches():
@@ -64,3 +65,35 @@ def test_dispatch_record_round_trips_from_json():
     assert record.request_id == "req-2"
     assert record.target_worker == "worker-b"
     assert record.status == "completed"
+
+
+def test_runtime_session_parser_ignores_unknown_fields():
+    raw = json.dumps(
+        {
+            "session_id": "session-3",
+            "status": "created",
+            "extra": "ignored",
+        }
+    )
+
+    session = runtime_session_from_json(raw)
+
+    assert session.session_id == "session-3"
+    assert session.schema_version == SCHEMA_VERSION
+    assert not hasattr(session, "extra")
+
+
+def test_dispatch_record_parser_ignores_unknown_fields():
+    raw = json.dumps(
+        {
+            "request_id": "req-4",
+            "target_worker": "worker-c",
+            "extra": "ignored",
+        }
+    )
+
+    record = dispatch_record_from_json(raw)
+
+    assert record.request_id == "req-4"
+    assert record.schema_version == SCHEMA_VERSION
+    assert not hasattr(record, "extra")

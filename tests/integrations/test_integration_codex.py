@@ -55,3 +55,25 @@ def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_pat
     templates = CodexIntegration().list_command_templates()
 
     assert templates == [commands_dir / "plan.md", commands_dir / "team.md"]
+
+
+def test_codex_generated_sp_implement_includes_auto_parallel_team_guidance(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-auto-parallel"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skill_path = target / ".agents" / "skills" / "sp-implement" / "SKILL.md"
+    content = skill_path.read_text(encoding="utf-8")
+
+    assert "native subagents" in content.lower()
+    assert "specify team" in content
+    assert "execution strategy" in content.lower()

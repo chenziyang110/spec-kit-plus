@@ -34,6 +34,7 @@ import json
 import json5
 import stat
 import yaml
+from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 from typing import Any, Optional, Tuple
@@ -50,6 +51,21 @@ from typer.core import TyperGroup
 
 # For cross-platform keyboard input
 import readchar
+
+from specify_cli.codex_team import (
+    codex_team_runtime_status,
+    runtime_state_summary,
+    session_ops,
+    task_ops,
+    team_availability_message,
+    team_help_text,
+)
+from specify_cli.codex_team.runtime_bridge import (
+    RuntimeEnvironmentError,
+    ensure_tmux_available,
+    dispatch_runtime_task,
+    mark_runtime_failure,
+)
 
 def _build_agent_config() -> dict[str, dict[str, Any]]:
     """Derive AGENT_CONFIG from INTEGRATION_REGISTRY."""
@@ -318,6 +334,14 @@ app = typer.Typer(
     invoke_without_command=True,
     cls=BannerGroup,
 )
+
+team_app = typer.Typer(
+    name="team",
+    help="Codex-only team/runtime surface",
+    invoke_without_command=True,
+    no_args_is_help=False,
+)
+app.add_typer(team_app, name="team")
 
 def show_banner():
     """Display the ASCII art banner."""
@@ -1397,8 +1421,19 @@ def init(
     console.print(enhancements_panel)
 
 
-@app.command("team")
-def team_status(
+def _require_codex_team_project(project_root: Path) -> str:
+    _require_spec_kit_plus_project(project_root)
+    current = _read_integration_json(project_root)
+    integration_key = current.get("integration")
+    if integration_key != "codex":
+        console.print("[red]Error:[/red] Codex team runtime is only available for Codex integration projects.")
+        raise typer.Exit(1)
+    return integration_key
+
+
+@team_app.callback(invoke_without_command=True)
+def _team_root(
+    ctx: typer.Context,
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
     bootstrap: bool = typer.Option(False, "--bootstrap", help="Bootstrap a runtime session"),
     dispatch: str | None = typer.Option(None, "--dispatch", help="Dispatch request identifier"),
@@ -1407,38 +1442,36 @@ def team_status(
     reason: str = typer.Option("synthetic failure", "--reason", help="Failure reason for --fail"),
     cleanup: bool = typer.Option(False, "--cleanup", help="Clean up the runtime session"),
 ):
-    """Inspect the Codex-only team/runtime surface for the current project."""
-    from .codex_team import (
-        RuntimeEnvironmentError,
-        bootstrap_runtime_session,
-        cleanup_runtime_session,
-        codex_team_runtime_status,
-        dispatch_runtime_task,
-        ensure_tmux_available,
-        mark_runtime_failure,
-        runtime_state_summary,
-        team_availability_message,
-        team_help_text,
-    )
+    if ctx.invoked_subcommand is None:
+        if bootstrap or dispatch or fail or cleanup:
+            _handle_legacy_team_flags(
+                session_id=session_id,
+                bootstrap=bootstrap,
+                dispatch=dispatch,
+                worker=worker,
+                fail=fail,
+                reason=reason,
+                cleanup=cleanup,
+            )
+            return
+        ctx.invoke(team_status, session_id=session_id)
 
+
+def _handle_legacy_team_flags(
+    *,
+    session_id: str,
+    bootstrap: bool,
+    dispatch: str | None,
+    worker: str,
+    fail: bool,
+    reason: str,
+    cleanup: bool,
+) -> None:
     project_root = Path.cwd()
-    _require_spec_kit_plus_project(project_root)
-
-    current = _read_integration_json(project_root)
-    integration_key = current.get("integration")
-
-    console.print(team_help_text())
-    console.print(team_availability_message(integration_key))
-
-    if integration_key != "codex":
-        raise typer.Exit(1)
-
-    if fail and not dispatch:
-        console.print("[red]Error:[/red] --fail requires --dispatch <request-id>.")
-        raise typer.Exit(1)
+    _require_codex_team_project(project_root)
 
     if bootstrap:
-        session = bootstrap_runtime_session(project_root, session_id)
+        session = session_ops.bootstrap_session(project_root, session_id=session_id)
         console.print(f"Bootstrapped session [cyan]{session.session_id}[/cyan] with status [green]{session.status}[/green].")
         return
 
@@ -1461,9 +1494,25 @@ def team_status(
         return
 
     if cleanup:
-        session = cleanup_runtime_session(project_root, session_id)
+        session = session_ops.cleanup_session(project_root, session_id=session_id)
         console.print(f"Cleaned session [cyan]{session.session_id}[/cyan].")
         return
+
+    if fail:
+        console.print("[red]Error:[/red] --fail requires --dispatch <request-id>.")
+        raise typer.Exit(1)
+
+
+@team_app.command("status")
+def team_status(
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    """Inspect the Codex-only team/runtime surface for the current project."""
+    project_root = Path.cwd()
+    integration_key = _require_codex_team_project(project_root)
+
+    console.print(team_help_text())
+    console.print(team_availability_message(integration_key))
 
     status = codex_team_runtime_status(project_root, integration_key=integration_key)
     console.print(runtime_state_summary(project_root))
@@ -1475,6 +1524,86 @@ def team_status(
             ensure_tmux_available()
         except RuntimeEnvironmentError as exc:
             console.print(f"[yellow]Warning:[/yellow] {exc}")
+
+
+@team_app.command("await")
+def team_await(
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+    snapshot = session_ops.monitor_summary(project_root, session_id=session_id)
+    console.print(f"Monitor snapshot: {snapshot.snapshot_id}")
+    console.print(f"Task count: {snapshot.task_count}")
+    console.print(f"Worker count: {snapshot.worker_count}")
+
+
+@team_app.command("resume")
+def team_resume(
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+    session = session_ops.bootstrap_session(project_root, session_id=session_id)
+    console.print(f"Bootstrapped session [cyan]{session.session_id}[/cyan] with status [green]{session.status}[/green].")
+
+
+@team_app.command("shutdown")
+def team_shutdown(
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    reason: str | None = typer.Option(None, "--reason", help="Failure reason for shutdown"),
+    requested_by: str | None = typer.Option(None, "--requested-by", help="Identity requesting shutdown"),
+    acknowledge: bool = typer.Option(False, "--acknowledge", help="Acknowledge a pending shutdown"),
+    acknowledged_by: str | None = typer.Option(None, "--acknowledged-by", help="Identity acknowledging shutdown"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+    if acknowledge:
+        if not acknowledged_by:
+            console.print("[red]Error:[/red] --acknowledge requires --acknowledged-by.")
+            raise typer.Exit(1)
+        session_ops.acknowledge_shutdown(project_root, session_id=session_id, acknowledged_by=acknowledged_by)
+        console.print(f"Shutdown acknowledged for session [cyan]{session_id}[/cyan].")
+        return
+    if not reason or not requested_by:
+        console.print("[red]Error:[/red] --reason and --requested-by are required to request a shutdown.")
+        raise typer.Exit(1)
+    session_ops.request_shutdown(
+        project_root,
+        session_id=session_id,
+        reason=reason,
+        requested_by=requested_by,
+    )
+    console.print(f"Shutdown requested for session [cyan]{session_id}[/cyan].")
+
+
+@team_app.command("cleanup")
+def team_cleanup(
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+    session = session_ops.cleanup_session(project_root, session_id=session_id)
+    console.print(f"Cleaned session [cyan]{session.session_id}[/cyan].")
+
+
+@team_app.command("api")
+def team_api(
+    operation: str = typer.Argument(..., help="API operation (status|tasks)"),
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    integration_key = _require_codex_team_project(project_root)
+    envelope: dict[str, Any] = {"operation": operation, "status": "ok", "payload": {}}
+    if operation == "status":
+        envelope["payload"] = codex_team_runtime_status(project_root, integration_key=integration_key)
+    elif operation == "tasks":
+        records = task_ops.list_tasks(project_root)
+        envelope["payload"] = {"tasks": [asdict(record) for record in records]}
+    else:
+        console.print(f"[red]Error:[/red] Unknown API operation '{operation}'.")
+        raise typer.Exit(1)
+    print(json.dumps(envelope, ensure_ascii=False, default=str))
 
 
 @app.command()

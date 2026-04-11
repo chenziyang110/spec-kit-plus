@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 ## About Spec Kit and Specify
 

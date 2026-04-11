@@ -37,6 +37,7 @@ from .state_paths import (
     dispatch_record_path,
     runtime_session_path,
 )
+from . import tmux_backend, worktree_ops, worker_bootstrap
 
 __all__ = [
     "CODEX_TEAM_HELPER_FILES",
@@ -66,4 +67,7 @@ __all__ = [
     "team_availability_message",
     "team_help_text",
     "upgrade_existing_codex_project",
+    "tmux_backend",
+    "worktree_ops",
+    "worker_bootstrap",
 ]
