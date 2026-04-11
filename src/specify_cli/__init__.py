@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import typer
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.text import Text
 from rich.live import Live
@@ -325,6 +325,45 @@ def select_with_arrows(options: dict, prompt_text: str = "Select an option", def
 
 console = Console()
 
+
+def _cli_panel(
+    renderable,
+    *,
+    title: str,
+    border_style: str,
+    padding: tuple[int, int] = (0, 1),
+    expand: bool = False,
+) -> Panel:
+    """Standardize panel hierarchy with short titles and tighter framing."""
+    return Panel(
+        renderable,
+        title=f"[bold]{title}[/bold]",
+        title_align="left",
+        border_style=border_style,
+        padding=padding,
+        expand=expand,
+    )
+
+
+def _labeled_grid(rows: list[tuple[str, str]]) -> Table:
+    """Render short status/detail rows with consistent label emphasis."""
+    table = Table.grid(expand=False, padding=(0, 2))
+    table.add_column(style="bold bright_black", justify="right", no_wrap=True)
+    table.add_column(style="white")
+    for label, value in rows:
+        table.add_row(label, value)
+    return table
+
+
+def _command_grid(rows: list[tuple[str, str]]) -> Table:
+    """Render command-oriented rows for next steps and enhancement surfaces."""
+    table = Table.grid(expand=False, padding=(0, 2))
+    table.add_column(style="bold cyan", no_wrap=True)
+    table.add_column(style="white")
+    for label, value in rows:
+        table.add_row(label, value)
+    return table
+
 class BannerGroup(TyperGroup):
     """Custom group that shows banner before help."""
 
@@ -363,6 +402,33 @@ def show_banner():
     console.print(Align.center(styled_banner))
     console.print(Align.center(Text(TAGLINE, style="italic bright_yellow")))
     console.print()
+
+
+def _open_block(
+    title: str,
+    lines: list[str],
+    *,
+    accent: str = "cyan",
+    subtitle: str | None = None,
+) -> Group:
+    """Render an open, single-side-emphasis block without a right border."""
+
+    header = Text()
+    header.append(title, style=f"bold {accent}")
+    if subtitle:
+        header.append(" ")
+        header.append(subtitle, style="bright_black")
+
+    renderables = [header]
+    for line in lines:
+        if not line:
+            renderables.append(Text(""))
+            continue
+        row = Text("▌ ", style=accent)
+        row.append_text(Text.from_markup(line))
+        renderables.append(row)
+
+    return Group(*renderables)
 
 @app.callback()
 def callback(ctx: typer.Context):
@@ -1067,15 +1133,17 @@ def init(
     else:
         project_path = Path(project_name).resolve()
         if project_path.exists():
-            error_panel = Panel(
-                f"Directory '[cyan]{project_name}[/cyan]' already exists\n"
-                "Please choose a different project name or remove the existing directory.",
-                title="[red]Directory Conflict[/red]",
-                border_style="red",
-                padding=(1, 2)
-            )
             console.print()
-            console.print(error_panel)
+            console.print(_open_block(
+                "Directory conflict",
+                [
+                    f"Directory '[cyan]{project_name}[/cyan]' already exists",
+                    "Please choose a different project name or remove the existing directory.",
+                    "",
+                    "Next: choose a different project name or remove the existing directory.",
+                ],
+                accent="red",
+            ))
             raise typer.Exit(1)
 
     if ai_assistant:
@@ -1111,8 +1179,6 @@ def init(
     current_dir = Path.cwd()
 
     setup_lines = [
-        "[cyan]Specify Plus Project Setup[/cyan]",
-        "",
         f"{'Project':<15} [green]{project_path.name}[/green]",
         f"{'Working Path':<15} [dim]{current_dir}[/dim]",
     ]
@@ -1120,7 +1186,7 @@ def init(
     if not here:
         setup_lines.append(f"{'Target Path':<15} [dim]{project_path}[/dim]")
 
-    console.print(Panel("\n".join(setup_lines), border_style="cyan", padding=(1, 2)))
+    console.print(_open_block("Initialize Spec Kit Plus Project", setup_lines, accent="cyan"))
 
     should_init_git = False
     if not no_git:
@@ -1133,17 +1199,18 @@ def init(
         if agent_config and agent_config["requires_cli"]:
             install_url = agent_config["install_url"]
             if not check_tool(selected_ai):
-                error_panel = Panel(
-                    f"[cyan]{selected_ai}[/cyan] not found\n"
-                    f"Install from: [cyan]{install_url}[/cyan]\n"
-                    f"{agent_config['name']} is required to continue with this project type.\n\n"
-                    "Tip: Use [cyan]--ignore-agent-tools[/cyan] to skip this check",
-                    title="[red]Agent Detection Error[/red]",
-                    border_style="red",
-                    padding=(1, 2)
-                )
                 console.print()
-                console.print(error_panel)
+                console.print(_open_block(
+                    "Agent Detection Error",
+                    [
+                        f"[cyan]{selected_ai}[/cyan] not found",
+                        f"Install from: [cyan]{install_url}[/cyan]",
+                        f"{agent_config['name']} is required to continue with this project type.",
+                        "",
+                        "Tip: Use [cyan]--ignore-agent-tools[/cyan] to skip this check",
+                    ],
+                    accent="red",
+                ))
                 raise typer.Exit(1)
 
     if script_type:
@@ -1307,7 +1374,7 @@ def init(
             raise
         except Exception as e:
             tracker.error("final", str(e))
-            console.print(Panel(f"Initialization failed: {e}", title="Failure", border_style="red"))
+            console.print(_open_block("Failure", [f"Initialization failed: {e}"], accent="red"))
             if debug:
                 _env_pairs = [
                     ("Python", sys.version.split()[0]),
@@ -1316,7 +1383,7 @@ def init(
                 ]
                 _label_width = max(len(k) for k, _ in _env_pairs)
                 env_lines = [f"{k.ljust(_label_width)} → [bright_black]{v}[/bright_black]" for k, v in _env_pairs]
-                console.print(Panel("\n".join(env_lines), title="Debug Environment", border_style="magenta"))
+                console.print(_open_block("Debug Environment", env_lines, accent="magenta"))
             if not here and project_path.exists():
                 shutil.rmtree(project_path)
             raise typer.Exit(1)
@@ -1329,34 +1396,36 @@ def init(
     # Show git error details if initialization failed
     if git_error_message:
         console.print()
-        git_error_panel = Panel(
-            f"[yellow]Warning:[/yellow] Git repository initialization failed\n\n"
-            f"{git_error_message}\n\n"
-            f"[dim]You can initialize git manually later with:[/dim]\n"
-            f"[cyan]cd {project_path if not here else '.'}[/cyan]\n"
-            f"[cyan]git init[/cyan]\n"
-            f"[cyan]git add .[/cyan]\n"
-            f"[cyan]git commit -m \"Initial commit\"[/cyan]",
-            title="[red]Git Initialization Failed[/red]",
-            border_style="red",
-            padding=(1, 2)
-        )
-        console.print(git_error_panel)
+        console.print(_open_block(
+            "Git Initialization Failed",
+            [
+                "[yellow]Warning:[/yellow] Git repository initialization failed",
+                "",
+                git_error_message,
+                "",
+                "[dim]You can initialize git manually later with:[/dim]",
+                f"[cyan]cd {project_path if not here else '.'}[/cyan]",
+                "[cyan]git init[/cyan]",
+                "[cyan]git add .[/cyan]",
+                "[cyan]git commit -m \"Initial commit\"[/cyan]",
+            ],
+            accent="red",
+        ))
 
     # Agent folder security notice
     agent_config = AGENT_CONFIG.get(selected_ai)
     if agent_config:
         agent_folder = ai_commands_dir if selected_ai == "generic" else agent_config["folder"]
         if agent_folder:
-            security_notice = Panel(
-                f"Some agents may store credentials, auth tokens, or other identifying and private artifacts in the agent folder within your project.\n"
-                f"Consider adding [cyan]{agent_folder}[/cyan] (or parts of it) to [cyan].gitignore[/cyan] to prevent accidental credential leakage.",
-                title="[yellow]Agent Folder Security[/yellow]",
-                border_style="yellow",
-                padding=(1, 2)
-            )
             console.print()
-            console.print(security_notice)
+            console.print(_open_block(
+                "Security note",
+                [
+                    "Some agents may store credentials, auth tokens, or other identifying and private artifacts in the agent folder within your project.",
+                    f"Consider adding [cyan]{agent_folder}[/cyan] (or parts of it) to [cyan].gitignore[/cyan] to prevent accidental credential leakage.",
+                ],
+                accent="yellow",
+            ))
 
     steps_lines = []
     if not here:
@@ -1407,9 +1476,8 @@ def init(
     steps_lines.append(f"   {step_num}.4 [cyan]{_display_cmd('tasks')}[/] - Generate actionable tasks")
     steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
 
-    steps_panel = Panel("\n".join(steps_lines), title="Plus Next Steps", border_style="cyan", padding=(1,2))
     console.print()
-    console.print(steps_panel)
+    console.print(_open_block("Start Here", steps_lines, accent="cyan"))
 
     enhancement_intro = (
         "Optional skills that you can use for your specs [bright_black](improve quality & confidence)[/bright_black]"
@@ -1426,10 +1494,9 @@ def init(
         f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, or task artifact in plain language before moving forward",
         f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
     ]
-    enhancements_title = "Plus Enhancement Skills" if native_skill_mode else "Plus Enhancement Commands"
-    enhancements_panel = Panel("\n".join(enhancement_lines), title=enhancements_title, border_style="cyan", padding=(1,2))
+    enhancements_title = "Optional support skills" if native_skill_mode else "Optional support commands"
     console.print()
-    console.print(enhancements_panel)
+    console.print(_open_block(enhancements_title, enhancement_lines, accent="cyan"))
 
 
 def _require_codex_team_project(project_root: Path) -> str:

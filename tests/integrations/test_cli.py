@@ -255,16 +255,35 @@ class TestInitIntegrationFlag:
 
         assert result.exit_code == 0, result.output
         assert "Spec Kit Plus" in result.output
-        assert "Specify Plus Project Setup" in result.output
+        assert "Specify Plus Project Setup" not in result.output
         assert "Initialize Spec Kit Plus Project" in result.output
         assert "Spec Kit Plus project ready." in result.output
-        assert "Plus Next Steps" in result.output
-        assert "Plus Enhancement Skills" in result.output
+        assert "Start Here" in result.output
+        assert "Plus Next Steps" not in result.output
+        assert "Optional support skills" in result.output
+        assert "Plus Enhancement Skills" not in result.output
+        assert "Agent Folder Security" not in result.output
         assert "Spec Kit Plus skills were" in result.output
         assert ".agents/skills" in result.output
         assert "spec-extend" in result.output
         assert "compatibility" in result.output.lower()
         assert "explain" in result.output
+
+    def test_init_directory_conflict_uses_normalized_error_surface(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "existing-project"
+        project.mkdir()
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["init", str(project)])
+
+        assert result.exit_code != 0
+        assert "Directory Conflict" not in result.output
+        assert "Directory conflict" in result.output
+        assert "choose a different project name" in result.output.lower()
+        assert "Next" in result.output
 
     def test_codex_init_generates_analysis_rework_skill_surface(self, tmp_path):
         from typer.testing import CliRunner
