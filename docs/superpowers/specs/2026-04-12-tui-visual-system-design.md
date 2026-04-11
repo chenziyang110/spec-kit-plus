@@ -1,7 +1,7 @@
 # TUI Visual System Design
 
 **Date:** 2026-04-12  
-**Status:** Proposed  
+**Status:** Implemented  
 **Owner:** Codex
 
 ## Summary
@@ -421,6 +421,16 @@ Implementation order:
 2. update template-driven surfaces
 3. update Rich CLI surfaces
 4. add structural tests to prevent regression
+
+## Implementation Resolution
+
+The implementation resolved the main open points as follows:
+
+- template-driven interaction surfaces now use open question blocks instead of closed ASCII cards
+- `clarify` keeps compatibility-mode emphasis, but signals it through stage-header and compatibility-status language rather than a second conflicting block structure
+- `explain` shipped as the cleanest expression of the system, using explicit `stage header`, `status block`, `explanation block`, `risk block`, and `next-step block` terminology
+- Rich CLI output in `specify init` now uses open, single-side-emphasis blocks for setup, next steps, enhancement guidance, and major warning/error surfaces
+- regression coverage was added at the template contract level and the generated-skill level to prevent boxed-card regressions
 
 ## Decision
 

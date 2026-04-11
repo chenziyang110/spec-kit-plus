@@ -194,3 +194,10 @@ Expected:
 - `pytest tests/integrations/test_cli.py tests/test_tui_visual_contract.py -q`
 - `pytest tests/test_tui_visual_contract.py tests/test_extension_skills.py -q`
 - `pytest tests/test_alignment_templates.py tests/test_clarify_template.py tests/test_tui_visual_contract.py tests/integrations/test_cli.py tests/test_extension_skills.py -q`
+
+## Post-Implementation Notes
+
+- The template layer shipped with open question blocks for `specify` and compatibility-mode open blocks for `clarify`.
+- `spec-extend` and `explain` now explicitly describe their output in terms of stage/status/explanation/risk/next-step blocks.
+- Rich CLI surfaces in `src/specify_cli/__init__.py` were normalized toward open, single-side-emphasis presentation for setup, next-step, enhancement, and major warning/error flows.
+- The implementation intentionally did not remove every Rich `Panel` in the CLI; it normalized the core, user-facing surfaces first and left lower-priority panels for later passes if needed.
