@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import os
+from pathlib import Path
 
 import pytest
 
@@ -41,8 +43,9 @@ class TestManifestPathTraversal:
 
     def test_record_file_rejects_absolute_path(self, tmp_path):
         m = IntegrationManifest("test", tmp_path)
-        with pytest.raises(ValueError, match="Absolute paths"):
-            m.record_file("/tmp/escape.txt", "bad")
+        absolute_path = Path("C:/tmp/escape.txt") if os.name == "nt" else Path("/tmp/escape.txt")
+        with pytest.raises(ValueError, match="Absolute paths|outside"):
+            m.record_file(absolute_path, "bad")
 
     def test_record_existing_rejects_parent_traversal(self, tmp_path):
         escape = tmp_path.parent / "escape.txt"
@@ -88,6 +91,8 @@ class TestManifestCheckModified:
         target = tmp_path / "target.txt"
         target.write_text("target", encoding="utf-8")
         (tmp_path / "f.txt").unlink()
+        if not _can_create_symlink(tmp_path):
+            pytest.skip("symlink creation not permitted in this environment")
         (tmp_path / "f.txt").symlink_to(target)
         assert m.check_modified() == ["f.txt"]
 
@@ -162,6 +167,8 @@ class TestManifestUninstall:
         target = tmp_path / "target.txt"
         target.write_text("target", encoding="utf-8")
         (tmp_path / "f.txt").unlink()
+        if not _can_create_symlink(tmp_path):
+            pytest.skip("symlink creation not permitted in this environment")
         (tmp_path / "f.txt").symlink_to(target)
         removed, skipped = m.uninstall()
         assert removed == []
@@ -174,10 +181,26 @@ class TestManifestUninstall:
         target = tmp_path / "target.txt"
         target.write_text("target", encoding="utf-8")
         (tmp_path / "f.txt").unlink()
+        if not _can_create_symlink(tmp_path):
+            pytest.skip("symlink creation not permitted in this environment")
         (tmp_path / "f.txt").symlink_to(target)
         removed, skipped = m.uninstall(force=True)
         assert len(removed) == 1
         assert target.exists()
+
+
+def _can_create_symlink(tmp_path) -> bool:
+    probe_target = tmp_path / "symlink-target.txt"
+    probe_link = tmp_path / "symlink-probe.txt"
+    probe_target.write_text("probe", encoding="utf-8")
+    try:
+        probe_link.symlink_to(probe_target)
+        return True
+    except OSError:
+        return False
+    finally:
+        probe_link.unlink(missing_ok=True)
+        probe_target.unlink(missing_ok=True)
 
 
 class TestManifestPersistence:

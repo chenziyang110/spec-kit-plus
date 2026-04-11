@@ -324,7 +324,7 @@ class TomlIntegrationTests:
 
     COMMAND_STEMS = [
         "analyze", "checklist", "clarify", "constitution",
-        "implement", "plan", "specify", "tasks", "taskstoissues",
+        "explain", "implement", "plan", "spec-extend", "specify", "tasks", "taskstoissues",
     ]
 
     def _expected_files(self, script_variant: str) -> list[str]:
@@ -358,7 +358,7 @@ class TomlIntegrationTests:
 
         for name in ["agent-file-template.md", "alignment-template.md",
                      "checklist-template.md", "constitution-template.md",
-                     "plan-template.md", "spec-template.md",
+                     "plan-template.md", "references-template.md", "spec-template.md",
                      "tasks-template.md"]:
             files.append(f".specify/templates/{name}")
 

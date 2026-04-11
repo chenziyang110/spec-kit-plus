@@ -296,7 +296,7 @@ class SkillsIntegrationTests:
 
     _SKILL_COMMANDS = [
         "analyze", "checklist", "clarify", "constitution",
-        "implement", "plan", "specify", "tasks", "taskstoissues",
+        "explain", "implement", "plan", "spec-extend", "specify", "tasks", "taskstoissues",
     ]
 
     def _expected_files(self, script_variant: str) -> list[str]:
@@ -342,6 +342,7 @@ class SkillsIntegrationTests:
             ".specify/templates/checklist-template.md",
             ".specify/templates/constitution-template.md",
             ".specify/templates/plan-template.md",
+            ".specify/templates/references-template.md",
             ".specify/templates/spec-template.md",
             ".specify/templates/tasks-template.md",
         ]

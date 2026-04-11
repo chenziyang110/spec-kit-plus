@@ -123,10 +123,10 @@ class TestCopilotIntegration:
         agents_dir = tmp_path / ".github" / "agents"
         assert agents_dir.is_dir()
         agent_files = sorted(agents_dir.glob("sp.*.agent.md"))
-        assert len(agent_files) == 9
+        assert len(agent_files) == 11
         expected_commands = {
             "analyze", "checklist", "clarify", "constitution",
-            "implement", "plan", "specify", "tasks", "taskstoissues",
+            "explain", "implement", "plan", "spec-extend", "specify", "tasks", "taskstoissues",
         }
         actual_commands = {f.name.removeprefix("sp.").removesuffix(".agent.md") for f in agent_files}
         assert actual_commands == expected_commands
@@ -166,8 +166,10 @@ class TestCopilotIntegration:
             ".github/agents/sp.checklist.agent.md",
             ".github/agents/sp.clarify.agent.md",
             ".github/agents/sp.constitution.agent.md",
+            ".github/agents/sp.explain.agent.md",
             ".github/agents/sp.implement.agent.md",
             ".github/agents/sp.plan.agent.md",
+            ".github/agents/sp.spec-extend.agent.md",
             ".github/agents/sp.specify.agent.md",
             ".github/agents/sp.tasks.agent.md",
             ".github/agents/sp.taskstoissues.agent.md",
@@ -175,8 +177,10 @@ class TestCopilotIntegration:
             ".github/prompts/sp.checklist.prompt.md",
             ".github/prompts/sp.clarify.prompt.md",
             ".github/prompts/sp.constitution.prompt.md",
+            ".github/prompts/sp.explain.prompt.md",
             ".github/prompts/sp.implement.prompt.md",
             ".github/prompts/sp.plan.prompt.md",
+            ".github/prompts/sp.spec-extend.prompt.md",
             ".github/prompts/sp.specify.prompt.md",
             ".github/prompts/sp.tasks.prompt.md",
             ".github/prompts/sp.taskstoissues.prompt.md",
@@ -197,6 +201,7 @@ class TestCopilotIntegration:
             ".specify/templates/checklist-template.md",
             ".specify/templates/constitution-template.md",
             ".specify/templates/plan-template.md",
+            ".specify/templates/references-template.md",
             ".specify/templates/spec-template.md",
             ".specify/templates/tasks-template.md",
             ".specify/memory/constitution.md",
@@ -227,8 +232,10 @@ class TestCopilotIntegration:
             ".github/agents/sp.checklist.agent.md",
             ".github/agents/sp.clarify.agent.md",
             ".github/agents/sp.constitution.agent.md",
+            ".github/agents/sp.explain.agent.md",
             ".github/agents/sp.implement.agent.md",
             ".github/agents/sp.plan.agent.md",
+            ".github/agents/sp.spec-extend.agent.md",
             ".github/agents/sp.specify.agent.md",
             ".github/agents/sp.tasks.agent.md",
             ".github/agents/sp.taskstoissues.agent.md",
@@ -236,8 +243,10 @@ class TestCopilotIntegration:
             ".github/prompts/sp.checklist.prompt.md",
             ".github/prompts/sp.clarify.prompt.md",
             ".github/prompts/sp.constitution.prompt.md",
+            ".github/prompts/sp.explain.prompt.md",
             ".github/prompts/sp.implement.prompt.md",
             ".github/prompts/sp.plan.prompt.md",
+            ".github/prompts/sp.spec-extend.prompt.md",
             ".github/prompts/sp.specify.prompt.md",
             ".github/prompts/sp.tasks.prompt.md",
             ".github/prompts/sp.taskstoissues.prompt.md",
@@ -258,6 +267,7 @@ class TestCopilotIntegration:
             ".specify/templates/checklist-template.md",
             ".specify/templates/constitution-template.md",
             ".specify/templates/plan-template.md",
+            ".specify/templates/references-template.md",
             ".specify/templates/spec-template.md",
             ".specify/templates/tasks-template.md",
             ".specify/memory/constitution.md",

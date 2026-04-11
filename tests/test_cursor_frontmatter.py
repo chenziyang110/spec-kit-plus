@@ -32,6 +32,10 @@ requires_git = pytest.mark.skipif(
     shutil.which("git") is None,
     reason="git is not installed",
 )
+requires_bash = pytest.mark.skipif(
+    shutil.which("bash") is None,
+    reason="bash is not installed",
+)
 
 
 class TestScriptFrontmatterPattern:
@@ -73,6 +77,7 @@ class TestScriptFrontmatterPattern:
 
 
 @requires_git
+@requires_bash
 class TestCursorFrontmatterIntegration:
     """Integration tests using a real git repo."""
 

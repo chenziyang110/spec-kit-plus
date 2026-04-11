@@ -17,6 +17,11 @@ CREATE_FEATURE = PROJECT_ROOT / "scripts" / "bash" / "create-new-feature.sh"
 CREATE_FEATURE_PS = PROJECT_ROOT / "scripts" / "powershell" / "create-new-feature.ps1"
 COMMON_SH = PROJECT_ROOT / "scripts" / "bash" / "common.sh"
 
+requires_bash = pytest.mark.skipif(
+    shutil.which("bash") is None,
+    reason="bash is not installed",
+)
+
 
 @pytest.fixture
 def git_repo(tmp_path: Path) -> Path:
@@ -77,6 +82,7 @@ def source_and_call(func_call: str, env: dict | None = None) -> subprocess.Compl
 # ── Timestamp Branch Tests ───────────────────────────────────────────────────
 
 
+@requires_bash
 class TestTimestampBranch:
     def test_timestamp_creates_branch(self, git_repo: Path):
         """Test 1: --timestamp creates branch with YYYYMMDD-HHMMSS prefix."""
@@ -122,6 +128,7 @@ class TestTimestampBranch:
 # ── Sequential Branch Tests ──────────────────────────────────────────────────
 
 
+@requires_bash
 class TestSequentialBranch:
     def test_sequential_default_with_existing_specs(self, git_repo: Path):
         """Test 2: Sequential default with existing specs."""
@@ -170,6 +177,7 @@ class TestSequentialBranch:
 # ── check_feature_branch Tests ───────────────────────────────────────────────
 
 
+@requires_bash
 class TestCheckFeatureBranch:
     def test_accepts_timestamp_branch(self):
         """Test 6: check_feature_branch accepts timestamp branch."""
@@ -210,6 +218,7 @@ class TestCheckFeatureBranch:
 # ── find_feature_dir_by_prefix Tests ─────────────────────────────────────────
 
 
+@requires_bash
 class TestFindFeatureDirByPrefix:
     def test_timestamp_branch(self, tmp_path: Path):
         """Test 10: find_feature_dir_by_prefix with timestamp branch."""
@@ -242,6 +251,7 @@ class TestFindFeatureDirByPrefix:
 # ── get_current_branch Tests ─────────────────────────────────────────────────
 
 
+@requires_bash
 class TestGetCurrentBranch:
     def test_env_var(self):
         """Test 12: get_current_branch returns SPECIFY_FEATURE env var."""
@@ -252,6 +262,7 @@ class TestGetCurrentBranch:
 # ── No-git Tests ─────────────────────────────────────────────────────────────
 
 
+@requires_bash
 class TestNoGitTimestamp:
     def test_no_git_timestamp(self, no_git_dir: Path):
         """Test 13: No-git repo + timestamp creates spec dir with warning."""
@@ -265,6 +276,7 @@ class TestNoGitTimestamp:
 # ── E2E Flow Tests ───────────────────────────────────────────────────────────
 
 
+@requires_bash
 class TestE2EFlow:
     def test_e2e_timestamp(self, git_repo: Path):
         """Test 14: E2E timestamp flow — branch, dir, validation."""
@@ -298,6 +310,7 @@ class TestE2EFlow:
 # ── Allow Existing Branch Tests ──────────────────────────────────────────────
 
 
+@requires_bash
 class TestAllowExistingBranch:
     def test_allow_existing_switches_to_branch(self, git_repo: Path):
         """T006: Pre-create branch, verify script switches to it."""
@@ -441,6 +454,7 @@ class TestAllowExistingBranchPowerShell:
 # ── Dry-Run Tests ────────────────────────────────────────────────────────────
 
 
+@requires_bash
 class TestDryRun:
     def test_dry_run_sequential_outputs_name(self, git_repo: Path):
         """T009: Dry-run computes correct branch name with existing specs."""
