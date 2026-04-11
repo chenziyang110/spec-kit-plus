@@ -876,12 +876,14 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
-    "specify": "Create or update feature specifications from natural language descriptions.",
-    "plan": "Generate technical implementation plans from feature specifications.",
+    "specify": "Create or update the feature specification from a natural language feature description.",
+    "spec-extend": "Re-open the current specification, deepen weak analysis, and update spec artifacts through targeted enhancement.",
+    "explain": "Explain the current stage artifact in plain language with a structured terminal presentation.",
+    "plan": "Execute the implementation planning workflow using the plan template to generate design artifacts.",
     "tasks": "Break down implementation plans into actionable task lists.",
     "implement": "Execute all tasks from the task breakdown to build the feature.",
     "analyze": "Perform cross-artifact consistency analysis across spec.md, plan.md, and tasks.md.",
-    "clarify": "Re-open the spec to clarify, correct, or extend requirements and update alignment status.",
+    "clarify": "Compatibility bridge for users who still run clarify; route requirement-extension work to spec-extend while preserving alignment updates.",
     "constitution": "Create or update project governing principles and development guidelines.",
     "checklist": "Generate custom quality checklists for validating requirements completeness and clarity.",
     "taskstoissues": "Convert tasks from tasks.md into GitHub issues.",
@@ -1400,8 +1402,8 @@ def init(
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
 
     steps_lines.append(f"   {step_num}.1 [cyan]{_display_cmd('constitution')}[/] - Establish project principles")
-    steps_lines.append(f"   {step_num}.2 [cyan]{_display_cmd('specify')}[/] - Create baseline specification")
-    steps_lines.append(f"   {step_num}.3 [cyan]{_display_cmd('plan')}[/] - Create implementation plan")
+    steps_lines.append(f"   {step_num}.2 [cyan]{_display_cmd('specify')}[/] - Create the aligned requirement package")
+    steps_lines.append(f"   {step_num}.3 [cyan]{_display_cmd('plan')}[/] - Generate the implementation design artifacts")
     steps_lines.append(f"   {step_num}.4 [cyan]{_display_cmd('tasks')}[/] - Generate actionable tasks")
     steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
 
@@ -1418,8 +1420,10 @@ def init(
         enhancement_intro,
         "",
         f"○ [cyan]{'specify team' if codex_skill_mode else _display_cmd('team')}[/] [bright_black](codex-only)[/bright_black] - Inspect the official Codex team/runtime surface and environment status",
-        f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Ask structured questions to de-risk ambiguous areas before planning (run before [cyan]{_display_cmd('plan')}[/] if used)",
+        f"○ [cyan]{_display_cmd('spec-extend')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
+        f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](compatibility)[/bright_black] - Backward-compatible follow-up for legacy clarify users; prefer [cyan]{_display_cmd('spec-extend')}[/] for substantive requirement changes",
         f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
+        f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, or task artifact in plain language before moving forward",
         f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
     ]
     enhancements_title = "Plus Enhancement Skills" if native_skill_mode else "Plus Enhancement Commands"

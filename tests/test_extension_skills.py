@@ -11,6 +11,7 @@ Tests cover:
 """
 
 import json
+import os
 import pytest
 import tempfile
 import shutil
@@ -22,6 +23,7 @@ from specify_cli.extensions import (
     ExtensionManager,
     ExtensionError,
 )
+from specify_cli import SKILL_DESCRIPTIONS
 
 
 # ===== Helpers =====
@@ -177,6 +179,73 @@ class TestExtensionManagerGetSkillsDir:
         manager = ExtensionManager(no_skills_project)
         result = manager._get_skills_dir()
         assert result is None
+
+
+class TestBuiltInSkillGeneration:
+    """Built-in skill scaffolding should expose the latest command surfaces."""
+
+    @staticmethod
+    def _frontmatter(skill_path: Path) -> dict:
+        content = skill_path.read_text(encoding="utf-8")
+        parts = content.split("---", 2)
+        return yaml.safe_load(parts[1])
+
+    def test_claude_ai_skills_include_new_command_surfaces(self, temp_dir):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project_dir = temp_dir / "claude-skill-surfaces"
+        project_dir.mkdir()
+
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(project_dir)
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--ai-skills",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+
+        skills_dir = project_dir / ".claude" / "skills"
+        assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
+        assert (skills_dir / "sp-explain" / "SKILL.md").exists()
+        assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
+        assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
+
+        clarify_fm = self._frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
+        assert clarify_fm["description"].startswith("Compatibility bridge")
+        assert "spec-extend" in clarify_fm["description"]
+        assert "compatibility" in result.output.lower()
+
+
+class TestSkillDescriptions:
+    """Built-in command descriptions should stay aligned with bundled templates."""
+
+    def test_skill_descriptions_include_new_surfaces(self):
+        assert "feature specification" in SKILL_DESCRIPTIONS["specify"].lower()
+        assert "natural language" in SKILL_DESCRIPTIONS["specify"].lower()
+        assert "current specification" in SKILL_DESCRIPTIONS["spec-extend"].lower()
+        assert "targeted enhancement" in SKILL_DESCRIPTIONS["spec-extend"].lower()
+        assert "current stage artifact" in SKILL_DESCRIPTIONS["explain"].lower()
+        assert "plain language" in SKILL_DESCRIPTIONS["explain"].lower()
+        assert "implementation planning workflow" in SKILL_DESCRIPTIONS["plan"].lower()
+        assert "design artifacts" in SKILL_DESCRIPTIONS["plan"].lower()
+        assert SKILL_DESCRIPTIONS["clarify"].startswith("Compatibility bridge")
 
     def test_returns_none_when_no_init_options(self, project_dir):
         """Should return None when init-options.json is missing."""
