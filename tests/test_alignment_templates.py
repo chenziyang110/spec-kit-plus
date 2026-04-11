@@ -1,11 +1,25 @@
+import re
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PRIMARY_TUI_TEMPLATE_PATHS = (
+    "templates/commands/specify.md",
+    "templates/commands/clarify.md",
+    "templates/commands/spec-extend.md",
+    "templates/commands/explain.md",
+)
+ASCII_CARD_HEADER_RE = re.compile(r"(?m)^\s*\+--")
+ASCII_CARD_LINE_RE = re.compile(r"(?m)^\s*\| .+\|\s*$")
+ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")
 
 
 def _read(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
+
+
+def _assert_contains_any(text: str, *needles: str) -> None:
+    assert any(needle in text for needle in needles), f"Expected one of: {needles}"
 
 
 def test_specify_template_uses_alignment_first_contract():
@@ -16,8 +30,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert "aligned: ready for plan" in lowered
     assert "Aligned: ready for plan" in content
     assert "Force proceed with known risks" in content
-    assert "Task Classification" in content or "task classification" in content.lower()
-    assert "user's current language" in content.lower()
+    assert "Task Classification" in content or "task classification" in lowered
+    assert "user's current language" in lowered
     assert "Business Goals" in content
     assert "Users & Roles" in content
     assert "Technical Constraints / Assumptions" in content
@@ -25,17 +39,37 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Default to concise clarification turns" in content
     assert "Do not restate the full current understanding after every answer" in content
     assert "Save the full synthesis for the alignment-ready turn" in content
-    assert "question-card format" in content.lower()
-    assert "[ RECOMMENDED ]" in content
-    assert "Reply naturally, for example:" in content
-    assert '选 C' in content
-    assert "Recorded: C - Normalize first" in content
+    assert re.search(r"open (question )?blocks?", lowered)
+    _assert_contains_any(lowered, "stage header", "stage title")
+    _assert_contains_any(lowered, "question header", "question title")
+    _assert_contains_any(lowered, "prompt", "question stem")
+    _assert_contains_any(lowered, "recommendation", "recommended item", "[ recommended ]")
+    _assert_contains_any(lowered, "reply instruction", "reply guidance", "response instruction")
+    assert "example" in lowered
+    assert "options" in lowered
+    assert "question-card format" not in lowered
+    assert "boxed card" not in lowered
     assert "Do not repeat the same question" in content
     assert "Ask at most one unanswered high-impact question per message" in content
     assert "each clarification turn should contain at most one short checkpoint" in content
-    assert "decompose" in content.lower()
-    assert "first-release scope" in content.lower()
-    assert "mvp scope" not in content.lower()
+    assert "decompose" in lowered
+    assert "first-release scope" in lowered
+    assert "mvp scope" not in lowered
+
+
+def test_primary_tui_templates_avoid_closed_ascii_card_examples():
+    for template_path in PRIMARY_TUI_TEMPLATE_PATHS:
+        content = _read(template_path)
+
+        assert not ASCII_CARD_HEADER_RE.search(content), (
+            f"{template_path} still defines an ASCII card header"
+        )
+        assert not ASCII_CARD_LINE_RE.search(content), (
+            f"{template_path} still defines right-side pipe framing"
+        )
+        assert not ASCII_CARD_FOOTER_RE.search(content), (
+            f"{template_path} still defines an ASCII box closure"
+        )
 
 
 def test_plan_template_requires_alignment_report_before_planning():
