@@ -6,6 +6,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
 
 from specify_cli.codex_team import task_ops
 from specify_cli.codex_team.runtime_bridge import dispatch_runtime_task, ensure_tmux_available
@@ -67,6 +68,184 @@ class BatchCompletionResult:
     status: str
     join_point_name: str
     task_ids: list[str]
+
+
+@dataclass(slots=True)
+class PassiveParallelismLane:
+    """A candidate unit of passive parallel work for higher-level command logic."""
+
+    lane_id: str
+    summary: str
+    references: tuple[str, ...] = ()
+    write_scopes: tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
+class PassiveParallelismRequest:
+    """A conservative decision surface for non-runtime passive parallelism checks."""
+
+    stage: str
+    lanes: list[PassiveParallelismLane]
+    tightly_coupled: bool = False
+    scope_clear: bool = True
+
+
+@dataclass(slots=True)
+class PassiveParallelismDecision:
+    """The reusable decision payload command-layer logic can inspect safely."""
+
+    stage: str
+    should_trigger: bool
+    reason: str
+    dispatch_payload: dict[str, object] | None = None
+
+
+def _normalize_scope(scope: str) -> tuple[str, ...]:
+    cleaned = scope.strip().strip("/")
+    if not cleaned:
+        return ()
+    return tuple(part for part in cleaned.split("/") if part)
+
+
+def _scopes_overlap(left: str, right: str) -> bool:
+    left_parts = _normalize_scope(left)
+    right_parts = _normalize_scope(right)
+    if not left_parts or not right_parts:
+        return False
+    shared_length = min(len(left_parts), len(right_parts))
+    return left_parts[:shared_length] == right_parts[:shared_length]
+
+
+def write_scopes_overlap(lanes: Iterable[PassiveParallelismLane]) -> bool:
+    """Return whether any two candidate lanes target overlapping write scopes."""
+
+    normalized_lanes = list(lanes)
+    for index, lane in enumerate(normalized_lanes):
+        for other in normalized_lanes[index + 1 :]:
+            if any(
+                _scopes_overlap(left_scope, right_scope)
+                for left_scope in lane.write_scopes
+                for right_scope in other.write_scopes
+            ):
+                return True
+    return False
+
+
+def _passive_parallelism_payload(
+    stage: str,
+    lanes: Iterable[PassiveParallelismLane],
+) -> dict[str, object]:
+    return {
+        "stage": stage,
+        "lanes": [
+            {
+                "lane_id": lane.lane_id,
+                "summary": lane.summary,
+                "references": list(lane.references),
+                "write_scopes": list(lane.write_scopes),
+            }
+            for lane in lanes
+        ],
+    }
+
+
+def _lane_reference_sets(
+    lanes: Iterable[PassiveParallelismLane],
+) -> list[frozenset[str]]:
+    return [
+        frozenset(reference.strip() for reference in lane.references if reference.strip())
+        for lane in lanes
+    ]
+
+
+def assess_passive_parallelism(
+    request: PassiveParallelismRequest,
+) -> PassiveParallelismDecision:
+    """Assess whether passive parallelism is safe to consider for a stage.
+
+    This helper is intentionally conservative and does not dispatch work. It only
+    exposes a reusable policy surface for command-layer orchestration.
+    """
+
+    if len(request.lanes) < 2:
+        return PassiveParallelismDecision(
+            stage=request.stage,
+            should_trigger=False,
+            reason="insufficient_lanes",
+        )
+
+    if not request.scope_clear:
+        return PassiveParallelismDecision(
+            stage=request.stage,
+            should_trigger=False,
+            reason="unclear_scope",
+        )
+
+    if request.tightly_coupled:
+        return PassiveParallelismDecision(
+            stage=request.stage,
+            should_trigger=False,
+            reason="tightly_coupled",
+        )
+
+    if request.stage == "analysis":
+        if any(lane.write_scopes for lane in request.lanes):
+            return PassiveParallelismDecision(
+                stage=request.stage,
+                should_trigger=False,
+                reason="analysis_has_write_scopes",
+            )
+
+        reference_sets = _lane_reference_sets(request.lanes)
+        distinct_references = {reference for refs in reference_sets for reference in refs}
+        if len(distinct_references) < 2:
+            return PassiveParallelismDecision(
+                stage=request.stage,
+                should_trigger=False,
+                reason="insufficient_references",
+            )
+
+        if len(set(reference_sets)) < len(reference_sets):
+            return PassiveParallelismDecision(
+                stage=request.stage,
+                should_trigger=False,
+                reason="duplicated_reference_sets",
+            )
+
+        return PassiveParallelismDecision(
+            stage=request.stage,
+            should_trigger=True,
+            reason="multi_reference_analysis",
+            dispatch_payload=_passive_parallelism_payload(request.stage, request.lanes),
+        )
+
+    if request.stage == "enhancement":
+        if any(not lane.write_scopes for lane in request.lanes):
+            return PassiveParallelismDecision(
+                stage=request.stage,
+                should_trigger=False,
+                reason="missing_write_scopes",
+            )
+
+        if write_scopes_overlap(request.lanes):
+            return PassiveParallelismDecision(
+                stage=request.stage,
+                should_trigger=False,
+                reason="overlapping_write_scopes",
+            )
+
+        return PassiveParallelismDecision(
+            stage=request.stage,
+            should_trigger=True,
+            reason="independent_capability_planning",
+            dispatch_payload=_passive_parallelism_payload(request.stage, request.lanes),
+        )
+
+    return PassiveParallelismDecision(
+        stage=request.stage,
+        should_trigger=False,
+        reason="unsupported_stage",
+    )
 
 
 def parse_tasks_markdown(tasks_path: Path) -> ParsedTasksDocument:
