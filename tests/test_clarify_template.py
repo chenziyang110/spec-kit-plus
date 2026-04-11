@@ -1,19 +1,25 @@
 from pathlib import Path
+import re
 
 
-def test_clarify_template_requires_at_least_five_questions():
+def _read_clarify_template() -> str:
     template_path = Path(__file__).resolve().parents[1] / "templates" / "commands" / "clarify.md"
-    content = template_path.read_text(encoding="utf-8")
+    return template_path.read_text(encoding="utf-8")
 
-    assert "asking at least 5 highly targeted clarification questions" in content
-    assert "candidate clarification questions (minimum 5)." in content
-    assert "you have asked at least 5 questions" in content
-    assert "Ask at least 5 total questions" in content
-    assert "Default to concise clarification turns" in content
-    assert "Do not restate the full current understanding after every answer" in content
-    assert "Save the full synthesis for the final clarification report" in content
-    assert "question-card format" in content.lower()
-    assert "[ RECOMMENDED ]" in content
-    assert "Reply naturally, for example:" in content
-    assert '选 C' in content
-    assert "Recorded: C - Normalize first" in content
+
+def test_clarify_template_is_compatibility_bridge_to_spec_extend():
+    content = _read_clarify_template()
+    lowered = content.lower()
+
+    assert "spec-extend" in lowered
+    assert re.search(r"(route|recommend|redirect).{0,80}spec-extend", content, re.IGNORECASE | re.DOTALL)
+
+
+def test_clarify_template_preserves_alignment_updates_during_migration():
+    content = _read_clarify_template()
+
+    assert "alignment.md" in content
+    assert "adding newly provided requirements or constraints" in content
+    assert "Update the alignment decision before reporting" in content
+    assert "write the updated alignment report" in content.lower()
+    assert "recommended next command" in content.lower()

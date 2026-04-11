@@ -10,8 +10,10 @@ def _read(path: str) -> str:
 
 def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
+    lowered = content.lower()
 
     assert "alignment.md" in content
+    assert "aligned: ready for plan" in lowered
     assert "Aligned: ready for plan" in content
     assert "Force proceed with known risks" in content
     assert "Task Classification" in content or "task classification" in content.lower()
@@ -44,16 +46,27 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "Force proceed with known risks" in content
     assert "Input Risks From Alignment" in content
     assert "user's current language" in content.lower()
+    assert "specify -> clarify -> plan" not in content.lower()
 
 
-def test_clarify_template_updates_alignment_decision():
+def test_clarify_template_is_compatibility_only():
     content = _read("templates/commands/clarify.md")
+    lowered = content.lower()
 
+    assert "recommend" in lowered or "redirect" in lowered or "route" in lowered or "main path" in lowered
     assert "alignment.md" in content
     assert "adding newly provided requirements or constraints" in content
     assert "Aligned: ready for plan" in content
     assert "Force proceed with known risks" in content
     assert "user's current language" in content.lower()
+
+
+def test_new_analysis_workflow_command_templates_exist():
+    command_dir = PROJECT_ROOT / "templates" / "commands"
+    template_stems = {path.stem for path in command_dir.glob("*.md")}
+
+    assert "spec-extend" in template_stems
+    assert "explain" in template_stems
 
 
 def test_spec_template_defines_scope_boundaries_without_open_clarification_examples():

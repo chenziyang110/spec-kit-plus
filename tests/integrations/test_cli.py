@@ -3,8 +3,16 @@
 import json
 import os
 
+import yaml
+
 
 class TestInitIntegrationFlag:
+    @staticmethod
+    def _frontmatter(skill_path):
+        content = skill_path.read_text(encoding="utf-8")
+        parts = content.split("---", 2)
+        return yaml.safe_load(parts[1])
+
     def test_codex_init_advertises_specify_team_surface(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -249,3 +257,48 @@ class TestInitIntegrationFlag:
         assert "Plus Enhancement Skills" in result.output
         assert "Spec Kit Plus skills were" in result.output
         assert ".agents/skills" in result.output
+
+    def test_codex_init_generates_analysis_rework_skill_surface(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "codex-analysis-rework"
+        project.mkdir()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "codex",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+
+        skills_dir = project / ".agents" / "skills"
+
+        assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
+        assert (skills_dir / "sp-explain" / "SKILL.md").exists()
+
+        specify_fm = self._frontmatter(skills_dir / "sp-specify" / "SKILL.md")
+        clarify_fm = self._frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
+        plan_fm = self._frontmatter(skills_dir / "sp-plan" / "SKILL.md")
+        explain_fm = self._frontmatter(skills_dir / "sp-explain" / "SKILL.md")
+
+        assert isinstance(specify_fm["description"], str) and specify_fm["description"].strip()
+        assert isinstance(clarify_fm["description"], str) and clarify_fm["description"].strip()
+        assert isinstance(plan_fm["description"], str) and plan_fm["description"].strip()
+        assert isinstance(explain_fm["description"], str) and explain_fm["description"].strip()
