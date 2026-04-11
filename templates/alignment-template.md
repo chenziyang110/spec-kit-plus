@@ -14,21 +14,34 @@
 
 [Summarize what is being built or changed, who it is for, where it fits, and what success looks like.]
 
+## Analysis Confidence
+
+### Confirmed Facts
+
+- [Fact confirmed directly by the user, repository evidence, or retained references]
+- [Capability boundary, rule, or requirement that is fixed enough for planning]
+
+### Low-Risk Inferences
+
+- [Reasonable default adopted from context]
+- [Assumption that helps planning without materially changing scope]
+
+### Unresolved Items
+
+- [Open item, missing decision, or unclear dependency]
+- [Question that still affects confidence, scope, or planning]
+
+## Capability and Planning Impact
+
+- **Capability Shape**: [How the feature decomposes into planning-relevant capabilities]
+- **Dependencies / Preconditions**: [What planners must account for first]
+- **Downstream Planning Impact**: [How unresolved items, assumptions, or sequencing constraints affect `/sp.plan`]
+
 ## Confirmed Decisions
 
-- **Users / Actors**: [...]
-- **Scope**: [...]
-- **Out of Scope**: [...]
-- **Core Flow / Behavior**: [...]
-- **Data / Entities / State Impact**: [...]
-- **Compatibility / Non-breaking Expectations**: [...]
-- **Acceptance / Success Criteria**: [...]
-
-## Low-Risk Defaults Adopted
-
-- [...]
-- [...]
-- [...]
+- [Final decision or explicit commitment that planners must preserve]
+- [Adopted default, phased boundary, or escalation choice that should not be re-litigated]
+- [Decision that resolved a prior ambiguity and changed downstream planning shape]
 
 ## Clarification Summary
 
