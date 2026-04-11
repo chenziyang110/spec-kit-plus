@@ -239,7 +239,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
     ```text
     Stage header
-    SPECIFY SESSION · 2 / 5
+    SPECIFY SESSION - 2 / 5
 
     Question header
     [Short topic label]

@@ -12,6 +12,7 @@ Tests cover:
 
 import json
 import os
+import re
 import pytest
 import tempfile
 import shutil
@@ -27,6 +28,33 @@ from specify_cli import SKILL_DESCRIPTIONS
 
 
 # ===== Helpers =====
+
+
+def _body_without_frontmatter(skill_path: Path) -> str:
+    content = skill_path.read_text(encoding="utf-8")
+    match = re.match(r"\A---\s*\r?\n.*?\r?\n---\s*\r?\n", content, re.S)
+    return content[match.end():] if match else content
+
+
+def _extract_section(text: str, heading: str) -> str:
+    match = re.search(rf"(?ms)^## {re.escape(heading)}\s*\n(.*?)(?=^## |\Z)", text)
+    assert match, f"Missing section: {heading}"
+    return match.group(1)
+
+
+def _bullet_lines(text: str) -> list[str]:
+    return [match.group(1).strip().lower() for match in re.finditer(r"(?m)^\s*-\s+(.+)$", text)]
+
+
+def _assert_bullet_contains(bullets: list[str], needle: str) -> None:
+    assert any(needle in bullet for bullet in bullets), f"Expected bullet containing: {needle}"
+
+
+def _assert_terms_in_order(text: str, *terms: str) -> None:
+    pattern = ".*?".join(re.escape(term) for term in terms)
+    assert re.search(pattern, text, re.IGNORECASE | re.DOTALL), (
+        f"Expected ordered sequence: {terms}"
+    )
 
 def _create_init_options(project_root: Path, ai: str = "claude", ai_skills: bool = True):
     """Write a .specify/init-options.json file."""
@@ -231,6 +259,57 @@ class TestBuiltInSkillGeneration:
         assert clarify_fm["description"].startswith("Compatibility bridge")
         assert "spec-extend" in clarify_fm["description"]
         assert "compatibility" in result.output.lower()
+
+        explain_body = _body_without_frontmatter(skills_dir / "sp-explain" / "SKILL.md")
+        explain_tui = _extract_section(explain_body, "TUI Requirements").lower()
+        explain_blocks = _bullet_lines(explain_tui)
+        _assert_bullet_contains(explain_blocks, "stage header")
+        _assert_bullet_contains(explain_blocks, "status block")
+        _assert_bullet_contains(explain_blocks, "explanation block")
+        _assert_bullet_contains(explain_blocks, "risk block")
+        _assert_bullet_contains(explain_blocks, "next-step block")
+        assert "open blocks" in explain_body.lower()
+        assert "stage-aware" in explain_tui
+        assert re.search(r"`specify`: explain .*everyday terms", explain_tui)
+        assert re.search(r"`plan`: explain .*implementation approach", explain_tui)
+        assert re.search(r"`tasks`: explain .*concrete work", explain_tui)
+        assert re.search(r"`implement`: explain .*progress.*current scope.*active risks", explain_tui)
+
+        specify_body = _body_without_frontmatter(skills_dir / "sp-specify" / "SKILL.md")
+        specify_outline = _extract_section(specify_body, "Outline")
+        assert "open question block" in specify_outline.lower()
+        _assert_terms_in_order(
+            specify_outline,
+            "Stage header",
+            "Question header",
+            "Prompt",
+            "Recommendation",
+            "Options",
+            "Reply instruction",
+        )
+        assert "/sp.clarify" in specify_body
+        assert "/sp.plan" in specify_body
+        assert "compatibility-only" in specify_body or "compatibility only" in specify_body.lower()
+
+        clarify_body = _body_without_frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
+        clarify_outline = _extract_section(clarify_body, "Outline").lower()
+        assert "compatibility bridge" in clarify_outline
+        assert "compatibility mode" in clarify_outline
+        assert "/sp.spec-extend" in clarify_outline
+        assert "/sp.plan" in clarify_outline
+        assert "compatibility status" in clarify_outline
+        assert "explanation block" in clarify_outline
+        assert "risk block" in clarify_outline
+        assert "next-step block" in clarify_outline
+        _assert_terms_in_order(
+            clarify_outline,
+            "stage header",
+            "question header",
+            "prompt",
+            "recommendation",
+            "options",
+            "reply instruction",
+        )
 
 
 class TestSkillDescriptions:

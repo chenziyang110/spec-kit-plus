@@ -18,6 +18,20 @@ def _assert_contains_any(text: str, *needles: str) -> None:
     assert any(needle in text for needle in needles), f"Expected one of: {needles}"
 
 
+def _extract_section(text: str, heading: str) -> str:
+    match = re.search(rf"(?ms)^## {re.escape(heading)}\s*\n(.*?)(?=^## |\Z)", text)
+    assert match, f"Missing section: {heading}"
+    return match.group(1)
+
+
+def _bullet_lines(text: str) -> list[str]:
+    return [match.group(1).strip().lower() for match in re.finditer(r"(?m)^\s*-\s+(.+)$", text)]
+
+
+def _assert_bullet_contains(bullets: list[str], needle: str) -> None:
+    assert any(needle in bullet for bullet in bullets), f"Expected bullet containing: {needle}"
+
+
 def test_primary_template_surfaces_do_not_use_right_side_card_framing():
     for surface in PRIMARY_TUI_SURFACES:
         content = _read_template(surface)
@@ -49,13 +63,24 @@ def test_specify_uses_open_question_block_structure():
 
 
 def test_explain_requires_stage_status_risk_and_next_step_blocks():
-    lowered = _read_template("explain").lower()
+    content = _read_template("explain")
+    lowered = content.lower()
+    outline = _extract_section(content, "Outline").lower()
+    tui_requirements = _extract_section(content, "TUI Requirements").lower()
+    tui_blocks = _bullet_lines(tui_requirements)
 
-    _assert_contains_any(lowered, "stage header", "stage title")
-    _assert_contains_any(lowered, "status block", "status section")
-    _assert_contains_any(lowered, "explanation block", "explanation section")
-    _assert_contains_any(lowered, "risk block", "risk section")
-    _assert_contains_any(lowered, "next-step block", "next step block", "next-step section")
+    _assert_bullet_contains(tui_blocks, "stage header")
+    _assert_bullet_contains(tui_blocks, "status block")
+    _assert_bullet_contains(tui_blocks, "explanation block")
+    _assert_bullet_contains(tui_blocks, "risk block")
+    _assert_bullet_contains(tui_blocks, "next-step block")
+    assert "stage-aware" in tui_requirements
+    assert re.search(r"`specify`: explain .*everyday terms", tui_requirements)
+    assert re.search(r"`plan`: explain .*implementation approach", tui_requirements)
+    assert re.search(r"`tasks`: explain .*concrete work", tui_requirements)
+    assert re.search(r"`implement`: explain .*progress.*current scope.*active risks", tui_requirements)
+    assert "open or risky" in outline
+    assert "next stage will do" in outline
     assert "status card" not in lowered
     assert "open-risk panel" not in lowered
     assert "next-step panel" not in lowered

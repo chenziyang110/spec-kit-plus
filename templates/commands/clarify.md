@@ -63,7 +63,7 @@ Execution steps:
    - Keep turns concise and avoid restating the full understanding after every answer.
    - Use shared open question blocks rather than closed ASCII cards.
    - Signal the session through a stage header and compatibility wording instead of full box framing.
-   - Make the compatibility mode explicit in the stage header when `/sp.clarify` stays active, for example `CLARIFY · COMPATIBILITY MODE`.
+   - Make the compatibility mode explicit in the stage header when `/sp.clarify` stays active, for example `CLARIFY - COMPATIBILITY MODE`.
    - Keep each open question block in the same order as `/sp.specify`: stage header, question header, prompt, example when useful, recommendation, options, and reply instruction.
 
 7. Integration after each accepted answer:
