@@ -218,6 +218,35 @@ class TomlIntegrationTests:
                 raise AssertionError(f"{f.name} is not valid TOML: {exc}") from exc
             assert "prompt" in parsed, f"{f.name} parsed TOML has no 'prompt' key"
 
+    def test_multiline_prompt_closes_on_own_line_when_body_ends_with_quote(self, tmp_path):
+        i = get_integration(self.KEY)
+        template = tmp_path / "sample.md"
+        template.write_text(
+            "---\n"
+            "description: Summary line one\n"
+            "---\n"
+            "Body line one\n"
+            'Body ends with "\n',
+            encoding="utf-8",
+        )
+        original_templates = i.list_command_templates
+        try:
+            i.list_command_templates = lambda: [template]
+            m = IntegrationManifest(self.KEY, tmp_path)
+            created = i.setup(tmp_path, m)
+        finally:
+            i.list_command_templates = original_templates
+
+        cmd_files = [f for f in created if "scripts" not in f.parts]
+        assert len(cmd_files) == 1
+
+        generated = cmd_files[0].read_text(encoding="utf-8")
+        parsed = tomllib.loads(generated)
+
+        assert parsed["prompt"] == 'Body line one\nBody ends with "'
+        assert 'Body ends with """"' not in generated
+        assert generated.splitlines()[-1] == '"""'
+
     def test_all_files_tracked_in_manifest(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)

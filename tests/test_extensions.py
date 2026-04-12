@@ -992,28 +992,33 @@ $ARGUMENTS
         """TOML renderer should stay valid when body includes triple double-quotes."""
         from specify_cli.agents import CommandRegistrar as AgentCommandRegistrar
         registrar = AgentCommandRegistrar()
+        body = 'line1\n"""danger"""\nline2'
         output = registrar.render_toml_command(
             {"description": "x"},
-            'line1\n"""danger"""\nline2',
+            body,
             "extension:test-ext",
         )
 
-        assert "prompt = '''" in output
-        assert '"""danger"""' in output
+        parsed = tomllib.loads(output)
+
+        assert parsed["prompt"] == body
+        assert output.splitlines()[-1] == '"""'
 
     def test_render_toml_command_escapes_when_both_triple_quote_styles_exist(self):
-        """If body has both triple quote styles, fall back to escaped basic string."""
+        """Bodies with both triple quote styles should still round-trip cleanly."""
         from specify_cli.agents import CommandRegistrar as AgentCommandRegistrar
         registrar = AgentCommandRegistrar()
+        body = 'a """ b\nc \'\'\' d'
         output = registrar.render_toml_command(
             {"description": "x"},
-            'a """ b\nc \'\'\' d',
+            body,
             "extension:test-ext",
         )
 
-        assert 'prompt = "' in output
-        assert "\\n" in output
-        assert "\\\"\\\"\\\"" in output
+        parsed = tomllib.loads(output)
+
+        assert parsed["prompt"] == body
+        assert output.splitlines()[-1] == '"""'
 
     def test_render_toml_command_preserves_multiline_description(self):
         """Multiline descriptions should render as parseable TOML with preserved semantics."""
@@ -1029,6 +1034,24 @@ $ARGUMENTS
         parsed = tomllib.loads(output)
 
         assert parsed["description"] == "first line\nsecond line\n"
+
+    def test_render_toml_command_closes_multiline_prompt_on_own_line(self):
+        """Multiline prompts ending in a quote should not merge with the TOML delimiter."""
+        from specify_cli.agents import CommandRegistrar as AgentCommandRegistrar
+
+        registrar = AgentCommandRegistrar()
+        body = 'line1\nends with "'
+        output = registrar.render_toml_command(
+            {"description": "x"},
+            body,
+            "extension:test-ext",
+        )
+
+        parsed = tomllib.loads(output)
+
+        assert parsed["prompt"] == body
+        assert 'ends with """"' not in output
+        assert output.splitlines()[-1] == '"""'
 
     def test_register_commands_for_claude(self, extension_dir, project_dir):
         """Test registering commands for Claude agent."""

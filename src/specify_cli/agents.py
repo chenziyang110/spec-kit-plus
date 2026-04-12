@@ -192,39 +192,36 @@ class CommandRegistrar:
 
         if "description" in frontmatter:
             toml_lines.append(
-                f'description = {self._render_basic_toml_string(frontmatter["description"])}'
+                f'description = {self._render_toml_string(frontmatter["description"])}'
             )
             toml_lines.append("")
 
         toml_lines.append(f"# Source: {source_id}")
         toml_lines.append("")
 
-        # Keep TOML output valid even when body contains triple-quote delimiters.
-        # Prefer multiline forms, then fall back to escaped basic string.
-        if '"""' not in body:
-            toml_lines.append('prompt = """')
-            toml_lines.append(body)
-            toml_lines.append('"""')
-        elif "'''" not in body:
-            toml_lines.append("prompt = '''")
-            toml_lines.append(body)
-            toml_lines.append("'''")
-        else:
-            toml_lines.append(f"prompt = {self._render_basic_toml_string(body)}")
+        toml_lines.append(f"prompt = {self._render_toml_string(body)}")
 
         return "\n".join(toml_lines)
 
     @staticmethod
-    def _render_basic_toml_string(value: str) -> str:
-        """Render *value* as a TOML basic string literal."""
+    def _render_toml_string(value: str) -> str:
+        """Render *value* as a TOML string literal."""
+        if "\n" not in value and "\r" not in value:
+            escaped = (
+                value.replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
+            )
+            return f'"{escaped}"'
+
         escaped = (
             value.replace("\\", "\\\\")
             .replace('"', '\\"')
-            .replace("\n", "\\n")
             .replace("\r", "\\r")
             .replace("\t", "\\t")
         )
-        return f'"{escaped}"'
+        return '"""\\\n' + escaped + '\\\n"""'
 
     def render_skill_command(
         self,
