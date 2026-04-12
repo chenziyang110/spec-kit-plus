@@ -82,3 +82,15 @@ debug_graph = Graph(
         ResolvedNode,
     ]
 )
+
+async def run_debug_session(state: DebugGraphState, persistence: MarkdownPersistenceHandler):
+    """
+    Runs the debug investigation loop until it reaches an end state or requires human input.
+    """
+    # If we are resuming, we need to find the correct starting node
+    start_node = GatheringNode
+    if state.current_node_id:
+        if state.current_node_id in debug_graph.node_defs:
+            start_node = debug_graph.node_defs[state.current_node_id].node
+    
+    await debug_graph.run(start_node(), state=state, deps=persistence)

@@ -18,7 +18,7 @@
   3. Running `sp-debug` after an interruption automatically restores the previous state and resumes from the last active node.
   4. The investigation loop follows a structured state machine (Gather -> Investigate -> Fix -> Verify) using `pydantic-graph`.
 **Plans**: 3 plans
-- [ ] 01-01-PLAN.md — Foundation & State Machine (Infrastructure, Node schema, transition logic)
+- [x] 01-01-PLAN.md — Foundation & State Machine (Infrastructure, Node schema, transition logic)
 - [ ] 01-02-PLAN.md — Markdown Persistence (Serialization, slug logic, graph integration)
 - [ ] 01-03-PLAN.md — CLI & Resume (Command registration, session lookup, end-to-end flow)
 
@@ -48,6 +48,6 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Resumability | 0/3 | In progress | - |
+| 1. Foundation & Resumability | 1/3 | In Progress|  |
 | 2. Contextual Intelligence | 0/1 | Not started | - |
 | 3. Autonomous Resolution | 0/1 | Not started | - |

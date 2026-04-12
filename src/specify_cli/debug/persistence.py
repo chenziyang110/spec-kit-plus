@@ -186,3 +186,26 @@ class MarkdownPersistenceHandler:
         )
         
         return state
+
+    def load_most_recent_session(self) -> DebugGraphState | None:
+        """
+        Finds and loads the most recently updated debug session from the debug directory.
+        """
+        if not self.debug_dir.exists():
+            return None
+            
+        sessions = list(self.debug_dir.glob("*.md"))
+        if not sessions:
+            return None
+            
+        # Sort by modification time, newest first
+        sessions.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        
+        # Try to load the most recent one. If it's corrupted, try the next one.
+        for session_path in sessions:
+            try:
+                return self.load(session_path)
+            except Exception:
+                continue
+                
+        return None

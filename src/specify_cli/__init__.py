@@ -1944,6 +1944,13 @@ integration_app = typer.Typer(
 )
 app.add_typer(integration_app, name="integration")
 
+# ===== Debug Commands =====
+
+from .debug.cli import debug_app
+app.add_typer(debug_app, name="debug")
+# Register sp-debug as an alias per TOL-03
+app.add_typer(debug_app, name="sp-debug")
+
 
 INTEGRATION_JSON = ".specify/integration.json"
 
