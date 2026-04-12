@@ -3,7 +3,7 @@ from pydantic_graph import BaseNode, Graph, GraphRunContext, End
 from .schema import DebugGraphState, DebugStatus, EliminatedEntry
 from .persistence import MarkdownPersistenceHandler
 from .context import ContextLoader
-from .utils import run_command
+from .utils import run_command, edit_file, read_file
 import functools
 
 def persist(func):

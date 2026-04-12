@@ -171,3 +171,11 @@ async def test_verifying_node_failure(monkeypatch):
     assert state.resolution.verification == "failed"
     assert state.resolution.fail_count == 1
     assert len(calls) == 2
+
+@pytest.mark.asyncio
+async def test_tool_access():
+    # Verify that the required tools are imported and available in graph module
+    import specify_cli.debug.graph as graph_module
+    assert hasattr(graph_module, "run_command")
+    assert hasattr(graph_module, "edit_file")
+    assert hasattr(graph_module, "read_file")
