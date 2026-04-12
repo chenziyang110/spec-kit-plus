@@ -22,6 +22,7 @@ class Symptoms(BaseModel):
     actual: Optional[str] = None
     errors: Optional[str] = None
     reproduction: Optional[str] = None
+    reproduction_command: Optional[str] = None
     started: Optional[str] = None
     reproduction_verified: bool = False
 
@@ -41,6 +42,7 @@ class Resolution(BaseModel):
     fix: Optional[str] = None
     verification: Optional[str] = None
     files_changed: List[str] = Field(default_factory=list)
+    fail_count: int = 0
 
 class FeatureContext(BaseModel):
     feature_id: Optional[str] = None

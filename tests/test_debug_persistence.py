@@ -120,3 +120,22 @@ async def test_graph_node_triggers_persistence(tmp_path):
     loaded_state = handler.load(file_path)
     assert loaded_state.current_node_id == "GatheringNode"
     assert loaded_state.status == DebugStatus.GATHERING
+
+def test_persistence_new_fields(tmp_path):
+    # Arrange
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(
+        slug="new-fields-test",
+        trigger="New fields trigger",
+        status=DebugStatus.FIXING
+    )
+    state.resolution.fail_count = 2
+    state.symptoms.reproduction_command = "pytest tests/repro.py"
+    
+    # Act
+    handler.save(state)
+    loaded_state = handler.load(tmp_path / "new-fields-test.md")
+    
+    # Assert
+    assert loaded_state.resolution.fail_count == 2
+    assert loaded_state.symptoms.reproduction_command == "pytest tests/repro.py"

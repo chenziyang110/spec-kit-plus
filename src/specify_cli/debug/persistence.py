@@ -50,6 +50,7 @@ class MarkdownPersistenceHandler:
         content += f"actual: {state.symptoms.actual or ''}\n"
         content += f"errors: {state.symptoms.errors or ''}\n"
         content += f"reproduction: {state.symptoms.reproduction or ''}\n"
+        content += f"reproduction_command: {state.symptoms.reproduction_command or ''}\n"
         content += f"started: {state.symptoms.started or ''}\n\n"
         
         # Eliminated
@@ -78,6 +79,7 @@ class MarkdownPersistenceHandler:
         content += f"fix: {state.resolution.fix or ''}\n"
         content += f"verification: {state.resolution.verification or ''}\n"
         content += f"files_changed: {state.resolution.files_changed or []}\n"
+        content += f"fail_count: {state.resolution.fail_count or 0}\n"
         
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -181,7 +183,8 @@ class MarkdownPersistenceHandler:
                 root_cause=resolution_fields.get("root_cause"),
                 fix=resolution_fields.get("fix"),
                 verification=resolution_fields.get("verification"),
-                files_changed=eval(resolution_fields.get("files_changed", "[]"))
+                files_changed=eval(resolution_fields.get("files_changed", "[]")),
+                fail_count=int(resolution_fields.get("fail_count", 0))
             )
         )
         
