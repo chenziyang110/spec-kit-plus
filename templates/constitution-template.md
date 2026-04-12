@@ -125,6 +125,9 @@ The system MUST make failures easy to detect, explain, and reproduce.
   generate it before structural work by analyzing the repository and writing
   the document in place, then keep it in sync when architecture, module
   responsibilities, configuration shape, or external interfaces change.
+- **Encoding Preservation**: When modifying an existing file, changes MUST
+  preserve the file's existing character encoding and BOM behavior unless the
+  task explicitly requires an encoding conversion.
 - **Documentation Sync**: Update docs when code changes affect structure,
   behavior, interfaces, workflows, or operator expectations.
 - **Performance as a Requirement**: Define and verify performance expectations

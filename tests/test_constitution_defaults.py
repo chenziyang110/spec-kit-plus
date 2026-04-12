@@ -28,11 +28,13 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "### VII. No Unrequested Fallbacks" in content
     assert "Honor Explicit Technology Choices" in content
     assert "Fallbacks Require Consent" in content
+    assert "Encoding Preservation" in content
+    assert "preserve the file's existing character encoding and BOM behavior" in content
     assert "项目技术文档.md" in content
     assert "generate it before structural work" in content
     assert "[PROJECT_NAME]" not in content
     assert "[RATIFICATION_DATE]" not in content
-    assert "**Version**: 1.0.0" in content
+    assert "**Version**: 1.1.0" in content
     assert f"**Ratified**: {date.today().isoformat()}" in content
 
 

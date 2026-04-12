@@ -845,7 +845,7 @@ def _materialize_constitution_template(template_text: str, project_path: Path) -
     today = date.today().isoformat()
     replacements = {
         "[PROJECT_NAME]": project_path.resolve().name,
-        "[CONSTITUTION_VERSION]": "1.0.0",
+        "[CONSTITUTION_VERSION]": "1.1.0",
         "[RATIFICATION_DATE]": today,
         "[LAST_AMENDED_DATE]": today,
     }
