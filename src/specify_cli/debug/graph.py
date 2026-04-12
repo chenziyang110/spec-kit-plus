@@ -2,6 +2,7 @@ from typing import Union, TypeVar, Any, Callable
 from pydantic_graph import BaseNode, Graph, GraphRunContext, End
 from .schema import DebugGraphState, DebugStatus
 from .persistence import MarkdownPersistenceHandler
+from .context import ContextLoader
 import functools
 
 def persist(func):
@@ -22,10 +23,26 @@ def persist(func):
 
 class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     @persist
-    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['InvestigatingNode', End]:
+    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['InvestigatingNode', 'GatheringNode', End]:
         ctx.state.status = DebugStatus.GATHERING
         ctx.state.current_node_id = "GatheringNode"
-        # In a real implementation, it would gather symptoms and then move to investigation
+        
+        # 1. Instantiate ContextLoader and find the active feature context.
+        loader = ContextLoader()
+        
+        # 2. Populate ctx.state.context and ctx.state.recently_modified if not already set.
+        if not ctx.state.context.feature_id:
+            feature_dir = loader.find_active_feature()
+            if feature_dir:
+                ctx.state.context = loader.load_feature_context(feature_dir)
+        
+        if not ctx.state.recently_modified:
+            ctx.state.recently_modified = loader.get_recent_git_changes()
+
+        # 3. Add logic to ensure ctx.state.symptoms.expected and ctx.state.symptoms.actual are populated.
+        if not ctx.state.symptoms.expected or not ctx.state.symptoms.actual:
+            return self
+
         return InvestigatingNode()
 
 class InvestigatingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):

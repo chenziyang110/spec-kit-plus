@@ -1,9 +1,32 @@
 import pytest
-from specify_cli.debug.schema import DebugGraphState
+from pydantic_graph import GraphRunContext
+from specify_cli.debug.schema import DebugGraphState, DebugStatus
+from specify_cli.debug.graph import GatheringNode, InvestigatingNode
+from specify_cli.debug.persistence import MarkdownPersistenceHandler
 
-def test_debug_graph_state_initialization():
+@pytest.mark.asyncio
+async def test_gathering_node_missing_symptoms():
     state = DebugGraphState(slug="test", trigger="test")
-    assert state.slug == "test"
-    assert state.status == "gathering"
-    assert hasattr(state, "context")
-    assert state.context.modified_files == []
+    # symptoms are empty by default
+    node = GatheringNode()
+    ctx = GraphRunContext(state=state, deps=None)
+    
+    result = await node.run(ctx)
+    
+    assert isinstance(result, GatheringNode)
+    assert state.status == DebugStatus.GATHERING
+    assert state.context is not None
+
+@pytest.mark.asyncio
+async def test_gathering_node_with_symptoms():
+    state = DebugGraphState(slug="test", trigger="test")
+    state.symptoms.expected = "Something should happen"
+    state.symptoms.actual = "Something else happened"
+    
+    node = GatheringNode()
+    ctx = GraphRunContext(state=state, deps=None)
+    
+    result = await node.run(ctx)
+    
+    # Task 1 result: if symptoms present, move to InvestigatingNode
+    assert isinstance(result, InvestigatingNode)
