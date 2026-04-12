@@ -23,6 +23,7 @@ class Symptoms(BaseModel):
     errors: Optional[str] = None
     reproduction: Optional[str] = None
     started: Optional[str] = None
+    reproduction_verified: bool = False
 
 class EliminatedEntry(BaseModel):
     hypothesis: str
@@ -41,6 +42,17 @@ class Resolution(BaseModel):
     verification: Optional[str] = None
     files_changed: List[str] = Field(default_factory=list)
 
+class FeatureContext(BaseModel):
+    feature_id: Optional[str] = None
+    feature_name: Optional[str] = None
+    feature_phase: Optional[str] = None
+    spec_path: Optional[str] = None
+    plan_path: Optional[str] = None
+    tasks_path: Optional[str] = None
+    constitution_path: Optional[str] = None
+    roadmap_path: Optional[str] = None
+    modified_files: List[str] = Field(default_factory=list)
+
 class DebugGraphState(BaseModel):
     slug: str
     status: DebugStatus = DebugStatus.GATHERING
@@ -54,3 +66,5 @@ class DebugGraphState(BaseModel):
     eliminated: List[EliminatedEntry] = Field(default_factory=list)
     evidence: List[EvidenceEntry] = Field(default_factory=list)
     resolution: Resolution = Field(default_factory=Resolution)
+    context: FeatureContext = Field(default_factory=FeatureContext)
+    recently_modified: List[str] = Field(default_factory=list)
