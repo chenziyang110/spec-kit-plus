@@ -1,6 +1,6 @@
 from typing import Union, TypeVar, Any, Callable
 from pydantic_graph import BaseNode, Graph, GraphRunContext, End
-from .schema import DebugGraphState, DebugStatus
+from .schema import DebugGraphState, DebugStatus, EliminatedEntry
 from .persistence import MarkdownPersistenceHandler
 from .context import ContextLoader
 import functools
@@ -51,13 +51,49 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
 
 class InvestigatingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     @persist
-    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['FixingNode', End]:
+    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['FixingNode', 'InvestigatingNode', End]:
         ctx.state.status = DebugStatus.INVESTIGATING
         ctx.state.current_node_id = "InvestigatingNode"
-        # If root cause is found, move to fixing. Otherwise it might stay here or end.
+        
+        # 1. Update next_action to prioritize recently modified files if no focus is set
+        if not ctx.state.current_focus.hypothesis and not ctx.state.current_focus.next_action:
+            prioritized = []
+            if ctx.state.context.modified_files:
+                prioritized.extend(ctx.state.context.modified_files)
+            if ctx.state.recently_modified:
+                # Add recently modified git files that aren't already in the list
+                for f in ctx.state.recently_modified:
+                    if f not in prioritized:
+                        prioritized.append(f)
+            
+            if prioritized:
+                ctx.state.current_focus.next_action = f"Prioritizing files from recent history: {', '.join(prioritized[:5])}. Please generate a hypothesis based on these files."
+
+        # 2. Hypothesis Elimination logic
+        # If next_action starts with "Eliminate:", move current focus to eliminated list
+        if ctx.state.current_focus.next_action and ctx.state.current_focus.next_action.startswith("Eliminate:"):
+            evidence = ctx.state.current_focus.next_action[len("Eliminate:"):].strip()
+            if ctx.state.current_focus.hypothesis:
+                ctx.state.eliminated.append(EliminatedEntry(
+                    hypothesis=ctx.state.current_focus.hypothesis,
+                    evidence=evidence or "No evidence provided."
+                ))
+            # Reset current focus for next hypothesis
+            ctx.state.current_focus.hypothesis = None
+            ctx.state.current_focus.test = None
+            ctx.state.current_focus.expecting = None
+            ctx.state.current_focus.next_action = None
+            
+            # Return self to trigger another run (which will apply prioritization)
+            return self
+
+        # If root cause is found, move to fixing.
         if ctx.state.resolution.root_cause:
             return FixingNode()
-        return End("Investigation incomplete")
+        
+        # In this autonomous loop, we return self to wait for agent tool calls
+        # which will eventually populate root_cause or eliminate hypotheses.
+        return self
 
 class FixingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     @persist
