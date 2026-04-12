@@ -8,7 +8,7 @@ from specify_cli.debug.schema import DebugGraphState, DebugStatus
 
 @pytest.mark.asyncio
 async def test_gathering_to_investigating():
-    state = DebugGraphState(trigger="test bug")
+    state = DebugGraphState(trigger="test bug", slug="test-slug")
     ctx = GraphRunContext(state=state, deps=None)
     node = GatheringNode()
     
@@ -19,7 +19,7 @@ async def test_gathering_to_investigating():
 
 @pytest.mark.asyncio
 async def test_investigating_to_fixing():
-    state = DebugGraphState(trigger="test bug")
+    state = DebugGraphState(trigger="test bug", slug="test-slug")
     state.resolution.root_cause = "Found it"
     ctx = GraphRunContext(state=state, deps=None)
     node = InvestigatingNode()
@@ -30,7 +30,7 @@ async def test_investigating_to_fixing():
 
 @pytest.mark.asyncio
 async def test_fixing_to_verifying():
-    state = DebugGraphState(trigger="test bug")
+    state = DebugGraphState(trigger="test bug", slug="test-slug")
     state.resolution.fix = "Applied fix"
     ctx = GraphRunContext(state=state, deps=None)
     node = FixingNode()
@@ -41,7 +41,7 @@ async def test_fixing_to_verifying():
 
 @pytest.mark.asyncio
 async def test_verifying_to_resolved_on_success():
-    state = DebugGraphState(trigger="test bug")
+    state = DebugGraphState(trigger="test bug", slug="test-slug")
     state.resolution.verification = "Passed"
     ctx = GraphRunContext(state=state, deps=None)
     node = VerifyingNode()
@@ -52,7 +52,7 @@ async def test_verifying_to_resolved_on_success():
 
 @pytest.mark.asyncio
 async def test_verifying_to_investigating_on_failure():
-    state = DebugGraphState(trigger="test bug")
+    state = DebugGraphState(trigger="test bug", slug="test-slug")
     state.resolution.verification = None # Failed/not passed
     ctx = GraphRunContext(state=state, deps=None)
     node = VerifyingNode()

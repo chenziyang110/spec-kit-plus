@@ -1,16 +1,36 @@
-from typing import Union
+from typing import Union, TypeVar, Any, Callable
 from pydantic_graph import BaseNode, Graph, GraphRunContext, End
 from .schema import DebugGraphState, DebugStatus
+from .persistence import MarkdownPersistenceHandler
+import functools
 
-class GatheringNode(BaseNode[DebugGraphState]):
-    async def run(self, ctx: GraphRunContext[DebugGraphState]) -> Union['InvestigatingNode', End]:
+def persist(func):
+    @functools.wraps(func)
+    async def wrapper(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]):
+        # Update BEFORE taking action
+        if ctx.deps:
+            ctx.deps.save(ctx.state)
+        
+        result = await func(self, ctx)
+        
+        # Update AFTER taking action
+        if ctx.deps:
+            ctx.deps.save(ctx.state)
+        
+        return result
+    return wrapper
+
+class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
+    @persist
+    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['InvestigatingNode', End]:
         ctx.state.status = DebugStatus.GATHERING
         ctx.state.current_node_id = "GatheringNode"
         # In a real implementation, it would gather symptoms and then move to investigation
         return InvestigatingNode()
 
-class InvestigatingNode(BaseNode[DebugGraphState]):
-    async def run(self, ctx: GraphRunContext[DebugGraphState]) -> Union['FixingNode', End]:
+class InvestigatingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
+    @persist
+    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['FixingNode', End]:
         ctx.state.status = DebugStatus.INVESTIGATING
         ctx.state.current_node_id = "InvestigatingNode"
         # If root cause is found, move to fixing. Otherwise it might stay here or end.
@@ -18,8 +38,9 @@ class InvestigatingNode(BaseNode[DebugGraphState]):
             return FixingNode()
         return End("Investigation incomplete")
 
-class FixingNode(BaseNode[DebugGraphState]):
-    async def run(self, ctx: GraphRunContext[DebugGraphState]) -> Union['VerifyingNode', End]:
+class FixingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
+    @persist
+    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['VerifyingNode', End]:
         ctx.state.status = DebugStatus.FIXING
         ctx.state.current_node_id = "FixingNode"
         # If fix is applied, move to verifying
@@ -27,8 +48,9 @@ class FixingNode(BaseNode[DebugGraphState]):
             return VerifyingNode()
         return End("Fix not applied")
 
-class VerifyingNode(BaseNode[DebugGraphState]):
-    async def run(self, ctx: GraphRunContext[DebugGraphState]) -> Union['ResolvedNode', 'InvestigatingNode', End]:
+class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
+    @persist
+    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['ResolvedNode', 'InvestigatingNode', End]:
         ctx.state.status = DebugStatus.VERIFYING
         ctx.state.current_node_id = "VerifyingNode"
         # If verification passed, move to resolved. Otherwise back to investigation.
@@ -36,14 +58,16 @@ class VerifyingNode(BaseNode[DebugGraphState]):
             return ResolvedNode()
         return InvestigatingNode()
 
-class AwaitingHumanNode(BaseNode[DebugGraphState]):
-    async def run(self, ctx: GraphRunContext[DebugGraphState]) -> Union['VerifyingNode', End]:
+class AwaitingHumanNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
+    @persist
+    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['VerifyingNode', End]:
         ctx.state.status = DebugStatus.AWAITING_HUMAN
         ctx.state.current_node_id = "AwaitingHumanNode"
         return End("Awaiting human input (placeholder)")
 
-class ResolvedNode(BaseNode[DebugGraphState]):
-    async def run(self, ctx: GraphRunContext[DebugGraphState]) -> End:
+class ResolvedNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
+    @persist
+    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> End:
         ctx.state.status = DebugStatus.RESOLVED
         ctx.state.current_node_id = "ResolvedNode"
         return End("Resolved")
