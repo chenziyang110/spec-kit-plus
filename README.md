@@ -125,7 +125,7 @@ After `specify init`, use the generated workflow commands in your agent:
 2. `specify` to produce a planning-ready, analysis-first feature spec
 3. `plan` to define implementation design
 4. `tasks` to break work into executable tasks
-5. `implement` to execute the task plan
+5. `implement` to execute the task plan (supports autonomous loop via `/sp-autonomous`)
 
 Mainline pre-planning flow:
 

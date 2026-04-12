@@ -157,6 +157,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 6. Execute implementation following the task plan:
    - **Phase-by-phase execution**: Complete each phase before moving to the next
+   - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
    - **Capability-aware execution**: If the current agent supports parallel workers or subagents, execute ready tasks from the same parallel batch together; otherwise execute that same batch sequentially while preserving its join point semantics
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks

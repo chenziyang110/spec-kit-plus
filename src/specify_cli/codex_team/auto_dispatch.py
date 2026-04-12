@@ -290,8 +290,14 @@ def parse_tasks_markdown(tasks_path: Path) -> ParsedTasksDocument:
 
 
 def find_next_ready_parallel_batch(parsed: ParsedTasksDocument) -> ParsedParallelBatch | None:
-    """Return the first explicit parallel batch whose prerequisites are already complete."""
+    """Return the first explicit or inferred parallel batch whose prerequisites are complete.
+
+    Prefers explicit batches defined by **Parallel Batch** headers.
+    Falls back to grouping adjacent ready [P] tasks into an inferred batch.
+    """
     tasks_by_id = {task.task_id: task for task in parsed.tasks}
+
+    # 1. Try explicit batches first
     for batch in parsed.parallel_batches:
         members = [tasks_by_id[task_id] for task_id in batch.task_ids if task_id in tasks_by_id]
         pending_members = [task for task in members if not task.completed]
@@ -307,6 +313,35 @@ def find_next_ready_parallel_batch(parsed: ParsedTasksDocument) -> ParsedParalle
         if blocked:
             continue
         return batch
+
+    # 2. Try inferred batches (adjacent ready tasks with [P] marker)
+    ready_p_tasks = []
+    for task in parsed.tasks:
+        if task.completed:
+            continue
+
+        # Check if prerequisites are complete (all tasks before this one must be done or in this batch)
+        is_blocked = any(
+            not prev.completed and prev.task_id not in [t.task_id for t in ready_p_tasks]
+            for prev in parsed.tasks
+            if prev.order_index < task.order_index
+        )
+
+        if not is_blocked and task.parallel:
+            ready_p_tasks.append(task)
+        elif ready_p_tasks:
+            # We hit a sequential/blocked task, stop and return the batch if it has > 1 task
+            if len(ready_p_tasks) >= 2:
+                break
+            ready_p_tasks = []
+
+    if len(ready_p_tasks) >= 2:
+        return ParsedParallelBatch(
+            batch_name=f"Inferred Batch {ready_p_tasks[0].task_id}-{ready_p_tasks[-1].task_id}",
+            task_ids=[t.task_id for t in ready_p_tasks],
+            join_point_name="Inferred Join Point",
+        )
+
     return None
 
 
@@ -453,6 +488,49 @@ def route_ready_parallel_batch(
         dispatched_task_ids=dispatched_task_ids,
         request_ids=request_ids,
     )
+
+
+def run_notify_hook(payload: dict[str, Any]) -> None:
+    """Core logic for the Codex notify hook.
+
+    Scans for ready parallel batches and assesses passive parallelism.
+    """
+    project_root = Path(payload.get("cwd", ".")).resolve()
+    session_id = payload.get("session_id", "default")
+
+    # Search for tasks.md in specs/* and docs/superpowers/specs/*
+    search_dirs = [
+        project_root / "specs",
+        project_root / "docs" / "superpowers" / "specs",
+    ]
+
+    for search_dir in search_dirs:
+        if not search_dir.is_dir():
+            continue
+
+        for feature_dir in search_dir.iterdir():
+            if not feature_dir.is_dir():
+                continue
+
+            tasks_path = feature_dir / "tasks.md"
+            if not tasks_path.exists():
+                continue
+
+            try:
+                # 1. Attempt to route the next ready parallel batch
+                route_ready_parallel_batch(
+                    project_root,
+                    feature_dir=feature_dir,
+                    session_id=session_id,
+                )
+            except (AutoDispatchError, AutoDispatchUnavailableError):
+                # 2. If no batch is ready, we could assess passive parallelism here
+                # matching oh-my-codex's behavior of opportunistic triggers.
+                # For now, we skip to the next directory.
+                continue
+            except Exception:
+                # Don't let hook failures crash the CLI
+                continue
 
 
 def complete_dispatched_batch(

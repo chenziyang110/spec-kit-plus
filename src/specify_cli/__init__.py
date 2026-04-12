@@ -1665,6 +1665,21 @@ def team_cleanup(
     console.print(f"Cleaned session [cyan]{session.session_id}[/cyan].")
 
 
+@team_app.command("notify-hook", hidden=True)
+def team_notify_hook(
+    payload_json: str = typer.Argument(..., help="JSON payload from Codex CLI"),
+):
+    """Internal hook for Codex turn notifications."""
+    try:
+        payload = json.loads(payload_json)
+    except json.JSONDecodeError:
+        # Silently ignore invalid JSON
+        return
+
+    from .codex_team.auto_dispatch import run_notify_hook
+    run_notify_hook(payload)
+
+
 @team_app.command("auto-dispatch")
 def team_auto_dispatch(
     feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory that contains tasks.md"),
