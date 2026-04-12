@@ -30,6 +30,7 @@ async def test_gathering_node_with_symptoms_not_verified():
     
     # move to InvestigatingNode ONLY if reproduction_verified is True
     assert isinstance(result, GatheringNode)
+    assert "Reproduction not verified" in state.current_focus.next_action
 
 @pytest.mark.asyncio
 async def test_gathering_node_with_verified_reproduction():

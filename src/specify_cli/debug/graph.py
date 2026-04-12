@@ -45,6 +45,7 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         
         # 4. Implement "Reproduction First" gate in GatheringNode
         if not ctx.state.symptoms.reproduction_verified:
+            ctx.state.current_focus.next_action = "Reproduction not verified. Please create a reproduction script and run it to verify the bug. Update symptoms.reproduction_verified to True once confirmed."
             return self
 
         return InvestigatingNode()
