@@ -38,7 +38,7 @@
 - [x] 02-03-PLAN.md — Investigation Loop Enhancements (Prioritization, theory elimination)
 
 ### Phase 3: Autonomous Resolution
-**Goal**: Enable the agent to verify, fix, and validate bugs using secure tools and verification gates.
+**Goal**: Enable the agent to verify, fix, and validate bugs using secure tools and autonomous verification gates.
 **Depends on**: Phase 2
 **Requirements**: SYS-03, SYS-04, TOL-01, TOL-02, FND-04
 **Success Criteria** (what must be TRUE):
@@ -46,9 +46,9 @@
   2. The agent autonomously modifies source code and executes relevant tests to verify the resolution and check for regressions.
   3. The agent triggers a Human-in-the-Loop (HITL) checkpoint if automated verification fails or if a proposed fix requires user confirmation.
 **Plans**: 3 plans
-- [ ] 03-01-PLAN.md — Reproduction Gate & State Refinement (Failure tracking, enforcement)
-- [ ] 03-02-PLAN.md — Fixing & Verification Logic (Autonomous loop implementation, execution tools)
-- [ ] 03-03-PLAN.md — Safety Gate & HITL (Failure threshold, human handoff reporting)
+- [x] 03-01-PLAN.md — Reproduction Gate & State Refinement (Failure tracking, enforcement)
+- [ ] 03-02-PLAN.md — Fixing & Verification Logic (Autonomous loop implementation, exposed execution tools)
+- [ ] 03-03-PLAN.md — Safety Gate & HITL (Failure threshold, CLI handoff & reporting)
 
 ## Progress
 
@@ -56,4 +56,4 @@
 |-------|----------------|--------|-----------|
 | 1. Foundation & Resumability | 3/3 | Complete | 2026-04-12 |
 | 2. Contextual Intelligence | 3/3 | Complete | 2026-04-12 |
-| 3. Autonomous Resolution | 0/3 | In Progress | - |
+| 3. Autonomous Resolution | 1/3 | In Progress|  |
