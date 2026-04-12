@@ -42,6 +42,7 @@ class Resolution(BaseModel):
     files_changed: List[str] = Field(default_factory=list)
 
 class DebugGraphState(BaseModel):
+    slug: str
     status: DebugStatus = DebugStatus.GATHERING
     trigger: str
     current_node_id: Optional[str] = None
