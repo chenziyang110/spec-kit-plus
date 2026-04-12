@@ -6,35 +6,40 @@ class GatheringNode(BaseNode[DebugGraphState]):
     async def run(self, ctx: GraphRunContext[DebugGraphState]) -> Union['InvestigatingNode', End]:
         ctx.state.status = DebugStatus.GATHERING
         ctx.state.current_node_id = "GatheringNode"
-        # Placeholder for transition logic in Task 3
-        return End("Gathering completed (placeholder)")
+        # In a real implementation, it would gather symptoms and then move to investigation
+        return InvestigatingNode()
 
 class InvestigatingNode(BaseNode[DebugGraphState]):
     async def run(self, ctx: GraphRunContext[DebugGraphState]) -> Union['FixingNode', End]:
         ctx.state.status = DebugStatus.INVESTIGATING
         ctx.state.current_node_id = "InvestigatingNode"
-        # Placeholder for transition logic in Task 3
-        return End("Investigation completed (placeholder)")
+        # If root cause is found, move to fixing. Otherwise it might stay here or end.
+        if ctx.state.resolution.root_cause:
+            return FixingNode()
+        return End("Investigation incomplete")
 
 class FixingNode(BaseNode[DebugGraphState]):
     async def run(self, ctx: GraphRunContext[DebugGraphState]) -> Union['VerifyingNode', End]:
         ctx.state.status = DebugStatus.FIXING
         ctx.state.current_node_id = "FixingNode"
-        # Placeholder for transition logic in Task 3
-        return End("Fixing completed (placeholder)")
+        # If fix is applied, move to verifying
+        if ctx.state.resolution.fix:
+            return VerifyingNode()
+        return End("Fix not applied")
 
 class VerifyingNode(BaseNode[DebugGraphState]):
     async def run(self, ctx: GraphRunContext[DebugGraphState]) -> Union['ResolvedNode', 'InvestigatingNode', End]:
         ctx.state.status = DebugStatus.VERIFYING
         ctx.state.current_node_id = "VerifyingNode"
-        # Placeholder for transition logic in Task 3
-        return End("Verification completed (placeholder)")
+        # If verification passed, move to resolved. Otherwise back to investigation.
+        if ctx.state.resolution.verification:
+            return ResolvedNode()
+        return InvestigatingNode()
 
 class AwaitingHumanNode(BaseNode[DebugGraphState]):
     async def run(self, ctx: GraphRunContext[DebugGraphState]) -> Union['VerifyingNode', End]:
         ctx.state.status = DebugStatus.AWAITING_HUMAN
         ctx.state.current_node_id = "AwaitingHumanNode"
-        # Placeholder for transition logic in Task 3
         return End("Awaiting human input (placeholder)")
 
 class ResolvedNode(BaseNode[DebugGraphState]):
