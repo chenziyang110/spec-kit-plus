@@ -42,6 +42,10 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         # 3. Add logic to ensure ctx.state.symptoms.expected and ctx.state.symptoms.actual are populated.
         if not ctx.state.symptoms.expected or not ctx.state.symptoms.actual:
             return self
+        
+        # 4. Implement "Reproduction First" gate in GatheringNode
+        if not ctx.state.symptoms.reproduction_verified:
+            return self
 
         return InvestigatingNode()
 
