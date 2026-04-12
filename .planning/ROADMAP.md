@@ -2,8 +2,8 @@
 
 ## Phases
 
-- [ ] **Phase 1: Foundation & Resumability** - Establish the persistent, graph-based investigation loop and CLI entry point.
-- [ ] **Phase 2: Contextual Intelligence** - Enable the agent to ingest Spec Kit artifacts and prioritize search space.
+- [x] **Phase 1: Foundation & Resumability** - Establish the persistent, graph-based investigation loop and CLI entry point.
+- [x] **Phase 2: Contextual Intelligence** - Enable the agent to ingest Spec Kit artifacts and prioritize search space.
 - [ ] **Phase 3: Autonomous Resolution** - Implement verification-led fixing with secure code and test tools.
 
 ## Phase Details
@@ -40,12 +40,15 @@
 ### Phase 3: Autonomous Resolution
 **Goal**: Enable the agent to verify, fix, and validate bugs using secure tools and verification gates.
 **Depends on**: Phase 2
-**Requirements**: SYS-03, SYS-04, TOL-01, TOL-02
+**Requirements**: SYS-03, SYS-04, TOL-01, TOL-02, FND-04
 **Success Criteria** (what must be TRUE):
   1. The agent creates and executes a reproduction script or failing test that proves the existence of the reported bug.
   2. The agent autonomously modifies source code and executes relevant tests to verify the resolution and check for regressions.
   3. The agent triggers a Human-in-the-Loop (HITL) checkpoint if automated verification fails or if a proposed fix requires user confirmation.
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 03-01-PLAN.md — Reproduction Gate & State Refinement (Failure tracking, enforcement)
+- [ ] 03-02-PLAN.md — Fixing & Verification Logic (Autonomous loop implementation, execution tools)
+- [ ] 03-03-PLAN.md — Safety Gate & HITL (Failure threshold, human handoff reporting)
 
 ## Progress
 
@@ -53,4 +56,4 @@
 |-------|----------------|--------|-----------|
 | 1. Foundation & Resumability | 3/3 | Complete | 2026-04-12 |
 | 2. Contextual Intelligence | 3/3 | Complete | 2026-04-12 |
-| 3. Autonomous Resolution | 0/0 | Not started | - |
+| 3. Autonomous Resolution | 0/3 | In Progress | - |
