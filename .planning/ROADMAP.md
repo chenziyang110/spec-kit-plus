@@ -35,7 +35,7 @@
 **Plans**: 3 plans
 - [x] 02-01-PLAN.md — Context Infrastructure (Schema updates, artifact loader, git analyzer)
 - [x] 02-02-PLAN.md — Gathering & Reproduction Gate (Symptom collection, proof enforcement)
-- [ ] 02-03-PLAN.md — Investigation Loop Enhancements (Prioritization, theory elimination)
+- [x] 02-03-PLAN.md — Investigation Loop Enhancements (Prioritization, theory elimination)
 
 ### Phase 3: Autonomous Resolution
 **Goal**: Enable the agent to verify, fix, and validate bugs using secure tools and verification gates.
