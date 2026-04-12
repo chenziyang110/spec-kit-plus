@@ -3,6 +3,7 @@ from pydantic_graph import BaseNode, Graph, GraphRunContext, End
 from .schema import DebugGraphState, DebugStatus, EliminatedEntry
 from .persistence import MarkdownPersistenceHandler
 from .context import ContextLoader
+from .utils import run_command
 import functools
 
 def persist(func):
@@ -98,23 +99,44 @@ class InvestigatingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
 
 class FixingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     @persist
-    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['VerifyingNode', End]:
+    async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['VerifyingNode', 'FixingNode', End]:
         ctx.state.status = DebugStatus.FIXING
         ctx.state.current_node_id = "FixingNode"
         # If fix is applied, move to verifying
         if ctx.state.resolution.fix:
             return VerifyingNode()
-        return End("Fix not applied")
+        
+        ctx.state.current_focus.next_action = "Root cause identified. Please propose a fix and update resolution.fix."
+        return self
 
 class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     @persist
     async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['ResolvedNode', 'InvestigatingNode', End]:
         ctx.state.status = DebugStatus.VERIFYING
         ctx.state.current_node_id = "VerifyingNode"
-        # If verification passed, move to resolved. Otherwise back to investigation.
-        if ctx.state.resolution.verification:
-            return ResolvedNode()
-        return InvestigatingNode()
+        
+        # 1. Run reproduction command
+        repro_cmd = ctx.state.symptoms.reproduction_command
+        if repro_cmd:
+            output = run_command(repro_cmd)
+            if "FAIL" in output.upper() or "ERROR" in output.upper():
+                 ctx.state.resolution.verification = "failed"
+                 ctx.state.resolution.fail_count += 1
+                 return InvestigatingNode()
+
+        # 2. Run feature directory tests
+        feature_dir = ctx.state.context.feature_id
+        if feature_dir:
+            test_cmd = f"pytest {feature_dir}"
+            output = run_command(test_cmd)
+            if "FAIL" in output.upper() or "ERROR" in output.upper():
+                 ctx.state.resolution.verification = "failed"
+                 ctx.state.resolution.fail_count += 1
+                 return InvestigatingNode()
+
+        # If verification passed, move to resolved.
+        ctx.state.resolution.verification = "success"
+        return ResolvedNode()
 
 class AwaitingHumanNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     @persist

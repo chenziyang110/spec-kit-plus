@@ -1,7 +1,7 @@
 import pytest
 from pydantic_graph import GraphRunContext
 from specify_cli.debug.schema import DebugGraphState, DebugStatus
-from specify_cli.debug.graph import GatheringNode, InvestigatingNode, FixingNode, VerifyingNode
+from specify_cli.debug.graph import GatheringNode, InvestigatingNode, FixingNode, VerifyingNode, ResolvedNode
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 
 @pytest.mark.asyncio
@@ -91,3 +91,83 @@ async def test_investigating_node_finds_root_cause():
     result = await node.run(ctx)
     
     assert isinstance(result, FixingNode)
+
+@pytest.mark.asyncio
+async def test_fixing_node_no_fix():
+    state = DebugGraphState(slug="test", trigger="test")
+    state.resolution.root_cause = "Typo in line 42"
+    
+    node = FixingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+    
+    result = await node.run(ctx)
+    
+    assert isinstance(result, FixingNode)
+    assert "Please propose a fix" in state.current_focus.next_action
+
+@pytest.mark.asyncio
+async def test_fixing_node_with_fix():
+    state = DebugGraphState(slug="test", trigger="test")
+    state.resolution.fix = "Update line 42 to fix the typo"
+    
+    node = FixingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+    
+    result = await node.run(ctx)
+    
+    assert isinstance(result, VerifyingNode)
+
+@pytest.mark.asyncio
+async def test_verifying_node_success(monkeypatch):
+    # Mock run_command to always succeed
+    calls = []
+    def mock_run(cmd):
+        calls.append(cmd)
+        return "PASS"
+    
+    import specify_cli.debug.graph as graph_module
+    monkeypatch.setattr(graph_module, "run_command", mock_run)
+    
+    state = DebugGraphState(slug="test", trigger="test")
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.context.feature_id = "src/specify_cli/debug"
+    
+    node = VerifyingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+    
+    result = await node.run(ctx)
+    
+    assert isinstance(result, ResolvedNode)
+    assert state.resolution.verification == "success"
+    # Should call run_command twice (reproduction + feature tests)
+    assert len(calls) == 2
+    assert "python tests/repro.py" in calls[0]
+    assert "pytest src/specify_cli/debug" in calls[1]
+
+@pytest.mark.asyncio
+async def test_verifying_node_failure(monkeypatch):
+    # Mock run_command to fail on the second call (feature tests)
+    calls = []
+    def mock_run(cmd):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return "PASS"
+        return "FAIL"
+    
+    import specify_cli.debug.graph as graph_module
+    monkeypatch.setattr(graph_module, "run_command", mock_run)
+    
+    state = DebugGraphState(slug="test", trigger="test")
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.context.feature_id = "src/specify_cli/debug"
+    state.resolution.fail_count = 0
+    
+    node = VerifyingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+    
+    result = await node.run(ctx)
+    
+    assert isinstance(result, InvestigatingNode)
+    assert state.resolution.verification == "failed"
+    assert state.resolution.fail_count == 1
+    assert len(calls) == 2
