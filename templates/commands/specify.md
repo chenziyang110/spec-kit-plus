@@ -183,6 +183,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - completion criteria
 
     Docs/config/process change:
+    - Treat this as a planning-critical questioning surface, not a passive cleanup request.
+    - Before normal alignment release, collect the changed artifact, change objective, affected users or teams, compatibility/process constraints, validation method, and completion criteria.
     - changed artifact
     - change objective
     - affected users or teams
