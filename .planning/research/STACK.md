@@ -1,54 +1,48 @@
-# Technology Stack: context-aware bug fixing (`sp-debug`)
+# Stack Research: Stronger `sp-specify` Questioning
 
-**Project:** spec-kit-plus
-**Researched:** 2026-04-12
+**Domain:** Requirement-questioning workflow design for `spec-kit-plus`
+**Researched:** 2026-04-13
 
-## Recommended Stack
+## Current Stack Reality
 
-### Core Framework
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Python | >=3.11 | Core Runtime | Matches existing project infrastructure. |
-| Typer / Click | ^0.12 / ^8.1 | CLI Framework | Existing project standard for command handling. |
-| Rich | ^13.0 | TUI / Formatting | Used for beautiful CLI outputs and status bars. |
+The improvement surface for this milestone is primarily prompt-template and regression driven, not runtime-driven.
 
-### AI & LLM Interaction
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| LiteLLM or OpenAI SDK | Current | LLM Orchestration | Provide a unified interface for multiple models (GPT-4o, Claude 3.5 Sonnet). |
-| Markdown | N/A | State Persistence | Human-auditable, version-controllable, and fits existing Spec Kit patterns. |
+| Area | Current Stack | Implication for v1.2 |
+|------|---------------|----------------------|
+| Command surface | `templates/commands/specify.md` | Primary shared workflow contract for generated integrations |
+| Generated Codex mirror | `.agents/skills/sp-specify/SKILL.md` | Must stay synchronized with the template or the user sees stale behavior |
+| Regression layer | `tests/test_alignment_templates.py` | Already enforces parts of the `specify` questioning contract |
+| Adjacent compatibility surface | `templates/commands/clarify.md`, `.agents/skills/sp-clarify/SKILL.md` | Relevant as drift risk, but not first-class scope for this milestone |
+| Design history | `docs/superpowers/specs/2026-04-11-specify-analysis-rework-design.md` | Confirms the repo already chose analysis-first `specify` as the mainline |
+| External comparison source | `E:\work\github\superpowers\skills/brainstorming/SKILL.md` | Best local reference for richer requirement questioning patterns |
 
-### Infrastructure
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Git | N/A | State Checkpointing | Enables "atomic reverts" of debug sessions. |
-| Bash / PowerShell | N/A | Tool Execution | To execute reproduction scripts and test suites. |
+## Recommended Stack Additions or Changes
 
-### Supporting Libraries
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| Instructor | N/A | Structured Data | If we need to parse specific sections of `DEBUG.md` into Pydantic models. |
-| Pathspec | ^0.12 | File Filtering | To respect `.gitignore` when scanning codebase for context. |
+| Recommendation | Why | Scope Impact |
+|----------------|-----|--------------|
+| Treat `templates/commands/specify.md` as the authoritative questioning contract and explicitly resync the generated skill mirror | The current skill mirror is materially behind the template | Required |
+| Expand regression coverage beyond structure-only checks toward question-depth and interaction-shape expectations | Current tests protect TUI structure more strongly than questioning quality | Required |
+| Use docs/spec artifacts to explain the new questioning behavior and guardrails | This is a workflow-behavior milestone, so guidance drift is a real product risk | Recommended |
+| Keep changes in Markdown/template/test surfaces first | This milestone is about user-facing prompting behavior, not orchestration-core code | Required |
 
-## Alternatives Considered
+## What Not To Add
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| State Store | Markdown | SQLite / JSON | Markdown is more transparent to developers and integrates with Git history natively. |
-| Orchestration | LiteLLM | LangChain | LangChain is often considered too "heavy" for a focused CLI tool like `sp-debug`. |
+| Avoid | Why |
+|------|-----|
+| New runtime coordination layer for `specify` | Out of scope and unnecessary for this questioning-focused milestone |
+| Mandatory `clarify` or `spec-extend` dependency | Conflicts with the approved `specify -> plan` mainline |
+| Visual/TUI redesign as the main deliverable | The real problem is questioning quality, not decorative presentation |
 
-## Installation
+## Integration Notes
 
-\`\`\`bash
-# Core dependencies (already in project)
-pip install typer rich litellm pyyaml
+- The current `templates/commands/specify.md` already moved toward open question blocks and deeper analysis language.
+- The current `.agents/skills/sp-specify/SKILL.md` still carries an older question-card contract with boxed-card language and a narrower analysis model.
+- The milestone should therefore assume a multi-surface alignment problem, not a single-file wording tweak.
 
-# For debugging/development
-pip install pytest pytest-cov
-\`\`\`
+## Confidence
 
-## Sources
-
-- `pyproject.toml`
-- [LiteLLM Documentation](https://docs.litellm.ai)
-- [Rich Documentation](https://rich.readthedocs.io)
+| Area | Confidence | Notes |
+|------|------------|-------|
+| Template-first implementation path | HIGH | The current repo already encodes most behavior in templates and generated mirrors |
+| Need for skill resynchronization | HIGH | Direct diff shows substantial drift |
+| Need for more regression coverage | HIGH | Existing tests focus on structure and compatibility, not enough on questioning depth |

@@ -1,60 +1,65 @@
-# Feature Landscape: `sp-debug`
+# Feature Landscape: Stronger `sp-specify` Questioning
 
-**Domain:** AI-Driven Bug Fixing / Systematic Debugging
-**Researched:** 2026-04-12
+**Domain:** Requirement discovery and clarification quality in `specify`
+**Researched:** 2026-04-13
 
 ## Table Stakes
 
-Features users expect in a professional-grade debugging agent. Missing these would make the tool feel unreliable or "toy-like."
+Capabilities users now reasonably expect from `/sp.specify` after the analysis-first redesign.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **Reproduction First** | The scientific method requires proof. Fixes without proof are guesses. | Med | CLI must guide the agent to create a failing test/script first. |
-| **State Persistence** | Long debugging sessions shouldn't be lost if the user restarts their shell. | Low | Markdown-based logging of hypotheses, evidence, and results. |
-| **Context Awareness** | The agent must read `spec.md`, `plan.md`, `constitution.md` automatically. | Low | Leveraging existing Spec Kit artifacts. |
-| **Human-in-the-Loop** | Critical code changes should be approved by a human developer. | Med | Approval gates before applying `write_file` changes. |
-| **Resumability** | The ability to resume an interrupted session from the last successful step. | Med | Needs a robust "Session Selection" mechanism when starting `sp-debug`. |
+| Capability | Why Expected | Complexity | Notes |
+|------------|--------------|------------|-------|
+| **Coverage of core requirement dimensions** | Users expect `specify` to ask about missing scope, users, constraints, and success conditions before planning | Medium | Current user feedback says this still feels too thin |
+| **High-value follow-up questions** | The workflow should challenge vague answers instead of accepting surface statements | Medium | Stronger follow-up depth is the main requested improvement |
+| **Structured but readable interaction** | Users want guidance, not a wall of freeform questioning | Low | Keep the question-card/open-block discipline |
+| **Substantive confirmation gate** | Users need a stronger checkpoint before the workflow declares the spec aligned | Low | Mirrors one of the strongest qualities in `superpowers` |
+| **Consistent shipped behavior across templates and skill mirrors** | A user should not get different questioning behavior depending on the generated surface they actually run | Medium | Current repo has drift here |
 
-## Differentiators
+## Differentiators Worth Borrowing
 
-Features that set `sp-debug` apart from basic coding assistants like Aider.
+These are the qualities in `superpowers` that seem most valuable to absorb into `specify` without changing the mainline workflow.
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **Scientific Method Loop** | Guarantees systematic progress vs. the "shotgun approach" of typical AI fixes. | Med | Structured progression: Gather -> Investigate -> Fix -> Verify. |
-| **Automatic Context Pruning** | Only inject relevant snippets of artifacts to keep the context window focused. | High | Intelligent selection of which Spec/Plan sections matter for the current bug. |
-| **State Snapshotting** | Ability to "rollback" to a previous hypothesis if a branch of investigation fails. | Med | Linked to git commits or separate markdown snapshots. |
-| **Evidence Extraction** | Automatically parsing tool outputs and summarizing the "nuggets" of proof. | Med | Reduces context window pollution. |
+| Differentiator | Value | Complexity | Notes |
+|----------------|-------|------------|-------|
+| **Intent-following questioning** | Questions feel responsive to what the user emphasized, not like a fixed questionnaire | Medium | Best candidate for improving perceived quality |
+| **One-question-at-a-time discipline with depth** | Maintains focus while still exploring ambiguities thoroughly | Medium | Compatible with the current `specify` clarification loop |
+| **Purpose-aware probing** | Questions are clearly tied to outcome, constraint, or success criteria rather than generic categorization | Medium | Helps users feel the system is “thinking” |
+| **Stronger pre-exit validation** | Prevents the workflow from ending while major requirement gaps remain | Low | Fits the alignment-ready gate already present |
 
 ## Anti-Features
 
-Features to explicitly NOT build to avoid bloat and stay within scope.
+Changes that would look attractive but would miss the point of the milestone.
 
-| Anti-Feature | Why Avoid | What to Do Instead |
+| Anti-Feature | Why Avoid | Better Alternative |
 |--------------|-----------|-------------------|
-| **General Refactoring** | Scope creep; debugging should be minimal and surgical. | Flag large changes for human review; keep fixes focused. |
-| **Feature Implementation** | `sp-debug` is for *fixing*, not *building*. | Use the standard `specify implement` workflow for new features. |
-| **Multi-Repo Debugging** | Increases complexity and token costs exponentially. | Focus on the local repository context. |
+| **Just add more questions everywhere** | Quantity alone will make the workflow slower without improving clarity | Make question selection more adaptive and high-value |
+| **Replace `specify` with freeform brainstorming** | Conflicts with the preferred structured experience and current product direction | Keep structure, upgrade the questioning logic inside it |
+| **Optimize only the card visuals** | Solves presentation symptoms, not requirement-discovery quality | Improve question depth, sequencing, and confirmation logic |
+| **Scope creep into `clarify` / `spec-extend`** | Diffuses the milestone and delays mainline improvement | Limit the milestone to `sp-specify` |
 
-## Feature Dependencies
+## Suggested Capability Groups
+
+These groups are the most natural requirement buckets for the milestone.
+
+1. **Question Coverage**
+   Ensures the workflow reliably surfaces missing requirement dimensions.
+2. **Follow-up Depth**
+   Ensures vague or shallow answers trigger better next questions.
+3. **Experience Quality**
+   Ensures the interaction feels guided and coherent rather than mechanical.
+4. **Artifact Alignment**
+   Ensures templates, generated skills, and tests all ship the same contract.
+
+## Dependencies
 
 ```mermaid
-Reproduction script -> Hypothesis testing -> Fix implementation -> Regression testing
+flowchart TD
+    Coverage[Question coverage model] --> Followup[Follow-up depth rules]
+    Followup --> Experience[User-facing interaction quality]
+    Coverage --> Alignment[Template, skill, and test alignment]
+    Experience --> Alignment
 ```
 
-## MVP Recommendation
+## Recommendation
 
-Prioritize:
-1.  **Reproduction First:** Force the creation of a failing test.
-2.  **Scientific Loop:** Implement the Gather -> Investigate -> Fix -> Verify progression.
-3.  **State Persistence:** Basic `.planning/debug/[slug].md` with resumability.
-
-Defer:
--   **Advanced Context Pruning:** Use full artifacts initially until context limits become a problem.
--   **Multi-Agent Coordination:** Stick to a single "Scientific Debugger" agent first.
-
-## Sources
-
-- [gsd-debug architecture reference](https://github.com/get-shit-done)
-- [Aider Feature List](https://aider.chat)
-- `spec-kit-plus` Project Charter
+The first-release slice should include all four capability groups above. Cutting any one of them would likely leave the user with partial improvement and a continued “looks better than it feels” outcome.

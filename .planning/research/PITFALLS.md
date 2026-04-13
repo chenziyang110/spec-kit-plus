@@ -1,49 +1,38 @@
-# Domain Pitfalls
+# Pitfalls Research: Stronger `sp-specify` Questioning
 
-**Domain:** AI Debugging CLI (`sp-debug`)
-**Researched:** 2025-05-22
-**Overall Confidence:** HIGH
+**Domain:** Improving requirement questioning in `specify`
+**Researched:** 2026-04-13
 
-## Critical Pitfalls
+## Main Risks
 
-### Pitfall 1: Hallucinating Evidence
-**What goes wrong:** The agent "sees" a bug in a file it hasn't actually read yet, or claims a test failed when it wasn't run.
-**Root Cause:** Over-reliance on internal knowledge and long context windows where the LLM might drift from reality.
-**Consequences:** The agent builds a "fix" for a non-existent problem or misses the real issue.
-**Prevention:** Strictly enforce tool use for any code claim. Force the agent to cite file/line numbers from actual `read_file` results.
-**Detection:** Verification step fails or human reviewer sees "hallucinated" code in the log.
+| Pitfall | Why It Matters | Prevention |
+|---------|----------------|------------|
+| **Confusing “more questions” with “better questions”** | The experience gets slower and more annoying without actually improving alignment | Require each new questioning rule to justify what ambiguity it resolves |
+| **Overfitting to `superpowers` literally** | `superpowers` uses a different workflow philosophy; copying it wholesale would fight the current Spec Kit mainline | Borrow questioning strengths, not the entire brainstorming workflow |
+| **Improving the template but not the shipped skill mirror** | Users keep seeing stale behavior depending on the surface they run | Treat template and skill changes as inseparable deliverables |
+| **Focusing on TUI cosmetics instead of requirement depth** | The milestone ships visible motion without solving the actual user complaint | Keep requirements centered on questioning quality and confirmation strength |
+| **Letting `clarify` absorb the missing depth again** | Reintroduces the old split-responsibility problem that the repo just removed | Keep the improved questioning burden inside `sp-specify` |
+| **Breaking the structured interaction model** | The user explicitly wants to keep structured cards/blocks | Improve sequencing and content quality without removing the structure |
 
-### Pitfall 2: Infinite Loops
-**What goes wrong:** The agent keeps running the same investigation steps (e.g., `list_files` -> `read_file`) without progress.
-**Root Cause:** Lack of state awareness in the loop. The agent forgets what it already tried.
-**Consequences:** Burned tokens and no fix.
-**Prevention:** Track "Visited Files" and "Eliminated Hypotheses" in the graph state. If a node repeats 3+ times without progress, trigger a "Re-evaluate" node.
+## Specific Warning Signs
 
-## Moderate Pitfalls
+- A PR mostly changes card copy, borders, or banners but not the actual clarification strategy.
+- New questions are added as a fixed checklist regardless of task type or user emphasis.
+- Template assertions pass, but generated skill mirrors are still stale.
+- The workflow recaps more often, but still does not challenge vague user answers.
+- The system claims richer questioning while docs and tests still only verify formatting.
 
-### Pitfall 1: "Cold Start" on Large Codebases
-**What goes wrong:** The agent spends too much time/tokens reading irrelevant files.
-**Prevention:** Leverage Spec Kit artifacts (`spec.md`, `plan.md`, `ROADMAP.md`) to guide the search. Focus on files mentioned in the most recent plan.
+## Recommended Safeguards
 
-### Pitfall 2: Dependency Conflicts with `uv`
-**What goes wrong:** Adding new AI libraries (`pydantic-ai`, `litellm`) might conflict with existing CLI dependencies.
-**Prevention:** Use `uv` to manage isolated environments and strictly version-lock all agentic libraries.
+1. Add requirements that explicitly mention both **coverage** and **follow-up depth**.
+2. Add at least one requirement around **template/skill/test alignment**.
+3. Ensure roadmap phases leave room for both behavior design and regression hardening.
+4. Evaluate success through realistic `/sp.specify` interaction quality, not only file diffs.
 
-## Minor Pitfalls
+## Where These Risks Should Be Addressed
 
-### Pitfall 1: Markdown State Parsing
-**What goes wrong:** Complex YAML frontmatter in Markdown might become difficult to parse if it grows too large.
-**Prevention:** Keep the frontmatter schema simple and lean. Store large "Evidence" chunks in the Markdown body, not the frontmatter.
-
-## Phase-Specific Warnings
-
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| **Core Workflow** | Non-resumable state if graph logic is flawed. | Unit test the `PersistenceHandler` extensively with mocked LLM calls. |
-| **Tool Integration** | Shell injection via `run_test`. | Use `shlex.quote` and strictly limit available commands. |
-| **Context Injection** | Stale `spec.md` or `plan.md`. | Always check file modification dates and warn the user if docs are out-of-sync with code. |
-
-## Sources
-
-- [AI Agent Pitfalls 2025](https://dev.to/ai-pitfalls-2025) (MEDIUM confidence)
-- [PydanticAI GitHub Issues](https://github.com/pydantic/pydantic-ai/issues) (HIGH confidence)
+| Risk Area | Best Phase to Address |
+|-----------|-----------------------|
+| Question quality still too shallow | Early design/contract phase |
+| Surface drift between template and skill | Mid implementation/test phase |
+| Misleading docs or release messaging | Final alignment phase |

@@ -1,88 +1,63 @@
-# Architecture Patterns
+# Architecture Research: Stronger `sp-specify` Questioning
 
-**Domain:** AI Debugging CLI (`sp-debug`)
-**Researched:** 2025-05-22
-**Overall Confidence:** HIGH
+**Domain:** Prompt-contract architecture for `specify`
+**Researched:** 2026-04-13
 
-## Recommended Architecture
+## Current Architecture
 
-The system should be built as a **Finite State Machine (FSM)** using `pydantic-graph`. This allows for explicit, type-safe transitions between the different stages of the "Scientific Method".
+The current `specify` questioning experience is distributed across four important surfaces:
 
-### Component Boundaries
+1. `templates/commands/specify.md`
+   The shared command template and the closest thing to the authoritative workflow contract.
+2. `.agents/skills/sp-specify/SKILL.md`
+   The local Codex-facing mirror that users may actually execute.
+3. `tests/test_alignment_templates.py`
+   The main contract test for the shared `specify` template behavior.
+4. Supporting design docs under `docs/superpowers/`
+   Historical reasoning that explains why `specify` became analysis-first in the first place.
 
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| **CLI (Typer)** | Entry point, argument parsing, session initialization. | Workflow Manager |
-| **Workflow Manager (pydantic-graph)** | Managing state, executing nodes, handling persistence. | Agent, File System |
-| **Agent (PydanticAI)** | Reasoning, tool calling, structured output. | Workflow Manager, LLM |
-| **Context Provider** | Loading and parsing Spec Kit artifacts. | Workflow Manager |
-| **Persistence Handler** | Serializing/Deserializing state to Markdown. | Workflow Manager, File System |
+## Architectural Finding
 
-### Data Flow
+The repo currently has a **contract-drift problem**:
 
-1.  **Initialize:** CLI loads the `session_id`. If it exists, the `Persistence Handler` restores the graph state and message history from the Markdown file.
-2.  **Context Loading:** `Context Provider` reads `spec.md`, `plan.md`, etc., and injects them into the agent's system prompt.
-3.  **The Loop (Gather -> Investigate -> Fix -> Verify):**
-    *   **Gather:** Agent uses tools to explore symptoms.
-    *   **Investigate:** Agent forms and tests hypotheses (evidence).
-    *   **Fix:** Agent proposes a targeted code change.
-    *   **Verify:** Agent runs tests to confirm the fix.
-4.  **Save:** After each node transition, the `Persistence Handler` updates the Markdown file with new findings and updated state.
+- `templates/commands/specify.md` describes a richer, more analysis-heavy, open-question-block workflow.
+- `.agents/skills/sp-specify/SKILL.md` still reflects an older contract with boxed question-card wording, a narrower analysis model, and no `references.md` step.
+- Existing tests strongly validate the template, but they do not fully prove that the shipped skill mirrors stay aligned.
 
-## Patterns to Follow
+This means the milestone should be designed as a **single behavior contract with multiple output surfaces**, not as a prompt tweak in one file.
 
-### Pattern 1: State-Aware Graph Nodes
-Each node in the `pydantic-graph` should be small and focused. Transitions are based on the outcome of the agent's task.
+## Recommended Integration Points
 
-```python
-from pydantic_graph import BaseNode, GraphRunContext, End
+| Integration Point | Why It Matters | Change Type |
+|-------------------|----------------|-------------|
+| `templates/commands/specify.md` | Defines the main questioning behavior | Behavior design |
+| `.agents/skills/sp-specify/SKILL.md` | Must mirror the shipped behavior users actually experience | Sync + regression |
+| `tests/test_alignment_templates.py` | Protects the shared template contract | Expand assertions |
+| `tests/test_extension_skills.py` or similar generated-surface tests | Best place to catch future drift between template and shipped skill content | Add or extend |
+| Workflow docs / README copy where needed | Keeps user expectations aligned with the new questioning quality promise | Optional but useful |
 
-@dataclass
-class InvestigateNode(BaseNode[DebugState]):
-    async def run(self, ctx: GraphRunContext[DebugState]) -> 'FixNode | GatherNode':
-        # logic to determine if we have enough evidence for a fix
-        if ctx.state.has_root_cause:
-            return FixNode()
-        return GatherNode()
-```
+## Suggested Build Order
 
-### Pattern 2: Markdown "Single Source of Truth"
-The Markdown file (`.planning/debug/[slug].md`) acts as both the user-readable log and the machine-parsable state.
+1. Finalize the target questioning contract for `specify`.
+2. Update the authoritative command template.
+3. Resync the generated/local skill mirror.
+4. Add regression coverage that catches template-to-skill drift and depth regressions.
+5. Update surrounding docs only where they materially affect user expectations.
 
-```markdown
----
-session_id: bug-123
-current_node: InvestigateNode
-hypotheses: [...]
-eliminated: [...]
----
-# Investigation Log: [slug]
+## Architectural Guardrails
 
-## Symptoms
-...
-```
+- Keep the `specify -> plan` mainline intact.
+- Do not move requirement-depth responsibility back into `clarify`.
+- Preserve structured interaction blocks as the outer shell.
+- Improve the adaptive questioning logic inside that shell.
+- Prefer contract tests that describe behavior, not brittle snapshot tests of every line.
 
-## Anti-Patterns to Avoid
+## Design Implications for Roadmap
 
-### Anti-Pattern 1: Stateless Agents
-**What:** Running the agent in a loop without persisting the graph state.
-**Why bad:** If the CLI crashes, the agent loses its "train of thought" and has to re-read files and re-run tests.
-**Instead:** Use `pydantic-graph` with a `PersistenceHandler` that saves after every node.
+The roadmap should likely separate:
 
-### Anti-Pattern 2: Prompt Overloading
-**What:** Shoving the entire codebase into the prompt.
-**Why bad:** High cost and noise. LLMs perform better with relevant context.
-**Instead:** Use Spec Kit artifacts (`spec.md`, `plan.md`) as the starting point, and only read specific source files based on the investigation.
+1. **Questioning contract redesign**
+2. **Surface synchronization and test hardening**
+3. **User-facing docs/polish and final alignment**
 
-## Scalability Considerations
-
-| Concern | At 100 users | At 10K users | At 1M users |
-|---------|--------------|--------------|-------------|
-| **LLM Token Costs** | Low impact. | Moderate. | High (use caching). |
-| **Session Persistence** | Local file system is fine. | Cloud storage may be needed. | Centralized DB with E2EE. |
-| **Performance** | Instant. | Depends on LLM latency. | Requires distributed queues. |
-
-## Sources
-
-- [PydanticAI Graph Documentation](https://ai.pydantic.dev/graph/) (HIGH confidence)
-- [Clean Architecture for AI Agents](https://medium.com/p/clean-agentic-architecture-2025) (MEDIUM confidence)
+That split matches both the current architecture and the user's stated priority on real experience change.
