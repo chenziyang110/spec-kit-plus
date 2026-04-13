@@ -1,0 +1,59 @@
+# Requirements: spec-kit-plus
+
+**Defined:** 2026-04-13
+**Core Value:** Keep Spec-Driven Development practical across local AI integrations by making the workflow consistent, truthful, and usable in the tools developers actually run.
+
+## v1 Requirements
+
+### Question Coverage
+
+- [ ] **QCOV-01**: User running `/sp.specify` for a docs/config/process change is asked about change objective, affected users or teams, compatibility or process constraints, validation method, and completion criteria before the spec is released as planning-ready.
+- [ ] **QCOV-02**: User running `/sp.specify` receives requirement questions that adapt to the inferred task classification instead of reusing one generic questioning path for every request.
+- [ ] **QCOV-03**: User running `/sp.specify` is kept in clarification when planning-critical ambiguity remains around scope, workflow behavior, constraints, or success conditions.
+
+### Follow-up Depth
+
+- [ ] **FDEP-01**: User running `/sp.specify` receives follow-up questions that directly build on the previous answer instead of resetting to generic prompts.
+- [ ] **FDEP-02**: User who gives a vague, shallow, or contradictory answer receives a targeted follow-up, example, or recommendation that narrows the ambiguity.
+- [ ] **FDEP-03**: User running `/sp.specify` is guided toward a clearer decision without the workflow collapsing into either a rigid checklist or a fully freeform brainstorming session.
+
+### Experience Quality
+
+- [ ] **EXPQ-01**: User running `/sp.specify` experiences a one-question-at-a-time interaction that feels like guided requirement discovery rather than a shallow questionnaire.
+- [ ] **EXPQ-02**: User running `/sp.specify` sees a stronger current-understanding or confirmation gate before the release decision so missing or incorrect requirement framing can be caught.
+- [ ] **EXPQ-03**: User can reach planning-ready alignment through `/sp.specify` alone for this milestone's target work types, without depending on `/sp.clarify` or `/sp.spec-extend`.
+
+### Artifact Alignment
+
+- [ ] **SYNC-01**: Generated `templates/commands/specify.md` and `.agents/skills/sp-specify/SKILL.md` expose the same stronger questioning contract.
+- [ ] **SYNC-02**: Maintainer running the regression suite gets test coverage that catches drift in questioning structure, follow-up expectations, and confirmation behavior.
+- [ ] **SYNC-03**: User-facing workflow guidance describes the stronger `sp-specify` behavior truthfully without restoring `specify -> clarify -> plan` as the recommended path.
+
+## v2 Requirements
+
+### Follow-on Alignment
+
+- **EXTN-01**: `spec-extend` and `clarify` reuse the stronger questioning model where it still applies after this milestone.
+- **EVAL-01**: The repo includes broader behavior-level evaluation for questioning quality across multiple task types beyond this milestone slice.
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Replacing `specify` with a fully freeform brainstorming flow | The user wants to keep structured questioning, not abandon it |
+| Redesigning `clarify` or `spec-extend` in this milestone | The scope is intentionally limited to the `sp-specify` mainline |
+| Adding new runtime orchestration or subagent execution behavior for `specify` | The problem to solve here is questioning quality, not execution runtime depth |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+
+**Coverage:**
+- v1 requirements: 12 total
+- Mapped to phases: 0
+- Unmapped: 12 Warning
+
+---
+*Requirements defined: 2026-04-13*
+*Last updated: 2026-04-13 after milestone v1.2 requirement definition*
