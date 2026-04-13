@@ -74,6 +74,11 @@ def test_specify_template_uses_alignment_first_contract():
     assert "before capability decomposition" in lowered
     assert "before writing `spec.md` and `alignment.md`" in content
     assert "specify team" not in lowered
+    assert "Docs/config/process change:" in content
+    assert "compatibility/process constraints" in content
+    assert "completion criteria" in content
+    assert "Task classification changes which requirement dimensions are probed" in content
+    assert "planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria" in content
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
