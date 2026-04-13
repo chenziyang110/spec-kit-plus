@@ -227,6 +227,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, continue clarification instead of releasing normal alignment.
 
 14. Clarification loop.
+    - Keep the interaction feeling like guided requirement discovery rather than a shallow questionnaire.
     - Ask only high-value questions.
     - Use grouped questions for simple/local changes.
     - Use one question at a time for complex/high-risk cases.
@@ -237,6 +238,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Do not accept long but still ambiguous answers as sufficient.
     - Challenge contradictions or vague answers when important ambiguity remains.
     - Keep stronger follow-up behavior tied to planning-relevant ambiguity, not generic conversation depth.
+    - Use recommendation and example scaffolding when they help the user answer more clearly without forcing a rigid response path.
     - Use the user's current language for all user-visible clarification content, including questions, summaries, status updates, and the current-understanding restatement.
     - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
     - Do not restate the full current understanding after every answer.
@@ -337,6 +339,10 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
       Use only when:
       - unresolved high-impact ambiguity remains
       - the user explicitly chooses to continue anyway
+
+    Before `Aligned: ready for plan`, run a current-understanding or confirmation gate.
+    - Present the grouped current understanding as an explicit pre-release check.
+    - Ask the user to confirm or correct the current understanding before `Aligned: ready for plan`.
 
     If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, keep the workflow in clarification until it is resolved or the user explicitly chooses `Force proceed with known risks`.
 
