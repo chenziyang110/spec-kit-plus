@@ -98,6 +98,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - bug fix
    - technical refactor
    - docs/config/process change
+   - Task classification changes which requirement dimensions are probed. Use the inferred class to choose the questioning path instead of reusing one generic flow for every request.
 
    Briefly tell the user your inferred classification and allow correction before continuing.
 
@@ -223,6 +224,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - dependency sequencing
 
     The user saying "I already explained it" is not sufficient reason to stop. Judge clarity from the perspective of a future planner, implementer, and tester.
+    If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, continue clarification instead of releasing normal alignment.
 
 14. Clarification loop.
     - Ask only high-value questions.
@@ -329,6 +331,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
       Use only when:
       - unresolved high-impact ambiguity remains
       - the user explicitly chooses to continue anyway
+
+    If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, keep the workflow in clarification until it is resolved or the user explicitly chooses `Force proceed with known risks`.
 
     If neither condition is met, continue clarification.
 
