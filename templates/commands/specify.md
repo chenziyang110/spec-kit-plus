@@ -231,6 +231,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Use grouped questions for simple/local changes.
     - Use one question at a time for complex/high-risk cases.
     - Ask at most one unanswered high-impact question per message.
+    - Make the next question build directly on the user's most recent answer rather than resetting to generic prompts.
+    - Use the previous answer to choose the next narrowing move, not a recycled generic checklist question.
     - Challenge contradictions or vague answers when important ambiguity remains.
     - Use the user's current language for all user-visible clarification content, including questions, summaries, status updates, and the current-understanding restatement.
     - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
@@ -254,6 +256,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Do not repeat the same question in both the summary and the follow-up ask.
     - If you include a grouped recap and are about to ask the next question immediately, summarize it briefly under `Outstanding Questions` instead of restating the full wording there.
     - Save the full synthesis for the alignment-ready turn, the written artifacts (`alignment.md`, `spec.md`, `references.md`), or when the user explicitly asks to see everything collected so far.
+    - Do not turn this into a freeform brainstorming workflow.
     - each clarification turn should contain at most one short checkpoint or one grouped recap, plus one question block.
 
     Use this open question block structure in the user's current language:
