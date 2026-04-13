@@ -1,25 +1,68 @@
-import yaml
 from pathlib import Path
 import re
-from typing import Dict, Any, List
+from typing import Any
 from datetime import datetime
+import yaml
 from .schema import (
-    DebugGraphState, 
-    DebugStatus, 
-    Focus, 
-    Symptoms, 
-    EliminatedEntry, 
-    EvidenceEntry, 
-    Resolution
+    DebugGraphState,
 )
+
+
+def build_handoff_report(state: DebugGraphState) -> str:
+    lines = [
+        "## Awaiting Human Review",
+        "",
+        f"- Trigger: {state.trigger}",
+        f"- Root cause: {state.resolution.root_cause or 'Not confirmed'}",
+        f"- Attempted fix: {state.resolution.fix or 'No fix recorded'}",
+        f"- Verification status: {state.resolution.verification or 'unknown'}",
+        f"- Failed verification attempts: {state.resolution.fail_count}",
+        "",
+        "### Eliminated Hypotheses",
+    ]
+
+    if state.eliminated:
+        for entry in state.eliminated:
+            lines.append(f"- {entry.hypothesis}: {entry.evidence}")
+    else:
+        lines.append("- None recorded")
+
+    lines.extend(["", "### Key Evidence"])
+    if state.evidence:
+        for entry in state.evidence:
+            lines.append(
+                f"- {entry.checked}: {entry.found} -> {entry.implication}"
+            )
+    else:
+        lines.append("- None recorded")
+
+    lines.extend(
+        [
+            "",
+            "### Next Step",
+            "Continue the investigation manually from the persisted session file.",
+        ]
+    )
+    return "\n".join(lines)
 
 class MarkdownPersistenceHandler:
     def __init__(self, debug_dir: Path):
         self.debug_dir = debug_dir
         self.debug_dir.mkdir(parents=True, exist_ok=True)
 
+    def _session_path(self, slug: str) -> Path:
+        if not slug or Path(slug).name != slug or any(sep in slug for sep in ("/", "\\")):
+            raise ValueError("Invalid debug session slug")
+
+        file_path = (self.debug_dir / f"{slug}.md").resolve()
+        debug_root = self.debug_dir.resolve()
+        if file_path.parent != debug_root:
+            raise ValueError("Debug session path escapes debug directory")
+
+        return file_path
+
     def save(self, state: DebugGraphState):
-        file_path = self.debug_dir / f"{state.slug}.md"
+        file_path = self._session_path(state.slug)
         
         # Frontmatter
         frontmatter = {
@@ -32,57 +75,29 @@ class MarkdownPersistenceHandler:
         }
         
         content = "---\n"
-        content += yaml.dump(frontmatter, sort_keys=False)
+        content += yaml.safe_dump(frontmatter, sort_keys=False)
         content += "---\n\n"
-        
-        # Current Focus
-        content += "## Current Focus\n"
-        content += "<!-- OVERWRITE on each update - always reflects NOW -->\n\n"
-        content += f"hypothesis: {state.current_focus.hypothesis or ''}\n"
-        content += f"test: {state.current_focus.test or ''}\n"
-        content += f"expecting: {state.current_focus.expecting or ''}\n"
-        content += f"next_action: {state.current_focus.next_action or ''}\n\n"
-        
-        # Symptoms
-        content += "## Symptoms\n"
-        content += "<!-- Written during gathering, then immutable -->\n\n"
-        content += f"expected: {state.symptoms.expected or ''}\n"
-        content += f"actual: {state.symptoms.actual or ''}\n"
-        content += f"errors: {state.symptoms.errors or ''}\n"
-        content += f"reproduction: {state.symptoms.reproduction or ''}\n"
-        content += f"reproduction_command: {state.symptoms.reproduction_command or ''}\n"
-        content += f"started: {state.symptoms.started or ''}\n\n"
-        
-        # Eliminated
-        content += "## Eliminated\n"
-        content += "<!-- APPEND only - prevents re-investigating after context reset -->\n\n"
-        for entry in state.eliminated:
-            content += f"- hypothesis: {entry.hypothesis}\n"
-            content += f"  evidence: {entry.evidence}\n"
-            content += f"  timestamp: {entry.timestamp.isoformat()}\n"
-        content += "\n"
-        
-        # Evidence
-        content += "## Evidence\n"
-        content += "<!-- APPEND only - facts discovered during investigation -->\n\n"
-        for entry in state.evidence:
-            content += f"- timestamp: {entry.timestamp.isoformat()}\n"
-            content += f"  checked: {entry.checked}\n"
-            content += f"  found: {entry.found}\n"
-            content += f"  implication: {entry.implication}\n"
-        content += "\n"
-        
-        # Resolution
-        content += "## Resolution\n"
-        content += "<!-- OVERWRITE as understanding evolves -->\n\n"
-        content += f"root_cause: {state.resolution.root_cause or ''}\n"
-        content += f"fix: {state.resolution.fix or ''}\n"
-        content += f"verification: {state.resolution.verification or ''}\n"
-        content += f"files_changed: {state.resolution.files_changed or []}\n"
-        content += f"fail_count: {state.resolution.fail_count or 0}\n"
+
+        sections = [
+            ("Current Focus", state.current_focus.model_dump(mode="json")),
+            ("Symptoms", state.symptoms.model_dump(mode="json")),
+            ("Context", state.context.model_dump(mode="json")),
+            ("Recently Modified", state.recently_modified),
+            ("Eliminated", [entry.model_dump(mode="json") for entry in state.eliminated]),
+            ("Evidence", [entry.model_dump(mode="json") for entry in state.evidence]),
+            ("Resolution", state.resolution.model_dump(mode="json")),
+        ]
+
+        for title, payload in sections:
+            content += f"## {title}\n"
+            content += yaml.safe_dump(payload, sort_keys=False).rstrip()
+            content += "\n\n"
         
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
+
+    def build_handoff_report(self, state: DebugGraphState) -> str:
+        return build_handoff_report(state)
 
     def load(self, path: Path) -> DebugGraphState:
         if not path.exists():
@@ -91,17 +106,21 @@ class MarkdownPersistenceHandler:
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
             
-        # Parse YAML frontmatter
-        parts = content.split("---", 2)
-        if len(parts) < 3:
+        # Parse YAML frontmatter without being confused by `---` inside values.
+        lines = content.splitlines()
+        if not lines or lines[0] != "---":
             raise ValueError("Invalid debug session file format: Missing YAML frontmatter")
-            
-        frontmatter = yaml.safe_load(parts[1])
-        body = parts[2]
+
+        try:
+            frontmatter_end = lines[1:].index("---") + 1
+        except ValueError as exc:
+            raise ValueError("Invalid debug session file format: Unterminated YAML frontmatter") from exc
+
+        frontmatter = yaml.safe_load("\n".join(lines[1:frontmatter_end]))
+        body = "\n".join(lines[frontmatter_end + 1 :])
         
-        # Extract sections using regex
-        sections = {}
-        section_names = ["Current Focus", "Symptoms", "Eliminated", "Evidence", "Resolution"]
+        # Extract sections using markdown headings and decode each as YAML.
+        sections: dict[str, Any] = {}
         
         current_section = None
         current_content = []
@@ -110,85 +129,34 @@ class MarkdownPersistenceHandler:
             match = re.match(r"^##\s+(.*)", line)
             if match:
                 if current_section:
-                    sections[current_section] = "\n".join(current_content).strip()
+                    section_text = "\n".join(current_content).strip()
+                    sections[current_section] = yaml.safe_load(section_text) if section_text else None
                 current_section = match.group(1).strip()
                 current_content = []
             elif current_section:
                 current_content.append(line)
         
         if current_section:
-            sections[current_section] = "\n".join(current_content).strip()
-            
-        # Parse sections into models
-        def parse_fields(text: str) -> Dict[str, str]:
-            fields = {}
-            for line in text.splitlines():
-                if ":" in line and not line.strip().startswith("-"):
-                    key, val = line.split(":", 1)
-                    fields[key.strip()] = val.strip()
-            return fields
+            section_text = "\n".join(current_content).strip()
+            sections[current_section] = yaml.safe_load(section_text) if section_text else None
 
-        focus_fields = parse_fields(sections.get("Current Focus", ""))
-        symptoms_fields = parse_fields(sections.get("Symptoms", ""))
-        resolution_fields = parse_fields(sections.get("Resolution", ""))
-        
-        # Parse Eliminated (list of entries)
-        eliminated = []
-        eliminated_text = sections.get("Eliminated", "")
-        # Remove comment
-        eliminated_text = re.sub(r"<!--.*?-->", "", eliminated_text).strip()
-        if eliminated_text:
-            # Basic bullet point parsing
-            entries = re.split(r"^- ", eliminated_text, flags=re.MULTILINE)
-            for entry in entries:
-                if not entry.strip(): continue
-                fields = parse_fields(entry)
-                if "hypothesis" in fields and "evidence" in fields:
-                    eliminated.append(EliminatedEntry(
-                        hypothesis=fields["hypothesis"],
-                        evidence=fields["evidence"],
-                        timestamp=datetime.fromisoformat(fields["timestamp"]) if "timestamp" in fields else datetime.now()
-                    ))
-
-        # Parse Evidence (list of entries)
-        evidence = []
-        evidence_text = sections.get("Evidence", "")
-        evidence_text = re.sub(r"<!--.*?-->", "", evidence_text).strip()
-        if evidence_text:
-            entries = re.split(r"^- ", evidence_text, flags=re.MULTILINE)
-            for entry in entries:
-                if not entry.strip(): continue
-                fields = parse_fields(entry)
-                if all(k in fields for k in ["checked", "found", "implication"]):
-                    evidence.append(EvidenceEntry(
-                        timestamp=datetime.fromisoformat(fields["timestamp"]) if "timestamp" in fields else datetime.now(),
-                        checked=fields["checked"],
-                        found=fields["found"],
-                        implication=fields["implication"]
-                    ))
-
-        # Re-inflate state
-        state = DebugGraphState(
-            slug=frontmatter["slug"],
-            status=DebugStatus(frontmatter["status"]),
-            trigger=frontmatter["trigger"],
-            current_node_id=frontmatter.get("current_node_id"),
-            created=datetime.fromisoformat(frontmatter["created"]),
-            updated=datetime.fromisoformat(frontmatter["updated"]),
-            current_focus=Focus(**focus_fields),
-            symptoms=Symptoms(**symptoms_fields),
-            eliminated=eliminated,
-            evidence=evidence,
-            resolution=Resolution(
-                root_cause=resolution_fields.get("root_cause"),
-                fix=resolution_fields.get("fix"),
-                verification=resolution_fields.get("verification"),
-                files_changed=eval(resolution_fields.get("files_changed", "[]")),
-                fail_count=int(resolution_fields.get("fail_count", 0))
-            )
+        return DebugGraphState.model_validate(
+            {
+                "slug": frontmatter["slug"],
+                "status": frontmatter["status"],
+                "trigger": frontmatter["trigger"],
+                "current_node_id": frontmatter.get("current_node_id"),
+                "created": frontmatter["created"],
+                "updated": frontmatter["updated"],
+                "current_focus": sections.get("Current Focus") or {},
+                "symptoms": sections.get("Symptoms") or {},
+                "context": sections.get("Context") or {},
+                "recently_modified": sections.get("Recently Modified") or [],
+                "eliminated": sections.get("Eliminated") or [],
+                "evidence": sections.get("Evidence") or [],
+                "resolution": sections.get("Resolution") or {},
+            }
         )
-        
-        return state
 
     def load_most_recent_session(self) -> DebugGraphState | None:
         """

@@ -942,12 +942,12 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
-    "specify": "Create or update the feature specification from a natural language feature description.",
+    "specify": "Create or update the feature specification from a natural language feature description with shared collaboration routing.",
     "spec-extend": "Re-open the current specification, deepen weak analysis, and update spec artifacts through targeted enhancement.",
-    "explain": "Explain the current stage artifact in plain language with a structured terminal presentation.",
-    "plan": "Execute the implementation planning workflow using the plan template to generate design artifacts.",
-    "tasks": "Break down implementation plans into actionable task lists.",
-    "implement": "Execute all tasks from the task breakdown to build the feature.",
+    "explain": "Explain the current stage artifact in plain language with a structured terminal presentation and conservative cross-check routing.",
+    "plan": "Execute the implementation planning workflow using the plan template to generate design artifacts with shared collaboration routing.",
+    "tasks": "Break down implementation plans into actionable task lists with shared collaboration routing and join-point-aware decomposition.",
+    "implement": "Execute all tasks from the task breakdown with unified strategy routing (single-agent, native-multi-agent, sidecar-runtime).",
     "analyze": "Perform cross-artifact consistency analysis across spec.md, plan.md, and tasks.md.",
     "clarify": "Compatibility bridge for users who still run clarify; route requirement-extension work to spec-extend while preserving alignment updates.",
     "constitution": "Create or update project governing principles and development guidelines.",

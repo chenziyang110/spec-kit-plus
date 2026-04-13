@@ -43,6 +43,7 @@ class Resolution(BaseModel):
     verification: Optional[str] = None
     files_changed: List[str] = Field(default_factory=list)
     fail_count: int = 0
+    report: Optional[str] = None
 
 class FeatureContext(BaseModel):
     feature_id: Optional[str] = None

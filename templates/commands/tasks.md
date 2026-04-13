@@ -77,6 +77,22 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 4. **Execute task generation workflow**:
+   - Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="tasks", snapshot, workload_shape)`
+   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Decision order is fixed:
+     - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
+     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
+     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
+     - Else -> `single-agent` (`fallback`)
+   - If collaboration is justified, keep `tasks` lanes limited to:
+     - story and phase decomposition
+     - dependency graph analysis
+     - write-set and parallel-safety analysis
+   - Required join points:
+     - before writing `tasks.md`
+     - before emitting canonical parallel batches and join points
+   - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in the generated report and implementation strategy section.
+   - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
    - Load plan.md and extract tech stack, libraries, project structure
    - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
    - If references.md exists: use it to preserve source-driven constraints and reusable examples while generating tasks

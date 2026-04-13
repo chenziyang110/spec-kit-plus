@@ -4,6 +4,9 @@ from specify_cli import app
 from pathlib import Path
 import shutil
 import os
+from specify_cli.debug.schema import DebugStatus
+from specify_cli.debug.persistence import MarkdownPersistenceHandler
+from specify_cli.debug.schema import DebugGraphState
 
 runner = CliRunner()
 
@@ -24,13 +27,63 @@ def test_debug_no_session(clean_debug_dir):
     assert "no recent session found" in result.stdout.lower()
 
 def test_debug_new_session(clean_debug_dir):
-    # Mocking run_debug_session to avoid long running asyncio
-    # Actually, the cli.py calls asyncio.run(_run_debug(description))
-    # And _run_debug calls await run_debug_session(state, handler)
-    
-    # Let's just check if it generates a slug and starts a session
-    # We might need to mock run_debug_session because it might try to do real AI calls or wait for input
-    pass
+    import specify_cli.debug.cli as cli_module
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        handler.save(state)
+
+    cli_module.generate_slug = lambda _: "new-session"
+    cli_module.run_debug_session = fake_run_debug_session
+
+    result = runner.invoke(app, ["debug", "parser bug"])
+
+    assert result.exit_code == 0
+    assert "starting new debug session: new-session" in result.stdout.lower()
+    assert (clean_debug_dir / "new-session.md").exists()
+
+def test_debug_resumes_most_recent_session(clean_debug_dir, monkeypatch):
+    import specify_cli.debug.cli as cli_module
+
+    MarkdownPersistenceHandler(clean_debug_dir).save(
+        DebugGraphState(slug="resume-me", trigger="parser bug")
+    )
+    seen = {}
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        seen["slug"] = state.slug
+        seen["resumed"] = resumed
+        handler.save(state)
+
+    monkeypatch.setattr(cli_module, "run_debug_session", fake_run_debug_session)
+
+    result = runner.invoke(app, ["debug"])
+
+    assert result.exit_code == 0
+    assert "resuming debug session: resume-me" in result.stdout.lower()
+    assert seen["slug"] == "resume-me"
+    assert seen["resumed"] is True
+
+def test_debug_awaiting_human_status(clean_debug_dir, monkeypatch):
+    import specify_cli.debug.cli as cli_module
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        state.status = DebugStatus.AWAITING_HUMAN
+        state.resolution.report = (
+            "## Awaiting Human Review\n\n"
+            "- Root cause: parser boundary issue\n"
+            "- Attempted fix: adjusted boundary condition\n"
+        )
+        handler.save(state)
+
+    monkeypatch.setattr(cli_module, "generate_slug", lambda _: "hitl-test")
+    monkeypatch.setattr(cli_module, "run_debug_session", fake_run_debug_session)
+
+    result = runner.invoke(app, ["debug", "parser bug"])
+
+    assert result.exit_code == 0
+    assert "awaiting human review" in result.stdout.lower()
+    assert "paused" in result.stdout.lower()
+    assert "hitl-test.md" in result.stdout
 
 def test_debug_alias_present():
     result = runner.invoke(app, ["--help"])

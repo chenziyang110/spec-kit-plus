@@ -1,6 +1,7 @@
 """Gemini CLI integration."""
 
 from ..base import TomlIntegration
+from .multi_agent import GeminiMultiAgentAdapter
 
 
 class GeminiIntegration(TomlIntegration):
@@ -19,3 +20,6 @@ class GeminiIntegration(TomlIntegration):
         "extension": ".toml",
     }
     context_file = "GEMINI.md"
+
+
+__all__ = ["GeminiIntegration", "GeminiMultiAgentAdapter"]

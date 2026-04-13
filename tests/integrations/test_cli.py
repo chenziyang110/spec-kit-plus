@@ -42,8 +42,9 @@ class TestInitIntegrationFlag:
             os.chdir(old_cwd)
 
         assert result.exit_code == 0, result.output
+        assert (project / ".agents" / "skills" / "sp-team" / "SKILL.md").exists()
+        assert (project / ".specify" / "codex-team" / "runtime.json").exists()
         assert "specify team" in result.output
-        assert ".agents/skills/sp-team/SKILL.md" in result.output or "sp-team" in result.output
 
     def test_non_codex_init_does_not_advertise_specify_team_surface(self, tmp_path):
         from typer.testing import CliRunner
@@ -74,7 +75,86 @@ class TestInitIntegrationFlag:
             os.chdir(old_cwd)
 
         assert result.exit_code == 0, result.output
-        assert "specify team" not in result.output
+        assert not (project / ".claude" / "skills" / "sp-team" / "SKILL.md").exists()
+        assert not (project / ".specify" / "codex-team" / "runtime.json").exists()
+
+    def test_non_codex_implement_skill_does_not_use_specify_team_as_primary_entrypoint(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "claude-no-team-entrypoint"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert not (project / ".claude" / "skills" / "sp-team" / "SKILL.md").exists()
+        assert not (project / ".specify" / "codex-team" / "runtime.json").exists()
+
+        implement_skill = project / ".claude" / "skills" / "sp-implement" / "SKILL.md"
+        assert implement_skill.exists()
+        content = implement_skill.read_text(encoding="utf-8")
+        assert "single-agent" in content
+        assert "native-multi-agent" in content
+        assert "sidecar-runtime" in content
+        assert "specify team" not in content.lower()
+
+    def test_non_codex_shared_workflow_skills_use_canonical_strategy_language(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "claude-shared-routing"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+
+        skills_dir = project / ".claude" / "skills"
+        for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-explain"):
+            content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+            assert "single-agent" in content
+            assert "native-multi-agent" in content
+            assert "sidecar-runtime" in content
+            assert "specify team" not in content
 
     def test_integration_and_ai_mutually_exclusive(self, tmp_path):
         from typer.testing import CliRunner

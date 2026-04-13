@@ -111,9 +111,25 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - dependencies or preconditions that materially affect planning
    - release-shaping risks or external references
 
-8. Choose alignment mode.
+8. Choose alignment mode and collaboration strategy.
    - Lightweight mode for local, context-rich changes.
    - Deep mode for greenfield, multi-capability, or materially ambiguous work.
+   - Before decomposition begins, assess the current workload shape and agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="specify", snapshot, workload_shape)`.
+   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
+   - Decision order is fixed:
+     - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
+     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
+     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
+     - Else -> `single-agent` (`fallback`)
+   - If collaboration is justified, keep `specify` lanes limited to:
+     - repository and local context analysis
+     - external references and supporting material analysis
+     - ambiguity, risk, and gap analysis
+   - Required join points:
+     - before capability decomposition
+     - before writing `spec.md` and `alignment.md`
+   - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in `alignment.md`.
+   - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
 9. Decomposition gate.
    - If the request spans multiple independent subsystems, business domains, or release tracks, do not continue as though it were one bounded feature.

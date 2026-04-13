@@ -23,10 +23,14 @@ def run_command(cmd: str) -> str:
     """
     try:
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False)
-        output = result.stdout
+        parts = []
+        if result.stdout:
+            parts.append(result.stdout.strip())
         if result.stderr:
-            output += "\n" + result.stderr
-        return output.strip()
+            parts.append(result.stderr.strip())
+        if result.returncode != 0:
+            parts.append(f"Command exited with code {result.returncode}")
+        return "\n".join(part for part in parts if part).strip()
     except Exception as e:
         return f"Error executing command: {str(e)}"
 

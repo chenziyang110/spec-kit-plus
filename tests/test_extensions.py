@@ -1616,6 +1616,10 @@ class TestVersionSatisfies:
         assert version_satisfies("1.0.5", ">=1.0.0,!=1.0.3")
         assert not version_satisfies("1.0.3", ">=1.0.0,!=1.0.3")
 
+    def test_version_satisfies_allows_dev_builds_against_stable_floor(self):
+        """Dev builds should satisfy stable lower bounds during local development."""
+        assert version_satisfies("0.5.1.dev0", ">=0.1.0")
+
     def test_version_satisfies_invalid(self):
         """Test invalid version strings."""
         assert not version_satisfies("invalid", ">=1.0.0")

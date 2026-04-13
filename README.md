@@ -147,6 +147,19 @@ tasks -> implement
 
 For Codex and other skills-based integrations, the generated commands are installed in skills form.
 
+## Multi-CLI Orchestration (Milestones 1-2)
+
+Current orchestration status in this fork:
+
+- generic orchestration core exists under `src/specify_cli/orchestration/`
+- `implement`, `specify`, `plan`, `tasks`, and `explain` now share the canonical strategy vocabulary: `single-agent`, `native-multi-agent`, and `sidecar-runtime`
+- `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
+- `specify team` remains the Codex compatibility surface for runtime-heavy execution
+- Claude, Gemini, and Copilot ship first-release adapter skeletons (alongside Codex) for native-first capability reporting
+- durable runtime maturity for `implement` and `debug`, plus wider integration rollout, remain future work
+
+This repository is no longer only a Milestone 1 slice, but the full execution/runtime maturity roadmap is still not complete.
+
 ## Codex Team Runtime
 
 This fork now exposes a Codex-only first-release team/runtime surface through:
@@ -174,11 +187,11 @@ All runtime state lives under `.specify/codex-team/`:
 
 - `runtime.json` contains the active session metadata and canonical root paths.
 - `state/` holds per-object JSON files (`tasks/*.json`, `workers/*.json`, `mailboxes/*.json`, `dispatch/*.json`) along with `phase.json` and `events.log` for the lifecycle stream.
-- Heartbeats, claims, approvals, and monitor snapshots append to the files under `state/`, guaranteeing the CLI can restart based on the latest saved facts.
+- Heartbeats, claims, approvals, and monitor snapshots append to the files under `state/`, helping the CLI restart from the latest saved facts.
 
 Lifecycle notes:
 
-- Tasks run through `pending → in_progress → completed|failed` and emit events that `specify team status` surfaces.
+- Tasks run through `pending -> in_progress -> completed|failed` and emit events that `specify team status` surfaces.
 - Workers claim tasks with identity records, write heartbeats under `state/workers`, and consume mailbox messages from `state/mailboxes`.
 - Shutdown requests append a terminal event, and cleanup removes the `.specify/codex-team/` directory once all JSON files have been archived.
 

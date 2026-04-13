@@ -351,10 +351,21 @@ class TomlIntegrationTests:
 
     # -- Complete file inventory ------------------------------------------
 
-    COMMAND_STEMS = [
-        "analyze", "checklist", "clarify", "constitution",
-        "explain", "implement", "plan", "spec-extend", "specify", "tasks", "taskstoissues",
-    ]
+    def _command_stems(self) -> list[str]:
+        i = get_integration(self.KEY)
+        return [template.stem for template in i.list_command_templates()]
+
+    def _template_files(self) -> list[str]:
+        i = get_integration(self.KEY)
+        templates_dir = i.shared_templates_dir()
+        if not templates_dir or not templates_dir.is_dir():
+            return []
+
+        return sorted(
+            path.name
+            for path in templates_dir.iterdir()
+            if path.is_file() and path.name != "vscode-settings.json"
+        )
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the expected file list for this integration + script variant."""
@@ -363,7 +374,7 @@ class TomlIntegrationTests:
         files = []
 
         # Command files (.toml)
-        for stem in self.COMMAND_STEMS:
+        for stem in self._command_stems():
             files.append(f"{cmd_dir}/sp.{stem}.toml")
 
         # Integration scripts
@@ -385,10 +396,7 @@ class TomlIntegrationTests:
                          "setup-plan.ps1", "update-agent-context.ps1"]:
                 files.append(f".specify/scripts/powershell/{name}")
 
-        for name in ["agent-file-template.md", "alignment-template.md",
-                     "checklist-template.md", "constitution-template.md",
-                     "plan-template.md", "references-template.md", "spec-template.md",
-                     "tasks-template.md"]:
+        for name in self._template_files():
             files.append(f".specify/templates/{name}")
 
         files.append(".specify/memory/constitution.md")

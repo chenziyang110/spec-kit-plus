@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ..base import IntegrationOption, SkillsIntegration
+from .multi_agent import CodexMultiAgentAdapter
 
 
 class CodexIntegration(SkillsIntegration):
@@ -76,12 +77,14 @@ class CodexIntegration(SkillsIntegration):
                 addendum = (
                     "\n"
                     "## Codex Auto-Parallel Execution\n\n"
-                    "When running in Codex, treat Step 6's execution strategy selection as a runtime-aware escalation.\n"
+                    "When running in Codex, treat Step 6's unified execution strategy selection as a runtime-aware escalation.\n"
                     "For each ready parallel batch:\n"
-                    "- Solo execution (single-worker sequential path) is the default when the change is localized, write sets overlap, or the runtime cannot host subagents. Fall back to this path whenever the Codex team runtime is unavailable.\n"
-                    "- Prefer **native subagents** when the batch is small, bounded, and has isolated write sets.\n"
-                    "- Escalate to **`specify team`** when the batch needs durable coordination, explicit status tracking, or wider multi-lane recovery.\n"
-                    "- When you choose the durable runtime path, call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** instead of stopping at a recommendation.\n"
+                    "- Apply the shared policy contract first: `parallel_batches <= 0` or overlapping write sets -> `single-agent`; otherwise `native-multi-agent` when `native_multi_agent`, otherwise `sidecar-runtime` when `sidecar_runtime_supported`, else `single-agent` fallback.\n"
+                    "- Interpret `single-agent` as solo execution (single-worker sequential path).\n"
+                    "- Interpret `native-multi-agent` as the native subagents path.\n"
+                    "- Interpret `sidecar-runtime` as escalation via **`specify team`**.\n"
+                    "- Decision order must stay fixed: `no-safe-batch` -> `native-supported` -> `native-missing` -> `fallback`.\n"
+                    "- When you choose `sidecar-runtime`, call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** instead of stopping at a recommendation.\n"
                     "- Follow a fixed order: capture the Step 1 `FEATURE_DIR`, inspect the next ready explicit parallel batch, run the auto-dispatch command, read the result, and only then fall back if the command reports a concrete blocker.\n"
                     "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
                 )
@@ -93,3 +96,6 @@ class CodexIntegration(SkillsIntegration):
                 )
 
         return created
+
+
+__all__ = ["CodexIntegration", "CodexMultiAgentAdapter"]

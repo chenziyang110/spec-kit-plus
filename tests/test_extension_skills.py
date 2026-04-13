@@ -274,6 +274,9 @@ class TestBuiltInSkillGeneration:
         assert re.search(r"`plan`: explain .*implementation approach", explain_tui)
         assert re.search(r"`tasks`: explain .*concrete work", explain_tui)
         assert re.search(r"`implement`: explain .*progress.*current scope.*active risks", explain_tui)
+        assert "single-agent" in explain_body.lower()
+        assert "supporting artifact cross-check" in explain_body.lower()
+        assert "before rendering the final explanation" in explain_body.lower()
 
         specify_body = _body_without_frontmatter(skills_dir / "sp-specify" / "SKILL.md")
         specify_outline = _extract_section(specify_body, "Outline")
@@ -318,12 +321,17 @@ class TestSkillDescriptions:
     def test_skill_descriptions_include_new_surfaces(self):
         assert "feature specification" in SKILL_DESCRIPTIONS["specify"].lower()
         assert "natural language" in SKILL_DESCRIPTIONS["specify"].lower()
+        assert "shared collaboration routing" in SKILL_DESCRIPTIONS["specify"].lower()
         assert "current specification" in SKILL_DESCRIPTIONS["spec-extend"].lower()
         assert "targeted enhancement" in SKILL_DESCRIPTIONS["spec-extend"].lower()
         assert "current stage artifact" in SKILL_DESCRIPTIONS["explain"].lower()
         assert "plain language" in SKILL_DESCRIPTIONS["explain"].lower()
+        assert "conservative cross-check routing" in SKILL_DESCRIPTIONS["explain"].lower()
         assert "implementation planning workflow" in SKILL_DESCRIPTIONS["plan"].lower()
         assert "design artifacts" in SKILL_DESCRIPTIONS["plan"].lower()
+        assert "shared collaboration routing" in SKILL_DESCRIPTIONS["plan"].lower()
+        assert "shared collaboration routing" in SKILL_DESCRIPTIONS["tasks"].lower()
+        assert "join-point-aware" in SKILL_DESCRIPTIONS["tasks"].lower()
         assert SKILL_DESCRIPTIONS["clarify"].startswith("Compatibility bridge")
 
     def test_returns_none_when_no_init_options(self, project_dir):

@@ -1,75 +1,70 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: unknown
-last_updated: "2026-04-12T15:59:44.087Z"
+milestone: v1.1
+milestone_name: analysis-planning-workflows
+status: complete
+last_updated: "2026-04-13T00:00:00Z"
 progress:
-  total_phases: 3
-  completed_phases: 2
-  total_plans: 9
-  completed_plans: 7
-  percent: 78
+  total_phases: 6
+  completed_phases: 6
+  total_plans: 12
+  completed_plans: 12
+  percent: 100
 ---
 
-# State: sp-debug
+# State: spec-kit-plus
 
 ## Project Reference
 
-**Core Value**: Systematic, resumable bug resolution for Spec Kit Plus that leverages existing project artifacts for context and ensures persistent state tracking.
+See: .planning/PROJECT.md (updated 2026-04-13)
 
-**Current Focus**: Initialization of the project roadmap and structure.
+**Core value:** Keep Spec-Driven Development practical across local AI integrations by making the workflow consistent, truthful, and usable in the tools developers actually run.
+**Current focus:** Between milestones. Define the next milestone goals before resuming roadmap work.
 
 ## Current Position
 
-**Phase**: 02 (Contextual Intelligence)
-**Plan**: 03
-**Status**: Completed 02-03-PLAN.md.
+**Phase**: All milestone phases complete
+**Plan**: All plans complete
+**Status**: Milestone v1.1 was audited and archived locally. There is no active `ROADMAP.md` until the next milestone is defined.
 
 ```
 [##########] 100%
 ```
 
-## Performance Metrics
+## Progress Snapshot
 
-| Metric | Target | Current | Status |
-|--------|--------|---------|--------|
-| Resumability | 100% | - | - |
-| Context Utilization | High | - | - |
-| Fix Verification Rate | 100% | - | - |
-| Phase 1 P1 | 15 | 3 tasks | 5 files |
-| Phase 02 P01 | 30m | 3 tasks | 4 files |
-| Phase 02 P02 | 15m | 2 tasks | 2 files |
-| Phase 02 P03 | 15m | 3 tasks | 2 files |
-| Phase 3 P1 | 15m | 2 tasks | 3 files |
+| Metric | Current | Status |
+|--------|---------|--------|
+| Archived milestones | v1.0, v1.1 | Complete |
+| Active milestone | None | Waiting |
+| Next recommended command | `/gsd-new-milestone` | Ready |
 
 ## Accumulated Context
 
 ### Decisions
 
-- Adopt `pydantic-graph` for the FSM-based investigation loop. (From SUMMARY.md)
-- Use Markdown for investigation state persistence to ensure human-readability. (From SUMMARY.md)
-- Implement a "No Fix Without Proof" policy to ensure fixes are verifiable. (From REQUIREMENTS.md)
-- [Phase 1]: Use pydantic-graph for the investigation lifecycle as planned.
-- [Phase 1]: Mapping schema fields directly to the debug template frontmatter and sections.
-- [Phase 02]: Cross-reference git changes with plan.md to prioritize search space.
-- [Phase 02]: Use .as_posix() for path serialization in ContextLoader to ensure cross-platform compatibility.
-- [Phase 02]: Use 'Eliminate:' prefix in 'next_action' as a mechanism for the LLM to signal hypothesis elimination.
-- [Phase 02]: InvestigatingNode should reset focus and prioritization after elimination.
-- [Phase 3]: Enforce reproduction_verified in GatheringNode to ensure bug reproducibility before investigation
-- [Phase 3]: Track fail_count in Resolution for future safety gate logic
+- Adopt `pydantic-graph` for the debug investigation lifecycle.
+- Use Markdown persistence for resumable debug sessions.
+- Enforce a "No Fix Without Proof" gate for debug work.
+- Extract collaboration state and policy into a generic orchestration core rather than keeping it Codex-only.
+- Expand collaboration workflow-by-workflow and keep native agent surfaces primary.
+- Keep shared analysis/planning templates integration-neutral while isolating Codex runtime wording to Codex-only surfaces.
 
 ### Technical Notes
 
-- CLI entry point should be registered in the existing `specify` CLI.
-- Persistent logs will reside in `.planning/debug/[slug].md`.
+- `src/specify_cli/orchestration/` exists and shared routing language now covers `implement`, `specify`, `plan`, `tasks`, and `explain`.
+- `specify team` remains the Codex-only compatibility surface.
+- Milestone v1.1 is archived under `.planning/milestones/`.
+- Phase directories remain in `.planning/phases/` because cleanup was not run in the dirty workspace.
 
 ### Blockers
 
-- None.
+- Git tagging, archival commit, and phase-directory cleanup remain pending because the worktree is dirty and those lifecycle steps are confirmation-sensitive.
 
 ## Session Continuity
 
 | Date | Focus | Result | Next Steps |
 |------|-------|--------|------------|
-| 2026-04-12 | Project Initialization | Roadmap and state initialized. | `/gsd-plan-phase 1` |
+| 2026-04-12 | Project initialization | v1.0 roadmap and state initialized. | Execute Phase 1 |
+| 2026-04-13 | Complete v1.0 | Audit passed; debug workflow milestone shipped. | Archive v1.0 and start v1.1 |
+| 2026-04-13 | Complete v1.1 | Shared collaboration routing now covers the analysis and planning workflow surface. | Define the next milestone |

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 import json
 from typing import Any
+
+from specify_cli.orchestration.models import utc_now
 
 from .payload_utils import filter_payload
 from .schema import SCHEMA_VERSION
@@ -21,7 +22,7 @@ class TeamConfig:
 
     def __post_init__(self) -> None:
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = utc_now()
 
 
 @dataclass(slots=True)
@@ -37,7 +38,7 @@ class TaskRecord:
     metadata: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
-        now = datetime.now(timezone.utc).isoformat()
+        now = utc_now()
         if not self.created_at:
             self.created_at = now
         if not self.updated_at:
@@ -57,7 +58,7 @@ class TaskClaim:
 
     def __post_init__(self) -> None:
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = utc_now()
 
 
 @dataclass(slots=True)
@@ -72,7 +73,7 @@ class WorkerIdentity:
         if self.metadata is None:
             self.metadata = {}
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = utc_now()
 
 
 @dataclass(slots=True)
@@ -88,7 +89,7 @@ class WorkerHeartbeat:
         if self.details is None:
             self.details = {}
         if not self.timestamp:
-            self.timestamp = datetime.now(timezone.utc).isoformat()
+            self.timestamp = utc_now()
 
 
 @dataclass(slots=True)
@@ -104,7 +105,7 @@ class MonitorSnapshot:
         if self.status_breakdown is None:
             self.status_breakdown = {}
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = utc_now()
 
 
 @dataclass(slots=True)
@@ -122,7 +123,7 @@ class BatchRecord:
     updated_at: str = ""
 
     def __post_init__(self) -> None:
-        now = datetime.now(timezone.utc).isoformat()
+        now = utc_now()
         if not self.created_at:
             self.created_at = now
         if not self.updated_at:

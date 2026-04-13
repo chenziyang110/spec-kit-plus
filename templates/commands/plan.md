@@ -95,6 +95,23 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Use capability decomposition from `spec.md` when sequencing design work
    - Use `references.md` when retained sources or reusable examples affect planning choices
    - Do not treat `/sp.clarify` as the normal next step for routine planning readiness
+   - Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="plan", snapshot, workload_shape)`
+   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Decision order is fixed:
+     - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
+     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
+     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
+     - Else -> `single-agent` (`fallback`)
+   - If collaboration is justified, keep `plan` lanes limited to:
+     - research
+     - data model
+     - contracts
+     - quickstart and validation scenarios
+   - Required join points:
+     - before final constitution and risk re-check
+     - before writing the consolidated implementation plan
+   - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in the planning artifacts you generate.
+   - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
 6. **Execute the plan workflow** using the IMPL_PLAN template:
    - Fill Technical Context (mark unknowns as `NEEDS CLARIFICATION`)

@@ -26,7 +26,7 @@ def test_install_codex_team_assets_creates_notify_hook_config(tmp_path: Path):
         config = json.load(f)
         
     assert "notify" in config
-    assert config["notify"] == "python -m specify_cli.codex_team.notify_hook"
+    assert config["notify"] == "specify team notify-hook"
 
 def test_install_codex_team_assets_skips_non_codex(tmp_path: Path):
     project_root = tmp_path / "project"

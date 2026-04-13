@@ -9,12 +9,13 @@ class TestCodexIntegration(SkillsIntegrationTests):
     COMMANDS_SUBDIR = "skills"
     REGISTRAR_DIR = ".agents/skills"
     CONTEXT_FILE = "AGENTS.md"
-    _SKILL_COMMANDS = SkillsIntegrationTests._SKILL_COMMANDS + ["team"]
 
     def _expected_files(self, script_variant: str) -> list[str]:
         files = super()._expected_files(script_variant)
         files.extend(
             [
+                ".codex/config.toml",
+                ".specify/config.json",
                 ".specify/codex-team/README.md",
                 ".specify/codex-team/runtime.json",
             ]
@@ -57,7 +58,7 @@ def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_pat
     assert templates == [commands_dir / "plan.md", commands_dir / "team.md"]
 
 
-def test_codex_generated_sp_implement_includes_auto_parallel_team_guidance(tmp_path):
+def test_codex_generated_sp_implement_includes_strategy_contract_and_team_surface(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -74,8 +75,30 @@ def test_codex_generated_sp_implement_includes_auto_parallel_team_guidance(tmp_p
     skill_path = target / ".agents" / "skills" / "sp-implement" / "SKILL.md"
     content = skill_path.read_text(encoding="utf-8")
 
-    assert "native subagents" in content.lower()
     assert "specify team" in content
-    assert "auto-dispatch" in content.lower()
-    assert "feature_dir" in content.lower()
-    assert "execution strategy" in content.lower()
+    assert "single-agent" in content
+    assert "native-multi-agent" in content
+    assert "sidecar-runtime" in content
+
+
+def test_codex_generated_shared_workflow_skills_stay_runtime_neutral(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-shared-routing"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skills_dir = target / ".agents" / "skills"
+    for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-explain"):
+        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "single-agent" in content
+        assert "native-multi-agent" in content
+        assert "sidecar-runtime" in content
+        assert "specify team" not in content

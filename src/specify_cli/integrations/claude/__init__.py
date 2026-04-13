@@ -9,6 +9,7 @@ import yaml
 
 from ..base import SkillsIntegration
 from ..manifest import IntegrationManifest
+from .multi_agent import ClaudeMultiAgentAdapter
 
 # Mapping of command template stem → argument-hint text shown inline
 # when a user invokes the slash command in Claude Code.
@@ -16,6 +17,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "specify": "Describe the feature you want to specify",
     "spec-extend": "Describe what in the current spec package needs deeper analysis or correction",
     "explain": "Optionally name the stage or artifact you want explained",
+    "debug": "Describe the bug to investigate, or leave blank to resume the most recent session",
     "plan": "Optional guidance for the planning phase",
     "tasks": "Optional task generation constraints",
     "implement": "Optional implementation guidance or task filter",
@@ -195,3 +197,6 @@ class ClaudeIntegration(SkillsIntegration):
                 self.record_file_in_manifest(path, project_root, manifest)
 
         return created
+
+
+__all__ = ["ClaudeIntegration", "ClaudeMultiAgentAdapter"]

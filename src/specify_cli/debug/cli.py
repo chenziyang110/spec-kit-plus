@@ -4,7 +4,7 @@ from typing import Optional
 from pathlib import Path
 from rich.console import Console
 
-from .schema import DebugGraphState
+from .schema import DebugGraphState, DebugStatus
 from .persistence import MarkdownPersistenceHandler
 from .utils import generate_slug, get_debug_dir
 from .graph import run_debug_session
@@ -30,6 +30,7 @@ async def _run_debug(description: Optional[str]):
     handler = MarkdownPersistenceHandler(debug_dir)
     
     state: Optional[DebugGraphState] = None
+    resumed = False
     
     if description:
         # Start new session
@@ -43,6 +44,7 @@ async def _run_debug(description: Optional[str]):
         # Try to resume
         state = handler.load_most_recent_session()
         if state:
+            resumed = True
             console.print(f"[cyan]Resuming debug session:[/cyan] {state.slug}")
         else:
             console.print("[red]Error:[/red] No description provided and no recent session found to resume.")
@@ -50,7 +52,13 @@ async def _run_debug(description: Optional[str]):
             raise typer.Exit(1)
             
     try:
-        await run_debug_session(state, handler)
+        await run_debug_session(state, handler, resumed=resumed)
+        if state.status == DebugStatus.AWAITING_HUMAN:
+            session_path = handler.debug_dir / f"{state.slug}.md"
+            report = state.resolution.report or "No session summary was generated."
+            console.print("[yellow]Awaiting Human Review[/yellow]")
+            console.print(report)
+            console.print(f"[yellow]Session paused.[/yellow] Continue from: {session_path}")
     except Exception as e:
         console.print(f"[red]Error during debug session:[/red] {e}")
         raise typer.Exit(1)

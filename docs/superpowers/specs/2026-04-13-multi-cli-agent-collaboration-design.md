@@ -1,12 +1,12 @@
 # Multi-CLI Agent Collaboration Design
 
 **Date:** 2026-04-13
-**Status:** Proposed
+**Status:** Partially Implemented (Milestone 1 slice)
 **Owner:** Codex
 
 ## Summary
 
-This design expands `spec-kit-plus` from a largely single-agent integration model with one Codex-specific durable runtime surface into a multi-CLI collaboration system that can support multi-agent analysis, planning, task generation, execution, explanation, and debugging across multiple agent integrations.
+This design defines the target architecture and Milestone 1 rollout direction for expanding `spec-kit-plus` from a largely single-agent integration model with one Codex-specific durable runtime surface toward a multi-CLI collaboration system for analysis, planning, task generation, execution, explanation, and debugging across multiple agent integrations.
 
 The approved direction is not to force every integration through a single product surface. Users should continue entering through the native command or skill surface of their chosen CLI integration. Multi-agent collaboration should be selected automatically by workflow policy, prefer the integration's native delegation model when available, and fall back to a `spec-kit-plus` sidecar runtime when the native runtime cannot provide the required coordination.
 
@@ -18,6 +18,17 @@ The first target integrations are:
 - `codex`
 
 The key structural decision is to refactor the existing `codex_team` implementation into a generic orchestration core rather than building a parallel system from scratch.
+
+## Milestone 1 Delivery Update (2026-04-13)
+
+Milestone 1 deliverables now present in the codebase:
+
+- generic orchestration core under `src/specify_cli/orchestration/`
+- unified strategy language (`single-agent`, `native-multi-agent`, `sidecar-runtime`) routed first through `implement`
+- Codex compatibility surface preserved via `specify team`
+- first-release adapter skeletons for Claude, Gemini, and Copilot (plus Codex) in integration modules
+
+Remaining milestones in this design (`specify`, `plan`, `tasks`, `explain`, `debug` full migration and runtime maturity) are still future work.
 
 ## Problem Statement
 

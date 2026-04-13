@@ -18,6 +18,15 @@ def _read(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
 
 
+def _extract_step_6_strategy_block(content: str) -> str:
+    lowered = content.lower()
+    start = lowered.find("6. select an execution strategy for each ready batch before writing code:")
+    assert start != -1
+    end = lowered.find("\n7. execute implementation following the task plan:", start)
+    assert end != -1
+    return lowered[start:end]
+
+
 def _assert_contains_any(text: str, *needles: str) -> None:
     assert any(needle in text for needle in needles), f"Expected one of: {needles}"
 
@@ -55,6 +64,16 @@ def test_specify_template_uses_alignment_first_contract():
     assert "decompose" in lowered
     assert "first-release scope" in lowered
     assert "mvp scope" not in lowered
+    assert "choose_execution_strategy(command_name=\"specify\"" in content
+    assert "single-agent" in lowered
+    assert "native-multi-agent" in lowered
+    assert "sidecar-runtime" in lowered
+    assert "repository and local context analysis" in lowered
+    assert "external references and supporting material analysis" in lowered
+    assert "ambiguity, risk, and gap analysis" in lowered
+    assert "before capability decomposition" in lowered
+    assert "before writing `spec.md` and `alignment.md`" in content
+    assert "specify team" not in lowered
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
@@ -74,13 +93,56 @@ def test_primary_tui_templates_avoid_closed_ascii_card_examples():
 
 def test_plan_template_requires_alignment_report_before_planning():
     content = _read("templates/commands/plan.md")
+    lowered = content.lower()
 
     assert "alignment.md" in content
     assert "Missing alignment report" in content
     assert "Force proceed with known risks" in content
     assert "Input Risks From Alignment" in content
-    assert "user's current language" in content.lower()
-    assert "specify -> clarify -> plan" not in content.lower()
+    assert "user's current language" in lowered
+    assert "choose_execution_strategy(command_name=\"plan\"" in content
+    assert "single-agent" in lowered
+    assert "native-multi-agent" in lowered
+    assert "sidecar-runtime" in lowered
+    assert "research" in lowered
+    assert "data model" in lowered
+    assert "contracts" in lowered
+    assert "quickstart and validation scenarios" in lowered
+    assert "before final constitution and risk re-check" in lowered
+    assert "before writing the consolidated implementation plan" in lowered
+    assert "specify team" not in lowered
+    assert "specify -> clarify -> plan" not in lowered
+
+
+def test_tasks_template_documents_shared_routing_before_decomposition():
+    content = _read("templates/commands/tasks.md")
+    lowered = content.lower()
+
+    assert "choose_execution_strategy(command_name=\"tasks\"" in content
+    assert "single-agent" in lowered
+    assert "native-multi-agent" in lowered
+    assert "sidecar-runtime" in lowered
+    assert "story and phase decomposition" in lowered
+    assert "dependency graph analysis" in lowered
+    assert "write-set and parallel-safety analysis" in lowered
+    assert "before writing `tasks.md`" in content
+    assert "before emitting canonical parallel batches and join points" in lowered
+    assert "specify team" not in lowered
+
+
+def test_explain_template_documents_conservative_routing_contract():
+    content = _read("templates/commands/explain.md")
+    lowered = content.lower()
+
+    assert "choose_execution_strategy(command_name=\"explain\"" in content
+    assert "single-agent" in lowered
+    assert "native-multi-agent" in lowered
+    assert "sidecar-runtime" in lowered
+    assert "default to `single-agent`" in lowered
+    assert "primary artifact reading" in lowered
+    assert "supporting artifact cross-check" in lowered
+    assert "before rendering the final explanation" in lowered
+    assert "specify team" not in lowered
 
 
 def test_clarify_template_is_compatibility_only():
@@ -138,18 +200,36 @@ def test_tasks_templates_default_to_phased_delivery_not_mvp():
 
 def test_implement_template_supports_capability_aware_parallel_batches():
     content = _read("templates/commands/implement.md")
+    lowered = content.lower()
+    step_6 = _extract_step_6_strategy_block(content)
 
-    assert "parallel batches" in content.lower()
-    assert "current agent" in content.lower()
-    assert "ready tasks" in content.lower()
-    assert "join point" in content.lower()
-    assert "shared registration files" in content.lower()
-    assert "execution strategy" in content.lower()
-    assert "native subagents" in content.lower()
-    assert "coordinated runtime" in content.lower()
-    assert "sequential execution" in content.lower()
-    assert "auto-dispatch" in content.lower()
-    assert "feature_dir" in content.lower()
+    assert "parallel batches" in lowered
+    assert "current agent" in lowered
+    assert "ready tasks" in lowered
+    assert "join point" in lowered
+    assert "shared registration files" in lowered
+    assert "execution strategy" in lowered
+    assert "single-agent" in lowered
+    assert "native-multi-agent" in lowered
+    assert "sidecar-runtime" in lowered
+    assert "parallel_batches" in lowered
+    assert "no-safe-batch" in lowered
+    assert "native-supported" in lowered
+    assert "native-missing" in lowered
+    assert "specify team" not in lowered
+    assert "auto-dispatch" not in lowered
+    assert "codex runtime rule" not in lowered
+
+    no_safe_batch = step_6.find("parallel_batches <= 0")
+    native_supported = step_6.find("native_multi_agent")
+    native_missing = step_6.find("sidecar_runtime_supported")
+    fallback = step_6.find("fallback")
+
+    assert no_safe_batch != -1
+    assert native_supported != -1
+    assert native_missing != -1
+    assert fallback != -1
+    assert no_safe_batch < native_supported < native_missing < fallback
 
 
 def test_alignment_template_exists():

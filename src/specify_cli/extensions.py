@@ -30,9 +30,13 @@ _FALLBACK_CORE_COMMAND_NAMES = frozenset({
     "checklist",
     "clarify",
     "constitution",
+    "debug",
+    "explain",
     "implement",
     "plan",
+    "spec-extend",
     "specify",
+    "team",
     "tasks",
     "taskstoissues",
 })
@@ -970,7 +974,7 @@ class ExtensionManager:
         # Parse version specifier (e.g., ">=0.1.0,<2.0.0")
         try:
             specifier = SpecifierSet(required)
-            if current not in specifier:
+            if not specifier.contains(current, prereleases=True):
                 raise CompatibilityError(
                     f"Extension requires spec-kit {required}, "
                     f"but {speckit_version} is installed.\n"
@@ -1276,7 +1280,7 @@ def version_satisfies(current: str, required: str) -> bool:
     try:
         current_ver = pkg_version.Version(current)
         specifier = SpecifierSet(required)
-        return current_ver in specifier
+        return specifier.contains(current_ver, prereleases=True)
     except (pkg_version.InvalidVersion, InvalidSpecifier):
         return False
 

@@ -41,13 +41,23 @@ Goal: Read the current stage artifact and explain it in plain language so the us
 
 3. Read the resolved artifact and any immediately supporting artifact needed to explain it accurately.
 
-4. Translate the artifact into plain language:
+4. Before translating the artifact, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="explain", snapshot, workload_shape)`.
+   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
+   - Default to `single-agent` unless supporting cross-check work is justified for the current artifact (`no-safe-batch` when it is not).
+   - If collaboration is justified, keep `explain` lanes limited to:
+     - primary artifact reading
+     - supporting artifact cross-check
+   - Required join point:
+     - before rendering the final explanation
+   - Report the chosen strategy, reason, fallback if any, and whether supporting cross-check lanes were used.
+
+5. Translate the artifact into plain language:
    - what this stage is trying to accomplish
    - what has already been decided
    - what remains open or risky
    - what the next stage will do with this information
 
-5. Present the explanation as a structured terminal UI built from open blocks, not a raw dump.
+6. Present the explanation as a structured terminal UI built from open blocks, not a raw dump.
 
 ## TUI Requirements
 
@@ -69,6 +79,8 @@ The explanation must remain stage-aware:
 ## Rules
 
 - Keep the explanation grounded in the actual artifact on disk.
+- Default to `single-agent` unless the artifact genuinely benefits from a supporting cross-check lane.
+- If a supporting cross-check lane is used, converge back to one final render step before presenting the explanation.
 - Use the user's current language for user-visible output unless literal command names, file paths, or fixed status values must remain unchanged.
 - Prefer clarity over jargon.
 - Do not invent missing state; if something is absent, say it is absent.

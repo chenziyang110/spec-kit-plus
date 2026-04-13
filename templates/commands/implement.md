@@ -13,25 +13,6 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 
-## Codex Runtime Rule
-
-When running in Codex and you select the durable team runtime for a ready parallel batch, do not stop at a narrative recommendation.
-You **MUST** call the official CLI surface directly:
-
-```text
-specify team auto-dispatch --feature-dir "<FEATURE_DIR>"
-```
-
-Use the `FEATURE_DIR` discovered in Step 1.
-If the runtime backend is unavailable or there is no ready parallel batch, report that concrete blocker and fall back to the next valid execution strategy.
-Use this exact decision order:
-
-1. Complete Step 1 and capture the absolute `FEATURE_DIR`
-2. Inspect `tasks.md` for the next ready explicit parallel batch
-3. If you choose the durable runtime path, run `specify team auto-dispatch --feature-dir "<FEATURE_DIR>"`
-4. Read the command result before continuing
-5. Only fall back to native subagents or sequential execution when the command reports a concrete blocker such as no ready batch or no runtime backend
-
 ## Pre-Execution Checks
 
 **Check for extension hooks (before implementation)**:
@@ -172,17 +153,21 @@ Use this exact decision order:
    - **Execution flow**: Order and dependency requirements
 
 6. Select an execution strategy for each ready batch before writing code:
-   - **Sequential execution**: Use this when tasks are not truly independent, when write sets overlap, or when a join point/shared coordination surface must be updated before downstream work can continue
-   - **Native subagents**: Use this when the current agent supports native subagents and the ready tasks form a small parallel batch with isolated write sets, stable upstream inputs, and independent verification paths
-   - **Durable team runtime (`specify team`)**: Use this when the current agent exposes an agent-specific coordinated runtime surface and the ready work benefits from durable multi-lane coordination, batch-level recovery, or explicit status tracking beyond a lightweight native subagent fanout. Confirm real runtime availability (tmux and session health) before escalating, and treat `specify team` as the official Codex surface for durable execution.
+   - Use the shared policy function before each batch with the current agent capability snapshot: `choose_execution_strategy(command_name="implement", snapshot, workload_shape)`
+   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Decision order (must match policy):
+     - If `parallel_batches <= 0` or overlapping write sets -> `single-agent` (`no-safe-batch`)
+     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
+     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
+     - Else -> `single-agent` (`fallback`)
    - Re-evaluate the execution strategy at every new parallel batch or join point instead of choosing once for the whole feature
-   - `sp-implement` is the canonical workflow entry that makes these choices. Escalate to the durable team runtime only when the batch shape requires long-lived lanes, the join-point semantics demand explicit coordination, and the shared-surface conflicts cannot be resolved inside sequential or native turns. Keep join-point semantics explicit during every escalation so the runtime/API handoff is auditable and safe.
+   - When `sidecar-runtime` is selected, use the integration's coordinated runtime surface for the current ready batch, report concrete blockers, and keep join-point semantics explicit so runtime/API handoffs stay auditable and safe.
 
 7. Execute implementation following the task plan:
    - **Phase-by-phase execution**: Complete each phase before moving to the next
    - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
-   - **Capability-aware execution**: After selecting the execution strategy, execute ready tasks from the same parallel batch with native subagents or the coordinated runtime when supported; otherwise execute that same batch sequentially while preserving its join point semantics
+   - **Capability-aware execution**: After selecting the strategy, execute the current ready batch through `native-multi-agent` or `sidecar-runtime` when selected by policy; otherwise execute via `single-agent` while preserving join-point semantics
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
    - **File-based coordination**: Tasks affecting the same files must run sequentially
    - **Shared-surface coordination**: Treat shared registration files, router tables, export barrels, dependency injection containers, and similar coordination points as write conflicts even if the main feature files differ

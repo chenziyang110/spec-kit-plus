@@ -10,6 +10,60 @@ from specify_cli.integrations.manifest import IntegrationManifest
 
 
 class TestGenericIntegration:
+    @staticmethod
+    def _command_stems() -> list[str]:
+        integration = get_integration("generic")
+        return [template.stem for template in integration.list_command_templates()]
+
+    @staticmethod
+    def _template_files() -> list[str]:
+        integration = get_integration("generic")
+        templates_dir = integration.shared_templates_dir()
+        if not templates_dir or not templates_dir.is_dir():
+            return []
+
+        return sorted(
+            path.name
+            for path in templates_dir.iterdir()
+            if path.is_file() and path.name != "vscode-settings.json"
+        )
+
+    @classmethod
+    def _expected_inventory(cls, script_variant: str) -> list[str]:
+        expected = [
+            *(f".myagent/commands/sp.{stem}.md" for stem in cls._command_stems()),
+            ".specify/init-options.json",
+            ".specify/integration.json",
+            ".specify/integrations/generic.manifest.json",
+            ".specify/integrations/generic/scripts/update-context.ps1",
+            ".specify/integrations/generic/scripts/update-context.sh",
+            ".specify/integrations/speckit.manifest.json",
+            ".specify/memory/constitution.md",
+        ]
+
+        if script_variant == "sh":
+            expected.extend(
+                [
+                    ".specify/scripts/bash/check-prerequisites.sh",
+                    ".specify/scripts/bash/common.sh",
+                    ".specify/scripts/bash/create-new-feature.sh",
+                    ".specify/scripts/bash/setup-plan.sh",
+                    ".specify/scripts/bash/update-agent-context.sh",
+                ]
+            )
+        else:
+            expected.extend(
+                [
+                    ".specify/scripts/powershell/check-prerequisites.ps1",
+                    ".specify/scripts/powershell/common.ps1",
+                    ".specify/scripts/powershell/create-new-feature.ps1",
+                    ".specify/scripts/powershell/setup-plan.ps1",
+                    ".specify/scripts/powershell/update-agent-context.ps1",
+                ]
+            )
+
+        expected.extend(f".specify/templates/{name}" for name in cls._template_files())
+        return sorted(expected)
     """Tests for GenericIntegration — requires --commands-dir option."""
 
     # -- Registration -----------------------------------------------------
@@ -220,39 +274,7 @@ class TestGenericIntegration:
             p.relative_to(project).as_posix()
             for p in project.rglob("*") if p.is_file()
         )
-        expected = sorted([
-            ".myagent/commands/sp.analyze.md",
-            ".myagent/commands/sp.checklist.md",
-            ".myagent/commands/sp.clarify.md",
-            ".myagent/commands/sp.constitution.md",
-            ".myagent/commands/sp.explain.md",
-            ".myagent/commands/sp.implement.md",
-            ".myagent/commands/sp.plan.md",
-            ".myagent/commands/sp.spec-extend.md",
-            ".myagent/commands/sp.specify.md",
-            ".myagent/commands/sp.tasks.md",
-            ".myagent/commands/sp.taskstoissues.md",
-            ".specify/init-options.json",
-            ".specify/integration.json",
-            ".specify/integrations/generic.manifest.json",
-            ".specify/integrations/generic/scripts/update-context.ps1",
-            ".specify/integrations/generic/scripts/update-context.sh",
-            ".specify/integrations/speckit.manifest.json",
-            ".specify/memory/constitution.md",
-            ".specify/scripts/bash/check-prerequisites.sh",
-            ".specify/scripts/bash/common.sh",
-            ".specify/scripts/bash/create-new-feature.sh",
-            ".specify/scripts/bash/setup-plan.sh",
-            ".specify/scripts/bash/update-agent-context.sh",
-            ".specify/templates/agent-file-template.md",
-            ".specify/templates/alignment-template.md",
-            ".specify/templates/checklist-template.md",
-            ".specify/templates/constitution-template.md",
-            ".specify/templates/plan-template.md",
-            ".specify/templates/references-template.md",
-            ".specify/templates/spec-template.md",
-            ".specify/templates/tasks-template.md",
-        ])
+        expected = self._expected_inventory("sh")
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
             f"Extra: {sorted(set(actual) - set(expected))}"
@@ -280,39 +302,7 @@ class TestGenericIntegration:
             p.relative_to(project).as_posix()
             for p in project.rglob("*") if p.is_file()
         )
-        expected = sorted([
-            ".myagent/commands/sp.analyze.md",
-            ".myagent/commands/sp.checklist.md",
-            ".myagent/commands/sp.clarify.md",
-            ".myagent/commands/sp.constitution.md",
-            ".myagent/commands/sp.explain.md",
-            ".myagent/commands/sp.implement.md",
-            ".myagent/commands/sp.plan.md",
-            ".myagent/commands/sp.spec-extend.md",
-            ".myagent/commands/sp.specify.md",
-            ".myagent/commands/sp.tasks.md",
-            ".myagent/commands/sp.taskstoissues.md",
-            ".specify/init-options.json",
-            ".specify/integration.json",
-            ".specify/integrations/generic.manifest.json",
-            ".specify/integrations/generic/scripts/update-context.ps1",
-            ".specify/integrations/generic/scripts/update-context.sh",
-            ".specify/integrations/speckit.manifest.json",
-            ".specify/memory/constitution.md",
-            ".specify/scripts/powershell/check-prerequisites.ps1",
-            ".specify/scripts/powershell/common.ps1",
-            ".specify/scripts/powershell/create-new-feature.ps1",
-            ".specify/scripts/powershell/setup-plan.ps1",
-            ".specify/scripts/powershell/update-agent-context.ps1",
-            ".specify/templates/agent-file-template.md",
-            ".specify/templates/alignment-template.md",
-            ".specify/templates/checklist-template.md",
-            ".specify/templates/constitution-template.md",
-            ".specify/templates/plan-template.md",
-            ".specify/templates/references-template.md",
-            ".specify/templates/spec-template.md",
-            ".specify/templates/tasks-template.md",
-        ])
+        expected = self._expected_inventory("ps")
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
             f"Extra: {sorted(set(actual) - set(expected))}"
