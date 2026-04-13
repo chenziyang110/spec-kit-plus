@@ -343,6 +343,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     Before `Aligned: ready for plan`, run a current-understanding or confirmation gate.
     - Present the grouped current understanding as an explicit pre-release check.
     - Ask the user to confirm or correct the current understanding before `Aligned: ready for plan`.
+    - common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify` when this gate passes and no planning-critical ambiguity remains.
+    - keep this path inside `sp-specify`, without needing `/sp.clarify` or `/sp.spec-extend`.
 
     If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, keep the workflow in clarification until it is resolved or the user explicitly chooses `Force proceed with known risks`.
 
