@@ -7,14 +7,14 @@
 
 ### Question Coverage
 
-- [ ] **QCOV-01**: User running `/sp.specify` for a docs/config/process change is asked about change objective, affected users or teams, compatibility or process constraints, validation method, and completion criteria before the spec is released as planning-ready.
-- [ ] **QCOV-02**: User running `/sp.specify` receives requirement questions that adapt to the inferred task classification instead of reusing one generic questioning path for every request.
-- [ ] **QCOV-03**: User running `/sp.specify` is kept in clarification when planning-critical ambiguity remains around scope, workflow behavior, constraints, or success conditions.
+- [x] **QCOV-01**: User running `/sp.specify` for a docs/config/process change is asked about change objective, affected users or teams, compatibility or process constraints, validation method, and completion criteria before the spec is released as planning-ready.
+- [x] **QCOV-02**: User running `/sp.specify` receives requirement questions that adapt to the inferred task classification instead of reusing one generic questioning path for every request.
+- [x] **QCOV-03**: User running `/sp.specify` is kept in clarification when planning-critical ambiguity remains around scope, workflow behavior, constraints, or success conditions.
 
 ### Follow-up Depth
 
-- [ ] **FDEP-01**: User running `/sp.specify` receives follow-up questions that directly build on the previous answer instead of resetting to generic prompts.
-- [ ] **FDEP-02**: User who gives a vague, shallow, or contradictory answer receives a targeted follow-up, example, or recommendation that narrows the ambiguity.
+- [x] **FDEP-01**: User running `/sp.specify` receives follow-up questions that directly build on the previous answer instead of resetting to generic prompts.
+- [x] **FDEP-02**: User who gives a vague, shallow, or contradictory answer receives a targeted follow-up, example, or recommendation that narrows the ambiguity.
 - [ ] **FDEP-03**: User running `/sp.specify` is guided toward a clearer decision without the workflow collapsing into either a rigid checklist or a fully freeform brainstorming session.
 
 ### Experience Quality
@@ -48,11 +48,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| QCOV-01 | Phase 7 | Pending |
-| QCOV-02 | Phase 7 | Pending |
-| QCOV-03 | Phase 7 | Pending |
-| FDEP-01 | Phase 7 | Pending |
-| FDEP-02 | Phase 7 | Pending |
+| QCOV-01 | Phase 7 | Complete |
+| QCOV-02 | Phase 7 | Complete |
+| QCOV-03 | Phase 7 | Complete |
+| FDEP-01 | Phase 7 | Complete |
+| FDEP-02 | Phase 7 | Complete |
 | FDEP-03 | Phase 8 | Pending |
 | EXPQ-01 | Phase 8 | Pending |
 | EXPQ-02 | Phase 8 | Pending |
@@ -68,4 +68,4 @@
 
 ---
 *Requirements defined: 2026-04-13*
-*Last updated: 2026-04-13 after milestone v1.2 roadmap creation*
+*Last updated: 2026-04-14 after Phase 7 completion*

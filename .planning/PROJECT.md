@@ -25,7 +25,8 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 - Shared collaboration routing now covers `implement`, `specify`, `plan`, `tasks`, and `explain`.
 - `specify team` remains the Codex-only compatibility runtime surface.
 - Milestone **v1.2 Stronger Specify Questioning** is now active.
-- `sp-specify` already has an analysis-first and question-card foundation to build on.
+- Phase 7 completed on 2026-04-14 with stronger questioning coverage and answer-aware clarification rules in `templates/commands/specify.md`.
+- Phase 8 is the next planned execution target for guided follow-up experience work.
 
 ## Requirements
 
@@ -36,11 +37,12 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 - Verification-led fixing with Human-in-the-Loop escalation shipped in v1.0
 - Shared collaboration routing now covers `specify`, `plan`, `tasks`, and `explain` using the canonical strategy vocabulary in v1.1
 - README, built-in workflow descriptions, generated skills, and integration tests now describe the same Milestone 2 routing surface in v1.1
+- `sp-specify` now treats docs/config/process changes as planning-critical discovery work and asks for objective, affected users or teams, constraints, validation, and completion criteria before normal release in Phase 7
+- `sp-specify` now keeps clarification active while planning-critical ambiguity remains and only exits normally when the ambiguity is resolved or the user explicitly force proceeds in Phase 7
+- `sp-specify` follow-up questions now build on the previous answer and explicitly challenge vague, shallow, or contradictory responses in Phase 7
 
 ### Active
 
-- [ ] `sp-specify` asks enough high-value questions to uncover the main requirement dimensions users currently feel are missing.
-- [ ] `sp-specify` keeps the structured question-card format while improving follow-up depth, sequencing, and recommendation quality.
 - [ ] The shipped `sp-specify` experience feels more like guided requirement discovery than a shallow template questionnaire.
 - [ ] Command templates, generated Codex skill mirrors, and regression tests describe the same stronger questioning contract.
 
@@ -100,4 +102,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-13 after starting milestone v1.2*
+*Last updated: 2026-04-14 after Phase 7 completion*

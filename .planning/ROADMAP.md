@@ -16,7 +16,7 @@ The roadmap continues from the shipped v1.0 and v1.1 milestones by focusing v1.2
 
 ## Phases
 
-- [ ] **Phase 7: Questioning Contract and Coverage** - Strengthen what `sp-specify` asks and when it keeps clarifying.
+- [x] **Phase 7: Questioning Contract and Coverage** - Strengthen what `sp-specify` asks and when it keeps clarifying.
 - [ ] **Phase 8: Guided Follow-up Experience** - Turn the stronger questioning model into a more guided and trustworthy live interaction.
 - [ ] **Phase 9: Surface Alignment and Regression Hardening** - Ship the stronger behavior consistently across templates, generated skills, tests, and guidance.
 
@@ -34,8 +34,8 @@ The roadmap continues from the shipped v1.0 and v1.1 milestones by focusing v1.2
 **Plans**: 2 plans
 
 Plans:
-- [ ] 07-01: Redesign the `sp-specify` questioning contract and task-type gates
-- [ ] 07-02: Strengthen ambiguity detection and follow-up logic
+- [x] 07-01: Redesign the `sp-specify` questioning contract and task-type gates
+- [x] 07-02: Strengthen ambiguity detection and follow-up logic
 
 ### Phase 8: Guided Follow-up Experience
 **Goal**: Make the stronger questioning logic feel like guided requirement discovery while preserving one-question-at-a-time structure.
@@ -73,6 +73,6 @@ Phases execute in numeric order: 7 -> 8 -> 9
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 7. Questioning Contract and Coverage | v1.2 | 0/2 | Not started | - |
+| 7. Questioning Contract and Coverage | v1.2 | 2/2 | Complete | 2026-04-14 |
 | 8. Guided Follow-up Experience | v1.2 | 0/2 | Not started | - |
 | 9. Surface Alignment and Regression Hardening | v1.2 | 0/2 | Not started | - |
