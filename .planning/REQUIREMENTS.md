@@ -48,12 +48,24 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| QCOV-01 | Phase 7 | Pending |
+| QCOV-02 | Phase 7 | Pending |
+| QCOV-03 | Phase 7 | Pending |
+| FDEP-01 | Phase 7 | Pending |
+| FDEP-02 | Phase 7 | Pending |
+| FDEP-03 | Phase 8 | Pending |
+| EXPQ-01 | Phase 8 | Pending |
+| EXPQ-02 | Phase 8 | Pending |
+| EXPQ-03 | Phase 8 | Pending |
+| SYNC-01 | Phase 9 | Pending |
+| SYNC-02 | Phase 9 | Pending |
+| SYNC-03 | Phase 9 | Pending |
 
 **Coverage:**
 - v1 requirements: 12 total
-- Mapped to phases: 0
-- Unmapped: 12 Warning
+- Mapped to phases: 12
+- Unmapped: 0 Good
 
 ---
 *Requirements defined: 2026-04-13*
-*Last updated: 2026-04-13 after milestone v1.2 requirement definition*
+*Last updated: 2026-04-13 after milestone v1.2 roadmap creation*

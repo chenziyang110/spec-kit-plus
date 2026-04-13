@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: stronger-specify-questioning
-status: defining-requirements
+status: roadmap-defined
 last_updated: "2026-04-13T00:00:00Z"
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 6
   completed_plans: 0
   percent: 0
 ---
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Keep Spec-Driven Development practical across local AI integrations by making the workflow consistent, truthful, and usable in the tools developers actually run.
-**Current focus:** Milestone v1.2 is being defined around stronger `sp-specify` questioning.
+**Current focus:** Phase 7 is next: strengthen the `sp-specify` questioning contract and coverage.
 
 ## Current Position
 
-**Phase**: Not started (defining requirements)
-**Plan**: -
-**Status**: Defining requirements for milestone v1.2 Stronger Specify Questioning.
+**Phase**: Not started (Phase 7 ready to plan)
+**Plan**: No phase plans written yet
+**Status**: Roadmap created for milestone v1.2 Stronger Specify Questioning. Ready to start Phase 7.
 
 ```
 [----------] 0%
@@ -36,8 +36,8 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 | Metric | Current | Status |
 |--------|---------|--------|
 | Archived milestones | v1.0, v1.1 | Complete |
-| Active milestone | v1.2 Stronger Specify Questioning | Defining requirements |
-| Next recommended command | `/gsd-plan-phase [next phase]` | Pending roadmap creation |
+| Active milestone | v1.2 Stronger Specify Questioning | Roadmap defined |
+| Next recommended command | `/gsd-discuss-phase 7` | Ready |
 
 ## Accumulated Context
 
@@ -60,6 +60,7 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 - Legacy phase directories were cleared at v1.2 start so the next roadmap can recreate active phase directories from a clean slate.
 - Actual `/sp.specify` usage feedback indicates the current requirement questioning still feels too thin in both count and dimension coverage.
 - `E:\work\github\superpowers` is the current comparison repo for stronger questioning patterns worth adapting into `sp-specify`.
+- Milestone v1.2 roadmap now spans Phases 7-9 with a sequence of questioning contract redesign, guided interaction quality, and surface/test alignment.
 
 ### Blockers
 
@@ -73,3 +74,4 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 | 2026-04-13 | Complete v1.0 | Audit passed; debug workflow milestone shipped. | Archive v1.0 and start v1.1 |
 | 2026-04-13 | Complete v1.1 | Shared collaboration routing now covers the analysis and planning workflow surface. | Define the next milestone |
 | 2026-04-13 | Start v1.2 | Milestone scope confirmed around stronger `sp-specify` questioning. | Define requirements and roadmap |
+| 2026-04-13 | Roadmap v1.2 | Phases 7-9 drafted around questioning contract, guided interaction, and alignment hardening. | Plan Phase 7 |

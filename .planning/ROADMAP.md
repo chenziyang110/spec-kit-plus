@@ -1,0 +1,78 @@
+# Roadmap: spec-kit-plus
+
+## Overview
+
+The roadmap continues from the shipped v1.0 and v1.1 milestones by focusing v1.2 on one specific product gap: `/sp.specify` still feels too shallow during real requirement discovery. The execution path for this milestone is to first strengthen the questioning contract and coverage, then make the live interaction feel more guided and trustworthy, and finally align templates, generated skill mirrors, tests, and user-facing guidance around the stronger behavior.
+
+## Milestones
+
+- Good **v1.0 Debug Workflow** - Phases 1-3 (shipped 2026-04-13)
+- Good **v1.1 Analysis and Planning Workflows** - Phases 4-6 (shipped 2026-04-13)
+- Planned **v1.2 Stronger Specify Questioning** - Phases 7-9
+
+## v1.2 Stronger Specify Questioning
+
+**Milestone Goal:** Make `/sp.specify` ask deeper, better-targeted, and more trustworthy requirement questions while preserving the structured `specify -> plan` mainline.
+
+## Phases
+
+- [ ] **Phase 7: Questioning Contract and Coverage** - Strengthen what `sp-specify` asks and when it keeps clarifying.
+- [ ] **Phase 8: Guided Follow-up Experience** - Turn the stronger questioning model into a more guided and trustworthy live interaction.
+- [ ] **Phase 9: Surface Alignment and Regression Hardening** - Ship the stronger behavior consistently across templates, generated skills, tests, and guidance.
+
+## Phase Details
+
+### Phase 7: Questioning Contract and Coverage
+**Goal**: Redefine the `sp-specify` questioning contract so it covers the right requirement dimensions and reacts more intelligently to ambiguity.
+**Depends on**: Phase 6
+**Requirements**: QCOV-01, QCOV-02, QCOV-03, FDEP-01, FDEP-02
+**Success Criteria** (what must be TRUE):
+  1. Running `/sp.specify` for a docs/config/process change prompts for objective, affected users or teams, constraints, validation, and completion criteria before alignment is released.
+  2. Different task classifications lead to meaningfully different question paths instead of one generic questioning flow.
+  3. Vague, shallow, or contradictory answers trigger targeted follow-up questions that narrow the ambiguity instead of resetting to generic prompts.
+  4. `/sp.specify` does not mark work planning-ready while planning-critical ambiguity still remains.
+**Plans**: 2 plans
+
+Plans:
+- [ ] 07-01: Redesign the `sp-specify` questioning contract and task-type gates
+- [ ] 07-02: Strengthen ambiguity detection and follow-up logic
+
+### Phase 8: Guided Follow-up Experience
+**Goal**: Make the stronger questioning logic feel like guided requirement discovery while preserving one-question-at-a-time structure.
+**Depends on**: Phase 7
+**Requirements**: FDEP-03, EXPQ-01, EXPQ-02, EXPQ-03
+**Success Criteria** (what must be TRUE):
+  1. Live `/sp.specify` runs keep the one-question-at-a-time structure but feel guided rather than checklist-like.
+  2. Recommendation and example scaffolding help users answer more clearly without forcing a rigid response path.
+  3. Users see a stronger current-understanding or confirmation gate before the release decision.
+  4. Common docs/config/process-change flows can reach planning-ready alignment inside `/sp.specify` without needing `/sp.clarify` or `/sp.spec-extend`.
+**Plans**: 2 plans
+
+Plans:
+- [ ] 08-01: Implement the guided follow-up flow and confirmation gate
+- [ ] 08-02: Validate the real `/sp.specify` interaction experience against milestone expectations
+
+### Phase 9: Surface Alignment and Regression Hardening
+**Goal**: Align shipped surfaces and regression coverage so the stronger `sp-specify` behavior stays truthful and stable.
+**Depends on**: Phase 8
+**Requirements**: SYNC-01, SYNC-02, SYNC-03
+**Success Criteria** (what must be TRUE):
+  1. `templates/commands/specify.md` and `.agents/skills/sp-specify/SKILL.md` describe the same stronger questioning contract.
+  2. Regression tests fail if questioning structure, follow-up expectations, or confirmation behavior drift.
+  3. User-facing guidance keeps `specify -> plan` as the mainline and accurately describes the stronger `sp-specify` behavior.
+**Plans**: 2 plans
+
+Plans:
+- [ ] 09-01: Synchronize shipped templates and generated skill mirrors
+- [ ] 09-02: Harden regression coverage and final release-facing guidance
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 7 -> 8 -> 9
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 7. Questioning Contract and Coverage | v1.2 | 0/2 | Not started | - |
+| 8. Guided Follow-up Experience | v1.2 | 0/2 | Not started | - |
+| 9. Surface Alignment and Regression Hardening | v1.2 | 0/2 | Not started | - |
