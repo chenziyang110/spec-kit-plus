@@ -79,6 +79,12 @@ def test_specify_template_uses_alignment_first_contract():
     assert "completion criteria" in content
     assert "Task classification changes which requirement dimensions are probed" in content
     assert "planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria" in content
+    assert "Make the next question build directly on the user's most recent answer" in content
+    assert "rather than resetting to generic prompts" in content
+    assert "vague, shallow, or contradictory" in content
+    assert "targeted narrowing question, example, or recommendation" in content
+    assert "Do not accept long but still ambiguous answers as sufficient." in content
+    assert "Do not turn this into a freeform brainstorming workflow." in content
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
