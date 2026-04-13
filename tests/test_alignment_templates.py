@@ -85,6 +85,10 @@ def test_specify_template_uses_alignment_first_contract():
     assert "targeted narrowing question, example, or recommendation" in content
     assert "Do not accept long but still ambiguous answers as sufficient." in content
     assert "Do not turn this into a freeform brainstorming workflow." in content
+    assert "guided requirement discovery" in lowered
+    assert "recommendation and example scaffolding" in lowered
+    assert "current-understanding or confirmation gate" in lowered
+    assert "confirm or correct the current understanding before `Aligned: ready for plan`" in content
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
