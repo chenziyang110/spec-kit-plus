@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.2
-milestone_name: stronger-specify-questioning
-status: roadmap-defined
-last_updated: "2026-04-13T00:00:00Z"
+milestone_name: Stronger Specify Questioning
+status: Ready to execute
+last_updated: "2026-04-13T17:06:25.751Z"
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 6
+  total_plans: 2
   completed_plans: 0
   percent: 0
 ---
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Keep Spec-Driven Development practical across local AI integrations by making the workflow consistent, truthful, and usable in the tools developers actually run.
-**Current focus:** Phase 7 is next: strengthen the `sp-specify` questioning contract and coverage.
+**Current focus:** Phase 7 is planned and ready to execute.
 
 ## Current Position
 
-**Phase**: Not started (Phase 7 ready to plan)
-**Plan**: No phase plans written yet
-**Status**: Roadmap created for milestone v1.2 Stronger Specify Questioning. Ready to start Phase 7.
+**Phase**: Phase 7 planned
+**Plan**: 2 plans ready for execution
+**Status**: Phase 7 Questioning Contract and Coverage has executable plans and is ready to run.
 
 ```
 [----------] 0%
@@ -36,8 +36,8 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 | Metric | Current | Status |
 |--------|---------|--------|
 | Archived milestones | v1.0, v1.1 | Complete |
-| Active milestone | v1.2 Stronger Specify Questioning | Roadmap defined |
-| Next recommended command | `/gsd-discuss-phase 7` | Ready |
+| Active milestone | v1.2 Stronger Specify Questioning | Phase 7 planned |
+| Next recommended command | `/gsd-execute-phase 7` | Ready |
 
 ## Accumulated Context
 
@@ -75,3 +75,4 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 | 2026-04-13 | Complete v1.1 | Shared collaboration routing now covers the analysis and planning workflow surface. | Define the next milestone |
 | 2026-04-13 | Start v1.2 | Milestone scope confirmed around stronger `sp-specify` questioning. | Define requirements and roadmap |
 | 2026-04-13 | Roadmap v1.2 | Phases 7-9 drafted around questioning contract, guided interaction, and alignment hardening. | Plan Phase 7 |
+| 2026-04-14 | Plan Phase 7 | Phase 7 research and 2 executable plans created for questioning contract and follow-up depth work. | Execute Phase 7 |
