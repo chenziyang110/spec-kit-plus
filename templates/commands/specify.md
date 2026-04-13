@@ -233,7 +233,10 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Ask at most one unanswered high-impact question per message.
     - Make the next question build directly on the user's most recent answer rather than resetting to generic prompts.
     - Use the previous answer to choose the next narrowing move, not a recycled generic checklist question.
+    - If the user's answer is vague, shallow, or contradictory, respond with a targeted narrowing question, example, or recommendation tied to the planning-critical ambiguity.
+    - Do not accept long but still ambiguous answers as sufficient.
     - Challenge contradictions or vague answers when important ambiguity remains.
+    - Keep stronger follow-up behavior tied to planning-relevant ambiguity, not generic conversation depth.
     - Use the user's current language for all user-visible clarification content, including questions, summaries, status updates, and the current-understanding restatement.
     - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
     - Do not restate the full current understanding after every answer.
