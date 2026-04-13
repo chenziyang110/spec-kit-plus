@@ -89,6 +89,9 @@ def test_specify_template_uses_alignment_first_contract():
     assert "recommendation and example scaffolding" in lowered
     assert "current-understanding or confirmation gate" in lowered
     assert "confirm or correct the current understanding before `Aligned: ready for plan`" in content
+    assert "common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify`" in content
+    assert "explicit pre-release check" in lowered
+    assert "without needing `/sp.clarify` or `/sp.spec-extend`" in content
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
