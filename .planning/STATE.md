@@ -61,16 +61,16 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 - Milestone v1.1 is archived under `.planning/milestones/`.
 - Legacy phase directories were cleared at v1.2 start so the next roadmap can recreate active phase directories from a clean slate.
 - Actual `/sp.specify` usage feedback indicates the current requirement questioning still feels too thin in both count and dimension coverage.
-- `E:\work\github\superpowers` is the current comparison repo for stronger questioning patterns worth adapting into `sp-specify`.
+- `E:\work\github\superpowers` remains a useful comparison repo for stronger questioning patterns worth adapting into future milestones.
 - Milestone v1.2 roadmap now spans Phases 7-9 with a sequence of questioning contract redesign, guided interaction quality, and surface/test alignment.
 - Phase 7 now updates `templates/commands/specify.md` and `tests/test_alignment_templates.py` to enforce planning-critical docs/config coverage, ambiguity gating, and answer-aware follow-up.
-- Phase 7 review and verification artifacts are present under `.planning/phases/07-questioning-contract-and-coverage/`.
+- v1.2 phase execution artifacts are archived under `.planning/milestones/v1.2-phases/`.
 - Phase 8 is complete and verified, but its roadmap checkbox had drifted behind the on-disk artifacts until this state reconciliation pass.
 - Phase 9 now syncs `.agents/skills/sp-specify/SKILL.md`, updates `docs/quickstart.md`, and adds focused regression coverage in `tests/test_extension_skills.py` and `tests/test_specify_guidance_docs.py`.
 
 ### Blockers
 
-- Git tagging and a clean milestone-only archival commit remain pending because the worktree contains unrelated in-progress changes.
+- None for the completed v1.2 lifecycle. Unrelated in-progress changes remain in the worktree for separate workstreams.
 
 ## Session Continuity
 

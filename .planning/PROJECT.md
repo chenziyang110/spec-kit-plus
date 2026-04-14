@@ -61,7 +61,7 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 - The repository now contains a generic orchestration core under `src/specify_cli/orchestration/` plus shared routing language across the major analysis/planning workflows.
 - Codex runtime guidance remains intentionally isolated to Codex-specific surfaces and generated assets.
 - Legacy phase directories from v1.0 and v1.1 were cleared when milestone v1.2 started, so the next roadmap can regenerate the active `.planning/phases/` tree cleanly.
-- Git tagging and archival commits were intentionally skipped because the worktree already contains unrelated in-progress changes.
+- Milestone v1.2 is archived under `.planning/milestones/` and tagged locally as `v1.2`.
 - Real `/sp.specify` usage feedback says the current questioning still feels too thin in both count and coverage, especially during requirement discovery.
 - `E:\work\github\superpowers` shows stronger questioning qualities worth studying, especially following user intent closely and making the final confirmation gate more substantive.
 - The repo already shipped analysis-first `specify` behavior and structured question cards, so this milestone should deepen that system rather than replace it.

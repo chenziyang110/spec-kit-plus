@@ -19,10 +19,6 @@
 - [Requirements Archive](milestones/v1.2-REQUIREMENTS.md)
 - [Milestone Audit](milestones/v1.2-MILESTONE-AUDIT.md)
 
-### Known Gaps
-
-- Git tag and a clean milestone-only archival commit remain constrained by unrelated in-progress changes already present in the worktree.
-
 ---
 
 ## v1.0 Debug Workflow
