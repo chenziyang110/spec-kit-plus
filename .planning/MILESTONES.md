@@ -1,5 +1,25 @@
 # Milestones: spec-kit-plus
 
+## v1.3 Implement Orchestrator Runtime (Shipped: 2026-04-14)
+
+**Phases completed:** 3 phases, 6 plans, 18 tasks
+
+**Key accomplishments:**
+
+- Leader-only `sp-implement` milestone scheduler contract and delegated sequential execution
+- Classified worker batch dispatch with explicit join-point semantics and narrow safe preparation rules
+- Retry taxonomy, blocker handling, and surfaced runtime truth across planning/status output
+- Shared and generated implement surfaces aligned to the shipped leader/worker runtime story
+- Release-facing README guidance and cross-layer contract/integration verification for the runtime
+
+### Evidence
+
+- [Roadmap Archive](milestones/v1.3-ROADMAP.md)
+- [Requirements Archive](milestones/v1.3-REQUIREMENTS.md)
+- [Milestone Audit](milestones/v1.3-MILESTONE-AUDIT.md)
+
+---
+
 ## v1.2 Stronger Specify Questioning (Shipped: 2026-04-14)
 
 **Phases completed:** 3 phases, 6 plans, 18 tasks

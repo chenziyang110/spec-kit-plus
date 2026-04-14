@@ -1,5 +1,37 @@
 # Retrospective: spec-kit-plus
 
+## Milestone: v1.3 - Implement Orchestrator Runtime
+
+**Shipped:** 2026-04-14
+**Phases:** 3 | **Plans:** 6
+
+### What Was Built
+- Turned `sp-implement` into a leader-only milestone scheduler that can continue across roadmap phases.
+- Added worker batch classification, explicit join-point state, retry taxonomy, and blocker handling for delegated execution.
+- Surfaced runtime truth across planning/status output, generated surfaces, README guidance, and focused contract/integration tests.
+
+### What Worked
+- Keeping the shared `implement` template as the primary wording source made later surface alignment straightforward.
+- Focused contract and integration slices were enough to verify each runtime layer without needing a heavyweight orchestration harness.
+- Treating Phase 12 as “surface truth first, then docs and E2E” reduced rework.
+
+### What Was Inefficient
+- Subagent handoffs were unreliable in this environment, so research/planning/execution had to fall back to inline orchestration repeatedly.
+- `gsd-tools` STATE.md mutation assumptions still lag the repository’s evolved state file shape, so milestone and phase lifecycle steps needed manual STATE.md cleanup.
+
+### Patterns Established
+- Runtime mechanics can ship in one phase and be surfaced truthfully in the next without redesigning the underlying behavior.
+- Cross-layer drift is best controlled with small phrase- and field-based regressions tying templates, generated assets, CLI status surfaces, and README guidance together.
+
+### Key Lessons
+- File-backed runtime state is viable when the human-facing planning/project surfaces are kept in sync with it.
+- The difference between “runtime implemented” and “runtime productized” is mostly surface alignment and verification, not more backend mechanics.
+
+### Cost Observations
+- Model mix: not tracked in this local run
+- Sessions: 1
+- Notable: most expensive friction came from stalled subagent handoffs, not from the runtime implementation itself.
+
 ## Milestone: v1.2 - Stronger Specify Questioning
 
 **Shipped:** 2026-04-14

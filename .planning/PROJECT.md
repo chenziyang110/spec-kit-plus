@@ -8,7 +8,7 @@
 
 Keep Spec-Driven Development practical across local AI integrations by making the workflow consistent, truthful, and usable in the tools developers actually run.
 
-## Current Milestone: v1.3 Implement Orchestrator Runtime
+## Current Milestone: Completed v1.3 Implement Orchestrator Runtime
 
 **Goal:** Turn `sp-implement` into a milestone-level orchestration leader that delegates all real execution work to worker agents and can drive the current roadmap through every phase until completion or a clear blocker.
 
@@ -33,13 +33,14 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 
 ## Current State
 
-- Shipped through **Phase 12** of **v1.3 Implement Orchestrator Runtime** and now ready for milestone audit / completion / cleanup.
+- Shipped through **v1.3 Implement Orchestrator Runtime** and now ready to define the next milestone.
 - Shared collaboration routing now covers `implement`, `specify`, `plan`, `tasks`, and `explain`.
 - `specify team` remains the Codex-only compatibility runtime surface.
 - `sp-specify` now ships stronger planning-critical questioning, answer-aware follow-up, guided interaction scaffolding, and a confirmation gate before normal release.
 - The local `sp-specify` skill mirror and quickstart guidance now match the stronger shared template contract.
 - `sp-implement` now ships a leader-only milestone scheduler plus worker batch classification, join-point coordination, retry taxonomy, and blocker handling for delegated execution.
 - Planning/status surfaces, generated implement outputs, and README guidance now reflect that runtime truth with focused cross-layer verification.
+- No active milestone is currently open; the next milestone should start from fresh milestone-scoped requirements and roadmap artifacts.
 
 ## Requirements
 
@@ -64,7 +65,7 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 
 ### Active
 
-None. Milestone v1.3 phase scope is fully delivered and ready for lifecycle completion.
+- [ ] Define the next milestone scope and fresh milestone-scoped requirements.
 
 ### Out of Scope
 
@@ -128,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 after Phase 12 completion*
+*Last updated: 2026-04-14 after v1.3 milestone archival*

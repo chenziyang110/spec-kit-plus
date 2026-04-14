@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Implement Orchestrator Runtime
-status: Milestone complete
+status: Awaiting next milestone
 last_updated: "2026-04-14T06:49:29.752Z"
 progress:
   total_phases: 3
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Keep Spec-Driven Development practical across local AI integrations by making the workflow consistent, truthful, and usable in the tools developers actually run.
-**Current focus:** Milestone v1.3 complete at phase level; ready for audit, milestone completion, and cleanup.
+**Current focus:** v1.3 archived; define the next milestone.
 
 ## Current Position
 
-**Phase**: All milestone phases complete
-**Plan**: 6 plans executed
-**Status**: Phase 12 completed with summaries, review, and verification artifacts. Next step is milestone audit and completion lifecycle.
+**Phase**: No active phase
+**Plan**: No active milestone plan
+**Status**: v1.3 archived. Next step is to start the next milestone.
 
 ```text
 [##########] 100%
@@ -36,8 +36,8 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 | Metric | Current | Status |
 |--------|---------|--------|
 | Archived milestones | v1.0, v1.1, v1.2 | Complete |
-| Active milestone | v1.3 Implement Orchestrator Runtime | Ready for lifecycle |
-| Next recommended command | `/gsd-audit-milestone` | Ready |
+| Active milestone | None | Waiting |
+| Next recommended command | `/gsd-new-milestone` | Ready |
 
 ## Accumulated Context
 
@@ -94,3 +94,4 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 | 2026-04-14 | Discuss Phase 12 | Captured ordering decision: state truth source first, then shipped surfaces/docs, then end-to-end verification. | Plan Phase 12 |
 | 2026-04-14 | Plan Phase 12 | Research and 2 executable plans created for surfaced runtime truth and end-to-end verification. | Execute Phase 12 |
 | 2026-04-14 | Execute Phase 12 | Runtime state surfaces, generated/shared runtime wording, README guidance, review, and verification shipped. | Run milestone lifecycle |
+| 2026-04-14 | Complete v1.3 | Milestone archived, roadmap collapsed, requirements archived, and release tag prepared. | Start next milestone |
