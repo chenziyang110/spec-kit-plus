@@ -32,6 +32,16 @@ def task_path(project_root: Path, task_id: str) -> Path:
     return orchestration_root(project_root) / "tasks" / f"{task_id}.json"
 
 
+def milestone_state_path(project_root: Path, phase_number: str) -> Path:
+    """Return the canonical milestone phase-state record path."""
+    return orchestration_root(project_root) / "milestones" / f"phase-{phase_number}.json"
+
+
+def decision_path(project_root: Path, decision_id: str) -> Path:
+    """Return the canonical milestone decision record path."""
+    return orchestration_root(project_root) / "decisions" / f"{decision_id}.json"
+
+
 def event_log_path(project_root: Path, session_id: str | None = None) -> Path:
     """Return the append-only orchestration event log path."""
     suffix = session_id or "default"

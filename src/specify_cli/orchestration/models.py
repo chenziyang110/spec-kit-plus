@@ -40,6 +40,36 @@ class ExecutionDecision:
 
 
 @dataclass(slots=True)
+class PhaseExecutionState:
+    """Persisted milestone-level view of a phase and its next ready work."""
+
+    phase_number: float
+    phase_name: str
+    ready_batch_count: int = 0
+    leader_mode: bool = True
+    continue_milestone: bool = True
+    current_batch_id: str | None = None
+    blocking_reason: str | None = None
+    created_at: str = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class MilestoneExecutionDecision:
+    """Scheduler output describing the next executable phase and milestone flow."""
+
+    phase_number: float
+    phase_name: str
+    ready_batch_count: int
+    leader_mode: bool = True
+    continue_milestone: bool = True
+    next_phase_number: float | None = None
+    next_phase_name: str | None = None
+    selected_batch_id: str | None = None
+    reason: str = "roadmap-order"
+    created_at: str = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
 class Session:
     """Top-level orchestration session record."""
 
