@@ -8,6 +8,18 @@
 
 Keep Spec-Driven Development practical across local AI integrations by making the workflow consistent, truthful, and usable in the tools developers actually run.
 
+## Current Milestone: v1.3 Implement Orchestrator Runtime
+
+**Goal:** Turn `sp-implement` into a milestone-level orchestration leader that delegates all real execution work to worker agents and can drive the current roadmap through every phase until completion or a clear blocker.
+
+**Target features:**
+- Make `sp-implement` treat the active roadmap as the execution boundary instead of stopping at one phase unless explicitly asked to scope down.
+- Enforce a leader/worker split where the leader schedules, dispatches, reconciles, and updates state while workers perform implementation, verification, and other concrete work.
+- Support both sequential and parallel task batches without letting the leader become the direct executor.
+- Preserve roadmap order by default, while allowing low-risk preparation work for later phases when dependencies permit.
+- Use a mixed failure strategy so non-critical failures do not stop all progress, but critical-path failures and repeated worker failures halt safely with a clear report.
+- Persist execution state, worker outcomes, join points, and blockers into the existing planning artifacts rather than leaving progress implicit in chat.
+
 ## Latest Shipped Milestone: v1.2 Stronger Specify Questioning
 
 **Goal:** Make `/sp.specify` noticeably stronger at structured requirement questioning so real runs surface more of the information planning needs before `plan`.
@@ -21,12 +33,12 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 
 ## Current State
 
-- Shipped through **v1.2 Stronger Specify Questioning**.
+- Shipped through **v1.2 Stronger Specify Questioning** and now defining **v1.3 Implement Orchestrator Runtime**.
 - Shared collaboration routing now covers `implement`, `specify`, `plan`, `tasks`, and `explain`.
 - `specify team` remains the Codex-only compatibility runtime surface.
 - `sp-specify` now ships stronger planning-critical questioning, answer-aware follow-up, guided interaction scaffolding, and a confirmation gate before normal release.
 - The local `sp-specify` skill mirror and quickstart guidance now match the stronger shared template contract.
-- No next milestone is defined yet; the next planning step is to set new requirements and roadmap scope.
+- The next milestone now focuses on making `sp-implement` a true leader-driven executor for full-roadmap delivery.
 
 ## Requirements
 
@@ -45,16 +57,19 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 
 ### Active
 
-- [ ] Extend the stronger questioning model into `spec-extend` and `clarify` where it still fits.
-- [ ] Add broader behavior-level evaluation for questioning quality across more task types.
+- [ ] `sp-implement` can orchestrate execution across the full active milestone instead of stopping at a single phase boundary.
+- [ ] `sp-implement` leader never performs concrete implementation work directly and always delegates real execution to worker agents.
+- [ ] The execution loop can coordinate sequential and parallel batches with explicit join points, write-set awareness, and roadmap-order discipline.
+- [ ] Runtime state, worker outcomes, blockers, and completion status remain visible in planning artifacts and docs.
 
 ### Out of Scope
 
-- Durable execution/runtime maturity for `implement` beyond the current release slice - deferred to the next orchestration milestone
+- Extending the new leader/worker execution model to `debug` in this milestone - keep the runtime redesign bounded to `sp-implement`
 - Parallel evidence fan-out and single-writer convergence for `debug` - deferred until the runtime maturity milestone
 - Additional integration rollout beyond the current Codex, Claude, Gemini, and Copilot slice - deferred until the expansion milestone
-- Reworking `spec-extend` or `clarify` in this milestone - the scope is limited to the `sp-specify` mainline experience
-- Replacing structured question cards with a fully freeform brainstorming flow - the workflow should stay structured while questioning quality improves
+- Extending the stronger questioning model into `spec-extend` or `clarify` in this milestone - execution runtime depth now has priority
+- Broader behavior-level evaluation for questioning quality across more task types - defer until the execution milestone stops moving
+- Replacing the current strategy vocabulary (`single-agent`, `native-multi-agent`, `sidecar-runtime`) with a brand-new policy system - this milestone should deepen execution behavior, not rename the orchestration surface
 
 ## Context
 
@@ -62,9 +77,10 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 - Codex runtime guidance remains intentionally isolated to Codex-specific surfaces and generated assets.
 - Legacy phase directories from v1.0 and v1.1 were cleared when milestone v1.2 started, so the next roadmap can regenerate the active `.planning/phases/` tree cleanly.
 - Milestone v1.2 is archived under `.planning/milestones/` and tagged locally as `v1.2`.
-- Real `/sp.specify` usage feedback says the current questioning still feels too thin in both count and coverage, especially during requirement discovery.
-- `E:\work\github\superpowers` shows stronger questioning qualities worth studying, especially following user intent closely and making the final confirmation gate more substantive.
-- The repo already shipped analysis-first `specify` behavior and structured question cards, so this milestone should deepen that system rather than replace it.
+- The current `templates/commands/implement.md` and `.agents/skills/sp-implement/SKILL.md` describe capability-aware batches, but the workflow still centers the main agent as the direct executor.
+- The shared orchestration policy already models execution strategies and capability snapshots, but it does not yet define a leader-only milestone scheduler or worker-result convergence path.
+- Real usage feedback says `sp-implement` cannot reliably finish an entire milestone in one run because phase progression, worker delegation, and failure recovery stop too early.
+- Earlier design notes in `docs/superpowers/` already point toward deeper `implement` runtime maturity, so this milestone should convert that direction into a shipped, bounded execution model.
 
 ## Constraints
 
@@ -85,6 +101,9 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 | Use Milestone 2 to migrate `specify`, `plan`, `tasks`, and `explain` before deepening `implement` and `debug` runtime behavior | Matches the approved sequence in the orchestration design and the current repository state | Good |
 | Keep the milestone focused on `sp-specify` instead of redesigning `spec-extend` or `clarify` at the same time | Keeps the milestone bounded enough to improve the mainline experience without diffusing the work | Good |
 | Preserve question cards and strengthen the questioning strategy inside that structure | Matches the user's preferred interaction model while still targeting a real experience upgrade | Good |
+| Make `sp-implement` a leader-only orchestrator for v1.3 | Solves the current milestone-completion gap without coupling this release to a full multi-workflow runtime rewrite | Pending |
+| Keep phase order as the default execution contract, but allow safe preparation work across phase boundaries | Preserves roadmap truth while still letting the runtime exploit obvious slack | Pending |
+| Use mixed failure handling for worker batches | Supports full-milestone execution without masking critical-path failures | Pending |
 
 ## Evolution
 
@@ -104,4 +123,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 after v1.2 milestone completion*
+*Last updated: 2026-04-14 after v1.3 milestone definition*

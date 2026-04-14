@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Stronger Specify Questioning
-status: Planning next milestone
-last_updated: "2026-04-14T09:48:30.7959395+08:00"
+milestone: v1.3
+milestone_name: Implement Orchestrator Runtime
+status: Defining requirements
+last_updated: "2026-04-14T12:30:00+08:00"
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State: spec-kit-plus
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Keep Spec-Driven Development practical across local AI integrations by making the workflow consistent, truthful, and usable in the tools developers actually run.
-**Current focus:** Define the next milestone after shipping v1.2.
+**Current focus:** Define requirements and roadmap for milestone v1.3 Implement Orchestrator Runtime.
 
 ## Current Position
 
-**Phase**: Phase 9 complete
-**Plan**: All v1.2 plans complete
-**Status**: Milestone v1.2 is archived and audited. The next step is to define the next milestone scope and requirements.
+**Phase**: Not started
+**Plan**: -
+**Status**: Defining requirements for milestone v1.3 Implement Orchestrator Runtime.
 
 ```text
-[##########] 100%
+[----------] 0%
 ```
 
 ## Progress Snapshot
@@ -36,8 +36,8 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 | Metric | Current | Status |
 |--------|---------|--------|
 | Archived milestones | v1.0, v1.1 | Complete |
-| Active milestone | None | Ready for next milestone definition |
-| Next recommended command | `/gsd-new-milestone` | Start the next shipped scope |
+| Active milestone | v1.3 Implement Orchestrator Runtime | Defining requirements |
+| Next recommended command | `/gsd-plan-phase 10` | Available after roadmap approval |
 
 ## Accumulated Context
 
@@ -53,6 +53,10 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 - Preserve the question-card interaction shape while strengthening question coverage and follow-up depth.
 - Keep docs/config/process changes behind a planning-critical gate before normal alignment release.
 - Keep clarification answer-aware and escalation-oriented when user input stays vague or contradictory.
+- Make `sp-implement` a leader that delegates all concrete execution work to worker agents.
+- Let `sp-implement` drive the full roadmap across all phases instead of stopping at a single phase by default.
+- Keep roadmap order as the default contract while allowing safe preparation work for later phases.
+- Use mixed failure handling so non-critical worker failures do not freeze all progress.
 
 ### Technical Notes
 
@@ -60,13 +64,10 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 - `specify team` remains the Codex-only compatibility surface.
 - Milestone v1.1 is archived under `.planning/milestones/`.
 - Legacy phase directories were cleared at v1.2 start so the next roadmap can recreate active phase directories from a clean slate.
-- Actual `/sp.specify` usage feedback indicates the current requirement questioning still feels too thin in both count and dimension coverage.
-- `E:\work\github\superpowers` remains a useful comparison repo for stronger questioning patterns worth adapting into future milestones.
-- Milestone v1.2 roadmap now spans Phases 7-9 with a sequence of questioning contract redesign, guided interaction quality, and surface/test alignment.
-- Phase 7 now updates `templates/commands/specify.md` and `tests/test_alignment_templates.py` to enforce planning-critical docs/config coverage, ambiguity gating, and answer-aware follow-up.
+- The current implement template still positions the invoking agent as the executor even when it chooses a parallel strategy.
+- The shared orchestration models already capture capability snapshots and execution decisions, which makes them the most likely foundation for a leader/worker scheduler.
 - v1.2 phase execution artifacts are archived under `.planning/milestones/v1.2-phases/`.
-- Phase 8 is complete and verified, but its roadmap checkbox had drifted behind the on-disk artifacts until this state reconciliation pass.
-- Phase 9 now syncs `.agents/skills/sp-specify/SKILL.md`, updates `docs/quickstart.md`, and adds focused regression coverage in `tests/test_extension_skills.py` and `tests/test_specify_guidance_docs.py`.
+- This milestone is expected to continue numbering from Phase 10 unless the roadmap later proves a different split is cleaner.
 
 ### Blockers
 
@@ -85,3 +86,4 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 | 2026-04-14 | Execute Phase 7 | Phase 7 completed with summaries, review, and verification artifacts. | Discuss or plan Phase 8 |
 | 2026-04-14 | Reconcile Phases 8-9 | Phase 8 state drift fixed and Phase 9 completed with mirror sync, quickstart alignment, review, and verification. | Finish v1.2 lifecycle |
 | 2026-04-14 | Complete v1.2 lifecycle | Milestone audit and archives created for v1.2. | Define the next milestone |
+| 2026-04-14 | Start v1.3 | Milestone scope confirmed around leader-only `sp-implement` orchestration across the full roadmap. | Research, requirements, and roadmap |
