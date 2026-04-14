@@ -8,7 +8,7 @@
 
 Keep Spec-Driven Development practical across local AI integrations by making the workflow consistent, truthful, and usable in the tools developers actually run.
 
-## Current Milestone: v1.2 Stronger Specify Questioning
+## Latest Shipped Milestone: v1.2 Stronger Specify Questioning
 
 **Goal:** Make `/sp.specify` noticeably stronger at structured requirement questioning so real runs surface more of the information planning needs before `plan`.
 
@@ -21,12 +21,12 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 
 ## Current State
 
-- Shipped through **v1.1 Analysis and Planning Workflows**.
+- Shipped through **v1.2 Stronger Specify Questioning**.
 - Shared collaboration routing now covers `implement`, `specify`, `plan`, `tasks`, and `explain`.
 - `specify team` remains the Codex-only compatibility runtime surface.
-- Milestone **v1.2 Stronger Specify Questioning** is now active.
-- Phase 7 completed on 2026-04-14 with stronger questioning coverage and answer-aware clarification rules in `templates/commands/specify.md`.
-- Phase 8 is the next planned execution target for guided follow-up experience work.
+- `sp-specify` now ships stronger planning-critical questioning, answer-aware follow-up, guided interaction scaffolding, and a confirmation gate before normal release.
+- The local `sp-specify` skill mirror and quickstart guidance now match the stronger shared template contract.
+- No next milestone is defined yet; the next planning step is to set new requirements and roadmap scope.
 
 ## Requirements
 
@@ -40,11 +40,13 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 - `sp-specify` now treats docs/config/process changes as planning-critical discovery work and asks for objective, affected users or teams, constraints, validation, and completion criteria before normal release in Phase 7
 - `sp-specify` now keeps clarification active while planning-critical ambiguity remains and only exits normally when the ambiguity is resolved or the user explicitly force proceeds in Phase 7
 - `sp-specify` follow-up questions now build on the previous answer and explicitly challenge vague, shallow, or contradictory responses in Phase 7
+- `sp-specify` now feels more like guided requirement discovery while preserving one-question-at-a-time interaction in v1.2
+- The stronger `sp-specify` contract is now aligned across shared templates, the local Codex skill mirror, quickstart guidance, and focused regression suites in v1.2
 
 ### Active
 
-- [ ] The shipped `sp-specify` experience feels more like guided requirement discovery than a shallow template questionnaire.
-- [ ] Command templates, generated Codex skill mirrors, and regression tests describe the same stronger questioning contract.
+- [ ] Extend the stronger questioning model into `spec-extend` and `clarify` where it still fits.
+- [ ] Add broader behavior-level evaluation for questioning quality across more task types.
 
 ### Out of Scope
 
@@ -81,8 +83,8 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 | Prefer `native-multi-agent` before `sidecar-runtime`, then downgrade to `single-agent` when needed | Keeps native agent UX primary while still allowing durable fallback | Good |
 | Expand collaboration workflow-by-workflow instead of claiming parity everywhere at once | Prevents documentation and product surfaces from overpromising runtime capability | Good |
 | Use Milestone 2 to migrate `specify`, `plan`, `tasks`, and `explain` before deepening `implement` and `debug` runtime behavior | Matches the approved sequence in the orchestration design and the current repository state | Good |
-| Keep the milestone focused on `sp-specify` instead of redesigning `spec-extend` or `clarify` at the same time | Keeps the milestone bounded enough to improve the mainline experience without diffusing the work | Pending |
-| Preserve question cards and strengthen the questioning strategy inside that structure | Matches the user's preferred interaction model while still targeting a real experience upgrade | Pending |
+| Keep the milestone focused on `sp-specify` instead of redesigning `spec-extend` or `clarify` at the same time | Keeps the milestone bounded enough to improve the mainline experience without diffusing the work | Good |
+| Preserve question cards and strengthen the questioning strategy inside that structure | Matches the user's preferred interaction model while still targeting a real experience upgrade | Good |
 
 ## Evolution
 
@@ -102,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 after Phase 7 completion*
+*Last updated: 2026-04-14 after v1.2 milestone completion*

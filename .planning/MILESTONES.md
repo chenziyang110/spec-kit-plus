@@ -1,5 +1,30 @@
 # Milestones: spec-kit-plus
 
+## v1.2 Stronger Specify Questioning (Shipped: 2026-04-14)
+
+**Phases completed:** 3 phases, 6 plans, 18 tasks
+
+**Key accomplishments:**
+
+- Docs/config questioning gates and planning-critical release rules for `sp-specify`
+- Answer-aware follow-up and contradiction handling for `sp-specify` clarification
+- Guided interaction wording and confirmation gate for `sp-specify`
+- Common-flow and pre-release confirmation wording for `sp-specify`
+- Synced the local `sp-specify` skill mirror and hardened skill-surface regression coverage
+- Aligned the quickstart workflow guidance and added doc regression coverage
+
+### Evidence
+
+- [Roadmap Archive](milestones/v1.2-ROADMAP.md)
+- [Requirements Archive](milestones/v1.2-REQUIREMENTS.md)
+- [Milestone Audit](milestones/v1.2-MILESTONE-AUDIT.md)
+
+### Known Gaps
+
+- Git tag and a clean milestone-only archival commit remain constrained by unrelated in-progress changes already present in the worktree.
+
+---
+
 ## v1.0 Debug Workflow
 
 **Shipped:** 2026-04-13

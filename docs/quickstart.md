@@ -5,7 +5,7 @@ This guide will help you get started with Spec-Driven Development using Spec Kit
 > [!NOTE]
 > All automation scripts now provide both Bash (`.sh`) and PowerShell (`.ps1`) variants. The `specify` CLI auto-selects based on OS unless you pass `--script sh|ps`.
 
-## The 6-Step Process
+## The 5-Step Process
 
 > [!TIP]
 > **Context Awareness**: Spec Kit commands automatically detect the active feature based on your current Git branch (e.g., `001-feature-name`). To switch between different specifications, simply switch Git branches.
@@ -45,23 +45,17 @@ uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME
 /speckit.specify Build an application that can help me organize my photos in separate photo albums. Albums are grouped by date and can be re-organized by dragging and dropping on the main page. Albums are never in other nested albums. Within each album, photos are previewed in a tile-like interface.
 ```
 
-### Step 4: Refine the Spec
+### Step 4: Plan the Implementation
 
-**In the chat**, use the `/speckit.clarify` slash command to identify and resolve ambiguities in your specification. You can provide specific focus areas as arguments.
+**In the chat**, move directly from `/speckit.specify` to `/speckit.plan` once the spec is planning-ready. This is the mainline workflow:
 
 ```bash
-/speckit.clarify Focus on security and performance requirements.
-```
-
-### Step 5: Create a Technical Implementation Plan
-
-**In the chat**, use the `/speckit.plan` slash command to provide your tech stack and architecture choices.
-
-```markdown
 /speckit.plan The application uses Vite with minimal number of libraries. Use vanilla HTML, CSS, and JavaScript as much as possible. Images are not uploaded anywhere and metadata is stored in a local SQLite database.
 ```
 
-### Step 6: Break Down and Implement
+Use `/speckit.spec-extend` only when an existing spec needs deeper analysis before planning. `/speckit.clarify` remains available as compatibility-only guidance for older workflows, not as the default step between `/speckit.specify` and `/speckit.plan`.
+
+### Step 5: Break Down and Implement
 
 **In the chat**, use the `/speckit.tasks` slash command to create an actionable task list.
 
@@ -108,18 +102,24 @@ different sample projects. Let's have the standard Kanban columns for the status
 first testing thing to ensure that our basic features are set up.
 ```
 
-### Step 3: Refine the Specification
+### Step 3: Define the Plan
 
-Use the `/speckit.clarify` command to interactively resolve any ambiguities in your specification. You can also provide specific details you want to ensure are included.
+Once `/speckit.specify` reaches planning-ready alignment, move directly to `/speckit.plan`.
 
 ```bash
-/speckit.clarify I want to clarify the task card details. For each task in the UI for a task card, you should be able to change the current status of the task between the different columns in the Kanban work board. You should be able to leave an unlimited number of comments for a particular card. You should be able to, from that task card, assign one of the valid users.
+/speckit.plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
 ```
 
-You can continue to refine the spec with more details using `/speckit.clarify`:
+If an existing spec needs deeper analysis first, use `/speckit.spec-extend`. If you are following an older workflow and explicitly want a compatibility bridge, `/speckit.clarify` is still available, but it is no longer the recommended main path.
 
 ```bash
-/speckit.clarify When you first launch Taskify, it's going to give you a list of the five users to pick from. There will be no password required. When you click on a user, you go into the main view, which displays the list of projects. When you click on a project, you open the Kanban board for that project. You're going to see the columns. You'll be able to drag and drop cards back and forth between different columns. You will see any cards that are assigned to you, the currently logged in user, in a different color from all the other ones, so you can quickly see yours. You can edit any comments that you make, but you can't edit comments that other people made. You can delete any comments that you made, but you can't delete comments anybody else made.
+/speckit.spec-extend Add sharper reporting requirements and cross-team notification expectations before planning.
+```
+
+Compatibility-only clarify example:
+
+```bash
+/speckit.clarify Focus on any remaining compatibility or migration ambiguity before planning.
 ```
 
 ### Step 4: Validate the Spec
@@ -130,15 +130,7 @@ Validate the specification checklist using the `/speckit.checklist` command:
 /speckit.checklist
 ```
 
-### Step 5: Generate Technical Plan with `/speckit.plan`
-
-Be specific about your tech stack and technical requirements:
-
-```bash
-/speckit.plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
-```
-
-### Step 6: Define Tasks
+### Step 5: Define Tasks
 
 Generate an actionable task list using the `/speckit.tasks` command:
 
@@ -146,7 +138,7 @@ Generate an actionable task list using the `/speckit.tasks` command:
 /speckit.tasks
 ```
 
-### Step 7: Validate and Implement
+### Step 6: Validate and Implement
 
 Have your AI agent audit the implementation plan using `/speckit.analyze`:
 
@@ -167,7 +159,9 @@ Finally, implement the solution:
 
 - **Be explicit** about what you're building and why
 - **Don't focus on tech stack** during specification phase
-- **Iterate and refine** your specifications before implementation
+- **Use `specify -> plan` as the default path**
+- **Use `spec-extend` only when an existing spec needs deeper analysis before planning**
+- **Keep `clarify` as compatibility-only guidance**, not the default next step
 - **Validate** the plan before coding begins
 - **Let the AI agent handle** the implementation details
 

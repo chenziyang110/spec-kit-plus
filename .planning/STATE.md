@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Stronger Specify Questioning
-status: Ready to plan
-last_updated: "2026-04-14T01:52:06.6055892+08:00"
+status: Planning next milestone
+last_updated: "2026-04-14T09:48:30.7959395+08:00"
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 2
-  percent: 33
+  completed_plans: 6
+  percent: 100
 ---
 
 # State: spec-kit-plus
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Keep Spec-Driven Development practical across local AI integrations by making the workflow consistent, truthful, and usable in the tools developers actually run.
-**Current focus:** Phase 8 planning after Phase 7 verification.
+**Current focus:** Define the next milestone after shipping v1.2.
 
 ## Current Position
 
-**Phase**: Phase 8 next
-**Plan**: Not started
-**Status**: Phase 7 is complete, reviewed, and verified. The next step is to discuss or plan Phase 8 Guided Follow-up Experience.
+**Phase**: Phase 9 complete
+**Plan**: All v1.2 plans complete
+**Status**: Milestone v1.2 is archived and audited. The next step is to define the next milestone scope and requirements.
 
 ```text
-[###-------] 33%
+[##########] 100%
 ```
 
 ## Progress Snapshot
@@ -36,8 +36,8 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 | Metric | Current | Status |
 |--------|---------|--------|
 | Archived milestones | v1.0, v1.1 | Complete |
-| Active milestone | v1.2 Stronger Specify Questioning | Phase 7 complete |
-| Next recommended command | `/gsd-discuss-phase 8` | Ready |
+| Active milestone | None | Ready for next milestone definition |
+| Next recommended command | `/gsd-new-milestone` | Start the next shipped scope |
 
 ## Accumulated Context
 
@@ -65,10 +65,12 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 - Milestone v1.2 roadmap now spans Phases 7-9 with a sequence of questioning contract redesign, guided interaction quality, and surface/test alignment.
 - Phase 7 now updates `templates/commands/specify.md` and `tests/test_alignment_templates.py` to enforce planning-critical docs/config coverage, ambiguity gating, and answer-aware follow-up.
 - Phase 7 review and verification artifacts are present under `.planning/phases/07-questioning-contract-and-coverage/`.
+- Phase 8 is complete and verified, but its roadmap checkbox had drifted behind the on-disk artifacts until this state reconciliation pass.
+- Phase 9 now syncs `.agents/skills/sp-specify/SKILL.md`, updates `docs/quickstart.md`, and adds focused regression coverage in `tests/test_extension_skills.py` and `tests/test_specify_guidance_docs.py`.
 
 ### Blockers
 
-- Git tagging and archival commits remain pending because the worktree is dirty and those lifecycle steps are confirmation-sensitive.
+- Git tagging and a clean milestone-only archival commit remain pending because the worktree contains unrelated in-progress changes.
 
 ## Session Continuity
 
@@ -81,3 +83,5 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 | 2026-04-13 | Roadmap v1.2 | Phases 7-9 drafted around questioning contract, guided interaction, and alignment hardening. | Plan Phase 7 |
 | 2026-04-14 | Plan Phase 7 | Phase 7 research and 2 executable plans created for questioning contract and follow-up depth work. | Execute Phase 7 |
 | 2026-04-14 | Execute Phase 7 | Phase 7 completed with summaries, review, and verification artifacts. | Discuss or plan Phase 8 |
+| 2026-04-14 | Reconcile Phases 8-9 | Phase 8 state drift fixed and Phase 9 completed with mirror sync, quickstart alignment, review, and verification. | Finish v1.2 lifecycle |
+| 2026-04-14 | Complete v1.2 lifecycle | Milestone audit and archives created for v1.2. | Define the next milestone |

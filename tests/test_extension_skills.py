@@ -29,6 +29,8 @@ from specify_cli import SKILL_DESCRIPTIONS
 
 # ===== Helpers =====
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 
 def _body_without_frontmatter(skill_path: Path) -> str:
     content = skill_path.read_text(encoding="utf-8")
@@ -293,6 +295,9 @@ class TestBuiltInSkillGeneration:
         assert "/sp.clarify" in specify_body
         assert "/sp.plan" in specify_body
         assert "compatibility-only" in specify_body or "compatibility only" in specify_body.lower()
+        assert "guided requirement discovery" in specify_body.lower()
+        assert "current-understanding or confirmation gate" in specify_body.lower()
+        assert "without needing `/sp.clarify` or `/sp.spec-extend`" in specify_body
 
         clarify_body = _body_without_frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
         clarify_outline = _extract_section(clarify_body, "Outline").lower()
@@ -365,6 +370,18 @@ class TestSkillDescriptions:
         manager = ExtensionManager(project_dir)
         result = manager._get_skills_dir()
         assert result is None
+
+
+def test_repo_specify_skill_mirror_matches_current_contract():
+    mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-specify" / "SKILL.md"
+    body = _body_without_frontmatter(mirror_path)
+    lowered = body.lower()
+
+    assert "guided requirement discovery" in lowered
+    assert "recommendation and example scaffolding" in lowered
+    assert "current-understanding or confirmation gate" in lowered
+    assert "confirm or correct the current understanding before `Aligned: ready for plan`" in body
+    assert "without needing `/sp.clarify` or `/sp.spec-extend`" in body
 
 
 # ===== Extension Skill Registration Tests =====
