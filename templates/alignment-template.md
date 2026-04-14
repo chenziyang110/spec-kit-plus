@@ -14,6 +14,14 @@
 
 [Summarize what is being built or changed, who it is for, where it fits, and what success looks like.]
 
+### Planning Summary
+
+- **Goal / outcome**: [What must be delivered]
+- **Users / roles**: [Who the feature serves]
+- **In scope**: [What is explicitly included in this release]
+- **Out of scope**: [What is explicitly deferred or excluded]
+- **Success signal**: [How planners and testers will recognize success]
+
 ## Analysis Confidence
 
 ### Confirmed Facts
@@ -30,6 +38,11 @@
 
 - [Open item, missing decision, or unclear dependency]
 - [Question that still affects confidence, scope, or planning]
+
+## Locked Decisions For Planning
+
+- [Decision planners must preserve from clarification or repository evidence]
+- [Compatibility, workflow, rollout, or validation decision that cannot be silently dropped]
 
 ## Capability and Planning Impact
 
@@ -50,11 +63,22 @@
 - Q: [...]
   A: [...]
 
+## Outstanding Questions
+
+- [Planning-critical question that is still unresolved]
+- [If empty for normal completion, remove this section rather than writing "None"]
+
 ## Remaining Risks
 
 - [None]
 - or
 - [Unresolved item] -> [Why it matters] -> [Possible downstream impact]
+
+## Planning Gate Recommendation
+
+- [Proceed directly to `/sp.plan`]
+- [Run `/sp.spec-extend` first to close planning-critical gaps]
+- [Force proceed only if the user accepts the known risks]
 
 ## Release Decision
 

@@ -289,6 +289,7 @@ if ($branchName.Length -gt $maxBranchLength) {
 
 $featureDir = Join-Path $specsDir $branchName
 $specFile = Join-Path $featureDir 'spec.md'
+$contextFile = Join-Path $featureDir 'context.md'
 
 if (-not $DryRun) {
     if ($hasGit) {
@@ -352,6 +353,15 @@ if (-not $DryRun) {
         }
     }
 
+    if (-not (Test-Path -PathType Leaf $contextFile)) {
+        $contextTemplate = Resolve-Template -TemplateName 'context-template' -RepoRoot $repoRoot
+        if ($contextTemplate -and (Test-Path $contextTemplate)) {
+            Copy-Item $contextTemplate $contextFile -Force
+        } else {
+            New-Item -ItemType File -Path $contextFile -Force | Out-Null
+        }
+    }
+
     # Set the SPECIFY_FEATURE environment variable for the current session
     $env:SPECIFY_FEATURE = $branchName
 }
@@ -359,7 +369,9 @@ if (-not $DryRun) {
 if ($Json) {
     $obj = [PSCustomObject]@{
         BRANCH_NAME = $branchName
+        FEATURE_DIR = $featureDir
         SPEC_FILE = $specFile
+        CONTEXT_FILE = $contextFile
         FEATURE_NUM = $featureNum
         HAS_GIT = $hasGit
     }
@@ -369,7 +381,9 @@ if ($Json) {
     $obj | ConvertTo-Json -Compress
 } else {
     Write-Output "BRANCH_NAME: $branchName"
+    Write-Output "FEATURE_DIR: $featureDir"
     Write-Output "SPEC_FILE: $specFile"
+    Write-Output "CONTEXT_FILE: $contextFile"
     Write-Output "FEATURE_NUM: $featureNum"
     Write-Output "HAS_GIT: $hasGit"
     if (-not $DryRun) {

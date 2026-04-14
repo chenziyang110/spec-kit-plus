@@ -71,7 +71,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "external references and supporting material analysis" in lowered
     assert "ambiguity, risk, and gap analysis" in lowered
     assert "before capability decomposition" in lowered
-    assert "before writing `spec.md` and `alignment.md`" in content
+    assert "before writing `spec.md`, `alignment.md`, and `context.md`" in content
     assert "specify team" not in lowered
     assert "Docs/config/process change:" in content
     assert "compatibility/process constraints" in content
@@ -88,6 +88,17 @@ def test_specify_template_uses_alignment_first_contract():
     assert "recommendation and example scaffolding" in lowered
     assert "current-understanding or confirmation gate" in lowered
     assert "confirm or correct the current understanding before `Aligned: ready for plan`" in content
+    assert "Identify 3-5 planning-relevant gray areas" in content
+    assert "Let unresolved gray areas drive the next question" in content
+    assert "Treat this as an explicit pre-release check" in content
+    assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in content
+    assert "Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`." in content
+    assert "Read `templates/context-template.md`." in content
+    assert "Synthesize these decisions into `context.md`" in content
+    assert "18. Write `context.md` to `CONTEXT_FILE`." in content
+    assert "- [ ] context.md exists" in content
+    assert "- [ ] Locked decisions are preserved in context.md" in content
+    assert "- context file path" in content
     assert "common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify`" in content
     assert "explicit pre-release check" in lowered
     assert "without needing `/sp.spec-extend`" in content
@@ -115,9 +126,18 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "alignment.md" in content
     assert "/memory/constitution.md" in content
     assert "Missing alignment report" in content
+    assert "Missing context artifact" in content
     assert "Force proceed with known risks" in content
     assert "Input Risks From Alignment" in content
     assert "user's current language" in lowered
+    assert "Locked Decisions For Planning" in content
+    assert "Outstanding Questions" in content
+    assert "Planning Gate Recommendation" in content
+    assert "Read `FEATURE_DIR/context.md`" in content
+    assert "Treat `context.md` as the primary implementation-context artifact" in content
+    assert "planning-critical unresolved items remain" in content
+    assert "locked planning decisions from `alignment.md`, `context.md`, and `spec.md`" in content
+    assert "silently omitted from the generated plan artifacts" in content
     assert "choose_execution_strategy(command_name=\"plan\"" in content
     assert "single-agent" in lowered
     assert "native-multi-agent" in lowered
@@ -132,6 +152,19 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "specify -> clarify -> plan" not in lowered
 
 
+def test_plan_template_carries_locked_decisions_into_plan_artifact():
+    content = _read("templates/plan-template.md")
+    lowered = content.lower()
+
+    assert "## Locked Planning Decisions" in content
+    assert "## Alignment Inputs" in content
+    assert "### Canonical References" in content
+    assert "### Input Risks From Alignment" in content
+    assert "## Decision Preservation Check" in content
+    assert "cannot be silently dropped" in lowered
+    assert "where it appears in the plan" in lowered
+
+
 def test_tasks_template_documents_shared_routing_before_decomposition():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
@@ -144,6 +177,14 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "story and phase decomposition" in lowered
     assert "dependency graph analysis" in lowered
     assert "write-set and parallel-safety analysis" in lowered
+    assert "plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)" in content
+    assert "alignment.md (locked decisions, outstanding questions, planning gate context)" in content
+    assert "Locked Planning Decisions" in content
+    assert "Decision Preservation Check" in content
+    assert "quickstart.md exists: extract validation scenarios" in lowered
+    assert "validate decision preservation" in lowered
+    assert "instead of silently dropping it" in lowered
+    assert "Planning inputs section" in content
     assert "before writing `tasks.md`" in content
     assert "before emitting canonical parallel batches and join points" in lowered
     assert "specify team" not in lowered
@@ -165,6 +206,22 @@ def test_explain_template_documents_conservative_routing_contract():
     assert "specify team" not in lowered
 
 
+def test_analyze_template_expands_to_context_and_locked_decision_drift():
+    content = _read("templates/commands/analyze.md")
+    lowered = content.lower()
+
+    assert "(`spec.md`, `context.md`, `plan.md`, `tasks.md`)" in content
+    assert "- CONTEXT = FEATURE_DIR/context.md" in content
+    assert "**From context.md:**" in content
+    assert "Locked Decisions" in content
+    assert "Locked Planning Decisions" in content
+    assert "Locked decision inventory" in content
+    assert "#### F. Locked Decision Drift" in content
+    assert "silently weakened, deferred, or renamed" in lowered
+    assert "locked decision silently dropped between artifacts" in lowered
+    assert "**Locked Decision Preservation Table:**" in content
+
+
 def test_new_analysis_workflow_command_templates_exist():
     command_dir = PROJECT_ROOT / "templates" / "commands"
     template_stems = {path.stem for path in command_dir.glob("*.md")}
@@ -174,21 +231,62 @@ def test_new_analysis_workflow_command_templates_exist():
     assert "clarify" not in template_stems
 
 
+def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
+    content = _read("templates/commands/spec-extend.md")
+    lowered = content.lower()
+
+    assert "closing planning-critical gaps" in lowered
+    assert "`FEATURE_DIR/context.md` if present" in content
+    assert "- update `context.md`" in content
+    assert "Existing Code Insights" in content
+    assert "unresolved gray areas that still change plan structure" in lowered
+    assert "missing locked decisions, canonical references, or deferred-scope notes" in lowered
+    assert "whether the spec package is now ready for `/sp.plan` or still needs more clarification" in content
+    assert "whether another `/sp.specify` or `/sp.spec-extend` pass is still justified before planning" in content
+    assert "avoid implying an automatic handoff to `/sp.plan`" in lowered
+    assert "default rescue lane" in lowered
+    assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
+
+
 def test_spec_template_defines_scope_boundaries_without_open_clarification_examples():
     content = _read("templates/spec-template.md")
 
     assert "## Scope Boundaries" in content
     assert "### In Scope" in content
     assert "### Out of Scope" in content
+    assert "## Decision Capture" in content
+    assert "### Locked Decisions" in content
+    assert "### Claude Discretion" in content
+    assert "### Canonical References" in content
+    assert "### Deferred / Future Ideas" in content
     assert "[NEEDS CLARIFICATION:" not in content
     assert "coherent first release" in content.lower()
     assert "viable mvp" not in content.lower()
+
+
+def test_context_template_exists_and_captures_planning_context():
+    content = _read("templates/context-template.md")
+
+    assert "# Feature Context:" in content
+    assert "## Phase / Feature Boundary" in content
+    assert "## Locked Decisions" in content
+    assert "## Claude Discretion" in content
+    assert "## Canonical References" in content
+    assert "## Existing Code Insights" in content
+    assert "## Specific User Signals" in content
+    assert "## Outstanding Questions" in content
+    assert "## Deferred / Future Ideas" in content
 
 
 def test_tasks_templates_default_to_phased_delivery_not_mvp():
     command_content = _read("templates/commands/tasks.md")
     template_content = _read("templates/tasks-template.md")
 
+    assert "## Planning Inputs" in template_content
+    assert "Locked planning decisions" in template_content
+    assert "Alignment risks" in template_content
+    assert "Validation references" in template_content
+    assert "Do not silently drop a locked planning decision" in template_content
     assert "phased delivery" in command_content.lower()
     assert "suggested first release scope" in command_content.lower()
     assert "parallel batch" in command_content.lower()
@@ -265,6 +363,43 @@ def test_alignment_template_exists():
     content = _read("templates/alignment-template.md")
 
     assert "# Requirement Alignment Report:" in content
+    assert "### Planning Summary" in content
+    assert "## Locked Decisions For Planning" in content
+    assert "## Outstanding Questions" in content
+    assert "## Planning Gate Recommendation" in content
     assert "## Release Decision" in content
     assert "Aligned: ready for plan" in content
     assert "Force proceed with known risks" in content
+
+
+def test_script_contracts_expose_context_artifact_paths():
+    ps_common = _read("scripts/powershell/common.ps1")
+    ps_check = _read("scripts/powershell/check-prerequisites.ps1")
+    ps_setup = _read("scripts/powershell/setup-plan.ps1")
+    sh_common = _read("scripts/bash/common.sh")
+    sh_check = _read("scripts/bash/check-prerequisites.sh")
+    sh_setup = _read("scripts/bash/setup-plan.sh")
+
+    assert "CONTEXT       = Join-Path $featureDir 'context.md'" in ps_common
+    assert "CONTEXT      = $paths.CONTEXT" in ps_check
+    assert "context.md" in ps_check
+    assert "CONTEXT = $paths.CONTEXT" in ps_setup
+    assert "CONTEXT=%q\\n" in sh_common
+    assert '--arg context "$CONTEXT"' in sh_check
+    assert '"CONTEXT":"%s"' in sh_check
+    assert '--arg context "$CONTEXT"' in sh_setup
+    assert '"CONTEXT":"%s"' in sh_setup
+
+
+def test_create_new_feature_scripts_scaffold_and_report_context():
+    ps_create = _read("scripts/powershell/create-new-feature.ps1")
+    sh_create = _read("scripts/bash/create-new-feature.sh")
+
+    assert "$contextFile = Join-Path $featureDir 'context.md'" in ps_create
+    assert "Resolve-Template -TemplateName 'context-template'" in ps_create
+    assert "CONTEXT_FILE = $contextFile" in ps_create
+    assert "FEATURE_DIR = $featureDir" in ps_create
+    assert 'CONTEXT_FILE="$FEATURE_DIR/context.md"' in sh_create
+    assert 'resolve_template "context-template"' in sh_create
+    assert '"CONTEXT_FILE":"%s"' in sh_create
+    assert '"FEATURE_DIR":"%s"' in sh_create

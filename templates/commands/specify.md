@@ -68,6 +68,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Do not pass `--number`.
    - Parse `BRANCH_NAME`, `SPEC_FILE`, and `FEATURE_DIR` from the JSON response.
    - Set `ALIGNMENT_FILE` to `FEATURE_DIR/alignment.md`.
+   - Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`.
    - Set `REFERENCES_FILE` to `FEATURE_DIR/references.md`.
 
 4. Ensure repository technical documentation exists.
@@ -80,6 +81,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 5. Load context.
    - Read `templates/spec-template.md`.
    - Read `templates/alignment-template.md`.
+   - Read `templates/context-template.md`.
    - Read `templates/references-template.md`.
    - Read `.specify/memory/constitution.md` if present.
    - Read `项目技术文档.md` if present.
@@ -124,7 +126,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
      - ambiguity, risk, and gap analysis
    - Required join points:
      - before capability decomposition
-     - before writing `spec.md` and `alignment.md`
+     - before writing `spec.md`, `alignment.md`, and `context.md`
    - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in `alignment.md`.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
@@ -205,7 +207,18 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - acceptance-test shaping details
     - planning-sensitive risks and gaps
 
-13. Run a high-impact ambiguity scan.
+13. Identify gray areas before concluding alignment.
+    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
+    - Prefer feature-specific decision surfaces over generic categories.
+    - Typical gray-area domains include workflow behavior, role/permission handling, data/state transitions, compatibility or migration behavior, failure handling, external integrations, and validation approach.
+    - Use the gray-area list to decide what to ask next rather than falling back to generic catch-all questions.
+    - Record resolved gray-area outcomes under `Locked Decisions` when they are fixed enough for planning.
+    - Record user-approved flexibility under `Claude Discretion`.
+    - Record cited specs, ADRs, examples, or policies under `Canonical References`.
+    - Record out-of-scope ideas surfaced during clarification under `Deferred / Future Ideas`.
+    - Synthesize these decisions into `context.md` so downstream planning does not rely on reconstructing them from prose alone.
+
+14. Run a high-impact ambiguity scan.
     Detect unresolved ambiguity affecting:
     - scope
     - users/roles
@@ -222,12 +235,13 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     The user saying "I already explained it" is not sufficient reason to stop. Judge clarity from the perspective of a future planner, implementer, and tester.
     If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, continue clarification instead of releasing normal alignment.
 
-14. Clarification loop.
+15. Clarification loop.
     - Keep the interaction feeling like guided requirement discovery rather than a shallow questionnaire.
     - Ask only high-value questions.
     - Use grouped questions for simple/local changes.
     - Use one question at a time for complex/high-risk cases.
     - Ask at most one unanswered high-impact question per message.
+    - Let unresolved gray areas drive the next question; do not rotate through generic requirement categories once the active gray area is known.
     - Make the next question build directly on the user's most recent answer rather than resetting to generic prompts.
     - Use the previous answer to choose the next narrowing move, not a recycled generic checklist question.
     - If the user's answer is vague, shallow, or contradictory, respond with a targeted narrowing question, example, or recommendation tied to the planning-critical ambiguity.
@@ -256,9 +270,23 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - After parsing the answer, acknowledge it with one lightweight confirmation line and continue, for example: `Recorded: C - Normalize first`.
     - Do not repeat the same question in both the summary and the follow-up ask.
     - If you include a grouped recap and are about to ask the next question immediately, summarize it briefly under `Outstanding Questions` instead of restating the full wording there.
-    - Save the full synthesis for the alignment-ready turn, the written artifacts (`alignment.md`, `spec.md`, `references.md`), or when the user explicitly asks to see everything collected so far.
+    - Save the full synthesis for the alignment-ready turn, the written artifacts (`alignment.md`, `context.md`, `spec.md`, `references.md`), or when the user explicitly asks to see everything collected so far.
     - Do not turn this into a freeform brainstorming workflow.
     - each clarification turn should contain at most one short checkpoint or one grouped recap, plus one question block.
+
+16. Apply a current-understanding or confirmation gate before release.
+    - Before releasing `Aligned: ready for plan`, provide a grouped recap that covers goal, users and roles, scope boundaries, locked decisions, technical constraints or assumptions, and outstanding questions.
+    - Explicitly ask the user to confirm or correct the current understanding before `Aligned: ready for plan`.
+    - Treat this as an explicit pre-release check rather than a courtesy recap.
+    - If the user corrects the recap, update the active understanding and continue clarification.
+    - If planning-critical gaps remain after the recap, do not release `Aligned: ready for plan`.
+
+17. Apply a release readiness gate.
+    - If the requirement package has enough clarity to plan safely inside `sp-specify`, release `Aligned: ready for plan`.
+    - If common docs/config/process-change flows or bounded feature work can reach planning-ready alignment inside `sp-specify`, do so without needing `/sp.spec-extend`.
+    - If planning-critical gaps remain but the spec package is still salvageable, recommend `/sp.spec-extend` as the next command instead of `/sp.plan`.
+    - Only use `Force proceed with known risks` when the user accepts that unresolved planning risk will be carried into downstream work.
+    - Make the closeout explicit: if ambiguity remains, ask whether the user wants to continue exploring or move to the next step with the documented risks.
 
     Use this open question block structure in the user's current language:
 
@@ -375,7 +403,19 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - downstream planning impact
     - reason for the release decision
 
-18. Write `references.md` to `REFERENCES_FILE` when any meaningful source material was used.
+18. Write `context.md` to `CONTEXT_FILE`.
+    It must include:
+    - phase or feature boundary
+    - locked decisions
+    - Claude discretion
+    - canonical references
+    - existing code insights when relevant
+    - specific user signals that would change implementation shape
+    - outstanding questions when force proceeding
+    - deferred or future ideas
+    - enough implementation context that downstream planning does not need to reconstruct these decisions from prose scattered across other artifacts
+
+19. Write `references.md` to `REFERENCES_FILE` when any meaningful source material was used.
     It must include, for each retained source:
     - source
     - description
@@ -383,7 +423,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - reusable insights
     - spec impact mapping
 
-19. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
+20. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
 
     ```markdown
     # Specification Quality Checklist: [FEATURE NAME]
@@ -415,9 +455,11 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     ## Alignment Readiness
 
     - [ ] alignment.md exists
+    - [ ] context.md exists
     - [ ] Task classification is recorded
     - [ ] Release decision is recorded
     - [ ] Release decision is either `Aligned: ready for plan` or `Force proceed with known risks`
+    - [ ] Locked decisions are preserved in context.md
     - [ ] Remaining risks are empty for normal completion
 
     ## Notes
@@ -425,19 +467,20 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Items marked incomplete require spec updates before `/sp.plan`
     ```
 
-20. Re-run validation after edits. Normal completion must pass all required checks.
+21. Re-run validation after edits. Normal completion must pass all required checks.
 
-21. Report completion with:
+22. Report completion with:
     - branch name
     - spec file path
     - alignment report path
+    - context file path
     - references file path when created
     - checklist results
     - release decision
     - readiness for the next phase (`/sp.plan` for the mainline, or `/sp.spec-extend` when deeper analysis is still needed)
     - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
-22. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
+23. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
     - If it exists, read it and look for entries under the `hooks.after_specify` key.
     - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally.
     - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.

@@ -254,6 +254,7 @@ class TestBuiltInSkillGeneration:
         skills_dir = project_dir / ".claude" / "skills"
         assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
+        assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
         assert "spec-extend" in result.output.lower()
 
@@ -290,6 +291,11 @@ class TestBuiltInSkillGeneration:
         assert "/sp.plan" in specify_body
         assert "guided requirement discovery" in specify_body.lower()
         assert "current-understanding or confirmation gate" in specify_body.lower()
+        assert "planning-relevant gray areas" in specify_body.lower()
+        assert "context.md" in specify_body
+        assert "Write `context.md` to `CONTEXT_FILE`." in specify_body
+        assert "Locked decisions are preserved in context.md" in specify_body
+        assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in specify_body
         assert "without needing `/sp.spec-extend`" in specify_body
 
 
@@ -351,7 +357,11 @@ def test_repo_specify_skill_mirror_matches_current_contract():
     assert "guided requirement discovery" in lowered
     assert "recommendation and example scaffolding" in lowered
     assert "current-understanding or confirmation gate" in lowered
+    assert "planning-relevant gray areas" in lowered
     assert "confirm or correct the current understanding before `Aligned: ready for plan`" in body
+    assert "Write `context.md` to `CONTEXT_FILE`." in body
+    assert "Locked decisions are preserved in context.md" in body
+    assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in body
     assert "without needing `/sp.spec-extend`" in body
 
 

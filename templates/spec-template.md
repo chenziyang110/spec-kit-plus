@@ -117,6 +117,34 @@
 - [Constraint that affects sequencing, scope, rollout, or validation]
 - [Operational, compliance, or coordination factor planners must preserve]
 
+## Decision Capture *(mandatory)*
+
+<!--
+  Capture the planning-facing decisions that must survive into design,
+  research, and task decomposition. This is the lightweight equivalent
+  of a dedicated context artifact.
+-->
+
+### Locked Decisions
+
+- [Decision confirmed strongly enough that planners must preserve it]
+- [Workflow, compatibility, or delivery choice that should not be re-litigated]
+
+### Claude Discretion
+
+- [Area where the user explicitly allowed planning or implementation choice]
+- [If none, remove this section rather than writing "None"]
+
+### Canonical References
+
+- [Spec, ADR, policy, or repository doc downstream work must read]
+- [Reference example, compatibility note, or external contract that constrains delivery]
+
+### Deferred / Future Ideas
+
+- [Idea captured during discovery that is intentionally out of scope for this feature]
+- [If none, remove this section rather than writing "None"]
+
 ## Alignment State *(mandatory)*
 
 ### Confirmed
@@ -131,7 +159,7 @@
 
 ### Unresolved
 
-- [Open item, known uncertainty, or pending decision]
+- [Open item, known uncertainty, or pending decision that still affects planning]
 - [If empty for normal completion, remove this section rather than writing "None"]
 
 ## Risks and Gaps *(mandatory)*

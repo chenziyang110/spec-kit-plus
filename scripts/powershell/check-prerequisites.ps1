@@ -71,6 +71,7 @@ if ($PathsOnly) {
             BRANCH       = $paths.CURRENT_BRANCH
             FEATURE_DIR  = $paths.FEATURE_DIR
             FEATURE_SPEC = $paths.FEATURE_SPEC
+            CONTEXT      = $paths.CONTEXT
             IMPL_PLAN    = $paths.IMPL_PLAN
             TASKS        = $paths.TASKS
         } | ConvertTo-Json -Compress
@@ -79,6 +80,7 @@ if ($PathsOnly) {
         Write-Output "BRANCH: $($paths.CURRENT_BRANCH)"
         Write-Output "FEATURE_DIR: $($paths.FEATURE_DIR)"
         Write-Output "FEATURE_SPEC: $($paths.FEATURE_SPEC)"
+        Write-Output "CONTEXT: $($paths.CONTEXT)"
         Write-Output "IMPL_PLAN: $($paths.IMPL_PLAN)"
         Write-Output "TASKS: $($paths.TASKS)"
     }
@@ -109,6 +111,7 @@ if ($RequireTasks -and -not (Test-Path $paths.TASKS -PathType Leaf)) {
 $docs = @()
 
 # Always check these optional docs
+if (Test-Path $paths.CONTEXT) { $docs += 'context.md' }
 if (Test-Path $paths.RESEARCH) { $docs += 'research.md' }
 if (Test-Path $paths.DATA_MODEL) { $docs += 'data-model.md' }
 
@@ -137,6 +140,7 @@ if ($Json) {
     Write-Output "AVAILABLE_DOCS:"
     
     # Show status of each potential document
+    Test-FileExists -Path $paths.CONTEXT -Description 'context.md' | Out-Null
     Test-FileExists -Path $paths.RESEARCH -Description 'research.md' | Out-Null
     Test-FileExists -Path $paths.DATA_MODEL -Description 'data-model.md' | Out-Null
     Test-DirHasFiles -Path $paths.CONTRACTS_DIR -Description 'contracts/' | Out-Null

@@ -15,7 +15,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Goal
 
-Identify inconsistencies, duplications, ambiguities, and underspecified items across the three core artifacts (`spec.md`, `plan.md`, `tasks.md`) before implementation. This command MUST run only after `/sp.tasks` has successfully produced a complete `tasks.md`.
+Identify inconsistencies, duplications, ambiguities, and underspecified items across the core planning artifacts (`spec.md`, `context.md`, `plan.md`, `tasks.md`) before implementation. This command MUST run only after `/sp.tasks` has successfully produced a complete `tasks.md`.
 
 ## Operating Constraints
 
@@ -30,6 +30,7 @@ Identify inconsistencies, duplications, ambiguities, and underspecified items ac
 Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
 
 - SPEC = FEATURE_DIR/spec.md
+- CONTEXT = FEATURE_DIR/context.md
 - PLAN = FEATURE_DIR/plan.md
 - TASKS = FEATURE_DIR/tasks.md
 
@@ -48,9 +49,20 @@ Load only the minimal necessary context from each artifact:
 - User Stories
 - Edge Cases (if present)
 
+**From context.md:**
+
+- Locked Decisions
+- Claude Discretion
+- Canonical References
+- Existing Code Insights
+- Specific User Signals
+- Outstanding Questions
+
 **From plan.md:**
 
 - Architecture/stack choices
+- Locked Planning Decisions
+- Alignment Inputs
 - Data Model references
 - Phases
 - Technical constraints
@@ -72,6 +84,7 @@ Load only the minimal necessary context from each artifact:
 Create internal representations (do not include raw artifacts in output):
 
 - **Requirements inventory**: For each Functional Requirement (FR-###) and Success Criterion (SC-###), record a stable key. Use the explicit FR-/SC- identifier as the primary key when present, and optionally also derive an imperative-phrase slug for readability (e.g., "User can upload file" → `user-can-upload-file`). Include only Success Criteria items that require buildable work (e.g., load-testing infrastructure, security audit tooling), and exclude post-launch outcome metrics and business KPIs (e.g., "Reduce support tickets by 50%").
+- **Locked decision inventory**: Collect locked decisions from `spec.md`, `context.md`, and `plan.md`, then track whether each one survives into the task layer
 - **User story/action inventory**: Discrete user actions with acceptance criteria
 - **Task coverage mapping**: Map each task to one or more requirements or stories (inference by keyword / explicit reference patterns like IDs or key phrases)
 - **Constitution rule set**: Extract principle names and MUST/SHOULD normative statements
@@ -107,7 +120,14 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
 - Tasks with no mapped requirement/story
 - Success Criteria requiring buildable work (performance, security, availability) not reflected in tasks
 
-#### F. Inconsistency
+#### F. Locked Decision Drift
+
+- Locked decisions present in `spec.md` but absent from `context.md`
+- Locked decisions present in `context.md` but missing from `plan.md`
+- Locked decisions present in `plan.md` but not preserved by `tasks.md`
+- Cases where a decision appears to have been silently weakened, deferred, or renamed without acknowledgment
+
+#### G. Inconsistency
 
 - Terminology drift (same concept named differently across files)
 - Data entities referenced in plan but absent in spec (or vice versa)
@@ -119,7 +139,7 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
 Use this heuristic to prioritize findings:
 
 - **CRITICAL**: Violates constitution MUST, missing core spec artifact, or requirement with zero coverage that blocks baseline functionality
-- **HIGH**: Duplicate or conflicting requirement, ambiguous security/performance attribute, untestable acceptance criterion
+- **HIGH**: Duplicate or conflicting requirement, ambiguous security/performance attribute, untestable acceptance criterion, or a locked decision silently dropped between artifacts
 - **MEDIUM**: Terminology drift, missing non-functional task coverage, underspecified edge case
 - **LOW**: Style/wording improvements, minor redundancy not affecting execution order
 
@@ -139,6 +159,11 @@ Output a Markdown report (no file writes) with the following structure:
 
 | Requirement Key | Has Task? | Task IDs | Notes |
 |-----------------|-----------|----------|-------|
+
+**Locked Decision Preservation Table:**
+
+| Locked Decision | In Context? | In Plan? | In Tasks? | Notes |
+|-----------------|-------------|----------|-----------|-------|
 
 **Constitution Alignment Issues:** (if any)
 

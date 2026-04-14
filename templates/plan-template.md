@@ -9,6 +9,17 @@
 
 [Extract from feature spec: primary requirement + technical approach from research]
 
+## Locked Planning Decisions
+
+<!--
+  Copy the decisions from spec.md and alignment.md that planners must preserve.
+  These should be explicit enough that later task generation and implementation
+  do not silently drift away from the agreed requirement shape.
+-->
+
+- [Decision that must be preserved in downstream planning]
+- [Compatibility, workflow, rollout, or validation decision that cannot be silently dropped]
+
 ## Technical Context
 
 <!--
@@ -26,6 +37,18 @@
 **Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
 **Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
 **Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+
+## Alignment Inputs
+
+### Canonical References
+
+- [Spec, ADR, policy, or repository document that shaped the plan]
+- [Reference example or contract planners must keep in view]
+
+### Input Risks From Alignment
+
+- [Risk carried forward from alignment.md, or remove if none]
+- [Unresolved item that planning is explicitly accepting or mitigating]
 
 ## Constitution Check
 
@@ -93,6 +116,18 @@ ios/ or android/
 
 **Structure Decision**: [Document the selected structure and reference the real
 directories captured above]
+
+## Decision Preservation Check
+
+<!--
+  Before finalizing the plan, verify that every locked planning decision is
+  represented in the plan summary, technical context, design artifacts, or
+  explicit follow-up work. If something is intentionally deferred, say so here
+  instead of silently dropping it.
+-->
+
+- [Locked decision] -> [Where it appears in the plan]
+- [Locked decision] -> [Mitigation, defer note, or follow-up artifact]
 
 ## Complexity Tracking
 

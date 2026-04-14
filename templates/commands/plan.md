@@ -74,6 +74,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 3. **Load context**:
    - Read `FEATURE_SPEC`
    - Read `FEATURE_DIR/alignment.md`
+   - Read `FEATURE_DIR/context.md`
    - Read `FEATURE_DIR/references.md` if present
    - Read `/memory/constitution.md`
    - Read `项目技术文档.md` if present
@@ -82,18 +83,26 @@ You **MUST** consider the user input before proceeding (if not empty).
 4. **Validate alignment status before planning**:
    - If `alignment.md` is missing:
      - ERROR "Missing alignment report. Run /sp.specify first or re-run it to complete requirement alignment."
+   - If `context.md` is missing:
+     - ERROR "Missing context artifact. Run /sp.specify again or /sp.spec-extend to rebuild `context.md` before planning."
+   - Read `Locked Decisions For Planning`, `Outstanding Questions`, `Remaining Risks`, and `Planning Gate Recommendation` from `alignment.md` when present.
+   - Read `Locked Decisions`, `Claude Discretion`, `Canonical References`, `Existing Code Insights`, `Specific User Signals`, and `Outstanding Questions` from `context.md`.
    - If the alignment report status is `Aligned: ready for plan`:
-     - continue
+     - continue only if no planning-critical unresolved items remain around scope, workflow behavior, data/state expectations, compatibility, external dependencies, or success criteria
    - If the alignment report status is `Force proceed with known risks`:
      - continue, but carry all remaining risks into planning as explicit planning constraints and open risks
    - Otherwise:
      - ERROR "Specification is not aligned enough for planning."
+   - If `Planning Gate Recommendation` indicates `/sp.spec-extend` or the unresolved items still materially affect plan structure:
+     - ERROR "Specification still has planning-critical gaps. Run /sp.spec-extend or refine /sp.specify before planning."
 
 5. **Assume the specification package is analysis-first**:
    - Treat `/sp.specify` as the primary pre-planning requirement-analysis entry point
    - Treat `/sp.spec-extend` as the follow-up enhancement path when the spec package needs deeper analysis before planning
    - Use capability decomposition from `spec.md` when sequencing design work
    - Use `references.md` when retained sources or reusable examples affect planning choices
+   - Treat `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` as active planning inputs, not descriptive appendix material
+   - Treat `context.md` as the primary implementation-context artifact that captures downstream planning decisions explicitly
    - Do not introduce a separate clarification command as the normal next step for routine planning readiness
    - Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="plan", snapshot, workload_shape)`
    - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
@@ -117,10 +126,12 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Fill Technical Context (mark unknowns as `NEEDS CLARIFICATION`)
    - Fill Constitution Check from the constitution
    - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
+   - Copy locked planning decisions from `alignment.md`, `context.md`, and `spec.md` into planning constraints, assumptions, or design notes so they are not silently dropped
    - Evaluate gates (ERROR if violations are unjustified)
    - Phase 0: generate `research.md` and resolve all `NEEDS CLARIFICATION`
    - Phase 1: generate `data-model.md`, `contracts/`, and `quickstart.md`
    - Phase 1: update agent context by running the agent script
+   - Before finalizing the consolidated implementation plan, verify that no locked planning decision has been silently omitted from the generated plan artifacts
    - Re-evaluate Constitution Check after design artifacts exist
 
 7. **Stop and report**:

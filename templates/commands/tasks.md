@@ -70,7 +70,8 @@ You **MUST** consider the user input before proceeding (if not empty).
      `常见的代码模式与约定`.
 
 3. **Load design documents**: Read from FEATURE_DIR:
-   - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities)
+   - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
+   - **Required when present**: alignment.md (locked decisions, outstanding questions, planning gate context)
    - **Optional**: references.md (retained sources, reusable insights, spec impact mapping)
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
    - **Optional**: `.specify/memory/constitution.md` (project constitution and mandatory principles)
@@ -95,11 +96,14 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in the generated report and implementation strategy section.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
    - Load plan.md and extract tech stack, libraries, project structure
+   - Extract `Locked Planning Decisions`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
    - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
+   - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
    - If references.md exists: use it to preserve source-driven constraints and reusable examples while generating tasks
    - If data-model.md exists: Extract entities and map to user stories
    - If contracts/ exists: Map interface contracts to user stories
    - If research.md exists: Extract decisions for setup tasks
+   - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
    - Generate tasks organized by user story (see Task Generation Rules below)
    - Generate dependency graph showing user story completion order
    - Derive a write set for each task (files or shared registration surfaces it will modify)
@@ -107,6 +111,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
    - Create parallel execution examples per user story
    - Validate task completeness (each user story has all needed tasks, independently testable)
+   - Validate decision preservation: if a locked planning decision affects implementation, compatibility, rollout, validation, or sequencing, at least one task or phase note must preserve it explicitly instead of silently dropping it
 
 5. **Generate tasks.md**: Use `templates/tasks-template.md` as structure, fill with:
    - Correct feature name from plan.md
@@ -120,6 +125,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Dependencies section showing story completion order
    - Parallel batches and join points for each phase where they matter
    - Parallel execution examples per story
+   - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution
    - Implementation strategy section (phased delivery, priority-ordered delivery, capability-aware parallel execution)
 
 6. **Report**: Output path to generated tasks.md and summary:
