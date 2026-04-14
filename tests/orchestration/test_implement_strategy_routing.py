@@ -25,7 +25,28 @@ def test_implement_routes_to_single_agent_when_workload_is_unsafe() -> None:
     assert decision.reason == "no-safe-batch"
 
 
-def test_implement_routes_to_native_multi_agent_when_supported() -> None:
+def test_implement_routes_codex_to_sidecar_runtime_when_supported() -> None:
+    snapshot = CapabilitySnapshot(
+        integration_key="codex",
+        native_multi_agent=True,
+        sidecar_runtime_supported=True,
+    )
+
+    decision = choose_execution_strategy(
+        command_name="implement",
+        snapshot=snapshot,
+        workload_shape={
+            "parallel_batches": 2,
+            "overlapping_write_sets": False,
+        },
+    )
+
+    assert decision.strategy == "sidecar-runtime"
+    assert decision.reason == "sidecar-preferred"
+    assert decision.fallback_from == "native-multi-agent"
+
+
+def test_implement_keeps_non_codex_integrations_on_native_when_supported() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="gemini",
         native_multi_agent=True,
@@ -62,7 +83,8 @@ def test_implement_routes_to_sidecar_runtime_when_native_is_missing() -> None:
     )
 
     assert decision.strategy == "sidecar-runtime"
-    assert decision.reason == "native-missing"
+    assert decision.reason == "sidecar-preferred"
+    assert decision.fallback_from is None
 
 
 def test_implement_routes_to_single_agent_when_parallel_batch_count_is_zero() -> None:

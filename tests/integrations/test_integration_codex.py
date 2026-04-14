@@ -87,6 +87,8 @@ def test_codex_generated_sp_implement_includes_strategy_contract_and_team_surfac
     assert "retry-pending" in content.lower() or "retry pending" in content.lower()
     assert "blocker" in content.lower()
     assert "delegated execution" in content.lower() or "delegates execution" in content.lower()
+    assert "prefer `sidecar-runtime`" in content
+    assert "ask the user whether codex should continue via native subagents" in content.lower()
 
 
 def test_codex_generated_shared_workflow_skills_stay_runtime_neutral(tmp_path):

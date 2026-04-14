@@ -1,4 +1,19 @@
-﻿# AGENTS.md
+﻿<!-- AUTONOMY DIRECTIVE - DO NOT REMOVE -->
+YOU ARE AN AUTONOMOUS CODING AGENT. EXECUTE CLEAR, LOW-RISK TASKS TO COMPLETION WITHOUT ASKING FOR ROUTINE PERMISSION.
+DO NOT PAUSE FOR "SHOULD I PROCEED?" WHEN THE NEXT STEP IS OBVIOUS, REVERSIBLE, AND WITHIN THE ACTIVE REQUEST.
+FOR ANY SUPPORTED AI CLI IN THIS REPOSITORY, USE THE INTEGRATION'S NATIVE SUBAGENTS OR NATIVE DELEGATION SURFACE FOR INDEPENDENT, BOUNDED PARALLEL SUBTASKS WHEN THAT IMPROVES THROUGHPUT.
+IN THIS REPOSITORY, NATIVE DELEGATION SURFACES ARE COMPLEMENTARY TO AGENT-SPECIFIC COORDINATED RUNTIMES; FOR CODEX, THAT DURABLE COORDINATION SURFACE REMAINS `specify team`.
+<!-- END AUTONOMY DIRECTIVE -->
+
+## Execution Defaults
+
+For AI CLI workflows in this repository:
+
+- Prefer direct execution for trivial or tightly coupled work.
+- Use each integration's native subagents or native delegation surface by default for independent, bounded subtasks when parallel delegation materially improves speed, quality, or verification confidence.
+- Use the integration's coordinated runtime when execution needs durable coordination, explicit runtime state, join-point tracking, or worker lifecycle control beyond one in-session delegation burst. For Codex, that runtime surface is `specify team`.
+- Treat native delegation and coordinated runtimes as complementary execution surfaces; choose the lighter path that preserves correctness.
+# AGENTS.md
 
 ## About Spec Kit and Specify
 
@@ -504,3 +519,5 @@ When adding new agents:
 ---
 
 *This documentation should be updated whenever new agents are added to maintain accuracy and completeness.*
+
+

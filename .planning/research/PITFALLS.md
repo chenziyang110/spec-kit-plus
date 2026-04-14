@@ -1,38 +1,27 @@
-# Pitfalls Research: Stronger `sp-specify` Questioning
+# Research: Pitfalls for v1.3 Implement Orchestrator Runtime
 
-**Domain:** Improving requirement questioning in `specify`
-**Researched:** 2026-04-13
+## High-Risk Failure Modes
 
-## Main Risks
+- Leaving "single-agent" ambiguous so the leader still acts as the executor for serial tasks.
+- Dispatching workers without explicit write-set or shared-surface conflict rules, which breaks artifact consistency.
+- Advancing phases based on optimistic task completion instead of verified convergence.
+- Letting cross-phase preparation mutate later-phase state before prerequisite work is complete.
 
-| Pitfall | Why It Matters | Prevention |
-|---------|----------------|------------|
-| **Confusing “more questions” with “better questions”** | The experience gets slower and more annoying without actually improving alignment | Require each new questioning rule to justify what ambiguity it resolves |
-| **Overfitting to `superpowers` literally** | `superpowers` uses a different workflow philosophy; copying it wholesale would fight the current Spec Kit mainline | Borrow questioning strengths, not the entire brainstorming workflow |
-| **Improving the template but not the shipped skill mirror** | Users keep seeing stale behavior depending on the surface they run | Treat template and skill changes as inseparable deliverables |
-| **Focusing on TUI cosmetics instead of requirement depth** | The milestone ships visible motion without solving the actual user complaint | Keep requirements centered on questioning quality and confirmation strength |
-| **Letting `clarify` absorb the missing depth again** | Reintroduces the old split-responsibility problem that the repo just removed | Keep the improved questioning burden inside `sp-specify` |
-| **Breaking the structured interaction model** | The user explicitly wants to keep structured cards/blocks | Improve sequencing and content quality without removing the structure |
+## Integration Pitfalls
 
-## Specific Warning Signs
+- Updating Codex-specific guidance without first updating the shared template, creating cross-surface drift.
+- Adding new scheduler state outside the existing orchestration/state machinery, which fragments the runtime story.
+- Treating worker failure as a generic boolean without classifying critical-path impact, retry count, or deferral status.
 
-- A PR mostly changes card copy, borders, or banners but not the actual clarification strategy.
-- New questions are added as a fixed checklist regardless of task type or user emphasis.
-- Template assertions pass, but generated skill mirrors are still stale.
-- The workflow recaps more often, but still does not challenge vague user answers.
-- The system claims richer questioning while docs and tests still only verify formatting.
+## Prevention Strategy
 
-## Recommended Safeguards
+- Make leader-only execution a first-class requirement and reflect it in tests.
+- Keep phase advancement gated by explicit success criteria and artifact updates.
+- Represent worker outcomes and blockers in persisted planning state.
+- Validate template, generated skill, and orchestration tests together before calling the runtime shipped.
 
-1. Add requirements that explicitly mention both **coverage** and **follow-up depth**.
-2. Add at least one requirement around **template/skill/test alignment**.
-3. Ensure roadmap phases leave room for both behavior design and regression hardening.
-4. Evaluate success through realistic `/sp.specify` interaction quality, not only file diffs.
+## Phase Targets
 
-## Where These Risks Should Be Addressed
-
-| Risk Area | Best Phase to Address |
-|-----------|-----------------------|
-| Question quality still too shallow | Early design/contract phase |
-| Surface drift between template and skill | Mid implementation/test phase |
-| Misleading docs or release messaging | Final alignment phase |
+- Contract and scheduler semantics should land first.
+- Failure handling and batch coordination should land next.
+- Surface alignment, state persistence, and end-to-end verification should land last.

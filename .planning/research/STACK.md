@@ -1,48 +1,27 @@
-# Stack Research: Stronger `sp-specify` Questioning
+# Research: Stack for v1.3 Implement Orchestrator Runtime
 
-**Domain:** Requirement-questioning workflow design for `spec-kit-plus`
-**Researched:** 2026-04-13
+## Existing Baseline
 
-## Current Stack Reality
+- Python CLI code lives under `src/specify_cli/`.
+- Shared orchestration primitives already exist in `src/specify_cli/orchestration/`.
+- `sp-implement` behavior is primarily shipped through `templates/commands/implement.md` and the generated Codex mirror at `.agents/skills/sp-implement/SKILL.md`.
+- Regression coverage already exists around implement routing in `tests/orchestration/`, `tests/codex_team/`, and `tests/test_alignment_templates.py`.
 
-The improvement surface for this milestone is primarily prompt-template and regression driven, not runtime-driven.
+## Recommended Stack Additions
 
-| Area | Current Stack | Implication for v1.2 |
-|------|---------------|----------------------|
-| Command surface | `templates/commands/specify.md` | Primary shared workflow contract for generated integrations |
-| Generated Codex mirror | `.agents/skills/sp-specify/SKILL.md` | Must stay synchronized with the template or the user sees stale behavior |
-| Regression layer | `tests/test_alignment_templates.py` | Already enforces parts of the `specify` questioning contract |
-| Adjacent compatibility surface | `templates/commands/clarify.md`, `.agents/skills/sp-clarify/SKILL.md` | Relevant as drift risk, but not first-class scope for this milestone |
-| Design history | `docs/superpowers/specs/2026-04-11-specify-analysis-rework-design.md` | Confirms the repo already chose analysis-first `specify` as the mainline |
-| External comparison source | `E:\work\github\superpowers\skills/brainstorming/SKILL.md` | Best local reference for richer requirement questioning patterns |
-
-## Recommended Stack Additions or Changes
-
-| Recommendation | Why | Scope Impact |
-|----------------|-----|--------------|
-| Treat `templates/commands/specify.md` as the authoritative questioning contract and explicitly resync the generated skill mirror | The current skill mirror is materially behind the template | Required |
-| Expand regression coverage beyond structure-only checks toward question-depth and interaction-shape expectations | Current tests protect TUI structure more strongly than questioning quality | Required |
-| Use docs/spec artifacts to explain the new questioning behavior and guardrails | This is a workflow-behavior milestone, so guidance drift is a real product risk | Recommended |
-| Keep changes in Markdown/template/test surfaces first | This milestone is about user-facing prompting behavior, not orchestration-core code | Required |
+- Reuse the existing orchestration models and state store for leader-session state instead of introducing a new runtime package.
+- Add explicit scheduler and worker-result abstractions under `src/specify_cli/orchestration/` so milestone execution logic is separate from policy selection.
+- Keep execution planning artifacts in Markdown and existing `.planning/` state files rather than introducing a database or external queue.
+- Extend current tests with milestone-scheduler and worker-dispatch coverage rather than relying only on prompt/template assertions.
 
 ## What Not To Add
 
-| Avoid | Why |
-|------|-----|
-| New runtime coordination layer for `specify` | Out of scope and unnecessary for this questioning-focused milestone |
-| Mandatory `clarify` or `spec-extend` dependency | Conflicts with the approved `specify -> plan` mainline |
-| Visual/TUI redesign as the main deliverable | The real problem is questioning quality, not decorative presentation |
+- No external durable queue, broker, or service process for this milestone.
+- No new strategy vocabulary replacing `single-agent`, `native-multi-agent`, or `sidecar-runtime`.
+- No integration-specific runtime abstraction that bypasses the shared orchestration core.
 
 ## Integration Notes
 
-- The current `templates/commands/specify.md` already moved toward open question blocks and deeper analysis language.
-- The current `.agents/skills/sp-specify/SKILL.md` still carries an older question-card contract with boxed-card language and a narrower analysis model.
-- The milestone should therefore assume a multi-surface alignment problem, not a single-file wording tweak.
-
-## Confidence
-
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Template-first implementation path | HIGH | The current repo already encodes most behavior in templates and generated mirrors |
-| Need for skill resynchronization | HIGH | Direct diff shows substantial drift |
-| Need for more regression coverage | HIGH | Existing tests focus on structure and compatibility, not enough on questioning depth |
+- `CapabilitySnapshot` and `ExecutionDecision` already model the current strategy contract and should remain source-of-truth inputs to the leader.
+- Codex-specific escalation language should remain a post-processing layer, not the place where milestone scheduler truth lives.
+- The scheduler will likely need task-batch and phase-state models that sit above `choose_execution_strategy(...)`.

@@ -1,65 +1,39 @@
-# Feature Landscape: Stronger `sp-specify` Questioning
-
-**Domain:** Requirement discovery and clarification quality in `specify`
-**Researched:** 2026-04-13
+# Research: Feature Shape for v1.3 Implement Orchestrator Runtime
 
 ## Table Stakes
 
-Capabilities users now reasonably expect from `/sp.specify` after the analysis-first redesign.
+### Milestone Orchestration
 
-| Capability | Why Expected | Complexity | Notes |
-|------------|--------------|------------|-------|
-| **Coverage of core requirement dimensions** | Users expect `specify` to ask about missing scope, users, constraints, and success conditions before planning | Medium | Current user feedback says this still feels too thin |
-| **High-value follow-up questions** | The workflow should challenge vague answers instead of accepting surface statements | Medium | Stronger follow-up depth is the main requested improvement |
-| **Structured but readable interaction** | Users want guidance, not a wall of freeform questioning | Low | Keep the question-card/open-block discipline |
-| **Substantive confirmation gate** | Users need a stronger checkpoint before the workflow declares the spec aligned | Low | Mirrors one of the strongest qualities in `superpowers` |
-| **Consistent shipped behavior across templates and skill mirrors** | A user should not get different questioning behavior depending on the generated surface they actually run | Medium | Current repo has drift here |
+- `sp-implement` can read the active roadmap and continue across all remaining phases by default.
+- The runtime can determine the next executable work without requiring the user to relaunch for each phase.
+- Phase completion advances state and unlocks later work automatically.
 
-## Differentiators Worth Borrowing
+### Leader/Worker Separation
 
-These are the qualities in `superpowers` that seem most valuable to absorb into `specify` without changing the mainline workflow.
+- The leader handles scheduling, dispatch, reconciliation, and status updates only.
+- Concrete implementation, verification, and other task execution happens in worker agents.
+- Sequential tasks still use workers; "single-agent" should mean one worker lane, not leader self-execution.
 
-| Differentiator | Value | Complexity | Notes |
-|----------------|-------|------------|-------|
-| **Intent-following questioning** | Questions feel responsive to what the user emphasized, not like a fixed questionnaire | Medium | Best candidate for improving perceived quality |
-| **One-question-at-a-time discipline with depth** | Maintains focus while still exploring ambiguities thoroughly | Medium | Compatible with the current `specify` clarification loop |
-| **Purpose-aware probing** | Questions are clearly tied to outcome, constraint, or success criteria rather than generic categorization | Medium | Helps users feel the system is “thinking” |
-| **Stronger pre-exit validation** | Prevents the workflow from ending while major requirement gaps remain | Low | Fits the alignment-ready gate already present |
+### Batch Coordination
+
+- Parallel batches are dispatched only when write sets and shared surfaces are safe.
+- Join points remain explicit and block downstream work until required worker results converge.
+- Non-parallel work keeps deterministic execution order.
+
+### Failure Handling
+
+- Non-critical worker failures do not stop unrelated safe work.
+- Critical-path failures and repeated failures halt with an actionable report.
+- Deferred or failed work remains visible in state artifacts.
+
+## Differentiators
+
+- Safe cross-phase preparation work when dependencies allow, while preserving roadmap order as the default rule.
+- Milestone-level progress reporting that reflects worker outcomes and blocker state in planning artifacts.
+- Strong truthfulness about what the leader actually did versus what workers completed.
 
 ## Anti-Features
 
-Changes that would look attractive but would miss the point of the milestone.
-
-| Anti-Feature | Why Avoid | Better Alternative |
-|--------------|-----------|-------------------|
-| **Just add more questions everywhere** | Quantity alone will make the workflow slower without improving clarity | Make question selection more adaptive and high-value |
-| **Replace `specify` with freeform brainstorming** | Conflicts with the preferred structured experience and current product direction | Keep structure, upgrade the questioning logic inside it |
-| **Optimize only the card visuals** | Solves presentation symptoms, not requirement-discovery quality | Improve question depth, sequencing, and confirmation logic |
-| **Scope creep into `clarify` / `spec-extend`** | Diffuses the milestone and delays mainline improvement | Limit the milestone to `sp-specify` |
-
-## Suggested Capability Groups
-
-These groups are the most natural requirement buckets for the milestone.
-
-1. **Question Coverage**
-   Ensures the workflow reliably surfaces missing requirement dimensions.
-2. **Follow-up Depth**
-   Ensures vague or shallow answers trigger better next questions.
-3. **Experience Quality**
-   Ensures the interaction feels guided and coherent rather than mechanical.
-4. **Artifact Alignment**
-   Ensures templates, generated skills, and tests all ship the same contract.
-
-## Dependencies
-
-```mermaid
-flowchart TD
-    Coverage[Question coverage model] --> Followup[Follow-up depth rules]
-    Followup --> Experience[User-facing interaction quality]
-    Coverage --> Alignment[Template, skill, and test alignment]
-    Experience --> Alignment
-```
-
-## Recommendation
-
-The first-release slice should include all four capability groups above. Cutting any one of them would likely leave the user with partial improvement and a continued “looks better than it feels” outcome.
+- A leader that still edits files or runs the core implementation tasks itself.
+- Hidden phase skipping that makes roadmap order meaningless.
+- Silent retries that hide instability or mutate phase state without an auditable trail.

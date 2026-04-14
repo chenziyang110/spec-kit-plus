@@ -54,6 +54,8 @@ def test_sp_implement_includes_runtime_escalation_language(tmp_path: Path) -> No
     assert "runtime" in lower
     assert "escalat" in lower
     assert "auto-dispatch" in lower
+    assert "prefer `sidecar-runtime`" in content
+    assert "ask the user whether codex should continue via native subagents" in lower
 
 
 def test_team_guidance_declares_codex_only_scope() -> None:

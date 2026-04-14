@@ -32,3 +32,10 @@ def test_repo_docs_share_same_workflow_guidance():
     assert "specify -> plan" in readme
     assert "specify -> plan" in agents
     assert "specify -> plan" in quickstart
+
+
+def test_agents_declares_native_delegation_defaults():
+    agents = _read("AGENTS.md").lower()
+
+    assert "native subagents or native delegation surface" in agents
+    assert "for codex, that runtime surface is `specify team`" in agents

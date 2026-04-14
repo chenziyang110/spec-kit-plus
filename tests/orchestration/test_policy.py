@@ -48,6 +48,27 @@ def test_choose_execution_strategy_prefers_native_multi_agent_when_available() -
     assert decision.reason == "native-supported"
 
 
+def test_choose_execution_strategy_prefers_sidecar_for_codex_implement_when_available() -> None:
+    snapshot = CapabilitySnapshot(
+        integration_key="codex",
+        native_multi_agent=True,
+        sidecar_runtime_supported=True,
+    )
+
+    decision = choose_execution_strategy(
+        command_name="implement",
+        snapshot=snapshot,
+        workload_shape={
+            "parallel_batches": 2,
+            "overlapping_write_sets": False,
+        },
+    )
+
+    assert decision.strategy == "sidecar-runtime"
+    assert decision.reason == "sidecar-preferred"
+    assert decision.fallback_from == "native-multi-agent"
+
+
 def test_choose_execution_strategy_falls_back_to_sidecar_when_native_is_missing() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="codex",
@@ -65,7 +86,8 @@ def test_choose_execution_strategy_falls_back_to_sidecar_when_native_is_missing(
     )
 
     assert decision.strategy == "sidecar-runtime"
-    assert decision.reason == "native-missing"
+    assert decision.reason == "sidecar-preferred"
+    assert decision.fallback_from is None
 
 
 def test_choose_execution_strategy_uses_parallel_batches_even_with_safe_alias() -> None:
@@ -190,6 +212,26 @@ def test_choose_execution_strategy_supports_plan_command_name() -> None:
     assert decision.command_name == "plan"
     assert decision.strategy == "sidecar-runtime"
     assert decision.reason == "native-missing"
+
+
+def test_choose_execution_strategy_keeps_non_implement_codex_commands_on_shared_policy() -> None:
+    snapshot = CapabilitySnapshot(
+        integration_key="codex",
+        native_multi_agent=True,
+        sidecar_runtime_supported=True,
+    )
+
+    decision = choose_execution_strategy(
+        command_name="plan",
+        snapshot=snapshot,
+        workload_shape={
+            "parallel_batches": 2,
+            "overlapping_write_sets": False,
+        },
+    )
+
+    assert decision.strategy == "native-multi-agent"
+    assert decision.reason == "native-supported"
 
 
 def test_choose_execution_strategy_supports_tasks_command_name() -> None:
