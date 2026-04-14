@@ -271,3 +271,64 @@ def test_terminal_task_failure_marks_batch_failed(monkeypatch, codex_team_projec
     assert batch_payload["status"] == "failed"
     task_payload = get_task(codex_team_project_root, "T002")
     assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "failed"
+
+
+def test_non_critical_failure_blocks_mixed_tolerance_batch_without_failing_session(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+
+**Join Point 1.1**: merge before T004
+""",
+    )
+
+    route_ready_parallel_batch(codex_team_project_root, feature_dir=feature_dir, session_id="default")
+
+    batch_path = batch_record_path(codex_team_project_root, "default-parallel-batch-1-1")
+    batch_payload = json.loads(batch_path.read_text(encoding="utf-8"))
+    batch_payload["batch_classification"] = "mixed_tolerance"
+    batch_path.write_text(json.dumps(batch_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    record = get_task(codex_team_project_root, "T002")
+    token = claim_task(
+        codex_team_project_root,
+        task_id="T002",
+        worker_id="t002-worker",
+        expected_version=record.version,
+    )
+    in_progress = transition_task_status(
+        codex_team_project_root,
+        task_id="T002",
+        new_status="in_progress",
+        owner="t002-worker",
+        expected_version=record.version + 1,
+        claim_token=token,
+    )
+    transition_task_status(
+        codex_team_project_root,
+        task_id="T002",
+        new_status="failed",
+        owner="t002-worker",
+        expected_version=in_progress.version,
+        claim_token=token,
+        failure_class="non_critical",
+    )
+
+    updated_batch = json.loads(batch_path.read_text(encoding="utf-8"))
+    session_payload = json.loads(runtime_session_path(codex_team_project_root, "default").read_text(encoding="utf-8"))
+    task_payload = get_task(codex_team_project_root, "T002")
+
+    assert updated_batch["status"] == "blocked"
+    assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "blocked"
+    assert session_payload["status"] == "running"

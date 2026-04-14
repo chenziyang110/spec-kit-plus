@@ -282,6 +282,7 @@ def transition_task_status(
     owner: str,
     expected_version: int | None = None,
     claim_token: str | None = None,
+    failure_class: str = "",
 ) -> Any:
     record = get_task(project_root, task_id)
     _ensure_expected_version(record, expected_version)
@@ -294,6 +295,8 @@ def transition_task_status(
 
     record.status = new_status
     record.owner = owner
+    if failure_class:
+        metadata["failure_class"] = failure_class
     record.version += 1
     record.updated_at = _now()
     if new_status in TERMINAL_STATUSES:

@@ -7,8 +7,9 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from specify_cli.codex_team.manifests import runtime_session_from_json, runtime_state_payload
 from specify_cli.codex_team.runtime_state import BatchRecord, batch_record_from_json, task_record_from_json
-from specify_cli.codex_team.state_paths import batch_record_path, task_record_path
+from specify_cli.codex_team.state_paths import batch_record_path, runtime_session_path, task_record_path
 
 
 def _utc_now() -> str:
@@ -38,6 +39,19 @@ def _load_task(project_root: Path, task_id: str):
 def _save_task(project_root: Path, record) -> None:
     path = task_record_path(project_root, record.task_id)
     path.write_text(json.dumps(asdict(record), ensure_ascii=False), encoding="utf-8")
+
+
+def _load_runtime_session(project_root: Path, session_id: str):
+    path = runtime_session_path(project_root, session_id)
+    if not path.exists():
+        return None
+    return runtime_session_from_json(path.read_text(encoding="utf-8"))
+
+
+def _save_runtime_session(project_root: Path, session) -> None:
+    path = runtime_session_path(project_root, session.session_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(runtime_state_payload(session)["session"], ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _set_join_point_status(project_root: Path, task_id: str, join_point_name: str, status: str) -> None:
@@ -74,11 +88,36 @@ def sync_batch_for_task(project_root: Path, task_id: str) -> None:
         task_records = [_load_task(project_root, member_id) for member_id in batch.task_ids]
         statuses = {task.status for task in task_records if task is not None}
         if "failed" in statuses:
+            failed_tasks = [task for task in task_records if task is not None and task.status == "failed"]
+            failure_classes = {
+                (task.metadata or {}).get("failure_class", "critical")
+                for task in failed_tasks
+            }
+            non_critical_only = (
+                batch.batch_classification == "mixed_tolerance"
+                and failure_classes
+                and failure_classes <= {"non_critical", "transient"}
+            )
+
+            if non_critical_only:
+                batch.status = "blocked"
+                batch.updated_at = _utc_now()
+                _save_batch(project_root, batch)
+                for member_id in batch.task_ids:
+                    _set_join_point_status(project_root, member_id, join_point_name, "blocked")
+                continue
+
             batch.status = "failed"
             batch.updated_at = _utc_now()
             _save_batch(project_root, batch)
             for member_id in batch.task_ids:
                 _set_join_point_status(project_root, member_id, join_point_name, "failed")
+            session = _load_runtime_session(project_root, batch.session_id)
+            if session is not None:
+                session.status = "blocked"
+                session.blocker_id = f"batch-{batch.batch_id}"
+                session.finished_at = _utc_now()
+                _save_runtime_session(project_root, session)
             continue
         if statuses and statuses == {"completed"}:
             batch.status = "completed"
