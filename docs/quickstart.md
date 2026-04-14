@@ -53,7 +53,7 @@ uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME
 /speckit.plan The application uses Vite with minimal number of libraries. Use vanilla HTML, CSS, and JavaScript as much as possible. Images are not uploaded anywhere and metadata is stored in a local SQLite database.
 ```
 
-Use `/speckit.spec-extend` only when an existing spec needs deeper analysis before planning. `/speckit.clarify` remains available as compatibility-only guidance for older workflows, not as the default step between `/speckit.specify` and `/speckit.plan`.
+Use `/speckit.spec-extend` only when an existing spec needs deeper analysis before planning.
 
 ### Step 5: Break Down and Implement
 
@@ -110,16 +110,10 @@ Once `/speckit.specify` reaches planning-ready alignment, move directly to `/spe
 /speckit.plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
 ```
 
-If an existing spec needs deeper analysis first, use `/speckit.spec-extend`. If you are following an older workflow and explicitly want a compatibility bridge, `/speckit.clarify` is still available, but it is no longer the recommended main path.
+If an existing spec needs deeper analysis first, use `/speckit.spec-extend`.
 
 ```bash
 /speckit.spec-extend Add sharper reporting requirements and cross-team notification expectations before planning.
-```
-
-Compatibility-only clarify example:
-
-```bash
-/speckit.clarify Focus on any remaining compatibility or migration ambiguity before planning.
 ```
 
 ### Step 4: Validate the Spec
@@ -161,7 +155,6 @@ Finally, implement the solution:
 - **Don't focus on tech stack** during specification phase
 - **Use `specify -> plan` as the default path**
 - **Use `spec-extend` only when an existing spec needs deeper analysis before planning**
-- **Keep `clarify` as compatibility-only guidance**, not the default next step
 - **Validate** the plan before coding begins
 - **Let the AI agent handle** the implementation details
 

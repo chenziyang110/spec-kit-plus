@@ -5,7 +5,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PRIMARY_TUI_TEMPLATE_PATHS = (
     "templates/commands/specify.md",
-    "templates/commands/clarify.md",
     "templates/commands/spec-extend.md",
     "templates/commands/explain.md",
 )
@@ -91,7 +90,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "confirm or correct the current understanding before `Aligned: ready for plan`" in content
     assert "common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify`" in content
     assert "explicit pre-release check" in lowered
-    assert "without needing `/sp.clarify` or `/sp.spec-extend`" in content
+    assert "without needing `/sp.spec-extend`" in content
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
@@ -166,24 +165,13 @@ def test_explain_template_documents_conservative_routing_contract():
     assert "specify team" not in lowered
 
 
-def test_clarify_template_is_compatibility_only():
-    content = _read("templates/commands/clarify.md")
-    lowered = content.lower()
-
-    assert "recommend" in lowered or "redirect" in lowered or "route" in lowered or "main path" in lowered
-    assert "alignment.md" in content
-    assert "adding newly provided requirements or constraints" in content
-    assert "Aligned: ready for plan" in content
-    assert "Force proceed with known risks" in content
-    assert "user's current language" in content.lower()
-
-
 def test_new_analysis_workflow_command_templates_exist():
     command_dir = PROJECT_ROOT / "templates" / "commands"
     template_stems = {path.stem for path in command_dir.glob("*.md")}
 
     assert "spec-extend" in template_stems
     assert "explain" in template_stems
+    assert "clarify" not in template_stems
 
 
 def test_spec_template_defines_scope_boundaries_without_open_clarification_examples():

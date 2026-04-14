@@ -137,7 +137,6 @@ Optional follow-up commands:
 
 - `spec-extend` to deepen an existing spec before planning when analysis, references, or gaps need more work
 - `explain` to describe the current spec, plan, task, or implement artifact in plain language
-- `clarify` remains available as a compatibility bridge for older workflows, but it is no longer the recommended main path
 
 After planning, continue with:
 

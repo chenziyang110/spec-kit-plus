@@ -949,7 +949,6 @@ SKILL_DESCRIPTIONS = {
     "tasks": "Break down implementation plans into actionable task lists with shared collaboration routing and join-point-aware decomposition.",
     "implement": "Execute all tasks from the task breakdown with unified strategy routing (single-agent, native-multi-agent, sidecar-runtime).",
     "analyze": "Perform cross-artifact consistency analysis across spec.md, plan.md, and tasks.md.",
-    "clarify": "Compatibility bridge for users who still run clarify; route requirement-extension work to spec-extend while preserving alignment updates.",
     "constitution": "Create or update project governing principles and development guidelines.",
     "checklist": "Generate custom quality checklists for validating requirements completeness and clarity.",
     "taskstoissues": "Convert tasks from tasks.md into GitHub issues.",
@@ -1489,7 +1488,6 @@ def init(
         "",
         f"○ [cyan]{'specify team' if codex_skill_mode else _display_cmd('team')}[/] [bright_black](codex-only)[/bright_black] - Inspect the official Codex team/runtime surface and environment status",
         f"○ [cyan]{_display_cmd('spec-extend')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
-        f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](compatibility)[/bright_black] - Backward-compatible follow-up for legacy clarify users; prefer [cyan]{_display_cmd('spec-extend')}[/] for substantive requirement changes",
         f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
         f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, or task artifact in plain language before moving forward",
         f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"

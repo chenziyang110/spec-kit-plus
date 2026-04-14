@@ -28,7 +28,6 @@ from packaging.specifiers import SpecifierSet, InvalidSpecifier
 _FALLBACK_CORE_COMMAND_NAMES = frozenset({
     "analyze",
     "checklist",
-    "clarify",
     "constitution",
     "debug",
     "explain",

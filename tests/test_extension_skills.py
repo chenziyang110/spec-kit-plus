@@ -254,13 +254,8 @@ class TestBuiltInSkillGeneration:
         skills_dir = project_dir / ".claude" / "skills"
         assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
-        assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
-
-        clarify_fm = self._frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
-        assert clarify_fm["description"].startswith("Compatibility bridge")
-        assert "spec-extend" in clarify_fm["description"]
-        assert "compatibility" in result.output.lower()
+        assert "spec-extend" in result.output.lower()
 
         explain_body = _body_without_frontmatter(skills_dir / "sp-explain" / "SKILL.md")
         explain_tui = _extract_section(explain_body, "TUI Requirements").lower()
@@ -292,32 +287,10 @@ class TestBuiltInSkillGeneration:
             "Options",
             "Reply instruction",
         )
-        assert "/sp.clarify" in specify_body
         assert "/sp.plan" in specify_body
-        assert "compatibility-only" in specify_body or "compatibility only" in specify_body.lower()
         assert "guided requirement discovery" in specify_body.lower()
         assert "current-understanding or confirmation gate" in specify_body.lower()
-        assert "without needing `/sp.clarify` or `/sp.spec-extend`" in specify_body
-
-        clarify_body = _body_without_frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
-        clarify_outline = _extract_section(clarify_body, "Outline").lower()
-        assert "compatibility bridge" in clarify_outline
-        assert "compatibility mode" in clarify_outline
-        assert "/sp.spec-extend" in clarify_outline
-        assert "/sp.plan" in clarify_outline
-        assert "compatibility status" in clarify_outline
-        assert "explanation block" in clarify_outline
-        assert "risk block" in clarify_outline
-        assert "next-step block" in clarify_outline
-        _assert_terms_in_order(
-            clarify_outline,
-            "stage header",
-            "question header",
-            "prompt",
-            "recommendation",
-            "options",
-            "reply instruction",
-        )
+        assert "without needing `/sp.spec-extend`" in specify_body
 
 
 class TestSkillDescriptions:
@@ -337,8 +310,6 @@ class TestSkillDescriptions:
         assert "shared collaboration routing" in SKILL_DESCRIPTIONS["plan"].lower()
         assert "shared collaboration routing" in SKILL_DESCRIPTIONS["tasks"].lower()
         assert "join-point-aware" in SKILL_DESCRIPTIONS["tasks"].lower()
-        assert SKILL_DESCRIPTIONS["clarify"].startswith("Compatibility bridge")
-
     def test_returns_none_when_no_init_options(self, project_dir):
         """Should return None when init-options.json is missing."""
         manager = ExtensionManager(project_dir)
@@ -381,7 +352,7 @@ def test_repo_specify_skill_mirror_matches_current_contract():
     assert "recommendation and example scaffolding" in lowered
     assert "current-understanding or confirmation gate" in lowered
     assert "confirm or correct the current understanding before `Aligned: ready for plan`" in body
-    assert "without needing `/sp.clarify` or `/sp.spec-extend`" in body
+    assert "without needing `/sp.spec-extend`" in body
 
 
 # ===== Extension Skill Registration Tests =====

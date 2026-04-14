@@ -16,7 +16,7 @@ When describing the generated user workflow, teach the current mainline as:
 specify -> plan
 ```
 
-Treat `spec-extend` as the optional enhancement path when an existing spec needs deeper analysis before planning. Treat `clarify` as compatibility-only migration guidance, not as a required step between `specify` and `plan`.
+Treat `spec-extend` as the optional enhancement path when an existing spec needs deeper analysis before planning.
 
 ---
 

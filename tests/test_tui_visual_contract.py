@@ -4,7 +4,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = PROJECT_ROOT / "templates" / "commands"
-PRIMARY_TUI_SURFACES = ("specify", "clarify", "spec-extend", "explain")
+PRIMARY_TUI_SURFACES = ("specify", "spec-extend", "explain")
 ASCII_CARD_HEADER_RE = re.compile(r"(?m)^\s*\+--")
 ASCII_CARD_LINE_RE = re.compile(r"(?m)^\s*\| .+\|\s*$")
 ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")
@@ -87,14 +87,3 @@ def test_explain_requires_stage_status_risk_and_next_step_blocks():
     assert "status card" not in lowered
     assert "open-risk panel" not in lowered
     assert "next-step panel" not in lowered
-
-
-def test_clarify_signals_compatibility_mode_visually():
-    lowered = _read_template("clarify").lower()
-
-    assert "spec-extend" in lowered
-    assert "compatibility mode" in lowered
-    _assert_contains_any(lowered, "main path", "not the main path")
-    _assert_contains_any(lowered, "stage header", "stage title")
-    _assert_contains_any(lowered, "status block", "compatibility status")
-    assert re.search(r"open (question )?blocks?", lowered)

@@ -94,7 +94,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Treat `/sp.spec-extend` as the follow-up enhancement path when the spec package needs deeper analysis before planning
    - Use capability decomposition from `spec.md` when sequencing design work
    - Use `references.md` when retained sources or reusable examples affect planning choices
-   - Do not treat `/sp.clarify` as the normal next step for routine planning readiness
+   - Do not introduce a separate clarification command as the normal next step for routine planning readiness
    - Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="plan", snapshot, workload_shape)`
    - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
    - Decision order is fixed:

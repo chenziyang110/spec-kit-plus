@@ -4,10 +4,6 @@ handoffs:
   - label: Build Technical Plan
     agent: sp.plan
     prompt: Create a plan for the spec. I am building with...
-  - label: Clarify Spec Requirements
-    agent: sp.clarify
-    prompt: Clarify specification requirements
-    send: true
 scripts:
   sh: scripts/bash/create-new-feature.sh "{ARGS}"
   ps: scripts/powershell/create-new-feature.ps1 "{ARGS}"
@@ -344,7 +340,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Present the grouped current understanding as an explicit pre-release check.
     - Ask the user to confirm or correct the current understanding before `Aligned: ready for plan`.
     - common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify` when this gate passes and no planning-critical ambiguity remains.
-    - keep this path inside `sp-specify`, without needing `/sp.clarify` or `/sp.spec-extend`.
+    - keep this path inside `sp-specify`, without needing `/sp.spec-extend`.
 
     If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, keep the workflow in clarification until it is resolved or the user explicitly chooses `Force proceed with known risks`.
 
@@ -438,7 +434,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - references file path when created
     - checklist results
     - release decision
-    - readiness for the next phase (`/sp.clarify` for compatibility-only follow-up if the user asks, or `/sp.plan` for the mainline)
+    - readiness for the next phase (`/sp.plan` for the mainline, or `/sp.spec-extend` when deeper analysis is still needed)
     - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
 22. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.

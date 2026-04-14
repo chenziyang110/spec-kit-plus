@@ -194,7 +194,6 @@ class TestInitIntegrationFlag:
         assert (project / ".github" / "agents" / "sp.plan.agent.md").exists()
         assert (project / ".github" / "agents" / "sp.spec-extend.agent.md").exists()
         assert (project / ".github" / "agents" / "sp.explain.agent.md").exists()
-        assert (project / ".github" / "agents" / "sp.clarify.agent.md").exists()
         assert (project / ".github" / "prompts" / "sp.plan.prompt.md").exists()
         assert (project / ".specify" / "scripts" / "bash" / "common.sh").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
@@ -346,7 +345,7 @@ class TestInitIntegrationFlag:
         assert "Spec Kit Plus skills were" in result.output
         assert ".agents/skills" in result.output
         assert "spec-extend" in result.output
-        assert "compatibility" in result.output.lower()
+        assert "spec-extend" in result.output.lower()
         assert "explain" in result.output
 
     def test_init_directory_conflict_uses_normalized_error_surface(self, tmp_path):
@@ -399,18 +398,15 @@ class TestInitIntegrationFlag:
 
         assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
-        assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
 
         specify_fm = self._frontmatter(skills_dir / "sp-specify" / "SKILL.md")
         spec_extend_fm = self._frontmatter(skills_dir / "sp-spec-extend" / "SKILL.md")
-        clarify_fm = self._frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
         plan_fm = self._frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         explain_fm = self._frontmatter(skills_dir / "sp-explain" / "SKILL.md")
 
         assert isinstance(specify_fm["description"], str) and specify_fm["description"].strip()
         assert isinstance(spec_extend_fm["description"], str) and spec_extend_fm["description"].strip()
-        assert isinstance(clarify_fm["description"], str) and clarify_fm["description"].strip()
         assert isinstance(plan_fm["description"], str) and plan_fm["description"].strip()
         assert isinstance(explain_fm["description"], str) and explain_fm["description"].strip()
 
@@ -418,12 +414,10 @@ class TestInitIntegrationFlag:
         assert "natural language" in specify_fm["description"].lower()
         assert "current specification" in spec_extend_fm["description"].lower()
         assert "targeted enhancement" in spec_extend_fm["description"].lower()
-        assert clarify_fm["description"].startswith("Compatibility bridge")
-        assert "still run clarify" in clarify_fm["description"]
         assert "implementation planning workflow" in plan_fm["description"].lower()
         assert "design artifacts" in plan_fm["description"].lower()
         assert "current stage artifact" in explain_fm["description"].lower()
         assert "plain language" in explain_fm["description"].lower()
-        assert "compatibility" in result.output.lower()
+        assert "spec-extend" in result.output.lower()
         assert "spec-extend" in result.output
         assert "explain" in result.output
