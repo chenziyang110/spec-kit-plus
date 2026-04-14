@@ -79,6 +79,10 @@ def test_codex_generated_sp_implement_includes_strategy_contract_and_team_surfac
     assert "single-agent" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
+    assert "invoking runtime acts as the leader" in content
+    assert "single-agent still means one delegated worker lane" in content
+    assert "selects the next executable phase and ready batch" in content
+    assert "shared implement template is the primary source of truth" in content
 
 
 def test_codex_generated_shared_workflow_skills_stay_runtime_neutral(tmp_path):

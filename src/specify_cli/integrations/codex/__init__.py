@@ -79,14 +79,18 @@ class CodexIntegration(SkillsIntegration):
                     "## Codex Auto-Parallel Execution\n\n"
                     "When running in Codex, treat Step 6's unified execution strategy selection as a runtime-aware escalation.\n"
                     "For each ready parallel batch:\n"
+                    "- The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.\n"
+                    "- The shared implement template is the primary source of truth for this leader-only milestone scheduler contract, and Codex-specific guidance must preserve the same semantics.\n"
                     "- Apply the shared policy contract first: `parallel_batches <= 0` or overlapping write sets -> `single-agent`; otherwise `native-multi-agent` when `native_multi_agent`, otherwise `sidecar-runtime` when `sidecar_runtime_supported`, else `single-agent` fallback.\n"
-                    "- Interpret `single-agent` as solo execution (single-worker sequential path).\n"
+                    "- single-agent still means one delegated worker lane, not leader self-execution.\n"
+                    "- Interpret `single-agent` as solo execution through that delegated single-worker sequential path.\n"
                     "- Interpret `native-multi-agent` as the native subagents path.\n"
                     "- Interpret `sidecar-runtime` as escalation via **`specify team`**.\n"
                     "- Decision order must stay fixed: `no-safe-batch` -> `native-supported` -> `native-missing` -> `fallback`.\n"
                     "- When you choose `sidecar-runtime`, call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** instead of stopping at a recommendation.\n"
                     "- Follow a fixed order: capture the Step 1 `FEATURE_DIR`, inspect the next ready explicit parallel batch, run the auto-dispatch command, read the result, and only then fall back if the command reports a concrete blocker.\n"
                     "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
+                    "- After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.\n"
                 )
                 self.write_file_and_record(
                     content + addendum,
