@@ -250,6 +250,16 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert no_safe_batch < native_supported < native_missing < fallback
 
 
+def test_implement_template_defines_leader_only_milestone_scheduler_contract():
+    content = _read("templates/commands/implement.md")
+    lowered = content.lower()
+
+    assert "invoking runtime acts as the leader" in lowered
+    assert "delegated worker lane" in lowered
+    assert "next executable phase" in lowered
+    assert "shared implement template is the primary source of truth" in lowered
+
+
 def test_alignment_template_exists():
     content = _read("templates/alignment-template.md")
 

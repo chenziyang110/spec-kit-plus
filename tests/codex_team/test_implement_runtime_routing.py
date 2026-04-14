@@ -49,3 +49,18 @@ def test_sp_implement_distinguishes_execution_modes() -> None:
     assert "decision order" in content
     assert "specify team" not in content
     assert "auto-dispatch" not in content
+
+
+def test_sp_implement_positions_the_runtime_as_leader_only() -> None:
+    content = _read_template().lower()
+
+    assert "invoking runtime acts as the leader" in content
+    assert "dispatches work instead of performing concrete implementation directly" in content
+    assert "single-agent still means one delegated worker lane" in content
+
+
+def test_sp_implement_documents_milestone_next_step_selection() -> None:
+    content = _read_template().lower()
+
+    assert "selects the next executable phase and ready batch" in content
+    assert "shared implement template is the primary source of truth" in content
