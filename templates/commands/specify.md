@@ -85,10 +85,10 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Read `templates/spec-template.md`.
    - Read `templates/alignment-template.md`.
    - Read `templates/references-template.md`.
+   - Read `.specify/memory/constitution.md` if present.
    - Read `项目技术文档.md` if present.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
-   - Read constitution/project guidance if present.
    - Read user-supplied references, examples, or linked material when they materially affect the requirement package.
 
 6. Infer task classification.

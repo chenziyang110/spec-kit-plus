@@ -40,6 +40,7 @@ Goal: Read the current stage artifact and explain it in plain language so the us
      - `implement`: if there is no canonical implementation status artifact, explain that implementation status is unavailable from the current file set and fall back to the most recent planning artifact instead of guessing
 
 3. Read the resolved artifact and any immediately supporting artifact needed to explain it accurately.
+   - If present, also read `.specify/memory/constitution.md` so the explanation honors the project constitution and its constraints on the current stage artifact.
 
 4. Before translating the artifact, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="explain", snapshot, workload_shape)`.
    - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.

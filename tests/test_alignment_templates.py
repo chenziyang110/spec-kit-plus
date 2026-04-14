@@ -114,6 +114,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     lowered = content.lower()
 
     assert "alignment.md" in content
+    assert "/memory/constitution.md" in content
     assert "Missing alignment report" in content
     assert "Force proceed with known risks" in content
     assert "Input Risks From Alignment" in content
@@ -136,6 +137,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
+    assert ".specify/memory/constitution.md" in content
     assert "choose_execution_strategy(command_name=\"tasks\"" in content
     assert "single-agent" in lowered
     assert "native-multi-agent" in lowered
@@ -152,6 +154,7 @@ def test_explain_template_documents_conservative_routing_contract():
     content = _read("templates/commands/explain.md")
     lowered = content.lower()
 
+    assert ".specify/memory/constitution.md" in content
     assert "choose_execution_strategy(command_name=\"explain\"" in content
     assert "single-agent" in lowered
     assert "native-multi-agent" in lowered
@@ -221,6 +224,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     lowered = content.lower()
     step_6 = _extract_step_6_strategy_block(content)
 
+    assert ".specify/memory/constitution.md" in content
     assert "parallel batches" in lowered
     assert "current agent" in lowered
     assert "ready tasks" in lowered
@@ -261,6 +265,12 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "join point" in lowered
     assert "retry-pending" in lowered or "retry pending" in lowered
     assert "blocker" in lowered
+
+
+def test_specify_template_explicitly_reads_constitution() -> None:
+    content = _read("templates/commands/specify.md")
+
+    assert ".specify/memory/constitution.md" in content
 
 
 def test_alignment_template_exists():

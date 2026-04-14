@@ -92,6 +92,7 @@ You **MUST** consider the user input before proceeding (if not empty).
      `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`,
      `常见的代码模式与约定`.
    - **REQUIRED**: Read `项目技术文档.md` after the check above completes.
+   - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
    - **IF EXISTS**: Read data-model.md for entities and relationships
