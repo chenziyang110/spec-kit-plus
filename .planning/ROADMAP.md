@@ -19,7 +19,7 @@ The roadmap now moves from stronger planning-time questioning into deeper execut
 
 - [x] **Phase 10: Leader Contract and Milestone Scheduler** - Define the leader-only execution contract and the milestone-wide scheduling loop. (completed 2026-04-14)
 - [x] **Phase 11: Worker Dispatch and Failure Convergence** - Dispatch sequential and parallel work through workers while classifying failures and enforcing join points. (completed 2026-04-14)
-- [ ] **Phase 12: State Surfaces and End-to-End Verification** - Reflect the new runtime truth across planning artifacts, generated surfaces, docs, and regression coverage.
+- [x] **Phase 12: State Surfaces and End-to-End Verification** - Reflect the new runtime truth across planning artifacts, generated surfaces, docs, and regression coverage. (completed 2026-04-14)
 
 ## Phase Details
 
@@ -65,8 +65,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 12-01: Persist runtime state and align shipped implement surfaces
-- [ ] 12-02: Add end-to-end verification and release-facing guidance for the leader/worker runtime
+- [x] 12-01: Persist runtime state and align shipped implement surfaces
+- [x] 12-02: Add end-to-end verification and release-facing guidance for the leader/worker runtime
 
 ## Archived Milestones
 

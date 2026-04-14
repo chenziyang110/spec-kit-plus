@@ -33,13 +33,13 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 
 ## Current State
 
-- Shipped through **Phase 11** of **v1.3 Implement Orchestrator Runtime** and now preparing **Phase 12 State Surfaces and End-to-End Verification**.
+- Shipped through **Phase 12** of **v1.3 Implement Orchestrator Runtime** and now ready for milestone audit / completion / cleanup.
 - Shared collaboration routing now covers `implement`, `specify`, `plan`, `tasks`, and `explain`.
 - `specify team` remains the Codex-only compatibility runtime surface.
 - `sp-specify` now ships stronger planning-critical questioning, answer-aware follow-up, guided interaction scaffolding, and a confirmation gate before normal release.
 - The local `sp-specify` skill mirror and quickstart guidance now match the stronger shared template contract.
 - `sp-implement` now ships a leader-only milestone scheduler plus worker batch classification, join-point coordination, retry taxonomy, and blocker handling for delegated execution.
-- The next phase now focuses on reflecting that runtime truth across planning artifacts, generated surfaces, docs, and end-to-end verification.
+- Planning/status surfaces, generated implement outputs, and README guidance now reflect that runtime truth with focused cross-layer verification.
 
 ## Requirements
 
@@ -59,10 +59,12 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 - `sp-implement` now ships a leader-only contract that keeps concrete execution in delegated worker lanes, including the sequential `single-agent` path, in Phase 10
 - `sp-implement` now coordinates safe parallel worker batches with explicit join-point policy and narrow safe-preparation rules in Phase 11
 - `sp-implement` now persists retry-pending, blocked, and critical failure taxonomy state for delegated worker execution in Phase 11
+- Planning/status surfaces now expose worker outcomes, join points, retry-pending work, and blockers in Phase 12
+- Shared and generated implement surfaces plus release-facing docs now describe the same leader/worker runtime story in Phase 12
 
 ### Active
 
-- [ ] Runtime state, worker outcomes, blockers, and completion status remain visible in planning artifacts and docs.
+None. Milestone v1.3 phase scope is fully delivered and ready for lifecycle completion.
 
 ### Out of Scope
 
@@ -81,7 +83,7 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 - Milestone v1.2 is archived under `.planning/milestones/` and tagged locally as `v1.2`.
 - The current `templates/commands/implement.md` and `.agents/skills/sp-implement/SKILL.md` now describe a leader-only milestone scheduler that selects the next executable phase and delegated worker lane.
 - The shared orchestration policy and scheduler now model execution strategies, milestone state, roadmap-aware continuation, and classified batch handling.
-- The Codex-team runtime now persists join-point policy, retry state, and blocker identifiers, but those states are not yet fully surfaced across planning artifacts and user-facing docs.
+- The Codex-team runtime now persists join-point policy, retry state, and blocker identifiers, and those states are surfaced consistently across planning/status output and shipped docs.
 - Real usage feedback says `sp-implement` cannot reliably finish an entire milestone in one run because phase progression, worker delegation, and failure recovery stop too early.
 - Earlier design notes in `docs/superpowers/` already point toward deeper `implement` runtime maturity, so this milestone should convert that direction into a shipped, bounded execution model.
 
@@ -126,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 after Phase 11 completion*
+*Last updated: 2026-04-14 after Phase 12 completion*

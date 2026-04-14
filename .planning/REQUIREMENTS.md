@@ -25,9 +25,9 @@
 
 ### State and Surface Alignment
 
-- [ ] **STAT-01**: User can inspect planning artifacts and see which workers ran, which join points are still open, which tasks or phases advanced, and which blockers remain.
-- [ ] **STAT-02**: Maintainer running focused regression coverage gets failures if the shared implement template, generated Codex skill, and orchestration runtime disagree about the leader-only execution contract.
-- [ ] **STAT-03**: User-facing guidance describes `/sp.implement` truthfully as a milestone-level orchestration leader with delegated execution behavior and mixed failure handling.
+- [x] **STAT-01**: User can inspect planning artifacts and see which workers ran, which join points are still open, which tasks or phases advanced, and which blockers remain.
+- [x] **STAT-02**: Maintainer running focused regression coverage gets failures if the shared implement template, generated Codex skill, and orchestration runtime disagree about the leader-only execution contract.
+- [x] **STAT-03**: User-facing guidance describes `/sp.implement` truthfully as a milestone-level orchestration leader with delegated execution behavior and mixed failure handling.
 
 ## v2 Requirements
 
@@ -59,9 +59,9 @@
 | FAIL-01 | Phase 11 | Complete |
 | FAIL-02 | Phase 11 | Complete |
 | FAIL-03 | Phase 11 | Complete |
-| STAT-01 | Phase 12 | Pending |
-| STAT-02 | Phase 12 | Pending |
-| STAT-03 | Phase 12 | Pending |
+| STAT-01 | Phase 12 | Complete |
+| STAT-02 | Phase 12 | Complete |
+| STAT-03 | Phase 12 | Complete |
 
 **Coverage:**
 - v1 requirements: 12 total
@@ -70,4 +70,4 @@
 
 ---
 *Requirements defined: 2026-04-14*
-*Last updated: 2026-04-14 after Phase 11 completion*
+*Last updated: 2026-04-14 after Phase 12 completion*
