@@ -258,6 +258,9 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "delegated worker lane" in lowered
     assert "next executable phase" in lowered
     assert "shared implement template is the primary source of truth" in lowered
+    assert "join point" in lowered
+    assert "retry-pending" in lowered or "retry pending" in lowered
+    assert "blocker" in lowered
 
 
 def test_alignment_template_exists():

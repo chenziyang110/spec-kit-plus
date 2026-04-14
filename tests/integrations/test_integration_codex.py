@@ -83,6 +83,10 @@ def test_codex_generated_sp_implement_includes_strategy_contract_and_team_surfac
     assert "single-agent still means one delegated worker lane" in content
     assert "selects the next executable phase and ready batch" in content
     assert "shared implement template is the primary source of truth" in content
+    assert "join point" in content.lower()
+    assert "retry-pending" in content.lower() or "retry pending" in content.lower()
+    assert "blocker" in content.lower()
+    assert "delegated execution" in content.lower() or "delegates execution" in content.lower()
 
 
 def test_codex_generated_shared_workflow_skills_stay_runtime_neutral(tmp_path):

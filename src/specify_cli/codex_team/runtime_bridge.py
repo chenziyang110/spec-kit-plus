@@ -189,4 +189,7 @@ def codex_team_runtime_status(project_root: Path, *, integration_key: str | None
         "native_windows": is_native_windows(),
         "state_root": state_root,
         "runtime_state": runtime_state_payload(session, [dispatch]),
+        "runtime_state_summary": (
+            "Runtime state surfaces worker outcomes, join points, retry-pending work, and blockers."
+        ),
     }

@@ -90,6 +90,8 @@ class CodexIntegration(SkillsIntegration):
                     "- When you choose `sidecar-runtime`, call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** instead of stopping at a recommendation.\n"
                     "- Follow a fixed order: capture the Step 1 `FEATURE_DIR`, inspect the next ready explicit parallel batch, run the auto-dispatch command, read the result, and only then fall back if the command reports a concrete blocker.\n"
                     "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
+                    "- The leader delegates execution through these worker paths rather than executing the implementation itself.\n"
+                    "- Surface join points, retry-pending work, and blocker state truthfully instead of leaving those runtime transitions implicit.\n"
                     "- After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.\n"
                 )
                 self.write_file_and_record(

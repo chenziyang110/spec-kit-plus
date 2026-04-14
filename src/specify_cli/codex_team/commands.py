@@ -42,4 +42,7 @@ def runtime_state_summary(project_root: Path) -> str:
     from .state_paths import codex_team_state_root
 
     state_root = codex_team_state_root(project_root)
-    return f"Codex team runtime state is stored in {state_root}"
+    return (
+        f"Codex team runtime state is stored in {state_root}. "
+        "This state includes worker outcomes, join points, retry-pending work, and blockers."
+    )

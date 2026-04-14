@@ -145,6 +145,13 @@ After planning, continue with:
 tasks -> implement
 ```
 
+Current `sp-implement` runtime model in this fork:
+
+- `sp-implement` acts as a milestone-level orchestration leader rather than the direct executor
+- concrete implementation runs through delegated execution paths (`single-agent`, `native-multi-agent`, or `sidecar-runtime`)
+- parallel work is coordinated through explicit join points before dependent work continues
+- runtime surfaces can report retry-pending work and blockers instead of hiding those states in chat-only narration
+
 For Codex and other skills-based integrations, the generated commands are installed in skills form.
 
 ## Multi-CLI Orchestration (Milestones 1-2)

@@ -41,6 +41,10 @@ def test_api_status_returns_json(tmp_path: Path):
     assert envelope["status"] == "ok"
     assert "payload" in envelope
     assert envelope["payload"]["runtime_state"]["session"]["session_id"] == "preview"
+    assert "runtime_state_summary" in envelope["payload"]
+    assert "join points" in envelope["payload"]["runtime_state_summary"].lower()
+    assert "blockers" in envelope["payload"]["runtime_state_summary"].lower()
+    assert "retry-pending" in envelope["payload"]["runtime_state_summary"].lower() or "retry pending" in envelope["payload"]["runtime_state_summary"].lower()
 
 
 def test_api_tasks_reports_existing_task(tmp_path: Path):
