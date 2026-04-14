@@ -117,6 +117,8 @@ class BatchRecord:
     task_ids: list[str]
     request_ids: list[str]
     join_point_name: str = ""
+    batch_classification: str = "strict"
+    safe_preparation: bool = False
     status: str = "dispatched"
     schema_version: str = SCHEMA_VERSION
     created_at: str = ""
@@ -266,6 +268,8 @@ def batch_record_payload(
     task_ids: list[str],
     request_ids: list[str],
     join_point_name: str = "",
+    batch_classification: str = "strict",
+    safe_preparation: bool = False,
     status: str = "dispatched",
 ) -> dict[str, Any]:
     return asdict(
@@ -277,6 +281,8 @@ def batch_record_payload(
             task_ids=task_ids,
             request_ids=request_ids,
             join_point_name=join_point_name,
+            batch_classification=batch_classification,
+            safe_preparation=safe_preparation,
             status=status,
         )
     )

@@ -41,6 +41,8 @@ def test_mark_runtime_failure_preserves_failed_state(monkeypatch, codex_team_pro
         session_id="session-4",
         request_id="req-4",
         reason="synthetic failure",
+        failure_class="critical",
+        blocker_id="blk-req-4",
     )
     stored_record = json.loads(dispatch_record_path(codex_team_project_root, "req-4").read_text(encoding="utf-8"))
     stored_session = json.loads(runtime_session_path(codex_team_project_root, "session-4").read_text(encoding="utf-8"))
@@ -48,4 +50,37 @@ def test_mark_runtime_failure_preserves_failed_state(monkeypatch, codex_team_pro
     assert session.status == "failed"
     assert record.status == "failed"
     assert stored_record["reason"] == "synthetic failure"
+    assert stored_record["failure_class"] == "critical"
+    assert stored_session["blocker_id"] == "blk-req-4"
     assert stored_session["finished_at"]
+
+
+def test_mark_runtime_failure_keeps_transient_failure_retryable_until_budget_exhausted(monkeypatch, codex_team_project_root):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+    bootstrap_runtime_session(codex_team_project_root, "session-5")
+    dispatch_runtime_task(
+        codex_team_project_root,
+        session_id="session-5",
+        request_id="req-5",
+        target_worker="worker-c",
+    )
+
+    session, record = mark_runtime_failure(
+        codex_team_project_root,
+        session_id="session-5",
+        request_id="req-5",
+        reason="temporary backend timeout",
+        failure_class="transient",
+        retry_count=1,
+        retry_budget=2,
+    )
+
+    stored_record = json.loads(dispatch_record_path(codex_team_project_root, "req-5").read_text(encoding="utf-8"))
+    stored_session = json.loads(runtime_session_path(codex_team_project_root, "session-5").read_text(encoding="utf-8"))
+
+    assert session.status == "retry_pending"
+    assert record.status == "retry_pending"
+    assert stored_record["failure_class"] == "transient"
+    assert stored_record["retry_count"] == 1
+    assert stored_record["retry_budget"] == 2
+    assert stored_session["status"] == "retry_pending"

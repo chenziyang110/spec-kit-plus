@@ -34,12 +34,14 @@ def test_assess_passive_parallelism_triggers_for_multi_reference_analysis():
                 "summary": "Inspect the API contract",
                 "references": ["docs/api.md"],
                 "write_scopes": [],
+                "low_risk_preparation": False,
             },
             {
                 "lane_id": "refs-db",
                 "summary": "Inspect the schema notes",
                 "references": ["docs/schema.md"],
                 "write_scopes": [],
+                "low_risk_preparation": False,
             },
         ],
     }
@@ -124,11 +126,13 @@ def test_assess_passive_parallelism_triggers_for_independent_capability_planning
                     lane_id="cap-auth",
                     summary="Plan auth enhancement",
                     write_scopes=("src/auth",),
+                    low_risk_preparation=True,
                 ),
                 PassiveParallelismLane(
                     lane_id="cap-billing",
                     summary="Plan billing enhancement",
                     write_scopes=("src/billing",),
+                    low_risk_preparation=True,
                 ),
             ],
         )
@@ -144,12 +148,14 @@ def test_assess_passive_parallelism_triggers_for_independent_capability_planning
                 "summary": "Plan auth enhancement",
                 "references": [],
                 "write_scopes": ["src/auth"],
+                "low_risk_preparation": True,
             },
             {
                 "lane_id": "cap-billing",
                 "summary": "Plan billing enhancement",
                 "references": [],
                 "write_scopes": ["src/billing"],
+                "low_risk_preparation": True,
             },
         ],
     }
@@ -164,11 +170,13 @@ def test_assess_passive_parallelism_does_not_trigger_when_write_scopes_overlap()
                     lane_id="cap-auth-ui",
                     summary="Plan auth UI enhancement",
                     write_scopes=("src/auth/ui",),
+                    low_risk_preparation=True,
                 ),
                 PassiveParallelismLane(
                     lane_id="cap-auth-api",
                     summary="Plan auth API enhancement",
                     write_scopes=("src/auth",),
+                    low_risk_preparation=True,
                 ),
             ],
         )
@@ -176,4 +184,30 @@ def test_assess_passive_parallelism_does_not_trigger_when_write_scopes_overlap()
 
     assert decision.should_trigger is False
     assert decision.reason == "overlapping_write_scopes"
+    assert decision.dispatch_payload is None
+
+
+def test_assess_passive_parallelism_rejects_broad_later_phase_implementation_lanes():
+    decision = assess_passive_parallelism(
+        PassiveParallelismRequest(
+            stage="enhancement",
+            lanes=[
+                PassiveParallelismLane(
+                    lane_id="impl-api",
+                    summary="Implement later-phase API flow",
+                    write_scopes=("src/api",),
+                    low_risk_preparation=False,
+                ),
+                PassiveParallelismLane(
+                    lane_id="impl-ui",
+                    summary="Implement later-phase UI flow",
+                    write_scopes=("src/ui",),
+                    low_risk_preparation=False,
+                ),
+            ],
+        )
+    )
+
+    assert decision.should_trigger is False
+    assert decision.reason == "unsafe_preparation"
     assert decision.dispatch_payload is None

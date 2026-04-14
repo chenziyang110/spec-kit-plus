@@ -1,7 +1,10 @@
 """Tests for orchestration strategy selection policy."""
 
 from specify_cli.orchestration.models import CapabilitySnapshot
-from specify_cli.orchestration.policy import choose_execution_strategy
+from specify_cli.orchestration.policy import (
+    choose_execution_strategy,
+    classify_batch_execution_policy,
+)
 
 
 def test_choose_execution_strategy_blocks_parallel_when_batch_is_not_safe() -> None:
@@ -229,3 +232,32 @@ def test_choose_execution_strategy_supports_explain_command_name() -> None:
     assert decision.command_name == "explain"
     assert decision.strategy == "single-agent"
     assert decision.reason == "no-safe-batch"
+
+
+def test_classify_batch_execution_policy_marks_low_risk_preparation_as_mixed_tolerance() -> None:
+    policy = classify_batch_execution_policy(
+        workload_shape={
+            "parallel_batches": 2,
+            "overlapping_write_sets": False,
+            "safe_preparation": True,
+            "preparation_scope": "scaffolding",
+        }
+    )
+
+    assert policy.batch_classification == "mixed_tolerance"
+    assert policy.safe_preparation_allowed is True
+    assert policy.reason == "low_risk_preparation"
+
+
+def test_classify_batch_execution_policy_keeps_general_parallel_implementation_strict() -> None:
+    policy = classify_batch_execution_policy(
+        workload_shape={
+            "parallel_batches": 2,
+            "overlapping_write_sets": False,
+            "safe_preparation": False,
+        }
+    )
+
+    assert policy.batch_classification == "strict"
+    assert policy.safe_preparation_allowed is False
+    assert policy.reason == "full_success_required"

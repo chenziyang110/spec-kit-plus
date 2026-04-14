@@ -124,6 +124,8 @@ def test_route_ready_parallel_batch_dispatches_each_task(monkeypatch, codex_team
     batch_payload = json.loads(batch_record_path(codex_team_project_root, "default-parallel-batch-1-1").read_text(encoding="utf-8"))
     assert batch_payload["batch_name"] == "Parallel Batch 1.1"
     assert batch_payload["join_point_name"] == "Join Point 1.1"
+    assert batch_payload["batch_classification"] == "strict"
+    assert batch_payload["safe_preparation"] is False
     assert batch_payload["status"] == "dispatched"
     assert batch_payload["task_ids"] == ["T002", "T003"]
     assert batch_payload["request_ids"] == [
@@ -136,6 +138,7 @@ def test_route_ready_parallel_batch_dispatches_each_task(monkeypatch, codex_team
     task = get_task(codex_team_project_root, "T002")
     assert task.metadata["join_points"]["Join Point 1.1"]["status"] == "pending"
     assert task.metadata["join_points"]["Join Point 1.1"]["details"]["batch_name"] == "Parallel Batch 1.1"
+    assert task.metadata["join_points"]["Join Point 1.1"]["details"]["batch_classification"] == "strict"
 
 
 def test_route_ready_parallel_batch_requires_runtime_backend(monkeypatch, codex_team_project_root: Path):

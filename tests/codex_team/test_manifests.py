@@ -15,19 +15,25 @@ def test_runtime_state_payload_serializes_session_and_dispatches():
         session_id="session-1",
         status="ready",
         environment_check="pass",
+        blocker_id="",
     )
     dispatch = DispatchRecord(
         request_id="req-1",
         target_worker="worker-a",
         status="dispatched",
+        failure_class="",
+        retry_count=0,
+        retry_budget=0,
     )
 
     payload = runtime_state_payload(session, [dispatch])
 
     assert payload["session"]["session_id"] == "session-1"
     assert payload["session"]["status"] == "ready"
+    assert payload["session"]["blocker_id"] == ""
     assert payload["dispatches"][0]["request_id"] == "req-1"
     assert payload["dispatches"][0]["target_worker"] == "worker-a"
+    assert payload["dispatches"][0]["failure_class"] == ""
 
 
 def test_runtime_session_round_trips_from_json():
@@ -36,6 +42,7 @@ def test_runtime_session_round_trips_from_json():
             "session_id": "session-2",
             "status": "failed",
             "environment_check": "fail",
+            "blocker_id": "blk-1",
             "created_at": "2026-04-10T00:00:00+00:00",
             "finished_at": "2026-04-10T00:10:00+00:00",
         }
@@ -45,6 +52,7 @@ def test_runtime_session_round_trips_from_json():
 
     assert session.session_id == "session-2"
     assert session.status == "failed"
+    assert session.blocker_id == "blk-1"
     assert session.finished_at == "2026-04-10T00:10:00+00:00"
 
 
@@ -55,6 +63,9 @@ def test_dispatch_record_round_trips_from_json():
             "target_worker": "worker-b",
             "status": "completed",
             "reason": "",
+            "failure_class": "transient",
+            "retry_count": 1,
+            "retry_budget": 2,
             "created_at": "2026-04-10T00:00:00+00:00",
             "updated_at": "2026-04-10T00:05:00+00:00",
         }
@@ -65,6 +76,9 @@ def test_dispatch_record_round_trips_from_json():
     assert record.request_id == "req-2"
     assert record.target_worker == "worker-b"
     assert record.status == "completed"
+    assert record.failure_class == "transient"
+    assert record.retry_count == 1
+    assert record.retry_budget == 2
 
 
 def test_runtime_session_parser_ignores_unknown_fields():

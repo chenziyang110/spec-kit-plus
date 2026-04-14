@@ -2,6 +2,7 @@
 
 from .events import OrchestrationEvent, append_event, event_log_path, replay_events
 from .models import (
+    BatchExecutionPolicy,
     Batch,
     CapabilitySnapshot,
     ExecutionStrategy,
@@ -28,6 +29,7 @@ from .state_store import (
 
 __all__ = [
     "Batch",
+    "BatchExecutionPolicy",
     "CapabilitySnapshot",
     "ExecutionStrategy",
     "ExecutionDecision",

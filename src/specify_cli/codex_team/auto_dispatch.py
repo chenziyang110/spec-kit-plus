@@ -17,6 +17,7 @@ from specify_cli.codex_team.session_ops import bootstrap_session, monitor_summar
 from specify_cli.codex_team.worktree_ops import worker_worktree_path
 from specify_cli.codex_team.state_paths import batch_record_path
 from specify_cli.orchestration.backends.process_backend import ProcessBackend
+from specify_cli.orchestration.policy import classify_batch_execution_policy
 
 
 TASK_LINE_RE = re.compile(r"^- \[(?P<mark>[ xX])\] (?P<task_id>T\d+)(?P<rest>.*)$")
@@ -82,6 +83,7 @@ class PassiveParallelismLane:
     summary: str
     references: tuple[str, ...] = ()
     write_scopes: tuple[str, ...] = ()
+    low_risk_preparation: bool = False
 
 
 @dataclass(slots=True)
@@ -147,6 +149,7 @@ def _passive_parallelism_payload(
                 "summary": lane.summary,
                 "references": list(lane.references),
                 "write_scopes": list(lane.write_scopes),
+                "low_risk_preparation": lane.low_risk_preparation,
             }
             for lane in lanes
         ],
@@ -224,6 +227,12 @@ def assess_passive_parallelism(
         )
 
     if request.stage == "enhancement":
+        if any(not lane.low_risk_preparation for lane in request.lanes):
+            return PassiveParallelismDecision(
+                stage=request.stage,
+                should_trigger=False,
+                reason="unsafe_preparation",
+            )
         if any(not lane.write_scopes for lane in request.lanes):
             return PassiveParallelismDecision(
                 stage=request.stage,
@@ -371,6 +380,8 @@ def _write_batch_record(
     task_ids: list[str],
     request_ids: list[str],
     join_point_name: str,
+    batch_classification: str,
+    safe_preparation: bool,
 ) -> None:
     path = batch_record_path(project_root, batch_id)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -384,6 +395,8 @@ def _write_batch_record(
                 task_ids=task_ids,
                 request_ids=request_ids,
                 join_point_name=join_point_name,
+                batch_classification=batch_classification,
+                safe_preparation=safe_preparation,
             ),
             ensure_ascii=False,
             indent=2,
@@ -470,6 +483,13 @@ def route_ready_parallel_batch(
     request_ids: list[str] = []
     dispatched_task_ids: list[str] = []
     batch_id = _batch_id_for(session_id, batch.batch_name)
+    batch_policy = classify_batch_execution_policy(
+        workload_shape={
+            "parallel_batches": len(batch.task_ids),
+            "overlapping_write_sets": False,
+            "safe_preparation": False,
+        }
+    )
     for task_id in batch.task_ids:
         task = tasks_by_id.get(task_id)
         if task is None or task.completed:
@@ -513,6 +533,8 @@ def route_ready_parallel_batch(
                     "batch_id": batch_id,
                     "batch_name": batch.batch_name,
                     "feature_dir": feature_dir.as_posix(),
+                    "batch_classification": batch_policy.batch_classification,
+                    "safe_preparation": batch_policy.safe_preparation_allowed,
                 },
             )
         request_ids.append(request_id)
@@ -527,6 +549,8 @@ def route_ready_parallel_batch(
         task_ids=dispatched_task_ids,
         request_ids=request_ids,
         join_point_name=batch.join_point_name,
+        batch_classification=batch_policy.batch_classification,
+        safe_preparation=batch_policy.safe_preparation_allowed,
     )
     monitor_summary(project_root, session_id=session_id)
     return AutoDispatchResult(

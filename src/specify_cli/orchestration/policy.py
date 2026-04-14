@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping
 
-from .models import CapabilitySnapshot, ExecutionDecision
+from .models import BatchExecutionPolicy, CapabilitySnapshot, ExecutionDecision
 
 _PARALLEL_BATCH_COUNT_KEYS = (
     "parallel_batches",
@@ -129,4 +129,36 @@ def choose_execution_strategy(
         command_name=command_name,
         strategy="single-agent",
         reason="fallback",
+    )
+
+
+def classify_batch_execution_policy(
+    *,
+    workload_shape: dict[str, object],
+) -> BatchExecutionPolicy:
+    """Classify how a batch should converge and whether safe preparation is allowed."""
+
+    shape = workload_shape if isinstance(workload_shape, Mapping) else {}
+    safe_preparation = _get_shape_flag(shape, ("safe_preparation",), default=False)
+    preparation_scope = str(shape.get("preparation_scope", "")).strip().lower()
+    overlapping = _get_shape_flag(shape, _OVERLAPPING_WRITE_SET_KEYS, default=False)
+
+    if safe_preparation and not overlapping and preparation_scope in {
+        "analysis",
+        "scaffolding",
+        "docs",
+        "documentation",
+        "config",
+        "configuration",
+    }:
+        return BatchExecutionPolicy(
+            batch_classification="mixed_tolerance",
+            safe_preparation_allowed=True,
+            reason="low_risk_preparation",
+        )
+
+    return BatchExecutionPolicy(
+        batch_classification="strict",
+        safe_preparation_allowed=False,
+        reason="full_success_required",
     )

@@ -125,13 +125,32 @@ def mark_runtime_failure(
     session_id: str,
     request_id: str,
     reason: str,
+    failure_class: str = "critical",
+    blocker_id: str = "",
+    retry_count: int = 0,
+    retry_budget: int = 0,
 ) -> tuple[RuntimeSession, DispatchRecord]:
     """Persist a visible failure state for the session and dispatch."""
     session = _load_runtime_session(project_root, session_id)
     record = _load_dispatch_record(project_root, request_id)
-    session.status = "failed"
-    session.finished_at = record.updated_at
-    record.status = "failed"
+    record.failure_class = failure_class
+    record.retry_count = retry_count
+    record.retry_budget = retry_budget
+
+    retryable = (
+        failure_class == "transient"
+        and retry_budget > 0
+        and retry_count < retry_budget
+    )
+
+    if retryable:
+        session.status = "retry_pending"
+        record.status = "retry_pending"
+    else:
+        session.status = "failed"
+        session.blocker_id = blocker_id
+        session.finished_at = record.updated_at
+        record.status = "failed"
     record.reason = reason
     write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
     write_json(dispatch_record_path(project_root, request_id), runtime_state_payload(session, [record])["dispatches"][0])

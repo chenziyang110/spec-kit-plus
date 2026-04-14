@@ -40,6 +40,16 @@ class ExecutionDecision:
 
 
 @dataclass(slots=True)
+class BatchExecutionPolicy:
+    """Shared policy output describing how a batch should converge."""
+
+    batch_classification: Literal["strict", "mixed_tolerance"]
+    safe_preparation_allowed: bool = False
+    reason: str = "full_success_required"
+    created_at: str = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
 class PhaseExecutionState:
     """Persisted milestone-level view of a phase and its next ready work."""
 
