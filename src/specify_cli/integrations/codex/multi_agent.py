@@ -19,7 +19,7 @@ class CodexMultiAgentAdapter:
     def detect_capabilities(self) -> CapabilitySnapshot:
         return CapabilitySnapshot(
             integration_key=self.integration_key,
-            native_multi_agent=False,
+            native_multi_agent=True,
             sidecar_runtime_supported=True,
             structured_results=False,
             durable_coordination=True,

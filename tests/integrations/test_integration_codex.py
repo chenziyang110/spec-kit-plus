@@ -58,7 +58,7 @@ def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_pat
     assert templates == [commands_dir / "plan.md", commands_dir / "team.md"]
 
 
-def test_codex_generated_sp_implement_includes_strategy_contract_and_team_surface(tmp_path):
+def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -83,7 +83,9 @@ def test_codex_generated_sp_implement_includes_strategy_contract_and_team_surfac
     assert auto_parallel_idx != -1
     assert leader_gate_idx < outline_idx < auto_parallel_idx
     assert "you are the **leader**, not the concrete implementer" in content
-    assert "must not edit implementation files directly" in content
+    assert "spawn_agent" in content
+    assert "wait_agent" in content
+    assert "close_agent" in content
     assert "specify team" in content
     assert "single-agent" in content
     assert "native-multi-agent" in content
@@ -96,11 +98,12 @@ def test_codex_generated_sp_implement_includes_strategy_contract_and_team_surfac
     assert "retry-pending" in content.lower() or "retry pending" in content.lower()
     assert "blocker" in content.lower()
     assert "delegated execution" in content.lower() or "delegates execution" in content.lower()
-    assert "prefer `sidecar-runtime`" in content
-    assert "ask the user whether codex should continue via native subagents" in content.lower()
+    assert "prefer `native-multi-agent`" in content
+    assert "only fall back to `specify team`" in content.lower()
+    assert "must not edit implementation files directly while worker delegation is active" in content.lower()
 
 
-def test_codex_generated_shared_workflow_skills_stay_runtime_neutral(tmp_path):
+def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guidance(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -115,9 +118,15 @@ def test_codex_generated_shared_workflow_skills_stay_runtime_neutral(tmp_path):
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skills_dir = target / ".agents" / "skills"
-    for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-explain"):
+    for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-implement"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "single-agent" in content
         assert "native-multi-agent" in content
         assert "sidecar-runtime" in content
+        assert "spawn_agent" in content
+        assert "wait_agent" in content
+
+    shared_skills = ("sp-specify", "sp-plan", "sp-tasks")
+    for skill_name in shared_skills:
+        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "specify team" not in content

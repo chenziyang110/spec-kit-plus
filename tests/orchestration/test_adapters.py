@@ -28,6 +28,7 @@ def test_codex_adapter_capability_snapshot():
 
     assert isinstance(snapshot, CapabilitySnapshot)
     assert snapshot.integration_key == "codex"
+    assert snapshot.native_multi_agent is True
     assert snapshot.sidecar_runtime_supported is True
 
 

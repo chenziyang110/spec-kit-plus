@@ -69,63 +69,139 @@ class CodexIntegration(SkillsIntegration):
             **opts,
         )
 
-        implement_skill = self.skills_dest(project_root) / "sp-implement" / "SKILL.md"
-        if implement_skill in created and implement_skill.is_file():
-            content = implement_skill.read_text(encoding="utf-8")
-            gate_marker = "## Codex Leader Gate"
-            if gate_marker not in content:
-                gate_addendum = (
-                    "\n"
-                    "## Codex Leader Gate\n\n"
-                    "When running `sp-implement` in Codex, you are the **leader**, not the concrete implementer.\n"
-                    "\n"
-                    "Before any code edits, test edits, build commands, or implementation actions:\n"
-                    "- Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.\n"
-                    "- If the selected strategy is `sidecar-runtime`, you **MUST** call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** before doing any concrete implementation work yourself.\n"
-                    "- If `specify team auto-dispatch` succeeds or takes ownership of the batch, stay in leader mode and monitor / re-evaluate at the next join point.\n"
-                    "- If `specify team auto-dispatch` reports a blocker or runtime unavailability, **STOP** and ask the user whether Codex should switch to native subagents.\n"
-                    "- Do **not** fall through from sidecar preference into local self-execution just because the implementation looks feasible.\n"
-                    "- `single-agent` still means one delegated worker lane, not leader self-execution.\n"
-                    "\n"
-                    "**Hard rule:** When `sidecar-runtime` is selected or still being attempted, the leader must not edit implementation files directly.\n"
-                )
-                if "## Outline" in content:
-                    content = content.replace("## Outline", gate_addendum + "\n## Outline", 1)
-                else:
-                    content += gate_addendum
-
-            marker = "## Codex Auto-Parallel Execution"
-            if marker not in content:
-                addendum = (
-                    "\n"
-                    "## Codex Auto-Parallel Execution\n\n"
-                    "When running `sp-implement` in Codex, treat Step 6's unified execution strategy selection as a runtime-aware escalation with a Codex-specific runtime preference.\n"
-                    "For each ready parallel batch:\n"
-                    "- The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.\n"
-                    "- The shared implement template is the primary source of truth for this leader-only milestone scheduler contract, and Codex-specific guidance must preserve the same semantics.\n"
-                    "- Keep the shared strategy names and workload-safety checks, but for Codex `sp-implement` prefer `sidecar-runtime` whenever `snapshot.sidecar_runtime_supported` is true for the current ready batch.\n"
-                    "- single-agent still means one delegated worker lane, not leader self-execution.\n"
-                    "- Interpret `single-agent` as solo execution through that delegated single-worker sequential path.\n"
-                    "- Interpret `native-multi-agent` as the native subagents path.\n"
-                    "- Interpret `sidecar-runtime` as escalation via **`specify team`**.\n"
-                    "- Decision order for Codex `sp-implement` must stay fixed: `no-safe-batch` -> `sidecar-preferred` -> `native-confirmed` -> `fallback`.\n"
-                    "- When `sidecar-runtime` is available, call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** before considering any native subagent path.\n"
-                    "- Follow a fixed order: capture the Step 1 `FEATURE_DIR`, inspect the next ready explicit parallel batch, run the auto-dispatch command, read the result, and only then continue.\n"
-                    "- If `specify team auto-dispatch` reports a concrete blocker or runtime unavailability, stop and ask the user whether Codex should continue via native subagents.\n"
-                    "- Only switch to `native-multi-agent` after explicit user approval. If the user declines, stay on the delegated single-worker lane or halt when no safe delegated path remains.\n"
-                    "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
-                    "- The leader delegates execution through these worker paths rather than executing the implementation itself.\n"
-                    "- Surface join points, retry-pending work, and blocker state truthfully instead of leaving those runtime transitions implicit.\n"
-                    "- After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.\n"
-                )
-                self.write_file_and_record(
-                    content + addendum,
-                    implement_skill,
-                    project_root,
-                    manifest,
-                )
+        skills_dir = self.skills_dest(project_root)
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-specify" / "SKILL.md",
+            "## Codex Native Multi-Agent Execution",
+            (
+                "\n"
+                "## Codex Native Multi-Agent Execution\n\n"
+                "When running `sp-specify` in Codex, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
+                "- Use `spawn_agent` for bounded lanes such as repository and local context analysis, references analysis, and ambiguity/risk analysis.\n"
+                "- Use `wait_agent` only at the documented join points before capability decomposition and before writing `spec.md`, `alignment.md`, and `context.md`.\n"
+                "- Use `close_agent` after integrating finished worker results.\n"
+                "- Keep the shared workflow language integration-neutral in user-visible output; this Codex addendum is the only place that should mention `spawn_agent`.\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-plan" / "SKILL.md",
+            "## Codex Native Multi-Agent Execution",
+            (
+                "\n"
+                "## Codex Native Multi-Agent Execution\n\n"
+                "When running `sp-plan` in Codex, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
+                "- Use `spawn_agent` for bounded lanes such as research, data model design, contracts drafting, and quickstart or validation scenario generation.\n"
+                "- Use `wait_agent` only at the documented join points before the final constitution and risk re-check and before writing the consolidated implementation plan.\n"
+                "- Use `close_agent` after integrating finished worker results.\n"
+                "- Keep the shared workflow language integration-neutral in user-visible output; this Codex addendum is the only place that should mention `spawn_agent`.\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-tasks" / "SKILL.md",
+            "## Codex Native Multi-Agent Execution",
+            (
+                "\n"
+                "## Codex Native Multi-Agent Execution\n\n"
+                "When running `sp-tasks` in Codex, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
+                "- Use `spawn_agent` for bounded lanes such as story and phase decomposition, dependency graph analysis, and write-set or parallel-safety analysis.\n"
+                "- Use `wait_agent` only at the documented join points before writing `tasks.md` and before emitting canonical parallel batches and join points.\n"
+                "- Use `close_agent` after integrating finished worker results.\n"
+                "- Keep the shared workflow language integration-neutral in user-visible output; this Codex addendum is the only place that should mention `spawn_agent`.\n"
+            ),
+        )
+        self._augment_implement_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-implement" / "SKILL.md",
+        )
 
         return created
+
+    def _augment_shared_skill(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest,
+        skill_path: Path,
+        marker: str,
+        addendum: str,
+    ) -> None:
+        if skill_path not in created or not skill_path.is_file():
+            return
+        content = skill_path.read_text(encoding="utf-8")
+        if marker in content:
+            return
+        self.write_file_and_record(content + addendum, skill_path, project_root, manifest)
+
+    def _augment_implement_skill(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest,
+        implement_skill: Path,
+    ) -> None:
+        if implement_skill not in created or not implement_skill.is_file():
+            return
+
+        content = implement_skill.read_text(encoding="utf-8")
+
+        gate_marker = "## Codex Leader Gate"
+        if gate_marker not in content:
+            gate_addendum = (
+                "\n"
+                "## Codex Leader Gate\n\n"
+                "When running `sp-implement` in Codex, you are the **leader**, not the concrete implementer.\n"
+                "\n"
+                "Before any code edits, test edits, build commands, or implementation actions:\n"
+                "- Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.\n"
+                "- If the selected strategy is `native-multi-agent`, you **MUST** delegate the concrete work through `spawn_agent` worker lanes before considering any fallback path.\n"
+                "- Use `wait_agent` only at the join point for the current ready batch, then integrate results and call `close_agent` for completed workers.\n"
+                "- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** before doing any concrete implementation work yourself.\n"
+                "- Do **not** fall through from worker delegation or sidecar fallback into local self-execution just because the implementation looks feasible.\n"
+                "- `single-agent` still means one delegated worker lane, not leader self-execution.\n"
+                "\n"
+                "**Hard rule:** The leader must not edit implementation files directly while worker delegation is active or while `sidecar-runtime` is selected.\n"
+            )
+            if "## Outline" in content:
+                content = content.replace("## Outline", gate_addendum + "\n## Outline", 1)
+            else:
+                content += gate_addendum
+
+        marker = "## Codex Auto-Parallel Execution"
+        if marker not in content:
+            addendum = (
+                "\n"
+                "## Codex Auto-Parallel Execution\n\n"
+                "When running `sp-implement` in Codex, treat Step 6's unified execution strategy selection as a runtime-aware escalation with a Codex-specific native-worker preference.\n"
+                "For each ready parallel batch:\n"
+                "- The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.\n"
+                "- The shared implement template is the primary source of truth for this leader-only milestone scheduler contract, and Codex-specific guidance must preserve the same semantics.\n"
+                "- Keep the shared strategy names and workload-safety checks, but for Codex `sp-implement` prefer `native-multi-agent` whenever `snapshot.native_multi_agent` is true for the current ready batch.\n"
+                "- Use `spawn_agent` to delegate disjoint worker lanes for the current batch, `wait_agent` to join them, and `close_agent` after integrating results.\n"
+                "- single-agent still means one delegated worker lane, not leader self-execution.\n"
+                "- Interpret `single-agent` as solo execution through that delegated single-worker sequential path.\n"
+                "- Interpret `native-multi-agent` as the native subagents path.\n"
+                "- Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable for the current batch.\n"
+                "- Decision order for Codex `sp-implement` must stay fixed: `no-safe-batch` -> `native-preferred` -> `sidecar-fallback` -> `fallback`.\n"
+                "- Only fall back to `specify team` after a concrete blocker shows that the current batch cannot proceed through native worker delegation.\n"
+                "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
+                "- The leader delegates execution through these worker paths rather than executing the implementation itself.\n"
+                "- Surface join points, retry-pending work, and blocker state truthfully instead of leaving those runtime transitions implicit.\n"
+                "- After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.\n"
+            )
+            content += addendum
+
+        self.write_file_and_record(content, implement_skill, project_root, manifest)
 
 
 __all__ = ["CodexIntegration", "CodexMultiAgentAdapter"]

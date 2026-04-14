@@ -35,27 +35,28 @@ def _read_sp_implement(project: Path) -> str:
 
 
 def test_codex_guidance_calls_out_routing_choices(tmp_path: Path) -> None:
-    """Ensure the Codex guidance talks about solo, native, and team paths."""
+    """Ensure the Codex guidance talks about solo, native, and fallback team paths."""
     project = _init_codex_project(tmp_path)
     content = _read_sp_implement(project)
     lower = content.lower()
 
     assert "solo" in lower
     assert "native subagents" in lower
+    assert "spawn_agent" in lower
     assert "specify team" in content
 
 
-def test_sp_implement_includes_runtime_escalation_language(tmp_path: Path) -> None:
-    """The implementation skill should describe runtime-aware escalations."""
+def test_sp_implement_includes_native_first_escalation_language(tmp_path: Path) -> None:
+    """The implementation skill should describe native-first worker delegation."""
     project = _init_codex_project(tmp_path)
     content = _read_sp_implement(project)
     lower = content.lower()
 
     assert "runtime" in lower
     assert "escalat" in lower
-    assert "auto-dispatch" in lower
-    assert "prefer `sidecar-runtime`" in content
-    assert "ask the user whether codex should continue via native subagents" in lower
+    assert "spawn_agent" in lower
+    assert "prefer `native-multi-agent`" in content
+    assert "fall back to `specify team`" in lower
 
 
 def test_team_guidance_declares_codex_only_scope() -> None:
