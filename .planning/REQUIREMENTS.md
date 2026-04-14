@@ -50,24 +50,24 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ORCH-01 | Pending roadmap | Pending |
-| ORCH-02 | Pending roadmap | Pending |
-| ORCH-03 | Pending roadmap | Pending |
-| LEAD-01 | Pending roadmap | Pending |
-| LEAD-02 | Pending roadmap | Pending |
-| LEAD-03 | Pending roadmap | Pending |
-| FAIL-01 | Pending roadmap | Pending |
-| FAIL-02 | Pending roadmap | Pending |
-| FAIL-03 | Pending roadmap | Pending |
-| STAT-01 | Pending roadmap | Pending |
-| STAT-02 | Pending roadmap | Pending |
-| STAT-03 | Pending roadmap | Pending |
+| ORCH-01 | Phase 10 | Pending |
+| ORCH-02 | Phase 10 | Pending |
+| ORCH-03 | Phase 11 | Pending |
+| LEAD-01 | Phase 10 | Pending |
+| LEAD-02 | Phase 10 | Pending |
+| LEAD-03 | Phase 11 | Pending |
+| FAIL-01 | Phase 11 | Pending |
+| FAIL-02 | Phase 11 | Pending |
+| FAIL-03 | Phase 11 | Pending |
+| STAT-01 | Phase 12 | Pending |
+| STAT-02 | Phase 12 | Pending |
+| STAT-03 | Phase 12 | Pending |
 
 **Coverage:**
 - v1 requirements: 12 total
-- Mapped to phases: 0
-- Unmapped: 12 Pending roadmap creation
+- Mapped to phases: 12
+- Unmapped: 0 Good
 
 ---
 *Requirements defined: 2026-04-14*
-*Last updated: 2026-04-14 after initial definition for v1.3*
+*Last updated: 2026-04-14 after roadmap creation for v1.3*
