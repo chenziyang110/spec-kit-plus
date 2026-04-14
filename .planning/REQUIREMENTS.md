@@ -9,19 +9,19 @@
 
 - [x] **ORCH-01**: User can run `/sp.implement` once against the active planning artifacts and have it continue across all remaining phases in the current milestone until work is complete or a blocker is declared.
 - [x] **ORCH-02**: User can rely on `/sp.implement` to derive the next executable phase and ready task batch from roadmap order, task dependencies, and current execution state instead of requiring manual phase-by-phase restarts.
-- [ ] **ORCH-03**: User sees roadmap order preserved as the default execution contract, while clearly safe preparation work for later phases can be started early without marking those phases complete prematurely.
+- [x] **ORCH-03**: User sees roadmap order preserved as the default execution contract, while clearly safe preparation work for later phases can be started early without marking those phases complete prematurely.
 
 ### Leader and Worker Roles
 
 - [x] **LEAD-01**: User can rely on the `sp-implement` leader to schedule, dispatch, reconcile, and report work without directly performing the implementation or verification tasks itself.
 - [x] **LEAD-02**: User running a sequential implementation batch still gets that work executed by a worker lane or delegated path rather than by the leader process.
-- [ ] **LEAD-03**: User running a safe parallel batch gets multiple worker executions coordinated under explicit join-point semantics before downstream work continues.
+- [x] **LEAD-03**: User running a safe parallel batch gets multiple worker executions coordinated under explicit join-point semantics before downstream work continues.
 
 ### Failure and Recovery
 
-- [ ] **FAIL-01**: User sees non-critical worker failures reported without freezing unrelated ready work that can still proceed safely in the current milestone.
-- [ ] **FAIL-02**: User sees critical-path worker failures stop phase advancement and surface an actionable blocker report before the runtime claims milestone progress.
-- [ ] **FAIL-03**: User sees repeated worker failures escalate to a blocked or deferred state instead of being retried indefinitely.
+- [x] **FAIL-01**: User sees non-critical worker failures reported without freezing unrelated ready work that can still proceed safely in the current milestone.
+- [x] **FAIL-02**: User sees critical-path worker failures stop phase advancement and surface an actionable blocker report before the runtime claims milestone progress.
+- [x] **FAIL-03**: User sees repeated worker failures escalate to a blocked or deferred state instead of being retried indefinitely.
 
 ### State and Surface Alignment
 
@@ -52,13 +52,13 @@
 |-------------|-------|--------|
 | ORCH-01 | Phase 10 | Complete |
 | ORCH-02 | Phase 10 | Complete |
-| ORCH-03 | Phase 11 | Pending |
+| ORCH-03 | Phase 11 | Complete |
 | LEAD-01 | Phase 10 | Complete |
 | LEAD-02 | Phase 10 | Complete |
-| LEAD-03 | Phase 11 | Pending |
-| FAIL-01 | Phase 11 | Pending |
-| FAIL-02 | Phase 11 | Pending |
-| FAIL-03 | Phase 11 | Pending |
+| LEAD-03 | Phase 11 | Complete |
+| FAIL-01 | Phase 11 | Complete |
+| FAIL-02 | Phase 11 | Complete |
+| FAIL-03 | Phase 11 | Complete |
 | STAT-01 | Phase 12 | Pending |
 | STAT-02 | Phase 12 | Pending |
 | STAT-03 | Phase 12 | Pending |
@@ -70,4 +70,4 @@
 
 ---
 *Requirements defined: 2026-04-14*
-*Last updated: 2026-04-14 after Phase 10 completion*
+*Last updated: 2026-04-14 after Phase 11 completion*
