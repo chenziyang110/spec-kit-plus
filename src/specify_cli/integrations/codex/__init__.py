@@ -72,6 +72,28 @@ class CodexIntegration(SkillsIntegration):
         implement_skill = self.skills_dest(project_root) / "sp-implement" / "SKILL.md"
         if implement_skill in created and implement_skill.is_file():
             content = implement_skill.read_text(encoding="utf-8")
+            gate_marker = "## Codex Leader Gate"
+            if gate_marker not in content:
+                gate_addendum = (
+                    "\n"
+                    "## Codex Leader Gate\n\n"
+                    "When running `sp-implement` in Codex, you are the **leader**, not the concrete implementer.\n"
+                    "\n"
+                    "Before any code edits, test edits, build commands, or implementation actions:\n"
+                    "- Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.\n"
+                    "- If the selected strategy is `sidecar-runtime`, you **MUST** call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** before doing any concrete implementation work yourself.\n"
+                    "- If `specify team auto-dispatch` succeeds or takes ownership of the batch, stay in leader mode and monitor / re-evaluate at the next join point.\n"
+                    "- If `specify team auto-dispatch` reports a blocker or runtime unavailability, **STOP** and ask the user whether Codex should switch to native subagents.\n"
+                    "- Do **not** fall through from sidecar preference into local self-execution just because the implementation looks feasible.\n"
+                    "- `single-agent` still means one delegated worker lane, not leader self-execution.\n"
+                    "\n"
+                    "**Hard rule:** When `sidecar-runtime` is selected or still being attempted, the leader must not edit implementation files directly.\n"
+                )
+                if "## Outline" in content:
+                    content = content.replace("## Outline", gate_addendum + "\n## Outline", 1)
+                else:
+                    content += gate_addendum
+
             marker = "## Codex Auto-Parallel Execution"
             if marker not in content:
                 addendum = (

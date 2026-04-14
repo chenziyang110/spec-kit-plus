@@ -74,7 +74,16 @@ def test_codex_generated_sp_implement_includes_strategy_contract_and_team_surfac
 
     skill_path = target / ".agents" / "skills" / "sp-implement" / "SKILL.md"
     content = skill_path.read_text(encoding="utf-8")
+    leader_gate_idx = content.find("## Codex Leader Gate")
+    outline_idx = content.find("## Outline")
+    auto_parallel_idx = content.find("## Codex Auto-Parallel Execution")
 
+    assert leader_gate_idx != -1
+    assert outline_idx != -1
+    assert auto_parallel_idx != -1
+    assert leader_gate_idx < outline_idx < auto_parallel_idx
+    assert "you are the **leader**, not the concrete implementer" in content
+    assert "must not edit implementation files directly" in content
     assert "specify team" in content
     assert "single-agent" in content
     assert "native-multi-agent" in content

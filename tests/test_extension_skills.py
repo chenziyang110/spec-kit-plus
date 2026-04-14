@@ -365,6 +365,16 @@ def test_repo_specify_skill_mirror_matches_current_contract():
     assert "without needing `/sp.spec-extend`" in body
 
 
+def test_repo_implement_skill_mirror_has_codex_leader_gate():
+    mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-implement" / "SKILL.md"
+    body = _body_without_frontmatter(mirror_path)
+
+    assert "## Codex Leader Gate" in body
+    assert "you are the **leader**, not the concrete implementer" in body
+    assert "MUST" in body and "specify team auto-dispatch --feature-dir" in body
+    assert "must not edit implementation files directly" in body
+
+
 # ===== Extension Skill Registration Tests =====
 
 class TestExtensionSkillRegistration:

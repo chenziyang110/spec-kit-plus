@@ -50,6 +50,20 @@ You **MUST** consider the user input before proceeding (if not empty).
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
 
+## Codex Leader Gate
+
+When running `sp-implement` in Codex, you are the **leader**, not the concrete implementer.
+
+Before any code edits, test edits, build commands, or implementation actions:
+- Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.
+- If the selected strategy is `sidecar-runtime`, you **MUST** call **`specify team auto-dispatch --feature-dir "<FEATURE_DIR>"`** before doing any concrete implementation work yourself.
+- If `specify team auto-dispatch` succeeds or takes ownership of the batch, stay in leader mode and monitor / re-evaluate at the next join point.
+- If `specify team auto-dispatch` reports a blocker or runtime unavailability, **STOP** and ask the user whether Codex should switch to native subagents.
+- Do **not** fall through from sidecar preference into local self-execution just because the implementation looks feasible.
+- `single-agent` still means one delegated worker lane, not leader self-execution.
+
+**Hard rule:** When `sidecar-runtime` is selected or still being attempted, the leader must not edit implementation files directly.
+
 ## Outline
 
 1. Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
