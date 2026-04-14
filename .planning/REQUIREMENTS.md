@@ -7,14 +7,14 @@
 
 ### Milestone Orchestration
 
-- [ ] **ORCH-01**: User can run `/sp.implement` once against the active planning artifacts and have it continue across all remaining phases in the current milestone until work is complete or a blocker is declared.
-- [ ] **ORCH-02**: User can rely on `/sp.implement` to derive the next executable phase and ready task batch from roadmap order, task dependencies, and current execution state instead of requiring manual phase-by-phase restarts.
+- [x] **ORCH-01**: User can run `/sp.implement` once against the active planning artifacts and have it continue across all remaining phases in the current milestone until work is complete or a blocker is declared.
+- [x] **ORCH-02**: User can rely on `/sp.implement` to derive the next executable phase and ready task batch from roadmap order, task dependencies, and current execution state instead of requiring manual phase-by-phase restarts.
 - [ ] **ORCH-03**: User sees roadmap order preserved as the default execution contract, while clearly safe preparation work for later phases can be started early without marking those phases complete prematurely.
 
 ### Leader and Worker Roles
 
-- [ ] **LEAD-01**: User can rely on the `sp-implement` leader to schedule, dispatch, reconcile, and report work without directly performing the implementation or verification tasks itself.
-- [ ] **LEAD-02**: User running a sequential implementation batch still gets that work executed by a worker lane or delegated path rather than by the leader process.
+- [x] **LEAD-01**: User can rely on the `sp-implement` leader to schedule, dispatch, reconcile, and report work without directly performing the implementation or verification tasks itself.
+- [x] **LEAD-02**: User running a sequential implementation batch still gets that work executed by a worker lane or delegated path rather than by the leader process.
 - [ ] **LEAD-03**: User running a safe parallel batch gets multiple worker executions coordinated under explicit join-point semantics before downstream work continues.
 
 ### Failure and Recovery
@@ -50,11 +50,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ORCH-01 | Phase 10 | Pending |
-| ORCH-02 | Phase 10 | Pending |
+| ORCH-01 | Phase 10 | Complete |
+| ORCH-02 | Phase 10 | Complete |
 | ORCH-03 | Phase 11 | Pending |
-| LEAD-01 | Phase 10 | Pending |
-| LEAD-02 | Phase 10 | Pending |
+| LEAD-01 | Phase 10 | Complete |
+| LEAD-02 | Phase 10 | Complete |
 | LEAD-03 | Phase 11 | Pending |
 | FAIL-01 | Phase 11 | Pending |
 | FAIL-02 | Phase 11 | Pending |
@@ -70,4 +70,4 @@
 
 ---
 *Requirements defined: 2026-04-14*
-*Last updated: 2026-04-14 after roadmap creation for v1.3*
+*Last updated: 2026-04-14 after Phase 10 completion*

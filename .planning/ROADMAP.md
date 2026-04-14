@@ -17,7 +17,7 @@ The roadmap now moves from stronger planning-time questioning into deeper execut
 
 ## Phases
 
-- [ ] **Phase 10: Leader Contract and Milestone Scheduler** - Define the leader-only execution contract and the milestone-wide scheduling loop.
+- [x] **Phase 10: Leader Contract and Milestone Scheduler** - Define the leader-only execution contract and the milestone-wide scheduling loop. (completed 2026-04-14)
 - [ ] **Phase 11: Worker Dispatch and Failure Convergence** - Dispatch sequential and parallel work through workers while classifying failures and enforcing join points.
 - [ ] **Phase 12: State Surfaces and End-to-End Verification** - Reflect the new runtime truth across planning artifacts, generated surfaces, docs, and regression coverage.
 
@@ -35,8 +35,8 @@ The roadmap now moves from stronger planning-time questioning into deeper execut
 **Plans**: 2 plans
 
 Plans:
-- [ ] 10-01: Define the leader-only implement contract and milestone scheduler surfaces
-- [ ] 10-02: Integrate roadmap-aware execution flow and delegated sequential worker handling
+- [x] 10-01: Define the leader-only implement contract and milestone scheduler surfaces
+- [x] 10-02: Integrate roadmap-aware execution flow and delegated sequential worker handling
 
 ### Phase 11: Worker Dispatch and Failure Convergence
 **Goal**: Make delegated execution safe for both sequential and parallel work while preserving join points and mixed failure handling.
