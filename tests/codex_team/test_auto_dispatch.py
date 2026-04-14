@@ -6,10 +6,16 @@ import pytest
 from specify_cli.codex_team.auto_dispatch import (
     AutoDispatchUnavailableError,
     find_next_ready_parallel_batch,
+    launch_dispatched_worker,
     parse_tasks_markdown,
     route_ready_parallel_batch,
 )
-from specify_cli.codex_team.state_paths import batch_record_path, dispatch_record_path, runtime_session_path
+from specify_cli.codex_team.state_paths import (
+    batch_record_path,
+    dispatch_record_path,
+    runtime_session_path,
+    worker_heartbeat_path,
+)
 from specify_cli.codex_team.task_ops import claim_task, get_task, transition_task_status
 
 
@@ -73,6 +79,18 @@ def test_find_next_ready_parallel_batch_requires_prior_tasks_complete(codex_team
 def test_route_ready_parallel_batch_dispatches_each_task(monkeypatch, codex_team_project_root: Path):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+    launched: list[tuple[str, str]] = []
+
+    def _launch(project_root: Path, *, session_id: str, worker_id: str, task_id: str) -> None:
+        launched.append((worker_id, task_id))
+        worker_heartbeat_path(project_root, worker_id).parent.mkdir(parents=True, exist_ok=True)
+        worker_heartbeat_path(project_root, worker_id).write_text(
+            '{"worker_id":"%s","status":"ready","details":{},"schema_version":"1.0","created_at":"2026-04-13T00:00:00+00:00"}'
+            % worker_id,
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr("specify_cli.codex_team.auto_dispatch.launch_dispatched_worker", _launch)
 
     feature_dir = _write_feature_tasks(
         codex_team_project_root,
@@ -112,6 +130,9 @@ def test_route_ready_parallel_batch_dispatches_each_task(monkeypatch, codex_team
         "default-parallel-batch-1-1-t002",
         "default-parallel-batch-1-1-t003",
     ]
+    assert launched == [("t002", "T002"), ("t003", "T003")]
+    assert worker_heartbeat_path(codex_team_project_root, "t002").exists()
+    assert worker_heartbeat_path(codex_team_project_root, "t003").exists()
     task = get_task(codex_team_project_root, "T002")
     assert task.metadata["join_points"]["Join Point 1.1"]["status"] == "pending"
     assert task.metadata["join_points"]["Join Point 1.1"]["details"]["batch_name"] == "Parallel Batch 1.1"

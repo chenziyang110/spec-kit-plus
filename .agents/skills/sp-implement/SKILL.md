@@ -217,3 +217,17 @@ Note: This command assumes a complete task breakdown exists in tasks.md. If task
         EXECUTE_COMMAND: {command}
         ```
     - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+
+## Codex Auto-Parallel Execution
+
+When running in Codex, treat Step 6's unified execution strategy selection as a runtime-aware escalation.
+
+For each ready parallel batch:
+- Apply the shared policy contract first: `parallel_batches <= 0` or overlapping write sets → `single-agent`; otherwise `native-multi-agent` when `native_multi_agent`, otherwise `sidecar-runtime` when `sidecar_runtime_supported`, else `single-agent` fallback.
+- Interpret `single-agent` as solo execution (single-worker sequential path).
+- Interpret `native-multi-agent` as the native subagents path.
+- Interpret `sidecar-runtime` as escalation via **`specify team`**.
+- Decision order must stay fixed: `no-safe-batch` → `native-supported` → `native-missing` → `fallback`.
+- When you choose `sidecar-runtime`, call **`specify team auto-dispatch --feature-dir "<FEATURE_DIR>"`** instead of stopping at a recommendation.
+- Follow a fixed order: capture the Step 1 `FEATURE_DIR`, inspect the next ready explicit parallel batch, run the auto-dispatch command, read the result, and only then fall back if the command reports a concrete blocker.
+- Re-check the strategy after every join point instead of assuming the first choice still applies.

@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
 from specify_cli.codex_team import task_ops
+from specify_cli.codex_team.state_paths import worker_heartbeat_path
 from specify_cli.codex_team.runtime_bridge import dispatch_runtime_task, ensure_tmux_available
 from specify_cli.codex_team.runtime_state import batch_record_payload
 from specify_cli.codex_team.session_ops import bootstrap_session, monitor_summary
+from specify_cli.codex_team.worktree_ops import worker_worktree_path
 from specify_cli.codex_team.state_paths import batch_record_path
+from specify_cli.orchestration.backends.process_backend import ProcessBackend
 
 
 TASK_LINE_RE = re.compile(r"^- \[(?P<mark>[ xX])\] (?P<task_id>T\d+)(?P<rest>.*)$")
@@ -395,6 +399,45 @@ def _load_batch_record(project_root: Path, batch_id: str) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def launch_dispatched_worker(
+    project_root: Path,
+    *,
+    session_id: str,
+    worker_id: str,
+    task_id: str,
+) -> None:
+    heartbeat = worker_heartbeat_path(project_root, worker_id)
+    if heartbeat.exists():
+        return
+
+    worktree = worker_worktree_path(
+        project_root,
+        session_id=session_id,
+        worker_id=worker_id,
+    )
+    worktree.mkdir(parents=True, exist_ok=True)
+
+    env = {
+        "PYTHONPATH": str((project_root / "src").resolve()),
+    }
+    command = [
+        sys.executable,
+        "-m",
+        "specify_cli.codex_team.worker_runtime",
+        "--project-root",
+        str(project_root),
+        "--session-id",
+        session_id,
+        "--worker-id",
+        worker_id,
+        "--task-id",
+        task_id,
+        "--worktree",
+        str(worktree),
+    ]
+    ProcessBackend().launch(command, cwd=project_root, env=env)
+
+
 def route_ready_parallel_batch(
     project_root: Path,
     *,
@@ -451,6 +494,12 @@ def route_ready_parallel_batch(
             session_id=session_id,
             request_id=request_id,
             target_worker=task_id.lower(),
+        )
+        launch_dispatched_worker(
+            project_root,
+            session_id=session_id,
+            worker_id=task_id.lower(),
+            task_id=task_id,
         )
         current_task = task_ops.get_task(project_root, task_id)
         if batch.join_point_name:
