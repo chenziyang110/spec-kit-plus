@@ -167,6 +167,14 @@ Use `human-verify` after the agent has verified the fix and needs the user to co
 When running `sp-debug` in Codex, treat the `investigating` stage as a leader-led routing decision between `single-agent` and native delegated evidence collection.
 - If there are two or more independent evidence-gathering lanes, prefer native delegation through `spawn_agent` over manual sequential investigation.
 - Suitable child tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, comparing independent modules or configurations, judging whether existing logs are detailed enough, and gathering evidence after diagnostic logging has been added.
+- Read `diagnostic_profile` from the debug session before choosing child lanes. Treat it as the default evidence-routing hint unless fresh evidence clearly invalidates it.
+- If `suggested_evidence_lanes` is populated, use it as the default fan-out plan for child-agent evidence collection and join-point planning.
+- Prefer child tasks that gather decisive control-plane signals such as ownership sets, queue contents, resource counters, running collections, and decision-boundary traces.
+- Bias delegated evidence collection by profile when possible:
+  - `scheduler-admission`: gather queue contents, running/admitted sets, slot counters, and promotion handoff traces in parallel.
+  - `cache-snapshot`: gather authoritative control state, cached or snapshot state, invalidation timing, and refresh-path traces in parallel.
+  - `ui-projection`: gather source-of-truth state, publish-boundary state, transformed view-model state, and rendered or polled output in parallel.
+  - `general`: gather the owning decision-layer state, the observable projection state, and the boundary trace between them.
 - The leader **MUST** update the debug file's `Current Focus` before delegating and treat child work as evidence gathering for the current hypothesis, not as parallel hypothesis formation.
 - Child agents must return facts, command results, and observations; they must not update the debug file, declare the root cause final, transition the session state, or archive the session.
 - Use `wait_agent` only after the current investigation fan-out reaches its join point, then integrate the returned evidence into `Evidence` or `Eliminated` yourself.

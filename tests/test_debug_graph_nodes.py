@@ -77,6 +77,23 @@ async def test_investigating_node_prioritization():
     assert "Prioritizing files from recent history" in state.current_focus.next_action
     assert "src/buggy.py" in state.current_focus.next_action
 
+
+@pytest.mark.asyncio
+async def test_graph_refreshes_diagnostic_profile_from_symptoms():
+    state = DebugGraphState(slug="test", trigger="stale snapshot shows old task state")
+    state.symptoms.expected = "Fresh task state visible"
+    state.symptoms.actual = "Stale snapshot cache remains visible"
+    state.symptoms.reproduction_verified = True
+
+    node = GatheringNode()
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await node.run(ctx)
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.diagnostic_profile == "cache-snapshot"
+    assert state.suggested_evidence_lanes[0].name == "authoritative-state-trace"
+
 @pytest.mark.asyncio
 async def test_investigating_node_elimination():
     state = DebugGraphState(slug="test", trigger="test")
@@ -99,7 +116,24 @@ async def test_investigating_node_elimination():
 @pytest.mark.asyncio
 async def test_investigating_node_finds_root_cause():
     state = DebugGraphState(slug="test", trigger="test")
-    state.resolution.root_cause = "Typo in line 42"
+    state.resolution.root_cause = {
+        "summary": "Parser upper bound excludes the final token",
+        "owning_layer": "parser",
+        "broken_control_state": "token boundary decisions",
+        "failure_mechanism": "upper bound truncates the last token during slicing",
+        "loop_break": "control decision -> state transition",
+        "decisive_signal": "upper bound excludes final token while caller only sees missing output",
+    }
+    state.truth_ownership = [{"layer": "parser", "owns": "token boundary decisions"}]
+    state.control_state = ["token index", "upper bound"]
+    state.observation_state = ["rendered token stream"]
+    state.closed_loop.input_event = "parse request"
+    state.closed_loop.control_decision = "compute token bounds"
+    state.closed_loop.resource_allocation = "assign final token slice"
+    state.closed_loop.state_transition = "token included in parse result"
+    state.closed_loop.external_observation = "caller sees full token list"
+    state.closed_loop.break_point = "upper bound truncates token"
+    state.resolution.decisive_signals = ["upper bound excludes final token while UI only shows missing output"]
     
     node = InvestigatingNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -111,7 +145,24 @@ async def test_investigating_node_finds_root_cause():
 @pytest.mark.asyncio
 async def test_fixing_node_no_fix():
     state = DebugGraphState(slug="test", trigger="test")
-    state.resolution.root_cause = "Typo in line 42"
+    state.resolution.root_cause = {
+        "summary": "Parser upper bound excludes the final token",
+        "owning_layer": "parser",
+        "broken_control_state": "token boundary decisions",
+        "failure_mechanism": "upper bound truncates the last token during slicing",
+        "loop_break": "control decision -> state transition",
+        "decisive_signal": "upper bound excludes final token while caller only sees missing output",
+    }
+    state.truth_ownership = [{"layer": "parser", "owns": "token boundary decisions"}]
+    state.control_state = ["token index", "upper bound"]
+    state.observation_state = ["rendered token stream"]
+    state.closed_loop.input_event = "parse request"
+    state.closed_loop.control_decision = "compute token bounds"
+    state.closed_loop.resource_allocation = "assign final token slice"
+    state.closed_loop.state_transition = "token included in parse result"
+    state.closed_loop.external_observation = "caller sees full token list"
+    state.closed_loop.break_point = "upper bound truncates token"
+    state.resolution.decisive_signals = ["upper bound excludes final token while UI only shows missing output"]
     
     node = FixingNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -124,6 +175,24 @@ async def test_fixing_node_no_fix():
 @pytest.mark.asyncio
 async def test_fixing_node_with_fix():
     state = DebugGraphState(slug="test", trigger="test")
+    state.resolution.root_cause = {
+        "summary": "Parser upper bound excludes the final token",
+        "owning_layer": "parser",
+        "broken_control_state": "token boundary decisions",
+        "failure_mechanism": "upper bound truncates the last token during slicing",
+        "loop_break": "control decision -> state transition",
+        "decisive_signal": "upper bound excludes final token while caller only sees missing output",
+    }
+    state.truth_ownership = [{"layer": "parser", "owns": "token boundary decisions"}]
+    state.control_state = ["token index", "upper bound"]
+    state.observation_state = ["rendered token stream"]
+    state.closed_loop.input_event = "parse request"
+    state.closed_loop.control_decision = "compute token bounds"
+    state.closed_loop.resource_allocation = "assign final token slice"
+    state.closed_loop.state_transition = "token included in parse result"
+    state.closed_loop.external_observation = "caller sees full token list"
+    state.closed_loop.break_point = "upper bound truncates token"
+    state.resolution.decisive_signals = ["upper bound excludes final token while UI only shows missing output"]
     state.resolution.fix = "Update line 42 to fix the typo"
     
     node = FixingNode()
@@ -187,6 +256,7 @@ async def test_verifying_node_failure(monkeypatch):
     assert state.resolution.verification == "failed"
     assert state.resolution.fail_count == 1
     assert len(calls) == 2
+    assert "python tests/repro.py" in state.evidence[-1].checked or "pytest" in state.evidence[-1].checked
 
 @pytest.mark.asyncio
 async def test_verifying_node_uses_changed_test_files(monkeypatch):
@@ -259,6 +329,94 @@ async def test_verifying_node_triggers_safety_gate_after_third_failure(monkeypat
     assert state.resolution.verification == "failed"
     assert state.resolution.fail_count == 3
 
+
+@pytest.mark.asyncio
+async def test_investigating_node_blocks_fixing_without_required_framing():
+    state = DebugGraphState(slug="test", trigger="test")
+    state.resolution.root_cause = {"summary": "Typo in line 42"}
+
+    node = InvestigatingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await node.run(ctx)
+
+    assert result.data == "Awaiting more debugging input"
+    assert "fixing is blocked" in (state.current_focus.next_action or "").lower()
+    assert "truth ownership map" in (state.current_focus.next_action or "").lower()
+    assert "decisive signals" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] truth ownership map" in (state.current_focus.next_action or "").lower()
+    assert "fill in the missing items below before advancing" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_fixing_node_blocks_without_required_framing():
+    state = DebugGraphState(slug="test", trigger="test")
+    state.resolution.fix = "Update line 42 to fix the typo"
+
+    node = FixingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await node.run(ctx)
+
+    assert result.data == "Awaiting more debugging input"
+    assert "fixing is blocked" in (state.current_focus.next_action or "").lower()
+    assert "confirmed root cause" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] confirmed root cause" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_verifying_node_second_failure_demands_diagnostic_escalation(monkeypatch):
+    def mock_run(_cmd):
+        return "FAIL"
+
+    import specify_cli.debug.graph as graph_module
+    monkeypatch.setattr(graph_module, "run_command", mock_run)
+
+    state = DebugGraphState(slug="test", trigger="test")
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.resolution.fix = "Normalize display status"
+    state.resolution.fail_count = 1
+
+    node = VerifyingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await node.run(ctx)
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.resolution.fail_count == 2
+    assert "decisive instrumentation" in (state.current_focus.next_action or "").lower()
+    assert "control plane" in (state.current_focus.next_action or "").lower()
+    assert "detected profile: ui projection" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] capture ownership sets at the decision layer" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] capture source-of-truth state at publish time" in (state.current_focus.next_action or "").lower()
+    assert "Normalize display status" in state.resolution.rejected_surface_fixes
+
+
+@pytest.mark.asyncio
+async def test_cache_snapshot_profile_gets_targeted_diagnostic_checklist(monkeypatch):
+    def mock_run(_cmd):
+        return "FAIL"
+
+    import specify_cli.debug.graph as graph_module
+    monkeypatch.setattr(graph_module, "run_command", mock_run)
+
+    state = DebugGraphState(slug="test", trigger="stale snapshot keeps old state visible")
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.symptoms.actual = "Polling returns stale cached task table"
+    state.resolution.fix = "Refresh cache on publish"
+    state.resolution.fail_count = 1
+    state.observation_state = ["snapshot cache", "task table"]
+
+    node = VerifyingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await node.run(ctx)
+
+    assert isinstance(result, InvestigatingNode)
+    assert "detected profile: cache/snapshot drift" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] capture the authoritative control state and the cached/snapshot state side by side" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] trace any cache invalidation or refresh path" in (state.current_focus.next_action or "").lower()
+
 @pytest.mark.asyncio
 async def test_verifying_node_treats_silent_nonzero_exit_as_failure():
     state = DebugGraphState(slug="test", trigger="test")
@@ -305,7 +463,14 @@ async def test_run_debug_session_pauses_before_resume_verification(tmp_path):
 @pytest.mark.asyncio
 async def test_awaiting_human_node_generates_handoff_report(tmp_path):
     state = DebugGraphState(slug="test-session", trigger="Intermittent failure")
-    state.resolution.root_cause = "Off-by-one check in parser"
+    state.resolution.root_cause = {
+        "summary": "Off-by-one check in parser",
+        "owning_layer": "parser",
+        "broken_control_state": "token boundary decisions",
+        "failure_mechanism": "loop upper bound used exclusive index incorrectly",
+        "loop_break": "control decision -> state transition",
+        "decisive_signal": "last token disappears while upstream parse request is unchanged",
+    }
     state.resolution.fix = "Adjusted boundary condition in parser"
     state.resolution.fail_count = 3
     state.eliminated.append(

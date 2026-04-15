@@ -6,14 +6,17 @@ import yaml
 from .schema import (
     DebugGraphState,
 )
+from .dispatch import build_codex_dispatch_plan, build_codex_spawn_plan
 
 
 def build_handoff_report(state: DebugGraphState) -> str:
+    root_cause = state.resolution.root_cause.display_text() if state.resolution.root_cause else "Not confirmed"
     lines = [
         "## Awaiting Human Review",
         "",
         f"- Trigger: {state.trigger}",
-        f"- Root cause: {state.resolution.root_cause or 'Not confirmed'}",
+        f"- Diagnostic profile: {state.diagnostic_profile or 'Not classified'}",
+        f"- Root cause: {root_cause}",
         f"- Attempted fix: {state.resolution.fix or 'No fix recorded'}",
         f"- Verification status: {state.resolution.verification or 'unknown'}",
         f"- Failed verification attempts: {state.resolution.fail_count}",
@@ -35,6 +38,68 @@ def build_handoff_report(state: DebugGraphState) -> str:
             )
     else:
         lines.append("- None recorded")
+
+    lines.extend(["", "### Truth Ownership"])
+    if state.truth_ownership:
+        for entry in state.truth_ownership:
+            owner_line = f"- {entry.layer}: {entry.owns}"
+            if entry.evidence:
+                owner_line += f" ({entry.evidence})"
+            lines.append(owner_line)
+    else:
+        lines.append("- Not recorded")
+
+    lines.extend(["", "### Decisive Signals"])
+    if state.resolution.decisive_signals:
+        for signal in state.resolution.decisive_signals:
+            lines.append(f"- {signal}")
+    else:
+        lines.append("- Not recorded")
+
+    lines.extend(["", "### Suggested Evidence Lanes"])
+    if state.suggested_evidence_lanes:
+        for lane in state.suggested_evidence_lanes:
+            lines.append(f"- {lane.name}: {lane.focus}")
+            for item in lane.evidence_to_collect:
+                lines.append(f"  - {item}")
+            if lane.join_goal:
+                lines.append(f"  - join goal: {lane.join_goal}")
+    else:
+        lines.append("- Not recorded")
+
+    dispatch_plan = build_codex_dispatch_plan(state)
+    lines.extend(["", "### Suggested Codex Dispatch"])
+    if dispatch_plan:
+        for task in dispatch_plan:
+            lines.append(f"- {task.lane_name}: {task.task_summary}")
+            lines.append(f"  - role: {task.agent_role}")
+            lines.append(f"  - prompt: {task.prompt.strip()}")
+    else:
+        lines.append("- Not recorded")
+
+    spawn_plan = build_codex_spawn_plan(state)
+    lines.extend(["", "### Suggested Codex Spawn Payloads"])
+    if spawn_plan:
+        for task in spawn_plan:
+            lines.append(f"- {task.lane_name}: {task.agent_type} ({task.reasoning_effort})")
+            lines.append(f"  - message: {task.message.strip()}")
+    else:
+        lines.append("- Not recorded")
+
+    lines.extend(["", "### Root Cause Structure"])
+    if state.resolution.root_cause:
+        if state.resolution.root_cause.owning_layer:
+            lines.append(f"- Owning layer: {state.resolution.root_cause.owning_layer}")
+        if state.resolution.root_cause.broken_control_state:
+            lines.append(f"- Broken control state: {state.resolution.root_cause.broken_control_state}")
+        if state.resolution.root_cause.failure_mechanism:
+            lines.append(f"- Failure mechanism: {state.resolution.root_cause.failure_mechanism}")
+        if state.resolution.root_cause.loop_break:
+            lines.append(f"- Closed-loop break: {state.resolution.root_cause.loop_break}")
+        if state.resolution.root_cause.decisive_signal:
+            lines.append(f"- Primary decisive signal: {state.resolution.root_cause.decisive_signal}")
+    else:
+        lines.append("- Not recorded")
 
     lines.extend(
         [
@@ -69,6 +134,7 @@ class MarkdownPersistenceHandler:
             "slug": state.slug,
             "status": state.status.value,
             "trigger": state.trigger,
+            "diagnostic_profile": state.diagnostic_profile,
             "current_node_id": state.current_node_id,
             "created": state.created.isoformat(),
             "updated": datetime.now().isoformat()
@@ -81,6 +147,11 @@ class MarkdownPersistenceHandler:
         sections = [
             ("Current Focus", state.current_focus.model_dump(mode="json")),
             ("Symptoms", state.symptoms.model_dump(mode="json")),
+            ("Suggested Evidence Lanes", [lane.model_dump(mode="json") for lane in state.suggested_evidence_lanes]),
+            ("Truth Ownership", [entry.model_dump(mode="json") for entry in state.truth_ownership]),
+            ("Control State", state.control_state),
+            ("Observation State", state.observation_state),
+            ("Closed Loop", state.closed_loop.model_dump(mode="json")),
             ("Context", state.context.model_dump(mode="json")),
             ("Recently Modified", state.recently_modified),
             ("Eliminated", [entry.model_dump(mode="json") for entry in state.eliminated]),
@@ -145,11 +216,17 @@ class MarkdownPersistenceHandler:
                 "slug": frontmatter["slug"],
                 "status": frontmatter["status"],
                 "trigger": frontmatter["trigger"],
+                "diagnostic_profile": frontmatter.get("diagnostic_profile"),
                 "current_node_id": frontmatter.get("current_node_id"),
                 "created": frontmatter["created"],
                 "updated": frontmatter["updated"],
                 "current_focus": sections.get("Current Focus") or {},
                 "symptoms": sections.get("Symptoms") or {},
+                "suggested_evidence_lanes": sections.get("Suggested Evidence Lanes") or [],
+                "truth_ownership": sections.get("Truth Ownership") or [],
+                "control_state": sections.get("Control State") or [],
+                "observation_state": sections.get("Observation State") or [],
+                "closed_loop": sections.get("Closed Loop") or {},
                 "context": sections.get("Context") or {},
                 "recently_modified": sections.get("Recently Modified") or [],
                 "eliminated": sections.get("Eliminated") or [],

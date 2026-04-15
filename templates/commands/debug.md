@@ -21,10 +21,14 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 ## Operating Principles
 
 - **Evidence before fixes**: Do not change production behavior until you can explain the failure mechanism.
+- **Find truth ownership before chasing symptoms**: Identify which layer owns the critical truth and which layers only reflect, cache, or project it.
 - **One active hypothesis at a time**: Parallel evidence gathering is allowed; parallel root-cause theories are not.
 - **Observability before speculation**: Read existing logs and outputs first. If they are too weak to explain the failure, improve logging or tracing before attempting a fix.
+- **Control state is not observation state**: Keep scheduling, admission, allocation, and ownership state separate from UI, logs, event streams, caches, and snapshots.
 - **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Update it before each action.
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
+- **Debug the loop, not just the point**: Validate the path from input event to control decision to resource allocation to state transition to external observation.
+- **Escalate diagnostics when the loop is still ambiguous**: If two investigation rounds do not converge, stop layering plausible small fixes and add decisive instrumentation.
 
 ## Session Lifecycle
 
@@ -72,27 +76,62 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
   - what external dependencies returned,
   - and what state changed immediately before failure.
 
+### Required Framing Before Hypothesis
+- Before committing to a root-cause theory, write a **Truth Ownership Map** in the debug session:
+  - which layer owns the decision truth,
+  - which layers only reflect or cache it,
+  - and what evidence supports that ownership claim.
+- Split state into **Control State** and **Observation State**:
+  - `Control State` covers counters, queues, admission sets, scheduler slots, ownership sets, and other values used to make decisions.
+  - `Observation State` covers UI status, logs, task tables, snapshots, event streams, and other externally visible projections.
+- Write the expected **Closed Loop** in the session file:
+  - input event -> control decision -> resource allocation -> state transition -> external observation
+- Prefer hypotheses that explain the control-plane truth, not just the visible symptom layer.
+
 ### Stage 4: Observability Assessment
 - If the current logs cannot answer those questions, treat observability as insufficient.
 - During `investigating`, you may add or refine diagnostic logging, tracing, or instrumentation, then rerun the reproduction or tests to collect stronger evidence.
 - Prefer diagnostic logging that clarifies boundaries, inputs, branches, outputs, and state transitions.
+- Prefer **decisive signals** over broad debug noise:
+  - queue contents,
+  - ownership sets,
+  - running/admitted collections,
+  - resource counters,
+  - and the exact handoff points between decision layers.
+- Bias your instrumentation to the active problem profile when one is apparent:
+  - **scheduler/admission**: queues, running/admitted sets, slot counters, promotion handoffs
+  - **cache/snapshot drift**: authoritative state versus cached state, invalidation timing, refresh paths
+  - **UI projection**: source-of-truth state, publish boundary, transformed view-model state, render/polling output
+- If two hypothesis/experiment cycles fail to converge, escalate observability explicitly. Add instrumentation that can directly falsify the remaining competing explanations instead of applying another surface-level fix.
 
 ### Stage 5: Hypothesis Formation
 - Form one specific, falsifiable hypothesis from the evidence.
 - Record the hypothesis, the test to run, and the expected result in `Current Focus`.
+- State why the hypothesis targets the owning layer or control state rather than a downstream projection.
 
 ### Stage 6: Experiment Loop
 - Run one experiment for the active hypothesis.
 - Append the observed result to `Evidence`.
 - If the result disproves the hypothesis, append it to `Eliminated` and return to Stage 5.
 - If the result confirms the failure mechanism, record the root cause and continue to fixing.
+- Record any **rejected surface fixes** that improved symptoms without restoring the control loop, so future resumes do not mistake symptom relief for root-cause resolution.
 
 ### Stage 7: Root Cause Confirmation
 - Before entering fixing, be able to explain:
   - what failed,
   - why it failed,
   - why the active hypothesis is stronger than the eliminated alternatives,
-  - and what behavior change should resolve it.
+  - which layer owned the broken truth,
+  - which decisive signals ruled out the competing explanations,
+  - whether the issue was in control state, observation state, or the boundary between them,
+  - and what behavior change should resolve the full loop instead of only a local inconsistency.
+- Record the root cause in structured form:
+  - `summary`
+  - `owning_layer`
+  - `broken_control_state`
+  - `failure_mechanism`
+  - `loop_break`
+  - `decisive_signal`
 
 ## Capability-Aware Investigation
 
@@ -131,16 +170,26 @@ The session file must always make it clear:
 - what the active hypothesis is,
 - what experiment is being run,
 - why the current logs are sufficient or insufficient,
+- which layer owns the relevant truth,
+- which state is control state versus observation state,
+- where the closed loop is currently believed to break,
 - and what the next action is if the session resumes later.
 
 ## Fix and Verify Protocol
 
 - Enter `fixing` only after the root cause is confirmed.
 - Apply the minimum code change needed to address that root cause.
+- Fix the owning control-plane failure first. Do not treat a UI/status smoothing change as sufficient unless the closed loop is proven healthy end-to-end.
 - After changing code, rerun:
   - the reproduction path,
   - the most relevant tests,
   - and any logging-enhanced repro flow needed to prove the mechanism changed.
+- Verify the full control loop, not only one function or field:
+  - triggering input,
+  - control decision,
+  - resource allocation,
+  - resulting state transition,
+  - and external observation.
 - If verification fails, return to `investigating` with updated evidence. Do not keep layering fixes without updating the hypothesis.
 
 ## Checkpoint Protocol

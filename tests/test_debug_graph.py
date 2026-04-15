@@ -27,7 +27,24 @@ async def test_gathering_to_investigating():
 @pytest.mark.asyncio
 async def test_investigating_to_fixing():
     state = DebugGraphState(trigger="test bug", slug="test-slug")
-    state.resolution.root_cause = "Found it"
+    state.resolution.root_cause = {
+        "summary": "Scheduler kept stale running ownership after slot release",
+        "owning_layer": "scheduler",
+        "broken_control_state": "running set",
+        "failure_mechanism": "released slot did not clear admitted ownership before promotion",
+        "loop_break": "resource allocation -> state transition",
+        "decisive_signal": "running set stayed non-empty while promotion should have occurred",
+    }
+    state.truth_ownership = [{"layer": "scheduler", "owns": "running set"}]
+    state.control_state = ["running_set"]
+    state.observation_state = ["task_table"]
+    state.closed_loop.input_event = "task completion"
+    state.closed_loop.control_decision = "promote next queued task"
+    state.closed_loop.resource_allocation = "release and reassign slot"
+    state.closed_loop.state_transition = "waiting task becomes admitted"
+    state.closed_loop.external_observation = "UI shows running"
+    state.closed_loop.break_point = "promotion stage"
+    state.resolution.decisive_signals = ["running_set empty while task_table still showed running"]
     ctx = GraphRunContext(state=state, deps=None)
     node = InvestigatingNode()
     
@@ -38,6 +55,24 @@ async def test_investigating_to_fixing():
 @pytest.mark.asyncio
 async def test_fixing_to_verifying():
     state = DebugGraphState(trigger="test bug", slug="test-slug")
+    state.resolution.root_cause = {
+        "summary": "Scheduler kept stale running ownership after slot release",
+        "owning_layer": "scheduler",
+        "broken_control_state": "running set",
+        "failure_mechanism": "released slot did not clear admitted ownership before promotion",
+        "loop_break": "resource allocation -> state transition",
+        "decisive_signal": "running set stayed non-empty while promotion should have occurred",
+    }
+    state.truth_ownership = [{"layer": "scheduler", "owns": "running set"}]
+    state.control_state = ["running_set"]
+    state.observation_state = ["task_table"]
+    state.closed_loop.input_event = "task completion"
+    state.closed_loop.control_decision = "promote next queued task"
+    state.closed_loop.resource_allocation = "release and reassign slot"
+    state.closed_loop.state_transition = "waiting task becomes admitted"
+    state.closed_loop.external_observation = "UI shows running"
+    state.closed_loop.break_point = "promotion stage"
+    state.resolution.decisive_signals = ["running_set empty while task_table still showed running"]
     state.resolution.fix = "Applied fix"
     ctx = GraphRunContext(state=state, deps=None)
     node = FixingNode()
@@ -82,3 +117,67 @@ async def test_verifying_to_investigating_on_failure(monkeypatch):
     assert state.resolution.verification == "failed"
     assert state.resolution.fail_count == 1
     assert state.status == DebugStatus.VERIFYING
+
+
+@pytest.mark.asyncio
+async def test_investigating_blocks_fixing_without_control_plane_framing():
+    state = DebugGraphState(trigger="test bug", slug="test-slug")
+    state.resolution.root_cause = {"summary": "Found it"}
+    ctx = GraphRunContext(state=state, deps=None)
+    node = InvestigatingNode()
+
+    result = await node.run(ctx)
+
+    assert result.data == "Awaiting more debugging input"
+    assert "fixing is blocked" in (state.current_focus.next_action or "").lower()
+    assert "truth ownership map" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] truth ownership map" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_verifying_second_failure_requests_diagnostic_escalation(monkeypatch):
+    calls = []
+
+    def mock_run(_cmd: str) -> str:
+        calls.append(_cmd)
+        return "FAIL"
+
+    monkeypatch.setattr(graph_module, "run_command", mock_run)
+
+    state = DebugGraphState(trigger="test bug", slug="test-slug")
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.resolution.fix = "Normalize UI status"
+    state.resolution.fail_count = 1
+    ctx = GraphRunContext(state=state, deps=None)
+    node = VerifyingNode()
+
+    result = await node.run(ctx)
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.resolution.fail_count == 2
+    assert "decisive instrumentation" in (state.current_focus.next_action or "").lower()
+    assert "control plane" in (state.current_focus.next_action or "").lower()
+    assert "detected profile: ui projection" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] capture ownership sets at the decision layer" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] capture source-of-truth state at publish time" in (state.current_focus.next_action or "").lower()
+    assert "Normalize UI status" in state.resolution.rejected_surface_fixes
+
+
+@pytest.mark.asyncio
+async def test_scheduler_admission_profile_gets_targeted_diagnostic_checklist(monkeypatch):
+    monkeypatch.setattr(graph_module, "run_command", lambda _cmd: "FAIL")
+
+    state = DebugGraphState(trigger="scheduler queue stuck after slot release", slug="test-slug")
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.resolution.fix = "Normalize queue status"
+    state.resolution.fail_count = 1
+    state.control_state = ["running set", "activeCount"]
+    ctx = GraphRunContext(state=state, deps=None)
+    node = VerifyingNode()
+
+    result = await node.run(ctx)
+
+    assert isinstance(result, InvestigatingNode)
+    assert "detected profile: scheduler/admission" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] capture queue contents before and after the decision point" in (state.current_focus.next_action or "").lower()
+    assert "- [ ] capture running/admitted ownership sets before and after slot release" in (state.current_focus.next_action or "").lower()

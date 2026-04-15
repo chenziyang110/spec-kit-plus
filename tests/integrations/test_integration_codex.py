@@ -156,6 +156,14 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "investigating" in content
     assert "debug file" in content
     assert "evidence-gathering" in content or "evidence gathering" in content
+    assert "diagnostic_profile" in content
+    assert "suggested_evidence_lanes" in content
+    assert "decisive control-plane signals" in content
+    assert "scheduler-admission" in content
+    assert "cache-snapshot" in content
+    assert "ui-projection" in content
+    assert "source-of-truth state" in content
+    assert "queue contents" in content
     assert "must not update the debug file" in content
     assert "leader" in content
 
