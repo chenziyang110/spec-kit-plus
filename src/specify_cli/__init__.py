@@ -945,6 +945,8 @@ SKILL_DESCRIPTIONS = {
     "specify": "Create or update the feature specification from a natural language feature description with shared collaboration routing.",
     "spec-extend": "Re-open the current specification, deepen weak analysis, and update spec artifacts through targeted enhancement.",
     "explain": "Explain the current stage artifact in plain language with a structured terminal presentation and conservative cross-check routing.",
+    "fast": "Execute a trivial task directly and skip the full specify-plan workflow when the work is small, local, and low risk.",
+    "quick": "Execute a small ad-hoc task through a lightweight planning and validation path without entering the full specify-plan workflow.",
     "plan": "Execute the implementation planning workflow using the plan template to generate design artifacts with shared collaboration routing.",
     "tasks": "Break down implementation plans into actionable task lists with shared collaboration routing and join-point-aware decomposition.",
     "implement": "Execute all tasks from the task breakdown with unified strategy routing (single-agent, native-multi-agent, sidecar-runtime).",

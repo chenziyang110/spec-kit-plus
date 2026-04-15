@@ -254,6 +254,8 @@ class TestBuiltInSkillGeneration:
         skills_dir = project_dir / ".claude" / "skills"
         assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
+        assert (skills_dir / "sp-fast" / "SKILL.md").exists()
+        assert (skills_dir / "sp-quick" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
         assert "spec-extend" in result.output.lower()
@@ -316,6 +318,10 @@ class TestSkillDescriptions:
         assert "shared collaboration routing" in SKILL_DESCRIPTIONS["plan"].lower()
         assert "shared collaboration routing" in SKILL_DESCRIPTIONS["tasks"].lower()
         assert "join-point-aware" in SKILL_DESCRIPTIONS["tasks"].lower()
+        assert "trivial task" in SKILL_DESCRIPTIONS["fast"].lower()
+        assert "skip the full specify-plan workflow" in SKILL_DESCRIPTIONS["fast"].lower()
+        assert "ad-hoc task" in SKILL_DESCRIPTIONS["quick"].lower()
+        assert "lightweight planning and validation path" in SKILL_DESCRIPTIONS["quick"].lower()
     def test_returns_none_when_no_init_options(self, project_dir):
         """Should return None when init-options.json is missing."""
         manager = ExtensionManager(project_dir)

@@ -158,3 +158,56 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "evidence-gathering" in content or "evidence gathering" in content
     assert "must not update the debug file" in content
     assert "leader" in content
+
+
+def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-fast-task"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skill_path = target / ".agents" / "skills" / "sp-fast" / "SKILL.md"
+    content = skill_path.read_text(encoding="utf-8").lower()
+
+    assert "scope gate" in content
+    assert "at most 3 files" in content or "no more than 3 files" in content
+    assert "no new dependencies" in content
+    assert "do the work directly" in content
+    assert "verify" in content
+    assert "do not create spec.md" in content or "no spec.md" in content
+    assert "no plan.md" in content or "do not create plan.md" in content
+    assert "do not spawn" in content or "no subagents" in content
+
+
+def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-quick-task"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skill_path = target / ".agents" / "skills" / "sp-quick" / "SKILL.md"
+    content = skill_path.read_text(encoding="utf-8").lower()
+
+    assert ".planning/quick/" in content
+    assert "--discuss" in content
+    assert "--research" in content
+    assert "--validate" in content
+    assert "--full" in content
+    assert "lightweight" in content
+    assert "summary.md" in content or "summary artifact" in content
