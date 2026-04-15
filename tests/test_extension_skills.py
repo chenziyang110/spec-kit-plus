@@ -382,9 +382,17 @@ def test_repo_debug_skill_mirror_has_codex_native_investigation_guidance():
     mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-debug" / "SKILL.md"
     body = _body_without_frontmatter(mirror_path).lower()
 
+    assert "operating principles" in body
+    assert "session lifecycle" in body
+    assert "investigation protocol" in body
+    assert "stage 3: log review" in body
+    assert "stage 4: observability check" in body
+    assert "fix and verify protocol" in body
+    assert "checkpoint protocol" in body
     assert "capability-aware investigation" in body
     assert "parallel workers" in body
     assert "native delegation surface" in body
+    assert "improve logging or tracing before attempting a fix" in body or "improve logging or tracing before" in body
     assert "codex native multi-agent investigation" in body
     assert "spawn_agent" in body
     assert "wait_agent" in body
