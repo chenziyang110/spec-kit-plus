@@ -371,8 +371,11 @@ def test_repo_implement_skill_mirror_has_codex_leader_gate():
 
     assert "## Codex Leader Gate" in body
     assert "you are the **leader**, not the concrete implementer" in body
-    assert "MUST" in body and "specify team auto-dispatch --feature-dir" in body
-    assert "must not edit implementation files directly" in body
+    assert "spawn_agent" in body
+    assert "wait_agent" in body
+    assert "close_agent" in body
+    assert "only fall back to `specify team`" in body.lower()
+    assert "must not edit implementation files directly while worker delegation is active" in body.lower()
 
 
 # ===== Extension Skill Registration Tests =====

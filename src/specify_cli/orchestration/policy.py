@@ -111,18 +111,6 @@ def choose_execution_strategy(
             reason="no-safe-batch",
         )
 
-    if (
-        command_name == "implement"
-        and snapshot.integration_key == "codex"
-        and snapshot.sidecar_runtime_supported
-    ):
-        return ExecutionDecision(
-            command_name=command_name,
-            strategy="sidecar-runtime",
-            reason="sidecar-preferred",
-            fallback_from="native-multi-agent" if snapshot.native_multi_agent else None,
-        )
-
     if snapshot.native_multi_agent:
         return ExecutionDecision(
             command_name=command_name,

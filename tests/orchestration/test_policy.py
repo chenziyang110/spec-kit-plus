@@ -48,7 +48,7 @@ def test_choose_execution_strategy_prefers_native_multi_agent_when_available() -
     assert decision.reason == "native-supported"
 
 
-def test_choose_execution_strategy_prefers_sidecar_for_codex_implement_when_available() -> None:
+def test_choose_execution_strategy_prefers_native_for_codex_implement_when_available() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="codex",
         native_multi_agent=True,
@@ -64,9 +64,9 @@ def test_choose_execution_strategy_prefers_sidecar_for_codex_implement_when_avai
         },
     )
 
-    assert decision.strategy == "sidecar-runtime"
-    assert decision.reason == "sidecar-preferred"
-    assert decision.fallback_from == "native-multi-agent"
+    assert decision.strategy == "native-multi-agent"
+    assert decision.reason == "native-supported"
+    assert decision.fallback_from is None
 
 
 def test_choose_execution_strategy_falls_back_to_sidecar_when_native_is_missing() -> None:
@@ -86,7 +86,7 @@ def test_choose_execution_strategy_falls_back_to_sidecar_when_native_is_missing(
     )
 
     assert decision.strategy == "sidecar-runtime"
-    assert decision.reason == "sidecar-preferred"
+    assert decision.reason == "native-missing"
     assert decision.fallback_from is None
 
 

@@ -56,13 +56,13 @@ When running `sp-implement` in Codex, you are the **leader**, not the concrete i
 
 Before any code edits, test edits, build commands, or implementation actions:
 - Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.
-- If the selected strategy is `sidecar-runtime`, you **MUST** call **`specify team auto-dispatch --feature-dir "<FEATURE_DIR>"`** before doing any concrete implementation work yourself.
-- If `specify team auto-dispatch` succeeds or takes ownership of the batch, stay in leader mode and monitor / re-evaluate at the next join point.
-- If `specify team auto-dispatch` reports a blocker or runtime unavailability, **STOP** and ask the user whether Codex should switch to native subagents.
-- Do **not** fall through from sidecar preference into local self-execution just because the implementation looks feasible.
+- If the selected strategy is `native-multi-agent`, you **MUST** delegate the concrete work through `spawn_agent` worker lanes before considering any fallback path.
+- Use `wait_agent` only at the join point for the current ready batch, then integrate results and call `close_agent` for completed workers.
+- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`specify team auto-dispatch --feature-dir "<FEATURE_DIR>"`** before doing any concrete implementation work yourself.
+- Do **not** fall through from worker delegation or sidecar fallback into local self-execution just because the implementation looks feasible.
 - `single-agent` still means one delegated worker lane, not leader self-execution.
 
-**Hard rule:** When `sidecar-runtime` is selected or still being attempted, the leader must not edit implementation files directly.
+**Hard rule:** The leader must not edit implementation files directly while worker delegation is active or while `sidecar-runtime` is selected.
 
 ## Outline
 
@@ -235,21 +235,19 @@ Note: This command assumes a complete task breakdown exists in tasks.md. If task
 
 ## Codex Auto-Parallel Execution
 
-When running `sp-implement` in Codex, treat Step 6's unified execution strategy selection as a runtime-aware escalation with a Codex-specific runtime preference.
+When running `sp-implement` in Codex, treat Step 6's unified execution strategy selection as a runtime-aware escalation with a Codex-specific native-worker preference.
 
 For each ready parallel batch:
 - The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.
 - The shared implement template is the primary source of truth for this leader-only milestone scheduler contract, and Codex-specific guidance must preserve the same semantics.
-- Keep the shared strategy names and workload-safety checks, but for Codex `sp-implement` prefer `sidecar-runtime` whenever `snapshot.sidecar_runtime_supported` is true for the current ready batch.
+- Keep the shared strategy names and workload-safety checks, but for Codex `sp-implement` prefer `native-multi-agent` whenever `snapshot.native_multi_agent` is true for the current ready batch.
+- Use `spawn_agent` to delegate disjoint worker lanes for the current batch, `wait_agent` to join them, and `close_agent` after integrating results.
 - single-agent still means one delegated worker lane, not leader self-execution.
 - Interpret `single-agent` as solo execution through that delegated single-worker sequential path.
 - Interpret `native-multi-agent` as the native subagents path.
-- Interpret `sidecar-runtime` as escalation via **`specify team`**.
-- Decision order for Codex `sp-implement` must stay fixed: `no-safe-batch` → `sidecar-preferred` → `native-confirmed` → `fallback`.
-- When `sidecar-runtime` is available, call **`specify team auto-dispatch --feature-dir "<FEATURE_DIR>"`** before considering any native subagent path.
-- Follow a fixed order: capture the Step 1 `FEATURE_DIR`, inspect the next ready explicit parallel batch, run the auto-dispatch command, read the result, and only then continue.
-- If `specify team auto-dispatch` reports a concrete blocker or runtime unavailability, stop and ask the user whether Codex should continue via native subagents.
-- Only switch to `native-multi-agent` after explicit user approval. If the user declines, stay on the delegated single-worker lane or halt when no safe delegated path remains.
+- Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable for the current batch.
+- Decision order for Codex `sp-implement` must stay fixed: `no-safe-batch` → `native-preferred` → `sidecar-fallback` → `fallback`.
+- Only fall back to `specify team` after a concrete blocker shows that the current batch cannot proceed through native worker delegation.
 - Re-check the strategy after every join point instead of assuming the first choice still applies.
 - The leader delegates execution through these worker paths rather than executing the implementation itself.
 - Surface join points, retry-pending work, and blocker state truthfully instead of leaving those runtime transitions implicit.
