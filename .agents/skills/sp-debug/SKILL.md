@@ -24,6 +24,18 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Update it before each action.
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
 
+## Codex Leader Gate
+
+When running `sp-debug` in Codex, you are the **leader**, not a freeform debugger.
+
+Before applying fixes or running multiple independent investigation actions yourself:
+- Read the current debug session state and identify whether the investigation has two or more independent evidence-gathering lanes.
+- If the current stage is `investigating` and there are two or more bounded evidence-gathering lanes, you **MUST** delegate them through `spawn_agent` before continuing with more sequential evidence collection yourself.
+- Use `wait_agent` at the investigation join point, integrate the returned facts into `Evidence` or `Eliminated`, and call `close_agent` for completed child agents.
+- Do **not** skip delegation just because the evidence tasks look easy; use the lighter `single-agent` path only when the current investigation does not have safe parallel lanes.
+
+**Hard rule:** During `investigating`, the leader must not let child agents mutate the debug file, declare the root cause final, or advance the session state.
+
 ## Session Lifecycle
 
 ### 1. Check for Active Session
@@ -99,7 +111,17 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
   - and what behavior change should resolve it.
 
 ## Capability-Aware Investigation
-- During the `investigating` stage, if the current runtime supports parallel workers, subagents, or a native delegation surface, you may delegate bounded evidence-gathering tasks to improve throughput.
+- During `investigating`, decide whether the current investigation should stay `single-agent` or switch to delegated evidence collection before running multiple independent evidence-gathering actions sequentially.
+- Use the shared policy function with the current capability snapshot: `choose_execution_strategy(command_name="debug", snapshot, workload_shape)`.
+- Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
+- Debug routing decision order:
+  - If there are fewer than 2 independent evidence-gathering lanes, or the planned evidence work would share mutable state -> `single-agent` (`no-safe-batch`)
+  - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
+  - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
+  - Else -> `single-agent` (`fallback`)
+- `single-agent` means the leader continues investigating alone.
+- `native-multi-agent` means the leader delegates bounded evidence-gathering lanes through the integration's native delegation surface.
+- `sidecar-runtime` means the leader escalates the evidence-gathering lanes through the integration's coordinated runtime surface when native delegation is unavailable.
 - Suitable delegated tasks include:
   - running targeted tests or repro commands,
   - collecting logs and exit codes,
@@ -142,8 +164,8 @@ Use `human-verify` after the agent has verified the fix and needs the user to co
 
 ## Codex Native Multi-Agent Investigation
 
-When running `sp-debug` in Codex, keep the debug session leader-led even when using native child agents for investigation throughput.
-- Only use `spawn_agent` during the `investigating` stage for bounded evidence-gathering tasks that do not require owning the full debug context.
+When running `sp-debug` in Codex, treat the `investigating` stage as a leader-led routing decision between `single-agent` and native delegated evidence collection.
+- If there are two or more independent evidence-gathering lanes, prefer native delegation through `spawn_agent` over manual sequential investigation.
 - Suitable child tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, comparing independent modules or configurations, judging whether existing logs are detailed enough, and gathering evidence after diagnostic logging has been added.
 - The leader **MUST** update the debug file's `Current Focus` before delegating and treat child work as evidence gathering for the current hypothesis, not as parallel hypothesis formation.
 - Child agents must return facts, command results, and observations; they must not update the debug file, declare the root cause final, transition the session state, or archive the session.

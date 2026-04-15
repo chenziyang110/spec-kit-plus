@@ -220,6 +220,26 @@ class CodexIntegration(SkillsIntegration):
             return
 
         content = debug_skill.read_text(encoding="utf-8")
+        gate_marker = "## Codex Leader Gate"
+        if gate_marker not in content:
+            gate_addendum = (
+                "\n"
+                "## Codex Leader Gate\n\n"
+                "When running `sp-debug` in Codex, you are the **leader**, not a freeform debugger.\n"
+                "\n"
+                "Before applying fixes or running multiple independent investigation actions yourself:\n"
+                "- Read the current debug session state and identify whether the investigation has two or more independent evidence-gathering lanes.\n"
+                "- If the current stage is `investigating` and there are two or more bounded evidence-gathering lanes, you **MUST** delegate them through `spawn_agent` before continuing with more sequential evidence collection yourself.\n"
+                "- Use `wait_agent` at the investigation join point, integrate the returned facts into `Evidence` or `Eliminated`, and call `close_agent` for completed child agents.\n"
+                "- Do **not** skip delegation just because the evidence tasks look easy; use the lighter `single-agent` path only when the current investigation does not have safe parallel lanes.\n"
+                "\n"
+                "**Hard rule:** During `investigating`, the leader must not let child agents mutate the debug file, declare the root cause final, or advance the session state.\n"
+            )
+            if "## Session Lifecycle" in content:
+                content = content.replace("## Session Lifecycle", gate_addendum + "\n## Session Lifecycle", 1)
+            else:
+                content += gate_addendum
+
         marker = "## Codex Native Multi-Agent Investigation"
         if marker in content:
             return
@@ -227,9 +247,9 @@ class CodexIntegration(SkillsIntegration):
         addendum = (
             "\n"
             "## Codex Native Multi-Agent Investigation\n\n"
-            "When running `sp-debug` in Codex, keep the debug session leader-led even when using native child agents for investigation throughput.\n"
-            "- Only use `spawn_agent` during the `investigating` stage for bounded evidence-gathering tasks that do not require owning the full debug context.\n"
-            "- Suitable child tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and comparing independent modules or configurations.\n"
+            "When running `sp-debug` in Codex, treat the `investigating` stage as a leader-led routing decision between `single-agent` and native delegated evidence collection.\n"
+            "- If there are two or more independent evidence-gathering lanes, prefer native delegation through `spawn_agent` over manual sequential investigation.\n"
+            "- Suitable child tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, comparing independent modules or configurations, judging whether existing logs are detailed enough, and gathering evidence after diagnostic logging has been added.\n"
             "- The leader **MUST** update the debug file's `Current Focus` before delegating and treat child work as evidence collection for the current hypothesis, not as parallel hypothesis formation.\n"
             "- Child agents must return facts, command results, and observations; they must not update the debug file, declare the root cause final, transition the session state, or archive the session.\n"
             "- Use `wait_agent` only after the current investigation fan-out reaches its join point, then integrate the returned evidence into `Evidence` or `Eliminated` yourself.\n"

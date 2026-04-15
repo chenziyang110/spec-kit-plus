@@ -149,12 +149,17 @@ class TestInitIntegrationFlag:
         assert result.exit_code == 0, result.output
 
         skills_dir = project / ".claude" / "skills"
-        for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-explain"):
+        for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-explain", "sp-debug"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "single-agent" in content
             assert "native-multi-agent" in content
             assert "sidecar-runtime" in content
             assert "specify team" not in content
+
+        debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert 'choose_execution_strategy(command_name="debug"' in debug_content
+        assert "capability-aware investigation" in debug_content
+        assert "spawn_agent" not in debug_content
 
     def test_integration_and_ai_mutually_exclusive(self, tmp_path):
         from typer.testing import CliRunner

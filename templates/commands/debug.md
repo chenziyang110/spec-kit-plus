@@ -96,7 +96,17 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ## Capability-Aware Investigation
 
-- During `investigating`, if the current runtime supports parallel workers, subagents, or a native delegation surface, you may delegate bounded evidence-gathering tasks to improve throughput.
+- During `investigating`, decide whether the current investigation should stay `single-agent` or switch to delegated evidence collection before running multiple independent evidence-gathering actions sequentially.
+- Use the shared policy function with the current capability snapshot: `choose_execution_strategy(command_name="debug", snapshot, workload_shape)`.
+- Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
+- Debug routing decision order:
+  - If there are fewer than 2 independent evidence-gathering lanes, or the planned evidence work would share mutable state -> `single-agent` (`no-safe-batch`)
+  - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
+  - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
+  - Else -> `single-agent` (`fallback`)
+- `single-agent` means the leader continues investigating alone.
+- `native-multi-agent` means the leader delegates bounded evidence-gathering lanes through the integration's native delegation surface.
+- `sidecar-runtime` means the leader escalates the evidence-gathering lanes through the integration's coordinated runtime surface when native delegation is unavailable.
 - Suitable delegated tasks include:
   - running targeted tests or repro commands,
   - collecting logs and exit codes,

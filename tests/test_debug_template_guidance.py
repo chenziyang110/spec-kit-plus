@@ -8,15 +8,18 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "debug.md").read_text(encoding="utf-8").lower()
 
     assert "capability-aware investigation" in content
-    assert "parallel workers" in content
-    assert "subagents" in content
-    assert "native delegation surface" in content
+    assert "single-agent" in content
+    assert "native-multi-agent" in content
+    assert "sidecar-runtime" in content
+    assert 'choose_execution_strategy(command_name="debug"' in content
     assert "leader-led" in content
     assert "debug file" in content
     assert "evidence-gathering" in content or "evidence-gathering tasks" in content
     assert "existing logs" in content
     assert "observability as insufficient" in content
     assert "diagnostic logging" in content or "instrumentation" in content
+    assert "native delegation surface" in content
+    assert "coordinated runtime surface" in content
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:
