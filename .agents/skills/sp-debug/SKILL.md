@@ -76,3 +76,21 @@ When you reach a point where user action or verification is needed, return a `##
 - **Type**: human-verify, human-action, or decision.
 - **Progress**: summary of evidence and eliminated hypotheses.
 - **Awaiting**: what exactly you need from the user.
+
+## Capability-Aware Investigation
+- During the `investigating` stage, if the current runtime supports parallel workers, subagents, or a native delegation surface, you may delegate bounded evidence-gathering tasks to improve throughput.
+- Suitable delegated tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and comparing independent modules or configurations.
+- Keep the debug session leader-led: the leader owns the debug file, the current hypothesis, state transitions, fixes, verification, and human checkpoints.
+- Delegated helpers must return facts, command results, and observations for the current hypothesis. They must not mutate the debug session state, declare the root cause final, or archive the session.
+- Before dispatching any delegated investigation work, update the debug file to reflect the exact current focus and what evidence is being gathered next.
+
+## Codex Native Multi-Agent Investigation
+
+When running `sp-debug` in Codex, keep the debug session leader-led even when using native child agents for investigation throughput.
+- Only use `spawn_agent` during the `investigating` stage for bounded evidence-gathering tasks that do not require owning the full debug context.
+- Suitable child tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and comparing independent modules or configurations.
+- The leader **MUST** update the debug file's `Current Focus` before delegating and treat child work as evidence gathering for the current hypothesis, not as parallel hypothesis formation.
+- Child agents must return facts, command results, and observations; they must not update the debug file, declare the root cause final, transition the session state, or archive the session.
+- Use `wait_agent` only after the current investigation fan-out reaches its join point, then integrate the returned evidence into `Evidence` or `Eliminated` yourself.
+- Use `close_agent` after integrating finished child results.
+- Keep fixing, verification, `awaiting_human_verify`, and final session resolution on the leader path unless a single explicitly scoped repair task is delegated after the root cause is already established.

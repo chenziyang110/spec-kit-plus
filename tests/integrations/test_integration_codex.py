@@ -130,3 +130,31 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     for skill_name in shared_skills:
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "specify team" not in content
+
+
+def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-debug-routing"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skill_path = target / ".agents" / "skills" / "sp-debug" / "SKILL.md"
+    content = skill_path.read_text(encoding="utf-8").lower()
+
+    assert "codex native multi-agent investigation" in content
+    assert "spawn_agent" in content
+    assert "wait_agent" in content
+    assert "close_agent" in content
+    assert "investigating" in content
+    assert "debug file" in content
+    assert "evidence-gathering" in content or "evidence gathering" in content
+    assert "must not update the debug file" in content
+    assert "leader" in content

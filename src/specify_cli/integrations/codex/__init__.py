@@ -124,6 +124,12 @@ class CodexIntegration(SkillsIntegration):
             manifest,
             skills_dir / "sp-implement" / "SKILL.md",
         )
+        self._augment_debug_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-debug" / "SKILL.md",
+        )
 
         return created
 
@@ -202,6 +208,36 @@ class CodexIntegration(SkillsIntegration):
             content += addendum
 
         self.write_file_and_record(content, implement_skill, project_root, manifest)
+
+    def _augment_debug_skill(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest,
+        debug_skill: Path,
+    ) -> None:
+        if debug_skill not in created or not debug_skill.is_file():
+            return
+
+        content = debug_skill.read_text(encoding="utf-8")
+        marker = "## Codex Native Multi-Agent Investigation"
+        if marker in content:
+            return
+
+        addendum = (
+            "\n"
+            "## Codex Native Multi-Agent Investigation\n\n"
+            "When running `sp-debug` in Codex, keep the debug session leader-led even when using native child agents for investigation throughput.\n"
+            "- Only use `spawn_agent` during the `investigating` stage for bounded evidence-gathering tasks that do not require owning the full debug context.\n"
+            "- Suitable child tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and comparing independent modules or configurations.\n"
+            "- The leader **MUST** update the debug file's `Current Focus` before delegating and treat child work as evidence collection for the current hypothesis, not as parallel hypothesis formation.\n"
+            "- Child agents must return facts, command results, and observations; they must not update the debug file, declare the root cause final, transition the session state, or archive the session.\n"
+            "- Use `wait_agent` only after the current investigation fan-out reaches its join point, then integrate the returned evidence into `Evidence` or `Eliminated` yourself.\n"
+            "- Use `close_agent` after integrating finished child results.\n"
+            "- Keep fixing, verification, `awaiting_human_verify`, and final session resolution on the leader path unless a single explicitly scoped repair task is delegated after the root cause is already established.\n"
+        )
+
+        self.write_file_and_record(content + addendum, debug_skill, project_root, manifest)
 
 
 __all__ = ["CodexIntegration", "CodexMultiAgentAdapter"]

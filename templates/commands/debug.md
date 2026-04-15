@@ -38,5 +38,13 @@ Investigate and fix a bug using a systematic, persistent, and resumable workflow
    - After confirmation, move the session file to `resolved/`.
    - Commit the fix and the debug documentation.
 
+## Capability-Aware Investigation
+
+- During the `investigating` stage, if the current runtime supports parallel workers, subagents, or a native delegation surface, you may delegate bounded evidence-gathering tasks to improve throughput.
+- Suitable delegated tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and comparing independent modules or configurations.
+- Keep the debug session leader-led: the leader owns the debug file, the current hypothesis, state transitions, fixes, verification, and human checkpoints.
+- Delegated helpers must return facts, command results, and observations for the current hypothesis. They must not mutate the debug session state, declare the root cause final, or archive the session.
+- Before dispatching any delegated investigation work, update the debug file to reflect the exact current focus and what evidence is being gathered next.
+
 To begin the debug session:
 `EXECUTE_COMMAND: debug`

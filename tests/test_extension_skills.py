@@ -378,6 +378,22 @@ def test_repo_implement_skill_mirror_has_codex_leader_gate():
     assert "must not edit implementation files directly while worker delegation is active" in body.lower()
 
 
+def test_repo_debug_skill_mirror_has_codex_native_investigation_guidance():
+    mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-debug" / "SKILL.md"
+    body = _body_without_frontmatter(mirror_path).lower()
+
+    assert "capability-aware investigation" in body
+    assert "parallel workers" in body
+    assert "native delegation surface" in body
+    assert "codex native multi-agent investigation" in body
+    assert "spawn_agent" in body
+    assert "wait_agent" in body
+    assert "close_agent" in body
+    assert "investigating" in body
+    assert "must not update the debug file" in body
+    assert "leader" in body
+
+
 # ===== Extension Skill Registration Tests =====
 
 class TestExtensionSkillRegistration:
