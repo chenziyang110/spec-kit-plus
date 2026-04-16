@@ -16,6 +16,7 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "--full" in content
     assert "skip the full" in content and "specify" in content
     assert "summary.md" in content or "summary artifact" in content
+    assert "before any substantial repository analysis" in content
 
 
 def test_quick_template_preserves_quality_guardrails() -> None:
@@ -45,6 +46,8 @@ def test_quick_template_defines_capability_aware_execution_strategy() -> None:
     assert "single-agent still means one delegated worker lane" in content
     assert "leader-local execution is an exception path" in content
     assert "only when the current quick-task batch cannot proceed through native delegation" in content
+    assert "the first actionable execution step after scope lock is to dispatch the first delegated worker lane" in content
+    assert "if two or more independent delegated lanes can safely run in parallel" in content
 
 
 def test_quick_template_defines_recoverable_quick_task_artifacts() -> None:
@@ -52,6 +55,7 @@ def test_quick_template_defines_recoverable_quick_task_artifacts() -> None:
 
     assert ".planning/quick/<slug>/" in content
     assert "status.md" in content
+    assert "first hard gate" in content
     assert "summary.md" in content
     assert "current focus" in content
     assert "next action" in content
@@ -91,6 +95,7 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
     assert ".specify/memory/constitution.md" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
     assert "treat `single-agent` as a delegated single-worker path by default" in content
+    assert "dispatch that worker path before doing any further local repository deep dive" in content
     assert "resolved" in content
     assert "blocked" in content
 
@@ -145,3 +150,11 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "which surfaces were left unverified" in content
     assert "separate `verified` coverage from `not checked` coverage" in content
     assert "for each declared surface, give the terminal status conclusion" in content
+
+
+def test_quick_template_prefers_parallel_worker_fanout_when_safe() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "materially improve throughput" in content
+    assert "dispatch them in parallel" in content
+    assert "instead of artificially serializing the work" in content

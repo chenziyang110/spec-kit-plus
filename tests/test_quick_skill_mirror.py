@@ -16,12 +16,16 @@ def test_repo_quick_skill_mirror_has_codex_delegation_contract() -> None:
     assert "native-multi-agent" in body
     assert "sidecar-runtime" in body
     assert "single-agent still means one delegated worker lane" in body
+    assert "before any substantial repository analysis" in body
+    assert "first hard gate" in body
     assert "codex leader gate" in body
     assert "spawn_agent" in body
     assert "wait_agent" in body
     assert "close_agent" in body
     assert "specify team auto-dispatch" in body
     assert "dispatch exactly one delegated worker lane" in body
+    assert "the next concrete action must be dispatch" in body
+    assert "materially improve throughput" in body
     assert "local execution is the last fallback" in body
     assert "execution_fallback" in body
     assert "continue automatically until the quick task is complete or blocked" in body

@@ -230,6 +230,9 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "sidecar-runtime" in content
     assert "single-agent still means one delegated worker lane" in content
     assert "dispatch exactly one delegated worker lane" in content
+    assert "do **not** perform broad repository analysis" in content
+    assert "the next concrete action must be dispatch" in content
+    assert "materially improve throughput" in content
     assert "local execution is the last fallback" in content
     assert "execution_fallback" in content
     assert "join point" in content

@@ -20,9 +20,10 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 
 ## Required Context Inputs
 
+- Create or resume `.planning/quick/<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
 - Read `.specify/memory/constitution.md` if present before planning or implementation so the quick task honors project-level MUST/SHOULD constraints.
 - Read `.planning/quick/<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
-- Read the smallest relevant local code and documentation context needed to avoid guesswork for the current task shape.
+- Read only the minimum local context required to determine scope, safe lane shape, and the first execution strategy before dispatch.
 - If the quick task touches an existing feature area with local planning artifacts, read the most relevant nearby `spec.md`, `plan.md`, `tasks.md`, or `context.md` files when they materially constrain behavior.
 
 ## Scope Gate
@@ -60,6 +61,7 @@ The following flags are available and composable:
 
 - The invoking runtime is the leader for the quick task. It owns scope decisions, the lightweight plan, execution strategy selection, join-point handling, validation, and the final summary artifact.
 - The leader should not blur planning, execution, and validation into a long conversational loop when the task can be dispatched through a bounded worker lane or runtime surface.
+- Before the first delegated lane is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first worker path.
 - Before implementation work starts, identify whether the quick task is best handled as one bounded worker lane or as two or more independent lanes that can safely proceed in parallel.
 - Use the shared policy function before execution begins and again at each join point: `choose_execution_strategy(command_name="quick", snapshot, workload_shape)`.
 - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
@@ -73,8 +75,10 @@ The following flags are available and composable:
 - `native-multi-agent` means the leader dispatches independent bounded lanes through the integration's native delegation surface and rejoins at an explicit join point.
 - `sidecar-runtime` means the leader escalates the execution batch through the integration's coordinated runtime surface when native delegation is unavailable.
 - Default execution for both `single-agent` and `native-multi-agent` stays on delegated worker lanes. The leader coordinates; it does not become the worker just because the task is small.
+- If two or more independent delegated lanes can safely run in parallel and that fan-out materially improves throughput, prefer launching multiple worker lanes over serial single-lane execution.
 - Leader-local execution is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through native delegation and cannot proceed through the coordinated runtime surface either.
 - If leader-local execution is used, record the concrete reason in `STATUS.md`, including which delegation path was unavailable or blocked for the current batch.
+- The first actionable execution step after scope lock is to dispatch the first delegated worker lane or coordinated runtime batch, not to continue local deep-dive analysis.
 
 ## Quick-Task Workspace Protocol
 
@@ -84,6 +88,7 @@ The following flags are available and composable:
   - `STATUS.md`: the source of truth for the current quick-task state.
   - `SUMMARY.md`: the final outcome, changed files, and verification evidence.
   - Optional lightweight support artifacts only when needed for the task shape, such as `PLAN.md`, `RESEARCH.md`, or `DISCUSSION.md`.
+- `STATUS.md` initialization is the first hard gate.
 - `STATUS.md` must stay compact and overwrite the active state rather than growing into a long log. It must always make these fields obvious:
   - current focus
   - execution strategy
@@ -96,6 +101,7 @@ The following flags are available and composable:
   - blocker reason
   - blockers, if any
 - Update `STATUS.md` before each material phase transition: after scope lock, after planning, before delegation, after each join point, before validation, and before final summary.
+- `STATUS.md` initialization is the first hard gate. Do not perform substantial repository analysis, implementation design, or code reading beyond scope-lock context until the workspace exists and the first lane is recorded.
 - When the quick task completes, preserve `SUMMARY.md` and move resolved state under `.planning/quick/resolved/` if the local project convention prefers archiving over keeping active quick-task folders in place.
 
 ## STATUS.md Template
@@ -152,6 +158,8 @@ resume_decision: [resume here | blocked waiting | resolved]
 - Do not stop after a single edit, single command, or single failed attempt when the next recovery step is obvious and low-risk.
 - Prefer the integration's native delegation surface when `snapshot.native_multi_agent` is true and the workload has two or more safe lanes; if there is only one safe lane, `single-agent` remains valid.
 - Treat `single-agent` as a delegated single-worker path by default. Do not reinterpret it as leader self-execution just because only one lane is safe.
+- After `STATUS.md` is initialized and the first lane is defined, dispatch that worker path before doing any further local repository deep dive.
+- If multiple safe delegated lanes exist and they can improve throughput without creating write-surface conflicts, dispatch them in parallel instead of artificially serializing the work.
 - Use leader-local execution only as a constrained fallback after delegated execution is concretely unavailable for the current batch and the coordinated runtime surface is also unavailable or unsuitable.
 - Re-evaluate after every join point, recovery step, and validation result instead of assuming the first plan still holds.
 - A quick task reaches a terminal state only when `STATUS.md` shows either `resolved` or `blocked`.
@@ -239,6 +247,7 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Create or resume a slugged workspace under `.planning/quick/<slug>/`.
    - Keep quick-task artifacts separate from the main phase/spec workflow.
    - Initialize `STATUS.md` as the recoverable source of truth for the quick task.
+   - Do not continue into broad repository analysis or implementation planning until this workspace exists and the initial lane or batch is recorded.
 
 3. **Optional pre-execution phases**
    - If `--discuss` is present, clarify assumptions and lock the minimum decisions needed.
@@ -247,13 +256,17 @@ resume_decision: [resume here | blocked waiting | resolved]
 4. **Lightweight planning**
    - Produce only the plan needed to execute this ad-hoc task safely.
    - Keep the work atomic and self-contained.
+   - Keep local planning shallow until the first delegated worker lane or coordinated runtime batch has been launched.
    - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
    - Name the affected surfaces for this quick-task pass and decide how each one will be checked.
+   - If multiple safe lanes would materially improve throughput, plan the first fan-out as parallel worker lanes instead of defaulting to serial execution.
    - If the task includes a propagating change, write the minimal sweep plan first and list the affected surfaces that must be checked before completion.
 
 5. **Execution**
    - Execute the current quick-task lane or ready batch through the selected strategy.
    - For `single-agent`, dispatch one delegated worker lane rather than executing locally.
+   - The first concrete execution action should normally be dispatching that delegated lane or coordinated runtime batch, not continuing leader-local repository analysis.
+   - If multiple delegated lanes are safe and useful, dispatch them in parallel as the current ready batch instead of holding back fan-out without a concrete coordination reason.
    - Keep changes tightly scoped to the quick-task goal.
    - Re-evaluate strategy at each join point instead of assuming the first choice remains correct.
    - Only use leader-local execution after both delegated execution paths are unavailable or blocked for the current batch, and record that fallback explicitly in `STATUS.md`.

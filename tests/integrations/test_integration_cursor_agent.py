@@ -35,7 +35,10 @@ def test_cursor_generated_sp_quick_prefers_delegated_worker_execution(tmp_path):
     assert "cursor leader gate" in content
     assert "cursor delegated execution" in content
     assert "single-agent still means one delegated worker lane" in content
+    assert "do **not** perform broad repository analysis" in content
     assert "if cursor's native delegated worker path is available" in content
+    assert "the next concrete action must be dispatch" in content
+    assert "materially improve throughput" in content
     assert "escalate to the coordinated runtime surface before doing concrete implementation work yourself" in content
     assert "local execution is the last fallback" in content
     assert "use cursor's native delegated worker path" in content
