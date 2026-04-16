@@ -146,6 +146,13 @@ Optional follow-up commands:
 - `analyze` to perform a cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md`
 - `explain` to describe the current spec, plan, task, or implement artifact in plain language
 
+Routing guide for lightweight work:
+
+- `sp-fast` is only for trivial local fixes. Stay on that path only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
+- Move from `sp-fast` to `sp-quick` as soon as the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
+- `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
+- Move from `sp-quick` to `sp-specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
+
 After planning, continue with:
 
 ```text

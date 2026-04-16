@@ -45,6 +45,20 @@ def test_guidance_docs_explain_skill_groups():
     assert "/speckit.analyze" in quickstart
 
 
+def test_guidance_docs_explain_fast_quick_specify_routing():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    for content in (readme, quickstart):
+        assert "sp-fast" in content or "/speckit.fast" in content
+        assert "sp-quick" in content or "/speckit.quick" in content
+        assert "more than 3 files" in content
+        assert "shared surface" in content
+        assert "multiple independent capabilities" in content
+        assert "compatibility" in content
+        assert "acceptance criteria" in content
+
+
 def test_repo_docs_share_same_workflow_guidance():
     readme = _read("README.md").lower()
     agents = _read("AGENTS.md").lower()

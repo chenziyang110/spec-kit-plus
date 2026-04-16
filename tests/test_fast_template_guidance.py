@@ -23,3 +23,16 @@ def test_fast_template_stays_lightweight() -> None:
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
     assert "do not spawn" in content or "no subagents" in content
+
+
+def test_fast_template_defines_explicit_upgrade_triggers() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "fast.md").read_text(encoding="utf-8").lower()
+
+    assert "upgrade to `/sp-quick` immediately if" in content
+    assert "more than 3 files" in content
+    assert "shared surface" in content
+    assert "needs research" in content or "research or clarification" in content
+    assert "upgrade to `/sp-specify` immediately if" in content
+    assert "new workflow" in content
+    assert "compatibility" in content
+    assert "acceptance criteria" in content

@@ -27,3 +27,52 @@ def test_quick_template_preserves_quality_guardrails() -> None:
     assert "redirect to `/sp-specify`" in content or "use `/sp-specify`" in content
     assert "validate" in content
     assert "verify" in content
+
+
+def test_quick_template_defines_capability_aware_execution_strategy() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "choose_execution_strategy" in content
+    assert "single-agent" in content
+    assert "native-multi-agent" in content
+    assert "sidecar-runtime" in content
+    assert "leader" in content
+    assert "join point" in content
+    assert "single-agent still means one delegated worker lane" in content
+
+
+def test_quick_template_defines_recoverable_quick_task_artifacts() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert ".planning/quick/<slug>/" in content
+    assert "status.md" in content
+    assert "summary.md" in content
+    assert "current focus" in content
+    assert "next action" in content
+    assert "resume" in content
+    assert "resolved/" in content
+
+
+def test_quick_template_includes_concrete_status_template() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "## status.md template" in content
+    assert "slug: [quick-task slug]" in content
+    assert "status: gathering | planned | executing | validating | blocked | resolved" in content
+    assert "strategy: single-agent | native-multi-agent | sidecar-runtime" in content
+    assert "## current focus" in content
+    assert "## execution" in content
+    assert "## validation" in content
+    assert "## summary pointer" in content
+
+
+def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "upgrade to `/sp-specify` immediately if" in content
+    assert "architecture" in content
+    assert "cross-cutting" in content
+    assert "multiple independent capabilities" in content
+    assert "new durable spec" in content or "long-lived feature spec" in content
+    assert "rollout" in content or "migration" in content
+    assert "acceptance criteria" in content

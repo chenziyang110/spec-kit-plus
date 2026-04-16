@@ -130,6 +130,12 @@ class CodexIntegration(SkillsIntegration):
             manifest,
             skills_dir / "sp-debug" / "SKILL.md",
         )
+        self._augment_quick_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-quick" / "SKILL.md",
+        )
 
         return created
 
@@ -266,6 +272,66 @@ class CodexIntegration(SkillsIntegration):
         )
 
         self.write_file_and_record(content + addendum, debug_skill, project_root, manifest)
+
+    def _augment_quick_skill(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest,
+        quick_skill: Path,
+    ) -> None:
+        if quick_skill not in created or not quick_skill.is_file():
+            return
+
+        content = quick_skill.read_text(encoding="utf-8")
+
+        gate_marker = "## Codex Leader Gate"
+        if gate_marker not in content:
+            gate_addendum = (
+                "\n"
+                "## Codex Leader Gate\n\n"
+                "When running `sp-quick` in Codex, you are the **leader**, not the concrete implementer.\n"
+                "\n"
+                "Before code edits, test edits, or implementation commands:\n"
+                "- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<slug>/STATUS.md` if this quick task is new.\n"
+                "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"
+                "- If the selected strategy is `native-multi-agent`, you **MUST** delegate the concrete work through `spawn_agent` worker lanes before considering any fallback path.\n"
+                "- Use `wait_agent` only at the current join point, integrate the returned results, and call `close_agent` for completed workers.\n"
+                "- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`specify team auto-dispatch`** for the quick-task workload before doing concrete implementation work yourself.\n"
+                "- Do **not** fall through into leader self-execution just because the task looks small; `single-agent` still means one delegated worker lane.\n"
+                "\n"
+                "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while delegated execution is active.\n"
+            )
+            if "## Process" in content:
+                content = content.replace("## Process", gate_addendum + "\n## Process", 1)
+            else:
+                content += gate_addendum
+
+        marker = "## Codex Native Multi-Agent Execution"
+        if marker in content:
+            self.write_file_and_record(content, quick_skill, project_root, manifest)
+            return
+
+        addendum = (
+            "\n"
+            "## Codex Native Multi-Agent Execution\n\n"
+            "When running `sp-quick` in Codex, prefer native worker delegation whenever the selected quick-task strategy is `native-multi-agent`.\n"
+            "- Use `spawn_agent` for bounded lanes such as focused repository analysis, targeted implementation, regression test updates, validation command runs, or summary artifact drafting when those lanes do not share a write surface.\n"
+            "- Use `wait_agent` only at the documented join point for the current quick-task batch.\n"
+            "- Use `close_agent` after integrating finished worker results.\n"
+            "- Keep `.planning/quick/<slug>/STATUS.md` as the leader-owned source of truth with current focus, execution strategy, active lane or batch, join point, next action, and blockers.\n"
+            "- Child agents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
+            "- Keep the decision order fixed: `no-safe-batch` -> `native-preferred` -> `sidecar-fallback` -> `fallback`.\n"
+            "- Interpret `single-agent` as one delegated worker lane, not leader self-execution.\n"
+            "- In plain terms: single-agent still means one delegated worker lane.\n"
+            "- Interpret `native-multi-agent` as the native subagents path.\n"
+            "- Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable for the current quick-task batch.\n"
+            "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
+            "- Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.\n"
+            "- When the quick task reaches a terminal state, make resume semantics obvious in `STATUS.md` and point to `SUMMARY.md`; archive under `.planning/quick/resolved/` when the local convention expects resolved quick-task workspaces to move out of the active queue.\n"
+        )
+
+        self.write_file_and_record(content + addendum, quick_skill, project_root, manifest)
 
 
 __all__ = ["CodexIntegration", "CodexMultiAgentAdapter"]

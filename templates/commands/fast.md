@@ -34,6 +34,19 @@ If any of those checks fail:
 - Use `/sp-quick` for small but non-trivial work.
 - Use `/sp-specify` for work that needs full design and planning.
 
+## Upgrade Triggers
+
+Upgrade to `/sp-quick` immediately if:
+- The work expands to more than 3 files.
+- The change touches a shared surface such as a router table, registration file, export barrel, template registry, or other coordination point.
+- The task stops being obvious and needs research or clarification to proceed safely.
+- The task needs delegated execution, resumable tracking, or a written quick-task summary artifact.
+
+Upgrade to `/sp-specify` immediately if:
+- The request introduces a new workflow, role boundary, or user-visible behavior that needs explicit acceptance criteria.
+- The change carries compatibility, migration, rollout, or neighboring-workflow risk.
+- The task is no longer a bounded local fix and now changes architecture, APIs, long-lived templates, or planning assumptions.
+
 ## Process
 
 1. **Scope gate**

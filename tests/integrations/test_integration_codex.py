@@ -219,3 +219,25 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "--full" in content
     assert "lightweight" in content
     assert "summary.md" in content or "summary artifact" in content
+    assert "codex leader gate" in content
+    assert "codex native multi-agent execution" in content
+    assert "spawn_agent" in content
+    assert "wait_agent" in content
+    assert "close_agent" in content
+    assert "specify team" in content
+    assert "single-agent" in content
+    assert "native-multi-agent" in content
+    assert "sidecar-runtime" in content
+    assert "single-agent still means one delegated worker lane" in content
+    assert "join point" in content
+    assert "leader" in content
+    assert ".planning/quick/<slug>/" in content
+    assert "status.md" in content
+    assert "current focus" in content
+    assert "next action" in content
+    assert "resume" in content
+    assert "resolved/" in content
+    assert "status.md template" in content
+    assert "status: gathering | planned | executing | validating | blocked | resolved" in content
+    assert "strategy: single-agent | native-multi-agent | sidecar-runtime" in content
+    assert "summary pointer" in content
