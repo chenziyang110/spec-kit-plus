@@ -166,6 +166,35 @@ resume_decision: [resume here | blocked waiting | resolved]
   - the next action would be high-risk or destructive without user confirmation
 - When blocked, write the concrete blocker reason to `blocker_reason`, preserve the best known next action, and stop only after the blocker is explicit.
 
+## Surface Sweep Rule
+
+- Treat every quick task as a small-scope complete sweep, not as an opportunistic one-file patch.
+- Before editing, name the affected surfaces for this pass. Start from the smallest relevant set and expand until the task has a defendable boundary.
+- For interface or contract changes, default sweep surfaces are:
+  - implementation
+  - export or declaration layer
+  - docs
+  - examples
+  - tests
+  - key callsites or consuming paths
+- For other quick tasks, still name the concrete surfaces in play rather than implying coverage from a partial read.
+- The leader must be able to say which surfaces were intentionally checked before claiming completion.
+- For each named surface, record one explicit status conclusion:
+  - `confirmed correct`
+  - `fixed in this quick task`
+  - `not checked in this pass (with reason)`
+- Do not collapse `not checked` into silence. If a surface was not verified, say so explicitly and explain why it stayed outside the current pass.
+
+## Completion Standard
+
+- Quick completion means a small, transparent closed loop: sweep the affected surfaces, make the required change, run at least one meaningful verification step, and record the resulting coverage truthfully.
+- Completion requires all three:
+  - the change itself is implemented in code, docs, config, or templates as needed
+  - at least one smallest meaningful executable verification step has run
+  - any unverified surface or remaining gap is called out explicitly instead of being implied away
+- `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
+- If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
+
 ## Propagating Change Rule
 
 - Treat interface signature changes, return-type changes, sync-to-async conversions, renamed commands, renamed config keys, path changes, and similar high-spread edits as a propagating change.
@@ -187,6 +216,7 @@ resume_decision: [resume here | blocked waiting | resolved]
   - or a scripted or pattern-based verification that covers the entire affected set
 - If the current pass only covers representative examples, do not claim completion.
 - If coverage is still incomplete, continue the sweep, add stronger search or verification, or mark the task blocked with the exact remaining gap.
+- `All affected surfaces` means the declared sweep set, not just the files already inspected.
 
 ## Process
 
@@ -207,6 +237,7 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Produce only the plan needed to execute this ad-hoc task safely.
    - Keep the work atomic and self-contained.
    - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
+   - Name the affected surfaces for this quick-task pass and decide how each one will be checked.
    - If the task includes a propagating change, write the minimal sweep plan first and list the affected surfaces that must be checked before completion.
 
 5. **Execution**
@@ -218,11 +249,14 @@ resume_decision: [resume here | blocked waiting | resolved]
 
 6. **Validation**
    - If `--validate` or `--full` is present, perform plan checking and post-execution verification.
-   - Otherwise still verify the change with the smallest meaningful check.
+   - Otherwise still verify the change with the smallest meaningful executable check.
+   - Do not skip verification just because the quick-task scope is small.
 
 7. **Summary**
-   - Write a concise summary artifact for what changed and how it was verified.
+   - Write a concise summary artifact for what changed, how it was verified, and which surfaces were left unverified.
    - Prefer `SUMMARY.md` in `.planning/quick/<slug>/`.
+   - Separate `verified` coverage from `not checked` coverage so readers can tell what was actually proven versus what is only expected to be safe.
+   - For each declared surface, give the terminal status conclusion: `confirmed correct`, `fixed in this quick task`, or `not checked in this pass (with reason)`.
    - Make sure the final `STATUS.md` points to the summary, records the terminal state, and makes a future resume decision obvious.
 
 ## Guardrails
