@@ -76,7 +76,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Read `FEATURE_DIR/alignment.md`
    - Read `FEATURE_DIR/context.md`
    - Read `FEATURE_DIR/references.md` if present
-   - Read `/memory/constitution.md`
+   - Read `.specify/memory/constitution.md`
    - Read `项目技术文档.md` if present
    - Load the copied IMPL_PLAN template
 

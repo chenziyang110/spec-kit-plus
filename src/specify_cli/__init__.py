@@ -1470,12 +1470,24 @@ def init(
         return f"/sp.{name}"
 
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
-
+    steps_lines.append("   ")
+    steps_lines.append("   Core workflow skills")
     steps_lines.append(f"   {step_num}.1 [cyan]{_display_cmd('constitution')}[/] - Establish project principles")
     steps_lines.append(f"   {step_num}.2 [cyan]{_display_cmd('specify')}[/] - Create the aligned requirement package")
     steps_lines.append(f"   {step_num}.3 [cyan]{_display_cmd('plan')}[/] - Generate the implementation design artifacts")
     steps_lines.append(f"   {step_num}.4 [cyan]{_display_cmd('tasks')}[/] - Generate actionable tasks")
     steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
+    steps_lines.append("   ")
+    steps_lines.append("   Support skills")
+    steps_lines.append(f"   - [cyan]{_display_cmd('spec-extend')}[/] - Deepen an existing spec before planning when analysis or references still need work")
+    steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
+    steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/]")
+    steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, or implement state in plain language")
+    if codex_skill_mode:
+        steps_lines.append("   ")
+        steps_lines.append("   Codex-only runtime")
+        steps_lines.append("   - [cyan]specify team[/] - Inspect the official Codex team/runtime surface and environment status")
+        steps_lines.append("   - [cyan]$sp-team[/] - Reach the same Codex-only runtime surface from the skills layer")
 
     console.print()
     console.print(_open_block("Start Here", steps_lines, accent="cyan"))

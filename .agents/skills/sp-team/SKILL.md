@@ -1,5 +1,10 @@
 ---
-description: Use the Codex-only team/runtime surface from the official `specify` product entry point.
+name: "sp-team"
+description: "Use the Codex-only team/runtime surface from the official `specify` product entry point."
+compatibility: "Codex-only runtime surface for spec-kit projects with .specify/codex-team assets"
+metadata:
+  author: "github-spec-kit"
+  source: "templates/commands/team.md"
 ---
 
 # Codex Team Runtime

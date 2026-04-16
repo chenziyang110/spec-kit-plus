@@ -67,6 +67,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Read `FEATURE_SPEC`
    - Read `FEATURE_DIR/alignment.md`
    - Read `FEATURE_DIR/context.md`
+   - Read `FEATURE_DIR/references.md` if present
    - Read `.specify/memory/constitution.md`
    - Read `项目技术文档.md` if present
    - Load the copied IMPL_PLAN template
@@ -87,7 +88,33 @@ You **MUST** consider the user input before proceeding (if not empty).
    - If `Planning Gate Recommendation` indicates `/sp.spec-extend` or the unresolved items still materially affect plan structure:
      - ERROR "Specification still has planning-critical gaps. Run /sp.spec-extend or refine /sp.specify before planning."
 
-5. **Execute the plan workflow** using the IMPL_PLAN template:
+5. **Assume the specification package is analysis-first**:
+   - Treat `/sp.specify` as the primary pre-planning requirement-analysis entry point
+   - Treat `/sp.spec-extend` as the follow-up enhancement path when the spec package needs deeper analysis before planning
+   - Use capability decomposition from `spec.md` when sequencing design work
+   - Use `references.md` when retained sources or reusable examples affect planning choices
+   - Treat `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` as active planning inputs, not descriptive appendix material
+   - Treat `context.md` as the primary implementation-context artifact that captures downstream planning decisions explicitly
+   - Do not introduce a separate clarification command as the normal next step for routine planning readiness
+   - Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="plan", snapshot, workload_shape)`
+   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Decision order is fixed:
+     - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
+     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
+     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
+     - Else -> `single-agent` (`fallback`)
+   - If collaboration is justified, keep `plan` lanes limited to:
+     - research
+     - data model
+     - contracts
+     - quickstart and validation scenarios
+   - Required join points:
+     - before final constitution and risk re-check
+     - before writing the consolidated implementation plan
+   - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in the planning artifacts you generate.
+   - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
+
+6. **Execute the plan workflow** using the IMPL_PLAN template:
    - Fill Technical Context (mark unknowns as `NEEDS CLARIFICATION`)
    - Fill Constitution Check from the constitution
    - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
@@ -100,14 +127,14 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Before finalizing the consolidated implementation plan, verify that no locked planning decision has been silently omitted from the generated plan artifacts
    - Re-evaluate Constitution Check after design artifacts exist
 
-6. **Stop and report**:
+7. **Stop and report**:
    - branch
    - plan path
    - alignment status
    - generated artifacts
    - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
-7. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
+8. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_plan` key
    - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
    - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.

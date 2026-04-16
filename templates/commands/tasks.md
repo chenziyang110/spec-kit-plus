@@ -74,7 +74,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Required when present**: alignment.md (locked decisions, outstanding questions, planning gate context)
    - **Optional**: references.md (retained sources, reusable insights, spec impact mapping)
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
-   - **Optional**: `.specify/memory/constitution.md` (project constitution and mandatory principles)
+   - **Required when present**: `.specify/memory/constitution.md` (project constitution and mandatory principles that tasks must preserve)
    - **Optional**: `项目技术文档.md` (existing repository architecture and conventions)
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
@@ -99,6 +99,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Extract `Locked Planning Decisions`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
    - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
    - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
+   - If `.specify/memory/constitution.md` exists: treat its MUST/SHOULD principles as task-shaping constraints and preserve them explicitly in execution ordering, validation tasks, or phase notes instead of assuming downstream agents will rediscover them
    - If references.md exists: use it to preserve source-driven constraints and reusable examples while generating tasks
    - If data-model.md exists: Extract entities and map to user stories
    - If contracts/ exists: Map interface contracts to user stories

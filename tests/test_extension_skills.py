@@ -382,6 +382,23 @@ def test_repo_implement_skill_mirror_has_codex_leader_gate():
     assert "close_agent" in body
     assert "only fall back to `specify team`" in body.lower()
     assert "must not edit implementation files directly while worker delegation is active" in body.lower()
+    assert 'choose_execution_strategy(command_name="implement"' in body
+    assert "single-agent" in body
+    assert "native-multi-agent" in body
+    assert "sidecar-runtime" in body
+    assert "retry-pending" in body.lower()
+
+
+def test_repo_plan_skill_mirror_has_shared_strategy_routing_contract():
+    mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-plan" / "SKILL.md"
+    body = _body_without_frontmatter(mirror_path)
+
+    assert 'choose_execution_strategy(command_name="plan"' in body
+    assert "single-agent" in body
+    assert "native-multi-agent" in body
+    assert "sidecar-runtime" in body
+    assert "before final constitution and risk re-check" in body.lower()
+    assert "before writing the consolidated implementation plan" in body.lower()
 
 
 def test_repo_debug_skill_mirror_has_codex_native_investigation_guidance():
@@ -411,6 +428,29 @@ def test_repo_debug_skill_mirror_has_codex_native_investigation_guidance():
     assert "investigating" in body
     assert "must not update the debug file" in body
     assert "leader" in body
+
+
+def test_repo_additional_codex_skill_mirrors_exist_for_generated_surfaces():
+    expected = {
+        "sp-explain": "Explain the current stage artifact",
+        "sp-spec-extend": "Re-open the current specification",
+        "sp-fast": "Execute a trivial task directly",
+        "sp-quick": "Execute a small, ad-hoc task",
+        "sp-team": "specify team",
+    }
+
+    for skill_name, needle in expected.items():
+        skill_path = PROJECT_ROOT / ".agents" / "skills" / skill_name / "SKILL.md"
+        assert skill_path.exists(), f"Missing repo mirror for {skill_name}"
+        content = skill_path.read_text(encoding="utf-8")
+        assert needle in content
+
+
+def test_team_template_has_valid_frontmatter_boundary():
+    content = (PROJECT_ROOT / "templates" / "commands" / "team.md").read_text(encoding="utf-8")
+
+    assert content.startswith("---\n")
+    assert "description:" in content.split("---", 2)[1]
 
 
 # ===== Extension Skill Registration Tests =====

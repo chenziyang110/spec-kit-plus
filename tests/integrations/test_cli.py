@@ -349,6 +349,19 @@ class TestInitIntegrationFlag:
         assert "Agent Folder Security" not in result.output
         assert "Spec Kit Plus skills were" in result.output
         assert ".agents/skills" in result.output
+        assert "Core workflow skills" in result.output
+        assert "Support skills" in result.output
+        assert "Codex-only runtime" in result.output
+        assert "$sp-constitution" in result.output
+        assert "$sp-specify" in result.output
+        assert "$sp-plan" in result.output
+        assert "$sp-tasks" in result.output
+        assert "$sp-implement" in result.output
+        assert "$sp-checklist" in result.output
+        assert "$sp-analyze" in result.output
+        assert "$sp-explain" in result.output
+        assert "$sp-spec-extend" in result.output
+        assert "$sp-team" in result.output
         assert "spec-extend" in result.output
         assert "spec-extend" in result.output.lower()
         assert "explain" in result.output

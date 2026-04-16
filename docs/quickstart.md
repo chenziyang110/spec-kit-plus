@@ -78,6 +78,21 @@ Then, use the `/speckit.implement` slash command to execute the plan.
 > [!TIP]
 > **Phased Implementation**: For complex projects, implement in phases to avoid overwhelming the agent's context. Start with core functionality, validate it works, then add features incrementally.
 
+## Skill Map
+
+After initialization, treat the generated commands as three groups:
+
+- **Core workflow skills**: `/speckit.constitution`, `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`
+- **Support skills**: `/speckit.spec-extend`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.explain`
+- **Codex-only runtime**: `specify team` and `sp-team` when the project was initialized for Codex
+
+Use support skills when they solve a specific gap:
+
+- `/speckit.spec-extend` when an existing spec still needs deeper analysis before planning
+- `/speckit.checklist` when you want to audit requirement quality after planning
+- `/speckit.analyze` when you want a cross-artifact consistency check before implementation
+- `/speckit.explain` when you want the current spec, plan, or tasks state restated in plain language
+
 ## Detailed Example: Building Taskify
 
 Here's a complete example of building a team productivity platform:

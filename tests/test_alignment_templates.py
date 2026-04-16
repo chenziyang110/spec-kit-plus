@@ -124,7 +124,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     lowered = content.lower()
 
     assert "alignment.md" in content
-    assert "/memory/constitution.md" in content
+    assert ".specify/memory/constitution.md" in content
     assert "Missing alignment report" in content
     assert "Missing context artifact" in content
     assert "Force proceed with known risks" in content
@@ -212,6 +212,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
 
     assert "(`spec.md`, `context.md`, `plan.md`, `tasks.md`)" in content
     assert "- CONTEXT = FEATURE_DIR/context.md" in content
+    assert ".specify/memory/constitution.md" in content
     assert "**From context.md:**" in content
     assert "Locked Decisions" in content
     assert "Locked Planning Decisions" in content
@@ -220,6 +221,15 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "silently weakened, deferred, or renamed" in lowered
     assert "locked decision silently dropped between artifacts" in lowered
     assert "**Locked Decision Preservation Table:**" in content
+
+
+def test_debug_template_reads_constitution_and_feature_context_before_fixing() -> None:
+    content = _read("templates/commands/debug.md")
+
+    assert "### Required Context Inputs" in content
+    assert ".specify/memory/constitution.md" in content
+    assert "spec.md`, `plan.md`, and `tasks.md`" in content
+    assert "`context.md` exists for the active feature" in content
 
 
 def test_new_analysis_workflow_command_templates_exist():
