@@ -1,0 +1,24 @@
+from pathlib import Path
+
+from tests.test_extension_skills import _body_without_frontmatter
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_repo_quick_skill_mirror_has_codex_delegation_contract() -> None:
+    mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-quick" / "SKILL.md"
+    body = _body_without_frontmatter(mirror_path).lower()
+
+    assert ".planning/quick/<slug>/status.md" in body
+    assert 'choose_execution_strategy(command_name="quick"' in body
+    assert "single-agent" in body
+    assert "native-multi-agent" in body
+    assert "sidecar-runtime" in body
+    assert "single-agent still means one delegated worker lane" in body
+    assert "codex leader gate" in body
+    assert "spawn_agent" in body
+    assert "wait_agent" in body
+    assert "close_agent" in body
+    assert "specify team auto-dispatch" in body
+    assert "continue automatically until the quick task is complete or blocked" in body
