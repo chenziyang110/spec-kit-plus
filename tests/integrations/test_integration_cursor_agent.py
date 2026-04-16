@@ -11,7 +11,7 @@ class TestCursorAgentIntegration(MarkdownIntegrationTests):
     CONTEXT_FILE = ".cursor/rules/specify-rules.mdc"
 
 
-def test_cursor_generated_sp_quick_inherits_strengthened_shared_runtime_guidance(tmp_path):
+def test_cursor_generated_sp_quick_prefers_delegated_worker_execution(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -32,6 +32,15 @@ def test_cursor_generated_sp_quick_inherits_strengthened_shared_runtime_guidance
     assert "single-agent" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
+    assert "cursor leader gate" in content
+    assert "cursor delegated execution" in content
+    assert "single-agent still means one delegated worker lane" in content
+    assert "if cursor's native delegated worker path is available" in content
+    assert "escalate to the coordinated runtime surface before doing concrete implementation work yourself" in content
+    assert "local execution is the last fallback" in content
+    assert "use cursor's native delegated worker path" in content
+    assert "status.md" in content
+    assert "execution_fallback" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
     assert "attempt the smallest safe recovery step before declaring the task blocked" in content
     assert "retry_attempts" in content
