@@ -294,6 +294,21 @@ class TestBuiltInSkillGeneration:
         assert "guided requirement discovery" in specify_body.lower()
         assert "current-understanding or confirmation gate" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
+        assert "primary codebase-scout input" in specify_body
+        assert "module ownership, reusable components/services/hooks, integration points" in specify_body
+        assert "If `项目技术文档.md` is missing coverage for the touched area" in specify_body
+        assert "Run a codebase scout before clarification." in specify_body
+        assert "Build a concise internal scout summary for the request area" in specify_body
+        assert "grounded in the codebase scout from `项目技术文档.md`" in specify_body
+        assert "Do not use generic labels like \"UX\", \"behavior\", or \"data handling\"" in specify_body
+        assert "Each gray area should be captured internally with:" in specify_body
+        assert "desired happy-path behavior" in specify_body
+        assert "edge case or failure-path behavior" in specify_body
+        assert "compatibility, migration, or neighboring-workflow impact" in specify_body
+        assert "Use code-aware follow-ups when possible" in specify_body
+        assert "Apply a specificity test before leaving a gray area" in specify_body
+        assert "Do not leave a gray area merely because the user expressed a preference" in specify_body
+        assert "default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof" in specify_body
         assert "context.md" in specify_body
         assert "Write `context.md` to `CONTEXT_FILE`." in specify_body
         assert "Locked decisions are preserved in context.md" in specify_body
@@ -364,6 +379,16 @@ def test_repo_specify_skill_mirror_matches_current_contract():
     assert "recommendation and example scaffolding" in lowered
     assert "current-understanding or confirmation gate" in lowered
     assert "planning-relevant gray areas" in lowered
+    assert "primary codebase-scout input" in body
+    assert "grounded in the codebase scout from `项目技术文档.md`" in body
+    assert "Do not use generic labels like \"UX\", \"behavior\", or \"data handling\"" in body
+    assert "Each gray area should be captured internally with:" in body
+    assert "desired happy-path behavior" in body
+    assert "edge case or failure-path behavior" in body
+    assert "Use code-aware follow-ups when possible" in body
+    assert "Apply a specificity test before leaving a gray area" in body
+    assert "Do not leave a gray area merely because the user expressed a preference" in body
+    assert "default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof" in body
     assert "confirm or correct the current understanding before `Aligned: ready for plan`" in body
     assert "Write `context.md` to `CONTEXT_FILE`." in body
     assert "Locked decisions are preserved in context.md" in body
@@ -393,12 +418,20 @@ def test_repo_plan_skill_mirror_has_shared_strategy_routing_contract():
     mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-plan" / "SKILL.md"
     body = _body_without_frontmatter(mirror_path)
 
+    assert "Read `templates/research-template.md`" in body
     assert 'choose_execution_strategy(command_name="plan"' in body
     assert "single-agent" in body
     assert "native-multi-agent" in body
     assert "sidecar-runtime" in body
     assert "before final constitution and risk re-check" in body.lower()
     assert "before writing the consolidated implementation plan" in body.lower()
+    assert "Source confidence (`verified`, `cited`, or `assumed`)" in body
+    assert "`Don't hand-roll` guidance" in body
+    assert "Assumptions log" in body
+    assert "Validation notes" in body
+    assert "Environment or dependency notes" in body
+    assert "Do not present unverified claims as settled facts." in body
+    assert "Use `templates/research-template.md` as the default structure for `research.md`" in body
 
 
 def test_repo_debug_skill_mirror_has_codex_native_investigation_guidance():

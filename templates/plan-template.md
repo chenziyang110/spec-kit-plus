@@ -50,6 +50,34 @@
 - [Risk carried forward from alignment.md, or remove if none]
 - [Unresolved item that planning is explicitly accepting or mitigating]
 
+## Research Inputs
+
+<!--
+  Summarize only the research findings that materially changed the plan.
+  This section exists to prove the plan consumed research.md instead of
+  treating it as background reading.
+-->
+
+### Standard Stack
+
+- [Chosen library / tool / framework and why it is the default for this plan]
+
+### Don't Hand-Roll
+
+- [Problem the plan must solve with an existing library, platform primitive, or repository pattern]
+
+### Common Pitfalls
+
+- [Failure mode or anti-pattern the plan is explicitly designed to avoid]
+
+### Assumptions To Validate
+
+- [Research assumption still not fully verified and how the plan contains or validates it]
+
+### Environment / Dependency Notes
+
+- [Tooling, runtime, service, or system dependency the plan assumes, including fallback if relevant]
+
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
@@ -128,6 +156,17 @@ directories captured above]
 
 - [Locked decision] -> [Where it appears in the plan]
 - [Locked decision] -> [Mitigation, defer note, or follow-up artifact]
+
+## Research Adoption Check
+
+<!--
+  Before finalizing the plan, verify that the consequential findings from
+  research.md are represented in technical context, design artifacts, task
+  sequencing assumptions, or explicit validation work.
+-->
+
+- [Research finding] -> [Where the plan uses it]
+- [Research warning or pitfall] -> [How the plan mitigates it]
 
 ## Complexity Tracking
 

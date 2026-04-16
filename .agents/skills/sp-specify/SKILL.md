@@ -82,12 +82,25 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Read `templates/context-template.md`.
    - Read `templates/references-template.md`.
    - Read `.specify/memory/constitution.md` if present.
-   - Read `项目技术文档.md` if present.
+   - Read `项目技术文档.md` if present and treat it as the primary codebase-scout input for brownfield understanding.
+   - From `项目技术文档.md`, extract the current module ownership, reusable components/services/hooks, integration points, adjacent workflows, key entities, and architectural constraints relevant to the request.
+   - If `项目技术文档.md` is missing coverage for the touched area, appears stale, or lacks the detail needed to ask code-aware questions, inspect the targeted live repository files before asking planning-critical questions.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
    - Read user-supplied references, examples, or linked material when they materially affect the requirement package.
 
-6. Infer task classification.
+6. Run a codebase scout before clarification.
+   - Treat `项目技术文档.md` as the default scout artifact for understanding the existing system shape.
+   - Build a concise internal scout summary for the request area that names:
+     - owning modules or workflows
+     - reusable components, services, hooks, commands, or schemas
+     - integration boundaries and upstream/downstream dependencies
+     - adjacent user flows or screens that this work could accidentally break
+     - existing patterns that should bias the questions toward real decision forks
+   - If the technical document is too broad, stale, or silent on the touched area, read the minimum targeted live files needed to replace guesswork with evidence.
+   - Use the scout summary to eliminate low-value questions, sharpen gray areas, and detect when the user's request conflicts with existing repository patterns.
+
+7. Infer task classification.
    Infer exactly one:
    - greenfield project
    - existing feature addition
@@ -98,17 +111,19 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
    Briefly tell the user your inferred classification and allow correction before continuing.
 
-7. Analyze the whole feature before decomposing it.
-   Build a top-down understanding that covers:
+8. Analyze the whole feature before decomposing it.
+   Build a top-down understanding grounded in the codebase scout from `项目技术文档.md` and any targeted live-file reads. It must cover:
    - the feature goal
    - intended users and roles
    - first-release scope
    - business and workflow outcomes
    - critical constraints and assumptions
    - dependencies or preconditions that materially affect planning
+   - the currently owning modules, services, screens, commands, or workflows that this request would extend, replace, or bypass
+   - reusable code paths or existing patterns that should shape the questioning instead of forcing the user to rediscover repository facts
    - release-shaping risks or external references
 
-8. Choose alignment mode and collaboration strategy.
+9. Choose alignment mode and collaboration strategy.
    - Lightweight mode for local, context-rich changes.
    - Deep mode for greenfield, multi-capability, or materially ambiguous work.
    - Before decomposition begins, assess the current workload shape and agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="specify", snapshot, workload_shape)`.
@@ -128,12 +143,12 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in `alignment.md`.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
-9. Decomposition gate.
+10. Decomposition gate.
    - If the request spans multiple independent subsystems, business domains, or release tracks, do not continue as though it were one bounded feature.
    - Stop and help the user decompose it into separate specs or clearly phased releases first.
    - Only continue once the current spec scope is narrow enough to be planned and tested coherently.
 
-10. Capability decomposition.
+11. Capability decomposition.
     - Decompose the analyzed feature into bounded capabilities.
     - Record the purpose of each capability, what scenarios it supports, and how it depends on other capabilities or prerequisites.
     - Separate user-visible capabilities from enabling/supporting capabilities where that improves planning clarity.
@@ -143,7 +158,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
       - or unresolved and still requiring a decision.
     - If capability boundaries remain unclear, continue clarifying until the decomposition is planning-ready or the user explicitly force proceeds.
 
-11. Run task-type mandatory clarity gates.
+12. Run task-type mandatory clarity gates.
 
     Greenfield project:
     - target users
@@ -195,7 +210,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - If it is low-risk and inferable, adopt a default silently and record it later under `Analysis Confidence -> Low-Risk Inferences`.
     - If it is high-impact and unclear, ask.
 
-12. Run an implementation-oriented analysis pass before concluding alignment.
+13. Run an implementation-oriented analysis pass before concluding alignment.
     Cover at minimum:
     - scenario and usage path coverage
     - capability sequencing or dependency constraints
@@ -205,18 +220,31 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - acceptance-test shaping details
     - planning-sensitive risks and gaps
 
-13. Identify gray areas before concluding alignment.
-    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
-    - Prefer feature-specific decision surfaces over generic categories.
-    - Typical gray-area domains include workflow behavior, role/permission handling, data/state transitions, compatibility or migration behavior, failure handling, external integrations, and validation approach.
-    - Use the gray-area list to decide what to ask next rather than falling back to generic catch-all questions.
+14. Identify gray areas before concluding alignment.
+   - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
+   - Derive gray areas from the combination of user intent, `项目技术文档.md`, and targeted repository evidence instead of from a generic question catalog.
+   - Prefer feature-specific decision surfaces over generic categories.
+   - Do not use generic labels like "UX", "behavior", or "data handling" when a more concrete decision point can be named from the actual codebase and request.
+   - Good gray areas name the concrete fork in outcome, for example `empty-state recovery`, `permission downgrade behavior`, `sync trigger timing`, or `existing dashboard card reuse`.
+   - Each gray area should be captured internally with:
+     - a concrete decision label
+     - why the decision changes implementation or test shape
+     - which codebase evidence or owning module made this gray area relevant
+     - what additional detail is still missing before a planner could safely proceed
+   - For each high-impact gray area, default to resolving at least these decision dimensions unless one is genuinely not applicable:
+     - desired happy-path behavior
+     - edge case or failure-path behavior
+     - compatibility, migration, or neighboring-workflow impact
+     - acceptance proof: what evidence would show this decision was implemented correctly
+   - Typical gray-area domains include workflow behavior, role/permission handling, data/state transitions, compatibility or migration behavior, failure handling, external integrations, and validation approach.
+   - Use the gray-area list to decide what to ask next rather than falling back to generic catch-all questions.
     - Record resolved gray-area outcomes under `Locked Decisions` when they are fixed enough for planning.
     - Record user-approved flexibility under `Claude Discretion`.
     - Record cited specs, ADRs, examples, or policies under `Canonical References`.
     - Record out-of-scope ideas surfaced during clarification under `Deferred / Future Ideas`.
     - Synthesize these decisions into `context.md` so downstream planning does not rely on reconstructing them from prose alone.
 
-14. Run a high-impact ambiguity scan.
+15. Run a high-impact ambiguity scan.
     Detect unresolved ambiguity affecting:
     - scope
     - users/roles
@@ -233,19 +261,46 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     The user saying "I already explained it" is not sufficient reason to stop. Judge clarity from the perspective of a future planner, implementer, and tester.
     If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, continue clarification instead of releasing normal alignment.
 
-15. Clarification loop.
+16. Clarification loop.
     - Keep the interaction feeling like guided requirement discovery rather than a shallow questionnaire.
     - Ask only high-value questions.
+    - Before asking a planning-critical question, check whether `项目技术文档.md` or targeted repository reads already answer it; do not ask the user for facts the codebase can supply.
     - Use grouped questions for simple/local changes.
     - Use one question at a time for complex/high-risk cases.
     - Ask at most one unanswered high-impact question per message.
     - Let unresolved gray areas drive the next question; do not rotate through generic requirement categories once the active gray area is known.
+    - Keep the active gray area open until the decision is specific enough that a downstream planner would not need to reopen it for behavior, boundary, or acceptance-shaping detail.
     - Make the next question build directly on the user's most recent answer rather than resetting to generic prompts.
     - Use the previous answer to choose the next narrowing move, not a recycled generic checklist question.
+    - Use code-aware follow-ups when possible: reference the current module, workflow, entity, command, or reusable pattern named in `项目技术文档.md` or repository evidence so the question is about the real decision fork, not an abstract category.
     - If the user's answer is vague, shallow, or contradictory, respond with a targeted narrowing question, example, or recommendation tied to the planning-critical ambiguity.
     - Do not accept long but still ambiguous answers as sufficient.
     - Challenge contradictions or vague answers when important ambiguity remains.
     - Keep stronger follow-up behavior tied to planning-relevant ambiguity, not generic conversation depth.
+    - Apply a specificity test before leaving a gray area: if a different planner or implementer would still need to ask clarifying questions to execute safely, keep drilling into that area instead of moving on.
+    - Do not leave a gray area merely because the user expressed a preference; stay on it until behavior boundaries, failure handling, compatibility impact, and acceptance-shaping detail are either fixed, intentionally deferred, or explicitly granted as `Claude Discretion`.
+    - For high-impact gray areas, treat the default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof. If one of those dimensions is not applicable, say so explicitly instead of skipping it silently.
+    - Treat the following as anti-surface warning signs that require another narrowing question instead of release:
+      - the user only states a preference word such as "simple", "intuitive", "robust", or "clean" without concrete behavior
+      - the user chooses an option but the boundary conditions, failure behavior, or affected neighboring workflow remain unclear
+      - the user confirms a direction but there is still no acceptance proof for how success will be judged
+      - the requested behavior appears to conflict with the current owning module or existing repository pattern and the difference has not been explained
+    - Concrete examples that MUST trigger another narrowing question instead of release:
+      - "make it more intuitive"
+      - "handle permissions normally"
+      - "keep it compatible"
+      - "show an error if something goes wrong"
+      - "use the existing pattern"
+      - "it should feel fast"
+      - "just validate the data properly"
+      - "admins can handle the special cases"
+      - "don't break existing clients"
+    - For answers like those, the next question must convert the vague intent into concrete behavior, edge handling, compatibility scope, or acceptance evidence rather than acknowledging and moving on.
+    - Treat these as category-specific anti-surface gaps unless they are made concrete:
+      - vague success standard: words like "fast", "smooth", "easy", "clear", or "works well" without observable success criteria
+      - vague data rule: words like "valid", "clean", "normalized", or "properly formatted" without explicit field rules, transitions, or rejection behavior
+      - vague permission boundary: words like "normal permissions", "admin behavior", or "authorized users" without role/action matrix or downgrade/override behavior
+      - vague compatibility claim: phrases like "keep compatibility" or "don't break clients" without naming the preserved interface, version boundary, migration expectation, or failure mode
     - Use recommendation and example scaffolding when they help the user answer more clearly without forcing a rigid response path.
     - Use the user's current language for all user-visible clarification content, including questions, summaries, status updates, and the current-understanding restatement.
     - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
@@ -272,19 +327,20 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Do not turn this into a freeform brainstorming workflow.
     - each clarification turn should contain at most one short checkpoint or one grouped recap, plus one question block.
 
-16. Apply a current-understanding or confirmation gate before release.
+17. Apply a current-understanding or confirmation gate before release.
     - Before releasing `Aligned: ready for plan`, provide a grouped recap that covers goal, users and roles, scope boundaries, locked decisions, technical constraints or assumptions, and outstanding questions.
     - Explicitly ask the user to confirm or correct the current understanding before `Aligned: ready for plan`.
     - Treat this as an explicit pre-release check rather than a courtesy recap.
     - If the user corrects the recap, update the active understanding and continue clarification.
     - If planning-critical gaps remain after the recap, do not release `Aligned: ready for plan`.
 
-17. Apply a release readiness gate.
+18. Apply a release readiness gate.
     - If the requirement package has enough clarity to plan safely inside `sp-specify`, release `Aligned: ready for plan`.
     - If common docs/config/process-change flows or bounded feature work can reach planning-ready alignment inside `sp-specify`, do so without needing `/sp.spec-extend`.
     - If planning-critical gaps remain but the spec package is still salvageable, recommend `/sp.spec-extend` as the next command instead of `/sp.plan`.
     - Only use `Force proceed with known risks` when the user accepts that unresolved planning risk will be carried into downstream work.
     - Make the closeout explicit: if ambiguity remains, ask whether the user wants to continue exploring or move to the next step with the documented risks.
+    - Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions in place of concrete behavior, boundary handling, compatibility impact, or acceptance proof.
 
     Use this open question block structure in the user's current language:
 
@@ -347,7 +403,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - [Open question / confirmation still needed]
     ```
 
-15. Alignment decision gate.
+19. Alignment decision gate.
     Decide exactly one:
     - `Aligned: ready for plan`
       Use only when:
@@ -372,7 +428,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
     If neither condition is met, continue clarification.
 
-16. Write `spec.md` to `SPEC_FILE` using the template structure.
+20. Write `spec.md` to `SPEC_FILE` using the template structure.
     Requirements:
     - clean result-state document only
     - no `[NEEDS CLARIFICATION]`
@@ -387,7 +443,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - scope must be bounded
     - emit a planning-ready requirement package rather than a surface summary
 
-17. Write `alignment.md` to `ALIGNMENT_FILE`.
+21. Write `alignment.md` to `ALIGNMENT_FILE`.
     It must include:
     - task classification
     - current aligned understanding
@@ -401,7 +457,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - downstream planning impact
     - reason for the release decision
 
-18. Write `context.md` to `CONTEXT_FILE`.
+22. Write `context.md` to `CONTEXT_FILE`.
     It must include:
     - phase or feature boundary
     - locked decisions
@@ -413,7 +469,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - deferred or future ideas
     - enough implementation context that downstream planning does not need to reconstruct these decisions from prose scattered across other artifacts
 
-19. Write `references.md` to `REFERENCES_FILE` when any meaningful source material was used.
+23. Write `references.md` to `REFERENCES_FILE` when any meaningful source material was used.
     It must include, for each retained source:
     - source
     - description
@@ -421,7 +477,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - reusable insights
     - spec impact mapping
 
-20. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
+24. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
 
     ```markdown
     # Specification Quality Checklist: [FEATURE NAME]
@@ -465,9 +521,9 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Items marked incomplete require spec updates before `/sp.plan`
     ```
 
-21. Re-run validation after edits. Normal completion must pass all required checks.
+25. Re-run validation after edits. Normal completion must pass all required checks.
 
-22. Report completion with:
+26. Report completion with:
     - branch name
     - spec file path
     - alignment report path
@@ -478,7 +534,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - readiness for the next phase (`/sp.plan` for the mainline, or `/sp.spec-extend` when deeper analysis is still needed)
     - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
-23. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
+27. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
     - If it exists, read it and look for entries under the `hooks.after_specify` key.
     - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally.
     - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.

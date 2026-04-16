@@ -89,13 +89,35 @@ def test_specify_template_uses_alignment_first_contract():
     assert "current-understanding or confirmation gate" in lowered
     assert "confirm or correct the current understanding before `Aligned: ready for plan`" in content
     assert "Identify 3-5 planning-relevant gray areas" in content
+    assert "Derive gray areas from the combination of user intent, `项目技术文档.md`, and targeted repository evidence" in content
+    assert 'Do not use generic labels like "UX", "behavior", or "data handling"' in content
+    assert "Each gray area should be captured internally with:" in content
+    assert "why the decision changes implementation or test shape" in content
+    assert "desired happy-path behavior" in content
+    assert "edge case or failure-path behavior" in content
+    assert "compatibility, migration, or neighboring-workflow impact" in content
+    assert "acceptance proof: what evidence would show this decision was implemented correctly" in content
     assert "Let unresolved gray areas drive the next question" in content
+    assert "Before asking a planning-critical question, check whether `项目技术文档.md` or targeted repository reads already answer it" in content
+    assert "Keep the active gray area open until the decision is specific enough" in content
+    assert "Use code-aware follow-ups when possible" in content
+    assert "Apply a specificity test before leaving a gray area" in content
+    assert "Do not leave a gray area merely because the user expressed a preference" in content
+    assert "default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof" in content
     assert "Treat this as an explicit pre-release check" in content
     assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in content
     assert "Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`." in content
     assert "Read `templates/context-template.md`." in content
+    assert "primary codebase-scout input" in content
+    assert "module ownership, reusable components/services/hooks, integration points" in content
+    assert "If `项目技术文档.md` is missing coverage for the touched area" in content
+    assert "Run a codebase scout before clarification." in content
+    assert "Build a concise internal scout summary for the request area" in content
+    assert "adjacent user flows or screens that this work could accidentally break" in content
+    assert "grounded in the codebase scout from `项目技术文档.md`" in content
+    assert "currently owning modules, services, screens, commands, or workflows" in content
     assert "Synthesize these decisions into `context.md`" in content
-    assert "18. Write `context.md` to `CONTEXT_FILE`." in content
+    assert "22. Write `context.md` to `CONTEXT_FILE`." in content
     assert "- [ ] context.md exists" in content
     assert "- [ ] Locked decisions are preserved in context.md" in content
     assert "- context file path" in content
@@ -134,6 +156,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "Outstanding Questions" in content
     assert "Planning Gate Recommendation" in content
     assert "Read `FEATURE_DIR/context.md`" in content
+    assert "Read `templates/research-template.md`" in content
     assert "Treat `context.md` as the primary implementation-context artifact" in content
     assert "planning-critical unresolved items remain" in content
     assert "locked planning decisions from `alignment.md`, `context.md`, and `spec.md`" in content
@@ -148,8 +171,40 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "quickstart and validation scenarios" in lowered
     assert "before final constitution and risk re-check" in lowered
     assert "before writing the consolidated implementation plan" in lowered
+    assert "high-risk architectural choice -> stack/pattern/pitfall task" in content
+    assert "external tool, runtime, or service dependency -> availability and fallback task" in content
+    assert "Prefer official documentation, standards, and primary sources" in content
+    assert "Source confidence (`verified`, `cited`, or `assumed`)" in content
+    assert "`Don't hand-roll` guidance" in content
+    assert "Common pitfalls, failure modes, and anti-patterns" in content
+    assert "Assumptions log" in content
+    assert "Validation notes" in content
+    assert "Environment or dependency notes" in content
+    assert "Do not present unverified claims as settled facts." in content
+    assert "Prefer prescriptive recommendations over broad option dumps" in content
+    assert "What does the planner need to know to produce a high-quality implementation plan" in content
+    assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
     assert "specify team" not in lowered
     assert "specify -> clarify -> plan" not in lowered
+
+
+def test_research_template_exists_and_captures_research_quality_contract():
+    content = _read("templates/research-template.md")
+
+    assert "# Research:" in content
+    assert "## Summary" in content
+    assert "## Decisions" in content
+    assert "**Recommendation**" in content
+    assert "**Rationale**" in content
+    assert "**Alternatives Considered**" in content
+    assert "**Source Confidence**" in content
+    assert "## Standard Stack" in content
+    assert "## Don't Hand-Roll" in content
+    assert "## Common Pitfalls" in content
+    assert "## Assumptions Log" in content
+    assert "## Validation Notes" in content
+    assert "## Environment / Dependency Notes" in content
+    assert "## Sources" in content
 
 
 def test_plan_template_carries_locked_decisions_into_plan_artifact():
@@ -160,9 +215,18 @@ def test_plan_template_carries_locked_decisions_into_plan_artifact():
     assert "## Alignment Inputs" in content
     assert "### Canonical References" in content
     assert "### Input Risks From Alignment" in content
+    assert "## Research Inputs" in content
+    assert "### Standard Stack" in content
+    assert "### Don't Hand-Roll" in content
+    assert "### Common Pitfalls" in content
+    assert "### Assumptions To Validate" in content
+    assert "### Environment / Dependency Notes" in content
     assert "## Decision Preservation Check" in content
+    assert "## Research Adoption Check" in content
     assert "cannot be silently dropped" in lowered
     assert "where it appears in the plan" in lowered
+    assert "consumed research.md" in lowered
+    assert "background reading" in lowered
 
 
 def test_tasks_template_documents_shared_routing_before_decomposition():
