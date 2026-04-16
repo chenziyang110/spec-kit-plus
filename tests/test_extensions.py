@@ -846,9 +846,9 @@ class TestCommandRegistrar:
         assert "q" not in CommandRegistrar.AGENT_CONFIGS
 
     def test_codex_agent_config_present(self):
-        """Codex should be mapped to .agents/skills."""
+        """Codex should be mapped to .codex/skills."""
         assert "codex" in CommandRegistrar.AGENT_CONFIGS
-        assert CommandRegistrar.AGENT_CONFIGS["codex"]["dir"] == ".agents/skills"
+        assert CommandRegistrar.AGENT_CONFIGS["codex"]["dir"] == ".codex/skills"
         assert CommandRegistrar.AGENT_CONFIGS["codex"]["extension"] == "/SKILL.md"
 
     def test_pi_agent_config_present(self):
@@ -1131,7 +1131,7 @@ $ARGUMENTS
 
     def test_unregister_commands_for_codex_skills_uses_mapped_names(self, project_dir):
         """Codex skill cleanup should use the same mapped names as registration."""
-        skills_dir = project_dir / ".agents" / "skills"
+        skills_dir = project_dir / ".codex" / "skills"
         (skills_dir / "sp-specify").mkdir(parents=True)
         (skills_dir / "sp-specify" / "SKILL.md").write_text("body")
         (skills_dir / "sp-shortcut").mkdir(parents=True)
@@ -1147,8 +1147,8 @@ $ARGUMENTS
         assert not (skills_dir / "sp-shortcut" / "SKILL.md").exists()
 
     def test_register_commands_for_all_agents_distinguishes_codex_from_amp(self, extension_dir, project_dir):
-        """A Codex project under .agents/skills should not implicitly activate Amp."""
-        skills_dir = project_dir / ".agents" / "skills"
+        """A Codex project under .codex/skills should not implicitly activate Amp."""
+        skills_dir = project_dir / ".codex" / "skills"
         skills_dir.mkdir(parents=True)
 
         manifest = ExtensionManifest(extension_dir / "extension.yml")
@@ -1161,7 +1161,7 @@ $ARGUMENTS
 
     def test_codex_skill_registration_writes_skill_frontmatter(self, extension_dir, project_dir):
         """Codex SKILL.md output should use skills-oriented frontmatter."""
-        skills_dir = project_dir / ".agents" / "skills"
+        skills_dir = project_dir / ".codex" / "skills"
         skills_dir.mkdir(parents=True)
 
         manifest = ExtensionManifest(extension_dir / "extension.yml")
@@ -1230,7 +1230,7 @@ Agent __AGENT__
         init_options.parent.mkdir(parents=True, exist_ok=True)
         init_options.write_text('{"ai":"codex","ai_skills":true,"script":"sh"}')
 
-        skills_dir = project_dir / ".agents" / "skills"
+        skills_dir = project_dir / ".codex" / "skills"
         skills_dir.mkdir(parents=True)
 
         manifest = ExtensionManifest(ext_dir / "extension.yml")
@@ -1280,7 +1280,7 @@ Agent __AGENT__
 
         (ext_dir / "commands" / "cmd.md").write_text("---\ndescription: Alias skill\n---\n\nBody\n")
 
-        skills_dir = project_dir / ".agents" / "skills"
+        skills_dir = project_dir / ".codex" / "skills"
         skills_dir.mkdir(parents=True)
 
         manifest = ExtensionManifest(ext_dir / "extension.yml")
@@ -1342,7 +1342,7 @@ Then {AGENT_SCRIPT}
         )
 
         # Intentionally do NOT create .specify/init-options.json
-        skills_dir = project_dir / ".agents" / "skills"
+        skills_dir = project_dir / ".codex" / "skills"
         skills_dir.mkdir(parents=True)
 
         manifest = ExtensionManifest(ext_dir / "extension.yml")
@@ -1404,7 +1404,7 @@ Run {SCRIPT}
         init_options.parent.mkdir(parents=True, exist_ok=True)
         init_options.write_text("[]")
 
-        skills_dir = project_dir / ".agents" / "skills"
+        skills_dir = project_dir / ".codex" / "skills"
         skills_dir.mkdir(parents=True)
 
         manifest = ExtensionManifest(ext_dir / "extension.yml")
@@ -1463,7 +1463,7 @@ Then {AGENT_SCRIPT}
 """
         )
 
-        skills_dir = project_dir / ".agents" / "skills"
+        skills_dir = project_dir / ".codex" / "skills"
         skills_dir.mkdir(parents=True)
 
         manifest = ExtensionManifest(ext_dir / "extension.yml")

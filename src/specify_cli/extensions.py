@@ -906,6 +906,7 @@ class ExtensionManager:
                 if folder:
                     candidate_dirs.add(self.project_root / folder.rstrip("/") / "skills")
             candidate_dirs.add(self.project_root / DEFAULT_SKILLS_DIR)
+            candidate_dirs.add(self.project_root / ".codex" / "skills")
 
             for skills_candidate in candidate_dirs:
                 if not skills_candidate.is_dir():

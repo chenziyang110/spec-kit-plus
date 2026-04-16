@@ -18,6 +18,13 @@ This command will skip the full feature-spec workflow while preserving lightweig
 
 Use this for work that is too large for `sp-fast` but still too small or too well understood to justify a full spec flow: small bug fixes, small features, focused UX adjustments, template tweaks, or narrow CLI behavior changes.
 
+## Required Context Inputs
+
+- Read `.specify/memory/constitution.md` if present before planning or implementation so the quick task honors project-level MUST/SHOULD constraints.
+- Read `.planning/quick/<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
+- Read the smallest relevant local code and documentation context needed to avoid guesswork for the current task shape.
+- If the quick task touches an existing feature area with local planning artifacts, read the most relevant nearby `spec.md`, `plan.md`, `tasks.md`, or `context.md` files when they materially constrain behavior.
+
 ## Scope Gate
 
 Use `sp-quick` when all of these are true:
@@ -80,6 +87,9 @@ The following flags are available and composable:
   - active lane or batch
   - join point, if any
   - next action
+  - recovery action
+  - retry attempts
+  - blocker reason
   - blockers, if any
 - Update `STATUS.md` before each material phase transition: after scope lock, after planning, before delegation, after each join point, before validation, and before final summary.
 - When the quick task completes, preserve `SUMMARY.md` and move resolved state under `.planning/quick/resolved/` if the local project convention prefers archiving over keeping active quick-task folders in place.
@@ -112,6 +122,9 @@ active_lane: [single lane name or current batch]
 join_point: [empty if none]
 files_or_surfaces: [primary files, modules, or shared surfaces in play]
 blockers: [empty if none]
+recovery_action: [next self-recovery step before asking for help]
+retry_attempts: [0 if none]
+blocker_reason: [empty if none]
 
 ## Validation
 <!-- OVERWRITE/REFINE as checks complete -->
@@ -127,6 +140,53 @@ completed_checks:
 summary_path: [.planning/quick/<slug>/SUMMARY.md]
 resume_decision: [resume here | blocked waiting | resolved]
 ```
+
+## Autonomous Execution Contract
+
+- The leader must continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
+- Do not stop after a single edit, single command, or single failed attempt when the next recovery step is obvious and low-risk.
+- Prefer the integration's native delegation surface when `snapshot.native_multi_agent` is true and the workload has two or more safe lanes; if there is only one safe lane, `single-agent` remains valid.
+- Re-evaluate after every join point, recovery step, and validation result instead of assuming the first plan still holds.
+- A quick task reaches a terminal state only when `STATUS.md` shows either `resolved` or `blocked`.
+
+## Recovery Before Blocking
+
+- When execution hits friction, attempt the smallest safe recovery step before declaring the task blocked.
+- Default recovery order:
+  - read additional local context that directly touches the failing area
+  - run the smallest meaningful verification or repro command
+  - inspect the immediate error output, logs, or failing test result
+  - make one focused repair attempt that matches the evidence
+  - if uncertainty remains high, use `--research`-style focused investigation for the narrow blocker rather than abandoning the task immediately
+- Record each recovery step in `STATUS.md` under `recovery_action` and increment `retry_attempts`.
+- Escalate to `blocked` only when:
+  - required credentials, services, permissions, or external systems are unavailable
+  - the requirement remains high-impact ambiguous after the minimum safe clarification pass
+  - repeated focused recovery attempts still leave no safe next step
+  - the next action would be high-risk or destructive without user confirmation
+- When blocked, write the concrete blocker reason to `blocker_reason`, preserve the best known next action, and stop only after the blocker is explicit.
+
+## Propagating Change Rule
+
+- Treat interface signature changes, return-type changes, sync-to-async conversions, renamed commands, renamed config keys, path changes, and similar high-spread edits as a propagating change.
+- For any propagating change, the leader must write a minimal plan before editing.
+- That plan must name the affected surfaces to sweep, at minimum:
+  - implementation
+  - wrappers or bindings
+  - examples
+  - tests
+  - docs
+  - callsites
+- Do not collapse a propagating change into ad-hoc search-and-edit work. The leader must be able to state what will be checked and how completion will be proven.
+
+## Coverage Before Completion
+
+- For propagating changes, sampling is not sufficient.
+- Completion requires either:
+  - a full-coverage check of every affected callsite or surface
+  - or a scripted or pattern-based verification that covers the entire affected set
+- If the current pass only covers representative examples, do not claim completion.
+- If coverage is still incomplete, continue the sweep, add stronger search or verification, or mark the task blocked with the exact remaining gap.
 
 ## Process
 
@@ -147,12 +207,14 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Produce only the plan needed to execute this ad-hoc task safely.
    - Keep the work atomic and self-contained.
    - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
+   - If the task includes a propagating change, write the minimal sweep plan first and list the affected surfaces that must be checked before completion.
 
 5. **Execution**
    - Execute the current quick-task lane or ready batch through the selected strategy.
    - Keep changes tightly scoped to the quick-task goal.
    - Re-evaluate strategy at each join point instead of assuming the first choice remains correct.
    - Continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
+   - If execution hits friction, attempt the smallest safe recovery step before declaring the task blocked.
 
 6. **Validation**
    - If `--validate` or `--full` is present, perform plan checking and post-execution verification.

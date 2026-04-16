@@ -38,6 +38,13 @@ def _body_without_frontmatter(skill_path: Path) -> str:
     return content[match.end():] if match else content
 
 
+def _repo_codex_skill_path(skill_name: str) -> Path:
+    new_path = PROJECT_ROOT / ".codex" / "skills" / skill_name / "SKILL.md"
+    if new_path.exists():
+        return new_path
+    return PROJECT_ROOT / ".agents" / "skills" / skill_name / "SKILL.md"
+
+
 def _extract_section(text: str, heading: str) -> str:
     match = re.search(rf"(?ms)^## {re.escape(heading)}\s*\n(.*?)(?=^## |\Z)", text)
     assert match, f"Missing section: {heading}"
@@ -371,7 +378,7 @@ class TestSkillDescriptions:
 
 
 def test_repo_specify_skill_mirror_matches_current_contract():
-    mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-specify" / "SKILL.md"
+    mirror_path = _repo_codex_skill_path("sp-specify")
     body = _body_without_frontmatter(mirror_path)
     lowered = body.lower()
 
@@ -397,7 +404,7 @@ def test_repo_specify_skill_mirror_matches_current_contract():
 
 
 def test_repo_implement_skill_mirror_has_codex_leader_gate():
-    mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-implement" / "SKILL.md"
+    mirror_path = _repo_codex_skill_path("sp-implement")
     body = _body_without_frontmatter(mirror_path)
 
     assert "## Codex Leader Gate" in body
@@ -415,7 +422,7 @@ def test_repo_implement_skill_mirror_has_codex_leader_gate():
 
 
 def test_repo_plan_skill_mirror_has_shared_strategy_routing_contract():
-    mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-plan" / "SKILL.md"
+    mirror_path = _repo_codex_skill_path("sp-plan")
     body = _body_without_frontmatter(mirror_path)
 
     assert "Read `templates/research-template.md`" in body
@@ -435,7 +442,7 @@ def test_repo_plan_skill_mirror_has_shared_strategy_routing_contract():
 
 
 def test_repo_debug_skill_mirror_has_codex_native_investigation_guidance():
-    mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-debug" / "SKILL.md"
+    mirror_path = _repo_codex_skill_path("sp-debug")
     body = _body_without_frontmatter(mirror_path).lower()
 
     assert "codex leader gate" in body

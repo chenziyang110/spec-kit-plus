@@ -934,7 +934,12 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
     agent_config = AGENT_CONFIG.get(selected_ai, {})
     agent_folder = agent_config.get("folder", "")
     if agent_folder:
-        return project_path / agent_folder.rstrip("/") / "skills"
+        preferred = project_path / agent_folder.rstrip("/") / "skills"
+        if selected_ai == "codex":
+            legacy = project_path / ".agents" / "skills"
+            if not preferred.exists() and legacy.exists():
+                return legacy
+        return preferred
     return project_path / ".agents" / "skills"
 
 
@@ -1449,7 +1454,7 @@ def init(
 
     if codex_skill_mode and not ai_skills:
         # Integration path installed skills; show the helpful notice
-        steps_lines.append(f"{step_num}. Start Codex in this project directory; Spec Kit Plus skills were installed to [cyan].agents/skills[/cyan]")
+        steps_lines.append(f"{step_num}. Start Codex in this project directory; Spec Kit Plus skills were installed to [cyan].codex/skills[/cyan]")
         step_num += 1
         steps_lines.append(f"{step_num}. Use [cyan]specify team[/cyan] to inspect the Codex-only team/runtime surface")
         step_num += 1

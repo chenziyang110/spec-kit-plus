@@ -41,7 +41,13 @@ def test_specify_template_blocks_surface_only_release_patterns() -> None:
 
 
 def test_specify_skill_mirror_blocks_surface_only_release_patterns() -> None:
-    content = _read(".agents/skills/sp-specify/SKILL.md")
+    for candidate in (".codex/skills/sp-specify/SKILL.md", ".agents/skills/sp-specify/SKILL.md"):
+        path = PROJECT_ROOT / candidate
+        if path.exists():
+            content = path.read_text(encoding="utf-8")
+            break
+    else:
+        raise AssertionError("Missing Codex sp-specify skill mirror")
 
     assert "anti-surface warning signs" in content
     assert '"simple", "intuitive", "robust", or "clean"' in content

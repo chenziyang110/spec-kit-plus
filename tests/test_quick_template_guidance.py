@@ -76,3 +76,46 @@ def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
     assert "new durable spec" in content or "long-lived feature spec" in content
     assert "rollout" in content or "migration" in content
     assert "acceptance criteria" in content
+
+
+def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert ".specify/memory/constitution.md" in content
+    assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
+    assert "resolved" in content
+    assert "blocked" in content
+
+
+def test_quick_template_requires_self_recovery_before_blocking() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "attempt the smallest safe recovery step before declaring the task blocked" in content
+    assert "read additional local context" in content
+    assert "run the smallest meaningful verification or repro command" in content
+    assert "use `--research`-style focused investigation" in content or "focused investigation" in content
+    assert "retry_attempts" in content
+    assert "recovery_action" in content
+    assert "blocker_reason" in content
+
+
+def test_quick_template_requires_minimal_plan_for_propagating_changes() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "propagating change" in content
+    assert "must write a minimal plan before editing" in content
+    assert "affected surfaces" in content
+    assert "implementation" in content
+    assert "examples" in content
+    assert "tests" in content
+    assert "docs" in content
+    assert "callsites" in content or "call sites" in content
+
+
+def test_quick_template_rejects_sampling_for_propagating_change_completion() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "sampling is not sufficient" in content
+    assert "full-coverage check" in content or "full coverage check" in content
+    assert "every affected callsite" in content or "every affected call site" in content
+    assert "do not claim completion" in content

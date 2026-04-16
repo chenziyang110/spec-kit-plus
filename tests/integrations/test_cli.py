@@ -42,7 +42,7 @@ class TestInitIntegrationFlag:
             os.chdir(old_cwd)
 
         assert result.exit_code == 0, result.output
-        assert (project / ".agents" / "skills" / "sp-team" / "SKILL.md").exists()
+        assert (project / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
         assert (project / ".specify" / "codex-team" / "runtime.json").exists()
         assert "specify team" in result.output
 
@@ -160,6 +160,13 @@ class TestInitIntegrationFlag:
         assert 'choose_execution_strategy(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
         assert "spawn_agent" not in debug_content
+
+        quick_content = (skills_dir / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert ".specify/memory/constitution.md" in quick_content
+        assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content
+        assert "attempt the smallest safe recovery step before declaring the task blocked" in quick_content
+        assert "retry_attempts" in quick_content
+        assert "blocker_reason" in quick_content
 
     def test_integration_and_ai_mutually_exclusive(self, tmp_path):
         from typer.testing import CliRunner
@@ -348,7 +355,7 @@ class TestInitIntegrationFlag:
         assert "Plus Enhancement Skills" not in result.output
         assert "Agent Folder Security" not in result.output
         assert "Spec Kit Plus skills were" in result.output
-        assert ".agents/skills" in result.output
+        assert ".codex/skills" in result.output
         assert "Core workflow skills" in result.output
         assert "Support skills" in result.output
         assert "Codex-only runtime" in result.output
@@ -412,7 +419,7 @@ class TestInitIntegrationFlag:
 
         assert result.exit_code == 0, result.output
 
-        skills_dir = project / ".agents" / "skills"
+        skills_dir = project / ".codex" / "skills"
 
         assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()

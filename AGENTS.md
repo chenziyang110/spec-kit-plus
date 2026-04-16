@@ -13,6 +13,14 @@ For AI CLI workflows in this repository:
 - Use each integration's native subagents or native delegation surface by default for independent, bounded subtasks when parallel delegation materially improves speed, quality, or verification confidence.
 - Use the integration's coordinated runtime when execution needs durable coordination, explicit runtime state, join-point tracking, or worker lifecycle control beyond one in-session delegation burst. For Codex, that runtime surface is `specify team`.
 - Treat native delegation and coordinated runtimes as complementary execution surfaces; choose the lighter path that preserves correctness.
+
+## Cross-CLI Improvement Policy
+
+- Treat workflow and product improvements as cross-CLI changes by default, not single-integration tweaks.
+- If a request mentions one supported CLI as an example, evaluate whether the same improvement should apply to all supported AI CLI integrations.
+- Default to shared-template or shared-runtime improvements whenever that preserves correctness.
+- Only keep an optimization integration-specific when the capability depends on that CLI's native surface, release scope is intentionally limited, or no equivalent behavior exists for other supported CLIs yet.
+- When an improvement ships as integration-specific, document why it is not shared yet and whether other supported CLIs should receive a follow-up adaptation.
 # AGENTS.md
 
 ## About Spec Kit and Specify
@@ -58,7 +66,7 @@ Specify supports multiple AI agents by generating agent-specific command files a
 | **Cursor**                 | `.cursor/commands/`    | Markdown | N/A (IDE-based) | Cursor IDE (`--ai cursor-agent`) |
 | **Qwen Code**              | `.qwen/commands/`      | Markdown | `qwen`          | Alibaba's Qwen Code CLI     |
 | **opencode**               | `.opencode/command/`   | Markdown | `opencode`      | opencode CLI                |
-| **Codex CLI**              | `.agents/skills/`      | Markdown | `codex`         | Codex CLI (`--ai codex --ai-skills`) |
+| **Codex CLI**              | `.codex/skills/`       | Markdown | `codex`         | Codex CLI (`--ai codex --ai-skills`) |
 | **Windsurf**               | `.windsurf/workflows/` | Markdown | N/A (IDE-based) | Windsurf IDE workflows      |
 | **Junie**                  | `.junie/commands/`     | Markdown | `junie`         | Junie by JetBrains          |
 | **Kilo Code**              | `.kilocode/workflows/` | Markdown | N/A (IDE-based) | Kilo Code IDE               |
@@ -422,7 +430,8 @@ Command content with {SCRIPT} and {{args}} placeholders.
   - Tabnine: `.tabnine/agent/commands/` (extra `agent/` segment)
 - **Shared `.agents/` folder**:
   - Amp: `.agents/commands/` (shared folder, not `.amp/`)
-  - Codex: `.agents/skills/` (shared folder; requires `--ai-skills`; invoked as `$sp-<command>`)
+- **Codex dedicated folder**:
+  - Codex: `.codex/skills/` (dedicated Codex folder; requires `--ai-skills`; invoked as `$sp-<command>`)
 - **Skills-based exceptions**:
   - Kimi Code: `.kimi/skills/` (skills, invoked as `/skill:sp-<command>`)
 - **Prompt-based exceptions**:

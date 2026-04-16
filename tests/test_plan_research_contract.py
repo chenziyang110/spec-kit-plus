@@ -48,7 +48,13 @@ def test_research_template_and_plan_template_are_linked() -> None:
 
 
 def test_repo_plan_skill_mirror_keeps_research_quality_contract() -> None:
-    content = _read(".agents/skills/sp-plan/SKILL.md")
+    for candidate in (".codex/skills/sp-plan/SKILL.md", ".agents/skills/sp-plan/SKILL.md"):
+        path = PROJECT_ROOT / candidate
+        if path.exists():
+            content = path.read_text(encoding="utf-8")
+            break
+    else:
+        raise AssertionError("Missing Codex sp-plan skill mirror")
 
     assert "Read `templates/research-template.md`" in content
     assert "Source confidence (`verified`, `cited`, or `assumed`)" in content

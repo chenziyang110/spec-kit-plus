@@ -1,6 +1,6 @@
 """Codex CLI integration — skills-based agent.
 
-Codex uses the ``.agents/skills/sp-<name>/SKILL.md`` layout.
+Codex uses the ``.codex/skills/sp-<name>/SKILL.md`` layout.
 Commands are deprecated; ``--skills`` defaults to ``True``.
 """
 
@@ -19,13 +19,13 @@ class CodexIntegration(SkillsIntegration):
     key = "codex"
     config = {
         "name": "Codex CLI",
-        "folder": ".agents/",
+        "folder": ".codex/",
         "commands_subdir": "skills",
         "install_url": "https://github.com/openai/codex",
         "requires_cli": True,
     }
     registrar_config = {
-        "dir": ".agents/skills",
+        "dir": ".codex/skills",
         "format": "markdown",
         "args": "$ARGUMENTS",
         "extension": "/SKILL.md",

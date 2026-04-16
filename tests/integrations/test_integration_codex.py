@@ -5,9 +5,9 @@ from .test_integration_base_skills import SkillsIntegrationTests
 
 class TestCodexIntegration(SkillsIntegrationTests):
     KEY = "codex"
-    FOLDER = ".agents/"
+    FOLDER = ".codex/"
     COMMANDS_SUBDIR = "skills"
-    REGISTRAR_DIR = ".agents/skills"
+    REGISTRAR_DIR = ".codex/skills"
     CONTEXT_FILE = "AGENTS.md"
 
     def _expected_files(self, script_variant: str) -> list[str]:
@@ -36,8 +36,8 @@ class TestCodexAutoPromote:
         result = runner.invoke(app, ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"])
 
         assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
-        assert (target / ".agents" / "skills" / "sp-plan" / "SKILL.md").exists()
-        assert (target / ".agents" / "skills" / "sp-team" / "SKILL.md").exists()
+        assert (target / ".codex" / "skills" / "sp-plan" / "SKILL.md").exists()
+        assert (target / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
         assert (target / ".specify" / "codex-team" / "runtime.json").exists()
 
 
@@ -72,7 +72,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    skill_path = target / ".agents" / "skills" / "sp-implement" / "SKILL.md"
+    skill_path = target / ".codex" / "skills" / "sp-implement" / "SKILL.md"
     content = skill_path.read_text(encoding="utf-8")
     leader_gate_idx = content.find("## Codex Leader Gate")
     outline_idx = content.find("## Outline")
@@ -117,7 +117,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    skills_dir = target / ".agents" / "skills"
+    skills_dir = target / ".codex" / "skills"
     for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-implement"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "single-agent" in content
@@ -146,7 +146,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    skill_path = target / ".agents" / "skills" / "sp-debug" / "SKILL.md"
+    skill_path = target / ".codex" / "skills" / "sp-debug" / "SKILL.md"
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert "codex native multi-agent investigation" in content
@@ -182,7 +182,7 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    skill_path = target / ".agents" / "skills" / "sp-fast" / "SKILL.md"
+    skill_path = target / ".codex" / "skills" / "sp-fast" / "SKILL.md"
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert "scope gate" in content
@@ -209,7 +209,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    skill_path = target / ".agents" / "skills" / "sp-quick" / "SKILL.md"
+    skill_path = target / ".codex" / "skills" / "sp-quick" / "SKILL.md"
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert ".planning/quick/" in content
