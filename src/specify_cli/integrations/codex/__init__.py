@@ -293,6 +293,7 @@ class CodexIntegration(SkillsIntegration):
                 "When running `sp-quick` in Codex, you are the **leader**, not the concrete implementer.\n"
                 "\n"
                 "Before code edits, test edits, or implementation commands:\n"
+                "- Read `.specify/memory/constitution.md` first if it exists. This gate comes before `STATUS.md`, clarification, lane selection, delegation, or any repository analysis.\n"
                 "- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<slug>/STATUS.md` if this quick task is new.\n"
                 "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first worker lane is selected.\n"
                 "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"

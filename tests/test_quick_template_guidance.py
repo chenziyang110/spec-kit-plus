@@ -17,6 +17,7 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "skip the full" in content and "specify" in content
     assert "summary.md" in content or "summary artifact" in content
     assert "before any substantial repository analysis" in content
+    assert "read `.specify/memory/constitution.md` first" in content
 
 
 def test_quick_template_preserves_quality_guardrails() -> None:
@@ -56,6 +57,7 @@ def test_quick_template_defines_recoverable_quick_task_artifacts() -> None:
     assert ".planning/quick/<slug>/" in content
     assert "status.md" in content
     assert "first hard gate" in content
+    assert "constitution read is the first hard gate" in content
     assert "summary.md" in content
     assert "current focus" in content
     assert "next action" in content
@@ -93,6 +95,7 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
     assert ".specify/memory/constitution.md" in content
+    assert "constitution first" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
     assert "treat `single-agent` as a delegated single-worker path by default" in content
     assert "dispatch that worker path before doing any further local repository deep dive" in content
@@ -150,6 +153,14 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "which surfaces were left unverified" in content
     assert "separate `verified` coverage from `not checked` coverage" in content
     assert "for each declared surface, give the terminal status conclusion" in content
+
+
+def test_quick_template_requires_constitution_before_status_and_delegation() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "do not create or update `status.md`" in content
+    assert "until the constitution has been read or confirmed absent" in content
+    assert "before workspace setup, clarification, lane selection, delegation, or local analysis" in content
 
 
 def test_quick_template_prefers_parallel_worker_fanout_when_safe() -> None:

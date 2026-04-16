@@ -23,8 +23,9 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 
 ## Required Context Inputs
 
+- Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
+- Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch workers, or analyze repository code until the constitution has been read or confirmed absent.
 - Create or resume `.planning/quick/<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
-- Read `.specify/memory/constitution.md` if present before planning or implementation so the quick task honors project-level MUST/SHOULD constraints.
 - Read `.planning/quick/<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
 - Read only the minimum local context required to determine scope, safe lane shape, and the first execution strategy before dispatch.
 - If the quick task touches an existing feature area with local planning artifacts, read the most relevant nearby `spec.md`, `plan.md`, `tasks.md`, or `context.md` files when they materially constrain behavior.
@@ -64,6 +65,7 @@ The following flags are available and composable:
 
 - The invoking runtime is the leader for the quick task. It owns scope decisions, the lightweight plan, execution strategy selection, join-point handling, validation, and the final summary artifact.
 - The leader should not blur planning, execution, and validation into a long conversational loop when the task can be dispatched through a bounded worker lane or runtime surface.
+- Constitution first: read `.specify/memory/constitution.md` before workspace setup, clarification, lane selection, delegation, or local analysis.
 - Before the first delegated lane is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first worker path.
 - Before implementation work starts, identify whether the quick task is best handled as one bounded worker lane or as two or more independent lanes that can safely proceed in parallel.
 - Use the shared policy function before execution begins and again at each join point: `choose_execution_strategy(command_name="quick", snapshot, workload_shape)`.
@@ -91,7 +93,7 @@ The following flags are available and composable:
   - `STATUS.md`: the source of truth for the current quick-task state.
   - `SUMMARY.md`: the final outcome, changed files, and verification evidence.
   - Optional lightweight support artifacts only when needed for the task shape, such as `PLAN.md`, `RESEARCH.md`, or `DISCUSSION.md`.
-- `STATUS.md` initialization is the first hard gate.
+- Constitution read is the first hard gate. `STATUS.md` initialization comes immediately after it.
 - `STATUS.md` must stay compact and overwrite the active state rather than growing into a long log. It must always make these fields obvious:
   - current focus
   - execution strategy
@@ -104,7 +106,7 @@ The following flags are available and composable:
   - blocker reason
   - blockers, if any
 - Update `STATUS.md` before each material phase transition: after scope lock, after planning, before delegation, after each join point, before validation, and before final summary.
-- `STATUS.md` initialization is the first hard gate. Do not perform substantial repository analysis, implementation design, or code reading beyond scope-lock context until the workspace exists and the first lane is recorded.
+- After the constitution gate, `STATUS.md` initialization is the next hard gate. Do not perform substantial repository analysis, implementation design, or code reading beyond scope-lock context until the workspace exists and the first lane is recorded.
 - When the quick task completes, preserve `SUMMARY.md` and move resolved state under `.planning/quick/resolved/` if the local project convention prefers archiving over keeping active quick-task folders in place.
 
 ## STATUS.md Template
@@ -264,6 +266,7 @@ Before code edits, test edits, or implementation commands:
 ## Process
 
 1. **Scope gate**
+   - Read `.specify/memory/constitution.md` first if present. Do not continue until this gate is satisfied.
    - Confirm the task is small but non-trivial.
    - Redirect to `/sp-fast` or `/sp-specify` if the task is outside the quick-task band.
 

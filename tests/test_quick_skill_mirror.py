@@ -12,6 +12,7 @@ def test_repo_quick_skill_mirror_has_codex_delegation_contract() -> None:
 
     assert ".planning/quick/<slug>/status.md" in body
     assert 'choose_execution_strategy(command_name="quick"' in body
+    assert "read `.specify/memory/constitution.md` first" in body
     assert "single-agent" in body
     assert "native-multi-agent" in body
     assert "sidecar-runtime" in body
