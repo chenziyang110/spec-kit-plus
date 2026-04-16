@@ -72,6 +72,9 @@ The following flags are available and composable:
 - In plain terms: single-agent still means one delegated worker lane.
 - `native-multi-agent` means the leader dispatches independent bounded lanes through the integration's native delegation surface and rejoins at an explicit join point.
 - `sidecar-runtime` means the leader escalates the execution batch through the integration's coordinated runtime surface when native delegation is unavailable.
+- Default execution for both `single-agent` and `native-multi-agent` stays on delegated worker lanes. The leader coordinates; it does not become the worker just because the task is small.
+- Leader-local execution is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through native delegation and cannot proceed through the coordinated runtime surface either.
+- If leader-local execution is used, record the concrete reason in `STATUS.md`, including which delegation path was unavailable or blocked for the current batch.
 
 ## Quick-Task Workspace Protocol
 
@@ -86,6 +89,7 @@ The following flags are available and composable:
   - execution strategy
   - active lane or batch
   - join point, if any
+  - execution fallback, if any
   - next action
   - recovery action
   - retry attempts
@@ -121,6 +125,7 @@ next_action: [immediate next step]
 active_lane: [single lane name or current batch]
 join_point: [empty if none]
 files_or_surfaces: [primary files, modules, or shared surfaces in play]
+execution_fallback: [none by default; if leader-local, record why native and sidecar paths were unavailable]
 blockers: [empty if none]
 recovery_action: [next self-recovery step before asking for help]
 retry_attempts: [0 if none]
@@ -146,6 +151,8 @@ resume_decision: [resume here | blocked waiting | resolved]
 - The leader must continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
 - Do not stop after a single edit, single command, or single failed attempt when the next recovery step is obvious and low-risk.
 - Prefer the integration's native delegation surface when `snapshot.native_multi_agent` is true and the workload has two or more safe lanes; if there is only one safe lane, `single-agent` remains valid.
+- Treat `single-agent` as a delegated single-worker path by default. Do not reinterpret it as leader self-execution just because only one lane is safe.
+- Use leader-local execution only as a constrained fallback after delegated execution is concretely unavailable for the current batch and the coordinated runtime surface is also unavailable or unsuitable.
 - Re-evaluate after every join point, recovery step, and validation result instead of assuming the first plan still holds.
 - A quick task reaches a terminal state only when `STATUS.md` shows either `resolved` or `blocked`.
 
@@ -159,6 +166,10 @@ resume_decision: [resume here | blocked waiting | resolved]
   - make one focused repair attempt that matches the evidence
   - if uncertainty remains high, use `--research`-style focused investigation for the narrow blocker rather than abandoning the task immediately
 - Record each recovery step in `STATUS.md` under `recovery_action` and increment `retry_attempts`.
+- If delegated execution is failing, attempt the next safe execution surface before switching to leader-local work:
+  - retry the bounded delegated lane when the failure looks transient
+  - escalate to the coordinated runtime surface when native delegation is unavailable for the current batch
+  - only then consider leader-local fallback if no worker path is currently available
 - Escalate to `blocked` only when:
   - required credentials, services, permissions, or external systems are unavailable
   - the requirement remains high-impact ambiguous after the minimum safe clarification pass
@@ -242,8 +253,10 @@ resume_decision: [resume here | blocked waiting | resolved]
 
 5. **Execution**
    - Execute the current quick-task lane or ready batch through the selected strategy.
+   - For `single-agent`, dispatch one delegated worker lane rather than executing locally.
    - Keep changes tightly scoped to the quick-task goal.
    - Re-evaluate strategy at each join point instead of assuming the first choice remains correct.
+   - Only use leader-local execution after both delegated execution paths are unavailable or blocked for the current batch, and record that fallback explicitly in `STATUS.md`.
    - Continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
    - If execution hits friction, attempt the smallest safe recovery step before declaring the task blocked.
 
@@ -266,4 +279,5 @@ resume_decision: [resume here | blocked waiting | resolved]
 - Preserve a lightweight planning and validation path rather than skipping discipline entirely.
 - Keep quick tasks atomic and self-contained.
 - Keep leader responsibilities explicit: scope, strategy selection, join points, validation, and summary stay on the leader path.
+- Keep concrete execution on delegated worker lanes whenever possible. Leader-local execution is the last fallback, not the default reading of `single-agent`.
 - Quick-task state must be resumable from `STATUS.md` without depending on chat history.

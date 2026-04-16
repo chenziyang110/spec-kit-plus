@@ -43,6 +43,8 @@ def test_quick_template_defines_capability_aware_execution_strategy() -> None:
     assert "leader" in content
     assert "join point" in content
     assert "single-agent still means one delegated worker lane" in content
+    assert "leader-local execution is an exception path" in content
+    assert "only when the current quick-task batch cannot proceed through native delegation" in content
 
 
 def test_quick_template_defines_recoverable_quick_task_artifacts() -> None:
@@ -66,6 +68,7 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "strategy: single-agent | native-multi-agent | sidecar-runtime" in content
     assert "## current focus" in content
     assert "## execution" in content
+    assert "execution_fallback:" in content
     assert "## validation" in content
     assert "## summary pointer" in content
 
@@ -87,6 +90,7 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
 
     assert ".specify/memory/constitution.md" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
+    assert "treat `single-agent` as a delegated single-worker path by default" in content
     assert "resolved" in content
     assert "blocked" in content
 
@@ -97,6 +101,7 @@ def test_quick_template_requires_self_recovery_before_blocking() -> None:
     assert "attempt the smallest safe recovery step before declaring the task blocked" in content
     assert "read additional local context" in content
     assert "run the smallest meaningful verification or repro command" in content
+    assert "attempt the next safe execution surface before switching to leader-local work" in content
     assert "use `--research`-style focused investigation" in content or "focused investigation" in content
     assert "retry_attempts" in content
     assert "recovery_action" in content

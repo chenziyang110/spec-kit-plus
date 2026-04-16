@@ -295,12 +295,15 @@ class CodexIntegration(SkillsIntegration):
                 "Before code edits, test edits, or implementation commands:\n"
                 "- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<slug>/STATUS.md` if this quick task is new.\n"
                 "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"
+                "- `single-agent` still means one delegated worker lane. Do **not** reinterpret it as leader self-execution.\n"
                 "- If the selected strategy is `native-multi-agent`, you **MUST** delegate the concrete work through `spawn_agent` worker lanes before considering any fallback path.\n"
+                "- If the selected strategy is `single-agent`, you **MUST** dispatch exactly one delegated worker lane before considering any leader-local fallback.\n"
                 "- Use `wait_agent` only at the current join point, integrate the returned results, and call `close_agent` for completed workers.\n"
                 "- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`specify team auto-dispatch`** for the quick-task workload before doing concrete implementation work yourself.\n"
-                "- Do **not** fall through into leader self-execution just because the task looks small; `single-agent` still means one delegated worker lane.\n"
+                "- Leader-local execution is allowed only when native worker delegation is concretely unavailable for the current batch and the sidecar runtime path is also unavailable or unsuitable.\n"
+                "- When leader-local fallback is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
                 "\n"
-                "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while delegated execution is active.\n"
+                "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while delegated execution is active. Local execution is the last fallback, not the default reading of `single-agent`.\n"
             )
             if "## Process" in content:
                 content = content.replace("## Process", gate_addendum + "\n## Process", 1)
@@ -317,6 +320,7 @@ class CodexIntegration(SkillsIntegration):
             "## Codex Native Multi-Agent Execution\n\n"
             "When running `sp-quick` in Codex, prefer native worker delegation whenever the selected quick-task strategy is `native-multi-agent`.\n"
             "- Use `spawn_agent` for bounded lanes such as focused repository analysis, targeted implementation, regression test updates, validation command runs, or summary artifact drafting when those lanes do not share a write surface.\n"
+            "- Treat `single-agent` as one delegated worker lane by default. The leader should coordinate that lane rather than execute the work directly.\n"
             "- Use `wait_agent` only at the documented join point for the current quick-task batch.\n"
             "- Use `close_agent` after integrating finished worker results.\n"
             "- Keep `.planning/quick/<slug>/STATUS.md` as the leader-owned source of truth with current focus, execution strategy, active lane or batch, join point, next action, and blockers.\n"
@@ -326,6 +330,7 @@ class CodexIntegration(SkillsIntegration):
             "- In plain terms: single-agent still means one delegated worker lane.\n"
             "- Interpret `native-multi-agent` as the native subagents path.\n"
             "- Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable for the current quick-task batch.\n"
+            "- Use leader-local execution only after both worker paths are concretely unavailable for the current batch, and record that fallback explicitly in `STATUS.md`.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
             "- Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.\n"
             "- When the quick task reaches a terminal state, make resume semantics obvious in `STATUS.md` and point to `SUMMARY.md`; archive under `.planning/quick/resolved/` when the local convention expects resolved quick-task workspaces to move out of the active queue.\n"
