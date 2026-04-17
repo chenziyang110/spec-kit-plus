@@ -294,7 +294,8 @@ class CodexIntegration(SkillsIntegration):
                 "\n"
                 "Before code edits, test edits, or implementation commands:\n"
                 "- Read `.specify/memory/constitution.md` first if it exists. This gate comes before `STATUS.md`, clarification, lane selection, delegation, or any repository analysis.\n"
-                "- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<slug>/STATUS.md` if this quick task is new.\n"
+                "- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<id>-<slug>/STATUS.md` if this quick task is new.\n"
+                "- Treat `.planning/quick/index.json` as a derived management projection. If it is missing or stale, rebuild it from `STATUS.md` rather than trusting it as the primary truth source.\n"
                 "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first worker lane is selected.\n"
                 "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"
                 "- `single-agent` still means one delegated worker lane. Do **not** reinterpret it as leader self-execution.\n"
@@ -329,7 +330,7 @@ class CodexIntegration(SkillsIntegration):
             "- If multiple safe worker lanes exist and they materially improve throughput, dispatch them in parallel instead of defaulting to serial delegation.\n"
             "- Use `wait_agent` only at the documented join point for the current quick-task batch.\n"
             "- Use `close_agent` after integrating finished worker results.\n"
-            "- Keep `.planning/quick/<slug>/STATUS.md` as the leader-owned source of truth with current focus, execution strategy, active lane or batch, join point, next action, and blockers.\n"
+            "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth with current focus, execution strategy, active lane or batch, join point, next action, and blockers.\n"
             "- Child agents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
             "- Keep the decision order fixed: `no-safe-batch` -> `native-preferred` -> `sidecar-fallback` -> `fallback`.\n"
             "- Interpret `single-agent` as one delegated worker lane, not leader self-execution.\n"
@@ -337,9 +338,12 @@ class CodexIntegration(SkillsIntegration):
             "- Interpret `native-multi-agent` as the native subagents path.\n"
             "- Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable for the current quick-task batch.\n"
             "- Use leader-local execution only after both worker paths are concretely unavailable for the current batch, and record that fallback explicitly in `STATUS.md`.\n"
+            "- Empty `sp-quick` should check for unfinished quick tasks before asking for a new description. If exactly one unfinished quick task exists, resume it automatically. If multiple unfinished quick tasks exist, ask the user which quick task to continue and show `id`, title, current status, and `next_action`.\n"
+            "- Treat `blocked` quick tasks as resumable unfinished work for recovery routing.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
             "- Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.\n"
-            "- When the quick task reaches a terminal state, make resume semantics obvious in `STATUS.md` and point to `SUMMARY.md`; archive under `.planning/quick/resolved/` when the local convention expects resolved quick-task workspaces to move out of the active queue.\n"
+            "- Use `close` for terminal lifecycle state (`resolved` or `blocked`) and `archive` only for storage movement after closure.\n"
+            "- When the quick task reaches a terminal state, make resume semantics obvious in `STATUS.md` and point to `SUMMARY.md`; archive under `.planning/quick/archive/` when the local convention expects closed quick-task workspaces to move out of the active queue.\n"
         )
 
         self.write_file_and_record(content + addendum, quick_skill, project_root, manifest)

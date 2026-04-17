@@ -22,10 +22,14 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 
 - Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
 - Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch workers, or analyze repository code until the constitution has been read or confirmed absent.
-- Create or resume `.planning/quick/<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
-- Read `.planning/quick/<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
+- Create or resume `.planning/quick/<id>-<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
+- Read `.planning/quick/<id>-<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
+- Treat `.planning/quick/index.json` as the derived quick-task index used for list, status, resume, close, and archive operations. If the index is stale or missing, rebuild it from `STATUS.md` files instead of treating it as the primary truth source.
 - Read only the minimum local context required to determine scope, safe lane shape, and the first execution strategy before dispatch.
 - If the quick task touches an existing feature area with local planning artifacts, read the most relevant nearby `spec.md`, `plan.md`, `tasks.md`, or `context.md` files when they materially constrain behavior.
+- `sp-quick <description>` creates a new quick task.
+- Empty `sp-quick` checks for unfinished quick tasks first. If exactly one unfinished task exists, resume it automatically. If multiple unfinished tasks exist, ask the user which quick task to continue and show `id`, title, current status, and `next_action`.
+- Treat `blocked` quick tasks as resumable unfinished work for recovery routing.
 
 ## Scope Gate
 
@@ -84,12 +88,14 @@ The following flags are available and composable:
 
 ## Quick-Task Workspace Protocol
 
-- Every quick task must have a dedicated slugged workspace under `.planning/quick/<slug>/`.
+- Every quick task must have a dedicated id-based workspace under `.planning/quick/<id>-<slug>/`.
 - If a matching active workspace already exists, resume it instead of creating a second parallel quick-task directory for the same goal.
 - The minimum artifact set is:
   - `STATUS.md`: the source of truth for the current quick-task state.
   - `SUMMARY.md`: the final outcome, changed files, and verification evidence.
   - Optional lightweight support artifacts only when needed for the task shape, such as `PLAN.md`, `RESEARCH.md`, or `DISCUSSION.md`.
+- `STATUS.md` is the lifecycle source of truth for the quick task. `.planning/quick/index.json` is a derived projection for management and recovery commands.
+- The quick-task directory format is `<id>-<slug>`. Do not use slug-only workspace names for the enhanced quick flow.
 - Constitution read is the first hard gate. `STATUS.md` initialization comes immediately after it.
 - `STATUS.md` must stay compact and overwrite the active state rather than growing into a long log. It must always make these fields obvious:
   - current focus
@@ -108,11 +114,13 @@ The following flags are available and composable:
 
 ## STATUS.md Template
 
-Use this as the default structure for `.planning/quick/<slug>/STATUS.md`:
+Use this as the default structure for `.planning/quick/<id>-<slug>/STATUS.md`:
 
 ```markdown
 ---
+id: [quick-task id]
 slug: [quick-task slug]
+title: [short quick-task title]
 status: gathering | planned | executing | validating | blocked | resolved
 trigger: "[verbatim user input]"
 strategy: single-agent | native-multi-agent | sidecar-runtime
@@ -150,9 +158,25 @@ completed_checks:
 ## Summary Pointer
 <!-- OVERWRITE when terminal state is reached -->
 
-summary_path: [.planning/quick/<slug>/SUMMARY.md]
+summary_path: [.planning/quick/<id>-<slug>/SUMMARY.md]
 resume_decision: [resume here | blocked waiting | resolved]
 ```
+
+## Recovery Routing
+
+- `sp-quick <description>` creates a new quick task.
+- Empty `sp-quick` should look for unfinished quick tasks before asking for a new description.
+- If exactly one unfinished quick task exists, resume it automatically.
+- If multiple unfinished quick tasks exist, ask the user which quick task to continue.
+- The selection list should show `id`, title, current status, and `next_action`.
+- Treat `gathering`, `planned`, `executing`, `validating`, and `blocked` as unfinished quick-task states for recovery routing.
+- If resuming a `blocked` quick task, prioritize `blocker_reason`, `recovery_action`, and `next_action` before widening scope.
+
+## Lifecycle Commands
+
+- `close` controls lifecycle semantics. Use it to place a quick task into `resolved` or `blocked`.
+- `archive` controls storage semantics. Use it only after the quick task has already been closed.
+- Do not treat archive as an implied synonym for resolved. Closure says what happened; archive says where the closed task now lives.
 
 ## Autonomous Execution Contract
 
@@ -247,9 +271,10 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Redirect to `/sp-fast` or `/sp-specify` if the task is outside the quick-task band.
 
 2. **Create lightweight quick-task context**
-   - Create or resume a slugged workspace under `.planning/quick/<slug>/`.
+   - Create or resume an id-based workspace under `.planning/quick/<id>-<slug>/`.
    - Keep quick-task artifacts separate from the main phase/spec workflow.
    - Initialize `STATUS.md` as the recoverable source of truth for the quick task.
+   - Rebuild or refresh `.planning/quick/index.json` as a derived management projection when needed.
    - Do not continue into broad repository analysis or implementation planning until this workspace exists and the initial lane or batch is recorded.
 
 3. **Optional pre-execution phases**
@@ -283,7 +308,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 
 7. **Summary**
    - Write a concise summary artifact for what changed, how it was verified, and which surfaces were left unverified.
-   - Prefer `SUMMARY.md` in `.planning/quick/<slug>/`.
+   - Prefer `SUMMARY.md` in `.planning/quick/<id>-<slug>/`.
    - Separate `verified` coverage from `not checked` coverage so readers can tell what was actually proven versus what is only expected to be safe.
    - For each declared surface, give the terminal status conclusion: `confirmed correct`, `fixed in this quick task`, or `not checked in this pass (with reason)`.
    - Make sure the final `STATUS.md` points to the summary, records the terminal state, and makes a future resume decision obvious.

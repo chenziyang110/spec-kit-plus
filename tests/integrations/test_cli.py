@@ -446,3 +446,14 @@ class TestInitIntegrationFlag:
         assert "spec-extend" in result.output.lower()
         assert "spec-extend" in result.output
         assert "explain" in result.output
+
+    def test_quick_help_exposes_management_commands(self):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["quick", "--help"])
+
+        assert result.exit_code == 0, result.output
+        for command in ("list", "status", "resume", "close", "archive"):
+            assert command in result.output

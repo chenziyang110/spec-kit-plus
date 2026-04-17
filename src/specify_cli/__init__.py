@@ -389,6 +389,13 @@ team_app = typer.Typer(
 )
 app.add_typer(team_app, name="team")
 
+quick_app = typer.Typer(
+    name="quick",
+    help="Inspect and manage tracked quick tasks",
+    add_completion=False,
+)
+app.add_typer(quick_app, name="quick")
+
 def show_banner():
     """Display the ASCII art banner."""
     banner_lines = BANNER.strip().split('\n')
@@ -455,6 +462,168 @@ def run_command(cmd: list[str], check_return: bool = True, capture: bool = False
                 console.print(f"[red]Error output:[/red] {e.stderr}")
             raise
         return None
+
+
+def _project_root_from_source() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _quick_helper_script() -> tuple[list[str], Path]:
+    project_root = _project_root_from_source()
+    if os.name == "nt":
+        script_path = project_root / "scripts" / "powershell" / "quick-state.ps1"
+        if shutil.which("pwsh"):
+            return ["pwsh", "-NoProfile", "-File"], script_path
+        if shutil.which("powershell"):
+            return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"], script_path
+        console.print("[red]Error:[/red] Neither 'pwsh' nor 'powershell' is available")
+        raise typer.Exit(1)
+    script_path = project_root / "scripts" / "bash" / "quick-state.sh"
+    return ["bash"], script_path
+
+
+def _run_quick_helper(
+    mode: str,
+    quick_id: str = "",
+    status: str = "",
+    include_all: bool = False,
+) -> dict[str, Any]:
+    interpreter, script_path = _quick_helper_script()
+    if not script_path.exists():
+        console.print(f"[red]Error:[/red] Quick helper script not found: {script_path}")
+        raise typer.Exit(1)
+
+    cmd = [
+        *interpreter,
+        str(script_path),
+        str(Path.cwd()),
+        mode,
+        quick_id,
+        status,
+        "true" if include_all else "false",
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        error_output = (result.stderr or result.stdout or "").strip() or "quick helper failed"
+        console.print(f"[red]Error:[/red] {error_output}")
+        raise typer.Exit(1)
+
+    raw = (result.stdout or "").strip()
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        console.print(f"[red]Error:[/red] Failed to parse quick helper output: {exc}")
+        raise typer.Exit(1) from exc
+    if not isinstance(payload, dict):
+        console.print("[red]Error:[/red] Quick helper returned an invalid payload")
+        raise typer.Exit(1)
+    return payload
+
+
+def _render_quick_task_table(tasks: list[dict[str, Any]]) -> None:
+    table = Table(title="Quick Tasks")
+    table.add_column("ID", style="cyan")
+    table.add_column("Title")
+    table.add_column("Status", style="yellow")
+    table.add_column("Next Action")
+    for task in tasks:
+        table.add_row(
+            str(task.get("id", "")),
+            str(task.get("title", "")),
+            str(task.get("status", "")),
+            str(task.get("next_action", "")),
+        )
+    console.print(table)
+
+
+@quick_app.command("list")
+def quick_list(
+    all_tasks: bool = typer.Option(False, "--all", help="Include closed and archived quick tasks"),
+):
+    """List tracked quick tasks."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_quick_helper("list", include_all=all_tasks)
+    tasks = payload.get("tasks", [])
+    if not tasks:
+        console.print("No quick tasks found.")
+        return
+    _render_quick_task_table(tasks)
+
+
+@quick_app.command("status")
+def quick_status(
+    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+):
+    """Show STATUS.md-backed details for a quick task."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_quick_helper("status", quick_id=quick_id)
+    task = payload.get("task")
+    if not isinstance(task, dict):
+        console.print("[red]Error:[/red] Quick task not found")
+        raise typer.Exit(1)
+
+    details = _labeled_grid(
+        [
+            ("ID", str(task.get("id", ""))),
+            ("Title", str(task.get("title", ""))),
+            ("Status", str(task.get("status", ""))),
+            ("Current Focus", str(task.get("current_focus", ""))),
+            ("Next Action", str(task.get("next_action", ""))),
+            ("Workspace", str(task.get("workspace_path", ""))),
+        ]
+    )
+    console.print(_cli_panel(details, title="Quick Status", border_style="cyan"))
+
+
+@quick_app.command("resume")
+def quick_resume(
+    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+):
+    """Print the current next action for a quick task."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_quick_helper("status", quick_id=quick_id)
+    task = payload.get("task")
+    if not isinstance(task, dict):
+        console.print("[red]Error:[/red] Quick task not found")
+        raise typer.Exit(1)
+
+    console.print(f"Resume quick task {task.get('id')}: {task.get('next_action')}")
+    console.print(f"Workspace: {task.get('workspace_path')}")
+
+
+@quick_app.command("close")
+def quick_close(
+    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+    status: str = typer.Option(
+        ...,
+        "--status",
+        help="Terminal quick task status (resolved or blocked)",
+    ),
+):
+    """Mark a quick task as closed in STATUS.md."""
+    status_value = status.strip().lower()
+    if status_value not in {"resolved", "blocked"}:
+        console.print("[red]Error:[/red] --status must be 'resolved' or 'blocked'")
+        raise typer.Exit(1)
+
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_quick_helper("close", quick_id=quick_id, status=status_value)
+    task = payload.get("task", {})
+    console.print(f"Closed quick task {task.get('id')} with status {task.get('status')}.")
+
+
+@quick_app.command("archive")
+def quick_archive(
+    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+):
+    """Archive a closed quick task workspace."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_quick_helper("archive", quick_id=quick_id)
+    task = payload.get("task", {})
+    console.print(f"Archived quick task {task.get('id')} to {task.get('workspace_path')}.")
 
 def check_tool(tool: str, tracker: StepTracker = None) -> bool:
     """Check if a tool is installed. Optionally update tracker.

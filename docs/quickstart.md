@@ -98,6 +98,9 @@ Use the lightweight routing rules consistently:
 - `/speckit.fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
 - Upgrade to `/speckit.quick` when the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `/speckit.quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
+- Quick workspaces live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the source of truth and `.planning/quick/index.json` as a derived management index.
+- Invoking `/speckit.quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
+- Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage quick tasks. `specify quick list` defaults to unfinished quick tasks.
 - Upgrade to `/speckit.specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 ## Detailed Example: Building Taskify

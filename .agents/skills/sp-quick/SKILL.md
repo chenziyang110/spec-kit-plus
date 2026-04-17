@@ -25,10 +25,14 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 
 - Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
 - Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch workers, or analyze repository code until the constitution has been read or confirmed absent.
-- Create or resume `.planning/quick/<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
-- Read `.planning/quick/<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
+- Create or resume `.planning/quick/<id>-<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
+- Read `.planning/quick/<id>-<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
+- Treat `.planning/quick/index.json` as the derived quick-task index used for list, status, resume, close, and archive operations. If the index is stale or missing, rebuild it from `STATUS.md` files instead of treating it as the primary truth source.
 - Read only the minimum local context required to determine scope, safe lane shape, and the first execution strategy before dispatch.
 - If the quick task touches an existing feature area with local planning artifacts, read the most relevant nearby `spec.md`, `plan.md`, `tasks.md`, or `context.md` files when they materially constrain behavior.
+- `sp-quick <description>` creates a new quick task.
+- Empty `sp-quick` checks for unfinished quick tasks first. If exactly one unfinished task exists, resume it automatically. If multiple unfinished tasks exist, ask the user which quick task to continue and show `id`, title, current status, and `next_action`.
+- Treat `blocked` quick tasks as resumable unfinished work for recovery routing.
 
 ## Scope Gate
 
@@ -87,13 +91,14 @@ The following flags are available and composable:
 
 ## Quick-Task Workspace Protocol
 
-- Every quick task must have a dedicated slugged workspace under `.planning/quick/<slug>/`.
+- Every quick task must have a dedicated id-based workspace under `.planning/quick/<id>-<slug>/`.
 - If a matching active workspace already exists, resume it instead of creating a second parallel quick-task directory for the same goal.
 - The minimum artifact set is:
   - `STATUS.md`: the source of truth for the current quick-task state.
   - `SUMMARY.md`: the final outcome, changed files, and verification evidence.
   - Optional lightweight support artifacts only when needed for the task shape, such as `PLAN.md`, `RESEARCH.md`, or `DISCUSSION.md`.
 - Constitution read is the first hard gate. `STATUS.md` initialization comes immediately after it.
+- `STATUS.md` is the lifecycle source of truth for the quick task. `.planning/quick/index.json` is a derived projection for management and recovery commands.
 - `STATUS.md` must stay compact and overwrite the active state rather than growing into a long log. It must always make these fields obvious:
   - current focus
   - execution strategy
@@ -107,15 +112,17 @@ The following flags are available and composable:
   - blockers, if any
 - Update `STATUS.md` before each material phase transition: after scope lock, after planning, before delegation, after each join point, before validation, and before final summary.
 - After the constitution gate, `STATUS.md` initialization is the next hard gate. Do not perform substantial repository analysis, implementation design, or code reading beyond scope-lock context until the workspace exists and the first lane is recorded.
-- When the quick task completes, preserve `SUMMARY.md` and move resolved state under `.planning/quick/resolved/` if the local project convention prefers archiving over keeping active quick-task folders in place.
+- When the quick task completes, preserve `SUMMARY.md` and move closed state under `.planning/quick/archive/` if the local project convention prefers archiving over keeping active quick-task folders in place.
 
 ## STATUS.md Template
 
-Use this as the default structure for `.planning/quick/<slug>/STATUS.md`:
+Use this as the default structure for `.planning/quick/<id>-<slug>/STATUS.md`:
 
 ```markdown
 ---
+id: [quick-task id]
 slug: [quick-task slug]
+title: [short quick-task title]
 status: gathering | planned | executing | validating | blocked | resolved
 trigger: "[verbatim user input]"
 strategy: single-agent | native-multi-agent | sidecar-runtime
@@ -153,9 +160,25 @@ completed_checks:
 ## Summary Pointer
 <!-- OVERWRITE when terminal state is reached -->
 
-summary_path: [.planning/quick/<slug>/SUMMARY.md]
+summary_path: [.planning/quick/<id>-<slug>/SUMMARY.md]
 resume_decision: [resume here | blocked waiting | resolved]
 ```
+
+## Recovery Routing
+
+- `sp-quick <description>` creates a new quick task.
+- Empty `sp-quick` should look for unfinished quick tasks before asking for a new description.
+- If exactly one unfinished quick task exists, resume it automatically.
+- If multiple unfinished quick tasks exist, ask the user which quick task to continue.
+- The selection list should show `id`, title, current status, and `next_action`.
+- Treat `gathering`, `planned`, `executing`, `validating`, and `blocked` as unfinished quick-task states for recovery routing.
+- If resuming a `blocked` quick task, prioritize `blocker_reason`, `recovery_action`, and `next_action` before widening scope.
+
+## Lifecycle Commands
+
+- `close` controls lifecycle semantics. Use it to place a quick task into `resolved` or `blocked`.
+- `archive` controls storage semantics. Use it only after the quick task has already been closed.
+- Do not treat archive as an implied synonym for resolved. Closure says what happened; archive says where the closed task now lives.
 
 ## Autonomous Execution Contract
 
@@ -248,7 +271,8 @@ resume_decision: [resume here | blocked waiting | resolved]
 When running `sp-quick` in Codex, you are the **leader**, not the concrete implementer.
 
 Before code edits, test edits, or implementation commands:
-- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<slug>/STATUS.md` if this quick task is new.
+- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<id>-<slug>/STATUS.md` if this quick task is new.
+- Treat `.planning/quick/index.json` as a derived management projection. If it is missing or stale, rebuild it from `STATUS.md` rather than trusting it as the primary truth source.
 - Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first worker lane is selected.
 - Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.
 - `single-agent` still means one delegated worker lane. Do **not** reinterpret it as leader self-execution.
@@ -271,7 +295,7 @@ Before code edits, test edits, or implementation commands:
    - Redirect to `/sp-fast` or `/sp-specify` if the task is outside the quick-task band.
 
 2. **Create lightweight quick-task context**
-   - Create or resume a slugged workspace under `.planning/quick/<slug>/`.
+   - Create or resume an id-based workspace under `.planning/quick/<id>-<slug>/`.
    - Keep quick-task artifacts separate from the main phase/spec workflow.
    - Initialize `STATUS.md` as the recoverable source of truth for the quick task.
    - Do not continue into broad repository analysis or implementation planning until this workspace exists and the initial lane or batch is recorded.
@@ -307,7 +331,7 @@ Before code edits, test edits, or implementation commands:
 
 7. **Summary**
    - Write a concise summary artifact for what changed, how it was verified, and which surfaces were left unverified.
-   - Prefer `SUMMARY.md` in `.planning/quick/<slug>/`.
+   - Prefer `SUMMARY.md` in `.planning/quick/<id>-<slug>/`.
    - Separate `verified` coverage from `not checked` coverage so readers can tell what was actually proven versus what is only expected to be safe.
    - For each declared surface, give the terminal status conclusion: `confirmed correct`, `fixed in this quick task`, or `not checked in this pass (with reason)`.
    - Make sure the final `STATUS.md` points to the summary, records the terminal state, and makes a future resume decision obvious.
@@ -331,7 +355,7 @@ When running `sp-quick` in Codex, prefer native worker delegation whenever the s
 - If multiple safe worker lanes exist and they materially improve throughput, dispatch them in parallel instead of defaulting to serial delegation.
 - Use `wait_agent` only at the documented join point for the current quick-task batch.
 - Use `close_agent` after integrating finished worker results.
-- Keep `.planning/quick/<slug>/STATUS.md` as the leader-owned source of truth with current focus, execution strategy, active lane or batch, join point, next action, and blockers.
+- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth with current focus, execution strategy, active lane or batch, join point, next action, and blockers.
 - Child agents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.
 - Keep the decision order fixed: `no-safe-batch` -> `native-preferred` -> `sidecar-fallback` -> `fallback`.
 - Interpret `single-agent` as one delegated worker lane, not leader self-execution.
@@ -339,6 +363,9 @@ When running `sp-quick` in Codex, prefer native worker delegation whenever the s
 - Interpret `native-multi-agent` as the native subagents path.
 - Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable for the current quick-task batch.
 - Use leader-local execution only after both worker paths are concretely unavailable for the current batch, and record that fallback explicitly in `STATUS.md`.
+- Empty `sp-quick` should check for unfinished quick tasks before asking for a new description. If exactly one unfinished quick task exists, resume it automatically. If multiple unfinished quick tasks exist, ask the user which quick task to continue and show `id`, title, current status, and `next_action`.
+- Treat `blocked` quick tasks as resumable unfinished work for recovery routing.
 - Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.
 - Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.
-- When the quick task reaches a terminal state, make resume semantics obvious in `STATUS.md` and point to `SUMMARY.md`; archive under `.planning/quick/resolved/` when the local convention expects resolved quick-task workspaces to move out of the active queue.
+- Use `close` for terminal lifecycle state (`resolved` or `blocked`) and `archive` only for storage movement after closure.
+- When the quick task reaches a terminal state, make resume semantics obvious in `STATUS.md` and point to `SUMMARY.md`; archive under `.planning/quick/archive/` when the local convention expects closed quick-task workspaces to move out of the active queue.

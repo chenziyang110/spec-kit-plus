@@ -10,7 +10,8 @@ def test_repo_quick_skill_mirror_has_codex_delegation_contract() -> None:
     mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-quick" / "SKILL.md"
     body = _body_without_frontmatter(mirror_path).lower()
 
-    assert ".planning/quick/<slug>/status.md" in body
+    assert ".planning/quick/<id>-<slug>/status.md" in body
+    assert ".planning/quick/index.json" in body
     assert 'choose_execution_strategy(command_name="quick"' in body
     assert "read `.specify/memory/constitution.md` first" in body
     assert "single-agent" in body
@@ -30,3 +31,6 @@ def test_repo_quick_skill_mirror_has_codex_delegation_contract() -> None:
     assert "local execution is the last fallback" in body
     assert "execution_fallback" in body
     assert "continue automatically until the quick task is complete or blocked" in body
+    assert "if exactly one unfinished quick task exists" in body
+    assert "if multiple unfinished quick tasks exist" in body
+    assert "ask the user which quick task to continue" in body

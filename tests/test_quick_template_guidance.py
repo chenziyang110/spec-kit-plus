@@ -54,7 +54,8 @@ def test_quick_template_defines_capability_aware_execution_strategy() -> None:
 def test_quick_template_defines_recoverable_quick_task_artifacts() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
-    assert ".planning/quick/<slug>/" in content
+    assert ".planning/quick/<id>-<slug>/" in content
+    assert ".planning/quick/index.json" in content
     assert "status.md" in content
     assert "first hard gate" in content
     assert "constitution read is the first hard gate" in content
@@ -69,6 +70,7 @@ def test_quick_template_includes_concrete_status_template() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
     assert "## status.md template" in content
+    assert "id: [quick-task id]" in content
     assert "slug: [quick-task slug]" in content
     assert "status: gathering | planned | executing | validating | blocked | resolved" in content
     assert "strategy: single-agent | native-multi-agent | sidecar-runtime" in content
@@ -169,3 +171,14 @@ def test_quick_template_prefers_parallel_worker_fanout_when_safe() -> None:
     assert "materially improve throughput" in content
     assert "dispatch them in parallel" in content
     assert "instead of artificially serializing the work" in content
+
+
+def test_quick_template_defines_empty_call_recovery_and_lifecycle_management() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "if exactly one unfinished quick task exists" in content
+    assert "if multiple unfinished quick tasks exist" in content
+    assert "ask the user which quick task to continue" in content
+    assert "resumable unfinished work" in content
+    assert "close" in content
+    assert "archive" in content

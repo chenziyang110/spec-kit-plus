@@ -238,7 +238,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "execution_fallback" in content
     assert "join point" in content
     assert "leader" in content
-    assert ".planning/quick/<slug>/" in content
+    assert ".planning/quick/<id>-<slug>/" in content
+    assert ".planning/quick/index.json" in content
     assert "status.md" in content
     assert "current focus" in content
     assert "next action" in content
@@ -248,3 +249,6 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "status: gathering | planned | executing | validating | blocked | resolved" in content
     assert "strategy: single-agent | native-multi-agent | sidecar-runtime" in content
     assert "summary pointer" in content
+    assert "if exactly one unfinished quick task exists" in content
+    assert "if multiple unfinished quick tasks exist" in content
+    assert "ask the user which quick task to continue" in content

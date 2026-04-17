@@ -59,6 +59,21 @@ def test_guidance_docs_explain_fast_quick_specify_routing():
         assert "acceptance criteria" in content
 
 
+def test_guidance_docs_explain_resumable_quick_management():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    for content in (readme, quickstart):
+        assert ".planning/quick/<id>-<slug>/" in content
+        assert "index.json" in content
+        assert "no arguments" in content or "with no arguments" in content
+        assert "blocked" in content
+        assert "specify quick list" in content
+        assert "specify quick status" in content
+        assert "specify quick close" in content
+        assert "specify quick archive" in content
+
+
 def test_repo_docs_share_same_workflow_guidance():
     readme = _read("README.md").lower()
     agents = _read("AGENTS.md").lower()
