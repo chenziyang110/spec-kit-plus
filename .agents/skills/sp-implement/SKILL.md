@@ -50,11 +50,75 @@ You **MUST** consider the user input before proceeding (if not empty).
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
 
+## Implement Tracker Protocol
+
+- `FEATURE_DIR/implement-tracker.md` is the execution-state source of truth for `sp-implement`.
+- Create it if missing after `FEATURE_DIR` is known. If it already exists and is not terminal, resume from it instead of restarting from chat memory.
+- Treat terminal states as `resolved` or `blocked`. Treat `gathering`, `executing`, `recovering`, `replanning`, and `validating` as resumable states.
+- Update the tracker before each material phase transition: after scope recovery, before dispatching a ready batch, after each join point, before validation, when entering replanning, and before final completion reporting.
+- The tracker must keep these fields obvious:
+  - `status`
+  - `current_batch`
+  - `next_action`
+  - `completed_tasks`
+  - `failed_tasks`
+  - `retry_attempts`
+  - `blockers`
+  - `recovery_action`
+  - `open_gaps`
+  - `resume_decision`
+- Use this default structure:
+
+```markdown
+---
+status: gathering | executing | recovering | replanning | validating | blocked | resolved
+feature: [feature slug]
+created: [ISO timestamp]
+updated: [ISO timestamp]
+resume_decision: resume-here | blocked-waiting | resolved
+---
+
+## Current Focus
+current_batch: [ready batch or validation pass]
+goal: [current implementation objective]
+next_action: [immediate next step]
+
+## Execution State
+completed_tasks:
+  - [task ids already completed]
+in_progress_tasks:
+  - [task ids currently running]
+failed_tasks:
+  - [task ids that failed in the current pass]
+retry_attempts: [0 if none]
+
+## Blockers
+- task: [task id]
+  type: technical | external | human-action
+  evidence: [short command output or observed failure]
+  recovery_action: [smallest safe next recovery step]
+
+## Validation
+planned_checks:
+  - [independent tests, acceptance checks, or validation commands]
+completed_checks:
+  - [checks already run]
+human_needed_checks:
+  - [manual verification still required]
+
+## Open Gaps
+- type: execution_gap | research_gap | plan_gap | spec_gap
+  summary: [what is still not true]
+  source: [task id, validation check, or user-visible outcome]
+  next_action: [specific next step]
+```
+
 ## Codex Leader Gate
 
 When running `sp-implement` in Codex, you are the **leader**, not the concrete implementer.
 
 Before any code edits, test edits, build commands, or implementation actions:
+- Read `FEATURE_DIR/implement-tracker.md` first if it exists, and resume from its recorded blocker, recovery, replanning, or validation state before choosing a new batch.
 - Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.
 - If the selected strategy is `native-multi-agent`, you **MUST** delegate the concrete work through `spawn_agent` worker lanes before considering any fallback path.
 - Use `wait_agent` only at the join point for the current ready batch, then integrate results and call `close_agent` for completed workers.
@@ -100,6 +164,10 @@ Before any code edits, test edits, build commands, or implementation actions:
      - Automatically proceed to step 3
 
 3. Load and analyze the implementation context:
+   - **REQUIRED**: Create or resume `FEATURE_DIR/implement-tracker.md` immediately after `FEATURE_DIR` is known.
+   - **IF TRACKER EXISTS WITH STATUS `blocked` OR `replanning`**: Read `blockers`, `open_gaps`, `recovery_action`, and `next_action` first, then continue from that state instead of restarting the workflow from scratch.
+   - **IF TRACKER EXISTS WITH STATUS `validating`**: Resume the unfinished validation checks before considering any new implementation work.
+   - **IF TRACKER EXISTS WITH STATUS `executing` OR `recovering`**: Resume from the recorded `current_batch`, `failed_tasks`, and `retry_attempts` rather than recomputing progress from chat narration.
    - **REQUIRED**: Check whether `项目技术文档.md` exists at the repository
      root.
    - **IF MISSING**: Analyze the repository and create `项目技术文档.md`
@@ -207,16 +275,32 @@ Before any code edits, test edits, build commands, or implementation actions:
    - Report progress after each completed task
    - Halt execution if any non-parallel task fails
    - For tasks in parallel batches, continue with successful tasks, report failed ones, and do not cross the batch's join point until the failed work is resolved or explicitly deferred
+   - Persist completed work, failed work, blocker evidence, `retry_attempts`, `recovery_action`, and `next_action` in `implement-tracker.md` as soon as they change
+   - Before declaring the feature blocked, attempt the smallest safe recovery step that matches the evidence:
+     - read the most relevant local implementation context for the failing area
+     - run the smallest meaningful repro, failing test, or validation command
+     - inspect immediate logs or error output
+     - make one focused repair attempt when the evidence is clear
+     - if uncertainty remains high, do focused implementation research for the narrow blocker before widening scope
+   - If recovery attempts still fail, set tracker status to `blocked`, keep the blocker explicit, and preserve the best known `next_action` for the next `sp-implement` run
    - Provide clear error messages with context for debugging
    - Suggest next steps if implementation cannot proceed
    - **IMPORTANT** For completed tasks, make sure to mark the task off as [X] in the tasks file.
 
 10. Completion validation:
+   - Enter tracker status `validating` after the last ready implementation task is complete. `tasks.md` being fully checked off is not sufficient for completion by itself.
    - Verify all required tasks are completed
-   - Check that implemented features match the original specification
+   - Check that implemented features match the original specification, accepted behavior, and any independent test criteria captured in `tasks.md`
    - Validate that tests pass and coverage meets requirements
    - Confirm the implementation follows the technical plan
-   - Report final status with summary of completed work
+   - If validation finds missing user-visible behavior or unmet acceptance criteria, record an `open_gaps` entry instead of silently claiming completion
+   - Classify each unresolved gap:
+     - `execution_gap`: implementation exists but still behaves incorrectly; continue fixing within the current implementation loop
+     - `research_gap`: the blocker is a missing technical decision or evidence gap; update `research.md`, record the new finding in the tracker, then continue
+     - `plan_gap`: the current plan/tasks do not cover the work needed to satisfy the feature goal; update `plan.md` and `tasks.md`, set tracker status to `replanning`, then continue from the next ready batch after the replan
+     - `spec_gap`: the requirement itself is ambiguous, contradictory, or newly changed; stop autonomous replanning, keep the gap explicit in the tracker, and recommend `/sp.spec-extend`
+   - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
+   - Report final status with summary of completed work, remaining human-needed checks, and any unresolved gaps
 
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/sp.tasks` first to regenerate the task list.
 

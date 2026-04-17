@@ -82,6 +82,9 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert outline_idx != -1
     assert auto_parallel_idx != -1
     assert leader_gate_idx < outline_idx < auto_parallel_idx
+    assert "feature_dir/implement-tracker.md" in content.lower()
+    assert "execution-state source of truth" in content.lower()
+    assert "resume_decision" in content.lower()
     assert "you are the **leader**, not the concrete implementer" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
@@ -97,6 +100,10 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "join point" in content.lower()
     assert "retry-pending" in content.lower() or "retry pending" in content.lower()
     assert "blocker" in content.lower()
+    assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
+    assert "`research_gap`" in content
+    assert "`plan_gap`" in content
+    assert "`spec_gap`" in content
     assert "delegated execution" in content.lower() or "delegates execution" in content.lower()
     assert "prefer `native-multi-agent`" in content
     assert "only fall back to `specify team`" in content.lower()

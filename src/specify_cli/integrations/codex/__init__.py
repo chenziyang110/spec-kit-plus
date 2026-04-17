@@ -175,6 +175,7 @@ class CodexIntegration(SkillsIntegration):
                 "When running `sp-implement` in Codex, you are the **leader**, not the concrete implementer.\n"
                 "\n"
                 "Before any code edits, test edits, build commands, or implementation actions:\n"
+                "- Read `FEATURE_DIR/implement-tracker.md` first if it exists, and resume from its recorded blocker, recovery, replanning, or validation state before choosing a new batch.\n"
                 "- Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.\n"
                 "- If the selected strategy is `native-multi-agent`, you **MUST** delegate the concrete work through `spawn_agent` worker lanes before considering any fallback path.\n"
                 "- Use `wait_agent` only at the join point for the current ready batch, then integrate results and call `close_agent` for completed workers.\n"

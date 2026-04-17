@@ -38,6 +38,9 @@ def test_sp_implement_preserves_join_point_semantics() -> None:
     content = _read_template().lower()
 
     assert "join-point semantics" in content
+    assert "implement-tracker.md" in content
+    assert "execution-state source of truth" in content
+    assert "resume_decision" in content
 
 
 def test_sp_implement_distinguishes_execution_modes() -> None:
@@ -64,3 +67,6 @@ def test_sp_implement_documents_milestone_next_step_selection() -> None:
 
     assert "selects the next executable phase and ready batch" in content
     assert "shared implement template is the primary source of truth" in content
+    assert "tasks.md` being fully checked off is not sufficient for completion by itself" in _read_template()
+    assert "`plan_gap`" in _read_template()
+    assert "`spec_gap`" in _read_template()

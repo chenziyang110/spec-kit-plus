@@ -385,6 +385,11 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     step_6 = _extract_step_6_strategy_block(content)
 
     assert ".specify/memory/constitution.md" in content
+    assert "implement-tracker.md" in content
+    assert "execution-state source of truth" in lowered
+    assert "resume_decision" in content
+    assert "status: gathering | executing | recovering | replanning | validating | blocked | resolved" in lowered
+    assert "open_gaps" in lowered
     assert "parallel batches" in lowered
     assert "current agent" in lowered
     assert "ready tasks" in lowered
@@ -425,6 +430,11 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "join point" in lowered
     assert "retry-pending" in lowered or "retry pending" in lowered
     assert "blocker" in lowered
+    assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
+    assert "`research_gap`" in content
+    assert "`plan_gap`" in content
+    assert "`spec_gap`" in content
+    assert "/sp.spec-extend" in content
 
 
 def test_specify_template_explicitly_reads_constitution() -> None:

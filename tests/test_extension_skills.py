@@ -407,6 +407,10 @@ def test_repo_implement_skill_mirror_has_codex_leader_gate():
     mirror_path = _repo_codex_skill_path("sp-implement")
     body = _body_without_frontmatter(mirror_path)
 
+    assert "FEATURE_DIR/implement-tracker.md" in body
+    assert "execution-state source of truth" in body
+    assert "resume_decision" in body
+    assert "status: gathering | executing | recovering | replanning | validating | blocked | resolved" in body.lower()
     assert "## Codex Leader Gate" in body
     assert "you are the **leader**, not the concrete implementer" in body
     assert "spawn_agent" in body
