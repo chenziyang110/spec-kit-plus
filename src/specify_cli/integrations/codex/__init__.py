@@ -176,6 +176,7 @@ class CodexIntegration(SkillsIntegration):
                 "\n"
                 "Before any code edits, test edits, build commands, or implementation actions:\n"
                 "- Read `FEATURE_DIR/implement-tracker.md` first if it exists, and resume from its recorded blocker, recovery, replanning, or validation state before choosing a new batch.\n"
+                "- If `$ARGUMENTS` is non-empty, extract the important execution constraints or recovery hints from it and persist them under `## User Execution Notes` in `FEATURE_DIR/implement-tracker.md` before dispatching work.\n"
                 "- Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.\n"
                 "- If the selected strategy is `native-multi-agent`, you **MUST** delegate the concrete work through `spawn_agent` worker lanes before considering any fallback path.\n"
                 "- Use `wait_agent` only at the join point for the current ready batch, then integrate results and call `close_agent` for completed workers.\n"

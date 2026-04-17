@@ -40,6 +40,8 @@ def test_sp_implement_preserves_join_point_semantics() -> None:
     assert "join-point semantics" in content
     assert "implement-tracker.md" in content
     assert "execution-state source of truth" in content
+    assert "user execution notes" in content
+    assert "first-class implementation context" in content
     assert "resume_decision" in content
 
 

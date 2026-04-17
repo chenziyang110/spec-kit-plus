@@ -409,6 +409,8 @@ def test_repo_implement_skill_mirror_has_codex_leader_gate():
 
     assert "FEATURE_DIR/implement-tracker.md" in body
     assert "execution-state source of truth" in body
+    assert "first-class implementation context" in body.lower()
+    assert "user execution notes" in body.lower()
     assert "resume_decision" in body
     assert "status: gathering | executing | recovering | replanning | validating | blocked | resolved" in body.lower()
     assert "## Codex Leader Gate" in body

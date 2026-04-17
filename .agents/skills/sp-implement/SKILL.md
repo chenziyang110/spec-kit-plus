@@ -15,6 +15,7 @@ $ARGUMENTS
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).
+Treat non-empty `$ARGUMENTS` as first-class implementation context for the current feature execution, not as disposable chat-only guidance.
 
 ## Pre-Execution Checks
 
@@ -66,7 +67,15 @@ You **MUST** consider the user input before proceeding (if not empty).
   - `blockers`
   - `recovery_action`
   - `open_gaps`
+  - `user_execution_notes`
   - `resume_decision`
+- If the user supplied important execution details in `$ARGUMENTS`, extract and persist them in the tracker before dispatching work. Typical examples include:
+  - build or compile order
+  - startup commands
+  - required environment setup
+  - known failing commands to avoid
+  - recovery hints the runtime must remember on future resumes
+- Treat these notes as binding for the current implementation run unless direct evidence shows they are wrong. Do not drop them silently on resume.
 - Use this default structure:
 
 ```markdown
@@ -111,6 +120,12 @@ human_needed_checks:
   summary: [what is still not true]
   source: [task id, validation check, or user-visible outcome]
   next_action: [specific next step]
+
+## User Execution Notes
+- note: [important user-supplied execution detail from `$ARGUMENTS`]
+  source: sp-implement arguments
+  priority: high | normal
+  applies_to: current feature execution
 ```
 
 ## Codex Leader Gate
@@ -168,6 +183,7 @@ Before any code edits, test edits, build commands, or implementation actions:
    - **IF TRACKER EXISTS WITH STATUS `blocked` OR `replanning`**: Read `blockers`, `open_gaps`, `recovery_action`, and `next_action` first, then continue from that state instead of restarting the workflow from scratch.
    - **IF TRACKER EXISTS WITH STATUS `validating`**: Resume the unfinished validation checks before considering any new implementation work.
    - **IF TRACKER EXISTS WITH STATUS `executing` OR `recovering`**: Resume from the recorded `current_batch`, `failed_tasks`, and `retry_attempts` rather than recomputing progress from chat narration.
+   - **IF `$ARGUMENTS` IS NON-EMPTY**: Extract any high-signal execution constraints, environment facts, build instructions, startup instructions, or recovery hints and record them under `## User Execution Notes` in `implement-tracker.md` before choosing the next batch.
    - **REQUIRED**: Check whether `项目技术文档.md` exists at the repository
      root.
    - **IF MISSING**: Analyze the repository and create `项目技术文档.md`

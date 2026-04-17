@@ -387,6 +387,9 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/memory/constitution.md" in content
     assert "implement-tracker.md" in content
     assert "execution-state source of truth" in lowered
+    assert "first-class implementation context" in lowered
+    assert "user execution notes" in lowered
+    assert "build or compile order" in lowered
     assert "resume_decision" in content
     assert "status: gathering | executing | recovering | replanning | validating | blocked | resolved" in lowered
     assert "open_gaps" in lowered

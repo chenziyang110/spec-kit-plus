@@ -84,6 +84,8 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert leader_gate_idx < outline_idx < auto_parallel_idx
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
+    assert "first-class implementation context" in content.lower()
+    assert "user execution notes" in content.lower()
     assert "resume_decision" in content.lower()
     assert "you are the **leader**, not the concrete implementer" in content
     assert "spawn_agent" in content
