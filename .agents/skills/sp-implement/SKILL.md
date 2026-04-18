@@ -184,15 +184,12 @@ Before any code edits, test edits, build commands, or implementation actions:
    - **IF TRACKER EXISTS WITH STATUS `validating`**: Resume the unfinished validation checks before considering any new implementation work.
    - **IF TRACKER EXISTS WITH STATUS `executing` OR `recovering`**: Resume from the recorded `current_batch`, `failed_tasks`, and `retry_attempts` rather than recomputing progress from chat narration.
    - **IF `$ARGUMENTS` IS NON-EMPTY**: Extract any high-signal execution constraints, environment facts, build instructions, startup instructions, or recovery hints and record them under `## User Execution Notes` in `implement-tracker.md` before choosing the next batch.
-   - **REQUIRED**: Check whether `项目技术文档.md` exists at the repository
-     root.
-   - **IF MISSING**: Analyze the repository and create `项目技术文档.md`
-     before continuing.
-   - **DOCUMENT STRUCTURE**: The generated document must use these sections:
-     `项目架构概览`, `目录结构及其职责`, `关键模块依赖关系图`,
-     `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`,
-     `常见的代码模式与约定`.
-   - **REQUIRED**: Read `项目技术文档.md` after the check above completes.
+   - **REQUIRED**: Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
+   - **REQUIRED**: Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - **IF MISSING**: Analyze the repository and create the handbook + project-map navigation system before continuing.
+   - **REQUIRED**: Read `PROJECT-HANDBOOK.md` after the check above completes.
+   - **REQUIRED**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+   - **IF TOPICAL COVERAGE IS MISSING, STALE, OR TOO BROAD**: Inspect the minimum live files needed to replace guesswork with evidence.
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure

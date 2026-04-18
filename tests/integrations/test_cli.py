@@ -44,6 +44,9 @@ class TestInitIntegrationFlag:
         assert result.exit_code == 0, result.output
         assert (project / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
         assert (project / ".specify" / "codex-team" / "runtime.json").exists()
+        assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
         assert "specify team" in result.output
 
     def test_non_codex_init_does_not_advertise_specify_team_surface(self, tmp_path):
@@ -116,6 +119,9 @@ class TestInitIntegrationFlag:
         assert "single-agent" in content
         assert "native-multi-agent" in content
         assert "sidecar-runtime" in content
+        assert "project-handbook.md" in content.lower()
+        assert ".specify/project-map/architecture.md" in content.lower()
+        assert ".specify/project-map/operations.md" in content.lower()
         assert "specify team" not in content.lower()
 
     def test_non_codex_shared_workflow_skills_use_canonical_strategy_language(self, tmp_path):
@@ -159,10 +165,21 @@ class TestInitIntegrationFlag:
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert 'choose_execution_strategy(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
+        assert "project-handbook.md" in debug_content
+        assert ".specify/project-map/architecture.md" in debug_content
+        assert ".specify/project-map/workflows.md" in debug_content
         assert "spawn_agent" not in debug_content
+
+        fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "project-handbook.md" in fast_content
+        assert "shared surfaces" in fast_content
+        assert "risky coordination points" in fast_content
 
         quick_content = (skills_dir / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert ".specify/memory/constitution.md" in quick_content
+        assert "project-handbook.md" in quick_content
+        assert "topic map" in quick_content
+        assert "touched-area topical files" in quick_content
         assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content
         assert "attempt the smallest safe recovery step before declaring the task blocked" in quick_content
         assert "retry_attempts" in quick_content
@@ -208,6 +225,9 @@ class TestInitIntegrationFlag:
         assert (project / ".github" / "agents" / "sp.explain.agent.md").exists()
         assert (project / ".github" / "prompts" / "sp.plan.prompt.md").exists()
         assert (project / ".specify" / "scripts" / "bash" / "common.sh").exists()
+        assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
         assert (project / ".specify" / "templates" / "spec-template.md").exists()
 

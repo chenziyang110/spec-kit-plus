@@ -301,12 +301,15 @@ class TestBuiltInSkillGeneration:
         assert "guided requirement discovery" in specify_body.lower()
         assert "current-understanding or confirmation gate" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
-        assert "primary codebase-scout input" in specify_body
+        assert "PROJECT-HANDBOOK.md" in specify_body
+        assert ".specify/project-map/ARCHITECTURE.md" in specify_body
+        assert ".specify/project-map/WORKFLOWS.md" in specify_body
+        assert "Topic Map" in specify_body
         assert "module ownership, reusable components/services/hooks, integration points" in specify_body
-        assert "If `项目技术文档.md` is missing coverage for the touched area" in specify_body
+        assert "If the topical coverage for the touched area is missing, stale, or too broad" in specify_body
         assert "Run a codebase scout before clarification." in specify_body
         assert "Build a concise internal scout summary for the request area" in specify_body
-        assert "grounded in the codebase scout from `项目技术文档.md`" in specify_body
+        assert "grounded in the project handbook and touched-area topical map" in specify_body
         assert "Do not use generic labels like \"UX\", \"behavior\", or \"data handling\"" in specify_body
         assert "Each gray area should be captured internally with:" in specify_body
         assert "desired happy-path behavior" in specify_body
@@ -386,8 +389,12 @@ def test_repo_specify_skill_mirror_matches_current_contract():
     assert "recommendation and example scaffolding" in lowered
     assert "current-understanding or confirmation gate" in lowered
     assert "planning-relevant gray areas" in lowered
-    assert "primary codebase-scout input" in body
-    assert "grounded in the codebase scout from `项目技术文档.md`" in body
+    assert "PROJECT-HANDBOOK.md" in body
+    assert ".specify/project-map/ARCHITECTURE.md" in body
+    assert ".specify/project-map/WORKFLOWS.md" in body
+    assert "Topic Map" in body
+    assert "grounded in the project handbook and touched-area topical map" in body
+    assert "If the topical coverage for the touched area is missing, stale, or too broad" in body
     assert "Do not use generic labels like \"UX\", \"behavior\", or \"data handling\"" in body
     assert "Each gray area should be captured internally with:" in body
     assert "desired happy-path behavior" in body
@@ -409,6 +416,10 @@ def test_repo_implement_skill_mirror_has_codex_leader_gate():
 
     assert "FEATURE_DIR/implement-tracker.md" in body
     assert "execution-state source of truth" in body
+    assert "PROJECT-HANDBOOK.md" in body
+    assert ".specify/project-map/ARCHITECTURE.md" in body
+    assert ".specify/project-map/WORKFLOWS.md" in body
+    assert ".specify/project-map/OPERATIONS.md" in body
     assert "first-class implementation context" in body.lower()
     assert "user execution notes" in body.lower()
     assert "resume_decision" in body
@@ -432,6 +443,9 @@ def test_repo_plan_skill_mirror_has_shared_strategy_routing_contract():
     body = _body_without_frontmatter(mirror_path)
 
     assert "Read `templates/research-template.md`" in body
+    assert "Read `PROJECT-HANDBOOK.md`" in body
+    assert ".specify/project-map/ARCHITECTURE.md" in body
+    assert ".specify/project-map/WORKFLOWS.md" in body
     assert 'choose_execution_strategy(command_name="plan"' in body
     assert "single-agent" in body
     assert "native-multi-agent" in body
@@ -465,6 +479,9 @@ def test_repo_debug_skill_mirror_has_codex_native_investigation_guidance():
     assert "fix and verify protocol" in body
     assert "checkpoint protocol" in body
     assert "capability-aware investigation" in body
+    assert "read `project-handbook.md` before root-cause analysis" in body
+    assert "read whichever of `.specify/project-map/architecture.md`, `.specify/project-map/workflows.md`, `.specify/project-map/integrations.md`, `.specify/project-map/testing.md`, and `.specify/project-map/operations.md` map to the failing area" in body
+    assert "truth-owning layers" in body
     assert 'choose_execution_strategy(command_name="debug"' in body
     assert "improve logging or tracing before attempting a fix" in body or "improve logging or tracing before" in body
     assert "codex native multi-agent investigation" in body
@@ -490,6 +507,20 @@ def test_repo_additional_codex_skill_mirrors_exist_for_generated_surfaces():
         assert skill_path.exists(), f"Missing repo mirror for {skill_name}"
         content = skill_path.read_text(encoding="utf-8")
         assert needle in content
+
+
+def test_repo_fast_and_quick_skill_mirrors_include_handbook_navigation_contract():
+    fast_body = _body_without_frontmatter(_repo_codex_skill_path("sp-fast"))
+    quick_body = _body_without_frontmatter(_repo_codex_skill_path("sp-quick"))
+
+    assert "Read `PROJECT-HANDBOOK.md`." in fast_body
+    assert "Shared Surfaces" in fast_body
+    assert "Risky Coordination Points" in fast_body
+    assert "redirect to `/sp-quick`" in fast_body
+
+    assert "Read `PROJECT-HANDBOOK.md` after the constitution gate" in quick_body
+    assert "Topic Map" in quick_body
+    assert "touched-area topical files" in quick_body
 
 
 def test_team_template_has_valid_frontmatter_boundary():

@@ -39,6 +39,9 @@ class TestCodexAutoPromote:
         assert (target / ".codex" / "skills" / "sp-plan" / "SKILL.md").exists()
         assert (target / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
         assert (target / ".specify" / "codex-team" / "runtime.json").exists()
+        assert (target / ".specify" / "templates" / "project-handbook-template.md").exists()
+        assert (target / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
+        assert (target / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
 
 
 def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_path):
@@ -84,6 +87,10 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert leader_gate_idx < outline_idx < auto_parallel_idx
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
+    assert "project-handbook.md" in content.lower()
+    assert ".specify/project-map/architecture.md" in content.lower()
+    assert ".specify/project-map/workflows.md" in content.lower()
+    assert ".specify/project-map/operations.md" in content.lower()
     assert "first-class implementation context" in content.lower()
     assert "user execution notes" in content.lower()
     assert "resume_decision" in content.lower()
@@ -134,6 +141,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "sidecar-runtime" in content
         assert "spawn_agent" in content
         assert "wait_agent" in content
+        assert "project-handbook.md" in content
+        assert ".specify/project-map/architecture.md" in content
+        assert ".specify/project-map/workflows.md" in content
 
     shared_skills = ("sp-specify", "sp-plan", "sp-tasks")
     for skill_name in shared_skills:
@@ -159,6 +169,13 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert "codex native multi-agent investigation" in content
+    assert "project-handbook.md" in content
+    assert ".specify/project-map/architecture.md" in content
+    assert ".specify/project-map/workflows.md" in content
+    assert ".specify/project-map/integrations.md" in content
+    assert ".specify/project-map/testing.md" in content
+    assert ".specify/project-map/operations.md" in content
+    assert "truth-owning layers" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
@@ -195,6 +212,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert "scope gate" in content
+    assert "project-handbook.md" in content
+    assert "shared surfaces" in content
+    assert "risky coordination points" in content
     assert "at most 3 files" in content or "no more than 3 files" in content
     assert "no new dependencies" in content
     assert "do the work directly" in content
@@ -222,6 +242,9 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert ".planning/quick/" in content
+    assert "project-handbook.md" in content
+    assert "topic map" in content
+    assert "touched-area topical files" in content
     assert "--discuss" in content
     assert "--research" in content
     assert "--validate" in content

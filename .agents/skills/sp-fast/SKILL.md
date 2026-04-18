@@ -42,16 +42,21 @@ If any of those checks fail:
    - Confirm the task fits the fast-path constraints above.
    - If not, stop and redirect to the right workflow instead of forcing the task through `sp-fast`.
 
-2. **Execute inline**
+2. **Read the routing layer**
+   - Read `PROJECT-HANDBOOK.md`.
+   - Use `Shared Surfaces` and `Risky Coordination Points` to decide whether the task is truly local.
+   - If the requested change touches a shared surface or risky coordination point, stop and redirect to `/sp-quick`.
+
+3. **Execute inline**
    - Read the relevant file(s).
    - Do the work directly in the current context.
    - Keep the change as small and local as possible.
 
-3. **Verify**
+4. **Verify**
    - Run the smallest meaningful verification for the change.
    - Prefer targeted existing tests or a direct sanity check over broad workflows.
 
-4. **Report**
+5. **Report**
    - Summarize what changed, what was verified, and any remaining risk.
 
 ## Guardrails

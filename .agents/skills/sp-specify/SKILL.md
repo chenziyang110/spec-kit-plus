@@ -69,12 +69,11 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`.
    - Set `REFERENCES_FILE` to `FEATURE_DIR/references.md`.
 
-4. Ensure repository technical documentation exists.
-   - Check whether `项目技术文档.md` exists at the repository root.
-   - If it is missing, analyze the repository and create `项目技术文档.md` before continuing.
-   - The generated document must summarize project architecture, directory responsibilities, module dependencies, core data flows, external interfaces, and project conventions based only on actual repository evidence.
-   - Use this standard section structure:
-     `项目架构概览`, `目录结构及其职责`, `关键模块依赖关系图`, `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`, `常见的代码模式与约定`.
+4. Ensure repository navigation artifacts exist.
+   - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
+   - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - If the navigation system is missing, analyze the repository and create it before continuing.
+   - Treat `PROJECT-HANDBOOK.md` as the root navigation artifact and use `Topic Map` to choose the smallest relevant topical documents for the touched area.
 
 5. Load context.
    - Read `templates/spec-template.md`.
@@ -82,22 +81,23 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Read `templates/context-template.md`.
    - Read `templates/references-template.md`.
    - Read `.specify/memory/constitution.md` if present.
-   - Read `项目技术文档.md` if present and treat it as the primary codebase-scout input for brownfield understanding.
-   - From `项目技术文档.md`, extract the current module ownership, reusable components/services/hooks, integration points, adjacent workflows, key entities, and architectural constraints relevant to the request.
-   - If `项目技术文档.md` is missing coverage for the touched area, appears stale, or lacks the detail needed to ask code-aware questions, inspect the targeted live repository files before asking planning-critical questions.
+   - Read `PROJECT-HANDBOOK.md` first.
+   - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+   - From the handbook system, extract the current module ownership, reusable components/services/hooks, integration points, adjacent workflows, key entities, and architectural constraints relevant to the request.
+   - If the topical coverage for the touched area is missing, stale, or too broad, inspect the targeted live repository files before asking planning-critical questions.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
    - Read user-supplied references, examples, or linked material when they materially affect the requirement package.
 
 6. Run a codebase scout before clarification.
-   - Treat `项目技术文档.md` as the default scout artifact for understanding the existing system shape.
+   - Treat `PROJECT-HANDBOOK.md` as the root scout artifact and use `Topic Map` to choose touched-area topical files.
    - Build a concise internal scout summary for the request area that names:
      - owning modules or workflows
      - reusable components, services, hooks, commands, or schemas
      - integration boundaries and upstream/downstream dependencies
      - adjacent user flows or screens that this work could accidentally break
      - existing patterns that should bias the questions toward real decision forks
-   - If the technical document is too broad, stale, or silent on the touched area, read the minimum targeted live files needed to replace guesswork with evidence.
+   - If topical coverage is too broad, stale, or silent on the touched area, read the minimum targeted live files needed to replace guesswork with evidence.
    - Use the scout summary to eliminate low-value questions, sharpen gray areas, and detect when the user's request conflicts with existing repository patterns.
 
 7. Infer task classification.
@@ -112,7 +112,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    Briefly tell the user your inferred classification and allow correction before continuing.
 
 8. Analyze the whole feature before decomposing it.
-   Build a top-down understanding grounded in the codebase scout from `项目技术文档.md` and any targeted live-file reads. It must cover:
+   Build a top-down understanding grounded in the project handbook and touched-area topical map plus any targeted live-file reads. It must cover:
    - the feature goal
    - intended users and roles
    - first-release scope
@@ -222,7 +222,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
 14. Identify gray areas before concluding alignment.
    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
-   - Derive gray areas from the combination of user intent, `项目技术文档.md`, and targeted repository evidence instead of from a generic question catalog.
+   - Derive gray areas from the combination of user intent, handbook/project-map evidence, and targeted repository reads instead of from a generic question catalog.
    - Prefer feature-specific decision surfaces over generic categories.
    - Do not use generic labels like "UX", "behavior", or "data handling" when a more concrete decision point can be named from the actual codebase and request.
    - Good gray areas name the concrete fork in outcome, for example `empty-state recovery`, `permission downgrade behavior`, `sync trigger timing`, or `existing dashboard card reuse`.
@@ -264,7 +264,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 16. Clarification loop.
     - Keep the interaction feeling like guided requirement discovery rather than a shallow questionnaire.
     - Ask only high-value questions.
-    - Before asking a planning-critical question, check whether `项目技术文档.md` or targeted repository reads already answer it; do not ask the user for facts the codebase can supply.
+    - Before asking a planning-critical question, check whether the handbook/project-map artifacts or targeted repository reads already answer it; do not ask the user for facts the codebase can supply.
     - Use grouped questions for simple/local changes.
     - Use one question at a time for complex/high-risk cases.
     - Ask at most one unanswered high-impact question per message.
@@ -272,7 +272,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Keep the active gray area open until the decision is specific enough that a downstream planner would not need to reopen it for behavior, boundary, or acceptance-shaping detail.
     - Make the next question build directly on the user's most recent answer rather than resetting to generic prompts.
     - Use the previous answer to choose the next narrowing move, not a recycled generic checklist question.
-    - Use code-aware follow-ups when possible: reference the current module, workflow, entity, command, or reusable pattern named in `项目技术文档.md` or repository evidence so the question is about the real decision fork, not an abstract category.
+    - Use code-aware follow-ups when possible: reference the current module, workflow, entity, command, or reusable pattern named in the handbook/project-map artifacts or repository evidence so the question is about the real decision fork, not an abstract category.
     - If the user's answer is vague, shallow, or contradictory, respond with a targeted narrowing question, example, or recommendation tied to the planning-critical ambiguity.
     - Do not accept long but still ambiguous answers as sufficient.
     - Challenge contradictions or vague answers when important ambiguity remains.

@@ -54,14 +54,10 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 1. **Setup**: Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
-2. **Ensure repository technical documentation exists**:
-   - Check whether `项目技术文档.md` exists at the repository root.
-   - If it is missing, analyze the repository and create `项目技术文档.md`
-     before continuing.
-   - Use this standard section structure:
-     `项目架构概览`, `目录结构及其职责`, `关键模块依赖关系图`,
-     `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`,
-     `常见的代码模式与约定`.
+2. **Ensure repository navigation artifacts exist**:
+   - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
+   - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - If the navigation system is missing, analyze the repository and create it before continuing.
 
 3. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
@@ -69,7 +65,9 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Optional**: references.md (retained sources, reusable insights, spec impact mapping)
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
    - **Required when present**: `.specify/memory/constitution.md` (project constitution and mandatory principles that tasks must preserve)
-   - **Optional**: `项目技术文档.md` (existing repository architecture and conventions)
+   - **Required**: `PROJECT-HANDBOOK.md`
+   - **Required**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`
+   - **If topical coverage is missing, stale, or too broad**: inspect the minimum live files needed to replace guesswork with evidence
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 4. **Execute task generation workflow**:
