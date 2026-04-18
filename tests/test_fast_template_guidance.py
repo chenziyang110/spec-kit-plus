@@ -7,6 +7,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def test_fast_template_exists_and_defines_scope_gate() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "fast.md").read_text(encoding="utf-8").lower()
 
+    assert "read `project-handbook.md`" in content
+    assert "shared surfaces" in content
+    assert "risky coordination points" in content
     assert "execute a trivial task directly" in content
     assert "scope gate" in content
     assert "at most 3 files" in content or "no more than 3 files" in content

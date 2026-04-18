@@ -7,6 +7,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_debug_template_documents_capability_aware_investigation() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "debug.md").read_text(encoding="utf-8").lower()
 
+    assert "read `project-handbook.md`" in content
+    assert "truth ownership" in content
+    assert "read whichever of `architecture.md`, `workflows.md`, `integrations.md`, `testing.md`, and `operations.md` map to the failing area" in content
     assert "capability-aware investigation" in content
     assert "find truth ownership before chasing symptoms" in content
     assert "control state is not observation state" in content

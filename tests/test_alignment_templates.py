@@ -34,6 +34,13 @@ def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/ARCHITECTURE.md" in content
+    assert ".specify/project-map/STRUCTURE.md" in content
+    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" in content
+    assert "Use `Topic Map` to choose the smallest relevant topical documents" in content
+
     assert "alignment.md" in content
     assert "aligned: ready for plan" in lowered
     assert "Aligned: ready for plan" in content
@@ -89,7 +96,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "current-understanding or confirmation gate" in lowered
     assert "confirm or correct the current understanding before `Aligned: ready for plan`" in content
     assert "Identify 3-5 planning-relevant gray areas" in content
-    assert "Derive gray areas from the combination of user intent, `项目技术文档.md`, and targeted repository evidence" in content
+    assert "Derive gray areas from the combination of user intent, `PROJECT-HANDBOOK.md`, and targeted repository evidence" in content
     assert 'Do not use generic labels like "UX", "behavior", or "data handling"' in content
     assert "Each gray area should be captured internally with:" in content
     assert "why the decision changes implementation or test shape" in content
@@ -98,7 +105,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "compatibility, migration, or neighboring-workflow impact" in content
     assert "acceptance proof: what evidence would show this decision was implemented correctly" in content
     assert "Let unresolved gray areas drive the next question" in content
-    assert "Before asking a planning-critical question, check whether `项目技术文档.md` or targeted repository reads already answer it" in content
+    assert "Before asking a planning-critical question, check whether `PROJECT-HANDBOOK.md` or touched-area topical documents already answer it" in content
     assert "Keep the active gray area open until the decision is specific enough" in content
     assert "Use code-aware follow-ups when possible" in content
     assert "Apply a specificity test before leaving a gray area" in content
@@ -110,11 +117,11 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Read `templates/context-template.md`." in content
     assert "primary codebase-scout input" in content
     assert "module ownership, reusable components/services/hooks, integration points" in content
-    assert "If `项目技术文档.md` is missing coverage for the touched area" in content
+    assert "If the topical coverage for the touched area is missing, stale, or too broad" in content
     assert "Run a codebase scout before clarification." in content
     assert "Build a concise internal scout summary for the request area" in content
     assert "adjacent user flows or screens that this work could accidentally break" in content
-    assert "grounded in the codebase scout from `项目技术文档.md`" in content
+    assert "grounded in the project handbook and touched-area topical map" in content
     assert "currently owning modules, services, screens, commands, or workflows" in content
     assert "Synthesize these decisions into `context.md`" in content
     assert "22. Write `context.md` to `CONTEXT_FILE`." in content
@@ -144,6 +151,11 @@ def test_primary_tui_templates_avoid_closed_ascii_card_examples():
 def test_plan_template_requires_alignment_report_before_planning():
     content = _read("templates/commands/plan.md")
     lowered = content.lower()
+
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/ARCHITECTURE.md" in content
+    assert ".specify/project-map/STRUCTURE.md" in content
+    assert ".specify/project-map/WORKFLOWS.md" in content
 
     assert "alignment.md" in content
     assert ".specify/memory/constitution.md" in content
@@ -232,6 +244,11 @@ def test_plan_template_carries_locked_decisions_into_plan_artifact():
 def test_tasks_template_documents_shared_routing_before_decomposition():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
+
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/ARCHITECTURE.md" in content
+    assert ".specify/project-map/STRUCTURE.md" in content
+    assert ".specify/project-map/WORKFLOWS.md" in content
 
     assert ".specify/memory/constitution.md" in content
     assert "choose_execution_strategy(command_name=\"tasks\"" in content
@@ -383,6 +400,11 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
     step_6 = _extract_step_6_strategy_block(content)
+
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/ARCHITECTURE.md" in content
+    assert ".specify/project-map/STRUCTURE.md" in content
+    assert ".specify/project-map/WORKFLOWS.md" in content
 
     assert ".specify/memory/constitution.md" in content
     assert "implement-tracker.md" in content

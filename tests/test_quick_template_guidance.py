@@ -7,6 +7,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
+    assert "read `project-handbook.md`" in content
+    assert "topic map" in content
+    assert "touched-area topical files" in content
     assert "ad-hoc task" in content or "small, ad-hoc task" in content
     assert "lightweight" in content
     assert ".planning/quick/" in content

@@ -30,7 +30,9 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "Fallbacks Require Consent" in content
     assert "Encoding Preservation" in content
     assert "preserve the file's existing character encoding and BOM behavior" in content
-    assert "项目技术文档.md" in content
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/" in content
+    assert "progressive disclosure" in content.lower()
     assert "generate it before structural work" in content
     assert "[PROJECT_NAME]" not in content
     assert "[RATIFICATION_DATE]" not in content
