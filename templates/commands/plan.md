@@ -62,14 +62,10 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for `FEATURE_SPEC`, `IMPL_PLAN`, `SPECS_DIR`, `BRANCH`, and `FEATURE_DIR`.
 
-2. **Ensure repository technical documentation exists**:
-   - Check whether `项目技术文档.md` exists at the repository root.
-   - If it is missing, analyze the repository and create `项目技术文档.md`
-     before continuing.
-   - Use this standard section structure:
-     `项目架构概览`, `目录结构及其职责`, `关键模块依赖关系图`,
-     `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`,
-     `常见的代码模式与约定`.
+2. **Ensure repository navigation system exists**:
+   - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
+   - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - If the navigation system is missing, analyze the repository and create it before continuing.
 
 3. **Load context**:
    - Read `FEATURE_SPEC`
@@ -77,7 +73,9 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Read `FEATURE_DIR/context.md`
    - Read `FEATURE_DIR/references.md` if present
    - Read `.specify/memory/constitution.md`
-   - Read `项目技术文档.md` if present
+   - Read `PROJECT-HANDBOOK.md`
+   - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+   - If the topical coverage for the touched area is missing, stale, or too broad, inspect the minimum live files needed to replace guesswork with evidence.
    - Read `templates/research-template.md`
    - Load the copied IMPL_PLAN template
 

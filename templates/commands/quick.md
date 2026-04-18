@@ -21,6 +21,9 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 ## Required Context Inputs
 
 - Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
+- Read `PROJECT-HANDBOOK.md` after the constitution gate and before any broad repository analysis.
+- Use `Topic Map` to choose only the touched-area topical files needed for the current quick task.
+- Do not load the full topical map unless the task expands beyond its bounded quick-task scope.
 - Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch workers, or analyze repository code until the constitution has been read or confirmed absent.
 - Create or resume `.planning/quick/<id>-<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
 - Read `.planning/quick/<id>-<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
