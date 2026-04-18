@@ -940,15 +940,22 @@ def _install_shared_infra(
     if templates_src.is_dir():
         dest_templates = project_path / ".specify" / "templates"
         dest_templates.mkdir(parents=True, exist_ok=True)
-        for f in templates_src.iterdir():
-            if f.is_file() and f.name != "vscode-settings.json" and not f.name.startswith("."):
-                dst = dest_templates / f.name
-                if dst.exists():
-                    skipped_files.append(str(dst.relative_to(project_path)))
-                else:
-                    shutil.copy2(f, dst)
-                    rel = dst.relative_to(project_path).as_posix()
-                    manifest.record_existing(rel)
+        for src_path in templates_src.rglob("*"):
+            if src_path.is_dir():
+                continue
+            if src_path.name == "vscode-settings.json" or src_path.name.startswith("."):
+                continue
+
+            rel_path = src_path.relative_to(templates_src)
+            dst = dest_templates / rel_path
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if dst.exists():
+                skipped_files.append(str(dst.relative_to(project_path)))
+                continue
+
+            shutil.copy2(src_path, dst)
+            rel = dst.relative_to(project_path).as_posix()
+            manifest.record_existing(rel)
 
     if skipped_files:
         import logging

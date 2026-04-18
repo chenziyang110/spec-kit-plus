@@ -305,8 +305,8 @@ class SkillsIntegrationTests:
             return []
 
         return sorted(
-            path.name
-            for path in templates_dir.iterdir()
+            path.relative_to(templates_dir).as_posix()
+            for path in templates_dir.rglob("*")
             if path.is_file() and path.name != "vscode-settings.json"
         )
 
