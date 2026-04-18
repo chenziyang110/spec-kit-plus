@@ -45,6 +45,16 @@ def test_guidance_docs_explain_skill_groups():
     assert "/speckit.analyze" in quickstart
 
 
+def test_guidance_docs_explain_handbook_navigation_system():
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    for content in (readme, quickstart):
+        assert "Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact." in content
+        assert "Deep project knowledge lives under `.specify/project-map/`." in content
+        assert "Any code change that alters navigation meaning must update the handbook system." in content
+
+
 def test_guidance_docs_explain_fast_quick_specify_routing():
     readme = _read("README.md").lower()
     quickstart = _read("docs/quickstart.md").lower()

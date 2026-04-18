@@ -312,6 +312,14 @@ Important directories:
 - `tests/` - regression and integration test suite
 - `docs/` - installation, upgrade, and development notes
 
+## Project Handbook System
+
+Navigation and technical truth are now handbook-first:
+
+- Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
+- Deep project knowledge lives under `.specify/project-map/`.
+- Any code change that alters navigation meaning must update the handbook system.
+
 ## Documentation
 
 - [Installation Guide](docs/installation.md)

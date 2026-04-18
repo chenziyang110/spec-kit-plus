@@ -86,6 +86,12 @@ After initialization, treat the generated commands as three groups:
 - **Support skills**: `/speckit.spec-extend`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.explain`
 - **Codex-only runtime**: `specify team` and `sp-team` when the project was initialized for Codex
 
+Generated project navigation now follows the handbook system:
+
+- Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
+- Deep project knowledge lives under `.specify/project-map/`.
+- Any code change that alters navigation meaning must update the handbook system.
+
 Use support skills when they solve a specific gap:
 
 - `/speckit.spec-extend` when an existing spec still needs deeper analysis before planning
