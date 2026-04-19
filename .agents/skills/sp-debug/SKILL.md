@@ -75,6 +75,7 @@ Before applying fixes or running multiple independent investigation actions your
 ### Required Context Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
 - Read `PROJECT-HANDBOOK.md` before root-cause analysis so the investigation starts from the current system map.
+- If the handbook navigation system is missing, analyze the repository and create it before root-cause analysis continues.
 - Read whichever of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` map to the failing area.
 - Use the navigation system to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.

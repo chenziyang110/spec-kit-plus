@@ -63,6 +63,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 ### Required Context Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
 - Read `PROJECT-HANDBOOK.md` before root-cause analysis so the investigation starts from the current system map.
+- If the handbook navigation system is missing, analyze the repository and create it before root-cause analysis continues.
 - Read whichever of `ARCHITECTURE.md`, `WORKFLOWS.md`, `INTEGRATIONS.md`, `TESTING.md`, and `OPERATIONS.md` map to the failing area.
 - Read the corresponding `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` files for the failing area.
 - Use the navigation system to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.

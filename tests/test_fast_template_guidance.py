@@ -10,6 +10,8 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "read `project-handbook.md`" in content
     assert "shared surfaces" in content
     assert "risky coordination points" in content
+    assert "if `project-handbook.md` or `.specify/project-map/` is missing" in content
+    assert "redirect to `/sp-quick` so the navigation system can be rebuilt safely" in content
     assert "execute a trivial task directly" in content
     assert "scope gate" in content
     assert "at most 3 files" in content or "no more than 3 files" in content

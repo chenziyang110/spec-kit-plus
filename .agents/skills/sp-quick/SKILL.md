@@ -25,6 +25,7 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 
 - Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
 - Read `PROJECT-HANDBOOK.md` after the constitution gate and before any broad repository analysis.
+- If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, analyze the repository and create the handbook/project-map navigation system before continuing.
 - Use `Topic Map` to choose only the touched-area topical files needed for the current quick task.
 - Do not load the full topical map unless the task expands beyond its bounded quick-task scope.
 - Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch workers, or analyze repository code until the constitution has been read or confirmed absent.
@@ -73,6 +74,7 @@ The following flags are available and composable:
 - The invoking runtime is the leader for the quick task. It owns scope decisions, the lightweight plan, execution strategy selection, join-point handling, validation, and the final summary artifact.
 - The leader should not blur planning, execution, and validation into a long conversational loop when the task can be dispatched through a bounded worker lane or runtime surface.
 - Constitution first: read `.specify/memory/constitution.md` before workspace setup, clarification, lane selection, delegation, or local analysis.
+- If the handbook navigation system is missing, rebuild it before `STATUS.md` initialization or touched-area analysis proceeds.
 - Before the first delegated lane is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first worker path.
 - Before implementation work starts, identify whether the quick task is best handled as one bounded worker lane or as two or more independent lanes that can safely proceed in parallel.
 - Use the shared policy function before execution begins and again at each join point: `choose_execution_strategy(command_name="quick", snapshot, workload_shape)`.

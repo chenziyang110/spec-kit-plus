@@ -481,6 +481,8 @@ def test_repo_debug_skill_mirror_has_codex_native_investigation_guidance():
     assert "capability-aware investigation" in body
     assert "read `project-handbook.md` before root-cause analysis" in body
     assert "read whichever of `.specify/project-map/architecture.md`, `.specify/project-map/workflows.md`, `.specify/project-map/integrations.md`, `.specify/project-map/testing.md`, and `.specify/project-map/operations.md` map to the failing area" in body
+    assert "if the handbook navigation system is missing" in body
+    assert "analyze the repository and create it before root-cause analysis continues" in body
     assert "truth-owning layers" in body
     assert 'choose_execution_strategy(command_name="debug"' in body
     assert "improve logging or tracing before attempting a fix" in body or "improve logging or tracing before" in body
@@ -517,10 +519,14 @@ def test_repo_fast_and_quick_skill_mirrors_include_handbook_navigation_contract(
     assert "Shared Surfaces" in fast_body
     assert "Risky Coordination Points" in fast_body
     assert "redirect to `/sp-quick`" in fast_body
+    assert "If `PROJECT-HANDBOOK.md` or `.specify/project-map/` is missing" in fast_body
+    assert "redirect to `/sp-quick` so the navigation system can be rebuilt safely" in fast_body
 
     assert "Read `PROJECT-HANDBOOK.md` after the constitution gate" in quick_body
     assert "Topic Map" in quick_body
     assert "touched-area topical files" in quick_body
+    assert "If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing" in quick_body
+    assert "create the handbook/project-map navigation system before continuing" in quick_body
 
 
 def test_team_template_has_valid_frontmatter_boundary():

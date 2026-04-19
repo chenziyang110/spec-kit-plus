@@ -56,6 +56,7 @@ Upgrade to `/sp-specify` immediately if:
 2. **Read the routing layer**
    - Read `PROJECT-HANDBOOK.md`.
    - Use `Shared Surfaces` and `Risky Coordination Points` to decide whether the task is truly local.
+   - If `PROJECT-HANDBOOK.md` or `.specify/project-map/` is missing, stop and redirect to `/sp-quick` so the navigation system can be rebuilt safely.
    - If the requested change touches a shared surface or risky coordination point, stop and redirect to `/sp-quick`.
 
 3. **Execute inline**

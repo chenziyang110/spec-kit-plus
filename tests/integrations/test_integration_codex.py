@@ -175,6 +175,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert ".specify/project-map/integrations.md" in content
     assert ".specify/project-map/testing.md" in content
     assert ".specify/project-map/operations.md" in content
+    assert "if the handbook navigation system is missing" in content
+    assert "analyze the repository and create it before root-cause analysis continues" in content
     assert "truth-owning layers" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
@@ -215,6 +217,8 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "project-handbook.md" in content
     assert "shared surfaces" in content
     assert "risky coordination points" in content
+    assert "if `project-handbook.md` or `.specify/project-map/` is missing" in content
+    assert "redirect to `/sp-quick` so the navigation system can be rebuilt safely" in content
     assert "at most 3 files" in content or "no more than 3 files" in content
     assert "no new dependencies" in content
     assert "do the work directly" in content
@@ -245,6 +249,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "project-handbook.md" in content
     assert "topic map" in content
     assert "touched-area topical files" in content
+    assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content
+    assert "create the handbook/project-map navigation system before continuing" in content
     assert "--discuss" in content
     assert "--research" in content
     assert "--validate" in content

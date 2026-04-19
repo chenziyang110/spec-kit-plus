@@ -10,6 +10,8 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "read `project-handbook.md`" in content
     assert "topic map" in content
     assert "touched-area topical files" in content
+    assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content
+    assert "analyze the repository and create the handbook/project-map navigation system before continuing" in content
     assert "ad-hoc task" in content or "small, ad-hoc task" in content
     assert "lightweight" in content
     assert ".planning/quick/" in content
@@ -101,6 +103,7 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
 
     assert ".specify/memory/constitution.md" in content
     assert "constitution first" in content
+    assert "before `status.md` initialization or touched-area analysis proceeds" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
     assert "treat `single-agent` as a delegated single-worker path by default" in content
     assert "dispatch that worker path before doing any further local repository deep dive" in content
