@@ -1628,16 +1628,23 @@ def init(
     agy_skill_mode = selected_ai == "agy" and _is_skills_integration
     native_skill_mode = codex_skill_mode or claude_skill_mode or kimi_skill_mode or agy_skill_mode
 
-    if codex_skill_mode and not ai_skills:
-        # Integration path installed skills; show the helpful notice
-        steps_lines.append(f"{step_num}. Start Codex in this project directory; Spec Kit Plus skills were installed to [cyan].codex/skills[/cyan]")
-        step_num += 1
-        steps_lines.append(f"{step_num}. Use [cyan]specify team[/cyan] to inspect the Codex-only team/runtime surface")
-        step_num += 1
-        steps_lines.append(f"{step_num}. The Codex team skill is available as [cyan]$sp-team[/cyan]")
-        step_num += 1
-    if claude_skill_mode and not ai_skills:
-        steps_lines.append(f"{step_num}. Start Claude in this project directory; Spec Kit Plus skills were installed to [cyan].claude/skills[/cyan]")
+    if native_skill_mode and not ai_skills:
+        agent_start_labels = {
+            "codex": "Codex",
+            "claude": "Claude",
+            "kimi": "Kimi",
+            "agy": "Antigravity",
+        }
+        agent_label = agent_start_labels.get(
+            selected_ai,
+            resolved_integration.config.get("name", selected_ai).strip(),
+        )
+        skill_folder = resolved_integration.config.get("folder", "").rstrip("/")
+        skill_subdir = resolved_integration.config.get("commands_subdir", "skills").strip("/")
+        skills_path = f"{skill_folder}/{skill_subdir}" if skill_folder else skill_subdir
+        steps_lines.append(
+            f"{step_num}. Start {agent_label} in this project directory; Spec Kit Plus skills were installed to [cyan]{skills_path}[/cyan]"
+        )
         step_num += 1
     usage_label = "skills" if native_skill_mode else "slash commands"
 
@@ -1678,15 +1685,19 @@ def init(
         if native_skill_mode
         else "Optional commands that you can use for your specs [bright_black](improve quality & confidence)[/bright_black]"
     )
-    enhancement_lines = [
-        enhancement_intro,
-        "",
-        f"○ [cyan]{'specify team' if codex_skill_mode else _display_cmd('team')}[/] [bright_black](codex-only)[/bright_black] - Inspect the official Codex team/runtime surface and environment status",
-        f"○ [cyan]{_display_cmd('spec-extend')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
-        f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
-        f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, or task artifact in plain language before moving forward",
-        f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
-    ]
+    enhancement_lines = [enhancement_intro, ""]
+    if codex_skill_mode:
+        enhancement_lines.append(
+            "○ [cyan]specify team[/] [bright_black](codex-only)[/bright_black] - Inspect the official Codex team/runtime surface and environment status"
+        )
+    enhancement_lines.extend(
+        [
+            f"○ [cyan]{_display_cmd('spec-extend')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
+            f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
+            f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, or task artifact in plain language before moving forward",
+            f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
+        ]
+    )
     enhancements_title = "Optional support skills" if native_skill_mode else "Optional support commands"
     console.print()
     console.print(_open_block(enhancements_title, enhancement_lines, accent="cyan"))

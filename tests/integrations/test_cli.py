@@ -80,6 +80,9 @@ class TestInitIntegrationFlag:
         assert result.exit_code == 0, result.output
         assert not (project / ".claude" / "skills" / "sp-team" / "SKILL.md").exists()
         assert not (project / ".specify" / "codex-team" / "runtime.json").exists()
+        assert "specify team" not in result.output.lower()
+        assert "/sp-team" not in result.output.lower()
+        assert "(codex-only)" not in result.output.lower()
 
     def test_non_codex_implement_skill_does_not_use_specify_team_as_primary_entrypoint(self, tmp_path):
         from typer.testing import CliRunner
@@ -376,6 +379,7 @@ class TestInitIntegrationFlag:
         assert "Agent Folder Security" not in result.output
         assert "Spec Kit Plus skills were" in result.output
         assert ".codex/skills" in result.output
+        assert "Start using skills with your AI agent" in result.output
         assert "Core workflow skills" in result.output
         assert "Support skills" in result.output
         assert "Codex-only runtime" in result.output
@@ -389,9 +393,63 @@ class TestInitIntegrationFlag:
         assert "$sp-explain" in result.output
         assert "$sp-spec-extend" in result.output
         assert "$sp-team" in result.output
+        assert "The Codex team skill is available as" not in result.output
         assert "spec-extend" in result.output
         assert "spec-extend" in result.output.lower()
         assert "explain" in result.output
+
+    def test_claude_init_uses_same_skill_surface_without_codex_runtime(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "claude-plus-brand"
+        project.mkdir()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert "Spec Kit Plus" in result.output
+        assert "Initialize Spec Kit Plus Project" in result.output
+        assert "Spec Kit Plus project ready." in result.output
+        assert "Start Here" in result.output
+        assert "Optional support skills" in result.output
+        assert "Spec Kit Plus skills were" in result.output
+        assert ".claude/skills" in result.output
+        assert "Start using skills with your AI agent" in result.output
+        assert "Core workflow skills" in result.output
+        assert "Support skills" in result.output
+        assert "/sp-constitution" in result.output
+        assert "/sp-specify" in result.output
+        assert "/sp-plan" in result.output
+        assert "/sp-tasks" in result.output
+        assert "/sp-implement" in result.output
+        assert "/sp-checklist" in result.output
+        assert "/sp-analyze" in result.output
+        assert "/sp-explain" in result.output
+        assert "/sp-spec-extend" in result.output
+        assert "Codex-only runtime" not in result.output
+        assert "specify team" not in result.output.lower()
+        assert "/sp-team" not in result.output.lower()
+        assert "(codex-only)" not in result.output.lower()
 
     def test_init_directory_conflict_uses_normalized_error_surface(self, tmp_path):
         from typer.testing import CliRunner
