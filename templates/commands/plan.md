@@ -65,7 +65,9 @@ You **MUST** consider the user input before proceeding (if not empty).
 2. **Ensure repository navigation system exists**:
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
-   - If the navigation system is missing, analyze the repository and create it before continuing.
+   - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+   - If task-relevant coverage is insufficient for the current planning request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 
 3. **Load context**:
    - Read `FEATURE_SPEC`
@@ -75,7 +77,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Read `.specify/memory/constitution.md`
    - Read `PROJECT-HANDBOOK.md`
    - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
-   - If the topical coverage for the touched area is missing, stale, or too broad, inspect the minimum live files needed to replace guesswork with evidence.
+   - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
    - Read `templates/research-template.md`
    - Load the copied IMPL_PLAN template
 

@@ -123,9 +123,10 @@ The system MUST make failures easy to detect, explain, and reproduce.
   navigation artifact and `.specify/project-map/` as the topical depth layer
   for structure, ownership, interfaces, workflows, testing, integrations, and
   operations. Use progressive disclosure through `Topic Map` to load the
-  smallest relevant topical documents first. If the navigation system is
-  missing in an existing codebase, generate it before structural work and keep
-  it in sync whenever navigation meaning changes.
+  smallest relevant topical documents first. Use the generated
+  `map-codebase` workflow to create or refresh the navigation system when it
+  is missing or stale, and keep it in sync whenever navigation meaning
+  changes.
 - **Encoding Preservation**: When modifying an existing file, changes MUST
   preserve the file's existing character encoding and BOM behavior unless the
   task explicitly requires an encoding conversion.

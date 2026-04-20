@@ -11,7 +11,10 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "truth ownership" in content
     assert "read whichever of `architecture.md`, `workflows.md`, `integrations.md`, `testing.md`, and `operations.md` map to the failing area" in content
     assert "if the handbook navigation system is missing" in content
-    assert "analyze the repository and create it before root-cause analysis continues" in content
+    assert "run `/sp-map-codebase` before root-cause analysis continues" in content
+    assert "task-relevant coverage is insufficient" in content
+    assert "ownership or placement guidance" in content
+    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
     assert "capability-aware investigation" in content
     assert "find truth ownership before chasing symptoms" in content
     assert "control state is not observation state" in content

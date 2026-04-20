@@ -22,7 +22,9 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 
 - Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
 - Read `PROJECT-HANDBOOK.md` after the constitution gate and before any broad repository analysis.
-- If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, analyze the repository and create the handbook/project-map navigation system before continuing.
+- If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+- Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+- If task-relevant coverage is insufficient for the current quick task, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 - Use `Topic Map` to choose only the touched-area topical files needed for the current quick task.
 - Do not load the full topical map unless the task expands beyond its bounded quick-task scope.
 - Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch workers, or analyze repository code until the constitution has been read or confirmed absent.

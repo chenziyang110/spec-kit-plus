@@ -40,6 +40,11 @@ def test_specify_template_uses_alignment_first_contract():
     assert ".specify/project-map/WORKFLOWS.md" in content
     assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" in content
     assert "Use `Topic Map` to choose the smallest relevant topical documents" in content
+    assert "run `/sp-map-codebase` before continuing" in content
+    assert "task-relevant coverage is insufficient" in lowered
+    assert "coverage is insufficient when the touched area is named only vaguely" in lowered
+    assert "ownership or placement guidance" in lowered
+    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
 
     assert "alignment.md" in content
     assert "aligned: ready for plan" in lowered
@@ -68,6 +73,16 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Ask at most one unanswered high-impact question per message" in content
     assert "each clarification turn should contain at most one short checkpoint" in content
     assert "decompose" in lowered
+    assert "proposed capability split" in lowered
+    assert "default to one spec with capability decomposition when the work still belongs to one coherent feature boundary" in lowered
+    assert "help the user decompose it into bounded capabilities inside the same spec first" in lowered
+    assert "only escalate to separate specs or clearly phased releases when one spec would no longer be coherent to plan or test" in lowered
+    assert "if the request contains 2 or more distinct deliverables, enhancements, or behavior changes that would independently change implementation or validation shape" in lowered
+    assert "present the capability split before asking any detailed clarification question about one capability" in lowered
+    assert "do not jump straight into a detailed gray-area question while multiple sibling capabilities are still unsplit or unprioritized" in lowered
+    assert "confirm which capability should be clarified first while keeping the work in the current spec unless the user explicitly wants separate specs or phased release planning" in content
+    assert "Do not spend one clarification pass collecting requirements for multiple independent capabilities." in content
+    assert "If the request is already one bounded capability, say so briefly and continue inside the current spec." in content
     assert "first-release scope" in lowered
     assert "mvp scope" not in lowered
     assert "choose_execution_strategy(command_name=\"specify\"" in content
@@ -111,6 +126,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Apply a specificity test before leaving a gray area" in content
     assert "Do not leave a gray area merely because the user expressed a preference" in content
     assert "default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof" in content
+    assert "Keep progress tracking scoped to the current capability or bounded spec slice rather than to a fixed global question budget." in content
+    assert "Do not present the clarification loop as a fixed total such as `2 / 5`." in content
     assert "Treat this as an explicit pre-release check" in content
     assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in content
     assert "Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`." in content
@@ -131,6 +148,9 @@ def test_specify_template_uses_alignment_first_contract():
     assert "common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify`" in content
     assert "explicit pre-release check" in lowered
     assert "without needing `/sp.spec-extend`" in content
+    assert "`Capability 1 / 3 | Question 2`" in content
+    assert "SPECIFY SESSION - Capability 1 / 3 | Question 2" in content
+    assert "SPECIFY SESSION - 2 / 5" not in content
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
@@ -156,6 +176,10 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert ".specify/project-map/ARCHITECTURE.md" in content
     assert ".specify/project-map/STRUCTURE.md" in content
     assert ".specify/project-map/WORKFLOWS.md" in content
+    assert "run `/sp-map-codebase` before continuing" in content
+    assert "task-relevant coverage is insufficient" in lowered
+    assert "ownership or placement guidance" in lowered
+    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
 
     assert "alignment.md" in content
     assert ".specify/memory/constitution.md" in content
@@ -249,6 +273,10 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert ".specify/project-map/ARCHITECTURE.md" in content
     assert ".specify/project-map/STRUCTURE.md" in content
     assert ".specify/project-map/WORKFLOWS.md" in content
+    assert "run `/sp-map-codebase` before continuing" in content
+    assert "task-relevant coverage is insufficient" in lowered
+    assert "ownership or placement guidance" in lowered
+    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
 
     assert ".specify/memory/constitution.md" in content
     assert "choose_execution_strategy(command_name=\"tasks\"" in content
@@ -317,9 +345,35 @@ def test_new_analysis_workflow_command_templates_exist():
     command_dir = PROJECT_ROOT / "templates" / "commands"
     template_stems = {path.stem for path in command_dir.glob("*.md")}
 
+    assert "map-codebase" in template_stems
     assert "spec-extend" in template_stems
     assert "explain" in template_stems
     assert "clarify" not in template_stems
+
+
+def test_map_codebase_template_generates_handbook_navigation_system() -> None:
+    content = _read("templates/commands/map-codebase.md")
+    lowered = content.lower()
+
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/ARCHITECTURE.md" in content
+    assert ".specify/project-map/STRUCTURE.md" in content
+    assert ".specify/project-map/CONVENTIONS.md" in content
+    assert ".specify/project-map/INTEGRATIONS.md" in content
+    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/TESTING.md" in content
+    assert ".specify/project-map/OPERATIONS.md" in content
+    assert 'choose_execution_strategy(command_name="map-codebase"' in content
+    assert "single-agent" in lowered
+    assert "native-multi-agent" in lowered
+    assert "sidecar-runtime" in lowered
+    assert "support skills" not in lowered
+    assert "refresh the handbook/project-map navigation system" in lowered
+    assert "do not create `.planning/codebase/`" in content
+    assert "task-relevant coverage" in lowered
+    assert "ownership or placement guidance" in lowered
+    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
+    assert "legacy `项目技术文档.md`" in content
 
 
 def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
@@ -405,6 +459,10 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/project-map/ARCHITECTURE.md" in content
     assert ".specify/project-map/STRUCTURE.md" in content
     assert ".specify/project-map/WORKFLOWS.md" in content
+    assert "run `/sp-map-codebase` before continuing" in content
+    assert "task-relevant coverage is insufficient" in lowered
+    assert "ownership or placement guidance" in lowered
+    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
 
     assert ".specify/memory/constitution.md" in content
     assert "implement-tracker.md" in content

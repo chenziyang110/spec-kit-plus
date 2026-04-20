@@ -24,6 +24,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "analyze": "Optional focus areas for analysis",
     "constitution": "Principles or values for the project constitution",
     "checklist": "Domain or focus area for the checklist",
+    "map-codebase": "Optional subsystem or workflow area to emphasize while mapping",
     "taskstoissues": "Optional filter or label for GitHub issues",
 }
 

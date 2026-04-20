@@ -11,7 +11,10 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "topic map" in content
     assert "touched-area topical files" in content
     assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content
-    assert "analyze the repository and create the handbook/project-map navigation system before continuing" in content
+    assert "run `/sp-map-codebase` before continuing" in content
+    assert "task-relevant coverage is insufficient" in content
+    assert "ownership or placement guidance" in content
+    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
     assert "ad-hoc task" in content or "small, ad-hoc task" in content
     assert "lightweight" in content
     assert ".planning/quick/" in content

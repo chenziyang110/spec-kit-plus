@@ -83,7 +83,7 @@ Then, use the `/speckit.implement` slash command to execute the plan.
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `/speckit.constitution`, `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`
-- **Support skills**: `/speckit.spec-extend`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.explain`
+- **Support skills**: `/speckit.map-codebase`, `/speckit.spec-extend`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.explain`
 - **Codex-only runtime**: `specify team` and `sp-team` when the project was initialized for Codex
 
 Generated project navigation now follows the handbook system:
@@ -94,10 +94,13 @@ Generated project navigation now follows the handbook system:
 
 Use support skills when they solve a specific gap:
 
+- `/speckit.map-codebase` when you are working in an existing codebase and need to generate or refresh the handbook/project-map navigation system before deeper workflow steps
 - `/speckit.spec-extend` when an existing spec still needs deeper analysis before planning
 - `/speckit.checklist` when you want to audit requirement quality after planning
 - `/speckit.analyze` when you want a cross-artifact consistency check before implementation
 - `/speckit.explain` when you want the current spec, plan, or tasks state restated in plain language
+
+If you're starting from an existing codebase, run `/speckit.map-codebase` first so the brownfield navigation artifacts are fresh before requirement, planning, or implementation work continues.
 
 Use the lightweight routing rules consistently:
 

@@ -136,15 +136,18 @@ specify -> plan
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- Support skills: `spec-extend`, `checklist`, `analyze`, `explain`
+- Support skills: `map-codebase`, `spec-extend`, `checklist`, `analyze`, `explain`
 - Codex-only runtime: `specify team` and `sp-team`
 
 Optional follow-up commands:
 
+- `map-codebase` to generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` for an existing codebase before specification, planning, or implementation continues
 - `spec-extend` to deepen an existing spec before planning when analysis, references, or gaps need more work
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
 - `analyze` to perform a cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md`
 - `explain` to describe the current spec, plan, task, or implement artifact in plain language
+
+Already have code? Run `map-codebase` first so the current codebase is mapped into `PROJECT-HANDBOOK.md` and `.specify/project-map/` before deeper brownfield workflow steps.
 
 Routing guide for lightweight work:
 

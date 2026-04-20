@@ -1134,6 +1134,7 @@ SKILL_DESCRIPTIONS = {
     "analyze": "Perform cross-artifact consistency analysis across spec.md, plan.md, and tasks.md.",
     "constitution": "Create or update project governing principles and development guidelines.",
     "checklist": "Generate custom quality checklists for validating requirements completeness and clarity.",
+    "map-codebase": "Generate or refresh the handbook navigation system from the live codebase, including PROJECT-HANDBOOK.md and .specify/project-map/.",
     "taskstoissues": "Convert tasks from tasks.md into GitHub issues.",
 }
 
@@ -1667,6 +1668,7 @@ def init(
     steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-codebase')}[/] - Generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` for existing code before specification or planning")
     steps_lines.append(f"   - [cyan]{_display_cmd('spec-extend')}[/] - Deepen an existing spec before planning when analysis or references still need work")
     steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
     steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/]")
@@ -1692,6 +1694,7 @@ def init(
         )
     enhancement_lines.extend(
         [
+            f"○ [cyan]{_display_cmd('map-codebase')}[/] [bright_black](optional)[/bright_black] - Generate or refresh the handbook/project-map navigation system for existing code before specification, planning, or implementation resumes",
             f"○ [cyan]{_display_cmd('spec-extend')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
             f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, or task artifact in plain language before moving forward",

@@ -63,7 +63,9 @@ You **MUST** consider the user input before proceeding (if not empty).
 2. **Ensure repository navigation system exists**:
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
-   - If the navigation system is missing, analyze the repository and create it before continuing.
+   - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+   - If task-relevant coverage is insufficient for the current task-generation request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 
 3. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
@@ -73,7 +75,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Required when present**: `.specify/memory/constitution.md` (project constitution and mandatory principles that tasks must preserve)
    - **Required**: Read `PROJECT-HANDBOOK.md`
    - **Required**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`
-   - **If topical coverage is missing/stale/too broad**: inspect the minimum live files needed to replace guesswork with evidence
+   - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 4. **Execute task generation workflow**:

@@ -391,6 +391,7 @@ class TestInitIntegrationFlag:
         assert "$sp-checklist" in result.output
         assert "$sp-analyze" in result.output
         assert "$sp-explain" in result.output
+        assert "$sp-map-codebase" in result.output
         assert "$sp-spec-extend" in result.output
         assert "$sp-team" in result.output
         assert "The Codex team skill is available as" not in result.output
@@ -445,6 +446,7 @@ class TestInitIntegrationFlag:
         assert "/sp-checklist" in result.output
         assert "/sp-analyze" in result.output
         assert "/sp-explain" in result.output
+        assert "/sp-map-codebase" in result.output
         assert "/sp-spec-extend" in result.output
         assert "Codex-only runtime" not in result.output
         assert "specify team" not in result.output.lower()
@@ -501,17 +503,20 @@ class TestInitIntegrationFlag:
 
         assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
+        assert (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
 
         specify_fm = self._frontmatter(skills_dir / "sp-specify" / "SKILL.md")
         spec_extend_fm = self._frontmatter(skills_dir / "sp-spec-extend" / "SKILL.md")
         plan_fm = self._frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         explain_fm = self._frontmatter(skills_dir / "sp-explain" / "SKILL.md")
+        map_codebase_fm = self._frontmatter(skills_dir / "sp-map-codebase" / "SKILL.md")
 
         assert isinstance(specify_fm["description"], str) and specify_fm["description"].strip()
         assert isinstance(spec_extend_fm["description"], str) and spec_extend_fm["description"].strip()
         assert isinstance(plan_fm["description"], str) and plan_fm["description"].strip()
         assert isinstance(explain_fm["description"], str) and explain_fm["description"].strip()
+        assert isinstance(map_codebase_fm["description"], str) and map_codebase_fm["description"].strip()
 
         assert "feature specification" in specify_fm["description"].lower()
         assert "natural language" in specify_fm["description"].lower()
@@ -521,6 +526,7 @@ class TestInitIntegrationFlag:
         assert "design artifacts" in plan_fm["description"].lower()
         assert "current stage artifact" in explain_fm["description"].lower()
         assert "plain language" in explain_fm["description"].lower()
+        assert "handbook navigation system" in map_codebase_fm["description"].lower()
         assert "spec-extend" in result.output.lower()
         assert "spec-extend" in result.output
         assert "explain" in result.output

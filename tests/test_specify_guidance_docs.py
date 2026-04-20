@@ -35,6 +35,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "`checklist`" in readme
     assert "`analyze`" in readme
     assert "`explain`" in readme
+    assert "`map-codebase`" in readme
     assert "`specify team`" in readme
 
     assert "Core workflow skills" in quickstart
@@ -43,6 +44,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "/speckit.spec-extend" in quickstart
     assert "/speckit.checklist" in quickstart
     assert "/speckit.analyze" in quickstart
+    assert "/speckit.map-codebase" in quickstart
 
 
 def test_guidance_docs_explain_handbook_navigation_system():
@@ -53,6 +55,16 @@ def test_guidance_docs_explain_handbook_navigation_system():
         assert "Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact." in content
         assert "Deep project knowledge lives under `.specify/project-map/`." in content
         assert "Any code change that alters navigation meaning must update the handbook system." in content
+
+
+def test_guidance_docs_position_map_codebase_for_existing_projects():
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    assert "Already have code?" in readme
+    assert "Run `map-codebase` first" in readme
+    assert "/speckit.map-codebase" in quickstart
+    assert "existing codebase" in quickstart.lower()
 
 
 def test_guidance_docs_explain_fast_quick_specify_routing():

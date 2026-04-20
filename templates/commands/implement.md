@@ -169,10 +169,12 @@ human_needed_checks:
    - **REQUIRED**: Check whether `PROJECT-HANDBOOK.md` exists at the repository
      root.
    - **REQUIRED**: Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
-   - **IF MISSING**: Analyze the repository and create the handbook/project-map navigation system before continuing.
+   - **IF MISSING**: Run `/sp-map-codebase` before continuing, then reload the generated handbook/project-map navigation system.
+   - **TREAT TASK-RELEVANT COVERAGE AS INSUFFICIENT** when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+   - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: Run `/sp-map-codebase` before continuing, then reload the generated handbook/project-map navigation system.
    - **REQUIRED**: Read `PROJECT-HANDBOOK.md`.
    - **REQUIRED**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
-   - **IF TOPICAL COVERAGE IS MISSING/STALE/TOO BROAD**: inspect the minimum live files needed to replace guesswork with evidence.
+   - **IF TOPICAL COVERAGE IS MISSING/STALE/TOO BROAD OR TASK-RELEVANT COVERAGE IS INSUFFICIENT**: run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure

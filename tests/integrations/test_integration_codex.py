@@ -134,7 +134,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skills_dir = target / ".codex" / "skills"
-    for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-implement"):
+    for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-map-codebase"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "single-agent" in content
         assert "native-multi-agent" in content
@@ -149,6 +149,32 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     for skill_name in shared_skills:
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "specify team" not in content
+
+
+def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-map-codebase"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skill_path = target / ".codex" / "skills" / "sp-map-codebase" / "SKILL.md"
+    content = skill_path.read_text(encoding="utf-8").lower()
+
+    assert "project-handbook.md" in content
+    assert ".specify/project-map/architecture.md" in content
+    assert 'choose_execution_strategy(command_name="map-codebase"' in content
+    assert "spawn_agent" in content
+    assert "wait_agent" in content
+    assert "close_agent" in content
+    assert "do not create `.planning/codebase/`" in content
 
 
 def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):
@@ -176,7 +202,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert ".specify/project-map/testing.md" in content
     assert ".specify/project-map/operations.md" in content
     assert "if the handbook navigation system is missing" in content
-    assert "analyze the repository and create it before root-cause analysis continues" in content
+    assert "run `/sp-map-codebase` before root-cause analysis continues" in content
     assert "truth-owning layers" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
@@ -250,7 +276,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "topic map" in content
     assert "touched-area topical files" in content
     assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content
-    assert "create the handbook/project-map navigation system before continuing" in content
+    assert "run `/sp-map-codebase` before continuing" in content
     assert "--discuss" in content
     assert "--research" in content
     assert "--validate" in content

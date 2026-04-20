@@ -1,6 +1,6 @@
 # Conventions
 
-**Last Updated:** 2026-04-19
+**Last Updated:** 2026-04-20
 **Coverage Scope:** repository-wide coding and documentation conventions
 **Primary Evidence:** src/, templates/, tests/, linting/config files
 **Update When:** naming, import, error-handling, documentation, or testing conventions change
@@ -10,7 +10,7 @@
 - Use actual CLI executable names for integration keys (for example
   `cursor-agent`, `kiro-cli`, `qodercli`) to avoid mapping shims.
 - Keep command/template names aligned with workflow names (`specify`, `plan`,
-  `tasks`, `implement`, `fast`, `quick`, `debug`).
+  `tasks`, `implement`, `fast`, `quick`, `debug`, `map-codebase`).
 - Use uppercase topical filenames in project-map docs (`ARCHITECTURE.md`,
   `STRUCTURE.md`, etc.) as stable navigation keys.
 
@@ -39,8 +39,9 @@
 - Keep user-facing docs aligned across `README.md`, `docs/quickstart.md`, and
   workflow templates.
 - Use `PROJECT-HANDBOOK.md` + `.specify/project-map/` for navigation truth.
-- Keep `项目技术文档.md` as compatibility bridge only; do not duplicate technical
-  truth there.
+- Do not use `项目技术文档.md` as a technical source of truth. Migrate any
+  still-useful structure into `PROJECT-HANDBOOK.md` + `.specify/project-map/`
+  and refresh those artifacts through `sp-map-codebase` when needed.
 
 ## Testing Conventions
 

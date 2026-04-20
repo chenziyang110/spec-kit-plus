@@ -118,6 +118,22 @@ class CodexIntegration(SkillsIntegration):
                 "- Keep the shared workflow language integration-neutral in user-visible output; this Codex addendum is the only place that should mention `spawn_agent`.\n"
             ),
         )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-map-codebase" / "SKILL.md",
+            "## Codex Native Multi-Agent Execution",
+            (
+                "\n"
+                "## Codex Native Multi-Agent Execution\n\n"
+                "When running `sp-map-codebase` in Codex, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
+                "- Use `spawn_agent` for bounded lanes such as architecture/structure mapping, conventions/testing mapping, integrations/runtime mapping, and workflows/operations mapping.\n"
+                "- Use `wait_agent` only at the documented join points before writing `PROJECT-HANDBOOK.md` and before the final consistency pass.\n"
+                "- Use `close_agent` after integrating finished worker results.\n"
+                "- Keep the shared workflow language integration-neutral in user-visible output; this Codex addendum is the only place that should mention `spawn_agent`.\n"
+            ),
+        )
         self._augment_implement_skill(
             created,
             project_root,

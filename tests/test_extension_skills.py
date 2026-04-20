@@ -261,6 +261,7 @@ class TestBuiltInSkillGeneration:
         skills_dir = project_dir / ".claude" / "skills"
         assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
+        assert (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (skills_dir / "sp-fast" / "SKILL.md").exists()
         assert (skills_dir / "sp-quick" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
@@ -325,6 +326,13 @@ class TestBuiltInSkillGeneration:
         assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in specify_body
         assert "without needing `/sp.spec-extend`" in specify_body
 
+        map_body = _body_without_frontmatter(skills_dir / "sp-map-codebase" / "SKILL.md")
+        assert "PROJECT-HANDBOOK.md" in map_body
+        assert ".specify/project-map/ARCHITECTURE.md" in map_body
+        assert 'choose_execution_strategy(command_name="map-codebase"' in map_body
+        assert "run `/sp-map-codebase`" in map_body
+        assert "do not create `.planning/codebase/`" in map_body
+
 
 class TestSkillDescriptions:
     """Built-in command descriptions should stay aligned with bundled templates."""
@@ -347,6 +355,8 @@ class TestSkillDescriptions:
         assert "skip the full specify-plan workflow" in SKILL_DESCRIPTIONS["fast"].lower()
         assert "ad-hoc task" in SKILL_DESCRIPTIONS["quick"].lower()
         assert "lightweight planning and validation path" in SKILL_DESCRIPTIONS["quick"].lower()
+        assert "handbook navigation system" in SKILL_DESCRIPTIONS["map-codebase"].lower()
+        assert "project-handbook.md" in SKILL_DESCRIPTIONS["map-codebase"].lower()
     def test_returns_none_when_no_init_options(self, project_dir):
         """Should return None when init-options.json is missing."""
         manager = ExtensionManager(project_dir)
@@ -384,17 +394,29 @@ def test_repo_specify_skill_mirror_matches_current_contract():
     mirror_path = _repo_codex_skill_path("sp-specify")
     body = _body_without_frontmatter(mirror_path)
     lowered = body.lower()
-
     assert "guided requirement discovery" in lowered
     assert "recommendation and example scaffolding" in lowered
     assert "current-understanding or confirmation gate" in lowered
     assert "planning-relevant gray areas" in lowered
+    assert "proposed capability split" in lowered
+    assert "default to one spec with capability decomposition when the work still belongs to one coherent feature boundary" in lowered
+    assert "help the user decompose it into bounded capabilities inside the same spec first" in lowered
+    assert "only escalate to separate specs or clearly phased releases when one spec would no longer be coherent to plan or test" in lowered
+    assert "if the request contains 2 or more distinct deliverables, enhancements, or behavior changes that would independently change implementation or validation shape" in lowered
+    assert "present the capability split before asking any detailed clarification question about one capability" in lowered
+    assert "do not jump straight into a detailed gray-area question while multiple sibling capabilities are still unsplit or unprioritized" in lowered
+    assert "confirm which capability should be clarified first while keeping the work in the current spec unless the user explicitly wants separate specs or phased release planning" in body
+    assert "Do not spend one clarification pass collecting requirements for multiple independent capabilities." in body
+    assert "If the request is already one bounded capability, say so briefly and continue inside the current spec." in body
     assert "PROJECT-HANDBOOK.md" in body
     assert ".specify/project-map/ARCHITECTURE.md" in body
     assert ".specify/project-map/WORKFLOWS.md" in body
     assert "Topic Map" in body
     assert "grounded in the project handbook and touched-area topical map" in body
     assert "If the topical coverage for the touched area is missing, stale, or too broad" in body
+    assert "Task-relevant coverage is insufficient when the touched area is named only vaguely" in body
+    assert "ownership or placement guidance" in body
+    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in body
     assert "Do not use generic labels like \"UX\", \"behavior\", or \"data handling\"" in body
     assert "Each gray area should be captured internally with:" in body
     assert "desired happy-path behavior" in body
@@ -403,6 +425,11 @@ def test_repo_specify_skill_mirror_matches_current_contract():
     assert "Apply a specificity test before leaving a gray area" in body
     assert "Do not leave a gray area merely because the user expressed a preference" in body
     assert "default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof" in body
+    assert "Keep progress tracking scoped to the current capability or bounded spec slice rather than to a fixed global question budget." in body
+    assert "Do not present the clarification loop as a fixed total such as `2 / 5`." in body
+    assert "`Capability 1 / 3 | Question 2`" in body
+    assert "SPECIFY SESSION - Capability 1 / 3 | Question 2" in body
+    assert "SPECIFY SESSION - 2 / 5" not in body
     assert "confirm or correct the current understanding before `Aligned: ready for plan`" in body
     assert "Write `context.md` to `CONTEXT_FILE`." in body
     assert "Locked decisions are preserved in context.md" in body

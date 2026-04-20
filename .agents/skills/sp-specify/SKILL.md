@@ -69,10 +69,12 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`.
    - Set `REFERENCES_FILE` to `FEATURE_DIR/references.md`.
 
-4. Ensure repository navigation artifacts exist.
+4. Ensure repository navigation system exists.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
-   - If the navigation system is missing, analyze the repository and create it before continuing.
+   - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - Task-relevant coverage is insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+   - If task-relevant coverage is insufficient for the current request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - Treat `PROJECT-HANDBOOK.md` as the root navigation artifact and use `Topic Map` to choose the smallest relevant topical documents for the touched area.
 
 5. Load context.
@@ -81,23 +83,24 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Read `templates/context-template.md`.
    - Read `templates/references-template.md`.
    - Read `.specify/memory/constitution.md` if present.
-   - Read `PROJECT-HANDBOOK.md` first.
+   - Read `PROJECT-HANDBOOK.md` if present and treat it as the primary codebase-scout input for brownfield understanding.
    - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
-   - From the handbook system, extract the current module ownership, reusable components/services/hooks, integration points, adjacent workflows, key entities, and architectural constraints relevant to the request.
-   - If the topical coverage for the touched area is missing, stale, or too broad, inspect the targeted live repository files before asking planning-critical questions.
+   - From the handbook navigation system, extract the current module ownership, reusable components/services/hooks, integration points, adjacent workflows, key entities, and architectural constraints relevant to the request.
+   - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
    - Read user-supplied references, examples, or linked material when they materially affect the requirement package.
 
 6. Run a codebase scout before clarification.
-   - Treat `PROJECT-HANDBOOK.md` as the root scout artifact and use `Topic Map` to choose touched-area topical files.
+   - Treat `PROJECT-HANDBOOK.md` as the default scout artifact for understanding the existing system shape.
+   - Use `Topic Map` to choose the smallest relevant topical documents before broad file reads.
    - Build a concise internal scout summary for the request area that names:
      - owning modules or workflows
      - reusable components, services, hooks, commands, or schemas
      - integration boundaries and upstream/downstream dependencies
      - adjacent user flows or screens that this work could accidentally break
      - existing patterns that should bias the questions toward real decision forks
-   - If topical coverage is too broad, stale, or silent on the touched area, read the minimum targeted live files needed to replace guesswork with evidence.
+   - If the topical coverage is too broad, stale, or silent on the touched area, read the minimum targeted live files needed to replace guesswork with evidence.
    - Use the scout summary to eliminate low-value questions, sharpen gray areas, and detect when the user's request conflicts with existing repository patterns.
 
 7. Infer task classification.
@@ -145,8 +148,15 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
 10. Decomposition gate.
    - If the request spans multiple independent subsystems, business domains, or release tracks, do not continue as though it were one bounded feature.
-   - Stop and help the user decompose it into separate specs or clearly phased releases first.
+   - Default to one spec with capability decomposition when the work still belongs to one coherent feature boundary.
+   - Stop and help the user decompose it into bounded capabilities inside the same spec first.
+   - If the request contains 2 or more distinct deliverables, enhancements, or behavior changes that would independently change implementation or validation shape, present the capability split before asking any detailed clarification question about one capability.
+   - Do not jump straight into a detailed gray-area question while multiple sibling capabilities are still unsplit or unprioritized.
+   - Only escalate to separate specs or clearly phased releases when one spec would no longer be coherent to plan or test.
+   - Present the proposed capability split in user-facing language and ask the user to confirm which capability should be clarified first while keeping the work in the current spec unless the user explicitly wants separate specs or phased release planning.
+   - Do not spend one clarification pass collecting requirements for multiple independent capabilities.
    - Only continue once the current spec scope is narrow enough to be planned and tested coherently.
+   - If the request is already one bounded capability, say so briefly and continue inside the current spec.
 
 11. Capability decomposition.
     - Decompose the analyzed feature into bounded capabilities.
@@ -222,7 +232,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
 14. Identify gray areas before concluding alignment.
    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
-   - Derive gray areas from the combination of user intent, handbook/project-map evidence, and targeted repository reads instead of from a generic question catalog.
+   - Derive gray areas from the combination of user intent, `PROJECT-HANDBOOK.md`, and targeted repository evidence instead of from a generic question catalog.
    - Prefer feature-specific decision surfaces over generic categories.
    - Do not use generic labels like "UX", "behavior", or "data handling" when a more concrete decision point can be named from the actual codebase and request.
    - Good gray areas name the concrete fork in outcome, for example `empty-state recovery`, `permission downgrade behavior`, `sync trigger timing`, or `existing dashboard card reuse`.
@@ -264,7 +274,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 16. Clarification loop.
     - Keep the interaction feeling like guided requirement discovery rather than a shallow questionnaire.
     - Ask only high-value questions.
-    - Before asking a planning-critical question, check whether the handbook/project-map artifacts or targeted repository reads already answer it; do not ask the user for facts the codebase can supply.
+    - Before asking a planning-critical question, check whether `PROJECT-HANDBOOK.md` or touched-area topical documents already answer it; do not ask the user for facts the codebase can supply.
     - Use grouped questions for simple/local changes.
     - Use one question at a time for complex/high-risk cases.
     - Ask at most one unanswered high-impact question per message.
@@ -272,7 +282,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Keep the active gray area open until the decision is specific enough that a downstream planner would not need to reopen it for behavior, boundary, or acceptance-shaping detail.
     - Make the next question build directly on the user's most recent answer rather than resetting to generic prompts.
     - Use the previous answer to choose the next narrowing move, not a recycled generic checklist question.
-    - Use code-aware follow-ups when possible: reference the current module, workflow, entity, command, or reusable pattern named in the handbook/project-map artifacts or repository evidence so the question is about the real decision fork, not an abstract category.
+    - Use code-aware follow-ups when possible: reference the current module, workflow, entity, command, or reusable pattern named in the handbook/project-map navigation system or repository evidence so the question is about the real decision fork, not an abstract category.
     - If the user's answer is vague, shallow, or contradictory, respond with a targeted narrowing question, example, or recommendation tied to the planning-critical ambiguity.
     - Do not accept long but still ambiguous answers as sufficient.
     - Challenge contradictions or vague answers when important ambiguity remains.
@@ -309,9 +319,11 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Reserve the full current-understanding recap for moments when it adds clear value: the user asks for a recap, the thread has become long enough that context may drift, a contradiction must be reconciled, or you are about to conclude alignment.
     - When you do restate current understanding, organize it in grouped sections by information layer, not as a flat list.
     - Keep grouped recaps compact; omit sections that would be empty, repetitive, or low-value.
+    - Keep progress tracking scoped to the current capability or bounded spec slice rather than to a fixed global question budget.
+    - Do not present the clarification loop as a fixed total such as `2 / 5`.
     - Use shared open question blocks for every interactive question in this workflow.
     - Each open question block must present, in order: a stage header, question header, prompt, example when useful, recommendation, options, and reply instruction.
-    - Keep the stage header minimal: `SPECIFY SESSION` plus the current question counter, for example `2 / 5`.
+    - Keep the stage header minimal: `SPECIFY SESSION` plus the current capability-scoped progress marker, for example `Capability 1 / 3 | Question 2`.
     - Use the question header for a short topic label only.
     - Default to a one-sentence prompt. Put extra context into the example line, grouped sub-points, or recommendation line instead of turning the prompt into a paragraph.
     - Include a one-line `Example` row whenever the topic benefits from a concrete case.
@@ -346,7 +358,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
     ```text
     Stage header
-    SPECIFY SESSION - 2 / 5
+    SPECIFY SESSION - Capability 1 / 3 | Question 2
 
     Question header
     [Short topic label]

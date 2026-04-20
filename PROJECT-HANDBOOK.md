@@ -1,6 +1,6 @@
 # Project Handbook
 
-**Last Updated:** 2026-04-19
+**Last Updated:** 2026-04-20
 **Purpose:** Root navigation artifact for `spec-kit-plus`.
 
 ## System Summary
@@ -12,14 +12,15 @@ assets. The repository combines:
 
 - CLI and orchestration runtime code under `src/specify_cli/`
 - generated workflow assets under `templates/`
-- checked-in skill mirrors under `.agents/skills/`
-- scripts for update/sync tasks under `scripts/bash/` and `scripts/powershell/`
+- scripts for update/sync tasks under `scripts/bash/` and
+  `scripts/powershell/`
 - contract and integration verification under `tests/`
 
 ## How To Read This Project
 
 1. Start here for orientation and system boundaries.
-2. Use `Topic Map` to pick only the topical docs relevant to your touched area.
+2. Use `Topic Map` to pick only the topical docs relevant to your touched
+   area.
 3. Read live code after topical docs when coverage is missing, stale, or too
    broad.
 
@@ -30,7 +31,6 @@ assets. The repository combines:
 - `templates/commands/` (workflow contract for generated command/skill content)
 - `templates/` (shared templates copied into initialized projects)
 - `src/specify_cli/integrations/` (agent-specific generation behavior)
-- `.agents/skills/` (repo-local mirror of generated skills used for validation)
 - `scripts/bash/` and `scripts/powershell/` (agent-context and project scripts)
 - `tests/integrations/` and template/guidance tests under `tests/`
 
@@ -38,7 +38,8 @@ assets. The repository combines:
 
 - Shared template installation logic in `src/specify_cli/__init__.py`
 - Integration inventory/behavior tests in `tests/integrations/`
-- Language alignment across `templates/commands/` and `.agents/skills/`
+- Language alignment across `templates/commands/`, README/quickstart, and
+  generated surfaces
 - Cross-platform script parity between `scripts/bash/` and
   `scripts/powershell/`
 - Repo docs and guidance tests coupling (`README.md`, `docs/quickstart.md`,
@@ -70,7 +71,9 @@ assets. The repository combines:
 
 - Introduced handbook navigation model: root `PROJECT-HANDBOOK.md` plus topical
   `.specify/project-map/` docs.
-- Replaced legacy reliance on `项目技术文档.md` as technical source of truth with
-  a compatibility bridge to the handbook system.
+- Replaced legacy reliance on `项目技术文档.md` with handbook/project-map as the
+  only current navigation truth.
+- Added `sp-map-codebase` as the explicit generation and refresh surface for
+  brownfield navigation updates.
 - Aligned local `.specify/templates/` and `.specify/memory/constitution.md`
   with handbook-first navigation guidance.
