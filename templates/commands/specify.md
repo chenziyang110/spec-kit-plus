@@ -336,6 +336,9 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Accept common natural-language answer forms such as `A`, `选A`, `我选 C`, `推荐的那个`, or a short paraphrase that clearly matches one option.
     - After parsing the answer, acknowledge it with one lightweight confirmation line and continue, for example: `Recorded: C - Normalize first`.
     - Do not repeat the same question in both the summary and the follow-up ask.
+    - If the runtime exposes separate progress/commentary and final reply channels, keep the acknowledgment and open question block together in the final reply only.
+    - In those runtimes, commentary/progress updates may mention internal progress briefly but must not restate the current clarification question, options, or the same preamble used in the final reply.
+    - The user should see the current clarification question exactly once.
     - If you include a grouped recap and are about to ask the next question immediately, summarize it briefly under `Outstanding Questions` instead of restating the full wording there.
     - Save the full synthesis for the alignment-ready turn, the written artifacts (`alignment.md`, `context.md`, `spec.md`, `references.md`), or when the user explicitly asks to see everything collected so far.
     - Do not turn this into a freeform brainstorming workflow.

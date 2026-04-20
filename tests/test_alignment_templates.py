@@ -70,6 +70,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert "question-card format" not in lowered
     assert "boxed card" not in lowered
     assert "Do not repeat the same question" in content
+    assert "If the runtime exposes separate progress/commentary and final reply channels" in content
+    assert "The user should see the current clarification question exactly once." in content
     assert "Ask at most one unanswered high-impact question per message" in content
     assert "each clarification turn should contain at most one short checkpoint" in content
     assert "decompose" in lowered

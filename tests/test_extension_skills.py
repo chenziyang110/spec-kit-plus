@@ -430,6 +430,8 @@ def test_repo_specify_skill_mirror_matches_current_contract():
     assert "`Capability 1 / 3 | Question 2`" in body
     assert "SPECIFY SESSION - Capability 1 / 3 | Question 2" in body
     assert "SPECIFY SESSION - 2 / 5" not in body
+    assert "If the runtime exposes separate progress/commentary and final reply channels" in body
+    assert "The user should see the current clarification question exactly once." in body
     assert "confirm or correct the current understanding before `Aligned: ready for plan`" in body
     assert "Write `context.md` to `CONTEXT_FILE`." in body
     assert "Locked decisions are preserved in context.md" in body
