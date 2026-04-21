@@ -148,6 +148,7 @@ Optional follow-up commands:
 - `explain` to describe the current spec, plan, task, or implement artifact in plain language
 
 Already have code? Run `map-codebase` first so the current codebase is mapped into `PROJECT-HANDBOOK.md` and `.specify/project-map/` before deeper brownfield workflow steps.
+Generated projects also track handbook freshness in `.specify/project-map/status.json`, so brownfield workflows can decide whether the current navigation baseline is fresh, possibly stale, or stale before proceeding.
 
 Routing guide for lightweight work:
 
@@ -321,6 +322,8 @@ Navigation and technical truth are now handbook-first:
 
 - Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
 - Deep project knowledge lives under `.specify/project-map/`.
+- `.specify/project-map/status.json` records the last successful map refresh and dirty state for freshness checks.
+- After a successful `map-codebase` refresh, use `project-map complete-refresh` as the standard completion hook to record the new fresh baseline.
 - Any code change that alters navigation meaning must update the handbook system.
 
 ## Documentation

@@ -74,6 +74,8 @@ if ($PathsOnly) {
             CONTEXT      = $paths.CONTEXT
             IMPL_PLAN    = $paths.IMPL_PLAN
             TASKS        = $paths.TASKS
+            PROJECT_MAP_STATUS = (Get-ProjectMapStatusPath -RepoRoot $paths.REPO_ROOT)
+            PROJECT_MAP_HELPER = (Join-Path $paths.REPO_ROOT ".specify/scripts/powershell/project-map-freshness.ps1")
         } | ConvertTo-Json -Compress
     } else {
         Write-Output "REPO_ROOT: $($paths.REPO_ROOT)"
@@ -83,6 +85,8 @@ if ($PathsOnly) {
         Write-Output "CONTEXT: $($paths.CONTEXT)"
         Write-Output "IMPL_PLAN: $($paths.IMPL_PLAN)"
         Write-Output "TASKS: $($paths.TASKS)"
+        Write-Output "PROJECT_MAP_STATUS: $(Get-ProjectMapStatusPath -RepoRoot $paths.REPO_ROOT)"
+        Write-Output "PROJECT_MAP_HELPER: $(Join-Path $paths.REPO_ROOT ".specify/scripts/powershell/project-map-freshness.ps1")"
     }
     exit 0
 }

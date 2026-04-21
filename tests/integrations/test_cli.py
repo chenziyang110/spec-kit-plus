@@ -47,6 +47,7 @@ class TestInitIntegrationFlag:
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
         assert (project / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
         assert (project / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
+        assert (project / ".specify" / "project-map" / "status.json").exists()
         assert "specify team" in result.output
 
     def test_non_codex_init_does_not_advertise_specify_team_surface(self, tmp_path):
@@ -231,6 +232,7 @@ class TestInitIntegrationFlag:
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
         assert (project / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
         assert (project / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
+        assert (project / ".specify" / "project-map" / "status.json").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
         assert (project / ".specify" / "templates" / "spec-template.md").exists()
 
@@ -541,3 +543,185 @@ class TestInitIntegrationFlag:
         assert result.exit_code == 0, result.output
         for command in ("list", "status", "resume", "close", "archive"):
             assert command in result.output
+
+    def test_project_map_status_and_check_commands_render_seeded_state(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "project-map-status"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            init_result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+            status_result = runner.invoke(app, ["project-map", "status", "--format", "json"], catch_exceptions=False)
+            check_result = runner.invoke(app, ["project-map", "check", "--format", "json"], catch_exceptions=False)
+        finally:
+            os.chdir(old_cwd)
+
+        assert init_result.exit_code == 0, init_result.output
+        assert status_result.exit_code == 0, status_result.output
+        assert check_result.exit_code == 0, check_result.output
+
+        status_payload = json.loads(status_result.output)
+        check_payload = json.loads(check_result.output)
+        assert status_payload["freshness"] == "missing"
+        assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-map/status.json")
+        assert check_payload["freshness"] == "possibly_stale"
+        assert check_payload["reasons"] == ["git baseline unavailable for project-map freshness"]
+
+    def test_project_map_mark_dirty_sets_runtime_stale_state(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "project-map-dirty"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            init_result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+            dirty_result = runner.invoke(
+                app,
+                ["project-map", "mark-dirty", "shared_surface_changed", "--format", "json"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert init_result.exit_code == 0, init_result.output
+        assert dirty_result.exit_code == 0, dirty_result.output
+
+        payload = json.loads(dirty_result.output)
+        assert payload["freshness"] == "stale"
+        assert payload["dirty"] is True
+        assert payload["dirty_reasons"] == ["shared_surface_changed"]
+
+    def test_project_map_record_refresh_requires_canonical_outputs(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "project-map-refresh"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            init_result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+            refresh_result = runner.invoke(
+                app,
+                ["project-map", "record-refresh", "--reason", "manual"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert init_result.exit_code == 0, init_result.output
+        assert refresh_result.exit_code != 0
+        lowered = refresh_result.output.lower()
+        assert "canonical map files" in lowered
+        assert "are missing" in lowered
+        assert "map-codebase" in refresh_result.output.lower()
+
+    def test_project_map_complete_refresh_records_map_codebase_reason(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "project-map-complete-refresh"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            init_result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+            (project / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
+            project_map_dir = project / ".specify" / "project-map"
+            for name in (
+                "ARCHITECTURE.md",
+                "STRUCTURE.md",
+                "CONVENTIONS.md",
+                "INTEGRATIONS.md",
+                "WORKFLOWS.md",
+                "TESTING.md",
+                "OPERATIONS.md",
+            ):
+                (project_map_dir / name).write_text(f"# {name}\n", encoding="utf-8")
+
+            refresh_result = runner.invoke(
+                app,
+                ["project-map", "complete-refresh", "--format", "json"],
+                catch_exceptions=False,
+            )
+            status_result = runner.invoke(
+                app,
+                ["project-map", "status", "--format", "json"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert init_result.exit_code == 0, init_result.output
+        assert refresh_result.exit_code == 0, refresh_result.output
+        assert status_result.exit_code == 0, status_result.output
+
+        refresh_payload = json.loads(refresh_result.output)
+        status_payload = json.loads(status_result.output)
+        assert refresh_payload["freshness"] == "possibly_stale"
+        assert status_payload["last_refresh_reason"] == "map-codebase"

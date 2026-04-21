@@ -11,7 +11,7 @@ def test_team_command_bootstrap_dispatch_fail_cleanup(monkeypatch, codex_team_pr
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
 
     specify_dir = codex_team_project_root / ".specify"
-    specify_dir.mkdir()
+    specify_dir.mkdir(exist_ok=True)
     (specify_dir / "integration.json").write_text(
         json.dumps({"integration": "codex"}, indent=2),
         encoding="utf-8",
@@ -53,7 +53,7 @@ def test_team_command_status_guides_native_windows_users_to_psmux(monkeypatch, c
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: None)
 
     specify_dir = codex_team_project_root / ".specify"
-    specify_dir.mkdir()
+    specify_dir.mkdir(exist_ok=True)
     (specify_dir / "integration.json").write_text(
         json.dumps({"integration": "codex"}, indent=2),
         encoding="utf-8",
@@ -68,3 +68,39 @@ def test_team_command_status_guides_native_windows_users_to_psmux(monkeypatch, c
     assert result.exit_code == 0, result.output
     assert "psmux" in result.output
     assert "winget install psmux" in result.output
+
+
+def test_team_command_dispatch_blocks_when_project_map_is_dirty(monkeypatch, codex_team_project_root):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    specify_dir = codex_team_project_root / ".specify"
+    specify_dir.mkdir(exist_ok=True)
+    (specify_dir / "integration.json").write_text(
+        json.dumps({"integration": "codex"}, indent=2),
+        encoding="utf-8",
+    )
+
+    status_path = specify_dir / "project-map" / "status.json"
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    payload["freshness"] = "stale"
+    payload["dirty"] = True
+    payload["dirty_reasons"] = ["shared_surface_changed"]
+    status_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    runner = CliRunner()
+
+    with monkeypatch.context() as m:
+        m.chdir(codex_team_project_root)
+        result = runner.invoke(app, ["team", "--bootstrap", "--session-id", "smoke"], catch_exceptions=False)
+        assert result.exit_code == 0, result.output
+
+        result = runner.invoke(
+            app,
+            ["team", "--dispatch", "req-smoke", "--worker", "worker-smoke", "--session-id", "smoke"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code != 0
+    assert "Project-map freshness is stale" in result.output
+    assert "map-codebase" in result.output

@@ -42,6 +42,7 @@ class TestCodexAutoPromote:
         assert (target / ".specify" / "templates" / "project-handbook-template.md").exists()
         assert (target / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
         assert (target / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
+        assert (target / ".specify" / "project-map" / "status.json").exists()
 
 
 def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_path):
@@ -174,6 +175,7 @@ def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_pa
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
+    assert "complete-refresh" in content
     assert "do not create `.planning/codebase/`" in content
 
 

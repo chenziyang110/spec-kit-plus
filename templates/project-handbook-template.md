@@ -5,7 +5,9 @@
 
 ## System Summary
 
-[What this project is, its primary runtime shape, and its major layers.]
+[What this project is, its primary runtime shape, its major layers or runtime
+units, and the main capability surfaces that planners or implementers must keep
+in view.]
 
 ## How To Read This Project
 
@@ -15,11 +17,29 @@
 
 ## Shared Surfaces
 
-- [Registries, routing files, template directories, config schemas, exported contracts]
+- [Registries, routing files, template directories, config schemas, exported
+  contracts, or other shared surfaces whose changes propagate into multiple
+  areas]
 
 ## Risky Coordination Points
 
-- [Files or modules that can silently affect multiple workflows]
+- [Files, modules, or runtime surfaces that can silently affect multiple
+  workflows or capability surfaces]
+
+## Change-Propagation Hotspots
+
+- [Where a change is likely to fan out across consumers, integrations, config,
+  scripts, docs, operators, or tests]
+
+## Verification Entry Points
+
+- [Fastest trustworthy checks, scripts, suites, or manual proofs for the major
+  capability surfaces]
+
+## Known Unknowns
+
+- [Stale areas, unresolved ownership, weak observability, or evidence gaps that
+  downstream workflows should treat carefully]
 
 ## Topic Map
 

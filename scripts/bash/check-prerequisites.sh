@@ -97,10 +97,12 @@ if $PATHS_ONLY; then
                 --arg context "$CONTEXT" \
                 --arg impl_plan "$IMPL_PLAN" \
                 --arg tasks "$TASKS" \
-                '{REPO_ROOT:$repo_root,BRANCH:$branch,FEATURE_DIR:$feature_dir,FEATURE_SPEC:$feature_spec,CONTEXT:$context,IMPL_PLAN:$impl_plan,TASKS:$tasks}'
+                --arg project_map_status "$(project_map_status_path "$REPO_ROOT")" \
+                --arg project_map_helper "$REPO_ROOT/.specify/scripts/bash/project-map-freshness.sh" \
+                '{REPO_ROOT:$repo_root,BRANCH:$branch,FEATURE_DIR:$feature_dir,FEATURE_SPEC:$feature_spec,CONTEXT:$context,IMPL_PLAN:$impl_plan,TASKS:$tasks,PROJECT_MAP_STATUS:$project_map_status,PROJECT_MAP_HELPER:$project_map_helper}'
         else
-            printf '{"REPO_ROOT":"%s","BRANCH":"%s","FEATURE_DIR":"%s","FEATURE_SPEC":"%s","CONTEXT":"%s","IMPL_PLAN":"%s","TASKS":"%s"}\n' \
-                "$(json_escape "$REPO_ROOT")" "$(json_escape "$CURRENT_BRANCH")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$FEATURE_SPEC")" "$(json_escape "$CONTEXT")" "$(json_escape "$IMPL_PLAN")" "$(json_escape "$TASKS")"
+            printf '{"REPO_ROOT":"%s","BRANCH":"%s","FEATURE_DIR":"%s","FEATURE_SPEC":"%s","CONTEXT":"%s","IMPL_PLAN":"%s","TASKS":"%s","PROJECT_MAP_STATUS":"%s","PROJECT_MAP_HELPER":"%s"}\n' \
+                "$(json_escape "$REPO_ROOT")" "$(json_escape "$CURRENT_BRANCH")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$FEATURE_SPEC")" "$(json_escape "$CONTEXT")" "$(json_escape "$IMPL_PLAN")" "$(json_escape "$TASKS")" "$(json_escape "$(project_map_status_path "$REPO_ROOT")")" "$(json_escape "$REPO_ROOT/.specify/scripts/bash/project-map-freshness.sh")"
         fi
     else
         echo "REPO_ROOT: $REPO_ROOT"
@@ -110,6 +112,8 @@ if $PATHS_ONLY; then
         echo "CONTEXT: $CONTEXT"
         echo "IMPL_PLAN: $IMPL_PLAN"
         echo "TASKS: $TASKS"
+        echo "PROJECT_MAP_STATUS: $(project_map_status_path "$REPO_ROOT")"
+        echo "PROJECT_MAP_HELPER: $REPO_ROOT/.specify/scripts/bash/project-map-freshness.sh"
     fi
     exit 0
 fi

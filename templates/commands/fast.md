@@ -39,6 +39,7 @@ If any of those checks fail:
 Upgrade to `/sp-quick` immediately if:
 - The work expands to more than 3 files.
 - The change touches a shared surface such as a router table, registration file, export barrel, template registry, or other coordination point.
+- The handbook says the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make direct execution unsafe.
 - The task stops being obvious and needs research or clarification to proceed safely.
 - The task needs delegated execution, resumable tracking, or a written quick-task summary artifact.
 
@@ -54,10 +55,14 @@ Upgrade to `/sp-specify` immediately if:
    - If not, stop and redirect to the right workflow instead of forcing the task through `sp-fast`.
 
 2. **Read the routing layer**
+   - Check whether `.specify/project-map/status.json` exists.
+   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
+   - If freshness is `missing` or `stale`, stop and redirect to `/sp-quick` or `/sp-map-codebase` so the navigation system can be rebuilt safely before fast-path execution.
+   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the current task, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and redirect to `/sp-quick`.
    - Read `PROJECT-HANDBOOK.md`.
-   - Use `Shared Surfaces` and `Risky Coordination Points` to decide whether the task is truly local.
+   - Use `Shared Surfaces`, `Risky Coordination Points`, `Change-Propagation Hotspots`, `Verification Entry Points`, and `Known Unknowns` to decide whether the task is truly local.
    - If `PROJECT-HANDBOOK.md` or `.specify/project-map/` is missing, stop and redirect to `/sp-quick` so the navigation system can be rebuilt safely.
-   - If the requested change touches a shared surface or risky coordination point, stop and redirect to `/sp-quick`.
+   - If the requested change touches a shared surface, risky coordination point, propagation hotspot, non-trivial verification entry point, or known-unknown-heavy area, stop and redirect to `/sp-quick`.
 
 3. **Execute inline**
    - Read the relevant file(s).
@@ -70,6 +75,7 @@ Upgrade to `/sp-specify` immediately if:
 
 5. **Report**
    - Summarize what changed, what was verified, and any remaining risk.
+   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase`.
 
 ## Guardrails
 

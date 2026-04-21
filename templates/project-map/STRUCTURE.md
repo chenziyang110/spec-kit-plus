@@ -13,4 +13,6 @@
 
 ## Shared Coordination Files
 
+## Consumer and Entry Surfaces
+
 ## Where To Add New Code

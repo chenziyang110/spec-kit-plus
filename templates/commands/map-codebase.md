@@ -36,6 +36,10 @@ The only canonical outputs are:
 - `.specify/project-map/TESTING.md`
 - `.specify/project-map/OPERATIONS.md`
 
+Supporting metadata written alongside the canonical map:
+
+- `.specify/project-map/status.json`
+
 Rules:
 
 - Refresh the handbook/project-map navigation system when these files already
@@ -47,6 +51,17 @@ Rules:
 - Task-relevant coverage is insufficient when the touched area is named only
   vaguely, lacks ownership or placement guidance, or lacks workflow,
   constraint, integration, or regression-sensitive testing guidance.
+- Treat the map as a coverage system, not just a navigation summary.
+- For each important capability, subsystem, workflow, or risky touched area
+  discovered during scouting, the combined handbook/project-map output must
+  answer:
+  - what owns it
+  - where the truth lives
+  - what other surfaces consume it or feed it
+  - how change propagates into adjacent modules, workflows, configs, docs,
+    scripts, operators, or tests
+  - what minimum verification evidence proves the mapped surface still works
+  - what important unknowns, assumptions, or stale coverage remain
 - Each touched area must include workflow, constraint, integration, or regression-sensitive testing guidance somewhere in the combined handbook/project-map output.
 - If legacy `项目技术文档.md` exists, mine it only for still-useful structure,
   terminology, ownership hints, and risk framing, then migrate that value into
@@ -60,6 +75,7 @@ Rules:
 
 1. **Load the mapping contract**
    - Read `.specify/memory/constitution.md` if present.
+   - Read `.specify/project-map/status.json` if present to recover the current map baseline, dirty state, and previous refresh metadata.
    - Read `PROJECT-HANDBOOK.md` and all existing `.specify/project-map/*.md`
      files if present.
    - Read `.specify/templates/project-handbook-template.md` and
@@ -99,35 +115,46 @@ Rules:
      navigation docs if present.
    - Read only the live files needed to establish current facts for:
      - system shape and entrypoints
+     - runtime units, execution surfaces, and major capability surfaces
      - directory ownership and write surfaces
+     - key consumer surfaces and shared coordination surfaces
      - conventions and testing patterns
      - external integrations and runtime assumptions
      - user and maintainer workflows
      - operational caveats, recovery paths, and risky coordination points
+     - change-propagation hotspots, validation entry points, and known unknowns
    - Always capture actual file paths when naming code, config, scripts, or
      tests.
    - Distinguish current repository facts from recommendations. The map should
      describe what is true now, not what might be nice later.
+   - Prefer evidence that reveals propagation paths: entrypoints, registries,
+     routing files, schema or contract definitions, UI or CLI consumers,
+     background jobs, integration adapters, verification scripts, and operator
+     playbooks.
 
 4. **Generate or refresh the topical map**
    - `ARCHITECTURE.md` must explain layers, abstractions, truth ownership, main
-     flows, and cross-cutting concerns.
+     flows, change propagation paths, and cross-cutting concerns.
    - `STRUCTURE.md` must answer where code lives, what each major directory
-     owns, and where new code should go.
+     owns, what shared or consumer surfaces exist, and where new code should
+     go.
    - `CONVENTIONS.md` must answer how code is written, named, imported, tested,
      and documented in this repository.
    - `INTEGRATIONS.md` must capture external tools, services, env/config, CI,
-     and runtime assumptions.
-   - `WORKFLOWS.md` must capture user flows, maintainer flows, adjacent-flow
-     risks, and entry/handoff surfaces.
-   - `TESTING.md` must capture test layers, smallest meaningful checks, and
-     regression-sensitive areas.
-   - `OPERATIONS.md` must capture startup, recovery, troubleshooting, and
-     operator notes.
+     runtime assumptions, contract boundaries, and integration risks.
+   - `WORKFLOWS.md` must capture user flows, maintainer flows, failure or
+     recovery paths, adjacent-flow risks, and entry/handoff surfaces.
+   - `TESTING.md` must capture test layers, smallest meaningful checks,
+     regression-sensitive areas, and verification entry points.
+   - `OPERATIONS.md` must capture startup, recovery, troubleshooting, operator
+     notes, and known runtime unknowns or stale evidence boundaries.
    - For each touched area discovered during scouting, ensure the combined
      handbook/project-map outputs give explicit ownership or placement guidance
      plus at least one of workflow, constraint, integration, or
      regression-sensitive testing guidance.
+   - Do not stop at repository shape. The refreshed map must make it hard to
+     miss adjacent surfaces that would need review when the mapped area
+     changes.
 
 5. **Generate or refresh `PROJECT-HANDBOOK.md`**
    - Keep it concise enough to be the first-read navigation artifact.
@@ -135,10 +162,13 @@ Rules:
      establish system shape quickly:
      - system summary
      - shared surfaces
-     - risky coordination points
-     - topic map
-     - update triggers
-     - recent structural changes
+      - risky coordination points
+      - change-propagation hotspots
+      - verification entry points
+      - known unknowns or stale areas
+      - topic map
+      - update triggers
+      - recent structural changes
    - Do not duplicate deep topical content there; route to the topical docs.
 
 6. **Run a consistency pass**
@@ -152,6 +182,7 @@ Rules:
      documents.
 
 7. **Report completion**
+   - After the refresh succeeds, finalize the refresh through the project-map freshness helper using `complete-refresh` so downstream workflows know the new baseline commit and refresh reason. Use `record-refresh` only for low-level/manual recovery when the standard completion path is unavailable.
    - Summarize which canonical map files were created or refreshed.
    - Call out the highest-signal risky coordination points or stale areas that
      were clarified.

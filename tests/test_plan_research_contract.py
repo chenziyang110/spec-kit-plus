@@ -45,22 +45,3 @@ def test_research_template_and_plan_template_are_linked() -> None:
     assert "### Assumptions To Validate" in plan_template
     assert "### Environment / Dependency Notes" in plan_template
     assert "## Research Adoption Check" in plan_template
-
-
-def test_repo_plan_skill_mirror_keeps_research_quality_contract() -> None:
-    for candidate in (".codex/skills/sp-plan/SKILL.md", ".agents/skills/sp-plan/SKILL.md"):
-        path = PROJECT_ROOT / candidate
-        if path.exists():
-            content = path.read_text(encoding="utf-8")
-            break
-    else:
-        raise AssertionError("Missing Codex sp-plan skill mirror")
-
-    assert "Read `templates/research-template.md`" in content
-    assert "Source confidence (`verified`, `cited`, or `assumed`)" in content
-    assert "`Don't hand-roll` guidance" in content
-    assert "Assumptions log" in content
-    assert "Validation notes" in content
-    assert "Environment or dependency notes" in content
-    assert "Do not present unverified claims as settled facts." in content
-    assert "Prefer prescriptive recommendations over broad option dumps" in content

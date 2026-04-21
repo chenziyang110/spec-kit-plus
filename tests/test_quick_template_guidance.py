@@ -8,6 +8,10 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
     assert "read `project-handbook.md`" in content
+    assert ".specify/project-map/status.json" in content
+    assert "project-map freshness helper" in content
+    assert "freshness is `missing` or `stale`" in content
+    assert "freshness is `possibly_stale`" in content
     assert "topic map" in content
     assert "touched-area topical files" in content
     assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content
@@ -15,6 +19,12 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "task-relevant coverage is insufficient" in content
     assert "ownership or placement guidance" in content
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
+    assert "coverage-model check" in content
+    assert "truth-owning surfaces" in content
+    assert "change-propagation hotspots" in content
+    assert "verification entry points" in content
+    assert "known unknowns or stale evidence boundaries" in content
+    assert "before choosing the quick-task lane shape" in content
     assert "ad-hoc task" in content or "small, ad-hoc task" in content
     assert "lightweight" in content
     assert ".planning/quick/" in content
@@ -95,6 +105,9 @@ def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
     assert "upgrade to `/sp-specify` immediately if" in content
     assert "architecture" in content
     assert "cross-cutting" in content
+    assert "change-propagation hotspot" in content
+    assert "truth-owning shared surface" in content
+    assert "known unknowns" in content
     assert "multiple independent capabilities" in content
     assert "new durable spec" in content or "long-lived feature spec" in content
     assert "rollout" in content or "migration" in content
@@ -133,6 +146,7 @@ def test_quick_template_requires_minimal_plan_for_propagating_changes() -> None:
     assert "surface sweep rule" in content
     assert "small-scope complete sweep" in content
     assert "affected surfaces" in content
+    assert "propagation hotspots, consumer surfaces, verification entry points, and known unknowns" in content
     assert "confirmed correct" in content
     assert "fixed in this quick task" in content
     assert "not checked in this pass (with reason)" in content
@@ -164,6 +178,7 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "which surfaces were left unverified" in content
     assert "separate `verified` coverage from `not checked` coverage" in content
     assert "for each declared surface, give the terminal status conclusion" in content
+    assert "mark `.specify/project-map/status.json` dirty" in content
 
 
 def test_quick_template_requires_constitution_before_status_and_delegation() -> None:

@@ -8,6 +8,10 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "debug.md").read_text(encoding="utf-8").lower()
 
     assert "read `project-handbook.md`" in content
+    assert ".specify/project-map/status.json" in content
+    assert "project-map freshness helper" in content
+    assert "freshness is `missing` or `stale`" in content
+    assert "freshness is `possibly_stale`" in content
     assert "truth ownership" in content
     assert "read whichever of `architecture.md`, `workflows.md`, `integrations.md`, `testing.md`, and `operations.md` map to the failing area" in content
     assert "if the handbook navigation system is missing" in content
@@ -43,6 +47,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "rejected surface fixes" in content
     assert "native delegation surface" in content
     assert "coordinated runtime surface" in content
+    assert "mark `.specify/project-map/status.json` dirty" in content
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:

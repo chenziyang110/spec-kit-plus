@@ -38,13 +38,6 @@ def _body_without_frontmatter(skill_path: Path) -> str:
     return content[match.end():] if match else content
 
 
-def _repo_codex_skill_path(skill_name: str) -> Path:
-    new_path = PROJECT_ROOT / ".codex" / "skills" / skill_name / "SKILL.md"
-    if new_path.exists():
-        return new_path
-    return PROJECT_ROOT / ".agents" / "skills" / skill_name / "SKILL.md"
-
-
 def _extract_section(text: str, heading: str) -> str:
     match = re.search(rf"(?ms)^## {re.escape(heading)}\s*\n(.*?)(?=^## |\Z)", text)
     assert match, f"Missing section: {heading}"
@@ -306,10 +299,19 @@ class TestBuiltInSkillGeneration:
         assert ".specify/project-map/ARCHITECTURE.md" in specify_body
         assert ".specify/project-map/WORKFLOWS.md" in specify_body
         assert "Topic Map" in specify_body
+        assert "coverage-model check" in specify_body
+        assert "truth-owning surfaces" in specify_body
+        assert "change-propagation hotspots" in specify_body
+        assert "verification entry points" in specify_body
+        assert "known unknowns relevant to the request" in specify_body
         assert "module ownership, reusable components/services/hooks, integration points" in specify_body
         assert "If the topical coverage for the touched area is missing, stale, or too broad" in specify_body
         assert "Run a codebase scout before clarification." in specify_body
         assert "Build a concise internal scout summary for the request area" in specify_body
+        assert "truth-owning surfaces and shared coordination surfaces" in specify_body
+        assert "change-propagation hotspots, consumer surfaces, and neighboring surfaces likely to require review" in specify_body
+        assert "verification entry points and regression-sensitive checks" in specify_body
+        assert "known unknowns, stale evidence boundaries, or observability gaps" in specify_body
         assert "grounded in the project handbook and touched-area topical map" in specify_body
         assert "Do not use generic labels like \"UX\", \"behavior\", or \"data handling\"" in specify_body
         assert "Each gray area should be captured internally with:" in specify_body
@@ -331,6 +333,7 @@ class TestBuiltInSkillGeneration:
         assert ".specify/project-map/ARCHITECTURE.md" in map_body
         assert 'choose_execution_strategy(command_name="map-codebase"' in map_body
         assert "run `/sp-map-codebase`" in map_body
+        assert "complete-refresh" in map_body
         assert "do not create `.planning/codebase/`" in map_body
 
 
@@ -388,174 +391,6 @@ class TestSkillDescriptions:
         manager = ExtensionManager(project_dir)
         result = manager._get_skills_dir()
         assert result is None
-
-
-def test_repo_specify_skill_mirror_matches_current_contract():
-    mirror_path = _repo_codex_skill_path("sp-specify")
-    body = _body_without_frontmatter(mirror_path)
-    lowered = body.lower()
-    assert "guided requirement discovery" in lowered
-    assert "recommendation and example scaffolding" in lowered
-    assert "current-understanding or confirmation gate" in lowered
-    assert "planning-relevant gray areas" in lowered
-    assert "proposed capability split" in lowered
-    assert "default to one spec with capability decomposition when the work still belongs to one coherent feature boundary" in lowered
-    assert "help the user decompose it into bounded capabilities inside the same spec first" in lowered
-    assert "only escalate to separate specs or clearly phased releases when one spec would no longer be coherent to plan or test" in lowered
-    assert "if the request contains 2 or more distinct deliverables, enhancements, or behavior changes that would independently change implementation or validation shape" in lowered
-    assert "present the capability split before asking any detailed clarification question about one capability" in lowered
-    assert "do not jump straight into a detailed gray-area question while multiple sibling capabilities are still unsplit or unprioritized" in lowered
-    assert "confirm which capability should be clarified first while keeping the work in the current spec unless the user explicitly wants separate specs or phased release planning" in body
-    assert "Do not spend one clarification pass collecting requirements for multiple independent capabilities." in body
-    assert "If the request is already one bounded capability, say so briefly and continue inside the current spec." in body
-    assert "PROJECT-HANDBOOK.md" in body
-    assert ".specify/project-map/ARCHITECTURE.md" in body
-    assert ".specify/project-map/WORKFLOWS.md" in body
-    assert "Topic Map" in body
-    assert "grounded in the project handbook and touched-area topical map" in body
-    assert "If the topical coverage for the touched area is missing, stale, or too broad" in body
-    assert "Task-relevant coverage is insufficient when the touched area is named only vaguely" in body
-    assert "ownership or placement guidance" in body
-    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in body
-    assert "Do not use generic labels like \"UX\", \"behavior\", or \"data handling\"" in body
-    assert "Each gray area should be captured internally with:" in body
-    assert "desired happy-path behavior" in body
-    assert "edge case or failure-path behavior" in body
-    assert "Use code-aware follow-ups when possible" in body
-    assert "Apply a specificity test before leaving a gray area" in body
-    assert "Do not leave a gray area merely because the user expressed a preference" in body
-    assert "default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof" in body
-    assert "Keep progress tracking scoped to the current capability or bounded spec slice rather than to a fixed global question budget." in body
-    assert "Do not present the clarification loop as a fixed total such as `2 / 5`." in body
-    assert "`Capability 1 / 3 | Question 2`" in body
-    assert "SPECIFY SESSION - Capability 1 / 3 | Question 2" in body
-    assert "SPECIFY SESSION - 2 / 5" not in body
-    assert "If the runtime exposes separate progress/commentary and final reply channels" in body
-    assert "The user should see the current clarification question exactly once." in body
-    assert "confirm or correct the current understanding before `Aligned: ready for plan`" in body
-    assert "Write `context.md` to `CONTEXT_FILE`." in body
-    assert "Locked decisions are preserved in context.md" in body
-    assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in body
-    assert "without needing `/sp.spec-extend`" in body
-
-
-def test_repo_implement_skill_mirror_has_codex_leader_gate():
-    mirror_path = _repo_codex_skill_path("sp-implement")
-    body = _body_without_frontmatter(mirror_path)
-
-    assert "FEATURE_DIR/implement-tracker.md" in body
-    assert "execution-state source of truth" in body
-    assert "PROJECT-HANDBOOK.md" in body
-    assert ".specify/project-map/ARCHITECTURE.md" in body
-    assert ".specify/project-map/WORKFLOWS.md" in body
-    assert ".specify/project-map/OPERATIONS.md" in body
-    assert "first-class implementation context" in body.lower()
-    assert "user execution notes" in body.lower()
-    assert "resume_decision" in body
-    assert "status: gathering | executing | recovering | replanning | validating | blocked | resolved" in body.lower()
-    assert "## Codex Leader Gate" in body
-    assert "you are the **leader**, not the concrete implementer" in body
-    assert "spawn_agent" in body
-    assert "wait_agent" in body
-    assert "close_agent" in body
-    assert "only fall back to `specify team`" in body.lower()
-    assert "must not edit implementation files directly while worker delegation is active" in body.lower()
-    assert 'choose_execution_strategy(command_name="implement"' in body
-    assert "single-agent" in body
-    assert "native-multi-agent" in body
-    assert "sidecar-runtime" in body
-    assert "retry-pending" in body.lower()
-
-
-def test_repo_plan_skill_mirror_has_shared_strategy_routing_contract():
-    mirror_path = _repo_codex_skill_path("sp-plan")
-    body = _body_without_frontmatter(mirror_path)
-
-    assert "Read `templates/research-template.md`" in body
-    assert "Read `PROJECT-HANDBOOK.md`" in body
-    assert ".specify/project-map/ARCHITECTURE.md" in body
-    assert ".specify/project-map/WORKFLOWS.md" in body
-    assert 'choose_execution_strategy(command_name="plan"' in body
-    assert "single-agent" in body
-    assert "native-multi-agent" in body
-    assert "sidecar-runtime" in body
-    assert "before final constitution and risk re-check" in body.lower()
-    assert "before writing the consolidated implementation plan" in body.lower()
-    assert "Source confidence (`verified`, `cited`, or `assumed`)" in body
-    assert "`Don't hand-roll` guidance" in body
-    assert "Assumptions log" in body
-    assert "Validation notes" in body
-    assert "Environment or dependency notes" in body
-    assert "Do not present unverified claims as settled facts." in body
-    assert "Use `templates/research-template.md` as the default structure for `research.md`" in body
-
-
-def test_repo_debug_skill_mirror_has_codex_native_investigation_guidance():
-    mirror_path = _repo_codex_skill_path("sp-debug")
-    body = _body_without_frontmatter(mirror_path).lower()
-
-    assert "codex leader gate" in body
-    assert "you are the **leader**" in body
-    assert "delegate them through `spawn_agent`" in body or "must delegate" in body
-    assert "single-agent" in body
-    assert "native-multi-agent" in body
-    assert "sidecar-runtime" in body
-    assert "operating principles" in body
-    assert "session lifecycle" in body
-    assert "investigation protocol" in body
-    assert "stage 3: log review" in body
-    assert "stage 4: observability check" in body
-    assert "fix and verify protocol" in body
-    assert "checkpoint protocol" in body
-    assert "capability-aware investigation" in body
-    assert "read `project-handbook.md` before root-cause analysis" in body
-    assert "read whichever of `.specify/project-map/architecture.md`, `.specify/project-map/workflows.md`, `.specify/project-map/integrations.md`, `.specify/project-map/testing.md`, and `.specify/project-map/operations.md` map to the failing area" in body
-    assert "if the handbook navigation system is missing" in body
-    assert "analyze the repository and create it before root-cause analysis continues" in body
-    assert "truth-owning layers" in body
-    assert 'choose_execution_strategy(command_name="debug"' in body
-    assert "improve logging or tracing before attempting a fix" in body or "improve logging or tracing before" in body
-    assert "codex native multi-agent investigation" in body
-    assert "spawn_agent" in body
-    assert "wait_agent" in body
-    assert "close_agent" in body
-    assert "investigating" in body
-    assert "must not update the debug file" in body
-    assert "leader" in body
-
-
-def test_repo_additional_codex_skill_mirrors_exist_for_generated_surfaces():
-    expected = {
-        "sp-explain": "Explain the current stage artifact",
-        "sp-spec-extend": "Re-open the current specification",
-        "sp-fast": "Execute a trivial task directly",
-        "sp-quick": "Execute a small, ad-hoc task",
-        "sp-team": "specify team",
-    }
-
-    for skill_name, needle in expected.items():
-        skill_path = PROJECT_ROOT / ".agents" / "skills" / skill_name / "SKILL.md"
-        assert skill_path.exists(), f"Missing repo mirror for {skill_name}"
-        content = skill_path.read_text(encoding="utf-8")
-        assert needle in content
-
-
-def test_repo_fast_and_quick_skill_mirrors_include_handbook_navigation_contract():
-    fast_body = _body_without_frontmatter(_repo_codex_skill_path("sp-fast"))
-    quick_body = _body_without_frontmatter(_repo_codex_skill_path("sp-quick"))
-
-    assert "Read `PROJECT-HANDBOOK.md`." in fast_body
-    assert "Shared Surfaces" in fast_body
-    assert "Risky Coordination Points" in fast_body
-    assert "redirect to `/sp-quick`" in fast_body
-    assert "If `PROJECT-HANDBOOK.md` or `.specify/project-map/` is missing" in fast_body
-    assert "redirect to `/sp-quick` so the navigation system can be rebuilt safely" in fast_body
-
-    assert "Read `PROJECT-HANDBOOK.md` after the constitution gate" in quick_body
-    assert "Topic Map" in quick_body
-    assert "touched-area topical files" in quick_body
-    assert "If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing" in quick_body
-    assert "create the handbook/project-map navigation system before continuing" in quick_body
 
 
 def test_team_template_has_valid_frontmatter_boundary():

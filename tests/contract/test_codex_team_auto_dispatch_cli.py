@@ -15,6 +15,22 @@ def _create_codex_project(tmp_path: Path) -> Path:
     spec_root.mkdir()
     (spec_root / "integration.json").write_text(json.dumps({"integration": "codex"}), encoding="utf-8")
     (spec_root / "codex-team").mkdir(parents=True, exist_ok=True)
+    (spec_root / "project-map").mkdir(parents=True, exist_ok=True)
+    (spec_root / "project-map" / "status.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "last_mapped_commit": "",
+                "last_mapped_at": "2026-04-21T00:00:00Z",
+                "last_mapped_branch": "",
+                "freshness": "missing",
+                "last_refresh_reason": "seeded-test",
+                "dirty": False,
+                "dirty_reasons": [],
+            }
+        ),
+        encoding="utf-8",
+    )
     feature_dir = project / "specs" / "001-auto-dispatch"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "tasks.md").write_text(
@@ -140,3 +156,25 @@ def test_team_api_complete_batch_returns_json_payload(tmp_path: Path):
     assert envelope["status"] == "ok"
     assert envelope["payload"]["batch_id"] == "default-parallel-batch-1-1"
     assert envelope["payload"]["status"] == "completed"
+
+
+def test_team_auto_dispatch_blocks_when_project_map_is_dirty(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    env = _fake_tmux_env(tmp_path)
+
+    status_path = project / ".specify" / "project-map" / "status.json"
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    payload["freshness"] = "stale"
+    payload["dirty"] = True
+    payload["dirty_reasons"] = ["shared_surface_changed"]
+    status_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["team", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        env=env,
+    )
+
+    assert result.exit_code != 0
+    assert "Project-map freshness is stale" in result.output
+    assert "map-codebase" in result.output

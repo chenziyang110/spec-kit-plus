@@ -21,11 +21,21 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 ## Required Context Inputs
 
 - Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
+- Check whether `.specify/project-map/status.json` exists.
+- If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
+- If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+- If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the current quick task, touched area, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before continuing.
 - Read `PROJECT-HANDBOOK.md` after the constitution gate and before any broad repository analysis.
 - If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+- Treat quick-task routing as a coverage-model check, not just a presence check. Coverage is also insufficient when the handbook/project-map set cannot yet tell you:
+  - owning or truth-owning surfaces
+  - change-propagation hotspots
+  - verification entry points
+  - known unknowns or stale evidence boundaries for the touched area
 - If task-relevant coverage is insufficient for the current quick task, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 - Use `Topic Map` to choose only the touched-area topical files needed for the current quick task.
+- Use the loaded handbook/project-map coverage to name the touched area's owning surfaces, change-propagation hotspots, verification entry points, and known unknowns before choosing the quick-task lane shape.
 - Do not load the full topical map unless the task expands beyond its bounded quick-task scope.
 - Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch workers, or analyze repository code until the constitution has been read or confirmed absent.
 - Create or resume `.planning/quick/<id>-<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
@@ -55,6 +65,7 @@ If the task changes architecture, introduces broad product decisions, or needs a
 
 Upgrade to `/sp-specify` immediately if:
 - The task changes architecture or introduces cross-cutting behavior across multiple modules, workflows, or shared surfaces.
+- The task touches a change-propagation hotspot, a truth-owning shared surface, or an area whose known unknowns make lightweight planning unsafe.
 - The request now spans multiple independent capabilities, release tracks, or user journeys that no longer fit one bounded quick-task workspace.
 - The work needs a new durable spec package, a long-lived feature boundary, or planning artifacts intended to survive beyond the quick task.
 - The change has rollout, migration, compatibility, or neighboring-workflow impact that must be locked before implementation.
@@ -222,6 +233,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 
 - Treat every quick task as a small-scope complete sweep, not as an opportunistic one-file patch.
 - Before editing, name the affected surfaces for this pass. Start from the smallest relevant set and expand until the task has a defendable boundary.
+- Include propagation hotspots, consumer surfaces, verification entry points, and known unknowns from the handbook/project-map coverage whenever they materially affect the quick task.
 - For interface or contract changes, default sweep surfaces are:
   - implementation
   - export or declaration layer
@@ -246,6 +258,7 @@ resume_decision: [resume here | blocked waiting | resolved]
   - any unverified surface or remaining gap is called out explicitly instead of being implied away
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
+- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before the next brownfield workflow proceeds.
 
 ## Propagating Change Rule
 

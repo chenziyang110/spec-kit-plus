@@ -72,10 +72,20 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Set `REFERENCES_FILE` to `FEATURE_DIR/references.md`.
 
 4. Ensure repository navigation system exists.
+   - Check whether `.specify/project-map/status.json` exists.
+   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
+   - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the current request, touched area, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before continuing.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
    - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - Task-relevant coverage is insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+   - Treat task-relevant coverage as a coverage-model check, not just a file-presence check. Coverage is also insufficient when the handbook/project-map set cannot yet tell you:
+     - owning surfaces and truth locations
+     - consumer or adjacent surfaces likely to be affected
+     - change-propagation hotspots
+     - verification entry points
+     - known unknowns or stale evidence boundaries
    - If task-relevant coverage is insufficient for the current request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - Treat `PROJECT-HANDBOOK.md` as the root navigation artifact and use `Topic Map` to choose the smallest relevant topical documents for the touched area.
 
@@ -87,7 +97,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Read `.specify/memory/constitution.md` if present.
    - Read `PROJECT-HANDBOOK.md` if present and treat it as the primary codebase-scout input for brownfield understanding.
    - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
-   - From the handbook navigation system, extract the current module ownership, reusable components/services/hooks, integration points, adjacent workflows, key entities, and architectural constraints relevant to the request.
+   - From the handbook navigation system, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
    - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
@@ -98,9 +108,13 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Use `Topic Map` to choose the smallest relevant topical documents before broad file reads.
    - Build a concise internal scout summary for the request area that names:
      - owning modules or workflows
+     - truth-owning surfaces and shared coordination surfaces
      - reusable components, services, hooks, commands, or schemas
      - integration boundaries and upstream/downstream dependencies
+     - change-propagation hotspots, consumer surfaces, and neighboring surfaces likely to require review
      - adjacent user flows or screens that this work could accidentally break
+     - verification entry points and regression-sensitive checks
+     - known unknowns, stale evidence boundaries, or observability gaps
      - existing patterns that should bias the questions toward real decision forks
    - If the topical coverage is too broad, stale, or silent on the touched area, read the minimum targeted live files needed to replace guesswork with evidence.
    - Use the scout summary to eliminate low-value questions, sharpen gray areas, and detect when the user's request conflicts with existing repository patterns.
@@ -125,7 +139,10 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - critical constraints and assumptions
    - dependencies or preconditions that materially affect planning
    - the currently owning modules, services, screens, commands, or workflows that this request would extend, replace, or bypass
+   - the truth-owning surfaces, consumer surfaces, and change-propagation hotspots that shape how this request spreads through the current system
    - reusable code paths or existing patterns that should shape the questioning instead of forcing the user to rediscover repository facts
+   - the verification entry points and regression-sensitive surfaces that will need proof before release
+   - the known unknowns, stale evidence boundaries, or weakly mapped surfaces that could force more clarification
    - release-shaping risks or external references
 
 9. Choose alignment mode and collaboration strategy.
@@ -184,6 +201,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
     Existing feature addition:
     - affected module or workflow
+    - impacted surfaces and consumers
     - intended users
     - relationship to existing behavior
     - compatibility expectations
@@ -195,12 +213,14 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - expected correct behavior
     - reproduction conditions
     - impact scope
+    - affected surfaces and change-propagation path
     - regression-sensitive areas
     - completion criteria
 
     Technical refactor:
     - reason for change
     - change boundary
+    - affected surfaces and compatibility boundaries
     - behavior that must remain unchanged
     - risk tolerance
     - migration/transition allowance
@@ -229,6 +249,9 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - data, entity, or state implications
     - compatibility and migration expectations
     - external integrations or handoff dependencies
+    - impacted surfaces and change-propagation expectations
+    - verification entry points and minimum evidence expectations
+    - known unknowns or stale evidence boundaries that could change planning safety
     - acceptance-test shaping details
     - planning-sensitive risks and gaps
 

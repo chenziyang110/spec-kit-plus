@@ -13,4 +13,6 @@
 
 ## Runtime Dependencies
 
+## Contract Boundaries
+
 ## Integration Risks

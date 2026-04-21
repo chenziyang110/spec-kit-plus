@@ -334,3 +334,13 @@ except Exception:
     # Callers running under set -e should use: TEMPLATE=$(resolve_template ...) || true
     return 1
 }
+
+project_map_dir() {
+    local repo_root="${1:-$(get_repo_root)}"
+    echo "$repo_root/.specify/project-map"
+}
+
+project_map_status_path() {
+    local repo_root="${1:-$(get_repo_root)}"
+    echo "$(project_map_dir "$repo_root")/status.json"
+}

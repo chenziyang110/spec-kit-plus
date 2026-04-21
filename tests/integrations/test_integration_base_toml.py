@@ -389,17 +389,18 @@ class TomlIntegrationTests:
 
         if script_variant == "sh":
             for name in ["check-prerequisites.sh", "common.sh", "create-new-feature.sh",
-                         "setup-plan.sh", "update-agent-context.sh"]:
+                         "project-map-freshness.sh", "setup-plan.sh", "update-agent-context.sh"]:
                 files.append(f".specify/scripts/bash/{name}")
         else:
             for name in ["check-prerequisites.ps1", "common.ps1", "create-new-feature.ps1",
-                         "setup-plan.ps1", "update-agent-context.ps1"]:
+                         "project-map-freshness.ps1", "setup-plan.ps1", "update-agent-context.ps1"]:
                 files.append(f".specify/scripts/powershell/{name}")
 
         for name in self._template_files():
             files.append(f".specify/templates/{name}")
 
         files.append(".specify/memory/constitution.md")
+        files.append(".specify/project-map/status.json")
         return sorted(files)
 
     def test_complete_file_inventory_sh(self, tmp_path):

@@ -9,6 +9,8 @@
 
 ## Core Maintainer Flows
 
+## Failure and Recovery Flows
+
 ## Adjacent Workflow Risks
 
 ## Entry Commands and Handoffs

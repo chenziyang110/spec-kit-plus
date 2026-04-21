@@ -62,6 +62,10 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ### Required Context Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
+- Check whether `.specify/project-map/status.json` exists.
+- If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
+- If freshness is `missing` or `stale`, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
+- If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the failing area, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before root-cause analysis continues.
 - Read `PROJECT-HANDBOOK.md` before root-cause analysis so the investigation starts from the current system map.
 - If the handbook navigation system is missing, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
@@ -204,6 +208,7 @@ The session file must always make it clear:
   - resulting state transition,
   - and external observation.
 - If verification fails, return to `investigating` with updated evidence. Do not keep layering fixes without updating the hypothesis.
+- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield work proceeds.
 
 ## Checkpoint Protocol
 

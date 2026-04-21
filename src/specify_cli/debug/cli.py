@@ -2,6 +2,7 @@ import typer
 import asyncio
 import json
 from typing import Optional
+from pathlib import Path
 from rich.console import Console
 
 from .schema import DebugGraphState, DebugStatus
@@ -14,9 +15,33 @@ from .dispatch import (
 )
 from .utils import generate_slug, get_debug_dir
 from .graph import run_debug_session
+from ..project_map_status import inspect_project_map_freshness
 
 console = Console()
 debug_app = typer.Typer(help="Systematic debugging engine for Spec Kit Plus.")
+
+
+def _project_map_preflight_for_debug() -> None:
+    project_root = Path.cwd()
+    if not (project_root / ".specify").exists():
+        return
+
+    result = inspect_project_map_freshness(project_root)
+    freshness = result["freshness"]
+    if freshness in {"missing", "stale"}:
+        console.print(
+            f"[red]Error:[/red] Project-map freshness is {freshness}. Refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before debug."
+        )
+        for reason in result.get("reasons", []):
+            console.print(f"- {reason}")
+        raise typer.Exit(1)
+
+    if freshness == "possibly_stale":
+        console.print(
+            "[yellow]Warning:[/yellow] Project-map freshness is possibly_stale. Continue only if the investigation is still local."
+        )
+        for reason in result.get("reasons", []):
+            console.print(f"- {reason}")
 
 
 def _print_root_cause_summary(state: DebugGraphState) -> None:
@@ -119,6 +144,7 @@ def debug_command(
         asyncio.run(_run_debug(description))
 
 async def _run_debug(description: Optional[str]):
+    _project_map_preflight_for_debug()
     debug_dir = get_debug_dir()
     handler = MarkdownPersistenceHandler(debug_dir)
     
@@ -178,6 +204,7 @@ async def _load_or_create_debug_state(description: Optional[str]) -> tuple[Debug
 
 
 async def _run_debug_dispatch(description: Optional[str], output_format: str) -> None:
+    _project_map_preflight_for_debug()
     state, handler, resumed = await _load_or_create_debug_state(description)
     await run_debug_session(state, handler, resumed=resumed)
 

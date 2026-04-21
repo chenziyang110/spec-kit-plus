@@ -266,3 +266,13 @@ function Resolve-Template {
 
     return $null
 }
+
+function Get-ProjectMapDir {
+    param([string]$RepoRoot = (Get-RepoRoot))
+    return (Join-Path $RepoRoot ".specify/project-map")
+}
+
+function Get-ProjectMapStatusPath {
+    param([string]$RepoRoot = (Get-RepoRoot))
+    return (Join-Path (Get-ProjectMapDir -RepoRoot $RepoRoot) "status.json")
+}

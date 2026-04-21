@@ -11,6 +11,8 @@
 
 ## Smallest Meaningful Checks
 
+## Verification Entry Points
+
 ## Regression-Sensitive Areas
 
 ## When To Expand Verification

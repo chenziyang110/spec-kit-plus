@@ -73,6 +73,18 @@ from specify_cli.codex_team.runtime_bridge import (
     dispatch_runtime_task,
     mark_runtime_failure,
 )
+from specify_cli.project_map_status import (
+    canonical_project_map_paths,
+    clear_project_map_dirty,
+    complete_project_map_refresh,
+    git_branch_name,
+    git_head_commit,
+    inspect_project_map_freshness,
+    mark_project_map_dirty,
+    mark_project_map_refreshed,
+    missing_canonical_project_map_paths,
+    read_project_map_status,
+)
 
 def _build_agent_config() -> dict[str, dict[str, Any]]:
     """Derive AGENT_CONFIG from INTEGRATION_REGISTRY."""
@@ -396,6 +408,13 @@ quick_app = typer.Typer(
 )
 app.add_typer(quick_app, name="quick")
 
+project_map_app = typer.Typer(
+    name="project-map",
+    help="Inspect and manage project-map freshness state",
+    add_completion=False,
+)
+app.add_typer(project_map_app, name="project-map")
+
 def show_banner():
     """Display the ASCII art banner."""
     banner_lines = BANNER.strip().split('\n')
@@ -462,6 +481,81 @@ def run_command(cmd: list[str], check_return: bool = True, capture: bool = False
                 console.print(f"[red]Error output:[/red] {e.stderr}")
             raise
         return None
+
+
+def _render_project_map_freshness(result: dict[str, Any]) -> None:
+    rows = [
+        ("Freshness", f"[cyan]{result['freshness']}[/cyan]"),
+        ("Status File", f"[dim]{result['status_path']}[/dim]"),
+    ]
+    if result.get("head_commit"):
+        rows.append(("HEAD", f"[dim]{result['head_commit']}[/dim]"))
+    if result.get("last_mapped_commit"):
+        rows.append(("Mapped Commit", f"[dim]{result['last_mapped_commit']}[/dim]"))
+    if result.get("dirty"):
+        rows.append(("Dirty", "[yellow]true[/yellow]"))
+
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Map", border_style="cyan"))
+
+    reasons = result.get("reasons") or []
+    if reasons:
+        console.print("[bold]Reasons[/bold]")
+        for reason in reasons:
+            console.print(f"- {reason}")
+
+
+def _project_map_preflight(
+    project_root: Path,
+    *,
+    command_name: str,
+    block_on: set[str] | None = None,
+) -> dict[str, Any]:
+    result = inspect_project_map_freshness(project_root)
+    block_levels = block_on or {"missing", "stale"}
+    freshness = result["freshness"]
+
+    if freshness in block_levels:
+        _render_project_map_freshness(result)
+        console.print(
+            f"[red]Error:[/red] Project-map freshness is {freshness} for [cyan]{command_name}[/cyan]."
+        )
+        console.print(
+            "Run [cyan]map-codebase[/cyan] to refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/`, then retry."
+        )
+        raise typer.Exit(1)
+
+    if freshness == "possibly_stale":
+        _render_project_map_freshness(result)
+        console.print(
+            f"[yellow]Warning:[/yellow] Project-map freshness is possibly_stale for [cyan]{command_name}[/cyan]."
+        )
+        console.print(
+            "Continue only if the current task is still local; otherwise refresh the handbook/project-map first."
+        )
+
+    return result
+
+
+def _require_fresh_project_map_for_execution(project_root: Path, *, command_name: str) -> dict[str, Any]:
+    return _project_map_preflight(
+        project_root,
+        command_name=command_name,
+        block_on={"missing", "stale"},
+    )
+
+
+def _ensure_project_map_artifacts_exist(project_root: Path) -> list[Path]:
+    missing = missing_canonical_project_map_paths(project_root)
+    if not missing:
+        return []
+
+    console.print("[red]Error:[/red] Cannot record a fresh project-map baseline because canonical map files are missing.")
+    for path in missing:
+        console.print(f"- {path}")
+    console.print(
+        "Run [cyan]map-codebase[/cyan] first so `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` exist, then retry [cyan]project-map complete-refresh[/cyan]. Use [cyan]project-map record-refresh[/cyan] only for low-level/manual recovery."
+    )
+    raise typer.Exit(1)
 
 
 def _project_root_from_source() -> Path:
@@ -624,6 +718,116 @@ def quick_archive(
     payload = _run_quick_helper("archive", quick_id=quick_id)
     task = payload.get("task", {})
     console.print(f"Archived quick task {task.get('id')} to {task.get('workspace_path')}.")
+
+
+@project_map_app.command("check")
+def project_map_check(
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Inspect current project-map freshness for the working tree."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    result = inspect_project_map_freshness(project_root)
+    if output_format.lower() == "json":
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    _render_project_map_freshness(result)
+
+
+@project_map_app.command("mark-dirty")
+def project_map_mark_dirty(
+    reason: str = typer.Argument(..., help="Why the current work invalidated the project map"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Mark the project map stale after runtime changes alter navigation meaning."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    mark_project_map_dirty(project_root, reason)
+    result = inspect_project_map_freshness(project_root)
+    if output_format.lower() == "json":
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    _render_project_map_freshness(result)
+
+
+@project_map_app.command("clear-dirty")
+def project_map_clear_dirty(
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Clear the dirty bit without changing the recorded map baseline."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    clear_project_map_dirty(project_root)
+    result = inspect_project_map_freshness(project_root)
+    if output_format.lower() == "json":
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    _render_project_map_freshness(result)
+
+
+@project_map_app.command("record-refresh")
+def project_map_record_refresh(
+    reason: str = typer.Option("manual", "--reason", help="Why the map was refreshed"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Record a fresh project-map baseline at the current HEAD."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _ensure_project_map_artifacts_exist(project_root)
+    mark_project_map_refreshed(
+        project_root,
+        head_commit=git_head_commit(project_root),
+        branch=git_branch_name(project_root),
+        reason=reason,
+    )
+    result = inspect_project_map_freshness(project_root)
+    if output_format.lower() == "json":
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    _render_project_map_freshness(result)
+
+
+@project_map_app.command("complete-refresh")
+def project_map_complete_refresh(
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Finalize a successful map-codebase run by recording a fresh baseline."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _ensure_project_map_artifacts_exist(project_root)
+    complete_project_map_refresh(project_root)
+    result = inspect_project_map_freshness(project_root)
+    if output_format.lower() == "json":
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    _render_project_map_freshness(result)
+
+
+@project_map_app.command("status")
+def project_map_status_command(
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Read the stored project-map status file without recomputing git freshness."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    status = read_project_map_status(project_root).to_dict()
+    status["status_path"] = str(project_root / ".specify" / "project-map" / "status.json")
+    if output_format.lower() == "json":
+        print(json.dumps(status, ensure_ascii=False, indent=2))
+        return
+    rows = [
+        ("Freshness", f"[cyan]{status['freshness']}[/cyan]"),
+        ("Dirty", "[yellow]true[/yellow]" if status["dirty"] else "false"),
+        ("Status File", f"[dim]{status['status_path']}[/dim]"),
+        ("Last Commit", f"[dim]{status['last_mapped_commit'] or '-'}[/dim]"),
+        ("Last Branch", f"[dim]{status['last_mapped_branch'] or '-'}[/dim]"),
+        ("Last Refresh", f"[dim]{status['last_mapped_at'] or '-'}[/dim]"),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Map Status", border_style="cyan"))
+    if status["dirty_reasons"]:
+        console.print("[bold]Dirty Reasons[/bold]")
+        for reason in status["dirty_reasons"]:
+            console.print(f"- {reason}")
 
 def check_tool(tool: str, tracker: StepTracker = None) -> bool:
     """Check if a tool is installed. Optionally update tracker.
@@ -956,6 +1160,24 @@ def _install_shared_infra(
             shutil.copy2(src_path, dst)
             rel = dst.relative_to(project_path).as_posix()
             manifest.record_existing(rel)
+
+    # Seed the live project-map status file so downstream workflows share a
+    # stable freshness surface even before the first real map refresh.
+    status_path = project_path / ".specify" / "project-map" / "status.json"
+    if not status_path.exists():
+        status_path.parent.mkdir(parents=True, exist_ok=True)
+        status_payload = {
+            "version": 1,
+            "last_mapped_commit": "",
+            "last_mapped_at": "",
+            "last_mapped_branch": "",
+            "freshness": "missing",
+            "last_refresh_reason": "",
+            "dirty": False,
+            "dirty_reasons": [],
+        }
+        status_path.write_text(json.dumps(status_payload, indent=2) + "\n", encoding="utf-8")
+        manifest.record_existing(status_path.relative_to(project_path).as_posix())
 
     if skipped_files:
         import logging
@@ -1761,6 +1983,7 @@ def _handle_legacy_team_flags(
         return
 
     if dispatch:
+        _require_fresh_project_map_for_execution(project_root, command_name="team dispatch")
         record = dispatch_runtime_task(
             project_root,
             session_id=session_id,
@@ -1894,6 +2117,7 @@ def team_auto_dispatch(
 ):
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
+    _require_fresh_project_map_for_execution(project_root, command_name="team auto-dispatch")
     try:
         result = route_ready_parallel_batch(
             project_root,
@@ -1955,6 +2179,16 @@ def team_api(
         if not feature_dir:
             console.print("[red]Error:[/red] --feature-dir is required for auto-dispatch.")
             raise typer.Exit(1)
+        freshness = inspect_project_map_freshness(project_root)
+        if freshness["freshness"] in {"missing", "stale"}:
+            envelope["status"] = "error"
+            envelope["payload"] = {
+                "message": f"Project-map freshness is {freshness['freshness']}. Refresh map-codebase before auto-dispatch.",
+                "freshness": freshness["freshness"],
+                "reasons": freshness.get("reasons", []),
+            }
+            print(json.dumps(envelope, ensure_ascii=False, default=str))
+            return
         try:
             result = route_ready_parallel_batch(
                 project_root,
@@ -2153,7 +2387,28 @@ app.add_typer(integration_app, name="integration")
 
 # ===== Debug Commands =====
 
-from .debug.cli import debug_app
+try:
+    from .debug.cli import debug_app
+except ModuleNotFoundError as exc:
+    debug_app = typer.Typer(
+        name="debug",
+        help="Systematic and resumable bug investigation and fixing (debug runtime dependency missing)",
+        add_completion=False,
+    )
+
+    @debug_app.callback(invoke_without_command=True)
+    def _debug_unavailable_callback(ctx: typer.Context) -> None:
+        if ctx.invoked_subcommand is not None:
+            return
+        missing = exc.name or "required debug dependency"
+        console.print(
+            f"[red]Error:[/red] Debug command is unavailable because '{missing}' is not installed."
+        )
+        console.print(
+            "Install the missing dependency and retry, or use a non-debug workflow command."
+        )
+        raise typer.Exit(1)
+
 app.add_typer(debug_app, name="debug")
 # Register sp-debug as an alias per TOL-03
 app.add_typer(debug_app, name="sp-debug")

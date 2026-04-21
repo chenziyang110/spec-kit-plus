@@ -35,16 +35,26 @@ def test_specify_template_uses_alignment_first_contract():
     lowered = content.lower()
 
     assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/status.json" in content
     assert ".specify/project-map/ARCHITECTURE.md" in content
     assert ".specify/project-map/STRUCTURE.md" in content
     assert ".specify/project-map/WORKFLOWS.md" in content
     assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" in content
     assert "Use `Topic Map` to choose the smallest relevant topical documents" in content
     assert "run `/sp-map-codebase` before continuing" in content
+    assert "project-map freshness helper" in lowered
+    assert "freshness is `missing` or `stale`" in lowered
+    assert "freshness is `possibly_stale`" in lowered
     assert "task-relevant coverage is insufficient" in lowered
     assert "coverage is insufficient when the touched area is named only vaguely" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
+    assert "coverage-model check" in lowered
+    assert "owning surfaces and truth locations" in lowered
+    assert "consumer or adjacent surfaces likely to be affected" in lowered
+    assert "change-propagation hotspots" in lowered
+    assert "verification entry points" in lowered
+    assert "known unknowns or stale evidence boundaries" in lowered
 
     assert "alignment.md" in content
     assert "aligned: ready for plan" in lowered
@@ -101,6 +111,12 @@ def test_specify_template_uses_alignment_first_contract():
     assert "compatibility/process constraints" in content
     assert "completion criteria" in content
     assert "Task classification changes which requirement dimensions are probed" in content
+    assert "impacted surfaces and consumers" in content
+    assert "affected surfaces and change-propagation path" in content
+    assert "affected surfaces and compatibility boundaries" in content
+    assert "impacted surfaces and change-propagation expectations" in content
+    assert "verification entry points and minimum evidence expectations" in content
+    assert "known unknowns or stale evidence boundaries that could change planning safety" in content
     assert "planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria" in content
     assert "Make the next question build directly on the user's most recent answer" in content
     assert "rather than resetting to generic prompts" in content
@@ -136,12 +152,23 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Read `templates/context-template.md`." in content
     assert "primary codebase-scout input" in content
     assert "module ownership, reusable components/services/hooks, integration points" in content
+    assert "truth-owning surfaces" in content
+    assert "change-propagation hotspots" in content
+    assert "verification entry points" in content
+    assert "known unknowns relevant to the request" in content
     assert "If the topical coverage for the touched area is missing, stale, or too broad" in content
     assert "Run a codebase scout before clarification." in content
     assert "Build a concise internal scout summary for the request area" in content
+    assert "truth-owning surfaces and shared coordination surfaces" in content
+    assert "change-propagation hotspots, consumer surfaces, and neighboring surfaces likely to require review" in content
+    assert "verification entry points and regression-sensitive checks" in content
+    assert "known unknowns, stale evidence boundaries, or observability gaps" in content
     assert "adjacent user flows or screens that this work could accidentally break" in content
     assert "grounded in the project handbook and touched-area topical map" in content
     assert "currently owning modules, services, screens, commands, or workflows" in content
+    assert "truth-owning surfaces, consumer surfaces, and change-propagation hotspots" in content
+    assert "verification entry points and regression-sensitive surfaces that will need proof before release" in content
+    assert "known unknowns, stale evidence boundaries, or weakly mapped surfaces" in content
     assert "Synthesize these decisions into `context.md`" in content
     assert "22. Write `context.md` to `CONTEXT_FILE`." in content
     assert "- [ ] context.md exists" in content
@@ -175,6 +202,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     lowered = content.lower()
 
     assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/status.json" in content
     assert ".specify/project-map/ARCHITECTURE.md" in content
     assert ".specify/project-map/STRUCTURE.md" in content
     assert ".specify/project-map/WORKFLOWS.md" in content
@@ -371,10 +399,27 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     assert "sidecar-runtime" in lowered
     assert "support skills" not in lowered
     assert "refresh the handbook/project-map navigation system" in lowered
+    assert "complete-refresh" in content
     assert "do not create `.planning/codebase/`" in content
+    assert "Treat the map as a coverage system, not just a navigation summary." in content
+    assert "what owns it" in content
+    assert "where the truth lives" in content
+    assert "what other surfaces consume it or feed it" in content
+    assert "what minimum verification evidence proves the mapped surface still works" in content
+    assert "what important unknowns, assumptions, or stale coverage remain" in content
     assert "task-relevant coverage" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
+    assert "runtime units, execution surfaces, and major capability surfaces" in lowered
+    assert "key consumer surfaces and shared coordination surfaces" in lowered
+    assert "change-propagation hotspots, validation entry points, and known unknowns" in lowered
+    assert "evidence that reveals propagation paths" in lowered
+    assert "change propagation paths" in lowered
+    assert "what shared or consumer surfaces exist" in lowered
+    assert "recovery paths" in lowered
+    assert "verification entry points" in lowered
+    assert "known runtime unknowns" in lowered
+    assert "change-propagation hotspots" in lowered
     assert "legacy `项目技术文档.md`" in content
 
 
@@ -551,13 +596,46 @@ def test_script_contracts_expose_context_artifact_paths():
 
     assert "CONTEXT       = Join-Path $featureDir 'context.md'" in ps_common
     assert "CONTEXT      = $paths.CONTEXT" in ps_check
+    assert "PROJECT_MAP_STATUS = (Get-ProjectMapStatusPath -RepoRoot $paths.REPO_ROOT)" in ps_check
+    assert 'PROJECT_MAP_HELPER = (Join-Path $paths.REPO_ROOT ".specify/scripts/powershell/project-map-freshness.ps1")' in ps_check
     assert "context.md" in ps_check
     assert "CONTEXT = $paths.CONTEXT" in ps_setup
     assert "CONTEXT=%q\\n" in sh_common
     assert '--arg context "$CONTEXT"' in sh_check
+    assert '--arg project_map_status "$(project_map_status_path "$REPO_ROOT")"' in sh_check
+    assert '--arg project_map_helper "$REPO_ROOT/.specify/scripts/bash/project-map-freshness.sh"' in sh_check
     assert '"CONTEXT":"%s"' in sh_check
     assert '--arg context "$CONTEXT"' in sh_setup
     assert '"CONTEXT":"%s"' in sh_setup
+
+
+def test_project_map_freshness_scripts_exist_and_share_status_contract():
+    sh_common = _read("scripts/bash/common.sh")
+    ps_common = _read("scripts/powershell/common.ps1")
+    sh_freshness = _read("scripts/bash/project-map-freshness.sh")
+    ps_freshness = _read("scripts/powershell/project-map-freshness.ps1")
+
+    assert "project_map_status_path" in sh_common
+    assert "Get-ProjectMapStatusPath" in ps_common
+
+    assert "project_map_status_path" in sh_freshness
+    assert "record-refresh" in sh_freshness
+    assert "complete-refresh" in sh_freshness
+    assert "mark-dirty" in sh_freshness
+    assert "clear-dirty" in sh_freshness
+    assert '"freshness": "missing"' not in sh_freshness  # sanity: not hardcoded-only output
+    assert "project-map status missing" in sh_freshness
+    assert "high-impact project-map change" in sh_freshness
+    assert "git baseline unavailable for project-map freshness" in sh_freshness
+
+    assert "Get-ProjectMapStatusPath" in ps_freshness
+    assert "record-refresh" in ps_freshness
+    assert "complete-refresh" in ps_freshness
+    assert "mark-dirty" in ps_freshness
+    assert "clear-dirty" in ps_freshness
+    assert "project-map status missing" in ps_freshness
+    assert "high-impact project-map change" in ps_freshness
+    assert "git baseline unavailable for project-map freshness" in ps_freshness
 
 
 def test_create_new_feature_scripts_scaffold_and_report_context():

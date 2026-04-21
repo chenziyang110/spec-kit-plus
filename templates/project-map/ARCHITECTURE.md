@@ -13,6 +13,10 @@
 
 ## Main Flows
 
+## Change Propagation Paths
+
 ## Truth Ownership and Boundaries
 
 ## Cross-Cutting Concerns
+
+## Known Architectural Unknowns
