@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import typer
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.text import Text
 from rich.live import Live
@@ -59,6 +59,13 @@ from specify_cli.codex_team import (
     task_ops,
     team_availability_message,
     team_help_text,
+)
+from specify_cli.codex_team.auto_dispatch import (
+    AutoDispatchError,
+    BatchCompletionResult,
+    AutoDispatchUnavailableError,
+    complete_dispatched_batch,
+    route_ready_parallel_batch,
 )
 from specify_cli.codex_team.runtime_bridge import (
     RuntimeEnvironmentError,
@@ -318,6 +325,45 @@ def select_with_arrows(options: dict, prompt_text: str = "Select an option", def
 
 console = Console()
 
+
+def _cli_panel(
+    renderable,
+    *,
+    title: str,
+    border_style: str,
+    padding: tuple[int, int] = (0, 1),
+    expand: bool = False,
+) -> Panel:
+    """Standardize panel hierarchy with short titles and tighter framing."""
+    return Panel(
+        renderable,
+        title=f"[bold]{title}[/bold]",
+        title_align="left",
+        border_style=border_style,
+        padding=padding,
+        expand=expand,
+    )
+
+
+def _labeled_grid(rows: list[tuple[str, str]]) -> Table:
+    """Render short status/detail rows with consistent label emphasis."""
+    table = Table.grid(expand=False, padding=(0, 2))
+    table.add_column(style="bold bright_black", justify="right", no_wrap=True)
+    table.add_column(style="white")
+    for label, value in rows:
+        table.add_row(label, value)
+    return table
+
+
+def _command_grid(rows: list[tuple[str, str]]) -> Table:
+    """Render command-oriented rows for next steps and enhancement surfaces."""
+    table = Table.grid(expand=False, padding=(0, 2))
+    table.add_column(style="bold cyan", no_wrap=True)
+    table.add_column(style="white")
+    for label, value in rows:
+        table.add_row(label, value)
+    return table
+
 class BannerGroup(TyperGroup):
     """Custom group that shows banner before help."""
 
@@ -343,6 +389,13 @@ team_app = typer.Typer(
 )
 app.add_typer(team_app, name="team")
 
+quick_app = typer.Typer(
+    name="quick",
+    help="Inspect and manage tracked quick tasks",
+    add_completion=False,
+)
+app.add_typer(quick_app, name="quick")
+
 def show_banner():
     """Display the ASCII art banner."""
     banner_lines = BANNER.strip().split('\n')
@@ -356,6 +409,33 @@ def show_banner():
     console.print(Align.center(styled_banner))
     console.print(Align.center(Text(TAGLINE, style="italic bright_yellow")))
     console.print()
+
+
+def _open_block(
+    title: str,
+    lines: list[str],
+    *,
+    accent: str = "cyan",
+    subtitle: str | None = None,
+) -> Group:
+    """Render an open, single-side-emphasis block without a right border."""
+
+    header = Text()
+    header.append(title, style=f"bold {accent}")
+    if subtitle:
+        header.append(" ")
+        header.append(subtitle, style="bright_black")
+
+    renderables = [header]
+    for line in lines:
+        if not line:
+            renderables.append(Text(""))
+            continue
+        row = Text("▌ ", style=accent)
+        row.append_text(Text.from_markup(line))
+        renderables.append(row)
+
+    return Group(*renderables)
 
 @app.callback()
 def callback(ctx: typer.Context):
@@ -382,6 +462,168 @@ def run_command(cmd: list[str], check_return: bool = True, capture: bool = False
                 console.print(f"[red]Error output:[/red] {e.stderr}")
             raise
         return None
+
+
+def _project_root_from_source() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _quick_helper_script() -> tuple[list[str], Path]:
+    project_root = _project_root_from_source()
+    if os.name == "nt":
+        script_path = project_root / "scripts" / "powershell" / "quick-state.ps1"
+        if shutil.which("pwsh"):
+            return ["pwsh", "-NoProfile", "-File"], script_path
+        if shutil.which("powershell"):
+            return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"], script_path
+        console.print("[red]Error:[/red] Neither 'pwsh' nor 'powershell' is available")
+        raise typer.Exit(1)
+    script_path = project_root / "scripts" / "bash" / "quick-state.sh"
+    return ["bash"], script_path
+
+
+def _run_quick_helper(
+    mode: str,
+    quick_id: str = "",
+    status: str = "",
+    include_all: bool = False,
+) -> dict[str, Any]:
+    interpreter, script_path = _quick_helper_script()
+    if not script_path.exists():
+        console.print(f"[red]Error:[/red] Quick helper script not found: {script_path}")
+        raise typer.Exit(1)
+
+    cmd = [
+        *interpreter,
+        str(script_path),
+        str(Path.cwd()),
+        mode,
+        quick_id,
+        status,
+        "true" if include_all else "false",
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        error_output = (result.stderr or result.stdout or "").strip() or "quick helper failed"
+        console.print(f"[red]Error:[/red] {error_output}")
+        raise typer.Exit(1)
+
+    raw = (result.stdout or "").strip()
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        console.print(f"[red]Error:[/red] Failed to parse quick helper output: {exc}")
+        raise typer.Exit(1) from exc
+    if not isinstance(payload, dict):
+        console.print("[red]Error:[/red] Quick helper returned an invalid payload")
+        raise typer.Exit(1)
+    return payload
+
+
+def _render_quick_task_table(tasks: list[dict[str, Any]]) -> None:
+    table = Table(title="Quick Tasks")
+    table.add_column("ID", style="cyan")
+    table.add_column("Title")
+    table.add_column("Status", style="yellow")
+    table.add_column("Next Action")
+    for task in tasks:
+        table.add_row(
+            str(task.get("id", "")),
+            str(task.get("title", "")),
+            str(task.get("status", "")),
+            str(task.get("next_action", "")),
+        )
+    console.print(table)
+
+
+@quick_app.command("list")
+def quick_list(
+    all_tasks: bool = typer.Option(False, "--all", help="Include closed and archived quick tasks"),
+):
+    """List tracked quick tasks."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_quick_helper("list", include_all=all_tasks)
+    tasks = payload.get("tasks", [])
+    if not tasks:
+        console.print("No quick tasks found.")
+        return
+    _render_quick_task_table(tasks)
+
+
+@quick_app.command("status")
+def quick_status(
+    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+):
+    """Show STATUS.md-backed details for a quick task."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_quick_helper("status", quick_id=quick_id)
+    task = payload.get("task")
+    if not isinstance(task, dict):
+        console.print("[red]Error:[/red] Quick task not found")
+        raise typer.Exit(1)
+
+    details = _labeled_grid(
+        [
+            ("ID", str(task.get("id", ""))),
+            ("Title", str(task.get("title", ""))),
+            ("Status", str(task.get("status", ""))),
+            ("Current Focus", str(task.get("current_focus", ""))),
+            ("Next Action", str(task.get("next_action", ""))),
+            ("Workspace", str(task.get("workspace_path", ""))),
+        ]
+    )
+    console.print(_cli_panel(details, title="Quick Status", border_style="cyan"))
+
+
+@quick_app.command("resume")
+def quick_resume(
+    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+):
+    """Print the current next action for a quick task."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_quick_helper("status", quick_id=quick_id)
+    task = payload.get("task")
+    if not isinstance(task, dict):
+        console.print("[red]Error:[/red] Quick task not found")
+        raise typer.Exit(1)
+
+    console.print(f"Resume quick task {task.get('id')}: {task.get('next_action')}")
+    console.print(f"Workspace: {task.get('workspace_path')}")
+
+
+@quick_app.command("close")
+def quick_close(
+    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+    status: str = typer.Option(
+        ...,
+        "--status",
+        help="Terminal quick task status (resolved or blocked)",
+    ),
+):
+    """Mark a quick task as closed in STATUS.md."""
+    status_value = status.strip().lower()
+    if status_value not in {"resolved", "blocked"}:
+        console.print("[red]Error:[/red] --status must be 'resolved' or 'blocked'")
+        raise typer.Exit(1)
+
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_quick_helper("close", quick_id=quick_id, status=status_value)
+    task = payload.get("task", {})
+    console.print(f"Closed quick task {task.get('id')} with status {task.get('status')}.")
+
+
+@quick_app.command("archive")
+def quick_archive(
+    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+):
+    """Archive a closed quick task workspace."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_quick_helper("archive", quick_id=quick_id)
+    task = payload.get("task", {})
+    console.print(f"Archived quick task {task.get('id')} to {task.get('workspace_path')}.")
 
 def check_tool(tool: str, tracker: StepTracker = None) -> bool:
     """Check if a tool is installed. Optionally update tracker.
@@ -698,15 +940,22 @@ def _install_shared_infra(
     if templates_src.is_dir():
         dest_templates = project_path / ".specify" / "templates"
         dest_templates.mkdir(parents=True, exist_ok=True)
-        for f in templates_src.iterdir():
-            if f.is_file() and f.name != "vscode-settings.json" and not f.name.startswith("."):
-                dst = dest_templates / f.name
-                if dst.exists():
-                    skipped_files.append(str(dst.relative_to(project_path)))
-                else:
-                    shutil.copy2(f, dst)
-                    rel = dst.relative_to(project_path).as_posix()
-                    manifest.record_existing(rel)
+        for src_path in templates_src.rglob("*"):
+            if src_path.is_dir():
+                continue
+            if src_path.name == "vscode-settings.json" or src_path.name.startswith("."):
+                continue
+
+            rel_path = src_path.relative_to(templates_src)
+            dst = dest_templates / rel_path
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if dst.exists():
+                skipped_files.append(str(dst.relative_to(project_path)))
+                continue
+
+            shutil.copy2(src_path, dst)
+            rel = dst.relative_to(project_path).as_posix()
+            manifest.record_existing(rel)
 
     if skipped_files:
         import logging
@@ -772,7 +1021,7 @@ def _materialize_constitution_template(template_text: str, project_path: Path) -
     today = date.today().isoformat()
     replacements = {
         "[PROJECT_NAME]": project_path.resolve().name,
-        "[CONSTITUTION_VERSION]": "1.0.0",
+        "[CONSTITUTION_VERSION]": "1.1.0",
         "[RATIFICATION_DATE]": today,
         "[LAST_AMENDED_DATE]": today,
     }
@@ -861,7 +1110,12 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
     agent_config = AGENT_CONFIG.get(selected_ai, {})
     agent_folder = agent_config.get("folder", "")
     if agent_folder:
-        return project_path / agent_folder.rstrip("/") / "skills"
+        preferred = project_path / agent_folder.rstrip("/") / "skills"
+        if selected_ai == "codex":
+            legacy = project_path / ".agents" / "skills"
+            if not preferred.exists() and legacy.exists():
+                return legacy
+        return preferred
     return project_path / ".agents" / "skills"
 
 
@@ -869,14 +1123,18 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
-    "specify": "Create or update feature specifications from natural language descriptions.",
-    "plan": "Generate technical implementation plans from feature specifications.",
-    "tasks": "Break down implementation plans into actionable task lists.",
-    "implement": "Execute all tasks from the task breakdown to build the feature.",
+    "specify": "Create or update the feature specification from a natural language feature description with shared collaboration routing.",
+    "spec-extend": "Re-open the current specification, deepen weak analysis, and update spec artifacts through targeted enhancement.",
+    "explain": "Explain the current stage artifact in plain language with a structured terminal presentation and conservative cross-check routing.",
+    "fast": "Execute a trivial task directly and skip the full specify-plan workflow when the work is small, local, and low risk.",
+    "quick": "Execute a small ad-hoc task through a lightweight planning and validation path without entering the full specify-plan workflow.",
+    "plan": "Execute the implementation planning workflow using the plan template to generate design artifacts with shared collaboration routing.",
+    "tasks": "Break down implementation plans into actionable task lists with shared collaboration routing and join-point-aware decomposition.",
+    "implement": "Execute all tasks from the task breakdown with unified strategy routing (single-agent, native-multi-agent, sidecar-runtime).",
     "analyze": "Perform cross-artifact consistency analysis across spec.md, plan.md, and tasks.md.",
-    "clarify": "Re-open the spec to clarify, correct, or extend requirements and update alignment status.",
     "constitution": "Create or update project governing principles and development guidelines.",
     "checklist": "Generate custom quality checklists for validating requirements completeness and clarity.",
+    "map-codebase": "Generate or refresh the handbook navigation system from the live codebase, including PROJECT-HANDBOOK.md and .specify/project-map/.",
     "taskstoissues": "Convert tasks from tasks.md into GitHub issues.",
 }
 
@@ -1058,15 +1316,17 @@ def init(
     else:
         project_path = Path(project_name).resolve()
         if project_path.exists():
-            error_panel = Panel(
-                f"Directory '[cyan]{project_name}[/cyan]' already exists\n"
-                "Please choose a different project name or remove the existing directory.",
-                title="[red]Directory Conflict[/red]",
-                border_style="red",
-                padding=(1, 2)
-            )
             console.print()
-            console.print(error_panel)
+            console.print(_open_block(
+                "Directory conflict",
+                [
+                    f"Directory '[cyan]{project_name}[/cyan]' already exists",
+                    "Please choose a different project name or remove the existing directory.",
+                    "",
+                    "Next: choose a different project name or remove the existing directory.",
+                ],
+                accent="red",
+            ))
             raise typer.Exit(1)
 
     if ai_assistant:
@@ -1102,8 +1362,6 @@ def init(
     current_dir = Path.cwd()
 
     setup_lines = [
-        "[cyan]Specify Plus Project Setup[/cyan]",
-        "",
         f"{'Project':<15} [green]{project_path.name}[/green]",
         f"{'Working Path':<15} [dim]{current_dir}[/dim]",
     ]
@@ -1111,7 +1369,7 @@ def init(
     if not here:
         setup_lines.append(f"{'Target Path':<15} [dim]{project_path}[/dim]")
 
-    console.print(Panel("\n".join(setup_lines), border_style="cyan", padding=(1, 2)))
+    console.print(_open_block("Initialize Spec Kit Plus Project", setup_lines, accent="cyan"))
 
     should_init_git = False
     if not no_git:
@@ -1124,17 +1382,18 @@ def init(
         if agent_config and agent_config["requires_cli"]:
             install_url = agent_config["install_url"]
             if not check_tool(selected_ai):
-                error_panel = Panel(
-                    f"[cyan]{selected_ai}[/cyan] not found\n"
-                    f"Install from: [cyan]{install_url}[/cyan]\n"
-                    f"{agent_config['name']} is required to continue with this project type.\n\n"
-                    "Tip: Use [cyan]--ignore-agent-tools[/cyan] to skip this check",
-                    title="[red]Agent Detection Error[/red]",
-                    border_style="red",
-                    padding=(1, 2)
-                )
                 console.print()
-                console.print(error_panel)
+                console.print(_open_block(
+                    "Agent Detection Error",
+                    [
+                        f"[cyan]{selected_ai}[/cyan] not found",
+                        f"Install from: [cyan]{install_url}[/cyan]",
+                        f"{agent_config['name']} is required to continue with this project type.",
+                        "",
+                        "Tip: Use [cyan]--ignore-agent-tools[/cyan] to skip this check",
+                    ],
+                    accent="red",
+                ))
                 raise typer.Exit(1)
 
     if script_type:
@@ -1298,7 +1557,7 @@ def init(
             raise
         except Exception as e:
             tracker.error("final", str(e))
-            console.print(Panel(f"Initialization failed: {e}", title="Failure", border_style="red"))
+            console.print(_open_block("Failure", [f"Initialization failed: {e}"], accent="red"))
             if debug:
                 _env_pairs = [
                     ("Python", sys.version.split()[0]),
@@ -1307,7 +1566,7 @@ def init(
                 ]
                 _label_width = max(len(k) for k, _ in _env_pairs)
                 env_lines = [f"{k.ljust(_label_width)} → [bright_black]{v}[/bright_black]" for k, v in _env_pairs]
-                console.print(Panel("\n".join(env_lines), title="Debug Environment", border_style="magenta"))
+                console.print(_open_block("Debug Environment", env_lines, accent="magenta"))
             if not here and project_path.exists():
                 shutil.rmtree(project_path)
             raise typer.Exit(1)
@@ -1320,34 +1579,36 @@ def init(
     # Show git error details if initialization failed
     if git_error_message:
         console.print()
-        git_error_panel = Panel(
-            f"[yellow]Warning:[/yellow] Git repository initialization failed\n\n"
-            f"{git_error_message}\n\n"
-            f"[dim]You can initialize git manually later with:[/dim]\n"
-            f"[cyan]cd {project_path if not here else '.'}[/cyan]\n"
-            f"[cyan]git init[/cyan]\n"
-            f"[cyan]git add .[/cyan]\n"
-            f"[cyan]git commit -m \"Initial commit\"[/cyan]",
-            title="[red]Git Initialization Failed[/red]",
-            border_style="red",
-            padding=(1, 2)
-        )
-        console.print(git_error_panel)
+        console.print(_open_block(
+            "Git Initialization Failed",
+            [
+                "[yellow]Warning:[/yellow] Git repository initialization failed",
+                "",
+                git_error_message,
+                "",
+                "[dim]You can initialize git manually later with:[/dim]",
+                f"[cyan]cd {project_path if not here else '.'}[/cyan]",
+                "[cyan]git init[/cyan]",
+                "[cyan]git add .[/cyan]",
+                "[cyan]git commit -m \"Initial commit\"[/cyan]",
+            ],
+            accent="red",
+        ))
 
     # Agent folder security notice
     agent_config = AGENT_CONFIG.get(selected_ai)
     if agent_config:
         agent_folder = ai_commands_dir if selected_ai == "generic" else agent_config["folder"]
         if agent_folder:
-            security_notice = Panel(
-                f"Some agents may store credentials, auth tokens, or other identifying and private artifacts in the agent folder within your project.\n"
-                f"Consider adding [cyan]{agent_folder}[/cyan] (or parts of it) to [cyan].gitignore[/cyan] to prevent accidental credential leakage.",
-                title="[yellow]Agent Folder Security[/yellow]",
-                border_style="yellow",
-                padding=(1, 2)
-            )
             console.print()
-            console.print(security_notice)
+            console.print(_open_block(
+                "Security note",
+                [
+                    "Some agents may store credentials, auth tokens, or other identifying and private artifacts in the agent folder within your project.",
+                    f"Consider adding [cyan]{agent_folder}[/cyan] (or parts of it) to [cyan].gitignore[/cyan] to prevent accidental credential leakage.",
+                ],
+                accent="yellow",
+            ))
 
     steps_lines = []
     if not here:
@@ -1368,16 +1629,23 @@ def init(
     agy_skill_mode = selected_ai == "agy" and _is_skills_integration
     native_skill_mode = codex_skill_mode or claude_skill_mode or kimi_skill_mode or agy_skill_mode
 
-    if codex_skill_mode and not ai_skills:
-        # Integration path installed skills; show the helpful notice
-        steps_lines.append(f"{step_num}. Start Codex in this project directory; Spec Kit Plus skills were installed to [cyan].agents/skills[/cyan]")
-        step_num += 1
-        steps_lines.append(f"{step_num}. Use [cyan]specify team[/cyan] to inspect the Codex-only team/runtime surface")
-        step_num += 1
-        steps_lines.append(f"{step_num}. The Codex team skill is available as [cyan]$sp-team[/cyan]")
-        step_num += 1
-    if claude_skill_mode and not ai_skills:
-        steps_lines.append(f"{step_num}. Start Claude in this project directory; Spec Kit Plus skills were installed to [cyan].claude/skills[/cyan]")
+    if native_skill_mode and not ai_skills:
+        agent_start_labels = {
+            "codex": "Codex",
+            "claude": "Claude",
+            "kimi": "Kimi",
+            "agy": "Antigravity",
+        }
+        agent_label = agent_start_labels.get(
+            selected_ai,
+            resolved_integration.config.get("name", selected_ai).strip(),
+        )
+        skill_folder = resolved_integration.config.get("folder", "").rstrip("/")
+        skill_subdir = resolved_integration.config.get("commands_subdir", "skills").strip("/")
+        skills_path = f"{skill_folder}/{skill_subdir}" if skill_folder else skill_subdir
+        steps_lines.append(
+            f"{step_num}. Start {agent_label} in this project directory; Spec Kit Plus skills were installed to [cyan]{skills_path}[/cyan]"
+        )
         step_num += 1
     usage_label = "skills" if native_skill_mode else "slash commands"
 
@@ -1391,34 +1659,51 @@ def init(
         return f"/sp.{name}"
 
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
-
+    steps_lines.append("   ")
+    steps_lines.append("   Core workflow skills")
     steps_lines.append(f"   {step_num}.1 [cyan]{_display_cmd('constitution')}[/] - Establish project principles")
-    steps_lines.append(f"   {step_num}.2 [cyan]{_display_cmd('specify')}[/] - Create baseline specification")
-    steps_lines.append(f"   {step_num}.3 [cyan]{_display_cmd('plan')}[/] - Create implementation plan")
+    steps_lines.append(f"   {step_num}.2 [cyan]{_display_cmd('specify')}[/] - Create the aligned requirement package")
+    steps_lines.append(f"   {step_num}.3 [cyan]{_display_cmd('plan')}[/] - Generate the implementation design artifacts")
     steps_lines.append(f"   {step_num}.4 [cyan]{_display_cmd('tasks')}[/] - Generate actionable tasks")
     steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
+    steps_lines.append("   ")
+    steps_lines.append("   Support skills")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-codebase')}[/] - Generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` for existing code before specification or planning")
+    steps_lines.append(f"   - [cyan]{_display_cmd('spec-extend')}[/] - Deepen an existing spec before planning when analysis or references still need work")
+    steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
+    steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/]")
+    steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, or implement state in plain language")
+    if codex_skill_mode:
+        steps_lines.append("   ")
+        steps_lines.append("   Codex-only runtime")
+        steps_lines.append("   - [cyan]specify team[/] - Inspect the official Codex team/runtime surface and environment status")
+        steps_lines.append("   - [cyan]$sp-team[/] - Reach the same Codex-only runtime surface from the skills layer")
 
-    steps_panel = Panel("\n".join(steps_lines), title="Plus Next Steps", border_style="cyan", padding=(1,2))
     console.print()
-    console.print(steps_panel)
+    console.print(_open_block("Start Here", steps_lines, accent="cyan"))
 
     enhancement_intro = (
         "Optional skills that you can use for your specs [bright_black](improve quality & confidence)[/bright_black]"
         if native_skill_mode
         else "Optional commands that you can use for your specs [bright_black](improve quality & confidence)[/bright_black]"
     )
-    enhancement_lines = [
-        enhancement_intro,
-        "",
-        f"○ [cyan]{'specify team' if codex_skill_mode else _display_cmd('team')}[/] [bright_black](codex-only)[/bright_black] - Inspect the official Codex team/runtime surface and environment status",
-        f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Ask structured questions to de-risk ambiguous areas before planning (run before [cyan]{_display_cmd('plan')}[/] if used)",
-        f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
-        f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
-    ]
-    enhancements_title = "Plus Enhancement Skills" if native_skill_mode else "Plus Enhancement Commands"
-    enhancements_panel = Panel("\n".join(enhancement_lines), title=enhancements_title, border_style="cyan", padding=(1,2))
+    enhancement_lines = [enhancement_intro, ""]
+    if codex_skill_mode:
+        enhancement_lines.append(
+            "○ [cyan]specify team[/] [bright_black](codex-only)[/bright_black] - Inspect the official Codex team/runtime surface and environment status"
+        )
+    enhancement_lines.extend(
+        [
+            f"○ [cyan]{_display_cmd('map-codebase')}[/] [bright_black](optional)[/bright_black] - Generate or refresh the handbook/project-map navigation system for existing code before specification, planning, or implementation resumes",
+            f"○ [cyan]{_display_cmd('spec-extend')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
+            f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
+            f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, or task artifact in plain language before moving forward",
+            f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
+        ]
+    )
+    enhancements_title = "Optional support skills" if native_skill_mode else "Optional support commands"
     console.print()
-    console.print(enhancements_panel)
+    console.print(_open_block(enhancements_title, enhancement_lines, accent="cyan"))
 
 
 def _require_codex_team_project(project_root: Path) -> str:
@@ -1587,9 +1872,75 @@ def team_cleanup(
     console.print(f"Cleaned session [cyan]{session.session_id}[/cyan].")
 
 
+@team_app.command("notify-hook", hidden=True)
+def team_notify_hook(
+    payload_json: str = typer.Argument(..., help="JSON payload from Codex CLI"),
+):
+    """Internal hook for Codex turn notifications."""
+    try:
+        payload = json.loads(payload_json)
+    except json.JSONDecodeError:
+        # Silently ignore invalid JSON
+        return
+
+    from .codex_team.auto_dispatch import run_notify_hook
+    run_notify_hook(payload)
+
+
+@team_app.command("auto-dispatch")
+def team_auto_dispatch(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory that contains tasks.md"),
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+    try:
+        result = route_ready_parallel_batch(
+            project_root,
+            feature_dir=(project_root / feature_dir).resolve(),
+            session_id=session_id,
+        )
+    except AutoDispatchUnavailableError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    except AutoDispatchError as exc:
+        console.print(f"[yellow]No auto-dispatch:[/yellow] {exc}")
+        raise typer.Exit(1) from exc
+
+    console.print(
+        f"Auto-dispatched [cyan]{result.batch_name}[/cyan] from [cyan]{result.feature_dir}[/cyan]: "
+        f"{', '.join(result.dispatched_task_ids)}"
+    )
+
+
+@team_app.command("complete-batch")
+def team_complete_batch(
+    batch_id: str = typer.Option(..., "--batch-id", help="Dispatched batch identifier"),
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+    try:
+        result = complete_dispatched_batch(
+            project_root,
+            batch_id=batch_id,
+            session_id=session_id,
+        )
+    except AutoDispatchError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    console.print(
+        f"Completed batch [cyan]{result.batch_name}[/cyan] ({result.batch_id}) with status "
+        f"[green]{result.status}[/green]."
+    )
+
+
 @team_app.command("api")
 def team_api(
-    operation: str = typer.Argument(..., help="API operation (status|tasks)"),
+    operation: str = typer.Argument(..., help="API operation (status|tasks|auto-dispatch|complete-batch)"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for auto-dispatch"),
+    batch_id: str | None = typer.Option(None, "--batch-id", help="Batch identifier for completion"),
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
     project_root = Path.cwd()
@@ -1600,6 +1951,49 @@ def team_api(
     elif operation == "tasks":
         records = task_ops.list_tasks(project_root)
         envelope["payload"] = {"tasks": [asdict(record) for record in records]}
+    elif operation == "auto-dispatch":
+        if not feature_dir:
+            console.print("[red]Error:[/red] --feature-dir is required for auto-dispatch.")
+            raise typer.Exit(1)
+        try:
+            result = route_ready_parallel_batch(
+                project_root,
+                feature_dir=(project_root / feature_dir).resolve(),
+                session_id=session_id,
+            )
+        except AutoDispatchError as exc:
+            envelope["status"] = "error"
+            envelope["payload"] = {"message": str(exc)}
+        else:
+            envelope["payload"] = {
+                "feature_dir": str(result.feature_dir),
+                "batch_id": result.batch_id,
+                "batch_name": result.batch_name,
+                "join_point_name": result.join_point_name,
+                "dispatched_task_ids": result.dispatched_task_ids,
+                "request_ids": result.request_ids,
+            }
+    elif operation == "complete-batch":
+        if not batch_id:
+            console.print("[red]Error:[/red] --batch-id is required for complete-batch.")
+            raise typer.Exit(1)
+        try:
+            result = complete_dispatched_batch(
+                project_root,
+                batch_id=batch_id,
+                session_id=session_id,
+            )
+        except AutoDispatchError as exc:
+            envelope["status"] = "error"
+            envelope["payload"] = {"message": str(exc)}
+        else:
+            envelope["payload"] = {
+                "batch_id": result.batch_id,
+                "batch_name": result.batch_name,
+                "status": result.status,
+                "join_point_name": result.join_point_name,
+                "task_ids": result.task_ids,
+            }
     else:
         console.print(f"[red]Error:[/red] Unknown API operation '{operation}'.")
         raise typer.Exit(1)
@@ -1756,6 +2150,13 @@ integration_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(integration_app, name="integration")
+
+# ===== Debug Commands =====
+
+from .debug.cli import debug_app
+app.add_typer(debug_app, name="debug")
+# Register sp-debug as an alias per TOL-03
+app.add_typer(debug_app, name="sp-debug")
 
 
 INTEGRATION_JSON = ".specify/integration.json"

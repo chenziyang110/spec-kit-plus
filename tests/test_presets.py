@@ -1645,6 +1645,7 @@ SELF_TEST_PRESET_DIR = Path(__file__).parent.parent / "presets" / "self-test"
 
 CORE_TEMPLATE_NAMES = [
     "spec-template",
+    "context-template",
     "plan-template",
     "tasks-template",
     "checklist-template",
@@ -1668,7 +1669,7 @@ class TestSelfTestPreset:
         assert manifest.id == "self-test"
         assert manifest.name == "Self-Test Preset"
         assert manifest.version == "1.0.0"
-        assert len(manifest.templates) == 8  # 7 templates + 1 command
+        assert len(manifest.templates) == 9  # 8 templates + 1 command
 
     def test_self_test_provides_all_core_templates(self):
         """Verify the self-test preset provides an override for every core template."""

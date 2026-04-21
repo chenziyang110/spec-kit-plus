@@ -94,18 +94,20 @@ if $PATHS_ONLY; then
                 --arg branch "$CURRENT_BRANCH" \
                 --arg feature_dir "$FEATURE_DIR" \
                 --arg feature_spec "$FEATURE_SPEC" \
+                --arg context "$CONTEXT" \
                 --arg impl_plan "$IMPL_PLAN" \
                 --arg tasks "$TASKS" \
-                '{REPO_ROOT:$repo_root,BRANCH:$branch,FEATURE_DIR:$feature_dir,FEATURE_SPEC:$feature_spec,IMPL_PLAN:$impl_plan,TASKS:$tasks}'
+                '{REPO_ROOT:$repo_root,BRANCH:$branch,FEATURE_DIR:$feature_dir,FEATURE_SPEC:$feature_spec,CONTEXT:$context,IMPL_PLAN:$impl_plan,TASKS:$tasks}'
         else
-            printf '{"REPO_ROOT":"%s","BRANCH":"%s","FEATURE_DIR":"%s","FEATURE_SPEC":"%s","IMPL_PLAN":"%s","TASKS":"%s"}\n' \
-                "$(json_escape "$REPO_ROOT")" "$(json_escape "$CURRENT_BRANCH")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$FEATURE_SPEC")" "$(json_escape "$IMPL_PLAN")" "$(json_escape "$TASKS")"
+            printf '{"REPO_ROOT":"%s","BRANCH":"%s","FEATURE_DIR":"%s","FEATURE_SPEC":"%s","CONTEXT":"%s","IMPL_PLAN":"%s","TASKS":"%s"}\n' \
+                "$(json_escape "$REPO_ROOT")" "$(json_escape "$CURRENT_BRANCH")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$FEATURE_SPEC")" "$(json_escape "$CONTEXT")" "$(json_escape "$IMPL_PLAN")" "$(json_escape "$TASKS")"
         fi
     else
         echo "REPO_ROOT: $REPO_ROOT"
         echo "BRANCH: $CURRENT_BRANCH"
         echo "FEATURE_DIR: $FEATURE_DIR"
         echo "FEATURE_SPEC: $FEATURE_SPEC"
+        echo "CONTEXT: $CONTEXT"
         echo "IMPL_PLAN: $IMPL_PLAN"
         echo "TASKS: $TASKS"
     fi
@@ -136,6 +138,7 @@ fi
 docs=()
 
 # Always check these optional docs
+[[ -f "$CONTEXT" ]] && docs+=("context.md")
 [[ -f "$RESEARCH" ]] && docs+=("research.md")
 [[ -f "$DATA_MODEL" ]] && docs+=("data-model.md")
 
@@ -179,6 +182,7 @@ else
     echo "AVAILABLE_DOCS:"
     
     # Show status of each potential document
+    check_file "$CONTEXT" "context.md"
     check_file "$RESEARCH" "research.md"
     check_file "$DATA_MODEL" "data-model.md"
     check_dir "$CONTRACTS_DIR" "contracts/"

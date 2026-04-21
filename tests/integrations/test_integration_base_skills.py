@@ -99,7 +99,7 @@ class SkillsIntegrationTests:
         created = i.setup(tmp_path, m)
         skill_files = [f for f in created if "scripts" not in f.parts]
 
-        expected_commands = set(self._SKILL_COMMANDS)
+        expected_commands = set(self._skill_commands())
 
         # Derive command names from the skill directory names
         actual_commands = set()
@@ -294,10 +294,21 @@ class SkillsIntegrationTests:
 
     # -- Complete file inventory ------------------------------------------
 
-    _SKILL_COMMANDS = [
-        "analyze", "checklist", "clarify", "constitution",
-        "implement", "plan", "specify", "tasks", "taskstoissues",
-    ]
+    def _skill_commands(self) -> list[str]:
+        i = get_integration(self.KEY)
+        return [template.stem for template in i.list_command_templates()]
+
+    def _template_files(self) -> list[str]:
+        i = get_integration(self.KEY)
+        templates_dir = i.shared_templates_dir()
+        if not templates_dir or not templates_dir.is_dir():
+            return []
+
+        return sorted(
+            path.relative_to(templates_dir).as_posix()
+            for path in templates_dir.rglob("*")
+            if path.is_file() and path.name != "vscode-settings.json"
+        )
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the full expected file list for a given script variant."""
@@ -306,7 +317,7 @@ class SkillsIntegrationTests:
 
         files = []
         # Skill files
-        for cmd in self._SKILL_COMMANDS:
+        for cmd in self._skill_commands():
             files.append(f"{skills_prefix}/sp-{cmd}/SKILL.md")
         # Integration metadata
         files += [
@@ -324,6 +335,7 @@ class SkillsIntegrationTests:
                 ".specify/scripts/bash/check-prerequisites.sh",
                 ".specify/scripts/bash/common.sh",
                 ".specify/scripts/bash/create-new-feature.sh",
+                ".specify/scripts/bash/quick-state.sh",
                 ".specify/scripts/bash/setup-plan.sh",
                 ".specify/scripts/bash/update-agent-context.sh",
             ]
@@ -332,19 +344,12 @@ class SkillsIntegrationTests:
                 ".specify/scripts/powershell/check-prerequisites.ps1",
                 ".specify/scripts/powershell/common.ps1",
                 ".specify/scripts/powershell/create-new-feature.ps1",
+                ".specify/scripts/powershell/quick-state.ps1",
                 ".specify/scripts/powershell/setup-plan.ps1",
                 ".specify/scripts/powershell/update-agent-context.ps1",
             ]
         # Templates
-        files += [
-            ".specify/templates/agent-file-template.md",
-            ".specify/templates/alignment-template.md",
-            ".specify/templates/checklist-template.md",
-            ".specify/templates/constitution-template.md",
-            ".specify/templates/plan-template.md",
-            ".specify/templates/spec-template.md",
-            ".specify/templates/tasks-template.md",
-        ]
+        files += [f".specify/templates/{name}" for name in self._template_files()]
         return sorted(files)
 
     def test_complete_file_inventory_sh(self, tmp_path):

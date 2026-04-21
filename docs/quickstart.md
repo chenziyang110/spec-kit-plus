@@ -5,7 +5,7 @@ This guide will help you get started with Spec-Driven Development using Spec Kit
 > [!NOTE]
 > All automation scripts now provide both Bash (`.sh`) and PowerShell (`.ps1`) variants. The `specify` CLI auto-selects based on OS unless you pass `--script sh|ps`.
 
-## The 6-Step Process
+## The 5-Step Process
 
 > [!TIP]
 > **Context Awareness**: Spec Kit commands automatically detect the active feature based on your current Git branch (e.g., `001-feature-name`). To switch between different specifications, simply switch Git branches.
@@ -45,23 +45,17 @@ uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME
 /speckit.specify Build an application that can help me organize my photos in separate photo albums. Albums are grouped by date and can be re-organized by dragging and dropping on the main page. Albums are never in other nested albums. Within each album, photos are previewed in a tile-like interface.
 ```
 
-### Step 4: Refine the Spec
+### Step 4: Plan the Implementation
 
-**In the chat**, use the `/speckit.clarify` slash command to identify and resolve ambiguities in your specification. You can provide specific focus areas as arguments.
+**In the chat**, move directly from `/speckit.specify` to `/speckit.plan` once the spec is planning-ready. This is the mainline workflow:
 
 ```bash
-/speckit.clarify Focus on security and performance requirements.
-```
-
-### Step 5: Create a Technical Implementation Plan
-
-**In the chat**, use the `/speckit.plan` slash command to provide your tech stack and architecture choices.
-
-```markdown
 /speckit.plan The application uses Vite with minimal number of libraries. Use vanilla HTML, CSS, and JavaScript as much as possible. Images are not uploaded anywhere and metadata is stored in a local SQLite database.
 ```
 
-### Step 6: Break Down and Implement
+Use `/speckit.spec-extend` only when an existing spec needs deeper analysis before planning.
+
+### Step 5: Break Down and Implement
 
 **In the chat**, use the `/speckit.tasks` slash command to create an actionable task list.
 
@@ -83,6 +77,40 @@ Then, use the `/speckit.implement` slash command to execute the plan.
 
 > [!TIP]
 > **Phased Implementation**: For complex projects, implement in phases to avoid overwhelming the agent's context. Start with core functionality, validate it works, then add features incrementally.
+
+## Skill Map
+
+After initialization, treat the generated commands as three groups:
+
+- **Core workflow skills**: `/speckit.constitution`, `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`
+- **Support skills**: `/speckit.map-codebase`, `/speckit.spec-extend`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.explain`
+- **Codex-only runtime**: `specify team` and `sp-team` when the project was initialized for Codex
+
+Generated project navigation now follows the handbook system:
+
+- Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
+- Deep project knowledge lives under `.specify/project-map/`.
+- Any code change that alters navigation meaning must update the handbook system.
+
+Use support skills when they solve a specific gap:
+
+- `/speckit.map-codebase` when you are working in an existing codebase and need to generate or refresh the handbook/project-map navigation system before deeper workflow steps
+- `/speckit.spec-extend` when an existing spec still needs deeper analysis before planning
+- `/speckit.checklist` when you want to audit requirement quality after planning
+- `/speckit.analyze` when you want a cross-artifact consistency check before implementation
+- `/speckit.explain` when you want the current spec, plan, or tasks state restated in plain language
+
+If you're starting from an existing codebase, run `/speckit.map-codebase` first so the brownfield navigation artifacts are fresh before requirement, planning, or implementation work continues.
+
+Use the lightweight routing rules consistently:
+
+- `/speckit.fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
+- Upgrade to `/speckit.quick` when the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
+- `/speckit.quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
+- Quick workspaces live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the source of truth and `.planning/quick/index.json` as a derived management index.
+- Invoking `/speckit.quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
+- Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage quick tasks. `specify quick list` defaults to unfinished quick tasks.
+- Upgrade to `/speckit.specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 ## Detailed Example: Building Taskify
 
@@ -108,18 +136,18 @@ different sample projects. Let's have the standard Kanban columns for the status
 first testing thing to ensure that our basic features are set up.
 ```
 
-### Step 3: Refine the Specification
+### Step 3: Define the Plan
 
-Use the `/speckit.clarify` command to interactively resolve any ambiguities in your specification. You can also provide specific details you want to ensure are included.
+Once `/speckit.specify` reaches planning-ready alignment, move directly to `/speckit.plan`.
 
 ```bash
-/speckit.clarify I want to clarify the task card details. For each task in the UI for a task card, you should be able to change the current status of the task between the different columns in the Kanban work board. You should be able to leave an unlimited number of comments for a particular card. You should be able to, from that task card, assign one of the valid users.
+/speckit.plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
 ```
 
-You can continue to refine the spec with more details using `/speckit.clarify`:
+If an existing spec needs deeper analysis first, use `/speckit.spec-extend`.
 
 ```bash
-/speckit.clarify When you first launch Taskify, it's going to give you a list of the five users to pick from. There will be no password required. When you click on a user, you go into the main view, which displays the list of projects. When you click on a project, you open the Kanban board for that project. You're going to see the columns. You'll be able to drag and drop cards back and forth between different columns. You will see any cards that are assigned to you, the currently logged in user, in a different color from all the other ones, so you can quickly see yours. You can edit any comments that you make, but you can't edit comments that other people made. You can delete any comments that you made, but you can't delete comments anybody else made.
+/speckit.spec-extend Add sharper reporting requirements and cross-team notification expectations before planning.
 ```
 
 ### Step 4: Validate the Spec
@@ -130,15 +158,7 @@ Validate the specification checklist using the `/speckit.checklist` command:
 /speckit.checklist
 ```
 
-### Step 5: Generate Technical Plan with `/speckit.plan`
-
-Be specific about your tech stack and technical requirements:
-
-```bash
-/speckit.plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
-```
-
-### Step 6: Define Tasks
+### Step 5: Define Tasks
 
 Generate an actionable task list using the `/speckit.tasks` command:
 
@@ -146,7 +166,7 @@ Generate an actionable task list using the `/speckit.tasks` command:
 /speckit.tasks
 ```
 
-### Step 7: Validate and Implement
+### Step 6: Validate and Implement
 
 Have your AI agent audit the implementation plan using `/speckit.analyze`:
 
@@ -167,7 +187,8 @@ Finally, implement the solution:
 
 - **Be explicit** about what you're building and why
 - **Don't focus on tech stack** during specification phase
-- **Iterate and refine** your specifications before implementation
+- **Use `specify -> plan` as the default path**
+- **Use `spec-extend` only when an existing spec needs deeper analysis before planning**
 - **Validate** the plan before coding begins
 - **Let the AI agent handle** the implementation details
 

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from specify_cli.orchestration.state_store import orchestration_root
+
 
 def codex_team_state_root(project_root: Path) -> Path:
     """Return the root directory for Codex team runtime state."""
-    return project_root / ".specify" / "codex-team" / "state"
+    return orchestration_root(project_root).parent / "codex-team" / "state"
 
 
 def runtime_session_path(project_root: Path, session_id: str) -> Path:
@@ -18,6 +20,11 @@ def runtime_session_path(project_root: Path, session_id: str) -> Path:
 def dispatch_record_path(project_root: Path, request_id: str) -> Path:
     """Return the persisted dispatch record path."""
     return codex_team_state_root(project_root) / "dispatch" / f"{request_id}.json"
+
+
+def batch_record_path(project_root: Path, batch_id: str) -> Path:
+    """Return the persisted batch record path."""
+    return codex_team_state_root(project_root) / "batches" / f"{batch_id}.json"
 
 
 def task_record_path(project_root: Path, task_id: str) -> Path:

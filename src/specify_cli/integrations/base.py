@@ -590,42 +590,35 @@ class TomlIntegration(IntegrationBase):
     def _render_toml_string(value: str) -> str:
         """Render *value* as a TOML string literal.
 
-        Uses a basic string for single-line values, multiline basic
-        strings for values containing newlines, and falls back to a
-        literal string or escaped basic string when delimiters appear in
-        the content.
+        Uses a basic string for single-line values. Multiline values are
+        emitted as multiline basic strings with explicit escaping and
+        leading/trailing line trimming so the parsed value matches the
+        original exactly while keeping the closing delimiter on its own
+        line for parser compatibility.
         """
         if "\n" not in value and "\r" not in value:
-            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            escaped = (
+                value.replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
+            )
             return f'"{escaped}"'
 
-        escaped = value.replace("\\", "\\\\")
-        if '"""' not in escaped:
-            return '"""\n' + escaped + '"""'
-        if "'''" not in value:
-            return "'''\n" + value + "'''"
-
-        return '"' + (
+        escaped = (
             value.replace("\\", "\\\\")
             .replace('"', '\\"')
-            .replace("\n", "\\n")
             .replace("\r", "\\r")
             .replace("\t", "\\t")
-        ) + '"'
+        )
+        return '"""\\\n' + escaped + '\\\n"""'
 
     @staticmethod
     def _render_toml(description: str, body: str) -> str:
         """Render a TOML command file from description and body.
 
-        Uses multiline basic strings (``\"\"\"``) with backslashes
-        escaped, matching the output of the release script.  Falls back
-        to multiline literal strings (``'''``) if the body contains
-        ``\"\"\"``, then to an escaped basic string as a last resort.
-
         The body is ``rstrip("\\n")``'d before rendering, so the TOML
-        value preserves content without forcing a trailing newline. As a
-        result, multiline delimiters appear on their own line only when
-        the rendered value itself ends with a newline.
+        value preserves content without forcing a trailing newline.
         """
         toml_lines: list[str] = []
 

@@ -1,6 +1,8 @@
 from pathlib import Path
 
+from specify_cli.orchestration.state_store import orchestration_root
 from specify_cli.codex_team.state_paths import (
+    batch_record_path,
     codex_team_state_root,
     dispatch_record_path,
     event_log_path,
@@ -18,6 +20,21 @@ def test_codex_team_state_root_is_under_specify_state(codex_team_project_root: P
     root = codex_team_state_root(codex_team_project_root)
 
     assert root == codex_team_project_root / ".specify" / "codex-team" / "state"
+    assert root.parent.parent == orchestration_root(codex_team_project_root).parent
+
+
+def test_codex_team_state_root_delegates_specify_namespace(monkeypatch, codex_team_project_root: Path):
+    delegated_orchestration_root = codex_team_project_root / ".specify" / "delegated" / "orchestration"
+
+    monkeypatch.setattr(
+        "specify_cli.codex_team.state_paths.orchestration_root",
+        lambda _: delegated_orchestration_root,
+        raising=False,
+    )
+
+    root = codex_team_state_root(codex_team_project_root)
+
+    assert root == delegated_orchestration_root.parent / "codex-team" / "state"
 
 
 def test_runtime_session_path_uses_session_prefix(codex_team_project_root: Path):
@@ -30,6 +47,7 @@ def test_canonical_runtime_paths_are_under_state_root(codex_team_project_root: P
     root = codex_team_state_root(codex_team_project_root)
 
     assert task_record_path(codex_team_project_root, "task-123") == root / "tasks" / "task-123.json"
+    assert batch_record_path(codex_team_project_root, "batch-1") == root / "batches" / "batch-1.json"
     assert worker_identity_path(codex_team_project_root, "worker-a") == root / "workers" / "identity" / "worker-a.json"
     assert worker_heartbeat_path(codex_team_project_root, "worker-a") == root / "workers" / "heartbeat" / "worker-a.json"
     assert mailbox_path(codex_team_project_root, "worker-a") == root / "mailboxes" / "worker-a.json"

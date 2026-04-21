@@ -13,6 +13,8 @@ dependencies = [
     "packaging>=23.0",
     "pathspec>=0.12.0",
     "json5>=0.13.0",
+    "pydantic-ai",
+    "pydantic-graph",
 ]
 
 [project.scripts]
@@ -33,6 +35,8 @@ packages = ["src/specify_cli"]
 "templates/checklist-template.md" = "specify_cli/core_pack/templates/checklist-template.md"
 "templates/constitution-template.md" = "specify_cli/core_pack/templates/constitution-template.md"
 "templates/plan-template.md" = "specify_cli/core_pack/templates/plan-template.md"
+"templates/research-template.md" = "specify_cli/core_pack/templates/research-template.md"
+"templates/references-template.md" = "specify_cli/core_pack/templates/references-template.md"
 "templates/spec-template.md" = "specify_cli/core_pack/templates/spec-template.md"
 "templates/tasks-template.md" = "specify_cli/core_pack/templates/tasks-template.md"
 "templates/vscode-settings.json" = "specify_cli/core_pack/templates/vscode-settings.json"
@@ -44,6 +48,7 @@ packages = ["src/specify_cli"]
 [project.optional-dependencies]
 test = [
     "pytest>=7.0",
+    "pytest-asyncio>=0.23",
     "pytest-cov>=4.0",
 ]
 

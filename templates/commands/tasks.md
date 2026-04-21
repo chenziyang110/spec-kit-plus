@@ -60,66 +60,51 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
-2. **Generate or refresh the repository map-codebase artifact**:
-   - Always analyze the current repository state and write the result to
-     `map-codebase.md` at the repository root before continuing, even if an
-     older `map-codebase.md` already exists.
-   - Treat this document as the repository's **map-codebase** artifact: it
-     must support downstream planning and implementation without silently
-     missing affected areas, not merely provide a generic architecture summary.
-   - During analysis, follow this internal workflow in order:
-     1. **Macro scan & architecture identification**: inspect the repository
-        root plus key config/build files (for example `package.json`,
-        `pyproject.toml`, `pom.xml`, `build.gradle`, `go.mod`,
-        `docker-compose.yml`, CI files) to determine project type, tech stack,
-        build tools, runtime boundaries, deployment shape, and top-level
-        architecture.
-     2. **Directory structure deep analysis**: traverse major directories and
-        summarize their organization logic (by layer, feature, module, package,
-        app, service, etc.), responsibilities, and representative files.
-     3. **Dependency & module analysis**: inspect import/require relationships,
-        module boundaries, and integration seams; identify core modules,
-        support modules, strong coupling points, and any visible circular
-        dependencies or central chokepoints.
-     4. **Core code element review**: identify the most important classes,
-        interfaces, abstract types, enums, functions, controllers, services,
-        jobs, commands, and other architecture-bearing elements; summarize
-        their responsibilities from actual code.
-     5. **Data flow & interface review**: trace one or two core runtime flows
-        from entry to exit, including state transitions, persistence, external
-        integrations, background jobs, and error paths when visible. If the
-        project exposes APIs, RPC handlers, CLI entrypoints, event consumers,
-        or scheduled jobs, enumerate the important ones and summarize their
-        input/output shape.
-     6. **Patterns & conventions extraction**: summarize recurring design
-        patterns, naming conventions, directory habits, configuration
-        practices, and shared utility locations actually used in the codebase.
-   - Evidence rules:
-     - Every conclusion must be grounded in files that actually exist in the
-       repository. Do not invent architecture, modules, flows, or APIs.
-     - If something cannot be confirmed from the codebase, say `未确认` or
-       `未发现`, not a guess.
-     - Prefer concise tables and Mermaid diagrams over vague narrative when
-       describing structure, dependencies, or runtime flows.
-   - The generated document must use Markdown and include **at least** the
-     following `##` sections:
-     `项目架构概览`, `系统边界与外部依赖`, `目录结构及其职责`,
-     `关键模块依赖关系图`, `核心类与接口功能说明`, `核心数据流向图`,
-     `API接口清单`, `核心能力映射`, `变更影响与验证入口`,
-     `常见的代码模式与约定`.
+2. **Ensure repository navigation system exists**:
+   - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
+   - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+   - If task-relevant coverage is insufficient for the current task-generation request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 
 3. **Load design documents**: Read from FEATURE_DIR:
-   - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities)
+   - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
+   - **Required when present**: alignment.md (locked decisions, outstanding questions, planning gate context)
+   - **Optional**: references.md (retained sources, reusable insights, spec impact mapping)
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
-   - **Required**: `map-codebase.md` (current repository architecture, conventions, capabilities, and change-impact map)
+   - **Required when present**: `.specify/memory/constitution.md` (project constitution and mandatory principles that tasks must preserve)
+   - **Required**: Read `PROJECT-HANDBOOK.md`
+   - **Required**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`
+   - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 4. **Execute task generation workflow**:
+   - Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="tasks", snapshot, workload_shape)`
+   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Decision order is fixed:
+     - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
+     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
+     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
+     - Else -> `single-agent` (`fallback`)
+   - If collaboration is justified, keep `tasks` lanes limited to:
+     - story and phase decomposition
+     - dependency graph analysis
+     - write-set and parallel-safety analysis
+   - Required join points:
+     - before writing `tasks.md`
+     - before emitting canonical parallel batches and join points
+   - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in the generated report and implementation strategy section.
+   - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
    - Load plan.md and extract tech stack, libraries, project structure
-   - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.)
+   - Extract `Locked Planning Decisions`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
+   - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
+   - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
+   - If `.specify/memory/constitution.md` exists: treat its MUST/SHOULD principles as task-shaping constraints and preserve them explicitly in execution ordering, validation tasks, or phase notes instead of assuming downstream agents will rediscover them
+   - If references.md exists: use it to preserve source-driven constraints and reusable examples while generating tasks
    - If data-model.md exists: Extract entities and map to user stories
    - If contracts/ exists: Map interface contracts to user stories
    - If research.md exists: Extract decisions for setup tasks
+   - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
    - Generate tasks organized by user story (see Task Generation Rules below)
    - Generate dependency graph showing user story completion order
    - Derive a write set for each task (files or shared registration surfaces it will modify)
@@ -127,6 +112,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
    - Create parallel execution examples per user story
    - Validate task completeness (each user story has all needed tasks, independently testable)
+   - Validate decision preservation: if a locked planning decision affects implementation, compatibility, rollout, validation, or sequencing, at least one task or phase note must preserve it explicitly instead of silently dropping it
 
 5. **Generate tasks.md**: Use `templates/tasks-template.md` as structure, fill with:
    - Correct feature name from plan.md
@@ -140,6 +126,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Dependencies section showing story completion order
    - Parallel batches and join points for each phase where they matter
    - Parallel execution examples per story
+   - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution
    - Implementation strategy section (phased delivery, priority-ordered delivery, capability-aware parallel execution)
 
 6. **Report**: Output path to generated tasks.md and summary:

@@ -30,16 +30,16 @@ class TestAgentConfigConsistency:
         assert "q" not in cfg
 
     def test_extension_registrar_includes_codex(self):
-        """Extension command registrar should include codex targeting .agents/skills."""
+        """Extension command registrar should include codex targeting .codex/skills."""
         cfg = CommandRegistrar.AGENT_CONFIGS
 
         assert "codex" in cfg
-        assert cfg["codex"]["dir"] == ".agents/skills"
+        assert cfg["codex"]["dir"] == ".codex/skills"
         assert cfg["codex"]["extension"] == "/SKILL.md"
 
     def test_runtime_codex_uses_native_skills(self):
-        """Codex runtime config should point at .agents/skills."""
-        assert AGENT_CONFIG["codex"]["folder"] == ".agents/"
+        """Codex runtime config should point at .codex/skills."""
+        assert AGENT_CONFIG["codex"]["folder"] == ".codex/"
         assert AGENT_CONFIG["codex"]["commands_subdir"] == "skills"
 
     def test_codex_includes_team_template_but_claude_does_not(self):

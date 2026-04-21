@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 import json
 from typing import Any
+
+from specify_cli.orchestration.models import utc_now
 
 from .payload_utils import filter_payload
 from .schema import SCHEMA_VERSION
@@ -21,7 +22,7 @@ class TeamConfig:
 
     def __post_init__(self) -> None:
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = utc_now()
 
 
 @dataclass(slots=True)
@@ -37,7 +38,7 @@ class TaskRecord:
     metadata: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
-        now = datetime.now(timezone.utc).isoformat()
+        now = utc_now()
         if not self.created_at:
             self.created_at = now
         if not self.updated_at:
@@ -57,7 +58,7 @@ class TaskClaim:
 
     def __post_init__(self) -> None:
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = utc_now()
 
 
 @dataclass(slots=True)
@@ -72,7 +73,7 @@ class WorkerIdentity:
         if self.metadata is None:
             self.metadata = {}
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = utc_now()
 
 
 @dataclass(slots=True)
@@ -88,7 +89,7 @@ class WorkerHeartbeat:
         if self.details is None:
             self.details = {}
         if not self.timestamp:
-            self.timestamp = datetime.now(timezone.utc).isoformat()
+            self.timestamp = utc_now()
 
 
 @dataclass(slots=True)
@@ -104,7 +105,31 @@ class MonitorSnapshot:
         if self.status_breakdown is None:
             self.status_breakdown = {}
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = utc_now()
+
+
+@dataclass(slots=True)
+class BatchRecord:
+    batch_id: str
+    batch_name: str
+    session_id: str
+    feature_dir: str
+    task_ids: list[str]
+    request_ids: list[str]
+    join_point_name: str = ""
+    batch_classification: str = "strict"
+    safe_preparation: bool = False
+    status: str = "dispatched"
+    schema_version: str = SCHEMA_VERSION
+    created_at: str = ""
+    updated_at: str = ""
+
+    def __post_init__(self) -> None:
+        now = utc_now()
+        if not self.created_at:
+            self.created_at = now
+        if not self.updated_at:
+            self.updated_at = now
 
 
 def team_config_payload(*, team_name: str, session_id: str, config_version: str = "1") -> dict[str, Any]:
@@ -232,3 +257,37 @@ def monitor_snapshot_payload(
 def monitor_snapshot_from_json(text: str) -> MonitorSnapshot:
     payload = json.loads(text)
     return MonitorSnapshot(**filter_payload(payload, MonitorSnapshot))
+
+
+def batch_record_payload(
+    *,
+    batch_id: str,
+    batch_name: str,
+    session_id: str,
+    feature_dir: str,
+    task_ids: list[str],
+    request_ids: list[str],
+    join_point_name: str = "",
+    batch_classification: str = "strict",
+    safe_preparation: bool = False,
+    status: str = "dispatched",
+) -> dict[str, Any]:
+    return asdict(
+        BatchRecord(
+            batch_id=batch_id,
+            batch_name=batch_name,
+            session_id=session_id,
+            feature_dir=feature_dir,
+            task_ids=task_ids,
+            request_ids=request_ids,
+            join_point_name=join_point_name,
+            batch_classification=batch_classification,
+            safe_preparation=safe_preparation,
+            status=status,
+        )
+    )
+
+
+def batch_record_from_json(text: str) -> BatchRecord:
+    payload = json.loads(text)
+    return BatchRecord(**filter_payload(payload, BatchRecord))

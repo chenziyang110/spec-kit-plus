@@ -21,6 +21,12 @@ provides:
       replaces: "spec-template"
 
     - type: "template"
+      name: "context-template"
+      file: "templates/context-template.md"
+      description: "Self-test context template"
+      replaces: "context-template"
+
+    - type: "template"
       name: "plan-template"
       file: "templates/plan-template.md"
       description: "Self-test plan template"

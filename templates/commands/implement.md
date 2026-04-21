@@ -12,6 +12,7 @@ $ARGUMENTS
 ```
 
 You **MUST** consider the user input before proceeding (if not empty).
+Treat non-empty `$ARGUMENTS` as first-class implementation context for the current feature execution, not as disposable chat-only guidance.
 
 ## Pre-Execution Checks
 
@@ -46,6 +47,83 @@ You **MUST** consider the user input before proceeding (if not empty).
     Wait for the result of the hook command before proceeding to the Outline.
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+
+## Implement Tracker Protocol
+
+- `FEATURE_DIR/implement-tracker.md` is the execution-state source of truth for `sp-implement`.
+- Create it if missing after `FEATURE_DIR` is known. If it already exists and is not terminal, resume from it instead of restarting from chat memory.
+- Treat terminal states as `resolved` or `blocked`. Treat `gathering`, `executing`, `recovering`, `replanning`, and `validating` as resumable states.
+- Update the tracker before each material phase transition: after scope recovery, before dispatching a ready batch, after each join point, before validation, when entering replanning, and before final completion reporting.
+- The tracker must keep these fields obvious:
+  - `status`
+  - `current_batch`
+  - `next_action`
+  - `completed_tasks`
+  - `failed_tasks`
+  - `retry_attempts`
+  - `blockers`
+  - `recovery_action`
+  - `open_gaps`
+  - `user_execution_notes`
+  - `resume_decision`
+- If the user supplied important execution details in `$ARGUMENTS`, extract and persist them in the tracker before dispatching work. Typical examples include:
+  - build or compile order
+  - startup commands
+  - required environment setup
+  - known failing commands to avoid
+  - recovery hints the runtime must remember on future resumes
+- Treat these notes as binding for the current implementation run unless direct evidence shows they are wrong. Do not drop them silently on resume.
+- Use this default structure:
+
+```markdown
+---
+status: gathering | executing | recovering | replanning | validating | blocked | resolved
+feature: [feature slug]
+created: [ISO timestamp]
+updated: [ISO timestamp]
+resume_decision: resume-here | blocked-waiting | resolved
+---
+
+## Current Focus
+current_batch: [ready batch or validation pass]
+goal: [current implementation objective]
+next_action: [immediate next step]
+
+## Execution State
+completed_tasks:
+  - [task ids already completed]
+in_progress_tasks:
+  - [task ids currently running]
+failed_tasks:
+  - [task ids that failed in the current pass]
+retry_attempts: [0 if none]
+
+## Blockers
+- task: [task id]
+  type: technical | external | human-action
+  evidence: [short command output or observed failure]
+  recovery_action: [smallest safe next recovery step]
+
+## Validation
+planned_checks:
+  - [independent tests, acceptance checks, or validation commands]
+completed_checks:
+  - [checks already run]
+human_needed_checks:
+  - [manual verification still required]
+
+## Open Gaps
+- type: execution_gap | research_gap | plan_gap | spec_gap
+  summary: [what is still not true]
+  source: [task id, validation check, or user-visible outcome]
+  next_action: [specific next step]
+
+## User Execution Notes
+- note: [important user-supplied execution detail from `$ARGUMENTS`]
+  source: sp-implement arguments
+  priority: high | normal
+  applies_to: current feature execution
+```
 
 ## Outline
 
@@ -83,53 +161,21 @@ You **MUST** consider the user input before proceeding (if not empty).
      - Automatically proceed to step 3
 
 3. Load and analyze the implementation context:
-   - **REQUIRED**: Always analyze the current repository state and write the
-     result to `map-codebase.md` at the repository root before continuing,
-     even if an older `map-codebase.md` already exists.
-   - Treat this document as the repository's **map-codebase** artifact: it
-     must support downstream planning and implementation without silently
-     missing affected areas, not merely provide a generic architecture summary.
-   - During analysis, follow this internal workflow in order:
-     1. **Macro scan & architecture identification**: inspect the repository
-        root plus key config/build files (for example `package.json`,
-        `pyproject.toml`, `pom.xml`, `build.gradle`, `go.mod`,
-        `docker-compose.yml`, CI files) to determine project type, tech stack,
-        build tools, runtime boundaries, deployment shape, and top-level
-        architecture.
-     2. **Directory structure deep analysis**: traverse major directories and
-        summarize their organization logic (by layer, feature, module, package,
-        app, service, etc.), responsibilities, and representative files.
-     3. **Dependency & module analysis**: inspect import/require relationships,
-        module boundaries, and integration seams; identify core modules,
-        support modules, strong coupling points, and any visible circular
-        dependencies or central chokepoints.
-     4. **Core code element review**: identify the most important classes,
-        interfaces, abstract types, enums, functions, controllers, services,
-        jobs, commands, and other architecture-bearing elements; summarize
-        their responsibilities from actual code.
-     5. **Data flow & interface review**: trace one or two core runtime flows
-        from entry to exit, including state transitions, persistence, external
-        integrations, background jobs, and error paths when visible. If the
-        project exposes APIs, RPC handlers, CLI entrypoints, event consumers,
-        or scheduled jobs, enumerate the important ones and summarize their
-        input/output shape.
-     6. **Patterns & conventions extraction**: summarize recurring design
-        patterns, naming conventions, directory habits, configuration
-        practices, and shared utility locations actually used in the codebase.
-   - Evidence rules:
-     - Every conclusion must be grounded in files that actually exist in the
-       repository. Do not invent architecture, modules, flows, or APIs.
-     - If something cannot be confirmed from the codebase, say `未确认` or
-       `未发现`, not a guess.
-     - Prefer concise tables and Mermaid diagrams over vague narrative when
-       describing structure, dependencies, or runtime flows.
-   - **DOCUMENT STRUCTURE**: The generated document must use at least these
-     sections:
-     `项目架构概览`, `系统边界与外部依赖`, `目录结构及其职责`,
-     `关键模块依赖关系图`, `核心类与接口功能说明`, `核心数据流向图`,
-     `API接口清单`, `核心能力映射`, `变更影响与验证入口`,
-     `常见的代码模式与约定`.
-   - **REQUIRED**: Read `map-codebase.md` after the refresh above completes.
+   - **REQUIRED**: Create or resume `FEATURE_DIR/implement-tracker.md` immediately after `FEATURE_DIR` is known.
+   - **IF TRACKER EXISTS WITH STATUS `blocked` OR `replanning`**: Read `blockers`, `open_gaps`, `recovery_action`, and `next_action` first, then continue from that state instead of restarting the workflow from scratch.
+   - **IF TRACKER EXISTS WITH STATUS `validating`**: Resume the unfinished validation checks before considering any new implementation work.
+   - **IF TRACKER EXISTS WITH STATUS `executing` OR `recovering`**: Resume from the recorded `current_batch`, `failed_tasks`, and `retry_attempts` rather than recomputing progress from chat narration.
+   - **IF `$ARGUMENTS` IS NON-EMPTY**: Extract any high-signal execution constraints, environment facts, build instructions, startup instructions, or recovery hints and record them under `## User Execution Notes` in `implement-tracker.md` before choosing the next batch.
+   - **REQUIRED**: Check whether `PROJECT-HANDBOOK.md` exists at the repository
+     root.
+   - **REQUIRED**: Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - **IF MISSING**: Run `/sp-map-codebase` before continuing, then reload the generated handbook/project-map navigation system.
+   - **TREAT TASK-RELEVANT COVERAGE AS INSUFFICIENT** when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+   - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: Run `/sp-map-codebase` before continuing, then reload the generated handbook/project-map navigation system.
+   - **REQUIRED**: Read `PROJECT-HANDBOOK.md`.
+   - **REQUIRED**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+   - **IF TOPICAL COVERAGE IS MISSING/STALE/TOO BROAD OR TASK-RELEVANT COVERAGE IS INSUFFICIENT**: run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
+   - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
    - **IF EXISTS**: Read data-model.md for entities and relationships
@@ -191,16 +237,26 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Execution flow**: Order and dependency requirements
 
 6. Select an execution strategy for each ready batch before writing code:
-   - **Sequential execution**: Use this when tasks are not truly independent, when write sets overlap, or when a join point/shared coordination surface must be updated before downstream work can continue
-   - **Native subagents**: Use this when the current agent supports native subagents and the ready tasks form a small parallel batch with isolated write sets, stable upstream inputs, and independent verification paths
-   - **Durable team runtime (`specify team`)**: Use this when the current agent exposes an agent-specific coordinated runtime surface and the ready work benefits from durable multi-lane coordination, batch-level recovery, or explicit status tracking beyond a lightweight native subagent fanout. Confirm real runtime availability (tmux and session health) before escalating, and treat `specify team` as the official Codex surface for durable execution.
+   - The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.
+   - The shared implement template is the primary source of truth for this leader-only milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
+   - Use the shared policy function before each batch with the current agent capability snapshot: `choose_execution_strategy(command_name="implement", snapshot, workload_shape)`
+   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Decision order (must match policy):
+     - If `parallel_batches <= 0` or overlapping write sets -> `single-agent` (`no-safe-batch`)
+     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
+     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
+     - Else -> `single-agent` (`fallback`)
+   - single-agent still means one delegated worker lane, not leader self-execution.
    - Re-evaluate the execution strategy at every new parallel batch or join point instead of choosing once for the whole feature
-   - `sp-implement` is the canonical workflow entry that makes these choices. Escalate to the durable team runtime only when the batch shape requires long-lived lanes, the join-point semantics demand explicit coordination, and the shared-surface conflicts cannot be resolved inside sequential or native turns. Keep join-point semantics explicit during every escalation so the runtime/API handoff is auditable and safe.
+   - When `sidecar-runtime` is selected, use the integration's coordinated runtime surface for the current ready batch, report concrete blockers, keep join-point semantics explicit, and surface retry-pending or blocked runtime state truthfully so runtime/API handoffs stay auditable and safe.
 
 7. Execute implementation following the task plan:
    - **Phase-by-phase execution**: Complete each phase before moving to the next
+   - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
-   - **Capability-aware execution**: After selecting the execution strategy, execute ready tasks from the same parallel batch with native subagents or the coordinated runtime when supported; otherwise execute that same batch sequentially while preserving its join point semantics
+   - **Capability-aware execution**: After selecting the strategy, execute the current ready batch through `native-multi-agent` or `sidecar-runtime` when selected by policy; otherwise execute via `single-agent` while preserving join-point semantics through the delegated worker lane.
+   - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
+   - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
    - **File-based coordination**: Tasks affecting the same files must run sequentially
    - **Shared-surface coordination**: Treat shared registration files, router tables, export barrels, dependency injection containers, and similar coordination points as write conflicts even if the main feature files differ
@@ -217,16 +273,32 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Report progress after each completed task
    - Halt execution if any non-parallel task fails
    - For tasks in parallel batches, continue with successful tasks, report failed ones, and do not cross the batch's join point until the failed work is resolved or explicitly deferred
+   - Persist completed work, failed work, blocker evidence, `retry_attempts`, `recovery_action`, and `next_action` in `implement-tracker.md` as soon as they change
+   - Before declaring the feature blocked, attempt the smallest safe recovery step that matches the evidence:
+     - read the most relevant local implementation context for the failing area
+     - run the smallest meaningful repro, failing test, or validation command
+     - inspect immediate logs or error output
+     - make one focused repair attempt when the evidence is clear
+     - if uncertainty remains high, do focused implementation research for the narrow blocker before widening scope
+   - If recovery attempts still fail, set tracker status to `blocked`, keep the blocker explicit, and preserve the best known `next_action` for the next `sp-implement` run
    - Provide clear error messages with context for debugging
    - Suggest next steps if implementation cannot proceed
    - **IMPORTANT** For completed tasks, make sure to mark the task off as [X] in the tasks file.
 
 10. Completion validation:
+   - Enter tracker status `validating` after the last ready implementation task is complete. `tasks.md` being fully checked off is not sufficient for completion by itself.
    - Verify all required tasks are completed
-   - Check that implemented features match the original specification
+   - Check that implemented features match the original specification, accepted behavior, and any independent test criteria captured in `tasks.md`
    - Validate that tests pass and coverage meets requirements
    - Confirm the implementation follows the technical plan
-   - Report final status with summary of completed work
+   - If validation finds missing user-visible behavior or unmet acceptance criteria, record an `open_gaps` entry instead of silently claiming completion
+   - Classify each unresolved gap:
+     - `execution_gap`: implementation exists but still behaves incorrectly; continue fixing within the current implementation loop
+     - `research_gap`: the blocker is a missing technical decision or evidence gap; update `research.md`, record the new finding in the tracker, then continue
+     - `plan_gap`: the current plan/tasks do not cover the work needed to satisfy the feature goal; update `plan.md` and `tasks.md`, set tracker status to `replanning`, then continue from the next ready batch after the replan
+     - `spec_gap`: the requirement itself is ambiguous, contradictory, or newly changed; stop autonomous replanning, keep the gap explicit in the tracker, and recommend `/sp.spec-extend`
+   - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
+   - Report final status with summary of completed work, remaining human-needed checks, and any unresolved gaps
 
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/sp.tasks` first to regenerate the task list.
 

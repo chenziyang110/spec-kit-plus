@@ -16,6 +16,7 @@ from typing import Any
 
 from ..base import IntegrationBase
 from ..manifest import IntegrationManifest
+from .multi_agent import CopilotMultiAgentAdapter
 
 
 class CopilotIntegration(IntegrationBase):
@@ -183,3 +184,6 @@ class CopilotIntegration(IntegrationBase):
         dst.write_text(
             json.dumps(existing, indent=4) + "\n", encoding="utf-8"
         )
+
+
+__all__ = ["CopilotIntegration", "CopilotMultiAgentAdapter"]

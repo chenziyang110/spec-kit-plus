@@ -5,16 +5,17 @@ from .test_integration_base_skills import SkillsIntegrationTests
 
 class TestCodexIntegration(SkillsIntegrationTests):
     KEY = "codex"
-    FOLDER = ".agents/"
+    FOLDER = ".codex/"
     COMMANDS_SUBDIR = "skills"
-    REGISTRAR_DIR = ".agents/skills"
+    REGISTRAR_DIR = ".codex/skills"
     CONTEXT_FILE = "AGENTS.md"
-    _SKILL_COMMANDS = SkillsIntegrationTests._SKILL_COMMANDS + ["team"]
 
     def _expected_files(self, script_variant: str) -> list[str]:
         files = super()._expected_files(script_variant)
         files.extend(
             [
+                ".codex/config.toml",
+                ".specify/config.json",
                 ".specify/codex-team/README.md",
                 ".specify/codex-team/runtime.json",
             ]
@@ -35,9 +36,12 @@ class TestCodexAutoPromote:
         result = runner.invoke(app, ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"])
 
         assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
-        assert (target / ".agents" / "skills" / "sp-plan" / "SKILL.md").exists()
-        assert (target / ".agents" / "skills" / "sp-team" / "SKILL.md").exists()
+        assert (target / ".codex" / "skills" / "sp-plan" / "SKILL.md").exists()
+        assert (target / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
         assert (target / ".specify" / "codex-team" / "runtime.json").exists()
+        assert (target / ".specify" / "templates" / "project-handbook-template.md").exists()
+        assert (target / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
+        assert (target / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
 
 
 def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_path):
@@ -57,7 +61,7 @@ def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_pat
     assert templates == [commands_dir / "plan.md", commands_dir / "team.md"]
 
 
-def test_codex_generated_sp_implement_includes_auto_parallel_team_guidance(tmp_path):
+def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -71,9 +75,244 @@ def test_codex_generated_sp_implement_includes_auto_parallel_team_guidance(tmp_p
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    skill_path = target / ".agents" / "skills" / "sp-implement" / "SKILL.md"
+    skill_path = target / ".codex" / "skills" / "sp-implement" / "SKILL.md"
     content = skill_path.read_text(encoding="utf-8")
+    leader_gate_idx = content.find("## Codex Leader Gate")
+    outline_idx = content.find("## Outline")
+    auto_parallel_idx = content.find("## Codex Auto-Parallel Execution")
 
-    assert "native subagents" in content.lower()
+    assert leader_gate_idx != -1
+    assert outline_idx != -1
+    assert auto_parallel_idx != -1
+    assert leader_gate_idx < outline_idx < auto_parallel_idx
+    assert "feature_dir/implement-tracker.md" in content.lower()
+    assert "execution-state source of truth" in content.lower()
+    assert "project-handbook.md" in content.lower()
+    assert ".specify/project-map/architecture.md" in content.lower()
+    assert ".specify/project-map/workflows.md" in content.lower()
+    assert ".specify/project-map/operations.md" in content.lower()
+    assert "first-class implementation context" in content.lower()
+    assert "user execution notes" in content.lower()
+    assert "resume_decision" in content.lower()
+    assert "you are the **leader**, not the concrete implementer" in content
+    assert "spawn_agent" in content
+    assert "wait_agent" in content
+    assert "close_agent" in content
     assert "specify team" in content
-    assert "execution strategy" in content.lower()
+    assert "single-agent" in content
+    assert "native-multi-agent" in content
+    assert "sidecar-runtime" in content
+    assert "invoking runtime acts as the leader" in content
+    assert "single-agent still means one delegated worker lane" in content
+    assert "selects the next executable phase and ready batch" in content
+    assert "shared implement template is the primary source of truth" in content
+    assert "join point" in content.lower()
+    assert "retry-pending" in content.lower() or "retry pending" in content.lower()
+    assert "blocker" in content.lower()
+    assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
+    assert "`research_gap`" in content
+    assert "`plan_gap`" in content
+    assert "`spec_gap`" in content
+    assert "delegated execution" in content.lower() or "delegates execution" in content.lower()
+    assert "prefer `native-multi-agent`" in content
+    assert "only fall back to `specify team`" in content.lower()
+    assert "must not edit implementation files directly while worker delegation is active" in content.lower()
+
+
+def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guidance(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-shared-routing"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skills_dir = target / ".codex" / "skills"
+    for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-map-codebase"):
+        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "single-agent" in content
+        assert "native-multi-agent" in content
+        assert "sidecar-runtime" in content
+        assert "spawn_agent" in content
+        assert "wait_agent" in content
+        assert "project-handbook.md" in content
+        assert ".specify/project-map/architecture.md" in content
+        assert ".specify/project-map/workflows.md" in content
+
+    shared_skills = ("sp-specify", "sp-plan", "sp-tasks")
+    for skill_name in shared_skills:
+        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "specify team" not in content
+
+
+def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-map-codebase"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skill_path = target / ".codex" / "skills" / "sp-map-codebase" / "SKILL.md"
+    content = skill_path.read_text(encoding="utf-8").lower()
+
+    assert "project-handbook.md" in content
+    assert ".specify/project-map/architecture.md" in content
+    assert 'choose_execution_strategy(command_name="map-codebase"' in content
+    assert "spawn_agent" in content
+    assert "wait_agent" in content
+    assert "close_agent" in content
+    assert "do not create `.planning/codebase/`" in content
+
+
+def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-debug-routing"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skill_path = target / ".codex" / "skills" / "sp-debug" / "SKILL.md"
+    content = skill_path.read_text(encoding="utf-8").lower()
+
+    assert "codex native multi-agent investigation" in content
+    assert "project-handbook.md" in content
+    assert ".specify/project-map/architecture.md" in content
+    assert ".specify/project-map/workflows.md" in content
+    assert ".specify/project-map/integrations.md" in content
+    assert ".specify/project-map/testing.md" in content
+    assert ".specify/project-map/operations.md" in content
+    assert "if the handbook navigation system is missing" in content
+    assert "run `/sp-map-codebase` before root-cause analysis continues" in content
+    assert "truth-owning layers" in content
+    assert "spawn_agent" in content
+    assert "wait_agent" in content
+    assert "close_agent" in content
+    assert "investigating" in content
+    assert "debug file" in content
+    assert "evidence-gathering" in content or "evidence gathering" in content
+    assert "diagnostic_profile" in content
+    assert "suggested_evidence_lanes" in content
+    assert "decisive control-plane signals" in content
+    assert "scheduler-admission" in content
+    assert "cache-snapshot" in content
+    assert "ui-projection" in content
+    assert "source-of-truth state" in content
+    assert "queue contents" in content
+    assert "must not update the debug file" in content
+    assert "leader" in content
+
+
+def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-fast-task"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skill_path = target / ".codex" / "skills" / "sp-fast" / "SKILL.md"
+    content = skill_path.read_text(encoding="utf-8").lower()
+
+    assert "scope gate" in content
+    assert "project-handbook.md" in content
+    assert "shared surfaces" in content
+    assert "risky coordination points" in content
+    assert "if `project-handbook.md` or `.specify/project-map/` is missing" in content
+    assert "redirect to `/sp-quick` so the navigation system can be rebuilt safely" in content
+    assert "at most 3 files" in content or "no more than 3 files" in content
+    assert "no new dependencies" in content
+    assert "do the work directly" in content
+    assert "verify" in content
+    assert "do not create spec.md" in content or "no spec.md" in content
+    assert "no plan.md" in content or "do not create plan.md" in content
+    assert "do not spawn" in content or "no subagents" in content
+
+
+def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-quick-task"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skill_path = target / ".codex" / "skills" / "sp-quick" / "SKILL.md"
+    content = skill_path.read_text(encoding="utf-8").lower()
+
+    assert ".planning/quick/" in content
+    assert "project-handbook.md" in content
+    assert "topic map" in content
+    assert "touched-area topical files" in content
+    assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content
+    assert "run `/sp-map-codebase` before continuing" in content
+    assert "--discuss" in content
+    assert "--research" in content
+    assert "--validate" in content
+    assert "--full" in content
+    assert "lightweight" in content
+    assert "summary.md" in content or "summary artifact" in content
+    assert "codex leader gate" in content
+    assert "codex native multi-agent execution" in content
+    assert "spawn_agent" in content
+    assert "wait_agent" in content
+    assert "close_agent" in content
+    assert "specify team" in content
+    assert "single-agent" in content
+    assert "native-multi-agent" in content
+    assert "sidecar-runtime" in content
+    assert "single-agent still means one delegated worker lane" in content
+    assert "dispatch exactly one delegated worker lane" in content
+    assert "read `.specify/memory/constitution.md` first if it exists" in content
+    assert "do **not** perform broad repository analysis" in content
+    assert "the next concrete action must be dispatch" in content
+    assert "materially improve throughput" in content
+    assert "local execution is the last fallback" in content
+    assert "execution_fallback" in content
+    assert "join point" in content
+    assert "leader" in content
+    assert ".planning/quick/<id>-<slug>/" in content
+    assert ".planning/quick/index.json" in content
+    assert "status.md" in content
+    assert "current focus" in content
+    assert "next action" in content
+    assert "resume" in content
+    assert "resolved/" in content
+    assert "status.md template" in content
+    assert "status: gathering | planned | executing | validating | blocked | resolved" in content
+    assert "strategy: single-agent | native-multi-agent | sidecar-runtime" in content
+    assert "summary pointer" in content
+    assert "if exactly one unfinished quick task exists" in content
+    assert "if multiple unfinished quick tasks exist" in content
+    assert "ask the user which quick task to continue" in content

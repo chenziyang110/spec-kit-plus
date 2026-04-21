@@ -1,3 +1,4 @@
+---
 description: Use the Codex-only team/runtime surface from the official `specify` product entry point.
 ---
 

@@ -9,6 +9,7 @@ from .state_paths import codex_team_state_root
 CODEX_TEAM_HELPER_FILES = (
     ".specify/codex-team/runtime.json",
     ".specify/codex-team/README.md",
+    ".specify/config.json",
 )
 CODEx_TEAM_HELPER_FILES = CODEX_TEAM_HELPER_FILES
 
@@ -69,6 +70,37 @@ def install_codex_team_assets(
             ),
         )
     )
+
+    # Register the notify hook in .specify/config.json
+    # This hook is triggered after every agent turn and checks for ready team batches.
+    config_payload = (
+        '{\n'
+        '  "notify": "specify team notify-hook"\n'
+        '}\n'
+    )
+    created.append(
+        manifest.record_file(".specify/config.json", config_payload)
+    )
+
+    # Also register in .codex/config.toml for the official Codex CLI
+    codex_config_path = project_root / ".codex" / "config.toml"
+    notify_cmd = "specify team notify-hook"
+    
+    # We use a simple append or create approach for .codex/config.toml
+    # In a real scenario, we might want a proper TOML parser/merger like oh-my-codex
+    codex_notify_line = f'notify = ["{notify_cmd}"]\n'
+    
+    if codex_config_path.exists():
+        content = codex_config_path.read_text(encoding="utf-8")
+        if "notify =" not in content:
+            new_content = codex_notify_line + "\n" + content
+            codex_config_path.write_text(new_content, encoding="utf-8")
+    else:
+        codex_config_path.parent.mkdir(parents=True, exist_ok=True)
+        codex_config_path.write_text(codex_notify_line, encoding="utf-8")
+    
+    manifest.record_existing(".codex/config.toml")
+
     return created
 
 

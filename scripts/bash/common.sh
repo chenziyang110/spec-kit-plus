@@ -208,6 +208,7 @@ get_feature_paths() {
     printf 'HAS_GIT=%q\n' "$has_git_repo"
     printf 'FEATURE_DIR=%q\n' "$feature_dir"
     printf 'FEATURE_SPEC=%q\n' "$feature_dir/spec.md"
+    printf 'CONTEXT=%q\n' "$feature_dir/context.md"
     printf 'IMPL_PLAN=%q\n' "$feature_dir/plan.md"
     printf 'TASKS=%q\n' "$feature_dir/tasks.md"
     printf 'RESEARCH=%q\n' "$feature_dir/research.md"
@@ -333,4 +334,3 @@ except Exception:
     # Callers running under set -e should use: TEMPLATE=$(resolve_template ...) || true
     return 1
 }
-

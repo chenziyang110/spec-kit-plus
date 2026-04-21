@@ -62,89 +62,87 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for `FEATURE_SPEC`, `IMPL_PLAN`, `SPECS_DIR`, `BRANCH`, and `FEATURE_DIR`.
 
-2. **Generate or refresh the repository map-codebase artifact**:
-   - Always analyze the current repository state and write the result to
-     `map-codebase.md` at the repository root before continuing, even if an
-     older `map-codebase.md` already exists.
-   - Treat this document as the repository's **map-codebase** artifact: it
-     must support downstream planning and implementation without silently
-     missing affected areas, not merely provide a generic architecture summary.
-   - During analysis, follow this internal workflow in order:
-     1. **Macro scan & architecture identification**: inspect the repository
-        root plus key config/build files (for example `package.json`,
-        `pyproject.toml`, `pom.xml`, `build.gradle`, `go.mod`,
-        `docker-compose.yml`, CI files) to determine project type, tech stack,
-        build tools, runtime boundaries, deployment shape, and top-level
-        architecture.
-     2. **Directory structure deep analysis**: traverse major directories and
-        summarize their organization logic (by layer, feature, module, package,
-        app, service, etc.), responsibilities, and representative files.
-     3. **Dependency & module analysis**: inspect import/require relationships,
-        module boundaries, and integration seams; identify core modules,
-        support modules, strong coupling points, and any visible circular
-        dependencies or central chokepoints.
-     4. **Core code element review**: identify the most important classes,
-        interfaces, abstract types, enums, functions, controllers, services,
-        jobs, commands, and other architecture-bearing elements; summarize
-        their responsibilities from actual code.
-     5. **Data flow & interface review**: trace one or two core runtime flows
-        from entry to exit, including state transitions, persistence, external
-        integrations, background jobs, and error paths when visible. If the
-        project exposes APIs, RPC handlers, CLI entrypoints, event consumers,
-        or scheduled jobs, enumerate the important ones and summarize their
-        input/output shape.
-     6. **Patterns & conventions extraction**: summarize recurring design
-        patterns, naming conventions, directory habits, configuration
-        practices, and shared utility locations actually used in the codebase.
-   - Evidence rules:
-     - Every conclusion must be grounded in files that actually exist in the
-       repository. Do not invent architecture, modules, flows, or APIs.
-     - If something cannot be confirmed from the codebase, say `未确认` or
-       `未发现`, not a guess.
-     - Prefer concise tables and Mermaid diagrams over vague narrative when
-       describing structure, dependencies, or runtime flows.
-   - The generated document must use Markdown and include **at least** the
-     following `##` sections:
-     `项目架构概览`, `系统边界与外部依赖`, `目录结构及其职责`,
-     `关键模块依赖关系图`, `核心类与接口功能说明`, `核心数据流向图`,
-     `API接口清单`, `核心能力映射`, `变更影响与验证入口`,
-     `常见的代码模式与约定`.
+2. **Ensure repository navigation system exists**:
+   - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
+   - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+   - If task-relevant coverage is insufficient for the current planning request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 
 3. **Load context**:
    - Read `FEATURE_SPEC`
    - Read `FEATURE_DIR/alignment.md`
-   - Read `/memory/constitution.md`
-   - Read `map-codebase.md`
+   - Read `FEATURE_DIR/context.md`
+   - Read `FEATURE_DIR/references.md` if present
+   - Read `.specify/memory/constitution.md`
+   - Read `PROJECT-HANDBOOK.md`
+   - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+   - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
+   - Read `templates/research-template.md`
    - Load the copied IMPL_PLAN template
 
 4. **Validate alignment status before planning**:
    - If `alignment.md` is missing:
      - ERROR "Missing alignment report. Run /sp.specify first or re-run it to complete requirement alignment."
+   - If `context.md` is missing:
+     - ERROR "Missing context artifact. Run /sp.specify again or /sp.spec-extend to rebuild `context.md` before planning."
+   - Read `Locked Decisions For Planning`, `Outstanding Questions`, `Remaining Risks`, and `Planning Gate Recommendation` from `alignment.md` when present.
+   - Read `Locked Decisions`, `Claude Discretion`, `Canonical References`, `Existing Code Insights`, `Specific User Signals`, and `Outstanding Questions` from `context.md`.
    - If the alignment report status is `Aligned: ready for plan`:
-     - continue
+     - continue only if no planning-critical unresolved items remain around scope, workflow behavior, data/state expectations, compatibility, external dependencies, or success criteria
    - If the alignment report status is `Force proceed with known risks`:
      - continue, but carry all remaining risks into planning as explicit planning constraints and open risks
    - Otherwise:
      - ERROR "Specification is not aligned enough for planning."
+   - If `Planning Gate Recommendation` indicates `/sp.spec-extend` or the unresolved items still materially affect plan structure:
+     - ERROR "Specification still has planning-critical gaps. Run /sp.spec-extend or refine /sp.specify before planning."
 
-5. **Execute the plan workflow** using the IMPL_PLAN template:
+5. **Assume the specification package is analysis-first**:
+   - Treat `/sp.specify` as the primary pre-planning requirement-analysis entry point
+   - Treat `/sp.spec-extend` as the follow-up enhancement path when the spec package needs deeper analysis before planning
+   - Use capability decomposition from `spec.md` when sequencing design work
+   - Use `references.md` when retained sources or reusable examples affect planning choices
+   - Treat `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` as active planning inputs, not descriptive appendix material
+   - Treat `context.md` as the primary implementation-context artifact that captures downstream planning decisions explicitly
+   - Do not introduce a separate clarification command as the normal next step for routine planning readiness
+   - Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="plan", snapshot, workload_shape)`
+   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Decision order is fixed:
+     - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
+     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
+     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
+     - Else -> `single-agent` (`fallback`)
+   - If collaboration is justified, keep `plan` lanes limited to:
+     - research
+     - data model
+     - contracts
+     - quickstart and validation scenarios
+   - Required join points:
+     - before final constitution and risk re-check
+     - before writing the consolidated implementation plan
+   - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in the planning artifacts you generate.
+   - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
+
+6. **Execute the plan workflow** using the IMPL_PLAN template:
    - Fill Technical Context (mark unknowns as `NEEDS CLARIFICATION`)
    - Fill Constitution Check from the constitution
    - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
+   - Copy locked planning decisions from `alignment.md`, `context.md`, and `spec.md` into planning constraints, assumptions, or design notes so they are not silently dropped
    - Evaluate gates (ERROR if violations are unjustified)
    - Phase 0: generate `research.md` and resolve all `NEEDS CLARIFICATION`
    - Phase 1: generate `data-model.md`, `contracts/`, and `quickstart.md`
    - Phase 1: update agent context by running the agent script
+   - Before finalizing the consolidated implementation plan, verify that no locked planning decision has been silently omitted from the generated plan artifacts
    - Re-evaluate Constitution Check after design artifacts exist
 
-6. **Stop and report**:
+7. **Stop and report**:
    - branch
    - plan path
    - alignment status
    - generated artifacts
    - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
-7. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
+8. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_plan` key
    - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
    - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
@@ -181,13 +179,32 @@ You **MUST** consider the user input before proceeding (if not empty).
    - For each `NEEDS CLARIFICATION` -> research task
    - For each dependency -> best-practices task
    - For each integration -> patterns task
+   - For each high-risk architectural choice -> stack/pattern/pitfall task
+   - For each external tool, runtime, or service dependency -> availability and fallback task
 
 2. Generate and dispatch research tasks.
+   - Prefer official documentation, standards, and primary sources for factual claims.
+   - Treat model memory as provisional unless confirmed by a primary source or direct repository evidence.
+   - Research must reduce planning ambiguity, not accumulate background reading.
 
 3. Consolidate findings in `research.md` using:
    - Decision
    - Rationale
    - Alternatives considered
+   - Source confidence (`verified`, `cited`, or `assumed`) for each consequential claim
+   - Standard stack recommendations where the phase depends on specific libraries, tools, or frameworks
+   - `Don't hand-roll` guidance for problems that should use established libraries or platform capabilities
+   - Common pitfalls, failure modes, and anti-patterns the planner should explicitly avoid
+   - Assumptions log for anything still not verified in this session
+   - Validation notes describing how the researched choice should be proven during implementation or verification
+   - Environment or dependency notes when the phase depends on tools, services, runtimes, or external infrastructure that may not be present
+
+4. Research quality bar:
+   - Do not present unverified claims as settled facts.
+   - If a claim could materially change plan structure, security posture, compatibility, or verification scope, it must either be verified, explicitly cited, or moved into the assumptions log.
+   - Prefer prescriptive recommendations over broad option dumps once the evidence is strong enough to guide planning.
+   - The finished `research.md` should answer: "What does the planner need to know to produce a high-quality implementation plan without rediscovering the domain?"
+   - Use `templates/research-template.md` as the default structure for `research.md`; remove sections that are not relevant rather than leaving placeholder text behind.
 
 **Output**: `research.md` with all `NEEDS CLARIFICATION` resolved
 

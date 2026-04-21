@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import asdict
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from specify_cli.orchestration.models import utc_now
+from specify_cli.orchestration.state_store import read_json, write_json
 from specify_cli.codex_team.manifests import (
     RuntimeSession,
     runtime_session_from_json,
@@ -40,14 +40,8 @@ class SessionLifecycleError(RuntimeError):
 TERMINAL_SESSION_STATUSES = {"failed", "shutdown_acknowledged", "cleaned"}
 
 
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 def _write_json(path: Path, payload: dict[str, Any]) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return path
+    return write_json(path, payload)
 
 
 def _load_runtime_session(project_root: Path, session_id: str) -> RuntimeSession:
@@ -67,7 +61,7 @@ def _write_phase(project_root: Path, phase: str, session: RuntimeSession) -> Pat
         "phase": phase,
         "session_id": session.session_id,
         "status": session.status,
-        "created_at": _utc_now(),
+        "created_at": utc_now(),
     }
     return _write_json(phase_path(project_root, phase), payload)
 
@@ -116,7 +110,7 @@ def request_shutdown(
         "status": "requested",
         "reason": reason,
         "requested_by": requested_by,
-        "created_at": _utc_now(),
+        "created_at": utc_now(),
     }
     _write_json(shutdown_path(project_root, session_id), payload)
     session.status = "shutdown_requested"
@@ -131,14 +125,14 @@ def acknowledge_shutdown(
     acknowledged_by: str,
 ) -> dict[str, Any]:
     path = shutdown_path(project_root, session_id)
-    if not path.exists():
+    payload = read_json(path)
+    if payload is None:
         raise SessionLifecycleError("shutdown request not found")
-    payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("status") != "requested":
         raise SessionLifecycleError("shutdown already acknowledged")
     payload["status"] = "acknowledged"
     payload["acknowledged_by"] = acknowledged_by
-    payload["acknowledged_at"] = _utc_now()
+    payload["acknowledged_at"] = utc_now()
     _write_json(path, payload)
     session = _load_runtime_session(project_root, session_id)
     session.status = "shutdown_acknowledged"
@@ -153,7 +147,7 @@ def cleanup_session(project_root: Path, *, session_id: str) -> RuntimeSession:
         raise SessionLifecycleError("session is not in a terminal state")
     session.status = "cleaned"
     if not session.finished_at:
-        session.finished_at = _utc_now()
+        session.finished_at = utc_now()
     _persist_runtime_session(project_root, session)
     _write_phase(project_root, "cleanup", session)
     monitor_summary(project_root, session_id=session.session_id)

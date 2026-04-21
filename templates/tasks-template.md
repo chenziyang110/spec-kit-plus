@@ -12,6 +12,13 @@ description: "Task list template for feature implementation"
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
+## Planning Inputs
+
+- **Locked planning decisions**: Copy any non-negotiable implementation, compatibility, rollout, or validation constraints from `plan.md`, `spec.md`, and `alignment.md`
+- **Alignment risks**: Carry forward unresolved but accepted risks so tasks can mitigate or explicitly acknowledge them
+- **Validation references**: Preserve `quickstart.md`, canonical references, and research-backed validation notes when they shape task ordering or completion criteria
+- Do not silently drop a locked planning decision; if it is deferred, say so explicitly in the phase or dependency notes
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel only when the task has an isolated write set, no incomplete dependencies, stable upstream inputs, and its own verification path

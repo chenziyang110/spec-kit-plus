@@ -8,6 +8,69 @@ from specify_cli.integrations.manifest import IntegrationManifest
 
 
 class TestCopilotIntegration:
+    @staticmethod
+    def _command_stems() -> list[str]:
+        copilot = get_integration("copilot")
+        return [template.stem for template in copilot.list_command_templates()]
+
+    @staticmethod
+    def _template_files() -> list[str]:
+        copilot = get_integration("copilot")
+        templates_dir = copilot.shared_templates_dir()
+        if not templates_dir or not templates_dir.is_dir():
+            return []
+
+        return sorted(
+            path.name
+            for path in templates_dir.iterdir()
+            if path.is_file() and path.name != "vscode-settings.json"
+        )
+
+    @classmethod
+    def _expected_inventory(cls, script_variant: str) -> list[str]:
+        expected = []
+
+        for stem in cls._command_stems():
+            expected.append(f".github/agents/sp.{stem}.agent.md")
+            expected.append(f".github/prompts/sp.{stem}.prompt.md")
+
+        expected.extend(
+            [
+                ".vscode/settings.json",
+                ".specify/integration.json",
+                ".specify/init-options.json",
+                ".specify/integrations/copilot.manifest.json",
+                ".specify/integrations/speckit.manifest.json",
+                ".specify/integrations/copilot/scripts/update-context.ps1",
+                ".specify/integrations/copilot/scripts/update-context.sh",
+                ".specify/memory/constitution.md",
+            ]
+        )
+
+        if script_variant == "sh":
+            expected.extend(
+                [
+                    ".specify/scripts/bash/check-prerequisites.sh",
+                    ".specify/scripts/bash/common.sh",
+                    ".specify/scripts/bash/create-new-feature.sh",
+                    ".specify/scripts/bash/setup-plan.sh",
+                    ".specify/scripts/bash/update-agent-context.sh",
+                ]
+            )
+        else:
+            expected.extend(
+                [
+                    ".specify/scripts/powershell/check-prerequisites.ps1",
+                    ".specify/scripts/powershell/common.ps1",
+                    ".specify/scripts/powershell/create-new-feature.ps1",
+                    ".specify/scripts/powershell/setup-plan.ps1",
+                    ".specify/scripts/powershell/update-agent-context.ps1",
+                ]
+            )
+
+        expected.extend(f".specify/templates/{name}" for name in cls._template_files())
+        return sorted(expected)
+
     def test_copilot_key_and_config(self):
         copilot = get_integration("copilot")
         assert copilot is not None
@@ -123,11 +186,8 @@ class TestCopilotIntegration:
         agents_dir = tmp_path / ".github" / "agents"
         assert agents_dir.is_dir()
         agent_files = sorted(agents_dir.glob("sp.*.agent.md"))
-        assert len(agent_files) == 9
-        expected_commands = {
-            "analyze", "checklist", "clarify", "constitution",
-            "implement", "plan", "specify", "tasks", "taskstoissues",
-        }
+        expected_commands = set(self._command_stems())
+        assert len(agent_files) == len(expected_commands)
         actual_commands = {f.name.removeprefix("sp.").removesuffix(".agent.md") for f in agent_files}
         assert actual_commands == expected_commands
 
@@ -161,46 +221,7 @@ class TestCopilotIntegration:
             os.chdir(old_cwd)
         assert result.exit_code == 0
         actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
-        expected = sorted([
-            ".github/agents/sp.analyze.agent.md",
-            ".github/agents/sp.checklist.agent.md",
-            ".github/agents/sp.clarify.agent.md",
-            ".github/agents/sp.constitution.agent.md",
-            ".github/agents/sp.implement.agent.md",
-            ".github/agents/sp.plan.agent.md",
-            ".github/agents/sp.specify.agent.md",
-            ".github/agents/sp.tasks.agent.md",
-            ".github/agents/sp.taskstoissues.agent.md",
-            ".github/prompts/sp.analyze.prompt.md",
-            ".github/prompts/sp.checklist.prompt.md",
-            ".github/prompts/sp.clarify.prompt.md",
-            ".github/prompts/sp.constitution.prompt.md",
-            ".github/prompts/sp.implement.prompt.md",
-            ".github/prompts/sp.plan.prompt.md",
-            ".github/prompts/sp.specify.prompt.md",
-            ".github/prompts/sp.tasks.prompt.md",
-            ".github/prompts/sp.taskstoissues.prompt.md",
-            ".vscode/settings.json",
-            ".specify/integration.json",
-            ".specify/init-options.json",
-            ".specify/integrations/copilot.manifest.json",
-            ".specify/integrations/speckit.manifest.json",
-            ".specify/integrations/copilot/scripts/update-context.ps1",
-            ".specify/integrations/copilot/scripts/update-context.sh",
-            ".specify/scripts/bash/check-prerequisites.sh",
-            ".specify/scripts/bash/common.sh",
-            ".specify/scripts/bash/create-new-feature.sh",
-            ".specify/scripts/bash/setup-plan.sh",
-            ".specify/scripts/bash/update-agent-context.sh",
-            ".specify/templates/agent-file-template.md",
-            ".specify/templates/alignment-template.md",
-            ".specify/templates/checklist-template.md",
-            ".specify/templates/constitution-template.md",
-            ".specify/templates/plan-template.md",
-            ".specify/templates/spec-template.md",
-            ".specify/templates/tasks-template.md",
-            ".specify/memory/constitution.md",
-        ])
+        expected = self._expected_inventory("sh")
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
             f"Extra: {sorted(set(actual) - set(expected))}"
@@ -222,46 +243,7 @@ class TestCopilotIntegration:
             os.chdir(old_cwd)
         assert result.exit_code == 0
         actual = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file())
-        expected = sorted([
-            ".github/agents/sp.analyze.agent.md",
-            ".github/agents/sp.checklist.agent.md",
-            ".github/agents/sp.clarify.agent.md",
-            ".github/agents/sp.constitution.agent.md",
-            ".github/agents/sp.implement.agent.md",
-            ".github/agents/sp.plan.agent.md",
-            ".github/agents/sp.specify.agent.md",
-            ".github/agents/sp.tasks.agent.md",
-            ".github/agents/sp.taskstoissues.agent.md",
-            ".github/prompts/sp.analyze.prompt.md",
-            ".github/prompts/sp.checklist.prompt.md",
-            ".github/prompts/sp.clarify.prompt.md",
-            ".github/prompts/sp.constitution.prompt.md",
-            ".github/prompts/sp.implement.prompt.md",
-            ".github/prompts/sp.plan.prompt.md",
-            ".github/prompts/sp.specify.prompt.md",
-            ".github/prompts/sp.tasks.prompt.md",
-            ".github/prompts/sp.taskstoissues.prompt.md",
-            ".vscode/settings.json",
-            ".specify/integration.json",
-            ".specify/init-options.json",
-            ".specify/integrations/copilot.manifest.json",
-            ".specify/integrations/speckit.manifest.json",
-            ".specify/integrations/copilot/scripts/update-context.ps1",
-            ".specify/integrations/copilot/scripts/update-context.sh",
-            ".specify/scripts/powershell/check-prerequisites.ps1",
-            ".specify/scripts/powershell/common.ps1",
-            ".specify/scripts/powershell/create-new-feature.ps1",
-            ".specify/scripts/powershell/setup-plan.ps1",
-            ".specify/scripts/powershell/update-agent-context.ps1",
-            ".specify/templates/agent-file-template.md",
-            ".specify/templates/alignment-template.md",
-            ".specify/templates/checklist-template.md",
-            ".specify/templates/constitution-template.md",
-            ".specify/templates/plan-template.md",
-            ".specify/templates/spec-template.md",
-            ".specify/templates/tasks-template.md",
-            ".specify/memory/constitution.md",
-        ])
+        expected = self._expected_inventory("ps")
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
             f"Extra: {sorted(set(actual) - set(expected))}"

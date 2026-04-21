@@ -57,6 +57,15 @@ def test_team_config_payload_round_trips_through_json():
     assert parsed.schema_version == SCHEMA_VERSION
 
 
+def test_team_config_payload_uses_orchestration_utc_now(monkeypatch):
+    fixed_now = "2026-04-13T00:00:00+00:00"
+    monkeypatch.setattr("specify_cli.codex_team.runtime_state.utc_now", lambda: fixed_now, raising=False)
+
+    payload = team_config_payload(team_name="codex", session_id="session-root")
+
+    assert payload["created_at"] == fixed_now
+
+
 def test_schema_version_constant_matches_shared_value():
     from specify_cli.codex_team.schema import SCHEMA_VERSION as base_schema_version
 

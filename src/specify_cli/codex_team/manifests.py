@@ -20,6 +20,7 @@ class RuntimeSession:
     session_id: str
     status: str = "created"
     environment_check: str = "pending"
+    blocker_id: str = ""
     created_at: str = ""
     finished_at: str = ""
     schema_version: str = SCHEMA_VERSION
@@ -35,6 +36,9 @@ class DispatchRecord:
     target_worker: str
     status: str = "pending"
     reason: str = ""
+    failure_class: str = ""
+    retry_count: int = 0
+    retry_budget: int = 0
     created_at: str = ""
     updated_at: str = ""
     schema_version: str = SCHEMA_VERSION

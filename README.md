@@ -122,12 +122,70 @@ specify init my-project --ai codex --ignore-agent-tools
 After `specify init`, use the generated workflow commands in your agent:
 
 1. `constitution` to define project principles
-2. `specify` to write the feature spec
+2. `specify` to produce a planning-ready, analysis-first feature spec
 3. `plan` to define implementation design
 4. `tasks` to break work into executable tasks
-5. `implement` to execute the task plan
+5. `implement` to execute the task plan (supports autonomous loop via `/sp-autonomous`)
 
-For Codex and other skills-based integrations, the generated commands are installed in skills form.
+Mainline pre-planning flow:
+
+```text
+specify -> plan
+```
+
+Skill map after `specify init`:
+
+- Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
+- Support skills: `map-codebase`, `spec-extend`, `checklist`, `analyze`, `explain`
+- Codex-only runtime: `specify team` and `sp-team`
+
+Optional follow-up commands:
+
+- `map-codebase` to generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` for an existing codebase before specification, planning, or implementation continues
+- `spec-extend` to deepen an existing spec before planning when analysis, references, or gaps need more work
+- `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
+- `analyze` to perform a cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md`
+- `explain` to describe the current spec, plan, task, or implement artifact in plain language
+
+Already have code? Run `map-codebase` first so the current codebase is mapped into `PROJECT-HANDBOOK.md` and `.specify/project-map/` before deeper brownfield workflow steps.
+
+Routing guide for lightweight work:
+
+- `sp-fast` is only for trivial local fixes. Stay on that path only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
+- Move from `sp-fast` to `sp-quick` as soon as the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
+- `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
+- Quick workspaces now live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the task source of truth and `.planning/quick/index.json` as a derived management index.
+- Invoking `sp-quick` with no arguments should resume unfinished quick work when possible. If only one unfinished quick task exists, continue it automatically. `blocked` quick tasks still count as resumable unfinished work.
+- Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage tracked quick tasks. `specify quick list` defaults to unfinished quick tasks.
+- Move from `sp-quick` to `sp-specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
+
+After planning, continue with:
+
+```text
+tasks -> implement
+```
+
+Current `sp-implement` runtime model in this fork:
+
+- `sp-implement` acts as a milestone-level orchestration leader rather than the direct executor
+- concrete implementation runs through delegated execution paths (`single-agent`, `native-multi-agent`, or `sidecar-runtime`)
+- parallel work is coordinated through explicit join points before dependent work continues
+- runtime surfaces can report retry-pending work and blockers instead of hiding those states in chat-only narration
+
+For Codex and other skills-based integrations, the generated commands are installed in skills form. Codex now uses the dedicated `.codex/skills/` directory for generated skills.
+
+## Multi-CLI Orchestration (Milestones 1-2)
+
+Current orchestration status in this fork:
+
+- generic orchestration core exists under `src/specify_cli/orchestration/`
+- `implement`, `specify`, `plan`, `tasks`, and `explain` now share the canonical strategy vocabulary: `single-agent`, `native-multi-agent`, and `sidecar-runtime`
+- `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
+- `specify team` remains the Codex compatibility surface for runtime-heavy execution
+- Claude, Gemini, and Copilot ship first-release adapter skeletons (alongside Codex) for native-first capability reporting
+- durable runtime maturity for `implement` and `debug`, plus wider integration rollout, remain future work
+
+This repository is no longer only a Milestone 1 slice, but the full execution/runtime maturity roadmap is still not complete.
 
 ## Codex Team Runtime
 
@@ -156,11 +214,11 @@ All runtime state lives under `.specify/codex-team/`:
 
 - `runtime.json` contains the active session metadata and canonical root paths.
 - `state/` holds per-object JSON files (`tasks/*.json`, `workers/*.json`, `mailboxes/*.json`, `dispatch/*.json`) along with `phase.json` and `events.log` for the lifecycle stream.
-- Heartbeats, claims, approvals, and monitor snapshots append to the files under `state/`, guaranteeing the CLI can restart based on the latest saved facts.
+- Heartbeats, claims, approvals, and monitor snapshots append to the files under `state/`, helping the CLI restart from the latest saved facts.
 
 Lifecycle notes:
 
-- Tasks run through `pending → in_progress → completed|failed` and emit events that `specify team status` surfaces.
+- Tasks run through `pending -> in_progress -> completed|failed` and emit events that `specify team status` surfaces.
 - Workers claim tasks with identity records, write heartbeats under `state/workers`, and consume mailbox messages from `state/mailboxes`.
 - Shutdown requests append a terminal event, and cleanup removes the `.specify/codex-team/` directory once all JSON files have been archived.
 
@@ -256,6 +314,14 @@ Important directories:
 - `scripts/` - shell and PowerShell support scripts
 - `tests/` - regression and integration test suite
 - `docs/` - installation, upgrade, and development notes
+
+## Project Handbook System
+
+Navigation and technical truth are now handbook-first:
+
+- Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
+- Deep project knowledge lives under `.specify/project-map/`.
+- Any code change that alters navigation meaning must update the handbook system.
 
 ## Documentation
 

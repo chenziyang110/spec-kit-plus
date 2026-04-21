@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import os
 import platform
 import shutil
 import sys
 from pathlib import Path
+
+from specify_cli.orchestration.backends.detect import detect_available_backends
+from specify_cli.orchestration.state_store import write_json
 
 from .manifests import (
     DispatchRecord,
@@ -44,14 +46,16 @@ def is_native_windows() -> bool:
 
 def detect_team_runtime_backend() -> dict[str, object]:
     """Detect the available runtime backend for team-mode coordination."""
-    tmux_path = shutil.which("tmux")
-    if tmux_path:
-        return {"available": True, "name": "tmux", "binary": tmux_path}
+    backend_descriptors = detect_available_backends()
+
+    tmux = backend_descriptors.get("tmux")
+    if tmux and tmux.available:
+        return {"available": True, "name": tmux.name, "binary": tmux.binary}
 
     if is_native_windows():
-        psmux_path = shutil.which("psmux")
-        if psmux_path:
-            return {"available": True, "name": "psmux", "binary": psmux_path}
+        psmux = backend_descriptors.get("psmux")
+        if psmux and psmux.available:
+            return {"available": True, "name": psmux.name, "binary": psmux.binary}
 
     return {"available": False, "name": None, "binary": None}
 
@@ -73,12 +77,6 @@ def ensure_tmux_available() -> None:
     )
 
 
-def _write_json(path: Path, payload: dict[str, object]) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    return path
-
-
 def _load_runtime_session(project_root: Path, session_id: str) -> RuntimeSession:
     path = runtime_session_path(project_root, session_id)
     return runtime_session_from_json(path.read_text(encoding="utf-8"))
@@ -97,7 +95,7 @@ def bootstrap_runtime_session(project_root: Path, session_id: str) -> RuntimeSes
         status="ready",
         environment_check="pass",
     )
-    _write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
+    write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
     return session
 
 
@@ -116,8 +114,8 @@ def dispatch_runtime_task(
         target_worker=target_worker,
         status="dispatched",
     )
-    _write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
-    _write_json(dispatch_record_path(project_root, request_id), runtime_state_payload(session, [record])["dispatches"][0])
+    write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
+    write_json(dispatch_record_path(project_root, request_id), runtime_state_payload(session, [record])["dispatches"][0])
     return record
 
 
@@ -127,16 +125,35 @@ def mark_runtime_failure(
     session_id: str,
     request_id: str,
     reason: str,
+    failure_class: str = "critical",
+    blocker_id: str = "",
+    retry_count: int = 0,
+    retry_budget: int = 0,
 ) -> tuple[RuntimeSession, DispatchRecord]:
     """Persist a visible failure state for the session and dispatch."""
     session = _load_runtime_session(project_root, session_id)
     record = _load_dispatch_record(project_root, request_id)
-    session.status = "failed"
-    session.finished_at = record.updated_at
-    record.status = "failed"
+    record.failure_class = failure_class
+    record.retry_count = retry_count
+    record.retry_budget = retry_budget
+
+    retryable = (
+        failure_class == "transient"
+        and retry_budget > 0
+        and retry_count < retry_budget
+    )
+
+    if retryable:
+        session.status = "retry_pending"
+        record.status = "retry_pending"
+    else:
+        session.status = "failed"
+        session.blocker_id = blocker_id
+        session.finished_at = record.updated_at
+        record.status = "failed"
     record.reason = reason
-    _write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
-    _write_json(dispatch_record_path(project_root, request_id), runtime_state_payload(session, [record])["dispatches"][0])
+    write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
+    write_json(dispatch_record_path(project_root, request_id), runtime_state_payload(session, [record])["dispatches"][0])
     return session, record
 
 
@@ -145,7 +162,7 @@ def cleanup_runtime_session(project_root: Path, session_id: str) -> RuntimeSessi
     session = _load_runtime_session(project_root, session_id)
     session.status = "cleaned"
     session.finished_at = session.finished_at or session.created_at
-    _write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
+    write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
     return session
 
 
@@ -172,4 +189,7 @@ def codex_team_runtime_status(project_root: Path, *, integration_key: str | None
         "native_windows": is_native_windows(),
         "state_root": state_root,
         "runtime_state": runtime_state_payload(session, [dispatch]),
+        "runtime_state_summary": (
+            "Runtime state surfaces worker outcomes, join points, retry-pending work, and blockers."
+        ),
     }

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from specify_cli.codex_team.events import append_event, event_log_path
+from specify_cli.codex_team.batch_ops import sync_batch_for_task
 from specify_cli.codex_team.runtime_state import (
     task_claim_payload,
     task_record_from_json,
@@ -281,6 +282,7 @@ def transition_task_status(
     owner: str,
     expected_version: int | None = None,
     claim_token: str | None = None,
+    failure_class: str = "",
 ) -> Any:
     record = get_task(project_root, task_id)
     _ensure_expected_version(record, expected_version)
@@ -293,6 +295,8 @@ def transition_task_status(
 
     record.status = new_status
     record.owner = owner
+    if failure_class:
+        metadata["failure_class"] = failure_class
     record.version += 1
     record.updated_at = _now()
     if new_status in TERMINAL_STATUSES:
@@ -307,6 +311,8 @@ def transition_task_status(
             "owner": owner,
         },
     )
+    if new_status in TERMINAL_STATUSES:
+        sync_batch_for_task(project_root, task_id)
     return record
 
 

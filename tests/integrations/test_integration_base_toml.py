@@ -218,6 +218,35 @@ class TomlIntegrationTests:
                 raise AssertionError(f"{f.name} is not valid TOML: {exc}") from exc
             assert "prompt" in parsed, f"{f.name} parsed TOML has no 'prompt' key"
 
+    def test_multiline_prompt_closes_on_own_line_when_body_ends_with_quote(self, tmp_path):
+        i = get_integration(self.KEY)
+        template = tmp_path / "sample.md"
+        template.write_text(
+            "---\n"
+            "description: Summary line one\n"
+            "---\n"
+            "Body line one\n"
+            'Body ends with "\n',
+            encoding="utf-8",
+        )
+        original_templates = i.list_command_templates
+        try:
+            i.list_command_templates = lambda: [template]
+            m = IntegrationManifest(self.KEY, tmp_path)
+            created = i.setup(tmp_path, m)
+        finally:
+            i.list_command_templates = original_templates
+
+        cmd_files = [f for f in created if "scripts" not in f.parts]
+        assert len(cmd_files) == 1
+
+        generated = cmd_files[0].read_text(encoding="utf-8")
+        parsed = tomllib.loads(generated)
+
+        assert parsed["prompt"] == 'Body line one\nBody ends with "'
+        assert 'Body ends with """"' not in generated
+        assert generated.splitlines()[-1] == '"""'
+
     def test_all_files_tracked_in_manifest(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
@@ -322,10 +351,21 @@ class TomlIntegrationTests:
 
     # -- Complete file inventory ------------------------------------------
 
-    COMMAND_STEMS = [
-        "analyze", "checklist", "clarify", "constitution",
-        "implement", "plan", "specify", "tasks", "taskstoissues",
-    ]
+    def _command_stems(self) -> list[str]:
+        i = get_integration(self.KEY)
+        return [template.stem for template in i.list_command_templates()]
+
+    def _template_files(self) -> list[str]:
+        i = get_integration(self.KEY)
+        templates_dir = i.shared_templates_dir()
+        if not templates_dir or not templates_dir.is_dir():
+            return []
+
+        return sorted(
+            path.relative_to(templates_dir).as_posix()
+            for path in templates_dir.rglob("*")
+            if path.is_file() and path.name != "vscode-settings.json"
+        )
 
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the expected file list for this integration + script variant."""
@@ -334,7 +374,7 @@ class TomlIntegrationTests:
         files = []
 
         # Command files (.toml)
-        for stem in self.COMMAND_STEMS:
+        for stem in self._command_stems():
             files.append(f"{cmd_dir}/sp.{stem}.toml")
 
         # Integration scripts
@@ -356,10 +396,7 @@ class TomlIntegrationTests:
                          "setup-plan.ps1", "update-agent-context.ps1"]:
                 files.append(f".specify/scripts/powershell/{name}")
 
-        for name in ["agent-file-template.md", "alignment-template.md",
-                     "checklist-template.md", "constitution-template.md",
-                     "plan-template.md", "spec-template.md",
-                     "tasks-template.md"]:
+        for name in self._template_files():
             files.append(f".specify/templates/{name}")
 
         files.append(".specify/memory/constitution.md")

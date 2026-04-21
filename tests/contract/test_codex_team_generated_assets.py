@@ -32,7 +32,7 @@ def test_codex_init_generates_team_assets(tmp_path):
         os.chdir(old_cwd)
 
     assert result.exit_code == 0, result.output
-    assert (project / ".agents" / "skills" / "sp-team" / "SKILL.md").exists()
+    assert (project / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
     assert (project / ".specify" / "codex-team" / "runtime.json").exists()
     assert (project / ".specify" / "codex-team" / "README.md").exists()
 

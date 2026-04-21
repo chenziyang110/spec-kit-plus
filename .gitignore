@@ -56,3 +56,7 @@ docs/dev
 .specify/extensions/.cache/
 .specify/extensions/.backup/
 .specify/extensions/*/local-config.yml
+
+# Codex team runtime state
+.specify/codex-team/state/
+.specify/codex-team/worktrees/

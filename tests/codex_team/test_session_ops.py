@@ -121,3 +121,24 @@ def test_monitor_summary_reflects_tasks_and_workers(codex_team_project_root: Pat
     create_task(codex_team_project_root, task_id="task-1", summary="seed")
     snapshot = monitor_summary(codex_team_project_root, session_id=session.session_id)
     assert snapshot.task_count == 1
+
+
+def test_bootstrap_session_uses_canonical_write_json(monkeypatch, codex_team_project_root: Path):
+    write_calls: list[Path] = []
+
+    def _tracking_write_json(path: Path, payload: dict) -> Path:
+        write_calls.append(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        return path
+
+    monkeypatch.setattr(
+        "specify_cli.codex_team.session_ops.write_json",
+        _tracking_write_json,
+        raising=False,
+    )
+
+    bootstrap_session(codex_team_project_root, session_id="session-ops")
+
+    assert team_config_path(codex_team_project_root) in write_calls
+    assert phase_path(codex_team_project_root, "bootstrap") in write_calls
