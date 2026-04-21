@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
-from specify_cli.debug.schema import DebugGraphState, OwnershipEntry, SuggestedEvidenceLane
+from specify_cli.debug.schema import DebugGraphState, DebugStatus, EvidenceEntry, OwnershipEntry, SuggestedEvidenceLane
 
 
 def test_persistence_round_trips_full_state(tmp_path):
@@ -49,6 +49,9 @@ def test_persistence_round_trips_full_state(tmp_path):
     state.context.feature_id = "002-autonomous-execution"
     state.context.modified_files = ["src/specify_cli/debug/graph.py", "tests/test_debug_graph_nodes.py"]
     state.recently_modified = ["src/specify_cli/debug/persistence.py"]
+    state.parent_slug = "parent-session"
+    state.child_slugs = ["child-session"]
+    state.resume_after_child = True
     state.resolution.files_changed = ["src/specify_cli/debug/graph.py"]
     state.resolution.report = "## Awaiting Human Review\n- Investigate parser boundary"
     state.resolution.decisive_signals = ["runningOrder_=[], waitingQueue_=[task-2], activeCount=1"]
@@ -77,6 +80,9 @@ def test_persistence_round_trips_full_state(tmp_path):
         "tests/test_debug_graph_nodes.py",
     ]
     assert restored.recently_modified == ["src/specify_cli/debug/persistence.py"]
+    assert restored.parent_slug == "parent-session"
+    assert restored.child_slugs == ["child-session"]
+    assert restored.resume_after_child is True
     assert restored.resolution.files_changed == ["src/specify_cli/debug/graph.py"]
     assert restored.resolution.report == "## Awaiting Human Review\n- Investigate parser boundary"
     assert restored.resolution.decisive_signals == ["runningOrder_=[], waitingQueue_=[task-2], activeCount=1"]
@@ -123,6 +129,79 @@ def test_handoff_report_includes_suggested_evidence_lanes(tmp_path):
     assert "role: evidence-collector" in report
     assert "Suggested Codex Spawn Payloads" in report
     assert "queue-snapshot: explorer (medium)" in report
+
+
+def test_handoff_report_includes_parent_return_hint(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(
+        slug="child-session",
+        trigger="follow-up issue",
+        parent_slug="parent-session",
+    )
+
+    report = handler.build_handoff_report(state)
+
+    assert "parent-session" in report
+    assert "return to the parent session" in report.lower()
+
+
+def test_research_checkpoint_is_written_for_repeated_failures(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="looping verification failure", diagnostic_profile="general")
+    state.resolution.fail_count = 2
+    state.resolution.fix = "Try another parser boundary tweak"
+    state.resolution.root_cause = {"summary": "Parser boundary issue"}
+    state.evidence.append(
+        EvidenceEntry(
+            checked="python tests/repro.py",
+            found="FAIL: parser still drops final token",
+            implication="Current fix did not restore the closed loop",
+        )
+    )
+
+    path = handler.save_research_checkpoint(state)
+
+    content = path.read_text(encoding="utf-8")
+    assert path.name == "session.research.md"
+    assert "# Debug Research: session" in content
+    assert "Failed verification attempts: 2" in content
+    assert "Try another parser boundary tweak" in content
+    assert "Research Questions" in content
+    assert "Exit Criteria" in content
+
+
+def test_handoff_report_points_to_research_checkpoint_after_repeated_failures(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="looping verification failure")
+    state.resolution.fail_count = 2
+
+    report = handler.build_handoff_report(state)
+
+    assert ".planning/debug/session.research.md" in report
+    assert "repeated verification failed" in report.lower()
+
+
+def test_load_resume_target_prefers_parent_awaiting_human_after_child_resolves(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    parent = DebugGraphState(slug="parent-session", trigger="original issue")
+    parent.status = DebugStatus.AWAITING_HUMAN
+    parent.child_slugs = ["child-session"]
+    parent.resume_after_child = True
+    handler.save(parent)
+
+    child = DebugGraphState(
+        slug="child-session",
+        trigger="follow-up issue",
+        parent_slug="parent-session",
+    )
+    child.status = DebugStatus.RESOLVED
+    handler.save(child)
+
+    state, reason = handler.load_resume_target()
+
+    assert state is not None
+    assert state.slug == "parent-session"
+    assert reason == "parent_after_child"
 
 
 def test_persistence_round_trips_trigger_with_frontmatter_delimiter(tmp_path):

@@ -9,6 +9,7 @@ from specify_cli.debug.graph import (
     ResolvedNode,
     VerifyingNode,
 )
+from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.debug.schema import DebugGraphState, DebugStatus
 
 @pytest.mark.asyncio
@@ -161,6 +162,28 @@ async def test_verifying_second_failure_requests_diagnostic_escalation(monkeypat
     assert "- [ ] capture ownership sets at the decision layer" in (state.current_focus.next_action or "").lower()
     assert "- [ ] capture source-of-truth state at publish time" in (state.current_focus.next_action or "").lower()
     assert "Normalize UI status" in state.resolution.rejected_surface_fixes
+
+
+@pytest.mark.asyncio
+async def test_verifying_second_failure_writes_research_checkpoint_when_persistence_available(monkeypatch, tmp_path):
+    monkeypatch.setattr(graph_module, "run_command", lambda _cmd: "FAIL")
+
+    state = DebugGraphState(trigger="test bug", slug="test-slug")
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.resolution.fix = "Normalize UI status"
+    state.resolution.fail_count = 1
+    handler = MarkdownPersistenceHandler(tmp_path)
+    ctx = GraphRunContext(state=state, deps=handler)
+    node = VerifyingNode()
+
+    result = await node.run(ctx)
+
+    research_path = tmp_path / "test-slug.research.md"
+    assert isinstance(result, InvestigatingNode)
+    assert research_path.exists()
+    assert "Debug Research: test-slug" in research_path.read_text(encoding="utf-8")
+    assert "review" in (state.current_focus.next_action or "").lower()
+    assert "research" in (state.current_focus.next_action or "").lower()
 
 
 @pytest.mark.asyncio

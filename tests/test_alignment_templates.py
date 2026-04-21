@@ -533,6 +533,11 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "no-safe-batch" in lowered
     assert "native-supported" in lowered
     assert "native-missing" in lowered
+    assert "run `/sp-map-codebase` before final completion reporting" in content
+    assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
+    assert "including unresolved `open_gaps`" in lowered
+    assert "if you cannot complete that refresh in the current pass" in lowered
+    assert "mark `.specify/project-map/status.json` dirty" in lowered
     assert "specify team" not in lowered
     assert "auto-dispatch" not in lowered
     assert "codex runtime rule" not in lowered

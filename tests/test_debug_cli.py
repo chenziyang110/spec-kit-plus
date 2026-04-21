@@ -20,6 +20,15 @@ def clean_debug_dir():
     # Clean up after test if needed
     # shutil.rmtree(debug_dir)
 
+
+@pytest.fixture(autouse=True)
+def bypass_debug_project_map_preflight(monkeypatch):
+    try:
+        import specify_cli.debug.cli as cli_module
+    except ModuleNotFoundError:
+        return
+    monkeypatch.setattr(cli_module, "_project_map_preflight_for_debug", lambda: None)
+
 def test_debug_no_session(clean_debug_dir):
     # Running without description and no session should show error
     result = runner.invoke(app, ["debug"])
@@ -62,6 +71,74 @@ def test_debug_resumes_most_recent_session(clean_debug_dir, monkeypatch):
     assert "resuming debug session: resume-me" in result.stdout.lower()
     assert seen["slug"] == "resume-me"
     assert seen["resumed"] is True
+
+
+def test_debug_new_issue_from_awaiting_human_links_child_session(clean_debug_dir, monkeypatch):
+    pytest.importorskip("pydantic_graph")
+    import specify_cli.debug.cli as cli_module
+
+    handler = MarkdownPersistenceHandler(clean_debug_dir)
+    parent = DebugGraphState(slug="parent-session", trigger="original issue")
+    parent.status = DebugStatus.AWAITING_HUMAN
+    parent.current_node_id = "AwaitingHumanNode"
+    handler.save(parent)
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        handler.save(state)
+
+    monkeypatch.setattr(cli_module, "generate_slug", lambda _: "follow-up-session")
+    monkeypatch.setattr(cli_module, "run_debug_session", fake_run_debug_session)
+    monkeypatch.setattr(cli_module, "_project_map_preflight_for_debug", lambda: None)
+
+    result = runner.invoke(app, ["debug", "new follow-up issue"])
+
+    assert result.exit_code == 0
+    assert "linked follow-up debug session" in result.stdout.lower()
+    child = handler.load(clean_debug_dir / "follow-up-session.md")
+    updated_parent = handler.load(clean_debug_dir / "parent-session.md")
+    assert child.parent_slug == "parent-session"
+    assert updated_parent.child_slugs == ["follow-up-session"]
+    assert updated_parent.resume_after_child is True
+    assert "follow-up-session" in (updated_parent.current_focus.next_action or "")
+
+
+def test_debug_resume_prefers_parent_session_after_resolved_child(clean_debug_dir, monkeypatch):
+    pytest.importorskip("pydantic_graph")
+    import specify_cli.debug.cli as cli_module
+
+    handler = MarkdownPersistenceHandler(clean_debug_dir)
+    parent = DebugGraphState(slug="parent-session", trigger="original issue")
+    parent.status = DebugStatus.AWAITING_HUMAN
+    parent.current_node_id = "AwaitingHumanNode"
+    parent.child_slugs = ["follow-up-session"]
+    parent.resume_after_child = True
+    handler.save(parent)
+
+    child = DebugGraphState(
+        slug="follow-up-session",
+        trigger="derived issue",
+        parent_slug="parent-session",
+    )
+    child.status = DebugStatus.RESOLVED
+    child.current_node_id = "ResolvedNode"
+    handler.save(child)
+
+    seen = {}
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        seen["slug"] = state.slug
+        seen["resumed"] = resumed
+        handler.save(state)
+
+    monkeypatch.setattr(cli_module, "run_debug_session", fake_run_debug_session)
+    monkeypatch.setattr(cli_module, "_project_map_preflight_for_debug", lambda: None)
+
+    result = runner.invoke(app, ["debug"])
+
+    assert result.exit_code == 0
+    assert seen["slug"] == "parent-session"
+    assert seen["resumed"] is True
+    assert "returning to parent debug session" in result.stdout.lower()
 
 def test_debug_awaiting_human_status(clean_debug_dir, monkeypatch):
     import specify_cli.debug.cli as cli_module

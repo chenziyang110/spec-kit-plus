@@ -118,6 +118,9 @@ class DebugGraphState(BaseModel):
     slug: str
     status: DebugStatus = DebugStatus.GATHERING
     trigger: str
+    parent_slug: Optional[str] = None
+    child_slugs: List[str] = Field(default_factory=list)
+    resume_after_child: bool = False
     diagnostic_profile: Optional[str] = None
     current_node_id: Optional[str] = None
     created: datetime = Field(default_factory=datetime.now)

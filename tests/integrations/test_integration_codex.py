@@ -106,6 +106,9 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "invoking runtime acts as the leader" in content
     assert "single-agent still means one delegated worker lane" in content
     assert "selects the next executable phase and ready batch" in content
+    assert "run `/sp-map-codebase` before final completion reporting" in content.lower()
+    assert "verification is truthfully green and no explicit blocker prevents completion" in content.lower()
+    assert "including unresolved `open_gaps`" in content.lower()
     assert "shared implement template is the primary source of truth" in content
     assert "join point" in content.lower()
     assert "retry-pending" in content.lower() or "retry pending" in content.lower()
@@ -222,6 +225,20 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "queue contents" in content
     assert "must not update the debug file" in content
     assert "leader" in content
+    assert "if the active session is `awaiting_human_verify`" in content
+    assert "start a linked follow-up session" in content
+    assert "record the parent/child relationship" in content
+    assert "return to the parent session to finish the original human verification" in content
+    assert "if automated verification or human verification fails repeatedly" in content
+    assert ".planning/debug/[slug].research.md" in content
+    assert "debug-local research checkpoint" in content
+    assert "if a join-point `wait_agent` returns no completed agents" in content
+    assert "continue the leader's local investigation path instead of issuing another blind wait" in content
+    assert "send_input" in content
+    assert "interrupt=true" in content
+    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved`" in content
+    assert "3-5 strongest facts" in content or "3 to 5 strongest facts" in content
 
 
 def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
@@ -251,6 +268,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "no new dependencies" in content
     assert "do the work directly" in content
     assert "verify" in content
+    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "run `/sp-map-codebase` before the final report" in content
+    assert "if that refresh would break the fast-path scope" in content
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
     assert "do not spawn" in content or "no subagents" in content
@@ -309,6 +329,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "status.md" in content
     assert "current focus" in content
     assert "next action" in content
+    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "run `/sp-map-codebase` before marking the quick task `resolved`" in content
     assert "resume" in content
     assert "resolved/" in content
     assert "status.md template" in content

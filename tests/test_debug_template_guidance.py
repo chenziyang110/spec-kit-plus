@@ -9,6 +9,10 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
 
     assert "read `project-handbook.md`" in content
     assert ".specify/project-map/status.json" in content
+    assert "if the active session is `awaiting_human_verify`" in content
+    assert "start a linked follow-up session" in content
+    assert "record the parent/child relationship" in content
+    assert "return to the parent session to finish the original human verification" in content
     assert "project-map freshness helper" in content
     assert "freshness is `missing` or `stale`" in content
     assert "freshness is `possibly_stale`" in content
@@ -45,9 +49,15 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "loop_break" in content
     assert "decisive_signal" in content
     assert "rejected surface fixes" in content
+    assert "if automated verification or human verification fails repeatedly" in content
+    assert ".planning/debug/[slug].research.md" in content
+    assert "debug-local research checkpoint" in content
     assert "native delegation surface" in content
     assert "coordinated runtime surface" in content
+    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved`" in content
     assert "mark `.specify/project-map/status.json` dirty" in content
+    assert "if you cannot complete that refresh in the current pass" in content
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:

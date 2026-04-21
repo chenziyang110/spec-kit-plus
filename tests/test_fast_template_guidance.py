@@ -27,6 +27,9 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "use `/sp.quick`" in content or "use `/sp-quick`" in content or "use `/sp.quick`" in content
     assert "do the work directly" in content
     assert "verify" in content
+    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "run `/sp-map-codebase` before the final report" in content
+    assert "if that refresh would break the fast-path scope" in content
     assert "mark `.specify/project-map/status.json` dirty" in content
 
 

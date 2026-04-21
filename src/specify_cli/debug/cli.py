@@ -21,6 +21,35 @@ console = Console()
 debug_app = typer.Typer(help="Systematic debugging engine for Spec Kit Plus.")
 
 
+def _link_follow_up_session(
+    handler: MarkdownPersistenceHandler,
+    parent_state: DebugGraphState,
+    child_state: DebugGraphState,
+) -> None:
+    if child_state.slug not in parent_state.child_slugs:
+        parent_state.child_slugs.append(child_state.slug)
+    parent_state.resume_after_child = True
+    parent_state.current_focus.next_action = (
+        f"A linked follow-up issue is being investigated in `{child_state.slug}`. "
+        "After that session is resolved, return here to finish the original human verification."
+    )
+    parent_state.resolution.report = handler.build_handoff_report(parent_state)
+    handler.save(parent_state)
+
+
+def _create_or_link_debug_state(
+    description: str,
+    handler: MarkdownPersistenceHandler,
+) -> tuple[DebugGraphState, DebugGraphState | None]:
+    slug = generate_slug(description)
+    parent_state = handler.load_most_recent_awaiting_human_session()
+    state = DebugGraphState(slug=slug, trigger=description)
+    if parent_state:
+        state.parent_slug = parent_state.slug
+        _link_follow_up_session(handler, parent_state, state)
+    return state, parent_state
+
+
 def _project_map_preflight_for_debug() -> None:
     project_root = Path.cwd()
     if not (project_root / ".specify").exists():
@@ -150,21 +179,25 @@ async def _run_debug(description: Optional[str]):
     
     state: Optional[DebugGraphState] = None
     resumed = False
+    resume_reason = "missing"
     
     if description:
-        # Start new session
-        slug = generate_slug(description)
-        state = DebugGraphState(
-            slug=slug,
-            trigger=description
-        )
-        console.print(f"[green]Starting new debug session:[/green] {slug}")
+        state, parent_state = _create_or_link_debug_state(description, handler)
+        if parent_state:
+            console.print(
+                f"[green]Starting linked follow-up debug session:[/green] {state.slug} "
+                f"(parent: {parent_state.slug})"
+            )
+        else:
+            console.print(f"[green]Starting new debug session:[/green] {state.slug}")
     else:
-        # Try to resume
-        state = handler.load_most_recent_session()
+        state, resume_reason = handler.load_resume_target()
         if state:
             resumed = True
-            console.print(f"[cyan]Resuming debug session:[/cyan] {state.slug}")
+            if resume_reason == "parent_after_child":
+                console.print(f"[cyan]Returning to parent debug session:[/cyan] {state.slug}")
+            else:
+                console.print(f"[cyan]Resuming debug session:[/cyan] {state.slug}")
         else:
             console.print("[red]Error:[/red] No description provided and no recent session found to resume.")
             console.print("Usage: specify debug \"description of the bug\"")
@@ -178,6 +211,14 @@ async def _run_debug(description: Optional[str]):
             console.print("[yellow]Awaiting Human Review[/yellow]")
             console.print(report)
             console.print(f"[yellow]Session paused.[/yellow] Continue from: {session_path}")
+            if state.parent_slug:
+                console.print(
+                    f"[yellow]After confirming this follow-up issue, return to parent session:[/yellow] {state.parent_slug}"
+                )
+        elif state.status == DebugStatus.RESOLVED and state.parent_slug:
+            console.print(
+                f"[cyan]Follow-up issue resolved.[/cyan] Return to parent debug session: {state.parent_slug}"
+            )
         elif state.status != DebugStatus.RESOLVED:
             _print_session_checkpoint(state, handler)
     except Exception as e:
@@ -190,11 +231,10 @@ async def _load_or_create_debug_state(description: Optional[str]) -> tuple[Debug
     handler = MarkdownPersistenceHandler(debug_dir)
 
     if description:
-        slug = generate_slug(description)
-        state = DebugGraphState(slug=slug, trigger=description)
+        state, _ = _create_or_link_debug_state(description, handler)
         return state, handler, False
 
-    state = handler.load_most_recent_session()
+    state, _ = handler.load_resume_target()
     if state:
         return state, handler, True
 

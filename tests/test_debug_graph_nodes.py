@@ -504,6 +504,26 @@ async def test_awaiting_human_node_generates_handoff_report(tmp_path):
     assert "Upper bound skips the final token" in report
     assert "Awaiting Human Review" in saved_session
 
+
+@pytest.mark.asyncio
+async def test_awaiting_human_node_points_child_session_back_to_parent(tmp_path):
+    state = DebugGraphState(
+        slug="child-session",
+        trigger="Follow-up issue discovered during verification",
+        parent_slug="parent-session",
+    )
+    handler = MarkdownPersistenceHandler(tmp_path)
+    node = AwaitingHumanNode()
+    ctx = GraphRunContext(state=state, deps=handler)
+
+    await node.run(ctx)
+
+    report = state.resolution.report or ""
+
+    assert "parent-session" in report
+    assert "return to the parent session" in report.lower()
+    assert "parent-session" in (state.current_focus.next_action or "")
+
 @pytest.mark.asyncio
 async def test_verifying_node_records_attempt_output_in_session(tmp_path, monkeypatch):
     def mock_run(_cmd):

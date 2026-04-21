@@ -178,6 +178,9 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "which surfaces were left unverified" in content
     assert "separate `verified` coverage from `not checked` coverage" in content
     assert "for each declared surface, give the terminal status conclusion" in content
+    assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "run `/sp-map-codebase` before marking the quick task `resolved`" in content
+    assert "if you cannot complete that refresh in the current pass" in content
     assert "mark `.specify/project-map/status.json` dirty" in content
 
 

@@ -5,8 +5,71 @@ from datetime import datetime
 import yaml
 from .schema import (
     DebugGraphState,
+    DebugStatus,
 )
 from .dispatch import build_codex_dispatch_plan, build_codex_spawn_plan
+
+
+def debug_research_path(debug_dir: Path, slug: str) -> Path:
+    return debug_dir / f"{slug}.research.md"
+
+
+def build_research_checkpoint(state: DebugGraphState) -> str:
+    root_cause = state.resolution.root_cause.display_text() if state.resolution.root_cause else "Not confirmed"
+    fix = state.resolution.fix or "No fix recorded"
+    profile = state.diagnostic_profile or "Not classified"
+    lines = [
+        f"# Debug Research: {state.slug}",
+        "",
+        f"- Trigger: {state.trigger}",
+        f"- Diagnostic profile: {profile}",
+        f"- Failed verification attempts: {state.resolution.fail_count}",
+        f"- Current root-cause draft: {root_cause}",
+        f"- Latest attempted fix: {fix}",
+        "",
+        "## Why The Current Loop Is Blocked",
+        "",
+        "Repeated verification failed without producing a stronger causal explanation.",
+        "Do focused research before applying another fix so the next experiment changes the decision quality, not just the code shape.",
+        "",
+        "## Research Questions",
+        "",
+        "- Which truth-owning layer or contract is still not directly verified?",
+        "- Which environment, dependency, API, or runtime assumption might still be wrong?",
+        "- What evidence would falsify the current root-cause draft fastest?",
+        "- What observation would prove the next fix restores the full closed loop instead of only the symptom layer?",
+        "",
+        "## Existing Evidence To Re-check",
+        "",
+    ]
+
+    if state.evidence:
+        for entry in state.evidence[-5:]:
+            lines.append(f"- {entry.checked}: {entry.found} -> {entry.implication}")
+    else:
+        lines.append("- No decisive evidence recorded yet.")
+
+    lines.extend(["", "## Sources To Verify", ""])
+    if state.context.modified_files:
+        for path in state.context.modified_files[:5]:
+            lines.append(f"- {path}")
+    elif state.recently_modified:
+        for path in state.recently_modified[:5]:
+            lines.append(f"- {path}")
+    else:
+        lines.append("- Add the highest-signal local files, contracts, or docs to inspect next.")
+
+    lines.extend(
+        [
+            "",
+            "## Exit Criteria",
+            "",
+            "- Replace the current draft with a stronger falsifiable hypothesis, or explicitly reject it.",
+            "- Name the exact next experiment and the evidence that will count as pass/fail.",
+            "- Do not resume another fix loop until the missing research answers are recorded here or in the debug session.",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def build_handoff_report(state: DebugGraphState) -> str:
@@ -105,9 +168,24 @@ def build_handoff_report(state: DebugGraphState) -> str:
         [
             "",
             "### Next Step",
-            "Continue the investigation manually from the persisted session file.",
         ]
     )
+    if state.parent_slug:
+        lines.append(
+            f"After resolving this derived issue, return to the parent session `{state.parent_slug}` and finish the original human verification."
+        )
+    elif state.resolution.fail_count >= 2:
+        lines.append(
+            f"Repeated verification failed. Review the focused research checkpoint at `.planning/debug/{state.slug}.research.md` before attempting another fix loop."
+        )
+    elif state.resume_after_child and state.child_slugs:
+        lines.append(
+            "A linked follow-up issue is in progress or recently completed. Resolve the child session and then return here to close the original human verification."
+        )
+        for child_slug in state.child_slugs:
+            lines.append(f"- linked child: `{child_slug}`")
+    else:
+        lines.append("Continue the investigation manually from the persisted session file.")
     return "\n".join(lines)
 
 class MarkdownPersistenceHandler:
@@ -134,6 +212,9 @@ class MarkdownPersistenceHandler:
             "slug": state.slug,
             "status": state.status.value,
             "trigger": state.trigger,
+            "parent_slug": state.parent_slug,
+            "child_slugs": state.child_slugs,
+            "resume_after_child": state.resume_after_child,
             "diagnostic_profile": state.diagnostic_profile,
             "current_node_id": state.current_node_id,
             "created": state.created.isoformat(),
@@ -169,6 +250,14 @@ class MarkdownPersistenceHandler:
 
     def build_handoff_report(self, state: DebugGraphState) -> str:
         return build_handoff_report(state)
+
+    def research_path(self, slug: str) -> Path:
+        return debug_research_path(self.debug_dir, slug)
+
+    def save_research_checkpoint(self, state: DebugGraphState) -> Path:
+        path = self.research_path(state.slug)
+        path.write_text(build_research_checkpoint(state), encoding="utf-8")
+        return path
 
     def load(self, path: Path) -> DebugGraphState:
         if not path.exists():
@@ -216,6 +305,9 @@ class MarkdownPersistenceHandler:
                 "slug": frontmatter["slug"],
                 "status": frontmatter["status"],
                 "trigger": frontmatter["trigger"],
+                "parent_slug": frontmatter.get("parent_slug"),
+                "child_slugs": frontmatter.get("child_slugs", []),
+                "resume_after_child": frontmatter.get("resume_after_child", False),
                 "diagnostic_profile": frontmatter.get("diagnostic_profile"),
                 "current_node_id": frontmatter.get("current_node_id"),
                 "created": frontmatter["created"],
@@ -235,25 +327,57 @@ class MarkdownPersistenceHandler:
             }
         )
 
+    def load_all_sessions(self) -> list[DebugGraphState]:
+        if not self.debug_dir.exists():
+            return []
+
+        sessions = list(self.debug_dir.glob("*.md"))
+        sessions.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+
+        loaded: list[DebugGraphState] = []
+        for session_path in sessions:
+            try:
+                loaded.append(self.load(session_path))
+            except Exception:
+                continue
+        return loaded
+
+    def load_most_recent_awaiting_human_session(self) -> DebugGraphState | None:
+        for state in self.load_all_sessions():
+            if state.status == DebugStatus.AWAITING_HUMAN:
+                return state
+        return None
+
+    def _parent_resume_ready(
+        self,
+        state: DebugGraphState,
+        states_by_slug: dict[str, DebugGraphState],
+    ) -> bool:
+        if state.status != DebugStatus.AWAITING_HUMAN:
+            return False
+        if not state.resume_after_child or not state.child_slugs:
+            return False
+
+        child_states = [states_by_slug.get(slug) for slug in state.child_slugs]
+        if not child_states or any(child is None for child in child_states):
+            return False
+        return all(child.status == DebugStatus.RESOLVED for child in child_states if child is not None)
+
+    def load_resume_target(self) -> tuple[DebugGraphState | None, str]:
+        sessions = self.load_all_sessions()
+        if not sessions:
+            return None, "missing"
+
+        states_by_slug = {state.slug: state for state in sessions}
+        for state in sessions:
+            if self._parent_resume_ready(state, states_by_slug):
+                return state, "parent_after_child"
+
+        return sessions[0], "most_recent"
+
     def load_most_recent_session(self) -> DebugGraphState | None:
         """
         Finds and loads the most recently updated debug session from the debug directory.
         """
-        if not self.debug_dir.exists():
-            return None
-            
-        sessions = list(self.debug_dir.glob("*.md"))
-        if not sessions:
-            return None
-            
-        # Sort by modification time, newest first
-        sessions.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-        
-        # Try to load the most recent one. If it's corrupted, try the next one.
-        for session_path in sessions:
-            try:
-                return self.load(session_path)
-            except Exception:
-                continue
-                
-        return None
+        state, _ = self.load_resume_target()
+        return state

@@ -1,6 +1,48 @@
 from __future__ import annotations
 
-from .schema import DebugGraphState, SuggestedDispatchTask, SuggestedSpawnTask
+from .schema import (
+    DebugGraphState,
+    SuggestedDispatchTask,
+    SuggestedEvidenceLane,
+    SuggestedSpawnTask,
+)
+
+
+WORKER_LANE_HINTS = (
+    "build",
+    "collect logs",
+    "command",
+    "commands",
+    "execute",
+    "execution",
+    "exit code",
+    "lint",
+    "log output",
+    "logs",
+    "repro",
+    "rerun",
+    "run ",
+    "stderr",
+    "stdout",
+    "test",
+    "tests",
+)
+
+
+def choose_codex_agent_type_for_lane(lane: SuggestedEvidenceLane) -> str:
+    haystack = " ".join(
+        part.lower()
+        for part in (
+            lane.name,
+            lane.focus,
+            lane.join_goal or "",
+            *lane.evidence_to_collect,
+        )
+        if part
+    )
+    if any(hint in haystack for hint in WORKER_LANE_HINTS):
+        return "worker"
+    return "explorer"
 
 
 def build_codex_dispatch_plan(state: DebugGraphState) -> list[SuggestedDispatchTask]:
@@ -53,11 +95,11 @@ def format_dispatch_plan(tasks: list[SuggestedDispatchTask]) -> str:
 def build_codex_spawn_plan(state: DebugGraphState) -> list[SuggestedSpawnTask]:
     tasks = build_codex_dispatch_plan(state)
     spawn_tasks: list[SuggestedSpawnTask] = []
-    for task in tasks:
+    for lane, task in zip(state.suggested_evidence_lanes, tasks, strict=False):
         spawn_tasks.append(
             SuggestedSpawnTask(
                 lane_name=task.lane_name,
-                agent_type="explorer",
+                agent_type=choose_codex_agent_type_for_lane(lane),
                 reasoning_effort="medium",
                 message=task.prompt,
             )

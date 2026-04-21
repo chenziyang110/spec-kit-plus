@@ -77,6 +77,30 @@ def test_build_codex_spawn_plan_generates_spawn_ready_payloads() -> None:
     assert "Investigate lane `source-truth-trace`" in payloads[0].message
 
 
+def test_build_codex_spawn_plan_uses_worker_for_command_execution_lanes() -> None:
+    state = DebugGraphState(
+        slug="session",
+        trigger="refresh crash",
+        diagnostic_profile="general",
+    )
+    state.suggested_evidence_lanes = [
+        SuggestedEvidenceLane(
+            name="repro-command-lane",
+            focus="run targeted repro commands and collect logs",
+            evidence_to_collect=["repro command output", "exit code", "error logs"],
+            join_goal="Confirm whether the crash reproduces locally under the failing route.",
+        )
+    ]
+
+    payloads = build_codex_spawn_plan(state)
+
+    assert len(payloads) == 1
+    assert payloads[0].lane_name == "repro-command-lane"
+    assert payloads[0].agent_type == "worker"
+    assert payloads[0].reasoning_effort == "medium"
+    assert "Investigate lane `repro-command-lane`" in payloads[0].message
+
+
 def test_format_spawn_plan_renders_spawn_payloads() -> None:
     state = DebugGraphState(
         slug="session",
@@ -95,3 +119,22 @@ def test_format_spawn_plan_renders_spawn_payloads() -> None:
 
     assert "Suggested Codex Spawn Payloads" in rendered
     assert "source-truth-trace: explorer (medium)" in rendered
+
+
+def test_format_spawn_plan_renders_worker_payloads_for_execution_lanes() -> None:
+    state = DebugGraphState(
+        slug="session",
+        trigger="refresh crash",
+        diagnostic_profile="general",
+    )
+    state.suggested_evidence_lanes = [
+        SuggestedEvidenceLane(
+            name="repro-command-lane",
+            focus="run targeted repro commands and collect logs",
+            evidence_to_collect=["repro command output", "exit code", "error logs"],
+        )
+    ]
+
+    rendered = format_spawn_plan(build_codex_spawn_plan(state))
+
+    assert "repro-command-lane: worker (medium)" in rendered

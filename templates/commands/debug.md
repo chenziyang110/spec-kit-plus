@@ -36,6 +36,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
    - Look for existing files in `.planning/debug/*.md` (excluding `resolved/`).
    - If a session exists and no new issue is described, resume it.
    - If a new issue is described, start a new session.
+   - If the active session is `awaiting_human_verify` and the user reports a new issue discovered during that human verification, start a linked follow-up session instead of replacing the parent session.
+   - Record the parent/child relationship in both session files, and after the follow-up session is resolved, return to the parent session to finish the original human verification before archiving it.
 
 2. **Initialize or Resume**
    - Create or read the session file in `.planning/debug/[slug].md`.
@@ -208,7 +210,10 @@ The session file must always make it clear:
   - resulting state transition,
   - and external observation.
 - If verification fails, return to `investigating` with updated evidence. Do not keep layering fixes without updating the hypothesis.
-- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield work proceeds.
+- If automated verification or human verification fails repeatedly without producing a stronger causal explanation, stop the local fix loop and create or refresh `.planning/debug/[slug].research.md` before another code change.
+- Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
+- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
+- If you cannot complete that refresh in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield work proceeds.
 
 ## Checkpoint Protocol
 

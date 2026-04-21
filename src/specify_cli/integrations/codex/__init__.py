@@ -285,6 +285,8 @@ class CodexIntegration(SkillsIntegration):
             "- The leader **MUST** update the debug file's `Current Focus` before delegating and treat child work as evidence collection for the current hypothesis, not as parallel hypothesis formation.\n"
             "- Child agents must return facts, command results, and observations; they must not update the debug file, declare the root cause final, transition the session state, or archive the session.\n"
             "- Use `wait_agent` only after the current investigation fan-out reaches its join point, then integrate the returned evidence into `Evidence` or `Eliminated` yourself.\n"
+            "- If a join-point `wait_agent` returns no completed agents, continue the leader's local investigation path instead of issuing another blind wait.\n"
+            "- If partial child results are needed immediately after an empty wait, use `send_input` with `interrupt=true` to request a concise fact-only summary capped at the 3-5 strongest facts gathered so far, then integrate any returned evidence yourself.\n"
             "- Use `close_agent` after integrating finished child results.\n"
             "- Keep fixing, verification, `awaiting_human_verify`, and final session resolution on the leader path unless a single explicitly scoped repair task is delegated after the root cause is already established.\n"
         )

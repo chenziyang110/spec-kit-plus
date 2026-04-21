@@ -322,6 +322,19 @@ def _diagnostic_escalation_message(state: DebugGraphState) -> str:
     )
 
 
+def _research_checkpoint_message(state: DebugGraphState, research_path: Path) -> str:
+    return _format_checklist(
+        "Repeated verification failed. Stop iterating on local fixes and do focused research before the next code change.",
+        [
+            f"Review `{research_path.as_posix()}`",
+            "Answer the open research questions with repository evidence or primary sources",
+            "Update the debug session with the strongest new fact",
+            "Replace or explicitly reject the current root-cause draft before another fix",
+        ],
+        intro="Use the research checkpoint to break the loop instead of retrying the same fix shape.",
+    )
+
+
 def _command_failed(output: str) -> bool:
     normalized = output.upper()
     return (
@@ -507,7 +520,7 @@ class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
                 success=not command_failed,
             )
             if command_failed:
-                return self._handle_failed_verification(ctx.state)
+                return self._handle_failed_verification(ctx.state, ctx.deps)
 
         # 2. Run feature directory tests
         test_targets = _resolve_test_targets(ctx.state)
@@ -522,24 +535,39 @@ class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
                 success=not command_failed,
             )
             if command_failed:
-                return self._handle_failed_verification(ctx.state)
+                return self._handle_failed_verification(ctx.state, ctx.deps)
 
         # If verification passed, move to resolved.
         ctx.state.resolution.verification = "success"
         return ResolvedNode()
 
-    def _handle_failed_verification(self, state: DebugGraphState) -> Union['InvestigatingNode', 'AwaitingHumanNode']:
+    def _handle_failed_verification(
+        self,
+        state: DebugGraphState,
+        persistence: MarkdownPersistenceHandler | None,
+    ) -> Union['InvestigatingNode', 'AwaitingHumanNode']:
         state.resolution.verification = "failed"
         state.resolution.fail_count += 1
-        if state.resolution.fail_count > 2:
-            return AwaitingHumanNode()
+        research_path: Path | None = None
+        if state.resolution.fail_count >= 2 and persistence:
+            research_path = persistence.save_research_checkpoint(state)
         if state.resolution.fix and state.resolution.fix not in state.resolution.rejected_surface_fixes:
             state.resolution.rejected_surface_fixes.append(state.resolution.fix)
+        if state.resolution.fail_count > 2:
+            if research_path is not None:
+                state.current_focus.next_action = (
+                    f"Repeated verification failed. Review `{research_path.as_posix()}` "
+                    "before attempting another fix loop."
+                )
+            return AwaitingHumanNode()
         if state.resolution.fail_count >= 2:
             state.current_focus.hypothesis = None
             state.current_focus.test = None
             state.current_focus.expecting = None
-            state.current_focus.next_action = _diagnostic_escalation_message(state)
+            if research_path is not None:
+                state.current_focus.next_action = _research_checkpoint_message(state, research_path)
+            else:
+                state.current_focus.next_action = _diagnostic_escalation_message(state)
         return InvestigatingNode()
 
 class AwaitingHumanNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
@@ -549,7 +577,27 @@ class AwaitingHumanNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         ctx.state.current_node_id = "AwaitingHumanNode"
         report_builder = ctx.deps.build_handoff_report if ctx.deps else build_handoff_report
         ctx.state.resolution.report = report_builder(ctx.state)
-        ctx.state.current_focus.next_action = "Autonomous verification exhausted. Review the session summary and continue manually."
+        if ctx.state.resolution.fail_count >= 2 and ctx.deps:
+            research_path = ctx.deps.save_research_checkpoint(ctx.state)
+            if ctx.state.parent_slug:
+                ctx.state.current_focus.next_action = (
+                    f"Repeated verification failed for this follow-up issue. Review "
+                    f"`{research_path.as_posix()}` and, after confirming the outcome, return to parent session "
+                    f"`{ctx.state.parent_slug}`."
+                )
+            else:
+                ctx.state.current_focus.next_action = (
+                    f"Repeated verification failed. Review `{research_path.as_posix()}` before another fix loop."
+                )
+        elif ctx.state.parent_slug:
+            ctx.state.current_focus.next_action = (
+                f"Autonomous verification exhausted for this follow-up issue. "
+                f"After confirming it, return to parent session `{ctx.state.parent_slug}`."
+            )
+        else:
+            ctx.state.current_focus.next_action = (
+                "Autonomous verification exhausted. Review the session summary and continue manually."
+            )
         return End("Awaiting Human Review")
 
 class ResolvedNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
