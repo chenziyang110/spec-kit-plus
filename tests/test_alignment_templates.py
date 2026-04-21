@@ -26,7 +26,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "question-card format" in content.lower()
     assert "[ RECOMMENDED ]" in content
     assert "Reply naturally, for example:" in content
-    assert '选 C' in content
+    assert '"A"' in content
     assert "Recorded: C - Normalize first" in content
     assert "Do not repeat the same question" in content
     assert "Ask at most one unanswered high-impact question per message" in content
@@ -44,6 +44,30 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "Force proceed with known risks" in content
     assert "Input Risks From Alignment" in content
     assert "user's current language" in content.lower()
+
+
+def test_map_codebase_protocol_is_structured_and_evidence_driven():
+    files = [
+        "templates/commands/specify.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+        "templates/commands/clarify.md",
+        "templates/commands/implement.md",
+    ]
+
+    for path in files:
+        content = _read(path)
+        assert "map-codebase" in content
+        assert "map-codebase.md" in content
+        assert "current repository state" in content
+        assert "Macro scan & architecture identification" in content
+        assert "Evidence rules" in content
+        assert "系统边界与外部依赖" in content
+        assert "核心能力映射" in content
+        assert "变更影响与验证入口" in content
+        assert "Do not invent architecture, modules, flows, or APIs" in content
+        assert "未确认" in content
+        assert "未发现" in content
 
 
 def test_clarify_template_updates_alignment_decision():

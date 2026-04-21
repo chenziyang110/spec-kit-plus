@@ -119,12 +119,12 @@ The system MUST make failures easy to detect, explain, and reproduce.
 
 ## Engineering Standards
 
-- **Technical Source of Truth**: Maintain `项目技术文档.md` at the repository
+- **Technical Source of Truth**: Maintain `map-codebase.md` at the repository
   root as the project architecture reference for structure, dependencies,
-  interfaces, and core data flows. If it is missing in an existing codebase,
-  generate it before structural work by analyzing the repository and writing
-  the document in place, then keep it in sync when architecture, module
-  responsibilities, configuration shape, or external interfaces change.
+  interfaces, core data flows, capability mapping, and change-impact analysis.
+  Refresh it from the current repository state before structural work, then
+  keep it in sync when architecture, module responsibilities, configuration
+  shape, external interfaces, runtime flows, or verification surfaces change.
 - **Documentation Sync**: Update docs when code changes affect structure,
   behavior, interfaces, workflows, or operator expectations.
 - **Performance as a Requirement**: Define and verify performance expectations

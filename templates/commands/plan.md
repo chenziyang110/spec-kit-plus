@@ -62,20 +62,59 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for `FEATURE_SPEC`, `IMPL_PLAN`, `SPECS_DIR`, `BRANCH`, and `FEATURE_DIR`.
 
-2. **Ensure repository technical documentation exists**:
-   - Check whether `项目技术文档.md` exists at the repository root.
-   - If it is missing, analyze the repository and create `项目技术文档.md`
-     before continuing.
-   - Use this standard section structure:
-     `项目架构概览`, `目录结构及其职责`, `关键模块依赖关系图`,
-     `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`,
+2. **Generate or refresh the repository map-codebase artifact**:
+   - Always analyze the current repository state and write the result to
+     `map-codebase.md` at the repository root before continuing, even if an
+     older `map-codebase.md` already exists.
+   - Treat this document as the repository's **map-codebase** artifact: it
+     must support downstream planning and implementation without silently
+     missing affected areas, not merely provide a generic architecture summary.
+   - During analysis, follow this internal workflow in order:
+     1. **Macro scan & architecture identification**: inspect the repository
+        root plus key config/build files (for example `package.json`,
+        `pyproject.toml`, `pom.xml`, `build.gradle`, `go.mod`,
+        `docker-compose.yml`, CI files) to determine project type, tech stack,
+        build tools, runtime boundaries, deployment shape, and top-level
+        architecture.
+     2. **Directory structure deep analysis**: traverse major directories and
+        summarize their organization logic (by layer, feature, module, package,
+        app, service, etc.), responsibilities, and representative files.
+     3. **Dependency & module analysis**: inspect import/require relationships,
+        module boundaries, and integration seams; identify core modules,
+        support modules, strong coupling points, and any visible circular
+        dependencies or central chokepoints.
+     4. **Core code element review**: identify the most important classes,
+        interfaces, abstract types, enums, functions, controllers, services,
+        jobs, commands, and other architecture-bearing elements; summarize
+        their responsibilities from actual code.
+     5. **Data flow & interface review**: trace one or two core runtime flows
+        from entry to exit, including state transitions, persistence, external
+        integrations, background jobs, and error paths when visible. If the
+        project exposes APIs, RPC handlers, CLI entrypoints, event consumers,
+        or scheduled jobs, enumerate the important ones and summarize their
+        input/output shape.
+     6. **Patterns & conventions extraction**: summarize recurring design
+        patterns, naming conventions, directory habits, configuration
+        practices, and shared utility locations actually used in the codebase.
+   - Evidence rules:
+     - Every conclusion must be grounded in files that actually exist in the
+       repository. Do not invent architecture, modules, flows, or APIs.
+     - If something cannot be confirmed from the codebase, say `未确认` or
+       `未发现`, not a guess.
+     - Prefer concise tables and Mermaid diagrams over vague narrative when
+       describing structure, dependencies, or runtime flows.
+   - The generated document must use Markdown and include **at least** the
+     following `##` sections:
+     `项目架构概览`, `系统边界与外部依赖`, `目录结构及其职责`,
+     `关键模块依赖关系图`, `核心类与接口功能说明`, `核心数据流向图`,
+     `API接口清单`, `核心能力映射`, `变更影响与验证入口`,
      `常见的代码模式与约定`.
 
 3. **Load context**:
    - Read `FEATURE_SPEC`
    - Read `FEATURE_DIR/alignment.md`
    - Read `/memory/constitution.md`
-   - Read `项目技术文档.md` if present
+   - Read `map-codebase.md`
    - Load the copied IMPL_PLAN template
 
 4. **Validate alignment status before planning**:

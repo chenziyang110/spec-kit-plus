@@ -73,23 +73,77 @@ The text the user typed after `/sp.specify` is the initial idea. Your responsibi
    - Parse `BRANCH_NAME`, `SPEC_FILE`, and `FEATURE_DIR` from the JSON response.
    - Set `ALIGNMENT_FILE` to `FEATURE_DIR/alignment.md`.
 
-4. Ensure repository technical documentation exists.
-   - Check whether `项目技术文档.md` exists at the repository root.
-   - If it is missing, analyze the repository and create `项目技术文档.md`
-     before continuing.
-   - The generated document must summarize project architecture, directory
-     responsibilities, module dependencies, core data flows, external
-     interfaces, and project conventions based only on actual repository
-     evidence.
-   - Use this standard section structure:
-     `项目架构概览`, `目录结构及其职责`, `关键模块依赖关系图`,
-     `核心类与接口功能说明`, `核心数据流向图`, `API接口清单`,
+4. Generate or refresh the repository map-codebase artifact.
+   - Always analyze the current repository state and write the result to
+     `map-codebase.md` at the repository root before continuing, even if an
+     older `map-codebase.md` already exists.
+   - Treat this document as the repository's **map-codebase** artifact: it
+     must support downstream planning and implementation without silently
+     missing affected areas, not merely provide a generic architecture summary.
+   - During analysis, follow this internal workflow in order:
+     1. **Macro scan & architecture identification**: inspect the repository
+        root plus key config/build files (for example `package.json`,
+        `pyproject.toml`, `pom.xml`, `build.gradle`, `go.mod`,
+        `docker-compose.yml`, CI files) to determine project type, tech stack,
+        build tools, runtime boundaries, deployment shape, and top-level
+        architecture.
+     2. **Directory structure deep analysis**: traverse major directories and
+        summarize their organization logic (by layer, feature, module, package,
+        app, service, etc.), responsibilities, and representative files.
+     3. **Dependency & module analysis**: inspect import/require relationships,
+        module boundaries, and integration seams; identify core modules,
+        support modules, strong coupling points, and any visible circular
+        dependencies or central chokepoints.
+     4. **Core code element review**: identify the most important classes,
+        interfaces, abstract types, enums, functions, controllers, services,
+        jobs, commands, and other architecture-bearing elements; summarize
+        their responsibilities from actual code.
+     5. **Data flow & interface review**: trace one or two core runtime flows
+        from entry to exit, including state transitions, persistence, external
+        integrations, background jobs, and error paths when visible. If the
+        project exposes APIs, RPC handlers, CLI entrypoints, event consumers,
+        or scheduled jobs, enumerate the important ones and summarize their
+        input/output shape.
+     6. **Patterns & conventions extraction**: summarize recurring design
+        patterns, naming conventions, directory habits, configuration
+        practices, and shared utility locations actually used in the codebase.
+   - Evidence rules:
+     - Every conclusion must be grounded in files that actually exist in the
+       repository. Do not invent architecture, modules, flows, or APIs.
+     - If something cannot be confirmed from the codebase, say `未确认` or
+       `未发现`, not a guess.
+     - Prefer concise tables and Mermaid diagrams over vague narrative when
+       describing structure, dependencies, or runtime flows.
+   - The generated document must use Markdown and include **at least** the
+     following `##` sections:
+     `项目架构概览`, `系统边界与外部依赖`, `目录结构及其职责`,
+     `关键模块依赖关系图`, `核心类与接口功能说明`, `核心数据流向图`,
+     `API接口清单`, `核心能力映射`, `变更影响与验证入口`,
      `常见的代码模式与约定`.
+   - Section intent:
+     - `项目架构概览`: project type, tech stack, build/deploy model, top-level
+       architecture pattern.
+     - `系统边界与外部依赖`: runtime pieces, external services, storage,
+       queues, SDKs, infra touchpoints.
+     - `目录结构及其职责`: major directories with responsibilities and sample
+       files.
+     - `关键模块依赖关系图`: module/package dependency description and Mermaid
+       graph when helpful.
+     - `核心类与接口功能说明`: architecture-bearing classes/interfaces/functions.
+     - `核心数据流向图`: one or two critical business/runtime flows.
+     - `API接口清单`: important APIs or other externally callable entrypoints;
+       if none exist, explicitly state that.
+     - `核心能力映射`: capability/use-case to code entrypoints, modules, data,
+       and verification surfaces.
+     - `变更影响与验证入口`: high-coupling areas, likely co-change surfaces,
+       easy-to-miss follow-up areas, and what to verify after changes.
+     - `常见的代码模式与约定`: design patterns, naming, organization,
+       config conventions, common utilities.
 
 5. Load context.
    - Read `templates/spec-template.md`.
    - Read `templates/alignment-template.md`.
-   - Read `项目技术文档.md` if present.
+   - Read `map-codebase.md`.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
    - Read constitution/project guidance if present.
