@@ -146,6 +146,7 @@ Optional follow-up commands:
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
 - `analyze` to perform a cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md`
 - `explain` to describe the current spec, plan, task, or implement artifact in plain language
+- `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)
 
 Already have code? Run `map-codebase` first so the current codebase is mapped into `PROJECT-HANDBOOK.md` and `.specify/project-map/` before deeper brownfield workflow steps.
 Generated projects also track handbook freshness in `.specify/project-map/status.json`, so brownfield workflows can decide whether the current navigation baseline is fresh, possibly stale, or stale before proceeding.
@@ -166,12 +167,22 @@ After planning, continue with:
 tasks -> implement
 ```
 
+Boundary-sensitive implementation rule:
+
+- If the feature touches an established boundary pattern in the target project, `plan` should write an `Implementation Constitution` section instead of leaving that rule buried in technical background.
+- Use `Implementation Constitution` for architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus.
+- Typical triggers include existing framework-owned boundaries, native/plugin bridges, protocol seams, generated API surfaces, or any area where "generic implementation instinct" would likely drift from the repository's established pattern.
+- A good heuristic is: if an implementer should be forced to inspect specific existing boundary files before coding safely, the feature likely needs `Implementation Constitution`.
+- `tasks` should convert those rules into explicit implementation guardrails before setup or feature work begins.
+- `implement` should treat those guardrails as binding execution constraints and confirm the touched boundary's owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
+
 Current `sp-implement` runtime model in this fork:
 
 - `sp-implement` acts as a milestone-level orchestration leader rather than the direct executor
 - concrete implementation runs through delegated execution paths (`single-agent`, `native-multi-agent`, or `sidecar-runtime`)
 - parallel work is coordinated through explicit join points before dependent work continues
 - runtime surfaces can report retry-pending work and blockers instead of hiding those states in chat-only narration
+- established boundary patterns should be preserved through `Implementation Constitution` and implementation guardrails, not rediscovered ad hoc during coding
 
 For Codex and other skills-based integrations, the generated commands are installed in skills form. Codex now uses the dedicated `.codex/skills/` directory for generated skills.
 

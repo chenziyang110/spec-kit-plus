@@ -11,6 +11,10 @@
 
 ## Failure and Recovery Flows
 
+## Entry Points, Contracts, and Handoffs
+
+## State Transitions and Compatibility Notes
+
 ## Adjacent Workflow Risks
 
 ## Entry Commands and Handoffs

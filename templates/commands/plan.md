@@ -129,14 +129,21 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 6. **Execute the plan workflow** using the IMPL_PLAN template:
    - Fill Technical Context (mark unknowns as `NEEDS CLARIFICATION`)
+   - Add `Implementation Constitution` using architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus from repository evidence
+   - Add `Implementation Constitution` whenever one or more of these heuristics is true:
+     - the feature touches an established framework-owned boundary or adapter pattern
+     - the touched area is a native bridge, plugin surface, protocol seam, generated API surface, or other contract-heavy boundary
+     - a generic implementation instinct would likely drift away from the repository's existing pattern
+     - the repository already has canonical boundary files or examples that implementers must inspect before changing code safely
    - Fill Constitution Check from the constitution
    - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
    - Copy locked planning decisions from `alignment.md`, `context.md`, and `spec.md` into planning constraints, assumptions, or design notes so they are not silently dropped
+   - Promote framework and boundary rules from "technical background" into explicit implementation constraints rather than leaving them as implied context
    - Evaluate gates (ERROR if violations are unjustified)
    - Phase 0: generate `research.md` and resolve all `NEEDS CLARIFICATION`
    - Phase 1: generate `data-model.md`, `contracts/`, and `quickstart.md`
    - Phase 1: update agent context by running the agent script
-   - Before finalizing the consolidated implementation plan, verify that no locked planning decision has been silently omitted from the generated plan artifacts
+   - Before finalizing the consolidated implementation plan, verify that no locked planning decision or implementation constitution rule has been silently omitted from the generated plan artifacts
    - Re-evaluate Constitution Check after design artifacts exist
 
 7. **Stop and report**:

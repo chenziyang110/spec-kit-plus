@@ -13,6 +13,10 @@
 
 ## Runtime Dependencies
 
+## Protocol and Bridge Seams
+
 ## Contract Boundaries
+
+## Toolchain, Packaging, and Runtime Invariants
 
 ## Integration Risks

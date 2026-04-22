@@ -100,7 +100,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in the generated report and implementation strategy section.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
    - Load plan.md and extract tech stack, libraries, project structure
-   - Extract `Locked Planning Decisions`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
+   - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
    - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
    - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
    - If `.specify/memory/constitution.md` exists: treat its MUST/SHOULD principles as task-shaping constraints and preserve them explicitly in execution ordering, validation tasks, or phase notes instead of assuming downstream agents will rediscover them
@@ -110,13 +110,14 @@ You **MUST** consider the user input before proceeding (if not empty).
    - If research.md exists: Extract decisions for setup tasks
    - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
    - Generate tasks organized by user story (see Task Generation Rules below)
+   - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
    - Generate dependency graph showing user story completion order
    - Derive a write set for each task (files or shared registration surfaces it will modify)
    - Group ready tasks into each phase's parallel batches using those write sets
    - Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
    - Create parallel execution examples per user story
    - Validate task completeness (each user story has all needed tasks, independently testable)
-   - Validate decision preservation: if a locked planning decision affects implementation, compatibility, rollout, validation, or sequencing, at least one task or phase note must preserve it explicitly instead of silently dropping it
+   - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly instead of silently dropping it
 
 5. **Generate tasks.md**: Use `templates/tasks-template.md` as structure, fill with:
    - Correct feature name from plan.md
@@ -131,6 +132,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Parallel batches and join points for each phase where they matter
    - Parallel execution examples per story
    - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution
+   - Planning inputs section showing implementation constitution rules when they materially shape execution
    - Implementation strategy section (phased delivery, priority-ordered delivery, capability-aware parallel execution)
 
 6. **Report**: Output path to generated tasks.md and summary:

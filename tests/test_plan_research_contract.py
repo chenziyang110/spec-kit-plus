@@ -39,6 +39,10 @@ def test_research_template_and_plan_template_are_linked() -> None:
     assert "## Environment / Dependency Notes" in research_template
 
     assert "## Research Inputs" in plan_template
+    assert "## Implementation Constitution" in plan_template
+    assert "### Architecture Invariants" in plan_template
+    assert "### Forbidden Implementation Drift" in plan_template
+    assert "### Required Implementation References" in plan_template
     assert "### Standard Stack" in plan_template
     assert "### Don't Hand-Roll" in plan_template
     assert "### Common Pitfalls" in plan_template

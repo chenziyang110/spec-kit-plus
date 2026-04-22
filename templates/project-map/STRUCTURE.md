@@ -9,7 +9,11 @@
 
 ## Directory Responsibilities
 
+## Critical File Families
+
 ## Key File Locations
+
+## Key Components by Area
 
 ## Shared Coordination Files
 

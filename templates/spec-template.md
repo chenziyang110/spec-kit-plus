@@ -100,6 +100,9 @@
 <!--
   This section is planning-facing analysis, not an implementation prescription.
   Include only the details that materially shape planning, testing, or risk.
+  If the feature touches an established boundary pattern, call out the boundary
+  sensitivity here so `plan` can promote it into `Implementation Constitution`
+  without turning this spec into an implementation document.
 -->
 
 ### Preconditions and Dependencies
@@ -116,6 +119,7 @@
 
 - [Constraint that affects sequencing, scope, rollout, or validation]
 - [Operational, compliance, or coordination factor planners must preserve]
+- [Established boundary pattern or framework-owned surface that planners must preserve as an execution constraint]
 
 ## Decision Capture *(mandatory)*
 
@@ -129,6 +133,7 @@
 
 - [Decision confirmed strongly enough that planners must preserve it]
 - [Workflow, compatibility, or delivery choice that should not be re-litigated]
+- [Boundary-sensitive area that `plan` should turn into `Implementation Constitution` instead of leaving as background context]
 
 ### Claude Discretion
 

@@ -155,6 +155,47 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "specify team" not in content
 
 
+def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrails(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-boundary-guardrails"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skills_dir = target / ".codex" / "skills"
+
+    plan_content = (skills_dir / "sp-plan" / "SKILL.md").read_text(encoding="utf-8")
+    assert "Add `Implementation Constitution`" in plan_content
+    assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_content
+    assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_content
+
+    tasks_content = (skills_dir / "sp-tasks" / "SKILL.md").read_text(encoding="utf-8")
+    assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_content
+    assert "implementation-guardrails phase before setup" in tasks_content
+    assert "locked planning decision or implementation constitution rule" in tasks_content
+
+    implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
+    assert "Extract `Implementation Constitution` from `plan.md`" in implement_content
+    assert "What framework or boundary pattern owns the touched surface?" in implement_content
+    assert "Which files define the existing pattern that must be preserved?" in implement_content
+    assert "What implementation drift is forbidden for this batch?" in implement_content
+    assert "Boundary-pattern preservation" in implement_content
+
+    analyze_content = (skills_dir / "sp-analyze" / "SKILL.md").read_text(encoding="utf-8")
+    assert "Boundary Guardrail Gaps" in analyze_content
+    assert "BG1" in analyze_content
+    assert "BG2" in analyze_content
+    assert "BG3" in analyze_content
+    assert "Boundary Guardrail Table" in analyze_content
+
+
 def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
@@ -180,6 +221,10 @@ def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_pa
     assert "close_agent" in content
     assert "complete-refresh" in content
     assert "do not create `.planning/codebase/`" in content
+    assert "layering exists so map consumers can read detail on demand" in content
+    assert "do not treat layering as permission to discard technical detail" in content
+    assert "external or exported api contracts" in content
+    assert "`project-handbook.md` must stay concise and index-first" in content
 
 
 def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):

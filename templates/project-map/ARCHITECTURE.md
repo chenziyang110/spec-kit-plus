@@ -11,9 +11,13 @@
 
 ## Core Abstractions
 
+## Key Components and Responsibilities
+
 ## Main Flows
 
 ## Change Propagation Paths
+
+## Internal Boundaries and Critical Seams
 
 ## Truth Ownership and Boundaries
 

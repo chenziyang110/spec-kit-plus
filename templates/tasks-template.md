@@ -15,9 +15,11 @@ description: "Task list template for feature implementation"
 ## Planning Inputs
 
 - **Locked planning decisions**: Copy any non-negotiable implementation, compatibility, rollout, or validation constraints from `plan.md`, `spec.md`, and `alignment.md`
+- **Implementation constitution**: Carry forward architecture invariants, boundary ownership, forbidden drift, required references, and review focus from `plan.md`
 - **Alignment risks**: Carry forward unresolved but accepted risks so tasks can mitigate or explicitly acknowledge them
 - **Validation references**: Preserve `quickstart.md`, canonical references, and research-backed validation notes when they shape task ordering or completion criteria
 - Do not silently drop a locked planning decision; if it is deferred, say so explicitly in the phase or dependency notes
+- If a feature touches an established framework or boundary pattern, add explicit guardrail tasks before implementation begins
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -52,13 +54,25 @@ description: "Task list template for feature implementation"
   ============================================================================
 -->
 
+## Phase 0: Implementation Guardrails
+
+**Purpose**: Freeze architecture constraints and boundary references before any code-writing batch starts
+
+- [ ] T000 Read the boundary-defining files, contracts, and examples named in `plan.md` under `Required Implementation References`
+- [ ] T001 Record the active implementation guardrails for this feature: framework ownership, preserved boundary pattern, forbidden drift, and review checks
+- [ ] T002 Confirm the first implementation batch extends the existing boundary pattern instead of creating a parallel one
+
+**Checkpoint**: Implementation guardrails captured - downstream batches now have explicit architecture constraints
+
+---
+
 ## Phase 1: Setup (Shared Infrastructure)
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Create project structure per implementation plan
-- [ ] T002 Initialize [language] project with [framework] dependencies
-- [ ] T003 [P] Configure linting and formatting tools
+- [ ] T003 Create project structure per implementation plan
+- [ ] T004 Initialize [language] project with [framework] dependencies
+- [ ] T005 [P] Configure linting and formatting tools
 
 ---
 
@@ -70,12 +84,12 @@ description: "Task list template for feature implementation"
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T004 Setup database schema and migrations framework
-- [ ] T005 [P] Implement authentication/authorization framework
-- [ ] T006 [P] Setup API routing and middleware structure
-- [ ] T007 Create base models/entities that all stories depend on
-- [ ] T008 Configure error handling and logging infrastructure
-- [ ] T009 Setup environment configuration management
+- [ ] T006 Setup database schema and migrations framework
+- [ ] T007 [P] Implement authentication/authorization framework
+- [ ] T008 [P] Setup API routing and middleware structure
+- [ ] T009 Create base models/entities that all stories depend on
+- [ ] T010 Configure error handling and logging infrastructure
+- [ ] T011 Setup environment configuration management
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -92,20 +106,20 @@ Examples of foundational tasks (adjust based on your project):
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
 **Parallel Batch 1.1**: Independent failing tests with non-overlapping write sets
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T012 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T013 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
 **Join Point 1.1**: Confirm both tests fail for the expected reasons before writing production code
 
 ### Implementation for User Story 1
 
 **Parallel Batch 1.2**: Independent models or DTOs with isolated write sets
-- [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
+- [ ] T014 [P] [US1] Create [Entity1] model in src/models/[entity1].py
+- [ ] T015 [P] [US1] Create [Entity2] model in src/models/[entity2].py
 **Join Point 1.2**: Resolve any shared exports, registrations, or schema indexes before service work
-- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
-- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] Add validation and error handling
-- [ ] T017 [US1] Add logging for user story 1 operations
+- [ ] T016 [US1] Implement [Service] in src/services/[service].py (depends on T014, T015)
+- [ ] T017 [US1] Implement [endpoint/feature] in src/[location]/[file].py while preserving the established boundary/framework pattern named in `plan.md`
+- [ ] T018 [US1] Add validation and error handling
+- [ ] T019 [US1] Add logging for user story 1 operations
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -119,15 +133,15 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
 
-- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T020 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T021 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
 
 ### Implementation for User Story 2
 
-- [ ] T020 [P] [US2] Create [Entity] model in src/models/[entity].py
-- [ ] T021 [US2] Implement [Service] in src/services/[service].py
-- [ ] T022 [US2] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T023 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T022 [P] [US2] Create [Entity] model in src/models/[entity].py
+- [ ] T023 [US2] Implement [Service] in src/services/[service].py
+- [ ] T024 [US2] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T025 [US2] Integrate with User Story 1 components (if needed)
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -141,14 +155,14 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
 
-- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T026 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T027 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
 
 ### Implementation for User Story 3
 
-- [ ] T026 [P] [US3] Create [Entity] model in src/models/[entity].py
-- [ ] T027 [US3] Implement [Service] in src/services/[service].py
-- [ ] T028 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T028 [P] [US3] Create [Entity] model in src/models/[entity].py
+- [ ] T029 [US3] Implement [Service] in src/services/[service].py
+- [ ] T030 [US3] Implement [endpoint/feature] in src/[location]/[file].py
 
 **Checkpoint**: All user stories should now be independently functional
 

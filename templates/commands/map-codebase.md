@@ -48,10 +48,22 @@ Rules:
   or low-value content.
 - The refreshed map must make task-relevant coverage sufficient for any touched
   area it claims to cover.
+- Layering exists so map consumers can read detail on demand instead of re-reading one monolithic technical document.
+- Do not treat layering as permission to discard technical detail.
+- The topical map must preserve the level of detail needed to replace a legacy project technical document while still splitting that detail across the canonical topical files.
 - Task-relevant coverage is insufficient when the touched area is named only
   vaguely, lacks ownership or placement guidance, or lacks workflow,
   constraint, integration, or regression-sensitive testing guidance.
 - Treat the map as a coverage system, not just a navigation summary.
+- When scouting reveals a high-value contract or implementation detail, keep it
+  in the topical map instead of collapsing it into a one-line summary.
+- High-value details typically include:
+  - external or exported API contracts
+  - core data models, state semantics, and handoff fields
+  - IPC, bridge, native-host, message, pipe, or protocol seams
+  - build, packaging, toolchain, platform, architecture, and runtime invariants
+  - key components whose responsibilities, inputs/outputs, or downstream effects would change how future work is implemented or verified
+- Do not collapse those details into vague summaries.
 - For each important capability, subsystem, workflow, or risky touched area
   discovered during scouting, the combined handbook/project-map output must
   answer:
@@ -114,23 +126,29 @@ Rules:
      manifests, top-level config, entrypoints, scripts, tests, and current
      navigation docs if present.
    - Read only the live files needed to establish current facts for:
-     - system shape and entrypoints
-     - runtime units, execution surfaces, and major capability surfaces
-     - directory ownership and write surfaces
-     - key consumer surfaces and shared coordination surfaces
-     - conventions and testing patterns
-     - external integrations and runtime assumptions
-     - user and maintainer workflows
-     - operational caveats, recovery paths, and risky coordination points
-     - change-propagation hotspots, validation entry points, and known unknowns
+      - system shape and entrypoints
+      - runtime units, execution surfaces, and major capability surfaces
+      - directory ownership and write surfaces
+      - key consumer surfaces and shared coordination surfaces
+      - conventions and testing patterns
+      - external integrations and runtime assumptions
+      - user and maintainer workflows
+      - operational caveats, recovery paths, and risky coordination points
+      - change-propagation hotspots, validation entry points, and known unknowns
+      - high-value contracts, schemas, bridge seams, and invariants that future implementers would otherwise have to rediscover by re-reading the live code
    - Always capture actual file paths when naming code, config, scripts, or
      tests.
    - Distinguish current repository facts from recommendations. The map should
      describe what is true now, not what might be nice later.
-   - Prefer evidence that reveals propagation paths: entrypoints, registries,
-     routing files, schema or contract definitions, UI or CLI consumers,
-     background jobs, integration adapters, verification scripts, and operator
-     playbooks.
+    - Prefer evidence that reveals propagation paths: entrypoints, registries,
+      routing files, schema or contract definitions, UI or CLI consumers,
+      background jobs, integration adapters, verification scripts, and operator
+      playbooks.
+    - Explicitly scout for:
+      - exported entrypoints, method families, parameter semantics, return shapes, error fields, and compatibility promises
+      - core data structures, state transitions, persistence fields, and handoff identifiers
+      - protocol, IPC, bridge, or native-host boundaries and their message or lifecycle semantics
+      - build, packaging, toolchain, platform, architecture, and runtime invariants
 
 4. **Generate or refresh the topical map**
    - `ARCHITECTURE.md` must explain layers, abstractions, truth ownership, main
@@ -152,12 +170,19 @@ Rules:
      handbook/project-map outputs give explicit ownership or placement guidance
      plus at least one of workflow, constraint, integration, or
      regression-sensitive testing guidance.
-   - Do not stop at repository shape. The refreshed map must make it hard to
-     miss adjacent surfaces that would need review when the mapped area
-     changes.
+   - The topical documents must carry the deeper detail. `PROJECT-HANDBOOK.md` is the entrypoint, not the place to hide the only precise explanation.
+   - For any high-value contract or implementation detail, record the responsibility, important inputs/outputs or fields, adjacent dependencies, compatibility constraints, and minimum verification route.
+   - Do not stop at naming a file family or subsystem. Explain why the mapped surface matters and what a future change would need to preserve.
+   - `ARCHITECTURE.md` should retain deeper component catalogs and technical boundaries for the subsystems that drive behavior or verification, not just a top-level layer summary.
+   - `STRUCTURE.md` should retain deeper ownership notes for critical file families and key components instead of only listing folders.
+   - `CONVENTIONS.md` should preserve project-specific contract conventions, state semantics, config propagation rules, and compatibility constraints, not just generic style notes.
+   - `INTEGRATIONS.md` should preserve protocol seams, toolchain entrypoints, packaging paths, environment assumptions, and other integration invariants at usable depth.
+   - `WORKFLOWS.md` should preserve the handoff detail that future work needs: method families, parameter semantics, return shapes, error fields, state transitions, compatibility notes, or invariants where those facts govern the flow.
+   - `TESTING.md` and `OPERATIONS.md` should preserve the concrete validation, build, runtime, and troubleshooting detail needed to verify or recover the mapped surfaces without reverse-engineering the repository again.
+   - Do not stop at repository shape. The refreshed map must make it hard to miss adjacent surfaces that would need review when the mapped area changes.
 
 5. **Generate or refresh `PROJECT-HANDBOOK.md`**
-   - Keep it concise enough to be the first-read navigation artifact.
+   - `PROJECT-HANDBOOK.md` must stay concise and index-first so it remains the first-read navigation artifact.
    - Preserve the old single-entry-document strengths by making it easy to
      establish system shape quickly:
      - system summary
@@ -169,7 +194,7 @@ Rules:
       - topic map
       - update triggers
       - recent structural changes
-   - Do not duplicate deep topical content there; route to the topical docs.
+   - Do not duplicate deep topical content there; route to the topical docs. The handbook should summarize and point, while the topical documents must carry the deeper detail.
 
 6. **Run a consistency pass**
    - Ensure `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` agree on
@@ -181,7 +206,16 @@ Rules:
      guesswork with targeted live-file reads and update the affected
      documents.
 
-7. **Report completion**
+7. **Run the detail acceptance checklist before reporting completion**
+   - Before reporting completion, confirm the detail acceptance checklist:
+     - no critical topic document stops at directory names or file-family names without explaining responsibilities
+     - high-value contracts keep concrete signatures, fields, return shapes, handoff data, or compatibility rules when those facts exist
+     - workflow and integration sections preserve protocol seams, bridge semantics, or runtime invariants when those facts govern behavior
+     - build, packaging, runtime, and recovery instructions remain actionable instead of being reduced to generic prose
+     - the handbook stays index-first and points to the topic docs instead of duplicating them
+   - If any checklist item fails, continue mapping before the completion report.
+
+8. **Report completion**
    - After the refresh succeeds, finalize the refresh through the project-map freshness helper using `complete-refresh` so downstream workflows know the new baseline commit and refresh reason. Use `record-refresh` only for low-level/manual recovery when the standard completion path is unavailable.
    - Summarize which canonical map files were created or refreshed.
    - Call out the highest-signal risky coordination points or stale areas that

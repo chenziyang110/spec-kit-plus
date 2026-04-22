@@ -12,6 +12,8 @@ in view.]
 ## How To Read This Project
 
 - Start here for orientation.
+- The handbook is the index-first entrypoint.
+- The topical project-map documents hold the full technical detail.
 - Use `Topic Map` to choose the next topical document.
 - Fall back to live code reads only when the topical coverage is missing, stale, or too broad.
 

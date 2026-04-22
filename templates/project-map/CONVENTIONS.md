@@ -13,6 +13,12 @@
 
 ## Error Handling
 
+## Contract and Compatibility Conventions
+
+## State and Data Semantics
+
+## Config and Option Propagation
+
 ## Comments and Docs
 
 ## Testing Conventions

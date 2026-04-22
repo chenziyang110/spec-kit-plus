@@ -38,6 +38,40 @@
 **Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
 **Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
+## Implementation Constitution
+
+<!--
+  Promote architecture and boundary rules that implementation must not violate.
+  This section turns "technical background" into explicit execution constraints.
+  Use it for framework ownership, boundary patterns, forbidden rewrites, required
+  reference files, and review checks that downstream task generation must preserve.
+-->
+
+### Architecture Invariants
+
+- [Boundary/framework invariant that implementation must preserve]
+- [Compatibility or contract invariant that cannot be replaced by a parallel pattern]
+
+### Boundary Ownership
+
+- [Owning module/class/layer for the touched boundary]
+- [Truth-owning or integration-owning surface that must remain authoritative]
+
+### Forbidden Implementation Drift
+
+- [Raw rewrite, parallel adapter, compatibility shim, or replacement pattern that is not allowed]
+- [Architecture shortcut that would bypass the established boundary or contract]
+
+### Required Implementation References
+
+- [File, contract, or example implementation every implementer must inspect before touching this boundary]
+- [Additional repository reference that anchors the existing pattern]
+
+### Review Focus
+
+- [Specific architecture-drift check reviewers must perform]
+- [Compatibility, framework, or boundary check that must be verified before completion]
+
 ## Alignment Inputs
 
 ### Canonical References
@@ -156,6 +190,7 @@ directories captured above]
 
 - [Locked decision] -> [Where it appears in the plan]
 - [Locked decision] -> [Mitigation, defer note, or follow-up artifact]
+- [Implementation constitution rule] -> [Where tasks and implementation must preserve it]
 
 ## Research Adoption Check
 

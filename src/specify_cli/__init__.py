@@ -1353,7 +1353,7 @@ SKILL_DESCRIPTIONS = {
     "plan": "Execute the implementation planning workflow using the plan template to generate design artifacts with shared collaboration routing.",
     "tasks": "Break down implementation plans into actionable task lists with shared collaboration routing and join-point-aware decomposition.",
     "implement": "Execute all tasks from the task breakdown with unified strategy routing (single-agent, native-multi-agent, sidecar-runtime).",
-    "analyze": "Perform cross-artifact consistency analysis across spec.md, plan.md, and tasks.md.",
+    "analyze": "Perform cross-artifact consistency analysis across spec.md, context.md, plan.md, and tasks.md, including boundary guardrail drift checks (BG1/BG2/BG3).",
     "constitution": "Create or update project governing principles and development guidelines.",
     "checklist": "Generate custom quality checklists for validating requirements completeness and clarity.",
     "map-codebase": "Generate or refresh the handbook navigation system from the live codebase, including PROJECT-HANDBOOK.md and .specify/project-map/.",
@@ -1893,7 +1893,7 @@ def init(
     steps_lines.append(f"   - [cyan]{_display_cmd('map-codebase')}[/] - Generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` for existing code before specification or planning")
     steps_lines.append(f"   - [cyan]{_display_cmd('spec-extend')}[/] - Deepen an existing spec before planning when analysis or references still need work")
     steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
-    steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/]")
+    steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/], including boundary guardrail gaps")
     steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, or implement state in plain language")
     if codex_skill_mode:
         steps_lines.append("   ")
@@ -1918,7 +1918,7 @@ def init(
         [
             f"○ [cyan]{_display_cmd('map-codebase')}[/] [bright_black](optional)[/bright_black] - Generate or refresh the handbook/project-map navigation system for existing code before specification, planning, or implementation resumes",
             f"○ [cyan]{_display_cmd('spec-extend')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
-            f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
+            f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
             f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, or task artifact in plain language before moving forward",
             f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
         ]

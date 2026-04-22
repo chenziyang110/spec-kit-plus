@@ -182,10 +182,13 @@ human_needed_checks:
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
+   - **REQUIRED**: Extract `Implementation Constitution` from `plan.md` when present and treat it as binding execution guidance rather than advisory background
    - **IF EXISTS**: Read data-model.md for entities and relationships
    - **IF EXISTS**: Read contracts/ for API specifications and test requirements
    - **IF EXISTS**: Read research.md for technical decisions and constraints
    - **IF EXISTS**: Read quickstart.md for integration scenarios
+   - **IF `Implementation Constitution` NAMES REQUIRED REFERENCES**: Read those boundary-defining files before choosing the next implementation batch
+   - **IF THE NEXT READY BATCH TOUCHES AN ESTABLISHED BOUNDARY OR FRAMEWORK**: Record the active boundary framework, preserved pattern, forbidden drift, and required references in `implement-tracker.md` before dispatching work
 
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:
@@ -253,6 +256,12 @@ human_needed_checks:
    - single-agent still means one delegated worker lane, not leader self-execution.
    - Re-evaluate the execution strategy at every new parallel batch or join point instead of choosing once for the whole feature
    - When `sidecar-runtime` is selected, use the integration's coordinated runtime surface for the current ready batch, report concrete blockers, keep join-point semantics explicit, and surface retry-pending or blocked runtime state truthfully so runtime/API handoffs stay auditable and safe.
+   - Before dispatching a concrete implementation batch, answer from repository evidence:
+     - What framework or boundary pattern owns the touched surface?
+     - Which files define the existing pattern that must be preserved?
+     - What implementation drift is forbidden for this batch?
+     - Which task or plan item proves that this constraint is intentional rather than inferred?
+   - If those answers are not grounded in the current repository files, stop guesswork, read the missing references, and update `implement-tracker.md` before continuing.
 
 7. Execute implementation following the task plan:
    - **Phase-by-phase execution**: Complete each phase before moving to the next
@@ -264,6 +273,7 @@ human_needed_checks:
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
    - **File-based coordination**: Tasks affecting the same files must run sequentially
    - **Shared-surface coordination**: Treat shared registration files, router tables, export barrels, dependency injection containers, and similar coordination points as write conflicts even if the main feature files differ
+   - **Boundary-pattern preservation**: When a task touches an established framework-owned surface, extend the existing pattern instead of introducing a parallel adapter, raw rewrite, or compatibility shim unless `plan.md` explicitly authorizes that change
    - **Validation checkpoints**: Verify each phase completion before proceeding
 
 8. Implementation execution rules:

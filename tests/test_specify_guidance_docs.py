@@ -83,6 +83,35 @@ def test_guidance_docs_explain_fast_quick_specify_routing():
         assert "acceptance criteria" in content
 
 
+def test_guidance_docs_explain_implementation_constitution_and_boundary_guardrails():
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    for content in (readme, quickstart):
+        assert "Implementation Constitution" in content
+        assert "boundary ownership" in content
+        assert "forbidden implementation drift" in content
+        assert "required implementation references" in content
+        assert "implementation guardrails" in content
+        assert "owning framework" in content or "owning framework, defining reference files" in content
+
+
+def test_guidance_docs_explain_boundary_guardrail_issue_family():
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    assert "BG1" in readme
+    assert "BG2" in readme
+    assert "BG3" in readme
+    assert "missing `Implementation Constitution`" in readme
+    assert "missing task guardrails" in readme
+    assert "missing implementation-time boundary confirmation" in readme
+
+    assert "BG1" in quickstart
+    assert "BG2" in quickstart
+    assert "BG3" in quickstart
+
+
 def test_guidance_docs_explain_resumable_quick_management():
     readme = _read("README.md").lower()
     quickstart = _read("docs/quickstart.md").lower()

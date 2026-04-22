@@ -328,6 +328,35 @@ class TestBuiltInSkillGeneration:
         assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in specify_body
         assert "without needing `/sp.spec-extend`" in specify_body
 
+        plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
+        assert "Add `Implementation Constitution`" in plan_body
+        assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_body
+        assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_body
+        assert "no locked planning decision or implementation constitution rule has been silently omitted" in plan_body
+        assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_body
+
+        tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
+        assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
+        assert "boundary-defining references or forbidden drift" in tasks_body
+        assert "implementation-guardrails phase before setup" in tasks_body
+        assert "locked planning decision or implementation constitution rule" in tasks_body
+
+        implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
+        assert "Extract `Implementation Constitution` from `plan.md`" in implement_body
+        assert "What framework or boundary pattern owns the touched surface?" in implement_body
+        assert "Which files define the existing pattern that must be preserved?" in implement_body
+        assert "What implementation drift is forbidden for this batch?" in implement_body
+        assert "**Boundary-pattern preservation**" in implement_body
+
+        analyze_body = _body_without_frontmatter(skills_dir / "sp-analyze" / "SKILL.md")
+        assert "Boundary Guardrail Gaps" in analyze_body
+        assert "BG1" in analyze_body
+        assert "BG2" in analyze_body
+        assert "BG3" in analyze_body
+        assert "Boundary Guardrail Table" in analyze_body
+        assert "Boundary Guardrail Gap Count" in analyze_body
+        assert "If a `Boundary Guardrail Gap` exists" in analyze_body
+
         map_body = _body_without_frontmatter(skills_dir / "sp-map-codebase" / "SKILL.md")
         assert "PROJECT-HANDBOOK.md" in map_body
         assert ".specify/project-map/ARCHITECTURE.md" in map_body
@@ -335,6 +364,12 @@ class TestBuiltInSkillGeneration:
         assert "run `/sp-map-codebase`" in map_body
         assert "complete-refresh" in map_body
         assert "do not create `.planning/codebase/`" in map_body
+        assert "Layering exists so map consumers can read detail on demand" in map_body
+        assert "Do not treat layering as permission to discard technical detail." in map_body
+        assert "external or exported API contracts" in map_body
+        assert "core data models, state semantics, and handoff fields" in map_body
+        assert "IPC, bridge, native-host, message, pipe, or protocol seams" in map_body
+        assert "`PROJECT-HANDBOOK.md` must stay concise and index-first" in map_body
 
 
 class TestSkillDescriptions:
@@ -354,6 +389,9 @@ class TestSkillDescriptions:
         assert "shared collaboration routing" in SKILL_DESCRIPTIONS["plan"].lower()
         assert "shared collaboration routing" in SKILL_DESCRIPTIONS["tasks"].lower()
         assert "join-point-aware" in SKILL_DESCRIPTIONS["tasks"].lower()
+        assert "context.md" in SKILL_DESCRIPTIONS["analyze"].lower()
+        assert "boundary guardrail drift" in SKILL_DESCRIPTIONS["analyze"].lower()
+        assert "bg1/bg2/bg3" in SKILL_DESCRIPTIONS["analyze"].lower()
         assert "trivial task" in SKILL_DESCRIPTIONS["fast"].lower()
         assert "skip the full specify-plan workflow" in SKILL_DESCRIPTIONS["fast"].lower()
         assert "ad-hoc task" in SKILL_DESCRIPTIONS["quick"].lower()

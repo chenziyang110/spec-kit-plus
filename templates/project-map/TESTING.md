@@ -11,7 +11,11 @@
 
 ## Smallest Meaningful Checks
 
+## Contract Verification Surfaces
+
 ## Verification Entry Points
+
+## Build, Runtime, and Recovery Verification
 
 ## Regression-Sensitive Areas
 

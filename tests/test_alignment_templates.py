@@ -227,6 +227,11 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "planning-critical unresolved items remain" in content
     assert "locked planning decisions from `alignment.md`, `context.md`, and `spec.md`" in content
     assert "silently omitted from the generated plan artifacts" in content
+    assert "Add `Implementation Constitution` whenever one or more of these heuristics is true" in content
+    assert "established framework-owned boundary or adapter pattern" in content
+    assert "native bridge, plugin surface, protocol seam, generated API surface" in content
+    assert "generic implementation instinct would likely drift away" in content
+    assert "canonical boundary files or examples" in content
     assert "choose_execution_strategy(command_name=\"plan\"" in content
     assert "single-agent" in lowered
     assert "native-multi-agent" in lowered
@@ -282,6 +287,12 @@ def test_plan_template_carries_locked_decisions_into_plan_artifact():
     assert "### Canonical References" in content
     assert "### Input Risks From Alignment" in content
     assert "## Research Inputs" in content
+    assert "## Implementation Constitution" in content
+    assert "### Architecture Invariants" in content
+    assert "### Boundary Ownership" in content
+    assert "### Forbidden Implementation Drift" in content
+    assert "### Required Implementation References" in content
+    assert "### Review Focus" in content
     assert "### Standard Stack" in content
     assert "### Don't Hand-Roll" in content
     assert "### Common Pitfalls" in content
@@ -291,6 +302,8 @@ def test_plan_template_carries_locked_decisions_into_plan_artifact():
     assert "## Research Adoption Check" in content
     assert "cannot be silently dropped" in lowered
     assert "where it appears in the plan" in lowered
+    assert "technical background" in lowered
+    assert "execution constraints" in lowered
     assert "consumed research.md" in lowered
     assert "background reading" in lowered
 
@@ -349,17 +362,52 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     content = _read("templates/commands/analyze.md")
     lowered = content.lower()
 
+    assert "description: Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, context.md, plan.md, and tasks.md after task generation, including boundary guardrail drift." in content
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/status.json" in content
+    assert ".specify/project-map/ARCHITECTURE.md" in content
+    assert ".specify/project-map/STRUCTURE.md" in content
+    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert "run `/sp-map-codebase` before continuing" in content
+    assert "task-relevant coverage is insufficient" in lowered
+    assert "ownership or placement guidance" in lowered
+    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
     assert "(`spec.md`, `context.md`, `plan.md`, `tasks.md`)" in content
     assert "- CONTEXT = FEATURE_DIR/context.md" in content
     assert ".specify/memory/constitution.md" in content
+    assert "Read `PROJECT-HANDBOOK.md`" in content
+    assert "Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`" in content
     assert "**From context.md:**" in content
     assert "Locked Decisions" in content
     assert "Locked Planning Decisions" in content
+    assert "Implementation Constitution" in content
     assert "Locked decision inventory" in content
+    assert "Boundary-sensitivity inventory" in content
     assert "#### F. Locked Decision Drift" in content
+    assert "#### H. Boundary Guardrail Gaps" in content
+    assert "boundary-sensitive implementation area" in lowered
+    assert "BG1" in content
+    assert "BG2" in content
+    assert "BG3" in content
+    assert "established framework-owned boundary or adapter pattern" in lowered
+    assert "native bridge, plugin surface, protocol seam, generated api surface" in lowered
+    assert "implementation guardrail tasks in `tasks.md` with no matching constitution rule in `plan.md`" in content
+    assert "execution guidance fails to force pre-dispatch boundary confirmation" in content
+    assert "missing `Implementation Constitution`" in content
     assert "silently weakened, deferred, or renamed" in lowered
     assert "locked decision silently dropped between artifacts" in lowered
     assert "**Locked Decision Preservation Table:**" in content
+    assert "**Boundary Guardrail Table:**" in content
+    assert "| BG1 | Boundary Guardrail Gap | HIGH |" in content
+    assert "| BG2 | Boundary Guardrail Gap | HIGH |" in content
+    assert "| BG3 | Boundary Guardrail Gap | HIGH |" in content
+    assert "Boundary Signal" in content
+    assert "Seen In Plan Constitution?" in content
+    assert "Boundary Guardrail Gap Count" in content
+    assert "If a `Boundary Guardrail Gap` exists" in content
+    assert "recommend `/sp.plan` to add `Implementation Constitution`" in content
+    assert "If `BG2` exists" in content
+    assert "If `BG3` exists" in content
 
 
 def test_debug_template_reads_constitution_and_feature_context_before_fixing() -> None:
@@ -423,6 +471,40 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     assert "legacy `项目技术文档.md`" in content
 
 
+def test_map_codebase_template_preserves_full_detail_through_layering() -> None:
+    content = _read("templates/commands/map-codebase.md")
+    lowered = content.lower()
+
+    assert "Layering exists so map consumers can read detail on demand instead of re-reading one monolithic technical document." in content
+    assert "Do not treat layering as permission to discard technical detail." in content
+    assert "The topical map must preserve the level of detail needed to replace a legacy project technical document" in content
+    assert "high-value contract or implementation detail" in lowered
+    assert "external or exported api contracts" in lowered
+    assert "core data models, state semantics, and handoff fields" in lowered
+    assert "ipc, bridge, native-host, message, pipe, or protocol seams" in lowered
+    assert "build, packaging, toolchain, platform, architecture, and runtime invariants" in lowered
+    assert "key components whose responsibilities, inputs/outputs, or downstream effects" in lowered
+    assert "do not collapse those details into vague summaries" in lowered
+    assert "do not stop at naming a file family or subsystem" in lowered
+    assert "record the responsibility, important inputs/outputs or fields, adjacent dependencies, compatibility constraints, and minimum verification route" in lowered
+    assert "`PROJECT-HANDBOOK.md` must stay concise and index-first" in content
+    assert "the topical documents must carry the deeper detail" in lowered
+    assert "method families, parameter semantics, return shapes, error fields, state transitions, compatibility notes, or invariants" in lowered
+
+
+def test_map_codebase_template_requires_detail_acceptance_checklist() -> None:
+    content = _read("templates/commands/map-codebase.md")
+    lowered = content.lower()
+
+    assert "detail acceptance checklist" in lowered
+    assert "before reporting completion" in lowered
+    assert "no critical topic document stops at directory names or file-family names without explaining responsibilities" in lowered
+    assert "high-value contracts keep concrete signatures, fields, return shapes, handoff data, or compatibility rules when those facts exist" in lowered
+    assert "workflow and integration sections preserve protocol seams, bridge semantics, or runtime invariants when those facts govern behavior" in lowered
+    assert "build, packaging, runtime, and recovery instructions remain actionable instead of being reduced to generic prose" in lowered
+    assert "the handbook stays index-first and points to the topic docs instead of duplicating them" in lowered
+
+
 def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
     content = _read("templates/commands/spec-extend.md")
     lowered = content.lower()
@@ -451,6 +533,11 @@ def test_spec_template_defines_scope_boundaries_without_open_clarification_examp
     assert "### Claude Discretion" in content
     assert "### Canonical References" in content
     assert "### Deferred / Future Ideas" in content
+    assert "planning-facing analysis, not an implementation prescription" in content
+    assert "If the feature touches an established boundary pattern" in content
+    assert "`Implementation Constitution`" in content
+    assert "Established boundary pattern or framework-owned surface" in content
+    assert "Boundary-sensitive area that `plan` should turn into `Implementation Constitution`" in content
     assert "[NEEDS CLARIFICATION:" not in content
     assert "coherent first release" in content.lower()
     assert "viable mvp" not in content.lower()
@@ -476,9 +563,14 @@ def test_tasks_templates_default_to_phased_delivery_not_mvp():
 
     assert "## Planning Inputs" in template_content
     assert "Locked planning decisions" in template_content
+    assert "Implementation constitution" in template_content
     assert "Alignment risks" in template_content
     assert "Validation references" in template_content
     assert "Do not silently drop a locked planning decision" in template_content
+    assert "implementation-guardrails phase" in command_content.lower()
+    assert "boundary-defining references or forbidden drift" in command_content.lower()
+    assert "Phase 0: Implementation Guardrails" in template_content
+    assert "framework ownership, preserved boundary pattern, forbidden drift, and review checks" in template_content
     assert "phased delivery" in command_content.lower()
     assert "suggested first release scope" in command_content.lower()
     assert "parallel batch" in command_content.lower()
@@ -512,6 +604,11 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
 
     assert ".specify/memory/constitution.md" in content
+    assert "Extract `Implementation Constitution` from `plan.md`" in content
+    assert "What framework or boundary pattern owns the touched surface?" in content
+    assert "Which files define the existing pattern that must be preserved?" in content
+    assert "What implementation drift is forbidden for this batch?" in content
+    assert "boundary-pattern preservation" in lowered
     assert "implement-tracker.md" in content
     assert "execution-state source of truth" in lowered
     assert "first-class implementation context" in lowered

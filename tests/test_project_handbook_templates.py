@@ -55,3 +55,36 @@ def test_project_map_templates_encode_coverage_model_sections():
     assert "## Failure and Recovery Flows" in workflows
     assert "## Verification Entry Points" in testing
     assert "## Known Runtime Unknowns" in operations
+
+
+def test_project_map_templates_require_full_detail_sections_for_high_value_facts():
+    architecture = _read("templates/project-map/ARCHITECTURE.md")
+    structure = _read("templates/project-map/STRUCTURE.md")
+    conventions = _read("templates/project-map/CONVENTIONS.md")
+    integrations = _read("templates/project-map/INTEGRATIONS.md")
+    workflows = _read("templates/project-map/WORKFLOWS.md")
+    testing = _read("templates/project-map/TESTING.md")
+    operations = _read("templates/project-map/OPERATIONS.md")
+
+    assert "## Key Components and Responsibilities" in architecture
+    assert "## Internal Boundaries and Critical Seams" in architecture
+    assert "## Critical File Families" in structure
+    assert "## Key Components by Area" in structure
+    assert "## Contract and Compatibility Conventions" in conventions
+    assert "## State and Data Semantics" in conventions
+    assert "## Config and Option Propagation" in conventions
+    assert "## Protocol and Bridge Seams" in integrations
+    assert "## Toolchain, Packaging, and Runtime Invariants" in integrations
+    assert "## Entry Points, Contracts, and Handoffs" in workflows
+    assert "## State Transitions and Compatibility Notes" in workflows
+    assert "## Contract Verification Surfaces" in testing
+    assert "## Build, Runtime, and Recovery Verification" in testing
+    assert "## Build and Packaging Playbooks" in operations
+    assert "## Runtime and Toolchain Invariants" in operations
+
+
+def test_project_handbook_template_points_readers_to_deep_detail_layer():
+    content = _read("templates/project-handbook-template.md")
+
+    assert "The handbook is the index-first entrypoint." in content
+    assert "The topical project-map documents hold the full technical detail." in content

@@ -75,6 +75,13 @@ Then, use the `/speckit.implement` slash command to execute the plan.
 /speckit.implement
 ```
 
+When the feature touches an established boundary pattern in the target project, make that constraint explicit before coding starts:
+
+- `/speckit.plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
+- Use `Implementation Constitution` for architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus.
+- `/speckit.tasks` should turn those rules into explicit implementation guardrails before setup or feature work begins.
+- `/speckit.implement` should treat those guardrails as binding execution constraints and confirm the owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
+
 > [!TIP]
 > **Phased Implementation**: For complex projects, implement in phases to avoid overwhelming the agent's context. Start with core functionality, validate it works, then add features incrementally.
 
@@ -100,6 +107,7 @@ Use support skills when they solve a specific gap:
 - `/speckit.spec-extend` when an existing spec still needs deeper analysis before planning
 - `/speckit.checklist` when you want to audit requirement quality after planning
 - `/speckit.analyze` when you want a cross-artifact consistency check before implementation
+- `/speckit.analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
 - `/speckit.explain` when you want the current spec, plan, or tasks state restated in plain language
 
 If you're starting from an existing codebase, run `/speckit.map-codebase` first so the brownfield navigation artifacts are fresh before requirement, planning, or implementation work continues. Downstream workflows use `.specify/project-map/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
