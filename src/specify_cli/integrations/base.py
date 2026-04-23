@@ -1112,5 +1112,3 @@ class SkillsIntegration(IntegrationBase):
         )
 
         self.write_file_and_record(content + addendum, quick_skill, project_root, manifest)
-
-    def setup(
