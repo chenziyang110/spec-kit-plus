@@ -12,6 +12,8 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "project-map freshness helper" in content
     assert "freshness is `missing` or `stale`" in content
     assert "freshness is `possibly_stale`" in content
+    assert "must_refresh_topics" in content
+    assert "review_topics" in content
     assert "shared surfaces" in content
     assert "risky coordination points" in content
     assert "change-propagation hotspots" in content

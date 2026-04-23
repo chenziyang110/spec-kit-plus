@@ -42,7 +42,7 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 - Check whether `.specify/project-map/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-- If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the current analysis request, touched area, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before continuing.
+- If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current analysis request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for analysis.
 - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
 - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
 - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
@@ -161,6 +161,9 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
   - `BG1`: missing `Implementation Constitution` for a boundary-sensitive feature area
   - `BG2`: `tasks.md` lacks explicit implementation guardrails even though `plan.md` declares a boundary-sensitive constitution rule
   - `BG3`: implementation guidance does not require confirming the owning framework, defining reference files, or forbidden drift before code-writing work begins
+  - `DP1`: delegated execution path lacks compiled hard rules, validation gates, or done criteria in its worker packet
+  - `DP2`: delegated execution path lacks required references or forbidden drift in its worker packet
+  - `DP3`: delegated worker completion lacks required validation evidence or rule acknowledgement
 - Treat these signals as triggers:
   - established framework-owned boundary or adapter pattern
   - native bridge, plugin surface, protocol seam, generated API surface, or other contract-heavy boundary
@@ -193,6 +196,9 @@ Output a Markdown report (no file writes) with the following structure:
 | BG1 | Boundary Guardrail Gap | HIGH | plan.md, tasks.md | Boundary-sensitive area lacks `Implementation Constitution` in the plan | Re-run `/sp.plan` to add the constitution, then `/sp.tasks` if guardrail tasks need regeneration |
 | BG2 | Boundary Guardrail Gap | HIGH | tasks.md | Plan declares a boundary-sensitive constitution rule, but tasks do not preserve it as implementation guardrails | Re-run `/sp.tasks` or edit `tasks.md` so guardrail tasks exist before setup or feature work |
 | BG3 | Boundary Guardrail Gap | HIGH | implement guidance | Execution guidance does not force boundary confirmation before code-writing work starts | Update implementation guidance so the owning framework, required references, and forbidden drift are confirmed before dispatch |
+| DP1 | Dispatch Packet Gap | HIGH | implement guidance, runtime payload | Delegated execution path is missing compiled hard rules, validation gates, or done criteria | Compile and validate a `WorkerTaskPacket` before dispatch |
+| DP2 | Dispatch Packet Gap | HIGH | plan.md, tasks.md, runtime payload | Delegated execution path is missing required references or forbidden drift | Add packet references/forbidden drift to planning artifacts, then recompile |
+| DP3 | Dispatch Result Gap | HIGH | worker result, join point | Delegated worker completion lacks validation evidence or rule acknowledgement | Reject the worker result and require a packet-compliant rerun |
 
 (Add one row per finding; generate stable IDs prefixed by category initial.)
 

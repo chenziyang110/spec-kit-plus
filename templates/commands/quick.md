@@ -24,7 +24,7 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 - Check whether `.specify/project-map/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-- If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the current quick task, touched area, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before continuing.
+- If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the touched area, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topical files before proceeding and refresh the map if they still look insufficient for the quick task.
 - Read `PROJECT-HANDBOOK.md` after the constitution gate and before any broad repository analysis.
 - If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.

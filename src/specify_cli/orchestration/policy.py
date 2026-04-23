@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping
 
-from .models import BatchExecutionPolicy, CapabilitySnapshot, ExecutionDecision
+from .models import (
+    BatchExecutionPolicy,
+    CapabilitySnapshot,
+    ExecutionDecision,
+    ReviewGatePolicy,
+)
 
 _PARALLEL_BATCH_COUNT_KEYS = (
     "parallel_batches",
@@ -21,6 +26,14 @@ _OVERLAPPING_WRITE_SET_KEYS = (
     "overlapping_write_sets",
     "has_overlapping_write_sets",
     "write_sets_overlap",
+)
+_HIGH_RISK_REVIEW_KEY_GROUPS = (
+    (("touches_shared_surface", "touches_shared_registration"), "shared_surface"),
+    (("touches_schema", "touches_migration"), "schema_change"),
+    (
+        ("touches_protocol_boundary", "touches_native_bridge", "touches_generated_api"),
+        "boundary_contract",
+    ),
 )
 
 
@@ -161,4 +174,36 @@ def classify_batch_execution_policy(
         batch_classification="strict",
         safe_preparation_allowed=False,
         reason="full_success_required",
+    )
+
+
+def classify_review_gate_policy(
+    *,
+    workload_shape: dict[str, object],
+) -> ReviewGatePolicy:
+    """Classify whether a batch needs a mandatory review checkpoint."""
+
+    shape = workload_shape if isinstance(workload_shape, Mapping) else {}
+    reasons: list[str] = []
+
+    for keys, reason in _HIGH_RISK_REVIEW_KEY_GROUPS:
+        if _get_shape_flag(shape, keys, default=False):
+            reasons.append(reason)
+
+    if not reasons:
+        return ReviewGatePolicy(
+            requires_review_gate=False,
+            peer_review_lane_recommended=False,
+            reason="low_risk_batch",
+        )
+
+    peer_review_lane_recommended = _get_shape_flag(
+        shape,
+        ("can_peer_review", "review_lane_available", "independent_read_only_review"),
+        default=False,
+    )
+    return ReviewGatePolicy(
+        requires_review_gate=True,
+        peer_review_lane_recommended=peer_review_lane_recommended,
+        reason="+".join(reasons),
     )

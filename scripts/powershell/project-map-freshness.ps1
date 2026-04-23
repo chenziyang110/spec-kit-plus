@@ -98,6 +98,10 @@ function Write-Status {
         [string]$LastMappedBranch,
         [string]$Freshness,
         [string]$LastRefreshReason,
+        [string[]]$LastRefreshTopics,
+        [string]$LastRefreshScope,
+        [string]$LastRefreshBasis,
+        [string[]]$LastRefreshChangedFilesBasis,
         [bool]$Dirty,
         [string[]]$DirtyReasons
     )
@@ -109,6 +113,10 @@ function Write-Status {
         last_mapped_branch = $LastMappedBranch
         freshness = $Freshness
         last_refresh_reason = $LastRefreshReason
+        last_refresh_topics = @($LastRefreshTopics)
+        last_refresh_scope = $LastRefreshScope
+        last_refresh_basis = $LastRefreshBasis
+        last_refresh_changed_files_basis = @($LastRefreshChangedFilesBasis)
         dirty = $Dirty
         dirty_reasons = @($DirtyReasons)
     }
@@ -137,6 +145,147 @@ function Classify-Path {
     }
 }
 
+function Get-SuggestedTopicsForPath {
+    param([string]$Path)
+
+    $plan = Get-RefreshPlanForPath -Path $Path
+    $allTopics = New-Object System.Collections.Generic.List[string]
+    foreach ($topic in @($plan.must_refresh_topics) + @($plan.review_topics)) {
+        if ($allTopics -notcontains $topic) { $allTopics.Add($topic) }
+    }
+    $ordered = @("ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md")
+    return @($ordered | Where-Object { $allTopics -contains $_ })
+}
+
+function Get-RefreshPlanForPath {
+    param([string]$Path)
+
+    $lower = $Path.ToLowerInvariant().Replace('\', '/')
+    $classification = Classify-Path -Path $Path
+    if ($classification -eq "ignore") {
+        return @{
+            must_refresh_topics = @()
+            review_topics = @()
+        }
+    }
+
+    $mustRefresh = New-Object System.Collections.Generic.List[string]
+    $review = New-Object System.Collections.Generic.List[string]
+    $specificBoundaryHit = $false
+    function Add-Topic([System.Collections.Generic.List[string]]$Target, [string[]]$Names) {
+        foreach ($name in $Names) {
+            if ($Target -notcontains $name) { $Target.Add($name) }
+        }
+    }
+
+    switch ($lower) {
+        "project-handbook.md" { Add-Topic $mustRefresh @("ARCHITECTURE.md") }
+        ".specify/project-map/architecture.md" { Add-Topic $mustRefresh @("ARCHITECTURE.md") }
+        ".specify/project-map/structure.md" { Add-Topic $mustRefresh @("STRUCTURE.md") }
+        ".specify/project-map/conventions.md" { Add-Topic $mustRefresh @("CONVENTIONS.md") }
+        ".specify/project-map/integrations.md" { Add-Topic $mustRefresh @("INTEGRATIONS.md") }
+        ".specify/project-map/workflows.md" { Add-Topic $mustRefresh @("WORKFLOWS.md") }
+        ".specify/project-map/testing.md" { Add-Topic $mustRefresh @("TESTING.md") }
+        ".specify/project-map/operations.md" { Add-Topic $mustRefresh @("OPERATIONS.md") }
+    }
+
+    if ($lower -match '(^|/)(route|routes|router|routing|api|endpoint|endpoints|workflow|workflows|command|commands)(/|\.|$)') {
+        $specificBoundaryHit = $true
+        Add-Topic $mustRefresh @("INTEGRATIONS.md", "WORKFLOWS.md")
+        Add-Topic $review @("ARCHITECTURE.md", "TESTING.md")
+    }
+    if ($lower -match '(^|/)(schema|schemas|contract|contracts|type|types|interface|interfaces|manifest|manifests|adapter|adapters|middleware|export|exports)(/|\.|$)') {
+        $specificBoundaryHit = $true
+        Add-Topic $mustRefresh @("INTEGRATIONS.md")
+        Add-Topic $review @("ARCHITECTURE.md", "TESTING.md")
+    }
+    if ($lower -match '(^|/)(config|configs|settings)(/|\.|$)' -or $lower -match '(^|/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|pyproject\.toml|poetry\.lock|go\.mod|go\.sum|cargo\.toml|cargo\.lock|composer\.json|composer\.lock|gemfile|gemfile\.lock)$') {
+        Add-Topic $mustRefresh @("CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md")
+        Add-Topic $review @("TESTING.md")
+    }
+    if ($lower -match '(^|/)(dockerfile|docker-compose\.yml|docker-compose\.yaml|makefile)$') {
+        Add-Topic $mustRefresh @("INTEGRATIONS.md", "OPERATIONS.md")
+        Add-Topic $review @("TESTING.md")
+    }
+    if (-not $specificBoundaryHit -and $lower -match '(^|/)(src|app|apps|server|client|web|ui|frontend|backend|lib|libs)(/|$)') {
+        Add-Topic $mustRefresh @("STRUCTURE.md")
+        Add-Topic $review @("ARCHITECTURE.md", "TESTING.md")
+    }
+    if ($lower -match '(^|/)scripts(/|$)') {
+        Add-Topic $mustRefresh @("OPERATIONS.md")
+        Add-Topic $review @("STRUCTURE.md", "TESTING.md")
+    }
+    if ($lower -match '(^|/)tests(/|$)') {
+        Add-Topic $mustRefresh @("TESTING.md")
+        Add-Topic $review @("ARCHITECTURE.md")
+    }
+    if ($lower -match '(^|/)(docs|specs)(/|$)') {
+        Add-Topic $mustRefresh @("WORKFLOWS.md")
+        Add-Topic $review @("ARCHITECTURE.md")
+    }
+
+    if ($mustRefresh.Count -eq 0 -and $review.Count -eq 0) {
+        if ($classification -eq "stale") {
+            Add-Topic $mustRefresh @("ARCHITECTURE.md")
+            Add-Topic $review @("TESTING.md")
+        } elseif ($classification -eq "possibly_stale") {
+            Add-Topic $mustRefresh @("STRUCTURE.md")
+            Add-Topic $review @("ARCHITECTURE.md", "TESTING.md")
+        }
+    }
+
+    $ordered = @("ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md")
+    return @{
+        must_refresh_topics = @($ordered | Where-Object { $mustRefresh -contains $_ })
+        review_topics = @($ordered | Where-Object { $review -contains $_ })
+    }
+}
+
+function Normalize-DirtyReason {
+    param([string]$Reason)
+
+    $reasonText = if ($null -ne $Reason) { [string]$Reason } else { "" }
+    $normalized = (($reasonText.ToLowerInvariant().Replace("-", " ").Replace("_", " ")) -split '\s+' | Where-Object { $_ }) -join " "
+    switch ($normalized) {
+        "" { return "project_map_dirty" }
+        "shared surface changed" { return "shared_surface_changed" }
+        "architecture surface changed" { return "architecture_surface_changed" }
+        "integration boundary changed" { return "integration_boundary_changed" }
+        "workflow contract changed" { return "workflow_contract_changed" }
+        "verification surface changed" { return "verification_surface_changed" }
+        "runtime invariant changed" { return "runtime_invariant_changed" }
+        default { return ($normalized -replace ' ', '_') }
+    }
+}
+
+function Get-RefreshPlanForDirtyReason {
+    param([string]$Reason)
+
+    switch (Normalize-DirtyReason -Reason $Reason) {
+        "shared_surface_changed" {
+            return @{ must_refresh_topics = @("ARCHITECTURE.md", "STRUCTURE.md"); review_topics = @("INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md") }
+        }
+        "architecture_surface_changed" {
+            return @{ must_refresh_topics = @("ARCHITECTURE.md"); review_topics = @("STRUCTURE.md", "WORKFLOWS.md", "TESTING.md") }
+        }
+        "integration_boundary_changed" {
+            return @{ must_refresh_topics = @("INTEGRATIONS.md"); review_topics = @("ARCHITECTURE.md", "OPERATIONS.md", "TESTING.md") }
+        }
+        "workflow_contract_changed" {
+            return @{ must_refresh_topics = @("WORKFLOWS.md"); review_topics = @("ARCHITECTURE.md", "INTEGRATIONS.md", "TESTING.md") }
+        }
+        "verification_surface_changed" {
+            return @{ must_refresh_topics = @("TESTING.md"); review_topics = @("ARCHITECTURE.md", "WORKFLOWS.md") }
+        }
+        "runtime_invariant_changed" {
+            return @{ must_refresh_topics = @("OPERATIONS.md"); review_topics = @("INTEGRATIONS.md", "TESTING.md") }
+        }
+        default {
+            return @{ must_refresh_topics = @("ARCHITECTURE.md"); review_topics = @("TESTING.md") }
+        }
+    }
+}
+
 function Emit-CheckResult {
     param(
         [string]$Freshness,
@@ -145,7 +294,10 @@ function Emit-CheckResult {
         [bool]$Dirty,
         [object[]]$DirtyReasons,
         [object[]]$Reasons,
-        [object[]]$ChangedFiles
+        [object[]]$ChangedFiles,
+        [object[]]$SuggestedTopics,
+        [object[]]$MustRefreshTopics,
+        [object[]]$ReviewTopics
     )
 
     [ordered]@{
@@ -157,6 +309,9 @@ function Emit-CheckResult {
         dirty_reasons = @($DirtyReasons)
         reasons = @($Reasons)
         changed_files = @($ChangedFiles)
+        suggested_topics = @($SuggestedTopics)
+        must_refresh_topics = @($MustRefreshTopics)
+        review_topics = @($ReviewTopics)
     } | ConvertTo-Json -Depth 6
 }
 
@@ -165,7 +320,7 @@ function Invoke-Check {
     $headCommit = Get-HeadCommit
 
     if (-not (Test-Path -LiteralPath $statusPath)) {
-        Emit-CheckResult -Freshness "missing" -HeadCommit $headCommit -LastMappedCommit "" -Dirty $false -DirtyReasons @() -Reasons @("project-map status missing") -ChangedFiles @()
+        Emit-CheckResult -Freshness "missing" -HeadCommit $headCommit -LastMappedCommit "" -Dirty $false -DirtyReasons @() -Reasons @("project-map status missing") -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @()
         return
     }
 
@@ -174,20 +329,37 @@ function Invoke-Check {
     $dirtyReasons = @((Get-StatusValue -Status $status -Key "dirty_reasons" -Default @()))
 
     if ($dirty) {
-        Emit-CheckResult -Freshness "stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $true -DirtyReasons $dirtyReasons -Reasons $dirtyReasons -ChangedFiles @()
+        $mustRefreshTopics = New-Object System.Collections.Generic.List[string]
+        $reviewTopics = New-Object System.Collections.Generic.List[string]
+        foreach ($reason in $dirtyReasons) {
+            $plan = Get-RefreshPlanForDirtyReason -Reason ([string]$reason)
+            foreach ($topic in @($plan.must_refresh_topics)) {
+                if ($mustRefreshTopics -notcontains $topic) { $mustRefreshTopics.Add($topic) }
+            }
+            foreach ($topic in @($plan.review_topics)) {
+                if ($reviewTopics -notcontains $topic) { $reviewTopics.Add($topic) }
+            }
+        }
+        $suggestedTopics = New-Object System.Collections.Generic.List[string]
+        foreach ($topic in @("ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md")) {
+            if ($mustRefreshTopics -contains $topic -or $reviewTopics -contains $topic) {
+                $suggestedTopics.Add($topic)
+            }
+        }
+        Emit-CheckResult -Freshness "stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $true -DirtyReasons $dirtyReasons -Reasons $dirtyReasons -ChangedFiles @() -SuggestedTopics $suggestedTopics -MustRefreshTopics $mustRefreshTopics -ReviewTopics $reviewTopics
         return
     }
 
     if (-not (Test-HasGit) -or [string]::IsNullOrEmpty($lastMappedCommit) -or [string]::IsNullOrEmpty($headCommit)) {
-        Emit-CheckResult -Freshness "possibly_stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons @("git baseline unavailable for project-map freshness") -ChangedFiles @()
+        Emit-CheckResult -Freshness "possibly_stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons @("git baseline unavailable for project-map freshness") -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @()
         return
     }
 
     $diffLines = @()
     try {
-        $diffLines += @(git -C $RepoRoot diff --name-status --find-renames "$lastMappedCommit..$headCommit" 2>$null)
-        $diffLines += @(git -C $RepoRoot diff --name-status --find-renames --cached 2>$null)
-        $diffLines += @(git -C $RepoRoot diff --name-status --find-renames 2>$null)
+        $diffLines += @(git -C $RepoRoot diff --ignore-cr-at-eol --name-status --find-renames "$lastMappedCommit..$headCommit" 2>$null)
+        $diffLines += @(git -C $RepoRoot diff --ignore-cr-at-eol --name-status --find-renames --cached 2>$null)
+        $diffLines += @(git -C $RepoRoot diff --ignore-cr-at-eol --name-status --find-renames 2>$null)
         $diffLines += @((git -C $RepoRoot ls-files --others --exclude-standard 2>$null) | ForEach-Object { "??`t$_" })
         $diffLines = @($diffLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
     } catch {
@@ -195,13 +367,18 @@ function Invoke-Check {
     }
 
     if (-not $diffLines -or $diffLines.Count -eq 0) {
-        Emit-CheckResult -Freshness "fresh" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons @() -ChangedFiles @()
+        Emit-CheckResult -Freshness "fresh" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons @() -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @()
         return
     }
 
     $worst = "fresh"
     $reasons = New-Object System.Collections.Generic.List[string]
     $changedFiles = New-Object System.Collections.Generic.List[string]
+    $suggestedTopics = New-Object System.Collections.Generic.List[string]
+    $mustRefreshTopics = New-Object System.Collections.Generic.List[string]
+    $reviewTopics = New-Object System.Collections.Generic.List[string]
+    $lastRefreshScope = [string](Get-StatusValue -Status $status -Key "last_refresh_scope" -Default "")
+    $lastRefreshTopics = @((Get-StatusValue -Status $status -Key "last_refresh_topics" -Default @()))
 
     foreach ($line in $diffLines) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
@@ -209,18 +386,49 @@ function Invoke-Check {
         if ($parts.Count -lt 2) { continue }
         $statusCode = $parts[0]
         $candidatePath = if ($statusCode.StartsWith("R") -and $parts.Count -ge 3) { $parts[2] } else { $parts[1] }
+        $candidateLower = $candidatePath.ToLowerInvariant().Replace('\', '/')
+        if ($headCommit -eq $lastMappedCommit -and ($candidateLower -eq "project-handbook.md" -or $candidateLower.StartsWith(".specify/project-map/"))) {
+            continue
+        }
         $changedFiles.Add($candidatePath)
+        $plan = Get-RefreshPlanForPath -Path $candidatePath
+        $coveredByLastRefresh = $false
+        if ($lastRefreshScope -eq "partial") {
+            $neededTopics = @($plan.must_refresh_topics) + @($plan.review_topics)
+            if (@($neededTopics | Where-Object { $lastRefreshTopics -notcontains $_ }).Count -eq 0) {
+                $coveredByLastRefresh = $true
+                $plan = @{
+                    must_refresh_topics = @()
+                    review_topics = @("ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md" | Where-Object { $neededTopics -contains $_ })
+                }
+            }
+        }
+        foreach ($topic in @($plan.must_refresh_topics)) {
+            if ($mustRefreshTopics -notcontains $topic) { $mustRefreshTopics.Add($topic) }
+        }
+        foreach ($topic in @($plan.review_topics)) {
+            if ($reviewTopics -notcontains $topic) { $reviewTopics.Add($topic) }
+        }
+        foreach ($topic in @(Get-SuggestedTopicsForPath -Path $candidatePath)) {
+            if ($suggestedTopics -notcontains $topic) {
+                $suggestedTopics.Add($topic)
+            }
+        }
         $classification = Classify-Path -Path $candidatePath
         if ($classification -eq "stale") {
             $worst = "stale"
             $reasons.Add("high-impact project-map change: $candidatePath")
         } elseif ($classification -eq "possibly_stale" -and $worst -ne "stale") {
             $worst = "possibly_stale"
-            $reasons.Add("codebase surface changed since last map: $candidatePath")
+            if ($coveredByLastRefresh) {
+                $reasons.Add("covered topic changed since last partial map: $candidatePath")
+            } else {
+                $reasons.Add("codebase surface changed since last map: $candidatePath")
+            }
         }
     }
 
-    Emit-CheckResult -Freshness $worst -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons $reasons -ChangedFiles $changedFiles
+    Emit-CheckResult -Freshness $worst -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons $reasons -ChangedFiles $changedFiles -SuggestedTopics $suggestedTopics -MustRefreshTopics $mustRefreshTopics -ReviewTopics $reviewTopics
 }
 
 switch ($Command) {
@@ -230,13 +438,13 @@ switch ($Command) {
     "record-refresh" {
         $why = if ($Reason) { $Reason } else { "manual" }
         Assert-CanonicalMapFiles
-        Write-Status -LastMappedCommit (Get-HeadCommit) -LastMappedAt (Get-IsoNow) -LastMappedBranch (Get-BranchName) -Freshness "fresh" -LastRefreshReason $why -Dirty $false -DirtyReasons @()
+        Write-Status -LastMappedCommit (Get-HeadCommit) -LastMappedAt (Get-IsoNow) -LastMappedBranch (Get-BranchName) -Freshness "fresh" -LastRefreshReason $why -LastRefreshTopics @("ARCHITECTURE.md","STRUCTURE.md","CONVENTIONS.md","INTEGRATIONS.md","OPERATIONS.md","WORKFLOWS.md","TESTING.md") -LastRefreshScope "full" -LastRefreshBasis $why -LastRefreshChangedFilesBasis @() -Dirty $false -DirtyReasons @()
         Invoke-Check
     }
     "complete-refresh" {
         $why = if ($Reason) { $Reason } else { "map-codebase" }
         Assert-CanonicalMapFiles
-        Write-Status -LastMappedCommit (Get-HeadCommit) -LastMappedAt (Get-IsoNow) -LastMappedBranch (Get-BranchName) -Freshness "fresh" -LastRefreshReason $why -Dirty $false -DirtyReasons @()
+        Write-Status -LastMappedCommit (Get-HeadCommit) -LastMappedAt (Get-IsoNow) -LastMappedBranch (Get-BranchName) -Freshness "fresh" -LastRefreshReason $why -LastRefreshTopics @("ARCHITECTURE.md","STRUCTURE.md","CONVENTIONS.md","INTEGRATIONS.md","OPERATIONS.md","WORKFLOWS.md","TESTING.md") -LastRefreshScope "full" -LastRefreshBasis $why -LastRefreshChangedFilesBasis @() -Dirty $false -DirtyReasons @()
         Invoke-Check
     }
     "mark-dirty" {
@@ -247,18 +455,18 @@ switch ($Command) {
                 $dirtyReasons.Add([string]$item)
             }
         }
-        $why = if ($Reason) { $Reason } else { "project-map-dirty" }
+        $why = Normalize-DirtyReason -Reason (if ($Reason) { $Reason } else { "project-map-dirty" })
         if ($dirtyReasons -notcontains $why) {
             $dirtyReasons.Add($why)
         }
         $lastMappedAt = [string](Get-StatusValue -Status $status -Key "last_mapped_at" -Default "")
         if (-not $lastMappedAt) { $lastMappedAt = Get-IsoNow }
-        Write-Status -LastMappedCommit ([string](Get-StatusValue -Status $status -Key "last_mapped_commit" -Default "")) -LastMappedAt $lastMappedAt -LastMappedBranch ([string](Get-StatusValue -Status $status -Key "last_mapped_branch" -Default "")) -Freshness "stale" -LastRefreshReason ([string](Get-StatusValue -Status $status -Key "last_refresh_reason" -Default "manual")) -Dirty $true -DirtyReasons $dirtyReasons
+        Write-Status -LastMappedCommit ([string](Get-StatusValue -Status $status -Key "last_mapped_commit" -Default "")) -LastMappedAt $lastMappedAt -LastMappedBranch ([string](Get-StatusValue -Status $status -Key "last_mapped_branch" -Default "")) -Freshness "stale" -LastRefreshReason ([string](Get-StatusValue -Status $status -Key "last_refresh_reason" -Default "manual")) -LastRefreshTopics @((Get-StatusValue -Status $status -Key "last_refresh_topics" -Default @())) -LastRefreshScope ([string](Get-StatusValue -Status $status -Key "last_refresh_scope" -Default "full")) -LastRefreshBasis ([string](Get-StatusValue -Status $status -Key "last_refresh_basis" -Default "manual")) -LastRefreshChangedFilesBasis @((Get-StatusValue -Status $status -Key "last_refresh_changed_files_basis" -Default @())) -Dirty $true -DirtyReasons $dirtyReasons
         Invoke-Check
     }
     "clear-dirty" {
         $status = Read-Status
-        Write-Status -LastMappedCommit ([string](Get-StatusValue -Status $status -Key "last_mapped_commit" -Default "")) -LastMappedAt ([string](Get-StatusValue -Status $status -Key "last_mapped_at" -Default "")) -LastMappedBranch ([string](Get-StatusValue -Status $status -Key "last_mapped_branch" -Default "")) -Freshness "fresh" -LastRefreshReason ([string](Get-StatusValue -Status $status -Key "last_refresh_reason" -Default "manual")) -Dirty $false -DirtyReasons @()
+        Write-Status -LastMappedCommit ([string](Get-StatusValue -Status $status -Key "last_mapped_commit" -Default "")) -LastMappedAt ([string](Get-StatusValue -Status $status -Key "last_mapped_at" -Default "")) -LastMappedBranch ([string](Get-StatusValue -Status $status -Key "last_mapped_branch" -Default "")) -Freshness "fresh" -LastRefreshReason ([string](Get-StatusValue -Status $status -Key "last_refresh_reason" -Default "manual")) -LastRefreshTopics @((Get-StatusValue -Status $status -Key "last_refresh_topics" -Default @())) -LastRefreshScope ([string](Get-StatusValue -Status $status -Key "last_refresh_scope" -Default "full")) -LastRefreshBasis ([string](Get-StatusValue -Status $status -Key "last_refresh_basis" -Default "manual")) -LastRefreshChangedFilesBasis @((Get-StatusValue -Status $status -Key "last_refresh_changed_files_basis" -Default @())) -Dirty $false -DirtyReasons @()
         Invoke-Check
     }
 }

@@ -16,6 +16,29 @@ from typing import Any
 
 
 STATUS_FILENAME = "status.json"
+TOPIC_FILES = (
+    "ARCHITECTURE.md",
+    "STRUCTURE.md",
+    "CONVENTIONS.md",
+    "INTEGRATIONS.md",
+    "OPERATIONS.md",
+    "WORKFLOWS.md",
+    "TESTING.md",
+)
+DIRTY_REASON_ALIASES = {
+    "shared surface changed": "shared_surface_changed",
+    "shared_surface_changed": "shared_surface_changed",
+    "architecture surface changed": "architecture_surface_changed",
+    "architecture_surface_changed": "architecture_surface_changed",
+    "integration boundary changed": "integration_boundary_changed",
+    "integration_boundary_changed": "integration_boundary_changed",
+    "workflow contract changed": "workflow_contract_changed",
+    "workflow_contract_changed": "workflow_contract_changed",
+    "verification surface changed": "verification_surface_changed",
+    "verification_surface_changed": "verification_surface_changed",
+    "runtime invariant changed": "runtime_invariant_changed",
+    "runtime_invariant_changed": "runtime_invariant_changed",
+}
 
 
 def project_map_dir(project_root: Path) -> Path:
@@ -46,6 +69,67 @@ def missing_canonical_project_map_paths(project_root: Path) -> list[Path]:
 
 def iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def normalize_dirty_reason(reason: str) -> str:
+    normalized = " ".join((reason or "").strip().lower().replace("-", " ").replace("_", " ").split())
+    if not normalized:
+        return "project_map_dirty"
+    return DIRTY_REASON_ALIASES.get(normalized, normalized.replace(" ", "_"))
+
+
+def refresh_plan_for_dirty_reason(reason: str) -> dict[str, list[str]]:
+    canonical = normalize_dirty_reason(reason)
+    mapping = {
+        "shared_surface_changed": {
+            "must_refresh_topics": ["ARCHITECTURE.md", "STRUCTURE.md"],
+            "review_topics": ["INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"],
+        },
+        "architecture_surface_changed": {
+            "must_refresh_topics": ["ARCHITECTURE.md"],
+            "review_topics": ["STRUCTURE.md", "WORKFLOWS.md", "TESTING.md"],
+        },
+        "integration_boundary_changed": {
+            "must_refresh_topics": ["INTEGRATIONS.md"],
+            "review_topics": ["ARCHITECTURE.md", "OPERATIONS.md", "TESTING.md"],
+        },
+        "workflow_contract_changed": {
+            "must_refresh_topics": ["WORKFLOWS.md"],
+            "review_topics": ["ARCHITECTURE.md", "INTEGRATIONS.md", "TESTING.md"],
+        },
+        "verification_surface_changed": {
+            "must_refresh_topics": ["TESTING.md"],
+            "review_topics": ["ARCHITECTURE.md", "WORKFLOWS.md"],
+        },
+        "runtime_invariant_changed": {
+            "must_refresh_topics": ["OPERATIONS.md"],
+            "review_topics": ["INTEGRATIONS.md", "TESTING.md"],
+        },
+    }
+    return mapping.get(
+        canonical,
+        {
+            "must_refresh_topics": ["ARCHITECTURE.md"],
+            "review_topics": ["TESTING.md"],
+        },
+    )
+
+
+def _merged_dirty_reason_topics(reasons: list[str]) -> dict[str, list[str]]:
+    must_refresh: list[str] = []
+    review: list[str] = []
+    for reason in reasons:
+        plan = refresh_plan_for_dirty_reason(reason)
+        for topic in plan["must_refresh_topics"]:
+            if topic not in must_refresh:
+                must_refresh.append(topic)
+        for topic in plan["review_topics"]:
+            if topic not in review:
+                review.append(topic)
+    return {
+        "must_refresh_topics": [topic for topic in TOPIC_FILES if topic in must_refresh],
+        "review_topics": [topic for topic in TOPIC_FILES if topic in review],
+    }
 
 
 def classify_changed_path(path: str) -> str:
@@ -155,6 +239,99 @@ def classify_changed_path(path: str) -> str:
     return "ignore"
 
 
+def suggested_topics_for_changed_path(path: str) -> list[str]:
+    plan = refresh_plan_for_changed_path(path)
+    return [topic for topic in TOPIC_FILES if topic in (*plan["must_refresh_topics"], *plan["review_topics"])]
+
+
+def refresh_plan_for_changed_path(path: str) -> dict[str, list[str]]:
+    lower = path.lower().replace("\\", "/")
+    classification = classify_changed_path(path)
+    if classification == "ignore":
+        return {"must_refresh_topics": [], "review_topics": []}
+
+    must_refresh: list[str] = []
+    review: list[str] = []
+    specific_boundary_hit = False
+
+    def add(target: list[str], *names: str) -> None:
+        for name in names:
+            if name not in target:
+                target.append(name)
+
+    if lower in {"project-handbook.md", ".specify/project-map/architecture.md"}:
+        add(must_refresh, "ARCHITECTURE.md")
+    if lower == ".specify/project-map/structure.md":
+        add(must_refresh, "STRUCTURE.md")
+    if lower == ".specify/project-map/conventions.md":
+        add(must_refresh, "CONVENTIONS.md")
+    if lower == ".specify/project-map/integrations.md":
+        add(must_refresh, "INTEGRATIONS.md")
+    if lower == ".specify/project-map/workflows.md":
+        add(must_refresh, "WORKFLOWS.md")
+    if lower == ".specify/project-map/testing.md":
+        add(must_refresh, "TESTING.md")
+    if lower == ".specify/project-map/operations.md":
+        add(must_refresh, "OPERATIONS.md")
+
+    path_parts = [part for part in lower.split("/") if part]
+    filename = path_parts[-1] if path_parts else lower
+
+    if any(term in path_parts for term in ("route", "routes", "router", "routing", "api", "endpoint", "endpoints", "workflow", "workflows", "command", "commands")):
+        specific_boundary_hit = True
+        add(must_refresh, "INTEGRATIONS.md", "WORKFLOWS.md")
+        add(review, "ARCHITECTURE.md", "TESTING.md")
+    if any(term in path_parts for term in ("schema", "schemas", "contract", "contracts", "type", "types", "interface", "interfaces", "manifest", "manifests", "adapter", "adapters", "middleware", "export", "exports")):
+        specific_boundary_hit = True
+        add(must_refresh, "INTEGRATIONS.md")
+        add(review, "ARCHITECTURE.md", "TESTING.md")
+    if any(term in path_parts for term in ("config", "configs", "settings")) or filename in {
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "pyproject.toml",
+        "poetry.lock",
+        "go.mod",
+        "go.sum",
+        "cargo.toml",
+        "cargo.lock",
+        "composer.json",
+        "composer.lock",
+        "gemfile",
+        "gemfile.lock",
+    }:
+        add(must_refresh, "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md")
+        add(review, "TESTING.md")
+    if filename in {"dockerfile", "docker-compose.yml", "docker-compose.yaml", "makefile"}:
+        add(must_refresh, "INTEGRATIONS.md", "OPERATIONS.md")
+        add(review, "TESTING.md")
+    if not specific_boundary_hit and any(term in path_parts for term in ("src", "app", "apps", "server", "client", "web", "ui", "frontend", "backend", "lib", "libs")):
+        add(must_refresh, "STRUCTURE.md")
+        add(review, "ARCHITECTURE.md", "TESTING.md")
+    if any(term in path_parts for term in ("scripts",)):
+        add(must_refresh, "OPERATIONS.md")
+        add(review, "STRUCTURE.md", "TESTING.md")
+    if any(term in path_parts for term in ("tests",)):
+        add(must_refresh, "TESTING.md")
+        add(review, "ARCHITECTURE.md")
+    if any(term in path_parts for term in ("docs", "specs")):
+        add(must_refresh, "WORKFLOWS.md")
+        add(review, "ARCHITECTURE.md")
+
+    if classification == "stale" and not must_refresh and not review:
+        add(must_refresh, "ARCHITECTURE.md")
+        add(review, "TESTING.md")
+    elif classification == "possibly_stale" and not must_refresh and not review:
+        add(must_refresh, "STRUCTURE.md")
+        add(review, "ARCHITECTURE.md", "TESTING.md")
+
+    return {
+        "must_refresh_topics": [topic for topic in TOPIC_FILES if topic in must_refresh],
+        "review_topics": [topic for topic in TOPIC_FILES if topic in review],
+    }
+
+
 @dataclass(slots=True)
 class ProjectMapStatus:
     version: int = 1
@@ -163,6 +340,10 @@ class ProjectMapStatus:
     last_mapped_branch: str = ""
     freshness: str = "missing"
     last_refresh_reason: str = ""
+    last_refresh_topics: list[str] | None = None
+    last_refresh_scope: str = "full"
+    last_refresh_basis: str = ""
+    last_refresh_changed_files_basis: list[str] | None = None
     dirty: bool = False
     dirty_reasons: list[str] | None = None
 
@@ -174,6 +355,10 @@ class ProjectMapStatus:
             "last_mapped_branch": self.last_mapped_branch,
             "freshness": self.freshness,
             "last_refresh_reason": self.last_refresh_reason,
+            "last_refresh_topics": list(self.last_refresh_topics or []),
+            "last_refresh_scope": self.last_refresh_scope,
+            "last_refresh_basis": self.last_refresh_basis,
+            "last_refresh_changed_files_basis": list(self.last_refresh_changed_files_basis or []),
             "dirty": self.dirty,
             "dirty_reasons": list(self.dirty_reasons or []),
         }
@@ -187,6 +372,10 @@ class ProjectMapStatus:
             last_mapped_branch=str(data.get("last_mapped_branch", "")),
             freshness=str(data.get("freshness", "missing")),
             last_refresh_reason=str(data.get("last_refresh_reason", "")),
+            last_refresh_topics=list(data.get("last_refresh_topics", []) or []),
+            last_refresh_scope=str(data.get("last_refresh_scope", "full")),
+            last_refresh_basis=str(data.get("last_refresh_basis", "")),
+            last_refresh_changed_files_basis=list(data.get("last_refresh_changed_files_basis", []) or []),
             dirty=bool(data.get("dirty", False)),
             dirty_reasons=list(data.get("dirty_reasons", []) or []),
         )
@@ -219,6 +408,10 @@ def mark_project_map_refreshed(
     branch: str,
     reason: str,
     mapped_at: str | None = None,
+    refresh_topics: list[str] | None = None,
+    refresh_scope: str = "full",
+    refresh_basis: str | None = None,
+    changed_files_basis: list[str] | None = None,
 ) -> ProjectMapStatus:
     status = ProjectMapStatus(
         last_mapped_commit=head_commit,
@@ -226,6 +419,10 @@ def mark_project_map_refreshed(
         last_mapped_branch=branch,
         freshness="fresh",
         last_refresh_reason=reason,
+        last_refresh_topics=list(refresh_topics or TOPIC_FILES),
+        last_refresh_scope=refresh_scope,
+        last_refresh_basis=refresh_basis or reason,
+        last_refresh_changed_files_basis=list(changed_files_basis or []),
         dirty=False,
         dirty_reasons=[],
     )
@@ -239,14 +436,39 @@ def complete_project_map_refresh(project_root: Path) -> ProjectMapStatus:
         head_commit=git_head_commit(project_root),
         branch=git_branch_name(project_root),
         reason="map-codebase",
+        refresh_topics=list(TOPIC_FILES),
+        refresh_scope="full",
+        refresh_basis="map-codebase",
+        changed_files_basis=[],
+    )
+
+
+def refresh_project_map_topics(
+    project_root: Path,
+    *,
+    topics: list[str],
+    reason: str,
+    changed_files_basis: list[str] | None = None,
+) -> ProjectMapStatus:
+    ordered_topics = [topic for topic in TOPIC_FILES if topic in topics]
+    return mark_project_map_refreshed(
+        project_root,
+        head_commit=git_head_commit(project_root),
+        branch=git_branch_name(project_root),
+        reason=reason,
+        refresh_topics=ordered_topics,
+        refresh_scope="partial",
+        refresh_basis=reason,
+        changed_files_basis=changed_files_basis or [],
     )
 
 
 def mark_project_map_dirty(project_root: Path, reason: str) -> ProjectMapStatus:
     status = read_project_map_status(project_root)
     reasons = list(status.dirty_reasons or [])
-    if reason and reason not in reasons:
-        reasons.append(reason)
+    canonical_reason = normalize_dirty_reason(reason)
+    if canonical_reason and canonical_reason not in reasons:
+        reasons.append(canonical_reason)
     status.dirty = True
     status.freshness = "stale"
     status.dirty_reasons = reasons
@@ -286,9 +508,13 @@ def assess_project_map_freshness(
             "dirty_reasons": [],
             "reasons": ["project-map status missing"],
             "changed_files": [],
+            "must_refresh_topics": [],
+            "review_topics": [],
+            "suggested_topics": [],
         }
 
     if status.dirty:
+        dirty_topic_plan = _merged_dirty_reason_topics(list(status.dirty_reasons or []))
         return {
             "freshness": "stale",
             "status_path": str(project_map_status_path(project_root)),
@@ -298,6 +524,9 @@ def assess_project_map_freshness(
             "dirty_reasons": list(status.dirty_reasons or []),
             "reasons": list(status.dirty_reasons or []),
             "changed_files": [],
+            "must_refresh_topics": dirty_topic_plan["must_refresh_topics"],
+            "review_topics": dirty_topic_plan["review_topics"],
+            "suggested_topics": [topic for topic in TOPIC_FILES if topic in (*dirty_topic_plan["must_refresh_topics"], *dirty_topic_plan["review_topics"])],
         }
 
     if not has_git or not status.last_mapped_commit or not head_commit:
@@ -310,21 +539,49 @@ def assess_project_map_freshness(
             "dirty_reasons": [],
             "reasons": ["git baseline unavailable for project-map freshness"],
             "changed_files": [],
+            "must_refresh_topics": [],
+            "review_topics": [],
+            "suggested_topics": [],
         }
 
     worst = "fresh"
     reasons: list[str] = []
     considered: list[str] = []
+    suggested_topics: list[str] = []
+    must_refresh_topics: list[str] = []
+    review_topics: list[str] = []
 
     for changed in changed_files:
         classification = classify_changed_path(changed)
         considered.append(changed)
+        plan = refresh_plan_for_changed_path(changed)
+        covered_by_last_refresh = (
+            status.last_refresh_scope == "partial"
+            and set(plan["must_refresh_topics"] + plan["review_topics"]).issubset(set(status.last_refresh_topics or []))
+        )
+        if classification == "possibly_stale" and covered_by_last_refresh:
+            plan = {
+                "must_refresh_topics": [],
+                "review_topics": [topic for topic in TOPIC_FILES if topic in set(plan["must_refresh_topics"] + plan["review_topics"])],
+            }
+        for topic in plan["must_refresh_topics"]:
+            if topic not in must_refresh_topics:
+                must_refresh_topics.append(topic)
+        for topic in plan["review_topics"]:
+            if topic not in review_topics:
+                review_topics.append(topic)
+        for topic in suggested_topics_for_changed_path(changed):
+            if topic not in suggested_topics:
+                suggested_topics.append(topic)
         if classification == "stale":
             worst = "stale"
             reasons.append(f"high-impact project-map change: {changed}")
         elif classification == "possibly_stale" and worst != "stale":
             worst = "possibly_stale"
-            reasons.append(f"codebase surface changed since last map: {changed}")
+            if covered_by_last_refresh:
+                reasons.append(f"covered topic changed since last partial map: {changed}")
+            else:
+                reasons.append(f"codebase surface changed since last map: {changed}")
 
     if worst == "fresh":
         reasons = []
@@ -338,6 +595,9 @@ def assess_project_map_freshness(
         "dirty_reasons": [],
         "reasons": reasons,
         "changed_files": considered,
+        "must_refresh_topics": must_refresh_topics,
+        "review_topics": review_topics,
+        "suggested_topics": suggested_topics,
     }
 
 

@@ -50,6 +50,16 @@ class BatchExecutionPolicy:
 
 
 @dataclass(slots=True)
+class ReviewGatePolicy:
+    """Shared policy output describing whether a batch needs extra review."""
+
+    requires_review_gate: bool = False
+    peer_review_lane_recommended: bool = False
+    reason: str = "low_risk_batch"
+    created_at: str = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
 class PhaseExecutionState:
     """Persisted milestone-level view of a phase and its next ready work."""
 

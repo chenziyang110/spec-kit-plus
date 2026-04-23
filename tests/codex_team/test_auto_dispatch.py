@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 
 import pytest
 
@@ -22,8 +23,37 @@ from specify_cli.codex_team.task_ops import claim_task, get_task, transition_tas
 def _write_feature_tasks(project_root: Path, content: str) -> Path:
     feature_dir = project_root / "specs" / "001-test-feature"
     feature_dir.mkdir(parents=True, exist_ok=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True, exist_ok=True)
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST add tests for delegated public behavior\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Implementation Constitution",
+                "",
+                "### Required Implementation References",
+                "",
+                "- `src/contracts/auth.py`",
+                "",
+                "### Forbidden Implementation Drift",
+                "",
+                "- Do not create a parallel auth stack",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    normalized_lines: list[str] = []
+    for line in content.splitlines():
+        match = re.match(r"^(- \[[ xX]\] (T\d+)(?: \[P\])? .+)$", line)
+        if match and "/" not in line:
+            normalized_lines.append(f"{match.group(1)} in src/{match.group(2).lower()}.py")
+        else:
+            normalized_lines.append(line)
+    normalized = "\n".join(normalized_lines)
     tasks_path = feature_dir / "tasks.md"
-    tasks_path.write_text(content, encoding="utf-8")
+    tasks_path.write_text(normalized, encoding="utf-8")
     return feature_dir
 
 
@@ -135,6 +165,14 @@ def test_route_ready_parallel_batch_dispatches_each_task(monkeypatch, codex_team
     assert launched == [("t002", "T002"), ("t003", "T003")]
     assert worker_heartbeat_path(codex_team_project_root, "t002").exists()
     assert worker_heartbeat_path(codex_team_project_root, "t003").exists()
+    dispatch_payload = json.loads(
+        dispatch_record_path(
+            codex_team_project_root,
+            "default-parallel-batch-1-1-t002",
+        ).read_text(encoding="utf-8")
+    )
+    assert dispatch_payload["packet_path"]
+    assert dispatch_payload["packet_summary"]["task_id"] == "T002"
     task = get_task(codex_team_project_root, "T002")
     assert task.metadata["join_points"]["Join Point 1.1"]["status"] == "pending"
     assert task.metadata["join_points"]["Join Point 1.1"]["details"]["batch_name"] == "Parallel Batch 1.1"

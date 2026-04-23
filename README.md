@@ -147,6 +147,7 @@ Optional follow-up commands:
 - `analyze` to perform a cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md`
 - `explain` to describe the current spec, plan, task, or implement artifact in plain language
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)
+- `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing worker validation evidence)
 
 Already have code? Run `map-codebase` first so the current codebase is mapped into `PROJECT-HANDBOOK.md` and `.specify/project-map/` before deeper brownfield workflow steps.
 Generated projects also track handbook freshness in `.specify/project-map/status.json`, so brownfield workflows can decide whether the current navigation baseline is fresh, possibly stale, or stale before proceeding.
@@ -174,14 +175,25 @@ Boundary-sensitive implementation rule:
 - Typical triggers include existing framework-owned boundaries, native/plugin bridges, protocol seams, generated API surfaces, or any area where "generic implementation instinct" would likely drift from the repository's established pattern.
 - A good heuristic is: if an implementer should be forced to inspect specific existing boundary files before coding safely, the feature likely needs `Implementation Constitution`.
 - `tasks` should convert those rules into explicit implementation guardrails before setup or feature work begins.
+- `tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when delegated execution needs task-local rule inheritance.
 - `implement` should treat those guardrails as binding execution constraints and confirm the touched boundary's owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
+- Delegated execution should no longer rely on raw task text when architecture or quality rules matter.
+- `plan` should provide `Dispatch Compilation Hints`.
+- `implement` should compile and validate a `WorkerTaskPacket` before dispatching native workers or sidecar workers.
 
 Current `sp-implement` runtime model in this fork:
 
 - `sp-implement` acts as a milestone-level orchestration leader rather than the direct executor
 - concrete implementation runs through delegated execution paths (`single-agent`, `native-multi-agent`, or `sidecar-runtime`)
+- delegated workers should execute from compiled `WorkerTaskPacket` contracts rather than rediscovering rules from background context
+- top-level `tasks.md` items should stay bounded to one coffee-break-sized implementation slice, usually roughly 10-20 minutes, while delegated workers may still execute them through smaller 2-5 minute atomic steps
+- task decomposition should stay progressive: refine only the current executable window after each join point instead of pre-expanding later batches that still depend on upstream evidence
 - parallel work is coordinated through explicit join points before dependent work continues
+- grouped parallelism is the default when ready tasks have isolated write sets; use a pipeline shape only when outputs must flow stage-by-stage and keep explicit checkpoints between stages
+- high-risk batches touching shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces should add a review gate before crossing the join point
+- if a read-only verification lane is available, use one peer-review lane only for those high-risk batches rather than for every batch
 - runtime surfaces can report retry-pending work and blockers instead of hiding those states in chat-only narration
+- blocked delegated worker results should carry the blocker, the failed assumption, and the smallest safe recovery step so the leader can fail fast instead of guessing
 - established boundary patterns should be preserved through `Implementation Constitution` and implementation guardrails, not rediscovered ad hoc during coding
 
 For Codex and other skills-based integrations, the generated commands are installed in skills form. Codex now uses the dedicated `.codex/skills/` directory for generated skills.

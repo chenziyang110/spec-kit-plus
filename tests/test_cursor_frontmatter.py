@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -36,6 +37,14 @@ requires_bash = pytest.mark.skipif(
     shutil.which("bash") is None,
     reason="bash is not installed",
 )
+
+
+def _bash_path(path: str | Path) -> str:
+    raw = str(path)
+    normalized = raw.replace("\\", "/")
+    if len(normalized) >= 2 and normalized[1] == ":":
+        return f"/mnt/{normalized[0].lower()}{normalized[2:]}"
+    return normalized
 
 
 class TestScriptFrontmatterPattern:
@@ -167,12 +176,13 @@ class TestCursorFrontmatterIntegration:
 
     def _run_update(self, repo, agent_type="cursor-agent"):
         """Run update-agent-context.sh for a specific agent type."""
-        script = os.path.abspath(SCRIPT_PATH)
+        script = _bash_path(os.path.abspath(SCRIPT_PATH))
         result = subprocess.run(
             ["bash", script, agent_type],
             cwd=str(repo),
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=30,
         )
         return result

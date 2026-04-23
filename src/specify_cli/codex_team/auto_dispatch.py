@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from specify_cli.codex_team import task_ops
-from specify_cli.codex_team.state_paths import worker_heartbeat_path
+from specify_cli.codex_team.state_paths import codex_team_state_root, worker_heartbeat_path
 from specify_cli.codex_team.runtime_bridge import dispatch_runtime_task, ensure_tmux_available
 from specify_cli.codex_team.runtime_state import batch_record_payload
 from specify_cli.codex_team.session_ops import bootstrap_session, monitor_summary
@@ -18,6 +18,8 @@ from specify_cli.codex_team.worktree_ops import worker_worktree_path
 from specify_cli.codex_team.state_paths import batch_record_path
 from specify_cli.orchestration.backends.process_backend import ProcessBackend
 from specify_cli.orchestration.policy import classify_batch_execution_policy
+from specify_cli.orchestration.state_store import write_json
+from specify_cli.execution import compile_worker_task_packet, render_packet_summary
 
 
 TASK_LINE_RE = re.compile(r"^- \[(?P<mark>[ xX])\] (?P<task_id>T\d+)(?P<rest>.*)$")
@@ -494,6 +496,15 @@ def route_ready_parallel_batch(
         task = tasks_by_id.get(task_id)
         if task is None or task.completed:
             continue
+        request_id = _request_id_for(session_id, batch.batch_name, task_id)
+        packet = compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id=task_id,
+        )
+        packet_path = codex_team_state_root(project_root) / "packets" / f"{request_id}.json"
+        write_json(packet_path, asdict(packet))
+
         try:
             task_ops.create_task(
                 project_root,
@@ -503,17 +514,24 @@ def route_ready_parallel_batch(
                     "feature_dir": feature_dir.as_posix(),
                     "batch_name": batch.batch_name,
                     "source": "auto_dispatch",
+                    "packet_path": str(packet_path),
                 },
             )
         except task_ops.TaskOpsError:
             pass
 
-        request_id = _request_id_for(session_id, batch.batch_name, task_id)
         dispatch_runtime_task(
             project_root,
             session_id=session_id,
             request_id=request_id,
             target_worker=task_id.lower(),
+            packet_path=str(packet_path),
+            packet_summary={
+                "task_id": packet.task_id,
+                "objective": packet.objective,
+                "write_scope": packet.scope.write_scope,
+                "summary": render_packet_summary(packet),
+            },
         )
         launch_dispatched_worker(
             project_root,

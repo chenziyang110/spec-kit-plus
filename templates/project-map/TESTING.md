@@ -11,6 +11,10 @@
 
 ## Smallest Meaningful Checks
 
+[List the smallest trustworthy proofs for mapped contracts, flows, and integrations.]
+
+## Capability Verification Map
+
 ## Contract Verification Surfaces
 
 ## Verification Entry Points
@@ -18,5 +22,7 @@
 ## Build, Runtime, and Recovery Verification
 
 ## Regression-Sensitive Areas
+
+[Highlight regression-sensitive areas that deserve explicit verification callouts.]
 
 ## When To Expand Verification

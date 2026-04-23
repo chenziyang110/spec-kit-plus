@@ -72,6 +72,29 @@
 - [Specific architecture-drift check reviewers must perform]
 - [Compatibility, framework, or boundary check that must be verified before completion]
 
+## Dispatch Compilation Hints
+
+<!--
+  Record the minimum data a delegated worker packet compiler needs so
+  downstream execution never has to infer boundary rules from loose context.
+-->
+
+### Boundary Owner
+
+- [Truth-owning module, service, or boundary that delegated work must preserve]
+
+### Required Packet References
+
+- [File every delegated worker must inspect before changing this area]
+
+### Packet Validation Gates
+
+- [Command that must run before a delegated worker can claim completion]
+
+### Task-Level Quality Floor
+
+- [Feature-specific quality rule every delegated worker must inherit]
+
 ## Alignment Inputs
 
 ### Canonical References

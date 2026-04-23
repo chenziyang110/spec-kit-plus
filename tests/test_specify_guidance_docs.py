@@ -112,6 +112,37 @@ def test_guidance_docs_explain_boundary_guardrail_issue_family():
     assert "BG3" in quickstart
 
 
+def test_guidance_docs_explain_rule_carrying_worker_packets():
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    for content in (readme, quickstart):
+        assert "Dispatch Compilation Hints" in content
+        assert "Task Guardrail Index" in content
+        assert "WorkerTaskPacket" in content
+        assert "raw task text" in content
+        assert "DP1" in content
+        assert "DP2" in content
+        assert "DP3" in content
+
+
+def test_guidance_docs_explain_task_shaping_and_fail_fast_rules():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    for content in (readme, quickstart):
+        assert "coffee-break-sized implementation slice" in content
+        assert "roughly 10-20 minutes" in content
+        assert "2-5 minute atomic steps" in content
+        assert "refine only the current executable window after each join point" in content
+        assert "grouped parallelism is the default" in content
+        assert "pipeline shape" in content or "pipeline" in content
+        assert "review gate" in content
+        assert "peer-review lane" in content
+        assert "failed assumption" in content
+        assert "smallest safe recovery step" in content
+
+
 def test_guidance_docs_explain_resumable_quick_management():
     readme = _read("README.md").lower()
     quickstart = _read("docs/quickstart.md").lower()

@@ -58,7 +58,7 @@ Upgrade to `/sp-specify` immediately if:
    - Check whether `.specify/project-map/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - If freshness is `missing` or `stale`, stop and redirect to `/sp-quick` or `/sp-map-codebase` so the navigation system can be rebuilt safely before fast-path execution.
-   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the current task, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and redirect to `/sp-quick`.
+   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task, or if `review_topics` overlap shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and redirect to `/sp-quick`.
    - Read `PROJECT-HANDBOOK.md`.
    - Use `Shared Surfaces`, `Risky Coordination Points`, `Change-Propagation Hotspots`, `Verification Entry Points`, and `Known Unknowns` to decide whether the task is truly local.
    - If `PROJECT-HANDBOOK.md` or `.specify/project-map/` is missing, stop and redirect to `/sp-quick` so the navigation system can be rebuilt safely.

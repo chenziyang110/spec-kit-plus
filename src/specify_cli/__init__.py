@@ -62,7 +62,6 @@ from specify_cli.codex_team import (
 )
 from specify_cli.codex_team.auto_dispatch import (
     AutoDispatchError,
-    BatchCompletionResult,
     AutoDispatchUnavailableError,
     complete_dispatched_batch,
     route_ready_parallel_batch,
@@ -74,7 +73,7 @@ from specify_cli.codex_team.runtime_bridge import (
     mark_runtime_failure,
 )
 from specify_cli.project_map_status import (
-    canonical_project_map_paths,
+    TOPIC_FILES,
     clear_project_map_dirty,
     complete_project_map_refresh,
     git_branch_name,
@@ -84,6 +83,7 @@ from specify_cli.project_map_status import (
     mark_project_map_refreshed,
     missing_canonical_project_map_paths,
     read_project_map_status,
+    refresh_project_map_topics,
 )
 
 def _build_agent_config() -> dict[str, dict[str, Any]]:
@@ -503,6 +503,18 @@ def _render_project_map_freshness(result: dict[str, Any]) -> None:
         for reason in reasons:
             console.print(f"- {reason}")
 
+    must_refresh_topics = result.get("must_refresh_topics") or []
+    if must_refresh_topics:
+        console.print("[bold]Must Refresh Topics[/bold]")
+        for topic in must_refresh_topics:
+            console.print(f"- {topic}")
+
+    review_topics = result.get("review_topics") or []
+    if review_topics:
+        console.print("[bold]Review Topics[/bold]")
+        for topic in review_topics:
+            console.print(f"- {topic}")
+
 
 def _project_map_preflight(
     project_root: Path,
@@ -803,6 +815,40 @@ def project_map_complete_refresh(
     _render_project_map_freshness(result)
 
 
+@project_map_app.command("refresh-topics")
+def project_map_refresh_topics_command(
+    topics: list[str] = typer.Argument(..., help="One or more canonical topic files to record as refreshed"),
+    reason: str = typer.Option("topic-refresh", "--reason", help="Why these topics were refreshed"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Record a partial project-map refresh for specific topic files."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    unknown = [topic for topic in topics if topic not in TOPIC_FILES]
+    if unknown:
+        console.print(f"[red]Error:[/red] Unknown topic(s): {', '.join(unknown)}")
+        console.print(f"Valid topics: {', '.join(TOPIC_FILES)}")
+        raise typer.Exit(1)
+    _ensure_project_map_artifacts_exist(project_root)
+    status = refresh_project_map_topics(
+        project_root,
+        topics=topics,
+        reason=reason,
+    )
+    payload = status.to_dict()
+    payload["status_path"] = str(project_root / ".specify" / "project-map" / "status.json")
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+    rows = [
+        ("Refresh Scope", f"[cyan]{payload['last_refresh_scope']}[/cyan]"),
+        ("Reason", f"[dim]{payload['last_refresh_reason']}[/dim]"),
+        ("Basis", f"[dim]{payload['last_refresh_basis'] or '-'}[/dim]"),
+        ("Topics", f"[dim]{', '.join(payload['last_refresh_topics']) or '-'}[/dim]"),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Map Partial Refresh", border_style="cyan"))
+
+
 @project_map_app.command("status")
 def project_map_status_command(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
@@ -822,8 +868,14 @@ def project_map_status_command(
         ("Last Commit", f"[dim]{status['last_mapped_commit'] or '-'}[/dim]"),
         ("Last Branch", f"[dim]{status['last_mapped_branch'] or '-'}[/dim]"),
         ("Last Refresh", f"[dim]{status['last_mapped_at'] or '-'}[/dim]"),
+        ("Refresh Scope", f"[dim]{status.get('last_refresh_scope') or '-'}[/dim]"),
+        ("Refresh Basis", f"[dim]{status.get('last_refresh_basis') or '-'}[/dim]"),
     ]
     console.print(_cli_panel(_labeled_grid(rows), title="Project Map Status", border_style="cyan"))
+    if status.get("last_refresh_topics"):
+        console.print("[bold]Last Refresh Topics[/bold]")
+        for topic in status["last_refresh_topics"]:
+            console.print(f"- {topic}")
     if status["dirty_reasons"]:
         console.print("[bold]Dirty Reasons[/bold]")
         for reason in status["dirty_reasons"]:
@@ -2390,6 +2442,7 @@ app.add_typer(integration_app, name="integration")
 try:
     from .debug.cli import debug_app
 except ModuleNotFoundError as exc:
+    missing_debug_dependency = exc.name or "required debug dependency"
     debug_app = typer.Typer(
         name="debug",
         help="Systematic and resumable bug investigation and fixing (debug runtime dependency missing)",
@@ -2400,9 +2453,8 @@ except ModuleNotFoundError as exc:
     def _debug_unavailable_callback(ctx: typer.Context) -> None:
         if ctx.invoked_subcommand is not None:
             return
-        missing = exc.name or "required debug dependency"
         console.print(
-            f"[red]Error:[/red] Debug command is unavailable because '{missing}' is not installed."
+            f"[red]Error:[/red] Debug command is unavailable because '{missing_debug_dependency}' is not installed."
         )
         console.print(
             "Install the missing dependency and retry, or use a non-debug workflow command."

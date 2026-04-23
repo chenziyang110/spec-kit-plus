@@ -9,13 +9,24 @@
 units, and the main capability surfaces that planners or implementers must keep
 in view.]
 
+[Cover the project type, primary technology stack, build/dependency tooling, and deployment shape. Name the major capability surfaces, runtime units, and architectural boundaries that downstream readers must understand first.]
+
+## High-Value Capabilities
+
+- [List the highest-value capabilities a newcomer should understand first.]
+- [For each capability, state why it matters and which topical file should be
+  read next.]
+
 ## How To Read This Project
 
 - Start here for orientation.
 - The handbook is the index-first entrypoint.
 - The topical project-map documents hold the full technical detail.
 - Use `Topic Map` to choose the next topical document.
+- Use `Where To Read Next` for task-oriented routing.
 - Fall back to live code reads only when the topical coverage is missing, stale, or too broad.
+- Point to the topic docs instead of duplicating deep detail when the
+  explanation belongs in a topical file.
 
 ## Shared Surfaces
 
@@ -42,6 +53,19 @@ in view.]
 
 - [Stale areas, unresolved ownership, weak observability, or evidence gaps that
   downstream workflows should treat carefully]
+
+## Low-Confidence Areas
+
+- [Call out current stale, inferred, or weakly evidenced areas so readers know
+  where extra live-code verification is needed.]
+- [Tie low-confidence areas back to specific capabilities, workflows, or boundaries whenever possible.]
+
+## Where To Read Next
+
+- [If you need to add or extend a capability, point to the topical file most
+  likely to contain ownership, placement, and verification guidance.]
+- [If you need API or protocol details, route to the relevant integration or
+  workflow sections.]
 
 ## Topic Map
 

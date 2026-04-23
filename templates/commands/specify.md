@@ -75,7 +75,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Check whether `.specify/project-map/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the current request, touched area, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before continuing.
+   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
    - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.

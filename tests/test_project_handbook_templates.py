@@ -13,11 +13,14 @@ def test_project_handbook_template_exists_and_routes_to_project_map():
 
     assert "# Project Handbook" in content
     assert "## System Summary" in content
+    assert "## High-Value Capabilities" in content
     assert "## Shared Surfaces" in content
     assert "## Risky Coordination Points" in content
     assert "## Change-Propagation Hotspots" in content
     assert "## Verification Entry Points" in content
     assert "## Known Unknowns" in content
+    assert "## Low-Confidence Areas" in content
+    assert "## Where To Read Next" in content
     assert "## Topic Map" in content
     assert ".specify/project-map/ARCHITECTURE.md" in content
     assert ".specify/project-map/OPERATIONS.md" in content
@@ -49,11 +52,18 @@ def test_project_map_templates_encode_coverage_model_sections():
     operations = _read("templates/project-map/OPERATIONS.md")
 
     assert "## Change Propagation Paths" in architecture
+    assert "## High-Value Capabilities" in architecture
+    assert "## Ownership and Truth Map" in architecture
     assert "## Known Architectural Unknowns" in architecture
+    assert "## Common Extension Paths" in structure
     assert "## Consumer and Entry Surfaces" in structure
+    assert "## API and Exported Surfaces" in integrations
     assert "## Contract Boundaries" in integrations
+    assert "## Capability Flows" in workflows
     assert "## Failure and Recovery Flows" in workflows
+    assert "## Capability Verification Map" in testing
     assert "## Verification Entry Points" in testing
+    assert "## Runtime State Locations" in operations
     assert "## Known Runtime Unknowns" in operations
 
 
@@ -81,6 +91,13 @@ def test_project_map_templates_require_full_detail_sections_for_high_value_facts
     assert "## Build, Runtime, and Recovery Verification" in testing
     assert "## Build and Packaging Playbooks" in operations
     assert "## Runtime and Toolchain Invariants" in operations
+    assert "### Capability:" in architecture
+    assert "- Owner:" in architecture
+    assert "- Truth lives:" in architecture
+    assert "- Extend here:" in architecture
+    assert "- Minimum verification:" in architecture
+    assert "- Failure modes:" in architecture
+    assert "- Confidence:" in architecture
 
 
 def test_project_handbook_template_points_readers_to_deep_detail_layer():
@@ -88,3 +105,42 @@ def test_project_handbook_template_points_readers_to_deep_detail_layer():
 
     assert "The handbook is the index-first entrypoint." in content
     assert "The topical project-map documents hold the full technical detail." in content
+    assert "Use `Where To Read Next` for task-oriented routing." in content
+
+
+def test_project_handbook_template_guides_architecture_level_summary_content():
+    content = _read("templates/project-handbook-template.md")
+
+    assert "project type, primary technology stack, build/dependency tooling, and deployment shape" in content.lower()
+    assert "major capability surfaces, runtime units, and architectural boundaries" in content.lower()
+    assert "point to the topic docs instead of duplicating deep detail" in content.lower()
+    assert "list the highest-value capabilities a newcomer should understand first" in content.lower()
+    assert "current stale, inferred, or weakly evidenced areas" in content.lower()
+    assert "tie low-confidence areas back to specific capabilities, workflows, or boundaries" in content.lower()
+
+
+def test_project_map_templates_guide_technical_document_grade_depth():
+    architecture = _read("templates/project-map/ARCHITECTURE.md").lower()
+    structure = _read("templates/project-map/STRUCTURE.md").lower()
+    conventions = _read("templates/project-map/CONVENTIONS.md").lower()
+    integrations = _read("templates/project-map/INTEGRATIONS.md").lower()
+    workflows = _read("templates/project-map/WORKFLOWS.md").lower()
+    testing = _read("templates/project-map/TESTING.md").lower()
+    operations = _read("templates/project-map/OPERATIONS.md").lower()
+
+    assert "top-level architecture pattern, deployment shape, and major module dependencies" in architecture
+    assert "core classes, interfaces, abstract types, enums, or major functions" in architecture
+    assert "major directories, representative subdirectories, and the kinds of files they own" in structure
+    assert "what belongs there and what should not be added there" in structure
+    assert "design patterns, naming rules, directory customs, configuration management, and utility locations" in conventions
+    assert "state semantics, compatibility assumptions, and project-specific contract rules" in conventions
+    assert "api surfaces, external tools, protocol seams, and runtime boundaries" in integrations
+    assert "request/response shapes, command/query surfaces, or exported endpoint families" in integrations
+    assert "entry-to-exit data flow for core business or runtime workflows" in workflows
+    assert "handoff fields, state transitions, and compatibility notes" in workflows
+    assert "smallest trustworthy proofs for mapped contracts, flows, and integrations" in testing
+    assert "regression-sensitive areas that deserve explicit verification callouts" in testing
+    assert "build, startup, runtime, troubleshooting, and recovery details" in operations
+    assert "operator-facing playbooks and runtime unknowns" in operations
+    assert "owner, truth lives, extend here, minimum verification, failure modes, and confidence" in architecture
+    assert "verified / inferred / unknown-stale" in architecture

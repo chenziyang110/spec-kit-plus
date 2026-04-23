@@ -6,6 +6,7 @@ Converted from tests/test_timestamp_branches.sh so they are discovered by `uv ru
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -65,16 +66,33 @@ def run_script(cwd: Path, *args: str) -> subprocess.CompletedProcess:
         cwd=cwd,
         capture_output=True,
         text=True,
+        errors="replace",
     )
+
+
+def _bash_path(path: Path) -> str:
+    raw = str(path.resolve())
+    normalized = raw.replace("\\", "/")
+    if len(normalized) >= 2 and normalized[1] == ":":
+        return f"/mnt/{normalized[0].lower()}{normalized[2:]}"
+    return normalized
 
 
 def source_and_call(func_call: str, env: dict | None = None) -> subprocess.CompletedProcess:
     """Source common.sh and call a function."""
-    cmd = f'source "{COMMON_SH}" && {func_call}'
+    env_exports = ""
+    if env:
+        export_parts = [
+            f"export {key}={shlex.quote(str(value))}"
+            for key, value in env.items()
+        ]
+        env_exports = "; ".join(export_parts) + "; "
+    cmd = f'{env_exports}source "{_bash_path(COMMON_SH)}" && {func_call}'
     return subprocess.run(
         ["bash", "-c", cmd],
         capture_output=True,
         text=True,
+        errors="replace",
         env={**os.environ, **(env or {})},
     )
 
@@ -224,28 +242,28 @@ class TestFindFeatureDirByPrefix:
         """Test 10: find_feature_dir_by_prefix with timestamp branch."""
         (tmp_path / "specs" / "20260319-143022-user-auth").mkdir(parents=True)
         result = source_and_call(
-            f'find_feature_dir_by_prefix "{tmp_path}" "20260319-143022-user-auth"'
+            f'find_feature_dir_by_prefix "{_bash_path(tmp_path)}" "20260319-143022-user-auth"'
         )
         assert result.returncode == 0
-        assert result.stdout.strip() == f"{tmp_path}/specs/20260319-143022-user-auth"
+        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/specs/20260319-143022-user-auth"
 
     def test_cross_branch_prefix(self, tmp_path: Path):
         """Test 11: find_feature_dir_by_prefix cross-branch (different suffix, same timestamp)."""
         (tmp_path / "specs" / "20260319-143022-original-feat").mkdir(parents=True)
         result = source_and_call(
-            f'find_feature_dir_by_prefix "{tmp_path}" "20260319-143022-different-name"'
+            f'find_feature_dir_by_prefix "{_bash_path(tmp_path)}" "20260319-143022-different-name"'
         )
         assert result.returncode == 0
-        assert result.stdout.strip() == f"{tmp_path}/specs/20260319-143022-original-feat"
+        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/specs/20260319-143022-original-feat"
 
     def test_four_digit_sequential_prefix(self, tmp_path: Path):
         """find_feature_dir_by_prefix resolves 4+ digit sequential prefix."""
         (tmp_path / "specs" / "1000-original-feat").mkdir(parents=True)
         result = source_and_call(
-            f'find_feature_dir_by_prefix "{tmp_path}" "1000-different-name"'
+            f'find_feature_dir_by_prefix "{_bash_path(tmp_path)}" "1000-different-name"'
         )
         assert result.returncode == 0
-        assert result.stdout.strip() == f"{tmp_path}/specs/1000-original-feat"
+        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/specs/1000-original-feat"
 
 
 # ── get_current_branch Tests ─────────────────────────────────────────────────
@@ -589,6 +607,12 @@ class TestDryRun:
         subprocess.run(
             ["git", "push", "origin", "005-remote-only"],
             cwd=second_clone, check=True, capture_output=True,
+        )
+
+        # Repoint origin to a bash-readable local path before invoking the bash script.
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", _bash_path(remote_dir)],
+            cwd=git_repo, check=True, capture_output=True,
         )
 
         # Primary repo: dry-run should see 005 via ls-remote and return 006

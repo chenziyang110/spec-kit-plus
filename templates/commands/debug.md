@@ -67,7 +67,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Check whether `.specify/project-map/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - If freshness is `missing` or `stale`, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
-- If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the failing area, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before root-cause analysis continues.
+- If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the failing area, run `/sp-map-codebase` before root-cause analysis continues. If only `review_topics` are non-empty, review those topical files before widening the investigation.
 - Read `PROJECT-HANDBOOK.md` before root-cause analysis so the investigation starts from the current system map.
 - If the handbook navigation system is missing, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.

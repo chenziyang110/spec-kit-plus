@@ -7,7 +7,6 @@ to the team runtime.
 
 import sys
 import json
-from pathlib import Path
 
 from specify_cli.codex_team.auto_dispatch import (
     run_notify_hook,

@@ -80,7 +80,17 @@ When the feature touches an established boundary pattern in the target project, 
 - `/speckit.plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
 - Use `Implementation Constitution` for architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus.
 - `/speckit.tasks` should turn those rules into explicit implementation guardrails before setup or feature work begins.
+- `/speckit.tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when delegated work needs task-local rule inheritance.
 - `/speckit.implement` should treat those guardrails as binding execution constraints and confirm the owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
+- Delegated execution should not rely on raw task text when architecture or quality rules matter.
+- `/speckit.plan` should provide `Dispatch Compilation Hints`.
+- `/speckit.implement` should compile and validate a `WorkerTaskPacket` before dispatching native workers or sidecar workers.
+- Top-level `tasks.md` items should usually fit one coffee-break-sized implementation slice, roughly 10-20 minutes, while delegated workers may still break them into smaller 2-5 minute atomic steps internally.
+- Keep decomposition progressive: refine only the current executable window after each join point instead of over-specifying later batches too early.
+- Grouped parallelism is the default when ready tasks have isolated write sets; use a pipeline shape only when outputs flow stage-by-stage and keep explicit checkpoints between stages.
+- For high-risk batches touching shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces, add a review gate before crossing the join point.
+- If a read-only verification lane is available, use one peer-review lane only for those high-risk batches rather than for every batch.
+- If delegated work returns `blocked`, require the blocker, the failed assumption, and the smallest safe recovery step before accepting the result.
 
 > [!TIP]
 > **Phased Implementation**: For complex projects, implement in phases to avoid overwhelming the agent's context. Start with core functionality, validate it works, then add features incrementally.
@@ -108,6 +118,7 @@ Use support skills when they solve a specific gap:
 - `/speckit.checklist` when you want to audit requirement quality after planning
 - `/speckit.analyze` when you want a cross-artifact consistency check before implementation
 - `/speckit.analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
+- `/speckit.analyze` should also flag delegated packet failures through `DP1`, `DP2`, and `DP3` when worker packets or worker results lose required rule-carrying evidence
 - `/speckit.explain` when you want the current spec, plan, or tasks state restated in plain language
 
 If you're starting from an existing codebase, run `/speckit.map-codebase` first so the brownfield navigation artifacts are fresh before requirement, planning, or implementation work continues. Downstream workflows use `.specify/project-map/status.json` to decide whether the existing map is fresh, possibly stale, or stale.

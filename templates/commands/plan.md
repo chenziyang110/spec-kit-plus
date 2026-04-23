@@ -66,7 +66,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Check whether `.specify/project-map/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the current planning request, touched area, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before continuing.
+   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current planning request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for planning.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
    - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
@@ -130,12 +130,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 6. **Execute the plan workflow** using the IMPL_PLAN template:
    - Fill Technical Context (mark unknowns as `NEEDS CLARIFICATION`)
    - Add `Implementation Constitution` using architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus from repository evidence
-   - Add `Implementation Constitution` whenever one or more of these heuristics is true:
-     - the feature touches an established framework-owned boundary or adapter pattern
-     - the touched area is a native bridge, plugin surface, protocol seam, generated API surface, or other contract-heavy boundary
-     - a generic implementation instinct would likely drift away from the repository's existing pattern
-     - the repository already has canonical boundary files or examples that implementers must inspect before changing code safely
-   - Fill Constitution Check from the constitution
+    - Add `Implementation Constitution` whenever one or more of these heuristics is true:
+      - the feature touches an established framework-owned boundary or adapter pattern
+      - the touched area is a native bridge, plugin surface, protocol seam, generated API surface, or other contract-heavy boundary
+      - a generic implementation instinct would likely drift away from the repository's existing pattern
+      - the repository already has canonical boundary files or examples that implementers must inspect before changing code safely
+    - Add `Dispatch Compilation Hints` whenever delegated execution would be unsafe without an explicit boundary owner, packet references, validation gates, or task-level quality floor
+    - Fill Constitution Check from the constitution
    - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
    - Copy locked planning decisions from `alignment.md`, `context.md`, and `spec.md` into planning constraints, assumptions, or design notes so they are not silently dropped
    - Promote framework and boundary rules from "technical background" into explicit implementation constraints rather than leaving them as implied context

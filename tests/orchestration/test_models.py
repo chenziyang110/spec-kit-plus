@@ -8,6 +8,7 @@ from specify_cli.orchestration.models import (
     ExecutionStrategy,
     ExecutionDecision,
     Lane,
+    ReviewGatePolicy,
     Session,
     utc_now,
 )
@@ -89,3 +90,19 @@ def test_execution_strategy_literal_values_are_canonical():
         "native-multi-agent",
         "sidecar-runtime",
     )
+
+
+def test_review_gate_policy_has_canonical_fields_and_defaults():
+    policy = ReviewGatePolicy()
+    field_names = [item.name for item in fields(ReviewGatePolicy)]
+
+    assert policy.requires_review_gate is False
+    assert policy.peer_review_lane_recommended is False
+    assert policy.reason == "low_risk_batch"
+    assert datetime.fromisoformat(policy.created_at).utcoffset().total_seconds() == 0
+    assert field_names == [
+        "requires_review_gate",
+        "peer_review_lane_recommended",
+        "reason",
+        "created_at",
+    ]

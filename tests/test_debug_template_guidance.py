@@ -16,6 +16,8 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "project-map freshness helper" in content
     assert "freshness is `missing` or `stale`" in content
     assert "freshness is `possibly_stale`" in content
+    assert "must_refresh_topics" in content
+    assert "review_topics" in content
     assert "truth ownership" in content
     assert "read whichever of `architecture.md`, `workflows.md`, `integrations.md`, `testing.md`, and `operations.md` map to the failing area" in content
     assert "if the handbook navigation system is missing" in content

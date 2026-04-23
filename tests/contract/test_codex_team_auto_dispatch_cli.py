@@ -31,14 +31,39 @@ def _create_codex_project(tmp_path: Path) -> Path:
         ),
         encoding="utf-8",
     )
+    (spec_root / "memory").mkdir(parents=True, exist_ok=True)
+    (spec_root / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST preserve worker validation evidence\n",
+        encoding="utf-8",
+    )
     feature_dir = project / "specs" / "001-auto-dispatch"
     feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Implementation Constitution",
+                "",
+                "### Required Implementation References",
+                "",
+                "- `src/contracts/example.py`",
+                "",
+                "### Forbidden Implementation Drift",
+                "",
+                "- Do not create a parallel contract surface",
+            ]
+        ),
+        encoding="utf-8",
+    )
     (feature_dir / "tasks.md").write_text(
         """# Tasks
 
 - [X] T001 Shared setup
-- [ ] T002 [P] Worker A
-- [ ] T003 [P] Worker B
+- [ ] T002 [P] Worker A in src/workers/worker_a.py
+- [ ] T003 [P] Worker B in src/workers/worker_b.py
+
+## Validation Gates
+
+- pytest -q -k auto_dispatch
 
 **Parallel Batch 1.1**
 

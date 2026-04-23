@@ -39,12 +39,17 @@ class DispatchRecord:
     failure_class: str = ""
     retry_count: int = 0
     retry_budget: int = 0
+    packet_path: str = ""
+    packet_summary: dict[str, Any] | None = None
+    result_path: str = ""
     created_at: str = ""
     updated_at: str = ""
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
         now = _utc_now()
+        if self.packet_summary is None:
+            self.packet_summary = {}
         if not self.created_at:
             self.created_at = now
         if not self.updated_at:

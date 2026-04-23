@@ -169,7 +169,7 @@ human_needed_checks:
    - **REQUIRED**: Check whether `.specify/project-map/status.json` exists.
    - **IF STATUS EXISTS**: Use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - **IF FRESHNESS IS `missing` OR `stale`**: Run `/sp-map-codebase` before continuing, then reload the generated handbook/project-map navigation system.
-   - **IF FRESHNESS IS `possibly_stale`**: Inspect the reported changed paths and reasons. If they overlap the current implementation area, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before continuing.
+   - **IF FRESHNESS IS `possibly_stale`**: Inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current implementation area, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for implementation decisions.
    - **REQUIRED**: Check whether `PROJECT-HANDBOOK.md` exists at the repository
      root.
    - **REQUIRED**: Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
@@ -189,6 +189,12 @@ human_needed_checks:
    - **IF EXISTS**: Read quickstart.md for integration scenarios
    - **IF `Implementation Constitution` NAMES REQUIRED REFERENCES**: Read those boundary-defining files before choosing the next implementation batch
    - **IF THE NEXT READY BATCH TOUCHES AN ESTABLISHED BOUNDARY OR FRAMEWORK**: Record the active boundary framework, preserved pattern, forbidden drift, and required references in `implement-tracker.md` before dispatching work
+   - **REQUIRED FOR DELEGATED EXECUTION**: compile a `WorkerTaskPacket` for each delegated task using `.specify/memory/constitution.md`, `plan.md`, and `tasks.md`
+   - **REQUIRED FOR DELEGATED EXECUTION**: compile and validate the packet before any delegated work begins
+   - **REQUIRED FOR DELEGATED EXECUTION**: Validate each `WorkerTaskPacket` before dispatching work
+   - **HARD RULE**: dispatch only from validated `WorkerTaskPacket`
+   - **HARD RULE**: Do not dispatch from raw task text alone
+   - **HARD RULE**: must not dispatch from raw task text alone
 
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:
@@ -247,6 +253,7 @@ human_needed_checks:
    - The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.
    - The shared implement template is the primary source of truth for this leader-only milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
    - Use the shared policy function before each batch with the current agent capability snapshot: `choose_execution_strategy(command_name="implement", snapshot, workload_shape)`
+   - Also classify whether the current batch needs a review gate before the join point: `classify_review_gate_policy(workload_shape)`
    - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
    - Decision order (must match policy):
      - If `parallel_batches <= 0` or overlapping write sets -> `single-agent` (`no-safe-batch`)
@@ -255,13 +262,21 @@ human_needed_checks:
      - Else -> `single-agent` (`fallback`)
    - single-agent still means one delegated worker lane, not leader self-execution.
    - Re-evaluate the execution strategy at every new parallel batch or join point instead of choosing once for the whole feature
+   - Refine only the current executable window after each join point. Do not pre-expand later batches when their exact shape depends on current batch evidence.
+   - Grouped parallelism is the default when multiple ready tasks have isolated write sets and stable upstream inputs.
+   - Pipeline execution is preferred when outputs flow stage-by-stage from one bounded task to the next and each stage becomes the next stage's input.
+   - Every pipeline stage still needs an explicit checkpoint before downstream work continues.
+   - If `classify_review_gate_policy(workload_shape)` requires review, do not cross the join point until the batch has passed worker self-check and leader acceptance.
+   - If the policy recommends a peer-review lane and a read-only verification lane is available, run one peer-review lane for the high-risk batch before the leader accepts it.
+   - Reserve peer-review lanes for high-risk batches such as shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces.
    - When `sidecar-runtime` is selected, use the integration's coordinated runtime surface for the current ready batch, report concrete blockers, keep join-point semantics explicit, and surface retry-pending or blocked runtime state truthfully so runtime/API handoffs stay auditable and safe.
-   - Before dispatching a concrete implementation batch, answer from repository evidence:
-     - What framework or boundary pattern owns the touched surface?
-     - Which files define the existing pattern that must be preserved?
-     - What implementation drift is forbidden for this batch?
-     - Which task or plan item proves that this constraint is intentional rather than inferred?
-   - If those answers are not grounded in the current repository files, stop guesswork, read the missing references, and update `implement-tracker.md` before continuing.
+    - Before dispatching a concrete implementation batch, answer from repository evidence:
+      - What framework or boundary pattern owns the touched surface?
+      - Which files define the existing pattern that must be preserved?
+      - What implementation drift is forbidden for this batch?
+      - Which task or plan item proves that this constraint is intentional rather than inferred?
+      - Which compiled `WorkerTaskPacket` captures the hard rules, required references, validation gates, and done criteria for this delegated task?
+    - If those answers are not grounded in the current repository files, stop guesswork, read the missing references, and update `implement-tracker.md` before continuing.
 
 7. Execute implementation following the task plan:
    - **Phase-by-phase execution**: Complete each phase before moving to the next
@@ -287,6 +302,11 @@ human_needed_checks:
    - Report progress after each completed task
    - Halt execution if any non-parallel task fails
    - For tasks in parallel batches, continue with successful tasks, report failed ones, and do not cross the batch's join point until the failed work is resolved or explicitly deferred
+   - For high-risk batches, treat acceptance as a three-layer check:
+     - worker self-check
+     - optional read-only peer-review lane when `classify_review_gate_policy(workload_shape)` recommends it
+     - leader/orchestrator review before crossing the join point
+   - Blocked delegated worker results must include a concrete blocker summary, the failed assumption or dependency, and the smallest safe recovery step before the leader accepts the result.
    - Persist completed work, failed work, blocker evidence, `retry_attempts`, `recovery_action`, and `next_action` in `implement-tracker.md` as soon as they change
    - Before declaring the feature blocked, attempt the smallest safe recovery step that matches the evidence:
      - read the most relevant local implementation context for the failing area

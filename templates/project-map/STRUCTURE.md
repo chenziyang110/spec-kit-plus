@@ -7,6 +7,8 @@
 
 ## Directory Layout
 
+[Summarize the major directories, representative subdirectories, and the kinds of files they own.]
+
 ## Directory Responsibilities
 
 ## Critical File Families
@@ -19,4 +21,8 @@
 
 ## Consumer and Entry Surfaces
 
+## Common Extension Paths
+
 ## Where To Add New Code
+
+[Explain what belongs there and what should not be added there when future work touches this repository.]

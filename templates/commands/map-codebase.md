@@ -23,6 +23,13 @@ If `$ARGUMENTS` names a subsystem, workflow, or focus area, use it to bias the
 scout and refresh emphasis, but still keep all canonical map outputs globally
 coherent.
 
+Treat this workflow as the repository's comprehensive technical-documentation
+generator. The resulting handbook/project-map system must serve as a durable
+technical asset for onboarding, architecture review, technical-debt assessment,
+and refactor planning. Analyze both macro architecture and micro
+implementation-level details; do not stop at repository shape or shallow
+navigation summaries.
+
 ## Output Contract
 
 The only canonical outputs are:
@@ -55,6 +62,14 @@ Rules:
   vaguely, lacks ownership or placement guidance, or lacks workflow,
   constraint, integration, or regression-sensitive testing guidance.
 - Treat the map as a coverage system, not just a navigation summary.
+- The generated navigation system should collectively cover the equivalent of these seven technical-document chapters, distributed across the canonical outputs instead of recreated as one monolithic file:
+  - project architecture overview
+  - directory structure and responsibilities
+  - key module dependency relationships
+  - core classes and interfaces
+  - core data flows
+  - API inventory
+  - common patterns and conventions
 - When scouting reveals a high-value contract or implementation detail, keep it
   in the topical map instead of collapsing it into a one-line summary.
 - High-value details typically include:
@@ -75,11 +90,16 @@ Rules:
   - what minimum verification evidence proves the mapped surface still works
   - what important unknowns, assumptions, or stale coverage remain
 - Each touched area must include workflow, constraint, integration, or regression-sensitive testing guidance somewhere in the combined handbook/project-map output.
-- If legacy `项目技术文档.md` exists, mine it only for still-useful structure,
-  terminology, ownership hints, and risk framing, then migrate that value into
-  the canonical outputs above.
-- Legacy `项目技术文档.md` is not a source of truth and must not be recreated as
-  an active technical reference.
+- For each high-value capability, core module, or critical workflow, emit at least one capability card.
+- Capability cards must capture: Purpose, Owner, Truth lives, Entry points, Downstream consumers, Extend here, Do not extend here, Key contracts, Change propagation, Minimum verification, Failure modes, and Confidence.
+- Confidence must use only: Verified, Inferred, or Unknown-Stale.
+- When a capability card is marked Inferred or Unknown-Stale, summarize that gap again in Known Unknowns, Low-Confidence Areas, or both.
+- If legacy `项目技术文档.md` exists, mine it only for still-useful structure, terminology, ownership hints, and risk framing, then migrate that value into the canonical outputs above.
+- Legacy `项目技术文档.md` is not a source of truth and must not be recreated as an active technical reference.
+- When the repository already contains older technical writeups, treat them as
+  optional supporting evidence only. Reuse still-correct terminology,
+  structure, ownership hints, and risk framing, but keep the canonical output
+  in `PROJECT-HANDBOOK.md` plus `.specify/project-map/*.md`.
 - do not create `.planning/codebase/`, a second mapping tree, or any alternate
   source-of-truth document.
 
@@ -87,7 +107,8 @@ Rules:
 
 1. **Load the mapping contract**
    - Read `.specify/memory/constitution.md` if present.
-   - Read `.specify/project-map/status.json` if present to recover the current map baseline, dirty state, and previous refresh metadata.
+   - Read `.specify/project-map/status.json` if present to recover the current
+     map baseline, dirty state, and previous refresh metadata.
    - Read `PROJECT-HANDBOOK.md` and all existing `.specify/project-map/*.md`
      files if present.
    - Read `.specify/templates/project-handbook-template.md` and
@@ -125,6 +146,14 @@ Rules:
    - Start from the smallest high-signal evidence first: README, package
      manifests, top-level config, entrypoints, scripts, tests, and current
      navigation docs if present.
+   - Run the scout like a comprehensive codebase technical-review pass. The
+     scout must explicitly include:
+     - macro scan and architecture identification
+     - directory structure deep analysis
+     - dependency relationships and module analysis
+     - core code element review
+     - data flow and API surface mapping
+     - patterns and conventions synthesis
    - Read only the live files needed to establish current facts for:
       - system shape and entrypoints
       - runtime units, execution surfaces, and major capability surfaces
@@ -135,22 +164,60 @@ Rules:
       - user and maintainer workflows
       - operational caveats, recovery paths, and risky coordination points
       - change-propagation hotspots, validation entry points, and known unknowns
-      - high-value contracts, schemas, bridge seams, and invariants that future implementers would otherwise have to rediscover by re-reading the live code
+      - high-value contracts, schemas, bridge seams, and invariants that future
+        implementers would otherwise have to rediscover by re-reading the live
+        code
+      - project type, technology stack, and build tooling
+      - top-level architecture pattern and deployment shape
+      - major directories and representative subdirectories
+      - import/require relationships, core modules, utility modules, and strong-coupling hotspots
+      - core classes, abstract classes, interfaces, enums, and major functions
+      - key business flows from entry to exit
+      - route definitions, controllers, exported endpoints, or command surfaces
+      - design patterns, naming rules, directory customs, configuration management, and utility locations
    - Always capture actual file paths when naming code, config, scripts, or
      tests.
    - Distinguish current repository facts from recommendations. The map should
      describe what is true now, not what might be nice later.
-    - Prefer evidence that reveals propagation paths: entrypoints, registries,
-      routing files, schema or contract definitions, UI or CLI consumers,
-      background jobs, integration adapters, verification scripts, and operator
-      playbooks.
-    - Explicitly scout for:
-      - exported entrypoints, method families, parameter semantics, return shapes, error fields, and compatibility promises
-      - core data structures, state transitions, persistence fields, and handoff identifiers
-      - protocol, IPC, bridge, or native-host boundaries and their message or lifecycle semantics
-      - build, packaging, toolchain, platform, architecture, and runtime invariants
+   - Prefer evidence that reveals propagation paths: entrypoints, registries,
+     routing files, schema or contract definitions, UI or CLI consumers,
+     background jobs, integration adapters, verification scripts, and operator
+     playbooks.
+   - Explicitly scout for:
+      - exported entrypoints, method families, parameter semantics, return
+        shapes, error fields, and compatibility promises
+      - core data structures, state transitions, persistence fields, and
+        handoff identifiers
+      - protocol, IPC, bridge, or native-host boundaries and their message or
+        lifecycle semantics
+      - build, packaging, toolchain, platform, architecture, and runtime
+        invariants
+      - API methods, endpoint families, request/response shapes, and notable
+        error contracts
+      - dependency seams that reveal layering, coupling direction, or risky
+        cycles
+      - implementation elements whose names and responsibilities future
+        maintainers would need during onboarding or refactor planning
 
 4. **Generate or refresh the topical map**
+   - Map the comprehensive scout into the canonical outputs instead of
+     inventing a standalone technical-document file:
+     - `PROJECT-HANDBOOK.md` -> project architecture overview summary,
+       cross-cutting hotspots, and topic routing
+     - `ARCHITECTURE.md` -> top-level architecture pattern, major module
+       dependency relationships, truth ownership, and critical component seams
+     - `STRUCTURE.md` -> directory structure and responsibilities, including
+       major directories and representative subdirectories
+     - `CONVENTIONS.md` -> common patterns and conventions, naming rules,
+       configuration customs, and utility locations
+     - `INTEGRATIONS.md` -> APIs, external surfaces, protocol seams, platform
+       assumptions, and integration boundaries
+     - `WORKFLOWS.md` -> core data flows, request/command lifecycles, and
+       entry-to-exit handoffs
+     - `TESTING.md` -> verification routes that prove the mapped contracts and
+       workflows
+     - `OPERATIONS.md` -> build/deploy/runtime constraints, troubleshooting,
+       and recovery paths
    - `ARCHITECTURE.md` must explain layers, abstractions, truth ownership, main
      flows, change propagation paths, and cross-cutting concerns.
    - `STRUCTURE.md` must answer where code lives, what each major directory
@@ -170,31 +237,57 @@ Rules:
      handbook/project-map outputs give explicit ownership or placement guidance
      plus at least one of workflow, constraint, integration, or
      regression-sensitive testing guidance.
-   - The topical documents must carry the deeper detail. `PROJECT-HANDBOOK.md` is the entrypoint, not the place to hide the only precise explanation.
+   - The topical documents must carry the deeper detail. `PROJECT-HANDBOOK.md`
+     is the entrypoint, not the place to hide the only precise explanation.
    - For any high-value contract or implementation detail, record the responsibility, important inputs/outputs or fields, adjacent dependencies, compatibility constraints, and minimum verification route.
-   - Do not stop at naming a file family or subsystem. Explain why the mapped surface matters and what a future change would need to preserve.
-   - `ARCHITECTURE.md` should retain deeper component catalogs and technical boundaries for the subsystems that drive behavior or verification, not just a top-level layer summary.
-   - `STRUCTURE.md` should retain deeper ownership notes for critical file families and key components instead of only listing folders.
-   - `CONVENTIONS.md` should preserve project-specific contract conventions, state semantics, config propagation rules, and compatibility constraints, not just generic style notes.
-   - `INTEGRATIONS.md` should preserve protocol seams, toolchain entrypoints, packaging paths, environment assumptions, and other integration invariants at usable depth.
+   - Do not stop at naming a file family or subsystem. Explain why the mapped
+     surface matters and what a future change would need to preserve.
+   - `ARCHITECTURE.md` should retain deeper component catalogs and technical
+     boundaries for the subsystems that drive behavior or verification, not
+     just a top-level layer summary.
+   - `STRUCTURE.md` should retain deeper ownership notes for critical file
+     families and key components instead of only listing folders.
+   - `CONVENTIONS.md` should preserve project-specific contract conventions,
+     state semantics, config propagation rules, and compatibility constraints,
+     not just generic style notes.
+   - `INTEGRATIONS.md` should preserve protocol seams, toolchain entrypoints,
+     packaging paths, environment assumptions, and other integration invariants
+     at usable depth.
    - `WORKFLOWS.md` should preserve the handoff detail that future work needs: method families, parameter semantics, return shapes, error fields, state transitions, compatibility notes, or invariants where those facts govern the flow.
-   - `TESTING.md` and `OPERATIONS.md` should preserve the concrete validation, build, runtime, and troubleshooting detail needed to verify or recover the mapped surfaces without reverse-engineering the repository again.
-   - Do not stop at repository shape. The refreshed map must make it hard to miss adjacent surfaces that would need review when the mapped area changes.
+   - `TESTING.md` and `OPERATIONS.md` should preserve the concrete validation,
+     build, runtime, and troubleshooting detail needed to verify or recover the
+     mapped surfaces without reverse-engineering the repository again.
+   - Do not stop at repository shape. The refreshed map must make it hard to
+     miss adjacent surfaces that would need review when the mapped area
+     changes.
+   - If the repository is too large to card every capability, prioritize the capabilities that are most central, most risky to change, shared by multiple workflows, or exposed at external boundaries.
+   - When the repository exposes APIs or exported command/query surfaces, the
+     refreshed map must inventory the major ones at usable depth instead of
+     merely saying that such APIs exist.
+   - When the repository has recognizable core classes, interfaces, abstract
+     types, enums, or major functions, record the most important ones with
+     their responsibilities, home modules, and why they matter.
+   - When the repository contains key business or runtime flows, describe the
+     entry-to-exit data path in enough detail that a maintainer could follow
+     the handoffs without rediscovering them from scratch.
 
 5. **Generate or refresh `PROJECT-HANDBOOK.md`**
-   - `PROJECT-HANDBOOK.md` must stay concise and index-first so it remains the first-read navigation artifact.
+   - `PROJECT-HANDBOOK.md` must stay concise and index-first so it remains the
+     first-read navigation artifact.
    - Preserve the old single-entry-document strengths by making it easy to
      establish system shape quickly:
      - system summary
      - shared surfaces
-      - risky coordination points
-      - change-propagation hotspots
-      - verification entry points
-      - known unknowns or stale areas
-      - topic map
-      - update triggers
-      - recent structural changes
-   - Do not duplicate deep topical content there; route to the topical docs. The handbook should summarize and point, while the topical documents must carry the deeper detail.
+     - risky coordination points
+     - change-propagation hotspots
+     - verification entry points
+     - known unknowns or stale areas
+     - topic map
+     - update triggers
+     - recent structural changes
+   - Do not duplicate deep topical content there; route to the topical docs.
+     The handbook should summarize and point, while the topical documents must
+     carry the deeper detail.
 
 6. **Run a consistency pass**
    - Ensure `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` agree on
@@ -213,10 +306,20 @@ Rules:
      - workflow and integration sections preserve protocol seams, bridge semantics, or runtime invariants when those facts govern behavior
      - build, packaging, runtime, and recovery instructions remain actionable instead of being reduced to generic prose
      - the handbook stays index-first and points to the topic docs instead of duplicating them
-   - If any checklist item fails, continue mapping before the completion report.
+     - high-value capabilities include owner, truth lives, extension guidance, change propagation, minimum verification, failure modes, and confidence
+     - capability cards use the canonical confidence levels Verified, Inferred, or Unknown-Stale
+     - the combined handbook/project-map output covers project type and stack,
+       architecture shape, directory responsibilities, dependency
+       relationships, core code elements, data flows, API surfaces, and
+       patterns/conventions at usable depth
+   - If any checklist item fails, continue mapping before the completion
+     report.
 
 8. **Report completion**
-   - After the refresh succeeds, finalize the refresh through the project-map freshness helper using `complete-refresh` so downstream workflows know the new baseline commit and refresh reason. Use `record-refresh` only for low-level/manual recovery when the standard completion path is unavailable.
+   - After the refresh succeeds, finalize the refresh through the project-map
+     freshness helper using `complete-refresh` so downstream workflows know the
+     new baseline commit and refresh reason. Use `record-refresh` only for
+     low-level/manual recovery when the standard completion path is unavailable.
    - Summarize which canonical map files were created or refreshed.
    - Call out the highest-signal risky coordination points or stale areas that
      were clarified.

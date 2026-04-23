@@ -625,6 +625,49 @@ class TestInitIntegrationFlag:
         assert payload["freshness"] == "stale"
         assert payload["dirty"] is True
         assert payload["dirty_reasons"] == ["shared_surface_changed"]
+        assert payload["must_refresh_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md"]
+        assert payload["review_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+
+    def test_project_map_mark_dirty_normalizes_human_reason(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "project-map-dirty-normalize"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            init_result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+            dirty_result = runner.invoke(
+                app,
+                ["project-map", "mark-dirty", "workflow contract changed", "--format", "json"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert init_result.exit_code == 0, init_result.output
+        assert dirty_result.exit_code == 0, dirty_result.output
+
+        payload = json.loads(dirty_result.output)
+        assert payload["dirty_reasons"] == ["workflow_contract_changed"]
+        assert payload["must_refresh_topics"] == ["WORKFLOWS.md"]
+        assert payload["review_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "TESTING.md"]
 
     def test_project_map_record_refresh_requires_canonical_outputs(self, tmp_path):
         from typer.testing import CliRunner
@@ -725,3 +768,103 @@ class TestInitIntegrationFlag:
         status_payload = json.loads(status_result.output)
         assert refresh_payload["freshness"] == "possibly_stale"
         assert status_payload["last_refresh_reason"] == "map-codebase"
+
+    def test_project_map_refresh_topics_records_partial_refresh_scope(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "project-map-refresh-topics"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            init_result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+            (project / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
+            project_map_dir = project / ".specify" / "project-map"
+            for name in (
+                "ARCHITECTURE.md",
+                "STRUCTURE.md",
+                "CONVENTIONS.md",
+                "INTEGRATIONS.md",
+                "WORKFLOWS.md",
+                "TESTING.md",
+                "OPERATIONS.md",
+            ):
+                (project_map_dir / name).write_text(f"# {name}\n", encoding="utf-8")
+
+            refresh_result = runner.invoke(
+                app,
+                ["project-map", "refresh-topics", "INTEGRATIONS.md", "WORKFLOWS.md", "--reason", "topic-refresh", "--format", "json"],
+                catch_exceptions=False,
+            )
+            status_result = runner.invoke(
+                app,
+                ["project-map", "status", "--format", "json"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert init_result.exit_code == 0, init_result.output
+        assert refresh_result.exit_code == 0, refresh_result.output
+        assert status_result.exit_code == 0, status_result.output
+
+        refresh_payload = json.loads(refresh_result.output)
+        status_payload = json.loads(status_result.output)
+        assert refresh_payload["last_refresh_scope"] == "partial"
+        assert refresh_payload["last_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
+        assert refresh_payload["last_refresh_basis"] == "topic-refresh"
+        assert status_payload["last_refresh_scope"] == "partial"
+        assert status_payload["last_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
+
+    def test_project_map_refresh_topics_rejects_unknown_topic(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "project-map-refresh-topics-invalid"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            init_result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+            refresh_result = runner.invoke(
+                app,
+                ["project-map", "refresh-topics", "UNKNOWN.md"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert init_result.exit_code == 0, init_result.output
+        assert refresh_result.exit_code != 0
+        assert "unknown topic" in refresh_result.output.lower()

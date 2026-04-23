@@ -4,6 +4,7 @@ from specify_cli.orchestration.models import CapabilitySnapshot
 from specify_cli.orchestration.policy import (
     choose_execution_strategy,
     classify_batch_execution_policy,
+    classify_review_gate_policy,
 )
 
 
@@ -303,3 +304,43 @@ def test_classify_batch_execution_policy_keeps_general_parallel_implementation_s
     assert policy.batch_classification == "strict"
     assert policy.safe_preparation_allowed is False
     assert policy.reason == "full_success_required"
+
+
+def test_classify_review_gate_policy_marks_high_risk_shared_surface_batches() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "touches_shared_surface": True,
+            "review_lane_available": True,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.peer_review_lane_recommended is True
+    assert policy.reason == "shared_surface"
+
+
+def test_classify_review_gate_policy_marks_boundary_batches_without_peer_lane() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "touches_protocol_boundary": True,
+            "review_lane_available": False,
+        }
+    )
+
+    assert policy.requires_review_gate is True
+    assert policy.peer_review_lane_recommended is False
+    assert policy.reason == "boundary_contract"
+
+
+def test_classify_review_gate_policy_skips_low_risk_batches() -> None:
+    policy = classify_review_gate_policy(
+        workload_shape={
+            "touches_shared_surface": False,
+            "touches_schema": False,
+            "touches_protocol_boundary": False,
+        }
+    )
+
+    assert policy.requires_review_gate is False
+    assert policy.peer_review_lane_recommended is False
+    assert policy.reason == "low_risk_batch"

@@ -7,16 +7,22 @@
 
 ## Startup and Execution Paths
 
+[Preserve build, startup, runtime, troubleshooting, and recovery details at operator-usable depth.]
+
 ## Build and Packaging Playbooks
 
 ## Runtime Constraints
 
 ## Runtime and Toolchain Invariants
 
+## Runtime State Locations
+
 ## Recovery and Resume
 
 ## Troubleshooting Entry Points
 
 ## Operator Notes
+
+[Include operator-facing playbooks and runtime unknowns that affect support, recovery, or release decisions.]
 
 ## Known Runtime Unknowns

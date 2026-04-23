@@ -1,13 +1,26 @@
 from pathlib import Path
 
+from typer.testing import CliRunner
+
+from specify_cli import app
 from tests.test_extension_skills import _body_without_frontmatter
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_repo_quick_skill_mirror_has_codex_delegation_contract() -> None:
-    mirror_path = PROJECT_ROOT / ".agents" / "skills" / "sp-quick" / "SKILL.md"
+def test_repo_quick_skill_mirror_has_codex_delegation_contract(tmp_path: Path) -> None:
+    runner = CliRunner()
+    target = tmp_path / "codex-quick-mirror"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, result.output
+
+    mirror_path = target / ".codex" / "skills" / "sp-quick" / "SKILL.md"
     body = _body_without_frontmatter(mirror_path).lower()
 
     assert ".planning/quick/<id>-<slug>/status.md" in body

@@ -7,6 +7,8 @@
 
 ## Naming Patterns
 
+[Capture design patterns, naming rules, directory customs, configuration management, and utility locations that recur across the repo.]
+
 ## Formatting and Linting
 
 ## Imports and Exports
@@ -14,6 +16,8 @@
 ## Error Handling
 
 ## Contract and Compatibility Conventions
+
+[Record state semantics, compatibility assumptions, and project-specific contract rules that future changes must preserve.]
 
 ## State and Data Semantics
 

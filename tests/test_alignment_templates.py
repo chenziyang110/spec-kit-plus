@@ -45,6 +45,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert "project-map freshness helper" in lowered
     assert "freshness is `missing` or `stale`" in lowered
     assert "freshness is `possibly_stale`" in lowered
+    assert "must_refresh_topics" in lowered
+    assert "review_topics" in lowered
     assert "task-relevant coverage is insufficient" in lowered
     assert "coverage is insufficient when the touched area is named only vaguely" in lowered
     assert "ownership or placement guidance" in lowered
@@ -298,6 +300,11 @@ def test_plan_template_carries_locked_decisions_into_plan_artifact():
     assert "### Common Pitfalls" in content
     assert "### Assumptions To Validate" in content
     assert "### Environment / Dependency Notes" in content
+    assert "## Dispatch Compilation Hints" in content
+    assert "### Boundary Owner" in content
+    assert "### Required Packet References" in content
+    assert "### Packet Validation Gates" in content
+    assert "### Task-Level Quality Floor" in content
     assert "## Decision Preservation Check" in content
     assert "## Research Adoption Check" in content
     assert "cannot be silently dropped" in lowered
@@ -336,6 +343,17 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "quickstart.md exists: extract validation scenarios" in lowered
     assert "validate decision preservation" in lowered
     assert "instead of silently dropping it" in lowered
+    assert "top-level tasks should usually fit one bounded implementation slice" in lowered
+    assert "roughly 10-20 minutes" in lowered
+    assert "delegated worker can still execute the task internally through smaller 2-5 minute atomic steps" in lowered
+    assert "stop decomposition once the current executable window is atomic" in lowered
+    assert "leave later phases at the coarser story or phase level" in lowered
+    assert "grouped parallelism is the default" in lowered
+    assert "pipeline is preferred when outputs flow linearly from one bounded lane to the next" in lowered
+    assert "every pipeline stage still needs an explicit checkpoint" in lowered
+    assert "classify_review_gate_policy(workload_shape)" in content
+    assert "high-risk review checkpoint" in lowered
+    assert "peer-review lane is available" in lowered
     assert "Planning inputs section" in content
     assert "before writing `tasks.md`" in content
     assert "before emitting canonical parallel batches and join points" in lowered
@@ -401,6 +419,9 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "| BG1 | Boundary Guardrail Gap | HIGH |" in content
     assert "| BG2 | Boundary Guardrail Gap | HIGH |" in content
     assert "| BG3 | Boundary Guardrail Gap | HIGH |" in content
+    assert "DP1" in content
+    assert "DP2" in content
+    assert "DP3" in content
     assert "Boundary Signal" in content
     assert "Seen In Plan Constitution?" in content
     assert "Boundary Guardrail Gap Count" in content
@@ -455,6 +476,17 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     assert "what other surfaces consume it or feed it" in content
     assert "what minimum verification evidence proves the mapped surface still works" in content
     assert "what important unknowns, assumptions, or stale coverage remain" in content
+    assert "for each high-value capability, core module, or critical workflow, emit at least one capability card" in lowered
+    assert "purpose" in lowered
+    assert "owner" in lowered
+    assert "truth lives" in lowered
+    assert "extend here" in lowered
+    assert "do not extend here" in lowered
+    assert "minimum verification" in lowered
+    assert "failure modes" in lowered
+    assert "confidence" in lowered
+    assert "confidence must use only: verified, inferred, or unknown-stale" in lowered
+    assert "when a capability card is marked inferred or unknown-stale, summarize that gap again in known unknowns, low-confidence areas, or both" in lowered
     assert "task-relevant coverage" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -490,6 +522,29 @@ def test_map_codebase_template_preserves_full_detail_through_layering() -> None:
     assert "`PROJECT-HANDBOOK.md` must stay concise and index-first" in content
     assert "the topical documents must carry the deeper detail" in lowered
     assert "method families, parameter semantics, return shapes, error fields, state transitions, compatibility notes, or invariants" in lowered
+    assert "if the repository is too large to card every capability, prioritize the capabilities that are most central, most risky to change, shared by multiple workflows, or exposed at external boundaries" in lowered
+    assert "macro scan and architecture identification" in lowered
+    assert "directory structure deep analysis" in lowered
+    assert "dependency relationships and module analysis" in lowered
+    assert "core code element review" in lowered
+    assert "data flow and api surface mapping" in lowered
+    assert "patterns and conventions synthesis" in lowered
+    assert "project type, technology stack, and build tooling" in lowered
+    assert "top-level architecture pattern and deployment shape" in lowered
+    assert "major directories and representative subdirectories" in lowered
+    assert "import/require relationships, core modules, utility modules, and strong-coupling hotspots" in lowered
+    assert "core classes, abstract classes, interfaces, enums, and major functions" in lowered
+    assert "key business flows from entry to exit" in lowered
+    assert "route definitions, controllers, exported endpoints, or command surfaces" in lowered
+    assert "design patterns, naming rules, directory customs, configuration management, and utility locations" in lowered
+    assert "the generated navigation system should collectively cover the equivalent of these seven technical-document chapters" in lowered
+    assert "project architecture overview" in lowered
+    assert "directory structure and responsibilities" in lowered
+    assert "key module dependency relationships" in lowered
+    assert "core classes and interfaces" in lowered
+    assert "core data flows" in lowered
+    assert "api inventory" in lowered
+    assert "common patterns and conventions" in lowered
 
 
 def test_map_codebase_template_requires_detail_acceptance_checklist() -> None:
@@ -503,6 +558,8 @@ def test_map_codebase_template_requires_detail_acceptance_checklist() -> None:
     assert "workflow and integration sections preserve protocol seams, bridge semantics, or runtime invariants when those facts govern behavior" in lowered
     assert "build, packaging, runtime, and recovery instructions remain actionable instead of being reduced to generic prose" in lowered
     assert "the handbook stays index-first and points to the topic docs instead of duplicating them" in lowered
+    assert "high-value capabilities include owner, truth lives, extension guidance, change propagation, minimum verification, failure modes, and confidence" in lowered
+    assert "capability cards use the canonical confidence levels verified, inferred, or unknown-stale" in lowered
 
 
 def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
@@ -566,7 +623,9 @@ def test_tasks_templates_default_to_phased_delivery_not_mvp():
     assert "Implementation constitution" in template_content
     assert "Alignment risks" in template_content
     assert "Validation references" in template_content
+    assert "Task Guardrail Index" in template_content
     assert "Do not silently drop a locked planning decision" in template_content
+    assert "task-to-guardrail mapping" in command_content.lower()
     assert "implementation-guardrails phase" in command_content.lower()
     assert "boundary-defining references or forbidden drift" in command_content.lower()
     assert "Phase 0: Implementation Guardrails" in template_content
@@ -576,6 +635,10 @@ def test_tasks_templates_default_to_phased_delivery_not_mvp():
     assert "parallel batch" in command_content.lower()
     assert "join point" in command_content.lower()
     assert "write set" in command_content.lower()
+    assert "bounded implementation slice" in command_content.lower()
+    assert "coffee break" in template_content.lower()
+    assert "grouped parallelism is the default" in template_content.lower()
+    assert "pipeline tasks should still stop at explicit checkpoints" in template_content.lower()
     assert "mvp first" not in command_content.lower()
     assert "suggested mvp scope" not in command_content.lower()
 
@@ -608,6 +671,9 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "What framework or boundary pattern owns the touched surface?" in content
     assert "Which files define the existing pattern that must be preserved?" in content
     assert "What implementation drift is forbidden for this batch?" in content
+    assert "compile a `WorkerTaskPacket` for each delegated task" in content
+    assert "dispatch only from validated `WorkerTaskPacket`" in content
+    assert "Do not dispatch from raw task text alone" in content
     assert "boundary-pattern preservation" in lowered
     assert "implement-tracker.md" in content
     assert "execution-state source of truth" in lowered
@@ -622,6 +688,15 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "ready tasks" in lowered
     assert "join point" in lowered
     assert "shared registration files" in lowered
+    assert "refine only the current executable window after each join point" in lowered
+    assert "grouped parallelism is the default when multiple ready tasks have isolated write sets" in lowered
+    assert "pipeline execution is preferred when outputs flow stage-by-stage" in lowered
+    assert "classify_review_gate_policy(workload_shape)" in content
+    assert "three-layer check" in lowered
+    assert "optional read-only peer-review lane" in lowered
+    assert "blocked delegated worker results must include" in lowered
+    assert "failed assumption" in lowered
+    assert "smallest safe recovery step" in lowered
     assert "execution strategy" in lowered
     assert "single-agent" in lowered
     assert "native-multi-agent" in lowered

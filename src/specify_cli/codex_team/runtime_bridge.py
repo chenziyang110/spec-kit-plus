@@ -49,13 +49,15 @@ def detect_team_runtime_backend() -> dict[str, object]:
     backend_descriptors = detect_available_backends()
 
     tmux = backend_descriptors.get("tmux")
-    if tmux and tmux.available:
-        return {"available": True, "name": tmux.name, "binary": tmux.binary}
+    tmux_binary = shutil.which("tmux") or (tmux.binary if tmux and tmux.available else None)
+    if tmux_binary:
+        return {"available": True, "name": "tmux", "binary": tmux_binary}
 
     if is_native_windows():
         psmux = backend_descriptors.get("psmux")
-        if psmux and psmux.available:
-            return {"available": True, "name": psmux.name, "binary": psmux.binary}
+        psmux_binary = shutil.which("psmux") or (psmux.binary if psmux and psmux.available else None)
+        if psmux_binary:
+            return {"available": True, "name": "psmux", "binary": psmux_binary}
 
     return {"available": False, "name": None, "binary": None}
 
@@ -105,6 +107,9 @@ def dispatch_runtime_task(
     session_id: str,
     request_id: str,
     target_worker: str,
+    packet_path: str = "",
+    packet_summary: dict[str, object] | None = None,
+    result_path: str = "",
 ) -> DispatchRecord:
     """Persist a dispatched task and advance the session to running."""
     session = _load_runtime_session(project_root, session_id)
@@ -113,6 +118,9 @@ def dispatch_runtime_task(
         request_id=request_id,
         target_worker=target_worker,
         status="dispatched",
+        packet_path=packet_path,
+        packet_summary=packet_summary,
+        result_path=result_path,
     )
     write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
     write_json(dispatch_record_path(project_root, request_id), runtime_state_payload(session, [record])["dispatches"][0])

@@ -64,7 +64,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Check whether `.specify/project-map/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons. If they overlap the current task-generation request, touched area, shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before continuing.
+   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task-generation request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before generating task batches.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
    - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
@@ -84,6 +84,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 4. **Execute task generation workflow**:
    - Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="tasks", snapshot, workload_shape)`
+   - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
    - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
    - Decision order is fixed:
      - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
@@ -108,12 +109,23 @@ You **MUST** consider the user input before proceeding (if not empty).
    - If data-model.md exists: Extract entities and map to user stories
    - If contracts/ exists: Map interface contracts to user stories
    - If research.md exists: Extract decisions for setup tasks
-   - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
-   - Generate tasks organized by user story (see Task Generation Rules below)
-   - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
-   - Generate dependency graph showing user story completion order
+    - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
+    - Generate tasks organized by user story (see Task Generation Rules below)
+    - Top-level tasks should usually fit one bounded implementation slice: roughly 10-20 minutes, one stable objective, one isolated write set, and one verification path.
+    - A delegated worker can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks.
+    - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence.
+    - If later work still depends on upstream evidence, add a refinement checkpoint instead of guessing detailed downstream tasks too early.
+    - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
+    - Add a `Task Guardrail Index` or equivalent task-to-guardrail mapping when delegated execution needs task-local hard rules, required references, forbidden drift, or validation gates compiled into worker packets
+    - Generate dependency graph showing user story completion order
    - Derive a write set for each task (files or shared registration surfaces it will modify)
    - Group ready tasks into each phase's parallel batches using those write sets
+   - Grouped parallelism is the default when multiple ready tasks have isolated write sets and do not depend on each other's outputs.
+   - Pipeline is preferred when outputs flow linearly from one bounded lane to the next, for example transform -> generate -> validate.
+   - Every pipeline stage still needs an explicit checkpoint before downstream stages continue so stale assumptions do not propagate silently.
+   - If `classify_review_gate_policy(workload_shape)` requires a review gate, add an explicit high-risk review checkpoint before downstream tasks continue.
+   - High-risk review gates are usually required for shared registration surfaces, schema or migration changes, protocol seams, native/plugin bridges, or generated API surfaces.
+   - If a peer-review lane is available and the review can stay read-only, recommend one peer-review lane for the batch; otherwise keep the review gate on the leader path.
    - Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
    - Create parallel execution examples per user story
    - Validate task completeness (each user story has all needed tasks, independently testable)
@@ -131,9 +143,10 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Dependencies section showing story completion order
    - Parallel batches and join points for each phase where they matter
    - Parallel execution examples per story
-   - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution
-   - Planning inputs section showing implementation constitution rules when they materially shape execution
-   - Implementation strategy section (phased delivery, priority-ordered delivery, capability-aware parallel execution)
+    - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution
+    - Planning inputs section showing implementation constitution rules when they materially shape execution
+    - `Task Guardrail Index` entries or equivalent task-to-guardrail mapping when delegated work must inherit explicit execution rules
+    - Implementation strategy section (phased delivery, priority-ordered delivery, capability-aware parallel execution)
 
 6. **Report**: Output path to generated tasks.md and summary:
    - Total task count
@@ -206,6 +219,18 @@ Every task MUST strictly follow this format:
    - Polish phase: NO story label
 5. **Description**: Clear action with exact file path
 
+### Task Granularity Contract
+
+- Top-level tasks should usually fit one bounded implementation slice:
+  - roughly 10-20 minutes
+  - one stable objective
+  - one isolated write set
+  - one verification path
+- Delegated workers may still break a task into smaller 2-5 minute atomic internal steps, but `tasks.md` should stop at the smallest unit worth explicit coordination.
+- If a task can obviously be split into two independently verifiable write sets, split it.
+- If splitting further would only create coordination overhead, stop and keep the task atomic.
+- When later work depends on upstream execution evidence, keep that future work at the story or phase level and insert a refinement checkpoint instead of guessing detailed downstream tasks too early.
+
 **Examples**:
 
 - ✅ CORRECT: `- [ ] T001 Create project structure per implementation plan`
@@ -247,6 +272,11 @@ Every task MUST strictly follow this format:
 - Prefer parallel tasks that unblock more downstream work before consumer tasks
 - Only place tasks in the same parallel batch when their write sets do not overlap
 - Do not batch tasks together if they rely on changing contracts, schemas, or interfaces that are not yet stable
+- Grouped parallelism is the default when multiple ready tasks have isolated write sets and stable upstream inputs
+- Use a pipeline shape when outputs must flow stage-by-stage from one bounded task to the next
+- Even pipeline tasks should still stop at explicit checkpoints between stages before downstream work continues
+- Add a high-risk review checkpoint when the batch touches shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces
+- Use a peer-review lane only for those high-risk batches when the review can stay read-only and independent
 - Every parallel batch MUST be followed by a join point before dependent tasks continue
 - If a task touches a shared registration file, it should usually be the join point task or run after the batch sequentially
 

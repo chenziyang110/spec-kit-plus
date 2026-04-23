@@ -21,6 +21,20 @@ description: "Task list template for feature implementation"
 - Do not silently drop a locked planning decision; if it is deferred, say so explicitly in the phase or dependency notes
 - If a feature touches an established framework or boundary pattern, add explicit guardrail tasks before implementation begins
 
+## Task Guardrail Index
+
+- Map each implementation task to the delegated-execution rules it inherits from `plan.md`, `tasks.md`, and `.specify/memory/constitution.md`
+- Keep the mapping compact and task-specific so packet compilation can resolve applicable hard rules without copying the full constitution into every task body
+- Include task-to-guardrail mapping entries such as ``T017 -> G-PRESERVE-BOUNDARY, G-VALIDATE-AUTH`` when delegated work needs explicit execution constraints
+
+## Task Shaping Rules
+
+- Top-level tasks should stay bounded enough to finish in one coffee break sized implementation slice, usually roughly 10-20 minutes.
+- Each task should preserve one stable objective, one isolated write set, and one verification path.
+- Delegated workers may still break a task into smaller 2-5 minute atomic internal steps, but `tasks.md` should stop at the smallest unit worth explicit orchestration.
+- Stop decomposition once the current executable window is atomic.
+- Leave later phases at the coarser story or phase level when their exact shape depends on earlier join points, then refine them after the checkpoint instead of guessing too early.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel only when the task has an isolated write set, no incomplete dependencies, stable upstream inputs, and its own verification path
@@ -229,6 +243,10 @@ Examples of foundational tasks (adjust based on your project):
 - Prefer tasks with stable contracts and schemas before tasks that depend on them
 - Prefer tasks with fast, independent verification before long feedback-loop work
 - Prefer the longest safe path early so it does not become the final serial tail
+- Grouped parallelism is the default when ready tasks have isolated write sets and stable inputs
+- Pipeline tasks should still stop at explicit checkpoints between stages before downstream work continues
+- Add a high-risk review checkpoint for shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces
+- Use a peer-review lane only when that review can stay read-only and independent from the write lane
 - If the current agent cannot truly parallelize, execute each parallel batch sequentially but keep the same join point boundaries
 
 ---

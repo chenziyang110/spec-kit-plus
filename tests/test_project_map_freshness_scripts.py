@@ -113,6 +113,8 @@ def test_bash_project_map_freshness_lifecycle(git_repo: Path):
     assert dirty["freshness"] == "stale"
     assert dirty["dirty"] is True
     assert dirty["dirty_reasons"] == ["shared_surface_changed"]
+    assert dirty["must_refresh_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md"]
+    assert dirty["review_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
 
 
 def test_powershell_project_map_freshness_detects_git_changes(git_repo: Path):
@@ -129,6 +131,9 @@ def test_powershell_project_map_freshness_detects_git_changes(git_repo: Path):
     stale = _run_powershell(git_repo, "check")
     assert stale["freshness"] == "stale"
     assert any("high-impact project-map change" in reason for reason in stale["reasons"])
+    assert stale["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
+    assert stale["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
+    assert stale["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
 
 
 def test_bash_record_refresh_requires_canonical_map_outputs(git_repo: Path):
@@ -148,3 +153,98 @@ def test_bash_complete_refresh_uses_map_codebase_reason(git_repo: Path):
     status_path = git_repo / ".specify" / "project-map" / "status.json"
     payload = json.loads(status_path.read_text(encoding="utf-8"))
     assert payload["last_refresh_reason"] == "map-codebase"
+    assert payload["last_refresh_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+    assert payload["last_refresh_scope"] == "full"
+    assert payload["last_refresh_basis"] == "map-codebase"
+    assert payload["last_refresh_changed_files_basis"] == []
+
+
+def test_bash_mark_dirty_normalizes_human_reason(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "manual")
+
+    dirty = _run_bash(git_repo, "mark-dirty", "workflow contract changed")
+
+    assert dirty["dirty_reasons"] == ["workflow_contract_changed"]
+    assert dirty["must_refresh_topics"] == ["WORKFLOWS.md"]
+    assert dirty["review_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "TESTING.md"]
+
+
+def test_bash_check_downgrades_to_review_only_when_partial_refresh_already_covers_topics(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+
+    status_path = git_repo / ".specify" / "project-map" / "status.json"
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    status_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "last_mapped_commit": subprocess.run(["git", "rev-parse", "HEAD"], cwd=git_repo, check=True, capture_output=True, text=True).stdout.strip(),
+                "last_mapped_at": "2026-04-21T00:00:00Z",
+                "last_mapped_branch": "main",
+                "freshness": "fresh",
+                "last_refresh_reason": "topic-refresh",
+                "last_refresh_topics": ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"],
+                "last_refresh_scope": "partial",
+                "last_refresh_basis": "topic-refresh",
+                "last_refresh_changed_files_basis": ["src/feature/local_fix.py"],
+                "dirty": False,
+                "dirty_reasons": [],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    changed = git_repo / "src" / "feature" / "local_fix.py"
+    changed.parent.mkdir(parents=True, exist_ok=True)
+    changed.write_text("print('hi')\n", encoding="utf-8")
+    subprocess.run(["git", "add", "src/feature/local_fix.py"], cwd=git_repo, check=True)
+
+    result = _run_bash(git_repo, "check")
+
+    assert result["freshness"] == "possibly_stale"
+    assert result["must_refresh_topics"] == []
+    assert result["review_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]
+    assert result["reasons"] == ["covered topic changed since last partial map: src/feature/local_fix.py"]
+
+
+def test_powershell_check_downgrades_to_review_only_when_partial_refresh_already_covers_topics(git_repo: Path):
+    status_path = git_repo / ".specify" / "project-map" / "status.json"
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    status_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "last_mapped_commit": subprocess.run(["git", "rev-parse", "HEAD"], cwd=git_repo, check=True, capture_output=True, text=True).stdout.strip(),
+                "last_mapped_at": "2026-04-21T00:00:00Z",
+                "last_mapped_branch": "main",
+                "freshness": "fresh",
+                "last_refresh_reason": "topic-refresh",
+                "last_refresh_topics": ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"],
+                "last_refresh_scope": "partial",
+                "last_refresh_basis": "topic-refresh",
+                "last_refresh_changed_files_basis": ["src/feature/local_fix.py"],
+                "dirty": False,
+                "dirty_reasons": [],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    changed = git_repo / "src" / "feature" / "local_fix.py"
+    changed.parent.mkdir(parents=True, exist_ok=True)
+    changed.write_text("print('hi')\n", encoding="utf-8")
+    subprocess.run(["git", "add", "src/feature/local_fix.py"], cwd=git_repo, check=True)
+
+    result = _run_powershell(git_repo, "check")
+
+    assert result["freshness"] == "possibly_stale"
+    assert result["must_refresh_topics"] == []
+    assert result["review_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]
+    assert result["reasons"] == ["covered topic changed since last partial map: src/feature/local_fix.py"]

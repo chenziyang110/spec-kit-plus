@@ -334,12 +334,14 @@ class TestBuiltInSkillGeneration:
         assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_body
         assert "no locked planning decision or implementation constitution rule has been silently omitted" in plan_body
         assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_body
+        assert "Dispatch Compilation Hints" in plan_body
 
         tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
         assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
         assert "boundary-defining references or forbidden drift" in tasks_body
         assert "implementation-guardrails phase before setup" in tasks_body
         assert "locked planning decision or implementation constitution rule" in tasks_body
+        assert "Task Guardrail Index" in tasks_body
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body
@@ -347,12 +349,18 @@ class TestBuiltInSkillGeneration:
         assert "Which files define the existing pattern that must be preserved?" in implement_body
         assert "What implementation drift is forbidden for this batch?" in implement_body
         assert "**Boundary-pattern preservation**" in implement_body
+        assert "compile and validate the packet before any delegated work begins" in implement_body
+        assert "validated `workertaskpacket`" in implement_body.lower()
+        assert "must not dispatch from raw task text alone" in implement_body.lower()
 
         analyze_body = _body_without_frontmatter(skills_dir / "sp-analyze" / "SKILL.md")
         assert "Boundary Guardrail Gaps" in analyze_body
         assert "BG1" in analyze_body
         assert "BG2" in analyze_body
         assert "BG3" in analyze_body
+        assert "DP1" in analyze_body
+        assert "DP2" in analyze_body
+        assert "DP3" in analyze_body
         assert "Boundary Guardrail Table" in analyze_body
         assert "Boundary Guardrail Gap Count" in analyze_body
         assert "If a `Boundary Guardrail Gap` exists" in analyze_body
@@ -370,6 +378,13 @@ class TestBuiltInSkillGeneration:
         assert "core data models, state semantics, and handoff fields" in map_body
         assert "IPC, bridge, native-host, message, pipe, or protocol seams" in map_body
         assert "`PROJECT-HANDBOOK.md` must stay concise and index-first" in map_body
+        assert "macro scan and architecture identification" in map_body.lower()
+        assert "directory structure deep analysis" in map_body.lower()
+        assert "dependency relationships and module analysis" in map_body.lower()
+        assert "core code element review" in map_body.lower()
+        assert "data flow and api surface mapping" in map_body.lower()
+        assert "patterns and conventions synthesis" in map_body.lower()
+        assert "the generated navigation system should collectively cover the equivalent of these seven technical-document chapters" in map_body.lower()
 
 
 class TestSkillDescriptions:

@@ -175,11 +175,13 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "Add `Implementation Constitution`" in plan_content
     assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_content
     assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_content
+    assert "Dispatch Compilation Hints" in plan_content
 
     tasks_content = (skills_dir / "sp-tasks" / "SKILL.md").read_text(encoding="utf-8")
     assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_content
     assert "implementation-guardrails phase before setup" in tasks_content
     assert "locked planning decision or implementation constitution rule" in tasks_content
+    assert "Task Guardrail Index" in tasks_content
 
     implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
     assert "Extract `Implementation Constitution` from `plan.md`" in implement_content
@@ -187,12 +189,18 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "Which files define the existing pattern that must be preserved?" in implement_content
     assert "What implementation drift is forbidden for this batch?" in implement_content
     assert "Boundary-pattern preservation" in implement_content
+    assert "compile and validate the packet before any delegated work begins" in implement_content
+    assert "validated `WorkerTaskPacket`" in implement_content
+    assert "must not dispatch from raw task text alone" in implement_content.lower()
 
     analyze_content = (skills_dir / "sp-analyze" / "SKILL.md").read_text(encoding="utf-8")
     assert "Boundary Guardrail Gaps" in analyze_content
     assert "BG1" in analyze_content
     assert "BG2" in analyze_content
     assert "BG3" in analyze_content
+    assert "DP1" in analyze_content
+    assert "DP2" in analyze_content
+    assert "DP3" in analyze_content
     assert "Boundary Guardrail Table" in analyze_content
 
 
@@ -225,6 +233,20 @@ def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_pa
     assert "do not treat layering as permission to discard technical detail" in content
     assert "external or exported api contracts" in content
     assert "`project-handbook.md` must stay concise and index-first" in content
+    assert "macro scan and architecture identification" in content
+    assert "directory structure deep analysis" in content
+    assert "dependency relationships and module analysis" in content
+    assert "core code element review" in content
+    assert "data flow and api surface mapping" in content
+    assert "patterns and conventions synthesis" in content
+    assert "the generated navigation system should collectively cover the equivalent of these seven technical-document chapters" in content
+    assert "for each high-value capability, core module, or critical workflow, emit at least one capability card" in content
+    assert "truth lives" in content
+    assert "extend here" in content
+    assert "minimum verification" in content
+    assert "failure modes" in content
+    assert "confidence" in content
+    assert "verified, inferred, or unknown-stale" in content
 
 
 def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):

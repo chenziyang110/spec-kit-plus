@@ -12,6 +12,8 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "project-map freshness helper" in content
     assert "freshness is `missing` or `stale`" in content
     assert "freshness is `possibly_stale`" in content
+    assert "must_refresh_topics" in content
+    assert "review_topics" in content
     assert "topic map" in content
     assert "touched-area topical files" in content
     assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content

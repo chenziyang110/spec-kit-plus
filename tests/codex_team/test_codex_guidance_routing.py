@@ -31,7 +31,7 @@ def _init_codex_project(tmp_path: Path) -> Path:
 
 
 def _read_sp_implement(project: Path) -> str:
-    return (project / ".agents" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
+    return (project / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
 
 
 def test_codex_guidance_calls_out_routing_choices(tmp_path: Path) -> None:
