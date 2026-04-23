@@ -83,6 +83,24 @@ def test_guidance_docs_explain_fast_quick_specify_routing():
         assert "acceptance criteria" in content
 
 
+def test_guidance_docs_explain_passive_project_learning_layer():
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+    local_dev = _read("docs/local-development.md")
+
+    for content in (readme, quickstart):
+        assert ".specify/memory/project-rules.md" in content
+        assert ".specify/memory/project-learnings.md" in content
+        assert ".planning/learnings/candidates.md" in content
+        assert "passive project learning" in content.lower()
+        assert "specify learning start" in content
+        assert "specify learning capture" in content
+        assert "specify learning promote" in content
+
+    assert "specify learning ensure --format json" in local_dev
+    assert "specify learning status --format json" in local_dev
+
+
 def test_guidance_docs_explain_implementation_constitution_and_boundary_guardrails():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")

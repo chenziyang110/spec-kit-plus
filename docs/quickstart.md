@@ -136,6 +136,19 @@ Use the lightweight routing rules consistently:
 - Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage quick tasks. `specify quick list` defaults to unfinished quick tasks.
 - Upgrade to `/speckit.specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
+Passive project learning layer:
+
+- Generated projects now include `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` as stable shared project memory below the constitution.
+- Runtime candidate learnings live under `.planning/learnings/candidates.md`, with `.planning/learnings/review.md` tracking passive promotion notes.
+- The major workflow templates read this passive project learning layer before deeper command-local context so recurring pitfalls, constraints, and user defaults can influence later runs.
+- Low-level helper commands exist for the passive lifecycle:
+  - `specify learning ensure --format json`
+  - `specify learning status --format json`
+  - `specify learning start --command <workflow> --format json`
+  - `specify learning capture --command <workflow> ...`
+  - `specify learning promote --recurrence-key <key> --target learning|rule`
+- Treat this as an internal/runtime helper surface, not as a separate daily slash workflow.
+
 ## Detailed Example: Building Taskify
 
 Here's a complete example of building a team productivity platform:

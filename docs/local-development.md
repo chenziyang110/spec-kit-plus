@@ -173,3 +173,17 @@ rm -rf .venv dist build *.egg-info
 - Update docs and run through Quick Start using your modified CLI
 - Open a PR when satisfied
 - (Optional) Tag a release once changes land in `main`
+
+## 14. Passive Learning Layer Smoke Checks
+
+If you're working on the passive project learning layer, verify the low-level helper surface directly:
+
+```bash
+specify learning ensure --format json
+specify learning status --format json
+specify learning start --command specify --format json
+specify learning capture --command specify --type workflow_gap --summary "Example gap" --evidence "local smoke check"
+specify learning promote --recurrence-key workflow_gap.example-gap --target learning
+```
+
+These commands are intentionally low-level. They support the passive learning lifecycle used by generated `sp-xxx` workflow templates, rather than introducing a new daily slash workflow.

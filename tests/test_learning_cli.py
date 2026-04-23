@@ -199,3 +199,14 @@ def test_learning_capture_confirm_and_promote_rule_flow(tmp_path: Path) -> None:
     assert promoted_payload["status"] == "promoted-rule"
     rule_summaries = [entry["summary"] for entry in start_payload["relevant_rules"]]
     assert "Always name touched shared surfaces explicitly" in rule_summaries
+
+
+def test_learning_help_surfaces_low_level_helper_commands() -> None:
+    result = runner.invoke(app, ["learning", "--help"], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.stdout
+    assert "ensure" in result.stdout
+    assert "status" in result.stdout
+    assert "start" in result.stdout
+    assert "capture" in result.stdout
+    assert "promote" in result.stdout
