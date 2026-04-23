@@ -254,6 +254,8 @@ class MarkdownIntegrationTests:
             files.append(f".specify/templates/{name}")
 
         files.append(".specify/memory/constitution.md")
+        files.append(".specify/memory/project-learnings.md")
+        files.append(".specify/memory/project-rules.md")
         files.append(".specify/project-map/status.json")
         return sorted(files)
 

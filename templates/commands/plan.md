@@ -58,6 +58,13 @@ You **MUST** consider the user input before proceeding (if not empty).
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
 
+## Passive Project Learning Layer
+
+- Before deeper planning analysis, run `specify learning start --command plan --format json` when available so passive learning files exist and the current planning run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader planning context.
+- Review `.planning/learnings/candidates.md` only when it contains planning-relevant candidate learnings, especially repeated workflow gaps or project constraints that would otherwise be rediscovered during planning.
+- Treat this as passive shared memory, not as a separate user-visible planning command.
+
 ## Outline
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for `FEATURE_SPEC`, `IMPL_PLAN`, `SPECS_DIR`, `BRANCH`, and `FEATURE_DIR`.
@@ -79,6 +86,9 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Read `FEATURE_DIR/context.md`
    - Read `FEATURE_DIR/references.md` if present
    - Read `.specify/memory/constitution.md`
+   - Read `.specify/memory/project-rules.md` if present
+   - Read `.specify/memory/project-learnings.md` if present
+   - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to planning so repeated workflow gaps, implementation constraints, and user defaults are not rediscovered from scratch
    - Read `PROJECT-HANDBOOK.md`
    - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
    - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
@@ -148,10 +158,13 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Re-evaluate Constitution Check after design artifacts exist
 
 7. **Stop and report**:
-   - branch
-   - plan path
-   - alignment status
-   - generated artifacts
+    - branch
+    - plan path
+    - alignment status
+    - generated artifacts
+   - before final completion text, capture any new `workflow_gap` or `project_constraint` learning through `specify learning capture --command plan ...`
+   - keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence
+   - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory
    - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
 8. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.

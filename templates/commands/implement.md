@@ -48,6 +48,13 @@ Treat non-empty `$ARGUMENTS` as first-class implementation context for the curre
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
 
+## Passive Project Learning Layer
+
+- Before deeper execution analysis, run `specify learning start --command implement --format json` when available so passive learning files exist and the current implementation run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader execution context.
+- Review `.planning/learnings/candidates.md` only when it contains implementation-relevant candidate learnings, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
+- Treat this as passive shared memory, not as a separate user-visible execution command.
+
 ## Implement Tracker Protocol
 
 - `FEATURE_DIR/implement-tracker.md` is the execution-state source of truth for `sp-implement`.
@@ -180,6 +187,9 @@ human_needed_checks:
    - **REQUIRED**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
    - **IF TOPICAL COVERAGE IS MISSING/STALE/TOO BROAD OR TASK-RELEVANT COVERAGE IS INSUFFICIENT**: run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
+   - **REQUIRED**: Read `.specify/memory/project-rules.md` if present.
+   - **REQUIRED**: Read `.specify/memory/project-learnings.md` if present.
+   - **IF `.planning/learnings/candidates.md` EXISTS**: Inspect only the entries relevant to implementation so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
    - **REQUIRED**: Extract `Implementation Constitution` from `plan.md` when present and treat it as binding execution guidance rather than advisory background
@@ -340,6 +350,9 @@ human_needed_checks:
    - If the completed implementation changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`, run `/sp-map-codebase` before final completion reporting so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
    - If you cannot complete that refresh in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before the next brownfield workflow proceeds.
    - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
+   - Before the final completion report, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command implement ...`.
+   - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
+   - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
    - Report final status with summary of completed work, remaining human-needed checks, and any unresolved gaps
 
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/sp.tasks` first to regenerate the task list.

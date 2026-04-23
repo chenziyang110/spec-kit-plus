@@ -30,6 +30,13 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Debug the loop, not just the point**: Validate the path from input event to control decision to resource allocation to state transition to external observation.
 - **Escalate diagnostics when the loop is still ambiguous**: If two investigation rounds do not converge, stop layering plausible small fixes and add decisive instrumentation.
 
+## Passive Project Learning Layer
+
+- Before deeper root-cause analysis, run `specify learning start --command debug --format json` when available so passive learning files exist and the current debug run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
+- Review `.planning/learnings/candidates.md` only when it contains debug-relevant candidate learnings, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
+- Treat this as passive shared memory, not as a separate user-visible debug workflow.
+
 ## Session Lifecycle
 
 1. **Check for Active Session**
@@ -76,6 +83,9 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Read the corresponding `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` files for the failing area.
 - Use the navigation system to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
+- Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
+- Read `.specify/memory/project-learnings.md` if present before forming or validating a fix.
+- If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to the failing area so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
 - Read the active feature's `spec.md`, `plan.md`, and `tasks.md` when available to recover intended behavior, locked planning decisions, and implementation boundaries relevant to the bug.
 - If `context.md` exists for the active feature, read it before proposing a fix so locked decisions, canonical references, and user-signaled constraints are not bypassed during debugging.
 
@@ -220,6 +230,9 @@ The session file must always make it clear:
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
 - If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
 - If you cannot complete that refresh in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield work proceeds.
+- Before the final completion or `awaiting_human_verify` report, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command debug ...`.
+- Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
+- Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 
 ## Checkpoint Protocol
 

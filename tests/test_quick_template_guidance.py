@@ -7,6 +7,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
+    assert "specify learning start --command quick --format json" in content
+    assert "specify learning capture --command quick" in content
     assert "read `project-handbook.md`" in content
     assert ".specify/project-map/status.json" in content
     assert "project-map freshness helper" in content
@@ -38,6 +43,7 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "summary.md" in content or "summary artifact" in content
     assert "before any substantial repository analysis" in content
     assert "read `.specify/memory/constitution.md` first" in content
+    assert "highest-signal" in content
 
 
 def test_quick_template_preserves_quality_guardrails() -> None:

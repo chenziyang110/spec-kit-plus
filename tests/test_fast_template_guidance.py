@@ -7,6 +7,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def test_fast_template_exists_and_defines_scope_gate() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "fast.md").read_text(encoding="utf-8").lower()
 
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
+    assert "specify learning start --command fast --format json" in content
+    assert "specify learning capture --command fast" in content
     assert "read `project-handbook.md`" in content
     assert ".specify/project-map/status.json" in content
     assert "project-map freshness helper" in content
@@ -33,6 +38,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "run `/sp-map-codebase` before the final report" in content
     assert "if that refresh would break the fast-path scope" in content
     assert "mark `.specify/project-map/status.json` dirty" in content
+    assert "highest-signal" in content
 
 
 def test_fast_template_stays_lightweight() -> None:

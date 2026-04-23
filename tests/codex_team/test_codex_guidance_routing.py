@@ -35,12 +35,12 @@ def _read_sp_implement(project: Path) -> str:
 
 
 def test_codex_guidance_calls_out_routing_choices(tmp_path: Path) -> None:
-    """Ensure the Codex guidance talks about solo, native, and fallback team paths."""
+    """Ensure the Codex guidance talks about single-agent, native, and fallback team paths."""
     project = _init_codex_project(tmp_path)
     content = _read_sp_implement(project)
     lower = content.lower()
 
-    assert "solo" in lower
+    assert "single-agent" in lower
     assert "native subagents" in lower
     assert "spawn_agent" in lower
     assert "specify team" in content

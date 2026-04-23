@@ -56,6 +56,13 @@ You **MUST** consider the user input before proceeding (if not empty).
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
 
+## Passive Project Learning Layer
+
+- Before deeper task analysis, run `specify learning start --command tasks --format json` when available so passive learning files exist and the current task-generation run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader task-generation context.
+- Review `.planning/learnings/candidates.md` only when it contains task-generation-relevant candidate learnings, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
+- Treat this as passive shared memory, not as a separate user-visible workflow.
+
 ## Outline
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
@@ -77,6 +84,9 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Optional**: references.md (retained sources, reusable insights, spec impact mapping)
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
    - **Required when present**: `.specify/memory/constitution.md` (project constitution and mandatory principles that tasks must preserve)
+   - **Required when present**: `.specify/memory/project-rules.md` (shared project defaults that task generation should preserve)
+   - **Required when present**: `.specify/memory/project-learnings.md` (confirmed reusable project learnings that may shape decomposition, validation, or guardrails)
+   - **If `.planning/learnings/candidates.md` exists**: inspect only the entries relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
    - **Required**: Read `PROJECT-HANDBOOK.md`
    - **Required**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`
    - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence

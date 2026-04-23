@@ -35,6 +35,11 @@ def test_specify_template_uses_alignment_first_contract():
     lowered = content.lower()
 
     assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
+    assert "specify learning start --command specify --format json" in content
+    assert "specify learning capture --command specify" in content
     assert ".specify/project-map/status.json" in content
     assert ".specify/project-map/ARCHITECTURE.md" in content
     assert ".specify/project-map/STRUCTURE.md" in content
@@ -204,6 +209,11 @@ def test_plan_template_requires_alignment_report_before_planning():
     lowered = content.lower()
 
     assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
+    assert "specify learning start --command plan --format json" in content
+    assert "specify learning capture --command plan" in content
     assert ".specify/project-map/status.json" in content
     assert ".specify/project-map/ARCHITECTURE.md" in content
     assert ".specify/project-map/STRUCTURE.md" in content
@@ -436,6 +446,10 @@ def test_debug_template_reads_constitution_and_feature_context_before_fixing() -
 
     assert "### Required Context Inputs" in content
     assert ".specify/memory/constitution.md" in content
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
+    assert "specify learning start --command debug --format json" in content
     assert "spec.md`, `plan.md`, and `tasks.md`" in content
     assert "`context.md` exists for the active feature" in content
 
@@ -626,6 +640,7 @@ def test_tasks_templates_default_to_phased_delivery_not_mvp():
     assert "Task Guardrail Index" in template_content
     assert "Do not silently drop a locked planning decision" in template_content
     assert "task-to-guardrail mapping" in command_content.lower()
+    assert "specify learning start --command tasks --format json" in command_content
     assert "implementation-guardrails phase" in command_content.lower()
     assert "boundary-defining references or forbidden drift" in command_content.lower()
     assert "Phase 0: Implementation Guardrails" in template_content
@@ -658,6 +673,11 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     step_6 = _extract_step_6_strategy_block(content)
 
     assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
+    assert "specify learning start --command implement --format json" in content
+    assert "specify learning capture --command implement" in content
     assert ".specify/project-map/ARCHITECTURE.md" in content
     assert ".specify/project-map/STRUCTURE.md" in content
     assert ".specify/project-map/WORKFLOWS.md" in content

@@ -48,6 +48,13 @@ Upgrade to `/sp-specify` immediately if:
 - The change carries compatibility, migration, rollout, or neighboring-workflow risk.
 - The task is no longer a bounded local fix and now changes architecture, APIs, long-lived templates, or planning assumptions.
 
+## Passive Project Learning Layer
+
+- Before local execution, run `specify learning start --command fast --format json` when available so passive learning files exist and the current fast-path run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
+- Review `.planning/learnings/candidates.md` only when it contains fast-path-relevant candidate learnings, especially repeated local pitfalls, routing constraints, or project defaults that affect whether the task should stay on `sp-fast`.
+- Treat this as passive shared memory, not as a separate user-visible workflow.
+
 ## Process
 
 1. **Scope gate**
@@ -75,6 +82,9 @@ Upgrade to `/sp-specify` immediately if:
 
 5. **Report**
    - Summarize what changed, what was verified, and any remaining risk.
+   - Before the final report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `specify learning capture --command fast ...`.
+   - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
+   - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
    - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before the final report so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
    - If that refresh would break the fast-path scope or cannot be completed safely in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase`.
 

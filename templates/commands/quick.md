@@ -21,6 +21,9 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 ## Required Context Inputs
 
 - Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
+- Run `specify learning start --command quick --format json` when available so passive learning files exist and the current quick-task run sees relevant shared project memory.
+- Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` after the constitution gate and before broader quick-task context.
+- If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to the touched area so repeated pitfalls, workflow gaps, and project constraints are not rediscovered from scratch.
 - Check whether `.specify/project-map/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
@@ -339,6 +342,9 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Separate `verified` coverage from `not checked` coverage so readers can tell what was actually proven versus what is only expected to be safe.
    - For each declared surface, give the terminal status conclusion: `confirmed correct`, `fixed in this quick task`, or `not checked in this pass (with reason)`.
    - Make sure the final `STATUS.md` points to the summary, records the terminal state, and makes a future resume decision obvious.
+   - Before the final summary, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `specify learning capture --command quick ...`.
+   - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
+   - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 
 ## Guardrails
 

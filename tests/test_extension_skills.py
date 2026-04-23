@@ -258,6 +258,14 @@ class TestBuiltInSkillGeneration:
         assert (skills_dir / "sp-fast" / "SKILL.md").exists()
         assert (skills_dir / "sp-quick" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "project-rules-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "project-learnings-template.md").exists()
+
+        for skill_name in ("sp-specify", "sp-plan", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
+            body = _body_without_frontmatter(skills_dir / skill_name / "SKILL.md").lower()
+            assert ".specify/memory/project-rules.md" in body
+            assert ".specify/memory/project-learnings.md" in body
+            assert ".planning/learnings/candidates.md" in body
         assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
         assert "spec-extend" in result.output.lower()
 

@@ -79,6 +79,14 @@ from specify_cli.execution import (
     worker_task_result_payload,
     write_normalized_result_handoff,
 )
+from specify_cli.learnings import (
+    capture_learning,
+    ensure_learning_files,
+    ensure_learning_memory_from_templates,
+    learning_status_payload,
+    promote_learning,
+    start_learning_session,
+)
 from specify_cli.project_map_status import (
     TOPIC_FILES,
     clear_project_map_dirty,
@@ -428,6 +436,13 @@ result_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(result_app, name="result")
+
+learning_app = typer.Typer(
+    name="learning",
+    help="Low-level helper surface for passive project learning files",
+    add_completion=False,
+)
+app.add_typer(learning_app, name="learning")
 
 def show_banner():
     """Display the ASCII art banner."""
@@ -894,6 +909,151 @@ def project_map_status_command(
         console.print("[bold]Dirty Reasons[/bold]")
         for reason in status["dirty_reasons"]:
             console.print(f"- {reason}")
+
+
+@learning_app.command("ensure")
+def learning_ensure_command(
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    include_runtime: bool = typer.Option(True, "--runtime/--no-runtime", help="Also create runtime learning files under .planning/learnings/"),
+):
+    """Ensure passive project learning files exist."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    paths = ensure_learning_files(project_root, include_runtime=include_runtime)
+    payload = learning_status_payload(project_root, include_runtime=include_runtime)
+    payload["paths"] = paths.to_dict()
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    rows = [
+        ("Project Rules", f"[dim]{payload['paths']['project_rules']}[/dim]"),
+        ("Project Learnings", f"[dim]{payload['paths']['project_learnings']}[/dim]"),
+    ]
+    if include_runtime:
+        rows.extend(
+            [
+                ("Candidates", f"[dim]{payload['paths']['candidates']}[/dim]"),
+                ("Review", f"[dim]{payload['paths']['review']}[/dim]"),
+            ]
+        )
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Files", border_style="cyan"))
+
+
+@learning_app.command("status")
+def learning_status_command(
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Inspect passive project learning file state without mutating it."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = learning_status_payload(project_root)
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    rows = [
+        ("Project Rules", "present" if payload["exists"]["project_rules"] else "missing"),
+        ("Project Learnings", "present" if payload["exists"]["project_learnings"] else "missing"),
+        ("Candidates", "present" if payload["exists"]["candidates"] else "missing"),
+        ("Review", "present" if payload["exists"]["review"] else "missing"),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Status", border_style="cyan"))
+
+
+@learning_app.command("start")
+def learning_start_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name, for example specify or sp-implement"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Prepare passive learning context for a workflow start."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = start_learning_session(project_root, command_name=command_name)
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    rows = [
+        ("Command", payload["command"]),
+        ("Relevant Rules", str(len(payload["relevant_rules"]))),
+        ("Relevant Learnings", str(len(payload["relevant_learnings"]))),
+        ("Relevant Candidates", str(len(payload["relevant_candidates"]))),
+        ("Promotable", str(len(payload["promotable_candidates"]))),
+        ("Needs Confirmation", str(len(payload["confirmation_candidates"]))),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Start", border_style="cyan"))
+
+
+@learning_app.command("capture")
+def learning_capture_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name, for example specify or sp-implement"),
+    learning_type: str = typer.Option(..., "--type", help="Learning type"),
+    summary: str = typer.Option(..., "--summary", help="One-line learning summary"),
+    evidence: str = typer.Option(..., "--evidence", help="Supporting evidence or context"),
+    recurrence_key: str | None = typer.Option(None, "--recurrence-key", help="Stable deduplication key"),
+    signal_strength: str = typer.Option("medium", "--signal", help="Signal strength: low, medium, or high"),
+    applies_to: list[str] | None = typer.Option(None, "--applies-to", help="Commands this learning should influence"),
+    default_scope: str | None = typer.Option(None, "--scope", help="Default sharing scope label"),
+    confirm: bool = typer.Option(False, "--confirm", help="Promote directly into project learnings instead of leaving as a candidate"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Capture a passive learning observation for the current workflow."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = capture_learning(
+        project_root,
+        command_name=command_name,
+        learning_type=learning_type,
+        summary=summary,
+        evidence=evidence,
+        recurrence_key=recurrence_key,
+        signal_strength=signal_strength,
+        applies_to=applies_to,
+        default_scope=default_scope,
+        confirm=confirm,
+    )
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    entry = payload["entry"]
+    rows = [
+        ("Status", payload["status"]),
+        ("Summary", entry["summary"]),
+        ("Recurrence Key", entry["recurrence_key"]),
+        ("Signal", entry["signal_strength"]),
+        ("Needs Confirmation", "true" if payload["needs_confirmation"] else "false"),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Capture", border_style="cyan"))
+
+
+@learning_app.command("promote")
+def learning_promote_command(
+    recurrence_key: str = typer.Option(..., "--recurrence-key", help="Stable learning recurrence key"),
+    target: str = typer.Option(..., "--target", help="Promotion target: learning or rule"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Promote a passive learning into shared project memory."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = promote_learning(
+        project_root,
+        recurrence_key=recurrence_key,
+        target=target,
+    )
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    entry = payload["entry"]
+    rows = [
+        ("Status", payload["status"]),
+        ("Summary", entry["summary"]),
+        ("Recurrence Key", entry["recurrence_key"]),
+        ("Applies To", ", ".join(entry["applies_to"])),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Promotion", border_style="cyan"))
 
 def check_tool(tool: str, tracker: StepTracker = None) -> bool:
     """Check if a tool is installed. Optionally update tracker.
@@ -1717,6 +1877,7 @@ def init(
     for key, label in [
         ("chmod", "Ensure scripts executable"),
         ("constitution", "Constitution setup"),
+        ("learning-memory", "Project learning memory"),
         ("git", "Initialize git repository"),
         ("final", "Finalize"),
     ]:
@@ -1773,6 +1934,7 @@ def init(
             ensure_executable_scripts(project_path, tracker=tracker)
 
             ensure_constitution_from_template(project_path, tracker=tracker)
+            ensure_learning_memory_from_templates(project_path, tracker=tracker)
 
             if not no_git:
                 tracker.start("git")

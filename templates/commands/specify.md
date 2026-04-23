@@ -51,6 +51,13 @@ You **MUST** consider the user input before proceeding (if not empty).
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently.
 
+## Passive Project Learning Layer
+
+- Before deeper repository analysis, run `specify learning start --command specify --format json` when available so passive learning files exist and the current specification run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
+- Review `.planning/learnings/candidates.md` only when it contains candidate learnings relevant to specification, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
+- Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
+
 ## Outline
 
 The text the user typed after `/sp.specify` is the starting point, not the finished requirement package. Your responsibility is to analyze the whole feature first, decompose it into capabilities, and emit a planning-ready requirement package with confidence tracking rather than a surface summary.
@@ -95,6 +102,9 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Read `templates/context-template.md`.
    - Read `templates/references-template.md`.
    - Read `.specify/memory/constitution.md` if present.
+   - Read `.specify/memory/project-rules.md` if present.
+   - Read `.specify/memory/project-learnings.md` if present.
+   - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
    - Read `PROJECT-HANDBOOK.md` if present and treat it as the primary codebase-scout input for brownfield understanding.
    - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
    - From the handbook navigation system, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
@@ -572,6 +582,9 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - checklist results
     - release decision
     - readiness for the next phase (`/sp.plan` for the mainline, or `/sp.spec-extend` when deeper analysis is still needed)
+    - before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `specify learning capture --command specify ...`
+    - keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence
+    - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or a repeated recurrence that should become shared project memory
     - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
 27. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.

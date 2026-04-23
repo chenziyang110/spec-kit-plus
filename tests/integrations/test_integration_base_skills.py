@@ -328,6 +328,8 @@ class SkillsIntegrationTests:
             f".specify/integrations/{self.KEY}/scripts/update-context.sh",
             ".specify/integrations/speckit.manifest.json",
             ".specify/memory/constitution.md",
+            ".specify/memory/project-learnings.md",
+            ".specify/memory/project-rules.md",
             ".specify/project-map/status.json",
         ]
         # Script variant

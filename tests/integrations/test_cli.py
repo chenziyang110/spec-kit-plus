@@ -181,6 +181,9 @@ class TestInitIntegrationFlag:
 
         quick_content = (skills_dir / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert ".specify/memory/constitution.md" in quick_content
+        assert ".specify/memory/project-rules.md" in quick_content
+        assert ".specify/memory/project-learnings.md" in quick_content
+        assert ".planning/learnings/candidates.md" in quick_content
         assert "project-handbook.md" in quick_content
         assert "topic map" in quick_content
         assert "touched-area topical files" in quick_content
@@ -400,6 +403,7 @@ class TestInitIntegrationFlag:
         assert "spec-extend" in result.output
         assert "spec-extend" in result.output.lower()
         assert "explain" in result.output
+        assert "$sp-learnings" not in result.output
 
     def test_claude_init_uses_same_skill_surface_without_codex_runtime(self, tmp_path):
         from typer.testing import CliRunner
@@ -450,6 +454,7 @@ class TestInitIntegrationFlag:
         assert "/sp-explain" in result.output
         assert "/sp-map-codebase" in result.output
         assert "/sp-spec-extend" in result.output
+        assert "/sp-learnings" not in result.output
         assert "Codex-only runtime" not in result.output
         assert "specify team" not in result.output.lower()
         assert "/sp-team" not in result.output.lower()

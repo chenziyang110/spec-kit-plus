@@ -7,6 +7,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_debug_template_documents_capability_aware_investigation() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "debug.md").read_text(encoding="utf-8").lower()
 
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
+    assert "specify learning start --command debug --format json" in content
+    assert "specify learning capture --command debug" in content
     assert "read `project-handbook.md`" in content
     assert ".specify/project-map/status.json" in content
     assert "if the active session is `awaiting_human_verify`" in content
@@ -60,6 +65,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved`" in content
     assert "mark `.specify/project-map/status.json` dirty" in content
     assert "if you cannot complete that refresh in the current pass" in content
+    assert "highest-signal" in content
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:

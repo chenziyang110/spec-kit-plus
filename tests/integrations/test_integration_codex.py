@@ -138,7 +138,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skills_dir = target / ".codex" / "skills"
-    for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-map-codebase"):
+    for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-implement"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "single-agent" in content
         assert "native-multi-agent" in content
@@ -148,6 +148,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "project-handbook.md" in content
         assert ".specify/project-map/architecture.md" in content
         assert ".specify/project-map/workflows.md" in content
+        assert ".specify/memory/project-rules.md" in content
+        assert ".specify/memory/project-learnings.md" in content
+        assert ".planning/learnings/candidates.md" in content
 
     shared_skills = ("sp-specify", "sp-plan", "sp-tasks")
     for skill_name in shared_skills:
@@ -266,6 +269,9 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     skill_path = target / ".codex" / "skills" / "sp-debug" / "SKILL.md"
     content = skill_path.read_text(encoding="utf-8").lower()
 
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
     assert "codex native multi-agent investigation" in content
     assert "project-handbook.md" in content
     assert ".specify/project-map/architecture.md" in content
@@ -305,6 +311,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert "scope gate" in content
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
     assert "project-handbook.md" in content
     assert "shared surfaces" in content
     assert "risky coordination points" in content
@@ -340,6 +349,9 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert ".planning/quick/" in content
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
     assert "project-handbook.md" in content
     assert "topic map" in content
     assert "touched-area topical files" in content

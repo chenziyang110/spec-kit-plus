@@ -39,7 +39,7 @@ def test_repo_quick_skill_mirror_has_codex_delegation_contract(tmp_path: Path) -
     assert "close_agent" in body
     assert "specify team auto-dispatch" in body
     assert "dispatch exactly one delegated worker lane" in body
-    assert "the next concrete action must be dispatch" in body
+    assert "the next concrete action must be dispatch" in body or "first actionable execution step after scope lock is to dispatch" in body
     assert "materially improve throughput" in body
     assert "local execution is the last fallback" in body
     assert "execution_fallback" in body
