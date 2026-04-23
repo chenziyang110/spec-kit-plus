@@ -58,9 +58,9 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Passive Project Learning Layer
 
-- Before deeper task analysis, run `specify learning start --command tasks --format json` when available so passive learning files exist and the current task-generation run sees relevant shared project memory.
+- Before deeper task analysis, run `specify learning start --command tasks --format json` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader task-generation context.
-- Review `.planning/learnings/candidates.md` only when it contains task-generation-relevant candidate learnings, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
+- Review `.planning/learnings/candidates.md` only when it still contains task-generation-relevant candidate learnings after the passive start step, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Outline

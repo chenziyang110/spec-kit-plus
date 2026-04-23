@@ -440,12 +440,62 @@ def is_highest_signal(entry: LearningEntry) -> bool:
     return entry.signal_strength == "high" or entry.occurrence_count >= 2
 
 
+def should_auto_promote_on_start(entry: LearningEntry, command_name: str) -> bool:
+    return (
+        entry.status == "candidate"
+        and is_relevant_to_command(entry, command_name)
+        and entry.occurrence_count >= 2
+        and entry.signal_strength != "high"
+    )
+
+
 def start_learning_session(project_root: Path, *, command_name: str) -> dict[str, Any]:
     paths = ensure_learning_files(project_root)
     normalized_command = normalize_command_name(command_name)
-    _, rule_entries = _read_entries(paths.project_rules)
-    _, learning_entries = _read_entries(paths.project_learnings)
-    _, candidate_entries = _read_entries(paths.candidates)
+    rule_preamble, rule_entries = _read_entries(paths.project_rules)
+    learning_preamble, learning_entries = _read_entries(paths.project_learnings)
+    candidate_preamble, candidate_entries = _read_entries(paths.candidates)
+
+    auto_promoted: list[LearningEntry] = []
+    remaining_candidates: list[LearningEntry] = []
+    for entry in candidate_entries:
+        if should_auto_promote_on_start(entry, normalized_command):
+            promoted_entry = LearningEntry(
+                id=entry.id,
+                summary=entry.summary,
+                learning_type=entry.learning_type,
+                source_command=entry.source_command,
+                evidence=entry.evidence,
+                recurrence_key=entry.recurrence_key,
+                default_scope=entry.default_scope,
+                applies_to=entry.applies_to,
+                signal_strength=entry.signal_strength,
+                status="confirmed",
+                first_seen=entry.first_seen,
+                last_seen=entry.last_seen,
+                occurrence_count=entry.occurrence_count,
+            )
+            learning_entries, stored = _upsert_entry(learning_entries, promoted_entry, status="confirmed")
+            auto_promoted.append(stored)
+            _append_review_note(
+                paths.review,
+                f"auto-promoted `{stored.recurrence_key}` to project learnings during `{normalized_command}` start",
+            )
+        else:
+            remaining_candidates.append(entry)
+
+    if auto_promoted:
+        _write_entries(
+            paths.project_learnings,
+            learning_preamble or LEARNINGS_TEMPLATE_TEXT.rstrip(),
+            learning_entries,
+        )
+        _write_entries(
+            paths.candidates,
+            candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(),
+            remaining_candidates,
+        )
+        candidate_entries = remaining_candidates
 
     relevant_rules = [entry.to_payload() for entry in rule_entries if is_relevant_to_command(entry, normalized_command)]
     relevant_learnings = [entry.to_payload() for entry in learning_entries if is_relevant_to_command(entry, normalized_command)]
@@ -468,6 +518,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         "relevant_rules": relevant_rules,
         "relevant_learnings": relevant_learnings,
         "relevant_candidates": relevant_candidates,
+        "auto_promoted": [entry.to_payload() for entry in auto_promoted],
         "promotable_candidates": promotable,
         "confirmation_candidates": confirmation_candidates,
     }

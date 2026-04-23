@@ -21,9 +21,9 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 ## Required Context Inputs
 
 - Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
-- Run `specify learning start --command quick --format json` when available so passive learning files exist and the current quick-task run sees relevant shared project memory.
+- Run `specify learning start --command quick --format json` when available so passive learning files exist, the current quick-task run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` after the constitution gate and before broader quick-task context.
-- If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to the touched area so repeated pitfalls, workflow gaps, and project constraints are not rediscovered from scratch.
+- If `.planning/learnings/candidates.md` still contains relevant entries after the passive start step, inspect only the entries relevant to the touched area so repeated pitfalls, workflow gaps, and project constraints are not rediscovered from scratch.
 - Check whether `.specify/project-map/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.

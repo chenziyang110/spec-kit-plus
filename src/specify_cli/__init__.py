@@ -979,6 +979,7 @@ def learning_start_command(
         ("Relevant Rules", str(len(payload["relevant_rules"]))),
         ("Relevant Learnings", str(len(payload["relevant_learnings"]))),
         ("Relevant Candidates", str(len(payload["relevant_candidates"]))),
+        ("Auto Promoted", str(len(payload["auto_promoted"]))),
         ("Promotable", str(len(payload["promotable_candidates"]))),
         ("Needs Confirmation", str(len(payload["confirmation_candidates"]))),
     ]

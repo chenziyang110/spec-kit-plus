@@ -149,6 +149,45 @@ def test_learning_start_filters_relevant_candidates_by_command(tmp_path: Path) -
     assert "Need explicit validation tasks" not in summaries
 
 
+def test_learning_start_auto_promotes_repeated_medium_signal_candidates(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    args = [
+        "learning",
+        "capture",
+        "--command",
+        "plan",
+        "--type",
+        "workflow_gap",
+        "--summary",
+        "Always preserve verification tasks in planning",
+        "--evidence",
+        "Repeated omission in planning",
+        "--recurrence-key",
+        "workflow.verify.tasks",
+        "--signal",
+        "medium",
+        "--format",
+        "json",
+    ]
+    _invoke_in_project(project, args)
+    _invoke_in_project(project, args)
+
+    result = _invoke_in_project(project, ["learning", "start", "--command", "plan", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    auto_promoted = [entry["summary"] for entry in payload["auto_promoted"]]
+    relevant_learnings = [entry["summary"] for entry in payload["relevant_learnings"]]
+    relevant_candidates = [entry["summary"] for entry in payload["relevant_candidates"]]
+    assert "Always preserve verification tasks in planning" in auto_promoted
+    assert "Always preserve verification tasks in planning" in relevant_learnings
+    assert "Always preserve verification tasks in planning" not in relevant_candidates
+
+
 def test_learning_capture_confirm_and_promote_rule_flow(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
@@ -199,6 +238,43 @@ def test_learning_capture_confirm_and_promote_rule_flow(tmp_path: Path) -> None:
     assert promoted_payload["status"] == "promoted-rule"
     rule_summaries = [entry["summary"] for entry in start_payload["relevant_rules"]]
     assert "Always name touched shared surfaces explicitly" in rule_summaries
+
+
+def test_learning_start_keeps_repeated_high_signal_candidates_for_confirmation(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    args = [
+        "learning",
+        "capture",
+        "--command",
+        "implement",
+        "--type",
+        "project_constraint",
+        "--summary",
+        "Always name touched shared surfaces explicitly",
+        "--evidence",
+        "Repeated and high-signal constraint",
+        "--recurrence-key",
+        "shared.surfaces.must.be.named",
+        "--signal",
+        "high",
+        "--format",
+        "json",
+    ]
+    _invoke_in_project(project, args)
+    _invoke_in_project(project, args)
+
+    result = _invoke_in_project(project, ["learning", "start", "--command", "implement", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    auto_promoted = [entry["summary"] for entry in payload["auto_promoted"]]
+    confirmation = [entry["summary"] for entry in payload["confirmation_candidates"]]
+    assert "Always name touched shared surfaces explicitly" not in auto_promoted
+    assert "Always name touched shared surfaces explicitly" in confirmation
 
 
 def test_learning_help_surfaces_low_level_helper_commands() -> None:

@@ -53,9 +53,9 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Passive Project Learning Layer
 
-- Before deeper repository analysis, run `specify learning start --command specify --format json` when available so passive learning files exist and the current specification run sees relevant shared project memory.
+- Before deeper repository analysis, run `specify learning start --command specify --format json` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
-- Review `.planning/learnings/candidates.md` only when it contains candidate learnings relevant to specification, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
+- Review `.planning/learnings/candidates.md` only when it still contains candidate learnings relevant to specification after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
 - Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
 
 ## Outline

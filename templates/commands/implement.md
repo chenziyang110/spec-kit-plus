@@ -50,9 +50,9 @@ Treat non-empty `$ARGUMENTS` as first-class implementation context for the curre
 
 ## Passive Project Learning Layer
 
-- Before deeper execution analysis, run `specify learning start --command implement --format json` when available so passive learning files exist and the current implementation run sees relevant shared project memory.
+- Before deeper execution analysis, run `specify learning start --command implement --format json` when available so passive learning files exist, the current implementation run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader execution context.
-- Review `.planning/learnings/candidates.md` only when it contains implementation-relevant candidate learnings, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
+- Review `.planning/learnings/candidates.md` only when it still contains implementation-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
 - Treat this as passive shared memory, not as a separate user-visible execution command.
 
 ## Implement Tracker Protocol

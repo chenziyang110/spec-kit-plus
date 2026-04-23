@@ -32,9 +32,9 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ## Passive Project Learning Layer
 
-- Before deeper root-cause analysis, run `specify learning start --command debug --format json` when available so passive learning files exist and the current debug run sees relevant shared project memory.
+- Before deeper root-cause analysis, run `specify learning start --command debug --format json` when available so passive learning files exist, the current debug run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
-- Review `.planning/learnings/candidates.md` only when it contains debug-relevant candidate learnings, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
+- Review `.planning/learnings/candidates.md` only when it still contains debug-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
 - Treat this as passive shared memory, not as a separate user-visible debug workflow.
 
 ## Session Lifecycle

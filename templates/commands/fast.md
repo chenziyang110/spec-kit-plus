@@ -50,9 +50,9 @@ Upgrade to `/sp-specify` immediately if:
 
 ## Passive Project Learning Layer
 
-- Before local execution, run `specify learning start --command fast --format json` when available so passive learning files exist and the current fast-path run sees relevant shared project memory.
+- Before local execution, run `specify learning start --command fast --format json` when available so passive learning files exist, the current fast-path run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
-- Review `.planning/learnings/candidates.md` only when it contains fast-path-relevant candidate learnings, especially repeated local pitfalls, routing constraints, or project defaults that affect whether the task should stay on `sp-fast`.
+- Review `.planning/learnings/candidates.md` only when it still contains fast-path-relevant candidate learnings after the passive start step, especially repeated local pitfalls, routing constraints, or project defaults that affect whether the task should stay on `sp-fast`.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Process
