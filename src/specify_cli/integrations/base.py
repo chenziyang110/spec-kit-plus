@@ -827,5 +827,284 @@ class SkillsIntegration(IntegrationBase):
             )
             created.append(dst)
 
+        # Augment with leader/multi-agent guidance (Spec Kit Plus orchestration)
+        agent_name = self.config.get("name", self.key.capitalize())
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-specify" / "SKILL.md",
+            f"## {agent_name} Native Multi-Agent Execution",
+            (
+                "\n"
+                f"## {agent_name} Native Multi-Agent Execution\n\n"
+                f"When running `sp-specify` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
+                "- Use native sub-agent tools (e.g. `spawn_agent` or handoffs) for bounded lanes such as repository and local context analysis, references analysis, and ambiguity/risk analysis.\n"
+                "- Only join workers at the documented join points before capability decomposition and before writing `spec.md`, `alignment.md`, and `context.md`.\n"
+                "- Integrate finished worker results before closing the sub-agent session.\n"
+                "- Keep the shared workflow language integration-neutral in user-visible output.\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-plan" / "SKILL.md",
+            f"## {agent_name} Native Multi-Agent Execution",
+            (
+                "\n"
+                f"## {agent_name} Native Multi-Agent Execution\n\n"
+                f"When running `sp-plan` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
+                "- Use native sub-agent tools for bounded lanes such as research, data model design, contracts drafting, and quickstart or validation scenario generation.\n"
+                "- Only join workers at the documented join points before the final constitution and risk re-check and before writing the consolidated implementation plan.\n"
+                "- Integrate finished worker results before closing the sub-agent session.\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-tasks" / "SKILL.md",
+            f"## {agent_name} Native Multi-Agent Execution",
+            (
+                "\n"
+                f"## {agent_name} Native Multi-Agent Execution\n\n"
+                f"When running `sp-tasks` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
+                "- Use native sub-agent tools for bounded lanes such as story and phase decomposition, dependency graph analysis, and write-set or parallel-safety analysis.\n"
+                "- Only join workers at the documented join points before writing `tasks.md` and before emitting canonical parallel batches and join points.\n"
+                "- Integrate finished worker results before closing the sub-agent session.\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-map-codebase" / "SKILL.md",
+            f"## {agent_name} Native Multi-Agent Execution",
+            (
+                "\n"
+                f"## {agent_name} Native Multi-Agent Execution\n\n"
+                f"When running `sp-map-codebase` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
+                "- Use native sub-agent tools for bounded lanes such as architecture/structure mapping, conventions/testing mapping, integrations/runtime mapping, and workflows/operations mapping.\n"
+                "- Only join workers at the documented join points before writing `PROJECT-HANDBOOK.md` and before the final consistency pass.\n"
+                "- Integrate finished worker results before closing the sub-agent session.\n"
+            ),
+        )
+
+        self._augment_implement_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-implement" / "SKILL.md",
+        )
+        self._augment_debug_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-debug" / "SKILL.md",
+        )
+        self._augment_quick_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-quick" / "SKILL.md",
+        )
+
         created.extend(self.install_scripts(project_root, manifest))
         return created
+
+    def _augment_shared_skill(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest: IntegrationManifest,
+        skill_path: Path,
+        marker: str,
+        addendum: str,
+    ) -> None:
+        """Append an integration-specific addendum to a shared skill if it matches the marker."""
+        if skill_path not in created or not skill_path.is_file():
+            return
+        content = skill_path.read_text(encoding="utf-8")
+        if marker in content:
+            return
+        self.write_file_and_record(content + addendum, skill_path, project_root, manifest)
+
+    def _augment_implement_skill(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest: IntegrationManifest,
+        implement_skill: Path,
+    ) -> None:
+        """Inject Leader Gate and Auto-Parallel guidance into the implement skill."""
+        if implement_skill not in created or not implement_skill.is_file():
+            return
+
+        content = implement_skill.read_text(encoding="utf-8")
+        agent_name = self.config.get("name", self.key.capitalize())
+
+        gate_marker = f"## {agent_name} Leader Gate"
+        if gate_marker not in content:
+            gate_addendum = (
+                "\n"
+                f"## {agent_name} Leader Gate\n\n"
+                f"When running `sp-implement` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
+                "\n"
+                "Before any code edits, test edits, build commands, or implementation actions:\n"
+                "- Read `FEATURE_DIR/implement-tracker.md` first if it exists, and resume from its recorded blocker, recovery, replanning, or validation state before choosing a new batch.\n"
+                "- If `$ARGUMENTS` is non-empty, extract the important execution constraints or recovery hints from it and persist them under `## User Execution Notes` in `FEATURE_DIR/implement-tracker.md` before dispatching work.\n"
+                "- Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.\n"
+                "- Before any delegated implementation work starts, compile and validate the packet for the current task or batch item.\n"
+                "- If the selected strategy is `native-multi-agent`, you **MUST** delegate the concrete work through native sub-agent tools before considering any fallback path.\n"
+                "- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** before doing any concrete implementation work yourself.\n"
+                "- Do **not** fall through from worker delegation or sidecar fallback into local self-execution just because the implementation looks feasible.\n"
+                "- `single-agent` still means one delegated worker lane, not leader self-execution.\n"
+                "- Dispatch only from validated `WorkerTaskPacket`.\n"
+                "\n"
+                "**Hard rule:** The leader must not edit implementation files directly while worker delegation is active or while `sidecar-runtime` is selected.\n"
+            )
+            if "## Outline" in content:
+                content = content.replace("## Outline", gate_addendum + "\n## Outline", 1)
+            else:
+                content += gate_addendum
+
+        marker = f"## {agent_name} Auto-Parallel Execution"
+        if marker not in content:
+            addendum = (
+                "\n"
+                f"## {agent_name} Auto-Parallel Execution\n\n"
+                f"When running `sp-implement` in {agent_name}, treat Step 6's unified execution strategy selection as a runtime-aware escalation.\n"
+                "For each ready parallel batch:\n"
+                "- The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.\n"
+                f"- Keep the shared strategy names and workload-safety checks, but for {agent_name} `sp-implement` prefer `native-multi-agent` whenever `snapshot.native_multi_agent` is true.\n"
+                "- Use native sub-agent tools to delegate disjoint worker lanes for the current batch.\n"
+                "- Interpret `single-agent` as one delegated worker lane, not leader self-execution.\n"
+                "- Interpret `native-multi-agent` as the native subagents path.\n"
+                "- Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable for the current batch.\n"
+                f"- Decision order for {agent_name} `sp-implement` must stay fixed: `no-safe-batch` -> `native-preferred` -> `sidecar-fallback` -> `fallback`.\n"
+                "- Only fall back to `specify team` after a concrete blocker shows that the current batch cannot proceed through native worker delegation.\n"
+                "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
+                "- The leader delegates execution through these worker paths rather than executing the implementation itself.\n"
+                "- After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.\n"
+            )
+            content += addendum
+
+        self.write_file_and_record(content, implement_skill, project_root, manifest)
+
+    def _augment_debug_skill(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest: IntegrationManifest,
+        debug_skill: Path,
+    ) -> None:
+        """Inject Leader Gate and evidence collection guidance into the debug skill."""
+        if debug_skill not in created or not debug_skill.is_file():
+            return
+
+        content = debug_skill.read_text(encoding="utf-8")
+        agent_name = self.config.get("name", self.key.capitalize())
+
+        gate_marker = f"## {agent_name} Leader Gate"
+        if gate_marker not in content:
+            gate_addendum = (
+                "\n"
+                f"## {agent_name} Leader Gate\n\n"
+                f"When running `sp-debug` in {agent_name}, you are the **leader**, not a freeform debugger.\n"
+                "\n"
+                "Before applying fixes or running multiple independent investigation actions yourself:\n"
+                "- Read the current debug session state and identify whether the investigation has two or more independent evidence-gathering lanes.\n"
+                "- If the current stage is `investigating` and there are two or more bounded evidence-gathering lanes, you **MUST** delegate them through native sub-agent tools before continuing with more sequential evidence collection yourself.\n"
+                "- Integrate returned results before closing the sub-agent session.\n"
+                "- Do **not** skip delegation just because the evidence tasks look easy; use the lighter `single-agent` path only when the current investigation does not have safe parallel lanes.\n"
+                "\n"
+                "**Hard rule:** During `investigating`, the leader must not let child agents mutate the debug file, declare the root cause final, or advance the session state.\n"
+            )
+            if "## Session Lifecycle" in content:
+                content = content.replace("## Session Lifecycle", gate_addendum + "\n## Session Lifecycle", 1)
+            else:
+                content += gate_addendum
+
+        marker = f"## {agent_name} Native Multi-Agent Investigation"
+        if marker in content:
+            return
+
+        addendum = (
+            "\n"
+            f"## {agent_name} Native Multi-Agent Investigation\n\n"
+            f"When running `sp-debug` in {agent_name}, treat the `investigating` stage as a leader-led routing decision between `single-agent` and native delegated evidence collection.\n"
+            "- If there are two or more independent evidence-gathering lanes, prefer native delegation through sub-agent tools over manual sequential investigation.\n"
+            "- Suitable child tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and gathering evidence after diagnostic logging has been added.\n"
+            "- Read `diagnostic_profile` from the debug session before choosing child lanes.\n"
+            "- The leader **MUST** update the debug file's `Current Focus` before delegating and treat child work as evidence collection for the current hypothesis.\n"
+            "- Child agents must return facts, command results, and observations; they must not update the debug file, declare the root cause final, or transition the session state.\n"
+            "- Keep fixing, verification, `awaiting_human_verify`, and final session resolution on the leader path.\n"
+        )
+
+        self.write_file_and_record(content + addendum, debug_skill, project_root, manifest)
+
+    def _augment_quick_skill(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest: IntegrationManifest,
+        quick_skill: Path,
+    ) -> None:
+        """Inject Leader Gate and delegation guidance into the quick-task skill."""
+        if quick_skill not in created or not quick_skill.is_file():
+            return
+
+        content = quick_skill.read_text(encoding="utf-8")
+        agent_name = self.config.get("name", self.key.capitalize())
+
+        gate_marker = f"## {agent_name} Leader Gate"
+        if gate_marker not in content:
+            gate_addendum = (
+                "\n"
+                f"## {agent_name} Leader Gate\n\n"
+                f"When running `sp-quick` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
+                "\n"
+                "Before code edits, test edits, or implementation commands:\n"
+                "- Read `.specify/memory/constitution.md` first if it exists.\n"
+                "- Read `STATUS.md` for the active quick-task workspace, or create it if this quick task is new.\n"
+                "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"
+                "- `single-agent` still means one delegated worker lane. Do **not** reinterpret it as leader self-execution.\n"
+                "- If the selected strategy is `native-multi-agent`, you **MUST** delegate the concrete work through native sub-agent tools before considering any fallback path.\n"
+                "- If the selected strategy is `single-agent`, you **MUST** dispatch exactly one delegated worker lane before considering any leader-local fallback.\n"
+                "- If two or more safe delegated lanes would materially improve throughput, you **MUST** prefer launching them in parallel.\n"
+                "- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`specify team auto-dispatch`** for the quick-task workload before doing concrete implementation work yourself.\n"
+                "- Leader-local execution is allowed only when native worker delegation is concretely unavailable and the sidecar runtime path is also unavailable.\n"
+                "- When leader-local fallback is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
+                "\n"
+                "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while delegated execution is active.\n"
+            )
+            if "## Process" in content:
+                content = content.replace("## Process", gate_addendum + "\n## Process", 1)
+            else:
+                content += gate_addendum
+
+        marker = f"## {agent_name} Native Multi-Agent Execution"
+        if marker in content:
+            self.write_file_and_record(content, quick_skill, project_root, manifest)
+            return
+
+        addendum = (
+            "\n"
+            f"## {agent_name} Native Multi-Agent Execution\n\n"
+            f"When running `sp-quick` in {agent_name}, prefer native worker delegation whenever the selected quick-task strategy is `native-multi-agent`.\n"
+            "- Use native sub-agent tools for bounded lanes such as focused repository analysis, targeted implementation, regression test updates, or validation command runs.\n"
+            "- Once the first lane is chosen, dispatch it before continuing any leader-local deep-dive analysis of the repository.\n"
+            "- If multiple safe worker lanes exist and they materially improve throughput, dispatch them in parallel.\n"
+            "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth.\n"
+            "- Child agents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
+            f"- Decision order for {agent_name} `sp-quick`: `no-safe-batch` -> `native-preferred` -> `sidecar-fallback` -> `fallback`.\n"
+            "- Interpret `single-agent` as one delegated worker lane, not leader self-execution.\n"
+            "- Interpret `native-multi-agent` as the native subagents path.\n"
+            "- Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable.\n"
+            "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
+        )
+
+        self.write_file_and_record(content + addendum, quick_skill, project_root, manifest)
+
+    def setup(
