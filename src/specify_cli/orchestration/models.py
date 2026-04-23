@@ -9,6 +9,8 @@ from typing import Literal
 ExecutionStrategy = Literal["single-agent", "native-multi-agent", "sidecar-runtime"]
 # Backward-compatible alias for early Task 1 references.
 Strategy = ExecutionStrategy
+NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
+DelegationConfidence = Literal["low", "medium", "high"]
 
 
 def utc_now() -> str:
@@ -25,6 +27,10 @@ class CapabilitySnapshot:
     sidecar_runtime_supported: bool = False
     structured_results: bool = False
     durable_coordination: bool = False
+    native_worker_surface: NativeWorkerSurface = "unknown"
+    delegation_confidence: DelegationConfidence = "low"
+    model_family: str | None = None
+    runtime_probe_succeeded: bool = False
     notes: list[str] = field(default_factory=list)
 
 

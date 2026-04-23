@@ -23,6 +23,10 @@ def test_capability_snapshot_has_canonical_fields_and_defaults():
     assert snapshot.sidecar_runtime_supported is False
     assert snapshot.structured_results is False
     assert snapshot.durable_coordination is False
+    assert snapshot.native_worker_surface == "unknown"
+    assert snapshot.delegation_confidence == "low"
+    assert snapshot.model_family is None
+    assert snapshot.runtime_probe_succeeded is False
     assert snapshot.notes == []
     assert field_names == [
         "integration_key",
@@ -30,6 +34,10 @@ def test_capability_snapshot_has_canonical_fields_and_defaults():
         "sidecar_runtime_supported",
         "structured_results",
         "durable_coordination",
+        "native_worker_surface",
+        "delegation_confidence",
+        "model_family",
+        "runtime_probe_succeeded",
         "notes",
     ]
 

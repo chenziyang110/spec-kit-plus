@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -7,7 +8,13 @@ from specify_cli.codex_team.runtime_bridge import (
     codex_team_runtime_status,
     detect_team_runtime_backend,
     ensure_tmux_available,
+    bootstrap_runtime_session,
+    dispatch_runtime_task,
+    submit_runtime_result,
 )
+from specify_cli.codex_team.state_paths import dispatch_record_path, result_record_path
+from specify_cli.execution import worker_task_result_payload
+from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
 
 
 def test_ensure_tmux_available_raises_when_tmux_missing(monkeypatch):
@@ -80,3 +87,124 @@ def test_runtime_status_reports_non_codex_as_unavailable(monkeypatch, codex_team
 
     assert status["available"] is False
     assert status["runtime_state"]["session"]["status"] == "created"
+
+
+def test_submit_runtime_result_writes_canonical_result_and_updates_dispatch(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    bootstrap_runtime_session(codex_team_project_root, "result-session")
+    packet_path = codex_team_project_root / ".specify" / "codex-team" / "state" / "packets" / "req-result.json"
+    packet_path.parent.mkdir(parents=True, exist_ok=True)
+    packet_path.write_text(
+        """
+{
+  "feature_id": "001-feature",
+  "task_id": "T001",
+  "story_id": "US1",
+  "objective": "Implement thing",
+  "scope": {"write_scope": ["src/app.py"], "read_scope": ["src/contracts.py"]},
+  "required_references": [{"path": "src/contracts.py", "reason": "preserve contract"}],
+  "hard_rules": ["do not drift"],
+  "forbidden_drift": ["no parallel stack"],
+  "validation_gates": ["pytest -q"],
+  "done_criteria": ["works"],
+  "handoff_requirements": ["return changed files"],
+  "dispatch_policy": {"mode": "hard_fail", "must_acknowledge_rules": true},
+  "packet_version": 1
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    dispatch_runtime_task(
+        codex_team_project_root,
+        session_id="result-session",
+        request_id="req-result",
+        target_worker="worker-1",
+        packet_path=str(packet_path),
+        delegation_metadata={"structured_results_expected": True},
+    )
+
+    result = WorkerTaskResult(
+        task_id="T001",
+        status="success",
+        changed_files=["src/app.py"],
+        validation_results=[ValidationResult(command="pytest -q", status="passed", output="1 passed")],
+        summary="done",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+        ),
+    )
+
+    record = submit_runtime_result(
+        codex_team_project_root,
+        session_id="result-session",
+        request_id="req-result",
+        result=result,
+    )
+
+    assert record.status == "completed"
+    stored_dispatch = json.loads(dispatch_record_path(codex_team_project_root, "req-result").read_text(encoding="utf-8"))
+    stored_result = json.loads(result_record_path(codex_team_project_root, "req-result").read_text(encoding="utf-8"))
+    assert stored_dispatch["status"] == "completed"
+    assert stored_result == worker_task_result_payload(result)
+
+
+def test_submit_runtime_result_normalizes_done_with_concerns_payload(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    bootstrap_runtime_session(codex_team_project_root, "norm-session")
+    packet_path = codex_team_project_root / ".specify" / "codex-team" / "state" / "packets" / "req-norm.json"
+    packet_path.parent.mkdir(parents=True, exist_ok=True)
+    packet_path.write_text(
+        """
+{
+  "feature_id": "001-feature",
+  "task_id": "T201",
+  "story_id": "US1",
+  "objective": "Implement thing",
+  "scope": {"write_scope": ["src/app.py"], "read_scope": ["src/contracts.py"]},
+  "required_references": [{"path": "src/contracts.py", "reason": "preserve contract"}],
+  "hard_rules": ["do not drift"],
+  "forbidden_drift": ["no parallel stack"],
+  "validation_gates": ["pytest -q"],
+  "done_criteria": ["works"],
+  "handoff_requirements": ["return changed files"],
+  "dispatch_policy": {"mode": "hard_fail", "must_acknowledge_rules": true},
+  "packet_version": 1
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    dispatch_runtime_task(
+        codex_team_project_root,
+        session_id="norm-session",
+        request_id="req-norm",
+        target_worker="worker-2",
+        packet_path=str(packet_path),
+        delegation_metadata={"structured_results_expected": True},
+    )
+
+    record = submit_runtime_result(
+        codex_team_project_root,
+        session_id="norm-session",
+        request_id="req-norm",
+        result={
+            "taskId": "T201",
+            "status": "DONE_WITH_CONCERNS",
+            "files_changed": ["src/app.py"],
+            "message": "done with concerns",
+            "issues": ["follow-up cleanup remains"],
+            "validationResults": [
+                {"command": "pytest -q", "status": "passed", "output": "1 passed"}
+            ],
+            "ruleAcknowledgement": {
+                "required_references_read": True,
+                "forbidden_drift_respected": True,
+            },
+        },
+    )
+
+    assert record.status == "completed"

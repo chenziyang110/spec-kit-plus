@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..base import MarkdownIntegration
+from ...orchestration import CapabilitySnapshot, describe_delegation_surface
 
 
 class CursorAgentIntegration(MarkdownIntegration):
@@ -24,6 +25,19 @@ class CursorAgentIntegration(MarkdownIntegration):
         "extension": ".md",
     }
     context_file = ".cursor/rules/specify-rules.mdc"
+
+    def _cursor_capability_snapshot(self) -> CapabilitySnapshot:
+        return CapabilitySnapshot(
+            integration_key=self.key,
+            native_multi_agent=True,
+            sidecar_runtime_supported=True,
+            structured_results=True,
+            durable_coordination=False,
+            native_worker_surface="native-cli",
+            delegation_confidence="medium",
+            model_family="cursor",
+            runtime_probe_succeeded=True,
+        )
 
     def setup(
         self,
@@ -60,6 +74,11 @@ class CursorAgentIntegration(MarkdownIntegration):
             return
 
         content = quick_command.read_text(encoding="utf-8")
+        cursor_snapshot = self._cursor_capability_snapshot()
+        descriptor = describe_delegation_surface(
+            command_name="quick",
+            snapshot=cursor_snapshot,
+        )
 
         gate_marker = "## Cursor Leader Gate"
         if gate_marker not in content:
@@ -99,16 +118,37 @@ class CursorAgentIntegration(MarkdownIntegration):
             "## Cursor Delegated Execution\n\n"
             "When running `sp-quick` in Cursor, prefer delegated worker execution whenever the selected quick-task strategy is `single-agent` or `native-multi-agent`.\n"
             "- Treat `single-agent` as one delegated worker lane by default. The leader should coordinate that lane rather than execute the work directly.\n"
-            "- Use Cursor's native delegated worker path for bounded lanes such as focused repository analysis, targeted implementation, regression test updates, validation command runs, or summary artifact drafting when those lanes do not share a write surface.\n"
+            f"- Use Cursor's native delegated worker path for bounded lanes when available. {descriptor.native_dispatch_hint}\n"
             "- Once the first lane is chosen, dispatch it before continuing any leader-local deep-dive analysis of the repository.\n"
             "- If multiple safe worker lanes exist and they materially improve throughput, dispatch them in parallel instead of defaulting to serial delegation.\n"
             "- Keep `.planning/quick/<slug>/STATUS.md` as the leader-owned source of truth with current focus, execution strategy, active lane or batch, join point, next action, and blockers.\n"
             "- Child or delegated worker paths may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
+            f"- Join delegated lanes through the integration-native join point: {descriptor.native_join_hint}\n"
             "- Interpret `native-multi-agent` as Cursor's delegated multi-lane path when available.\n"
             "- Interpret `sidecar-runtime` as escalation to the coordinated runtime surface only after native delegated execution is unavailable or unsuitable for the current quick-task batch.\n"
+            f"- Result contract: {descriptor.result_contract_hint}\n"
+            f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
             "- Use leader-local execution only after both worker paths are concretely unavailable for the current batch, and record that fallback explicitly in `STATUS.md`.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
             "- Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.\n"
         )
+        content = content + addendum
+        content = self._append_delegation_surface_contract(
+            content=content,
+            agent_name="Cursor",
+            command_name="quick",
+            snapshot=cursor_snapshot,
+            heading="Delegation Surface Contract",
+        )
+        content += (
+            "\n"
+            "## Cursor Worker Result Contract\n\n"
+            f"- Preferred result contract: {descriptor.result_contract_hint}\n"
+            f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
+            "- Normalize worker-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
+            "- Keep `reported_status` when normalization occurs so Cursor lane output can be reconciled with canonical orchestration state.\n"
+            "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
+            "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
+        )
 
-        self.write_file_and_record(content + addendum, quick_command, project_root, manifest)
+        self.write_file_and_record(content, quick_command, project_root, manifest)

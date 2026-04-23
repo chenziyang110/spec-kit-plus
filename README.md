@@ -186,6 +186,12 @@ Current `sp-implement` runtime model in this fork:
 - `sp-implement` acts as a milestone-level orchestration leader rather than the direct executor
 - concrete implementation runs through delegated execution paths (`single-agent`, `native-multi-agent`, or `sidecar-runtime`)
 - delegated workers should execute from compiled `WorkerTaskPacket` contracts rather than rediscovering rules from background context
+- delegated result handoff should use the runtime-managed result channel when one exists; otherwise workers should write normalized result envelopes to the declared filesystem handoff path for the current workflow
+- implementation lanes without a runtime-managed channel should use `FEATURE_DIR/worker-results/<task-id>.json`
+- quick-task lanes without a runtime-managed channel should use `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`
+- debug evidence lanes without a runtime-managed channel should use `.planning/debug/results/<session-slug>/<lane-id>.json`
+- when the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the delegated result envelope
+- when worker language is normalized into canonical orchestration state, preserve the raw `reported_status`
 - top-level `tasks.md` items should stay bounded to one coffee-break-sized implementation slice, usually roughly 10-20 minutes, while delegated workers may still execute them through smaller 2-5 minute atomic steps
 - task decomposition should stay progressive: refine only the current executable window after each join point instead of pre-expanding later batches that still depend on upstream evidence
 - parallel work is coordinated through explicit join points before dependent work continues
@@ -228,6 +234,7 @@ specify team
 - `specify team resume` re-attaches to an existing runtime session by replaying the metadata in `.specify/codex-team/` and restarting the tmux backend.
 - `specify team shutdown` requests a graceful stop, letting workers finish or fail their in-flight tasks before tearing down.
 - `specify team cleanup` removes `.specify/codex-team/` state after shutdown succeeds; run it only once shutdown has settled to avoid corrupting the state folder.
+- `specify team submit-result --request-id <id> --result-file <path>` validates and records a structured worker result for an existing dispatch.
 - `specify team api <operation>` proxies structured JSON operations (task claims, worker heartbeats, events) into the runtime; use it when automation needs a predictable channel.
 
 This command suite powers both the `sp-team` skill and the runtime APIs that downstream tooling relies on, which is why the command is restricted to Codex-initiated projects.
@@ -244,6 +251,7 @@ Lifecycle notes:
 
 - Tasks run through `pending -> in_progress -> completed|failed` and emit events that `specify team status` surfaces.
 - Workers claim tasks with identity records, write heartbeats under `state/workers`, and consume mailbox messages from `state/mailboxes`.
+- Structured worker results live under `state/results/` and are submitted through `specify team submit-result` / `specify team api submit-result` before `complete-batch` should mark a structured-result batch done.
 - Shutdown requests append a terminal event, and cleanup removes the `.specify/codex-team/` directory once all JSON files have been archived.
 
 Operators should treat this directory as the single source of truth for resumes, restarts, and audits, and not attempt to recreate state outside the official CLI surface.
@@ -282,6 +290,8 @@ Maintainer note:
 ```bash
 specify init <project> --ai <agent>
 specify check
+specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>
+specify result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-file <path>
 specify extension list
 specify preset list
 ```

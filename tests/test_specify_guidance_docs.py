@@ -126,6 +126,23 @@ def test_guidance_docs_explain_rule_carrying_worker_packets():
         assert "DP3" in content
 
 
+def test_guidance_docs_explain_delegated_result_handoff_contract():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    assert "runtime-managed result channel" in readme
+    assert "specify result submit" in readme
+    assert "specify result path" in readme
+    assert "feature_dir/worker-results/<task-id>.json" in readme
+    assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in readme
+    assert ".planning/debug/results/<session-slug>/<lane-id>.json" in readme
+    assert "reported_status" in readme
+
+    assert "worker-results" in quickstart
+    assert "specify result submit" in quickstart
+    assert "reported_status" in quickstart
+
+
 def test_guidance_docs_explain_task_shaping_and_fail_fast_rules():
     readme = _read("README.md").lower()
     quickstart = _read("docs/quickstart.md").lower()

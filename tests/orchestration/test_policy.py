@@ -91,6 +91,50 @@ def test_choose_execution_strategy_falls_back_to_sidecar_when_native_is_missing(
     assert decision.fallback_from is None
 
 
+def test_choose_execution_strategy_prefers_sidecar_when_native_confidence_is_low() -> None:
+    snapshot = CapabilitySnapshot(
+        integration_key="claude",
+        native_multi_agent=True,
+        sidecar_runtime_supported=True,
+        delegation_confidence="low",
+        runtime_probe_succeeded=True,
+    )
+
+    decision = choose_execution_strategy(
+        command_name="implement",
+        snapshot=snapshot,
+        workload_shape={
+            "parallel_batches": 2,
+            "overlapping_write_sets": False,
+        },
+    )
+
+    assert decision.strategy == "sidecar-runtime"
+    assert decision.reason == "native-low-confidence"
+
+
+def test_choose_execution_strategy_uses_single_agent_when_native_confidence_is_low_and_no_sidecar() -> None:
+    snapshot = CapabilitySnapshot(
+        integration_key="claude",
+        native_multi_agent=True,
+        sidecar_runtime_supported=False,
+        delegation_confidence="low",
+        runtime_probe_succeeded=True,
+    )
+
+    decision = choose_execution_strategy(
+        command_name="implement",
+        snapshot=snapshot,
+        workload_shape={
+            "parallel_batches": 2,
+            "overlapping_write_sets": False,
+        },
+    )
+
+    assert decision.strategy == "single-agent"
+    assert decision.reason == "fallback-low-confidence"
+
+
 def test_choose_execution_strategy_uses_parallel_batches_even_with_safe_alias() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="claude",

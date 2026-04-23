@@ -10,16 +10,29 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from specify_cli.codex_team import task_ops
-from specify_cli.codex_team.state_paths import codex_team_state_root, worker_heartbeat_path
+from specify_cli.codex_team.state_paths import (
+    codex_team_state_root,
+    dispatch_record_path,
+    result_record_path,
+    worker_heartbeat_path,
+)
 from specify_cli.codex_team.runtime_bridge import dispatch_runtime_task, ensure_tmux_available
 from specify_cli.codex_team.runtime_state import batch_record_payload
 from specify_cli.codex_team.session_ops import bootstrap_session, monitor_summary
 from specify_cli.codex_team.worktree_ops import worker_worktree_path
 from specify_cli.codex_team.state_paths import batch_record_path
+from specify_cli.orchestration import CapabilitySnapshot, describe_delegation_surface
 from specify_cli.orchestration.backends.process_backend import ProcessBackend
 from specify_cli.orchestration.policy import classify_batch_execution_policy
 from specify_cli.orchestration.state_store import write_json
-from specify_cli.execution import compile_worker_task_packet, render_packet_summary
+from specify_cli.execution import (
+    build_result_handoff_path,
+    compile_worker_task_packet,
+    normalize_worker_task_result_payload,
+    render_packet_summary,
+    validate_worker_task_result,
+    worker_task_packet_from_json,
+)
 
 
 TASK_LINE_RE = re.compile(r"^- \[(?P<mark>[ xX])\] (?P<task_id>T\d+)(?P<rest>.*)$")
@@ -420,6 +433,8 @@ def launch_dispatched_worker(
     session_id: str,
     worker_id: str,
     task_id: str,
+    request_id: str = "",
+    result_path: str = "",
 ) -> None:
     heartbeat = worker_heartbeat_path(project_root, worker_id)
     if heartbeat.exists():
@@ -447,8 +462,12 @@ def launch_dispatched_worker(
         worker_id,
         "--task-id",
         task_id,
+        "--request-id",
+        request_id,
         "--worktree",
         str(worktree),
+        "--result-path",
+        result_path,
     ]
     ProcessBackend().launch(command, cwd=project_root, env=env)
 
@@ -485,6 +504,21 @@ def route_ready_parallel_batch(
     request_ids: list[str] = []
     dispatched_task_ids: list[str] = []
     batch_id = _batch_id_for(session_id, batch.batch_name)
+    codex_snapshot = CapabilitySnapshot(
+        integration_key="codex",
+        native_multi_agent=True,
+        sidecar_runtime_supported=True,
+        structured_results=False,
+        durable_coordination=True,
+        native_worker_surface="spawn_agent",
+        delegation_confidence="high",
+        model_family="codex",
+        runtime_probe_succeeded=True,
+    )
+    delegation_descriptor = describe_delegation_surface(
+        command_name="implement",
+        snapshot=codex_snapshot,
+    )
     batch_policy = classify_batch_execution_policy(
         workload_shape={
             "parallel_batches": len(batch.task_ids),
@@ -503,6 +537,12 @@ def route_ready_parallel_batch(
             task_id=task_id,
         )
         packet_path = codex_team_state_root(project_root) / "packets" / f"{request_id}.json"
+        result_path = build_result_handoff_path(
+            project_root,
+            command_name="implement",
+            integration_key="codex",
+            request_id=request_id,
+        )
         write_json(packet_path, asdict(packet))
 
         try:
@@ -532,12 +572,23 @@ def route_ready_parallel_batch(
                 "write_scope": packet.scope.write_scope,
                 "summary": render_packet_summary(packet),
             },
+            delegation_metadata={
+                "native_surface": delegation_descriptor.native_surface,
+                "native_dispatch_hint": delegation_descriptor.native_dispatch_hint,
+                "native_join_hint": delegation_descriptor.native_join_hint,
+                "sidecar_surface_hint": delegation_descriptor.sidecar_surface_hint,
+                "result_contract_hint": delegation_descriptor.result_contract_hint,
+                "structured_results_expected": delegation_descriptor.structured_results_expected,
+            },
+            result_path=str(result_path),
         )
         launch_dispatched_worker(
             project_root,
             session_id=session_id,
             worker_id=task_id.lower(),
             task_id=task_id,
+            request_id=request_id,
+            result_path=str(result_path),
         )
         current_task = task_ops.get_task(project_root, task_id)
         if batch.join_point_name:
@@ -633,12 +684,74 @@ def complete_dispatched_batch(
     """Mark a previously dispatched batch and its join point markers complete."""
     payload = _load_batch_record(project_root, batch_id)
     task_ids = [str(task_id) for task_id in payload.get("task_ids", [])]
+    request_ids = [str(request_id) for request_id in payload.get("request_ids", [])]
     join_point_name = str(payload.get("join_point_name") or "")
 
     if not task_ids:
         raise AutoDispatchError(f"batch {batch_id} has no task ids")
 
+    dispatch_by_task_id: dict[str, dict[str, object]] = {}
+    for request_id in request_ids:
+        dispatch_path = dispatch_record_path(project_root, request_id)
+        if not dispatch_path.exists():
+            continue
+        dispatch_payload = json.loads(dispatch_path.read_text(encoding="utf-8"))
+        packet_summary = dispatch_payload.get("packet_summary", {})
+        if isinstance(packet_summary, dict):
+            task_id = str(packet_summary.get("task_id", "")).strip()
+            if task_id:
+                dispatch_by_task_id[task_id] = dispatch_payload
+
     for task_id in task_ids:
+        dispatch_payload = dispatch_by_task_id.get(task_id, {})
+        packet_path = str(dispatch_payload.get("packet_path", "")).strip()
+        result_path = str(dispatch_payload.get("result_path", "")).strip()
+        delegation_metadata = dispatch_payload.get("delegation_metadata", {})
+        structured_results_expected = bool(
+            isinstance(delegation_metadata, dict)
+            and delegation_metadata.get("structured_results_expected")
+        )
+
+        if structured_results_expected and not result_path:
+            raise AutoDispatchError(f"dispatch result for {task_id} is missing structured worker result path")
+
+        if structured_results_expected and result_path:
+            result_file = Path(result_path)
+            if not result_file.exists():
+                raise AutoDispatchError(f"dispatch result for {task_id} is missing structured worker result")
+
+        if result_path:
+            result_file = Path(result_path)
+            if result_file.exists():
+                if not packet_path:
+                    raise AutoDispatchError(f"dispatch result for {task_id} is missing packet_path")
+                packet = worker_task_packet_from_json(Path(packet_path).read_text(encoding="utf-8"))
+                result = normalize_worker_task_result_payload(result_file.read_text(encoding="utf-8"))
+                validated_result = validate_worker_task_result(result, packet)
+                if validated_result.status != "success":
+                    raise AutoDispatchError(
+                        f"dispatch result for {task_id} is not complete: {validated_result.status}"
+                    )
+                task_ops.update_task_metadata(
+                    project_root,
+                    task_id,
+                    metadata={
+                        "worker_result": {
+                            "status": validated_result.status,
+                            "summary": validated_result.summary,
+                            "changed_files": validated_result.changed_files,
+                            "validation_results": [
+                                {
+                                    "command": item.command,
+                                    "status": item.status,
+                                    "output": item.output,
+                                }
+                                for item in validated_result.validation_results
+                            ],
+                        }
+                    },
+                )
+
         record = task_ops.get_task(project_root, task_id)
         if join_point_name:
             task_ops.mark_join_point(

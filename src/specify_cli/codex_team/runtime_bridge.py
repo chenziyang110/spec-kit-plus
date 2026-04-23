@@ -6,10 +6,17 @@ import os
 import platform
 import shutil
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from specify_cli.orchestration.backends.detect import detect_available_backends
 from specify_cli.orchestration.state_store import write_json
+from specify_cli.execution import (
+    normalize_worker_task_result_payload,
+    validate_worker_task_result,
+    worker_task_packet_from_json,
+    worker_task_result_payload,
+)
 
 from .manifests import (
     DispatchRecord,
@@ -23,6 +30,10 @@ from .state_paths import codex_team_state_root, dispatch_record_path, runtime_se
 
 class RuntimeEnvironmentError(RuntimeError):
     """Raised when the runtime cannot be used in the current environment."""
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def is_wsl() -> bool:
@@ -109,6 +120,7 @@ def dispatch_runtime_task(
     target_worker: str,
     packet_path: str = "",
     packet_summary: dict[str, object] | None = None,
+    delegation_metadata: dict[str, object] | None = None,
     result_path: str = "",
 ) -> DispatchRecord:
     """Persist a dispatched task and advance the session to running."""
@@ -120,8 +132,45 @@ def dispatch_runtime_task(
         status="dispatched",
         packet_path=packet_path,
         packet_summary=packet_summary,
+        delegation_metadata=delegation_metadata,
         result_path=result_path,
     )
+    write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
+    write_json(dispatch_record_path(project_root, request_id), runtime_state_payload(session, [record])["dispatches"][0])
+    return record
+
+
+def submit_runtime_result(
+    project_root: Path,
+    *,
+    session_id: str,
+    request_id: str,
+    result: object,
+) -> DispatchRecord:
+    """Validate and persist a worker result for an existing dispatch."""
+
+    session = _load_runtime_session(project_root, session_id)
+    record = _load_dispatch_record(project_root, request_id)
+    packet_path = Path(record.packet_path) if record.packet_path else None
+    if packet_path is None or not packet_path.exists():
+        raise RuntimeEnvironmentError(f"packet for request {request_id} is unavailable")
+
+    packet = worker_task_packet_from_json(packet_path.read_text(encoding="utf-8"))
+    normalized = normalize_worker_task_result_payload(result)
+    validated = validate_worker_task_result(normalized, packet)
+
+    result_path = Path(record.result_path) if record.result_path else (codex_team_state_root(project_root) / "results" / f"{request_id}.json")
+    record.result_path = str(result_path)
+    write_json(result_path, worker_task_result_payload(validated))
+
+    if validated.status == "success":
+        record.status = "completed"
+    elif validated.status == "blocked":
+        record.status = "blocked"
+    else:
+        record.status = "failed"
+    record.updated_at = _utc_now()
+
     write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
     write_json(dispatch_record_path(project_root, request_id), runtime_state_payload(session, [record])["dispatches"][0])
     return record

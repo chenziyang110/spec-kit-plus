@@ -309,7 +309,6 @@ class TestClaudeArgumentHints:
         created = i.setup(tmp_path, m, script_type="sh")
         skill_files = [f for f in created if f.name == "SKILL.md"]
         for f in skill_files:
-            # Extract stem: sp-plan -> plan
             stem = f.parent.name
             if stem.startswith("sp-"):
                 stem = stem[len("sp-"):]
@@ -400,3 +399,37 @@ class TestClaudeArgumentHints:
         lines = result.splitlines()
         hint_count = sum(1 for ln in lines if ln.startswith("argument-hint:"))
         assert hint_count == 1
+
+
+def test_claude_generated_runtime_facing_skills_include_native_delegation_contract(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "claude-delegation-contract"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "claude", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai claude failed: {result.output}"
+
+    skills_dir = target / ".claude" / "skills"
+    for skill_name in ("sp-implement", "sp-debug", "sp-quick"):
+        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "delegation surface contract" in content
+        assert "native dispatch surface" in content
+        assert "result contract" in content
+        assert "result handoff path" in content
+        assert "done_with_concerns" in content
+        assert "needs_context" in content
+        assert "workertaskresult" in content
+        assert "spawn_agent" not in content
+        assert "specify team" not in content
+    implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
+    debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
+    quick_content = (skills_dir / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "feature_dir/worker-results/<task-id>.json" in implement_content
+    assert ".planning/debug/results/<session-slug>/<lane-id>.json" in debug_content
+    assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in quick_content

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from specify_cli.orchestration.adapters import (
     FIRST_RELEASE_WORKFLOW_COMMANDS,
+    build_capability_snapshot,
     supports_workflow_command,
 )
-from specify_cli.orchestration.models import CapabilitySnapshot
 
 SUPPORTED_COMMANDS = FIRST_RELEASE_WORKFLOW_COMMANDS
 
@@ -16,13 +16,19 @@ class ClaudeMultiAgentAdapter:
 
     integration_key = "claude"
 
-    def detect_capabilities(self) -> CapabilitySnapshot:
-        return CapabilitySnapshot(
+    def detect_capabilities(self):
+        return build_capability_snapshot(
             integration_key=self.integration_key,
             native_multi_agent=True,
             sidecar_runtime_supported=True,
             structured_results=True,
             durable_coordination=False,
+            native_worker_surface="native-cli",
+            delegation_confidence="medium",
+            model_family="claude",
+            notes=[
+                "Native delegation depends on the current Claude tool surface and model support; fall back cleanly when the runtime does not expose subagents.",
+            ],
         )
 
     def supports_command(self, command_name: str) -> bool:

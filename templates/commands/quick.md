@@ -89,11 +89,12 @@ The following flags are available and composable:
 - Before implementation work starts, identify whether the quick task is best handled as one bounded worker lane or as two or more independent lanes that can safely proceed in parallel.
 - Use the shared policy function before execution begins and again at each join point: `choose_execution_strategy(command_name="quick", snapshot, workload_shape)`.
 - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
+- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for the current native worker path. If confidence is `low`, prefer sidecar or explicit fallback over fragile native dispatch.
 - Decision order:
   - If the quick task has only one safe lane, or the lanes share mutable state or write surfaces -> `single-agent` (`no-safe-batch`)
-  - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
-  - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-  - Else -> `single-agent` (`fallback`)
+  - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
+  - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
+  - Else -> `single-agent` (`fallback` or `fallback-low-confidence`)
 - `single-agent` still means one delegated worker lane, not leader self-execution.
 - In plain terms: single-agent still means one delegated worker lane.
 - `native-multi-agent` means the leader dispatches independent bounded lanes through the integration's native delegation surface and rejoins at an explicit join point.
@@ -103,6 +104,11 @@ The following flags are available and composable:
 - Leader-local execution is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through native delegation and cannot proceed through the coordinated runtime surface either.
 - If leader-local execution is used, record the concrete reason in `STATUS.md`, including which delegation path was unavailable or blocked for the current batch.
 - The first actionable execution step after scope lock is to dispatch the first delegated worker lane or coordinated runtime batch, not to continue local deep-dive analysis.
+- Use `.specify/templates/worker-prompts/quick-worker.md` as the default contract for delegated quick-task lanes so the worker returns enough state for the leader to keep `STATUS.md` accurate.
+- Prefer structured delegated results compatible with the shared `WorkerTaskResult` contract when the current runtime supports them.
+- If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized delegated result envelope to `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`
+- When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the delegated result envelope.
+- Preserve `reported_status` when normalizing worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
 
 ## Quick-Task Workspace Protocol
 

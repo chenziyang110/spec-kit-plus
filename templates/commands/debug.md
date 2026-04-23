@@ -157,11 +157,12 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - During `investigating`, decide whether the current investigation should stay `single-agent` or switch to delegated evidence collection before running multiple independent evidence-gathering actions sequentially.
 - Use the shared policy function with the current capability snapshot: `choose_execution_strategy(command_name="debug", snapshot, workload_shape)`.
 - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
+- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal. If confidence is `low`, prefer sidecar or leader-led investigation over brittle native fan-out.
 - Debug routing decision order:
   - If there are fewer than 2 independent evidence-gathering lanes, or the planned evidence work would share mutable state -> `single-agent` (`no-safe-batch`)
-  - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
-  - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-  - Else -> `single-agent` (`fallback`)
+  - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
+  - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
+  - Else -> `single-agent` (`fallback` or `fallback-low-confidence`)
 - `single-agent` means the leader continues investigating alone.
 - `native-multi-agent` means the leader delegates bounded evidence-gathering lanes through the integration's native delegation surface.
 - `sidecar-runtime` means the leader escalates the evidence-gathering lanes through the integration's coordinated runtime surface when native delegation is unavailable.
@@ -176,6 +177,11 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Keep the debug session leader-led: delegated helpers return facts, command results, and observations for the current hypothesis.
 - Delegated helpers must not mutate the debug session state, declare the root cause final, or archive the session.
 - Before dispatching delegated investigation work, update the debug file to reflect the exact current focus and what evidence is being gathered next.
+- Use `.specify/templates/worker-prompts/debug-investigator.md` as the default evidence-collector contract whenever the current integration can delegate a debug lane.
+- If the current runtime supports structured delegated results, prefer a stable evidence payload over freeform summaries so the leader can merge findings without reinterpretation.
+- If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized evidence/result envelope to `.planning/debug/results/<session-slug>/<lane-id>.json`
+- When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the evidence/result envelope.
+- Preserve `reported_status` when normalizing worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
 
 ## Debug File Protocol
 

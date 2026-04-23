@@ -41,6 +41,7 @@ class DispatchRecord:
     retry_budget: int = 0
     packet_path: str = ""
     packet_summary: dict[str, Any] | None = None
+    delegation_metadata: dict[str, Any] | None = None
     result_path: str = ""
     created_at: str = ""
     updated_at: str = ""
@@ -50,6 +51,8 @@ class DispatchRecord:
         now = _utc_now()
         if self.packet_summary is None:
             self.packet_summary = {}
+        if self.delegation_metadata is None:
+            self.delegation_metadata = {}
         if not self.created_at:
             self.created_at = now
         if not self.updated_at:

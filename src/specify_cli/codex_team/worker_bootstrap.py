@@ -58,12 +58,18 @@ def build_worker_bootstrap_payload(
         required_refs = additional_metadata.get("required_references", "")
         forbidden_drift = additional_metadata.get("forbidden_drift", "")
         validation_gates = additional_metadata.get("validation_gates", "")
+        native_dispatch_hint = additional_metadata.get("native_dispatch_hint", "")
+        native_join_hint = additional_metadata.get("native_join_hint", "")
+        result_contract_hint = additional_metadata.get("result_contract_hint", "")
         instructions_parts.extend(
             [
                 f"packet_summary: {packet_summary}",
                 f"required_references: {required_refs}",
                 f"forbidden_drift: {forbidden_drift}",
                 f"validation_gates: {validation_gates}",
+                f"native_dispatch_hint: {native_dispatch_hint}",
+                f"native_join_hint: {native_join_hint}",
+                f"result_contract_hint: {result_contract_hint}",
                 "hard rule: do not execute from raw task text alone",
             ]
         )

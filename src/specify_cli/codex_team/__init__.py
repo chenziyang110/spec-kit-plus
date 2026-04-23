@@ -31,6 +31,7 @@ from .runtime_bridge import (
     dispatch_runtime_task,
     ensure_tmux_available,
     mark_runtime_failure,
+    submit_runtime_result,
 )
 from .state_paths import (
     codex_team_state_root,
@@ -64,6 +65,7 @@ __all__ = [
     "runtime_session_path",
     "runtime_state_summary",
     "runtime_state_payload",
+    "submit_runtime_result",
     "team_availability_message",
     "team_help_text",
     "upgrade_existing_codex_project",

@@ -85,6 +85,9 @@ When the feature touches an established boundary pattern in the target project, 
 - Delegated execution should not rely on raw task text when architecture or quality rules matter.
 - `/speckit.plan` should provide `Dispatch Compilation Hints`.
 - `/speckit.implement` should compile and validate a `WorkerTaskPacket` before dispatching native workers or sidecar workers.
+- If the active integration exposes a runtime-managed result channel, delegated workers should use it. Otherwise they should write normalized result envelopes to the workflow-specific worker-results path.
+- When the local `specify` CLI is available and no runtime-managed result channel exists, delegated workers should prefer `specify result path` and `specify result submit` instead of inventing ad-hoc result locations or payload shapes.
+- Preserve the raw `reported_status` when worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` is normalized into canonical orchestration state.
 - Top-level `tasks.md` items should usually fit one coffee-break-sized implementation slice, roughly 10-20 minutes, while delegated workers may still break them into smaller 2-5 minute atomic steps internally.
 - Keep decomposition progressive: refine only the current executable window after each join point instead of over-specifying later batches too early.
 - Grouped parallelism is the default when ready tasks have isolated write sets; use a pipeline shape only when outputs flow stage-by-stage and keep explicit checkpoints between stages.

@@ -769,6 +769,42 @@ class TestInitIntegrationFlag:
         assert refresh_payload["freshness"] == "possibly_stale"
         assert status_payload["last_refresh_reason"] == "map-codebase"
 
+    def test_init_installs_shared_worker_prompt_templates(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "worker-prompt-assets"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        prompt_dir = project / ".specify" / "templates" / "worker-prompts"
+        assert (prompt_dir / "implementer.md").exists()
+        assert (prompt_dir / "debug-investigator.md").exists()
+        assert (prompt_dir / "quick-worker.md").exists()
+        assert (prompt_dir / "spec-reviewer.md").exists()
+        assert (prompt_dir / "code-quality-reviewer.md").exists()
+
     def test_project_map_refresh_topics_records_partial_refresh_scope(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app

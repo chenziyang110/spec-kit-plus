@@ -1,5 +1,6 @@
 """Generic orchestration core models, state store helpers, and events."""
 
+from .delegation import DelegationSurfaceDescriptor, describe_delegation_surface
 from .events import OrchestrationEvent, append_event, event_log_path, replay_events
 from .models import (
     BatchExecutionPolicy,
@@ -32,6 +33,7 @@ __all__ = [
     "Batch",
     "BatchExecutionPolicy",
     "CapabilitySnapshot",
+    "DelegationSurfaceDescriptor",
     "ExecutionStrategy",
     "ExecutionDecision",
     "Lane",
@@ -44,6 +46,7 @@ __all__ = [
     "append_event",
     "batch_path",
     "decision_path",
+    "describe_delegation_surface",
     "event_log_path",
     "lane_path",
     "milestone_state_path",

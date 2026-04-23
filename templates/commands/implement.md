@@ -189,12 +189,17 @@ human_needed_checks:
    - **IF EXISTS**: Read quickstart.md for integration scenarios
    - **IF `Implementation Constitution` NAMES REQUIRED REFERENCES**: Read those boundary-defining files before choosing the next implementation batch
    - **IF THE NEXT READY BATCH TOUCHES AN ESTABLISHED BOUNDARY OR FRAMEWORK**: Record the active boundary framework, preserved pattern, forbidden drift, and required references in `implement-tracker.md` before dispatching work
-   - **REQUIRED FOR DELEGATED EXECUTION**: compile a `WorkerTaskPacket` for each delegated task using `.specify/memory/constitution.md`, `plan.md`, and `tasks.md`
-   - **REQUIRED FOR DELEGATED EXECUTION**: compile and validate the packet before any delegated work begins
-   - **REQUIRED FOR DELEGATED EXECUTION**: Validate each `WorkerTaskPacket` before dispatching work
-   - **HARD RULE**: dispatch only from validated `WorkerTaskPacket`
-   - **HARD RULE**: Do not dispatch from raw task text alone
-   - **HARD RULE**: must not dispatch from raw task text alone
+    - **REQUIRED FOR DELEGATED EXECUTION**: compile a `WorkerTaskPacket` for each delegated task using `.specify/memory/constitution.md`, `plan.md`, and `tasks.md`
+    - **REQUIRED FOR DELEGATED EXECUTION**: compile and validate the packet before any delegated work begins
+    - **REQUIRED FOR DELEGATED EXECUTION**: Validate each `WorkerTaskPacket` before dispatching work
+    - **REQUIRED FOR DELEGATED EXECUTION**: Use `.specify/templates/worker-prompts/implementer.md` as the default implementer worker contract and pair post-implementation reviews with `.specify/templates/worker-prompts/spec-reviewer.md` and `.specify/templates/worker-prompts/code-quality-reviewer.md`
+    - **REQUIRED FOR DELEGATED EXECUTION**: Prefer structured handoffs compatible with the shared `WorkerTaskResult` contract whenever the current runtime exposes structured delegated results
+    - **REQUIRED FOR DELEGATED EXECUTION**: If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized delegated result envelope to `FEATURE_DIR/worker-results/<task-id>.json`
+    - **REQUIRED FOR DELEGATED EXECUTION**: When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the result envelope
+    - **REQUIRED FOR DELEGATED EXECUTION**: Preserve `reported_status` when normalizing worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state
+    - **HARD RULE**: dispatch only from validated `WorkerTaskPacket`
+    - **HARD RULE**: Do not dispatch from raw task text alone
+    - **HARD RULE**: must not dispatch from raw task text alone
 
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:
@@ -255,11 +260,12 @@ human_needed_checks:
    - Use the shared policy function before each batch with the current agent capability snapshot: `choose_execution_strategy(command_name="implement", snapshot, workload_shape)`
    - Also classify whether the current batch needs a review gate before the join point: `classify_review_gate_policy(workload_shape)`
    - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for native delegation. If confidence is `low`, do not force native worker fan-out just because the integration can theoretically support it.
    - Decision order (must match policy):
-     - If `parallel_batches <= 0` or overlapping write sets -> `single-agent` (`no-safe-batch`)
-     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
-     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-     - Else -> `single-agent` (`fallback`)
+      - If `parallel_batches <= 0` or overlapping write sets -> `single-agent` (`no-safe-batch`)
+      - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
+      - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
+      - Else -> `single-agent` (`fallback` or `fallback-low-confidence`)
    - single-agent still means one delegated worker lane, not leader self-execution.
    - Re-evaluate the execution strategy at every new parallel batch or join point instead of choosing once for the whole feature
    - Refine only the current executable window after each join point. Do not pre-expand later batches when their exact shape depends on current batch evidence.

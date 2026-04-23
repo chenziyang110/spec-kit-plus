@@ -68,9 +68,16 @@ from specify_cli.codex_team.auto_dispatch import (
 )
 from specify_cli.codex_team.runtime_bridge import (
     RuntimeEnvironmentError,
-    ensure_tmux_available,
     dispatch_runtime_task,
+    ensure_tmux_available,
     mark_runtime_failure,
+    submit_runtime_result,
+)
+from specify_cli.execution import (
+    build_result_handoff_path,
+    normalize_worker_task_result_payload,
+    worker_task_result_payload,
+    write_normalized_result_handoff,
 )
 from specify_cli.project_map_status import (
     TOPIC_FILES,
@@ -414,6 +421,13 @@ project_map_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(project_map_app, name="project-map")
+
+result_app = typer.Typer(
+    name="result",
+    help="Inspect and submit delegated worker result handoffs",
+    add_completion=False,
+)
+app.add_typer(result_app, name="result")
 
 def show_banner():
     """Display the ASCII art banner."""
@@ -1990,6 +2004,95 @@ def _require_codex_team_project(project_root: Path) -> str:
     return integration_key
 
 
+def _require_result_project(project_root: Path) -> str:
+    _require_spec_kit_plus_project(project_root)
+    current = _read_integration_json(project_root)
+    integration_key = str(current.get("integration") or "").strip()
+    if not integration_key:
+        console.print(f"[red]Error:[/red] {INTEGRATION_JSON} is missing the integration key.")
+        raise typer.Exit(1)
+    return integration_key
+
+
+def _resolve_result_context(
+    project_root: Path,
+    *,
+    command_name: str,
+    integration_key: str,
+    request_id: str | None,
+    feature_dir: str | None,
+    task_id: str | None,
+    workspace: str | None,
+    session_slug: str | None,
+    lane_id: str | None,
+) -> dict[str, Any]:
+    normalized_command = command_name.strip().lower()
+
+    resolved_feature_dir: Path | None = None
+    resolved_workspace: Path | None = None
+    resolved_lane_id = lane_id
+
+    if feature_dir:
+        resolved_feature_dir = Path(feature_dir)
+        if not resolved_feature_dir.is_absolute():
+            resolved_feature_dir = (project_root / resolved_feature_dir).resolve()
+    if workspace:
+        resolved_workspace = Path(workspace)
+        if not resolved_workspace.is_absolute():
+            resolved_workspace = (project_root / resolved_workspace).resolve()
+
+    if normalized_command == "implement":
+        if integration_key == "codex" and request_id:
+            return {
+                "request_id": request_id,
+                "feature_dir": None,
+                "task_id": None,
+                "quick_workspace": None,
+                "debug_session_slug": None,
+                "lane_id": None,
+            }
+        if resolved_feature_dir is None or not task_id:
+            console.print("[red]Error:[/red] --feature-dir and --task-id are required for implement result handoff.")
+            raise typer.Exit(1)
+        return {
+            "request_id": None,
+            "feature_dir": resolved_feature_dir,
+            "task_id": task_id,
+            "quick_workspace": None,
+            "debug_session_slug": None,
+            "lane_id": None,
+        }
+
+    if normalized_command == "quick":
+        if resolved_workspace is None or not resolved_lane_id:
+            console.print("[red]Error:[/red] --workspace and --lane-id are required for quick result handoff.")
+            raise typer.Exit(1)
+        return {
+            "request_id": None,
+            "feature_dir": None,
+            "task_id": None,
+            "quick_workspace": resolved_workspace,
+            "debug_session_slug": None,
+            "lane_id": resolved_lane_id,
+        }
+
+    if normalized_command == "debug":
+        if not session_slug or not resolved_lane_id:
+            console.print("[red]Error:[/red] --session-slug and --lane-id are required for debug result handoff.")
+            raise typer.Exit(1)
+        return {
+            "request_id": None,
+            "feature_dir": None,
+            "task_id": None,
+            "quick_workspace": None,
+            "debug_session_slug": session_slug,
+            "lane_id": resolved_lane_id,
+        }
+
+    console.print(f"[red]Error:[/red] Unsupported result command '{command_name}'.")
+    raise typer.Exit(1)
+
+
 @team_app.callback(invoke_without_command=True)
 def _team_root(
     ctx: typer.Context,
@@ -2212,11 +2315,47 @@ def team_complete_batch(
     )
 
 
+@team_app.command("submit-result")
+def team_submit_result(
+    request_id: str = typer.Option(..., "--request-id", help="Dispatch request identifier"),
+    result_file: str = typer.Option(..., "--result-file", help="Path to worker result JSON"),
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+
+    result_path = Path(result_file)
+    if not result_path.is_absolute():
+        result_path = (project_root / result_path).resolve()
+    if not result_path.exists():
+        console.print(f"[red]Error:[/red] Result file not found: {result_path}")
+        raise typer.Exit(1)
+
+    try:
+        result = normalize_worker_task_result_payload(result_path.read_text(encoding="utf-8"))
+        record = submit_runtime_result(
+            project_root,
+            session_id=session_id,
+            request_id=request_id,
+            result=result,
+        )
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    console.print(
+        f"Submitted result for [cyan]{record.request_id}[/cyan] with status "
+        f"[green]{record.status}[/green]."
+    )
+
+
 @team_app.command("api")
 def team_api(
-    operation: str = typer.Argument(..., help="API operation (status|tasks|auto-dispatch|complete-batch)"),
+    operation: str = typer.Argument(..., help="API operation (status|tasks|auto-dispatch|complete-batch|submit-result)"),
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for auto-dispatch"),
     batch_id: str | None = typer.Option(None, "--batch-id", help="Batch identifier for completion"),
+    request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request identifier for result submission"),
+    result_file: str | None = typer.Option(None, "--result-file", help="Path to worker result JSON for result submission"),
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
     project_root = Path.cwd()
@@ -2280,10 +2419,153 @@ def team_api(
                 "join_point_name": result.join_point_name,
                 "task_ids": result.task_ids,
             }
+    elif operation == "submit-result":
+        if not request_id:
+            console.print("[red]Error:[/red] --request-id is required for submit-result.")
+            raise typer.Exit(1)
+        if not result_file:
+            console.print("[red]Error:[/red] --result-file is required for submit-result.")
+            raise typer.Exit(1)
+        result_path = Path(result_file)
+        if not result_path.is_absolute():
+            result_path = (project_root / result_path).resolve()
+        if not result_path.exists():
+            envelope["status"] = "error"
+            envelope["payload"] = {"message": f"Result file not found: {result_path}"}
+            print(json.dumps(envelope, ensure_ascii=False, default=str))
+            return
+        try:
+            result = normalize_worker_task_result_payload(result_path.read_text(encoding="utf-8"))
+            record = submit_runtime_result(
+                project_root,
+                session_id=session_id,
+                request_id=request_id,
+                result=result,
+            )
+        except Exception as exc:
+            envelope["status"] = "error"
+            envelope["payload"] = {"message": str(exc)}
+        else:
+            envelope["payload"] = {
+                "request_id": record.request_id,
+                "target_worker": record.target_worker,
+                "status": record.status,
+                "result_path": record.result_path,
+            }
     else:
         console.print(f"[red]Error:[/red] Unknown API operation '{operation}'.")
         raise typer.Exit(1)
     print(json.dumps(envelope, ensure_ascii=False, default=str))
+
+
+@result_app.command("path")
+def result_path_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command (implement|quick|debug)"),
+    request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for implement result handoff"),
+    task_id: str | None = typer.Option(None, "--task-id", help="Task id for implement result handoff"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_slug: str | None = typer.Option(None, "--session-slug", help="Debug session slug"),
+    lane_id: str | None = typer.Option(None, "--lane-id", help="Delegated lane id"),
+):
+    """Print the canonical delegated-result handoff path."""
+    project_root = Path.cwd()
+    integration_key = _require_result_project(project_root)
+    context = _resolve_result_context(
+        project_root,
+        command_name=command_name,
+        integration_key=integration_key,
+        request_id=request_id,
+        feature_dir=feature_dir,
+        task_id=task_id,
+        workspace=workspace,
+        session_slug=session_slug,
+        lane_id=lane_id,
+    )
+    path = build_result_handoff_path(
+        project_root,
+        command_name=command_name,
+        integration_key=integration_key,
+        request_id=context["request_id"],
+        feature_dir=context["feature_dir"],
+        task_id=context["task_id"],
+        quick_workspace=context["quick_workspace"],
+        debug_session_slug=context["debug_session_slug"],
+        lane_id=context["lane_id"],
+    )
+    print(
+        json.dumps(
+            {
+                "command": command_name,
+                "integration": integration_key,
+                "path": str(path),
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
+@result_app.command("submit")
+def result_submit_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command (implement|quick|debug)"),
+    result_file: str = typer.Option(..., "--result-file", help="Path to worker result JSON"),
+    request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for implement result handoff"),
+    task_id: str | None = typer.Option(None, "--task-id", help="Task id for implement result handoff"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_slug: str | None = typer.Option(None, "--session-slug", help="Debug session slug"),
+    lane_id: str | None = typer.Option(None, "--lane-id", help="Delegated lane id"),
+):
+    """Normalize and write a delegated worker result to the canonical handoff path."""
+    project_root = Path.cwd()
+    integration_key = _require_result_project(project_root)
+    if integration_key == "codex":
+        console.print("[red]Error:[/red] Codex projects must use `specify team submit-result` for runtime-managed result channels.")
+        raise typer.Exit(1)
+
+    source_path = Path(result_file)
+    if not source_path.is_absolute():
+        source_path = (project_root / source_path).resolve()
+    if not source_path.exists():
+        console.print(f"[red]Error:[/red] Result file not found: {source_path}")
+        raise typer.Exit(1)
+
+    context = _resolve_result_context(
+        project_root,
+        command_name=command_name,
+        integration_key=integration_key,
+        request_id=request_id,
+        feature_dir=feature_dir,
+        task_id=task_id,
+        workspace=workspace,
+        session_slug=session_slug,
+        lane_id=lane_id,
+    )
+    path, normalized = write_normalized_result_handoff(
+        project_root,
+        command_name=command_name,
+        integration_key=integration_key,
+        raw_result=source_path.read_text(encoding="utf-8"),
+        request_id=context["request_id"],
+        feature_dir=context["feature_dir"],
+        task_id=context["task_id"],
+        quick_workspace=context["quick_workspace"],
+        debug_session_slug=context["debug_session_slug"],
+        lane_id=context["lane_id"],
+    )
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "command": command_name,
+                "integration": integration_key,
+                "path": str(path),
+                "worker_status": normalized.status,
+                "reported_status": normalized.reported_status,
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 @app.command()

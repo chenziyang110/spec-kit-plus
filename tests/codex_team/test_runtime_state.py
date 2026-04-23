@@ -21,6 +21,7 @@ from specify_cli.codex_team.state_paths import (
     event_log_path,
     mailbox_path,
     phase_path,
+    result_record_path,
     shutdown_path,
     task_record_path,
     worker_heartbeat_path,
@@ -42,6 +43,7 @@ def test_canonical_runtime_paths_are_under_state_root(codex_team_project_root):
     assert worker_heartbeat_path(codex_team_project_root, "worker-a") == root / "workers" / "heartbeat" / "worker-a.json"
     assert mailbox_path(codex_team_project_root, "worker-a") == root / "mailboxes" / "worker-a.json"
     assert dispatch_record_path(codex_team_project_root, "req-1") == root / "dispatch" / "req-1.json"
+    assert result_record_path(codex_team_project_root, "req-1") == root / "results" / "req-1.json"
     assert phase_path(codex_team_project_root, "execute") == root / "phases" / "execute.json"
     assert event_log_path(codex_team_project_root, session_id="session-1") == root / "events" / "events-session-1.log"
     assert shutdown_path(codex_team_project_root, session_id="session-1") == root / "shutdown" / "session-1.json"
@@ -184,3 +186,8 @@ def test_monitor_snapshot_parser_ignores_unknown_fields():
 
     assert parsed.snapshot_id == "snapshot-2"
     assert not hasattr(parsed, "extra")
+
+
+def test_dispatch_record_path_contract_stays_under_dispatch_root(codex_team_project_root):
+    payload = dispatch_record_path(codex_team_project_root, "req-contract")
+    assert str(payload).endswith(".specify\\codex-team\\state\\dispatch\\req-contract.json") or str(payload).endswith(".specify/codex-team/state/dispatch/req-contract.json")

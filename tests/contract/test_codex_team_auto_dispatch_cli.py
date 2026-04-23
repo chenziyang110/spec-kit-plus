@@ -5,7 +5,9 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from specify_cli import app
-from specify_cli.codex_team.state_paths import batch_record_path, dispatch_record_path, task_record_path
+from specify_cli.codex_team.state_paths import batch_record_path, dispatch_record_path, result_record_path, task_record_path
+from specify_cli.execution import worker_task_result_payload
+from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
 
 
 def _create_codex_project(tmp_path: Path) -> Path:
@@ -98,6 +100,25 @@ def _invoke_in_project(project: Path, args: list[str], env: dict[str, str] | Non
     return result
 
 
+def _write_success_results(project: Path) -> None:
+    for task_id in ("T002", "T003"):
+        request_id = f"default-parallel-batch-1-1-{task_id.lower()}"
+        path = result_record_path(project, request_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        result = WorkerTaskResult(
+            task_id=task_id,
+            status="success",
+            changed_files=[f"src/{task_id.lower()}.py"],
+            validation_results=[ValidationResult(command="pytest -q -k auto_dispatch", status="passed", output="1 passed")],
+            summary=f"{task_id} completed",
+            rule_acknowledgement=RuleAcknowledgement(
+                required_references_read=True,
+                forbidden_drift_respected=True,
+            ),
+        )
+        path.write_text(json.dumps(worker_task_result_payload(result), ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def test_team_auto_dispatch_subcommand_dispatches_ready_batch(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
@@ -144,6 +165,7 @@ def test_team_complete_batch_marks_join_point_complete(tmp_path: Path):
         env=env,
     )
     assert dispatched.exit_code == 0, dispatched.output
+    _write_success_results(project)
 
     result = _invoke_in_project(
         project,
@@ -168,6 +190,7 @@ def test_team_api_complete_batch_returns_json_payload(tmp_path: Path):
         env=env,
     )
     assert dispatched.exit_code == 0, dispatched.output
+    _write_success_results(project)
 
     result = _invoke_in_project(
         project,

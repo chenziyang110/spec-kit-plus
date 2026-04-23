@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from specify_cli.orchestration import CapabilitySnapshot, describe_delegation_surface
+
 if TYPE_CHECKING:
     from .manifest import IntegrationManifest
 
@@ -264,6 +266,36 @@ class IntegrationBase(ABC):
             created.append(dst_script)
 
         return created
+
+    def _append_delegation_surface_contract(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+        command_name: str,
+        snapshot: CapabilitySnapshot,
+        heading: str,
+    ) -> str:
+        """Append a normalized delegation-surface contract section when absent."""
+
+        marker = f"## {agent_name} {heading}"
+        if marker in content:
+            return content
+
+        descriptor = describe_delegation_surface(
+            command_name=command_name,
+            snapshot=snapshot,
+        )
+        addendum = (
+            "\n"
+            f"## {agent_name} {heading}\n\n"
+            f"- Native dispatch surface: {descriptor.native_dispatch_hint}\n"
+            f"- Join behavior: {descriptor.native_join_hint}\n"
+            f"- Sidecar fallback: {descriptor.sidecar_surface_hint}\n"
+            f"- Result contract: {descriptor.result_contract_hint}\n"
+            f"- Result handoff path: {descriptor.result_handoff_hint}\n"
+        )
+        return content + addendum
 
     @staticmethod
     def process_template(
@@ -827,94 +859,25 @@ class SkillsIntegration(IntegrationBase):
             )
             created.append(dst)
 
-        # Augment with leader/multi-agent guidance (Spec Kit Plus orchestration)
-        # Use name but strip " CLI" for the header markers to match test expectations (e.g. "Codex Leader Gate")
-        agent_name_full = self.config.get("name", self.key.capitalize())
-        agent_name = agent_name_full.replace(" CLI", "")
-
-        self._augment_shared_skill(
+        self.augment_generated_skills(
             created,
             project_root,
             manifest,
-            skills_dir / "sp-specify" / "SKILL.md",
-            f"## {agent_name} Native Multi-Agent Execution",
-            (
-                "\n"
-                f"## {agent_name} Native Multi-Agent Execution\n\n"
-                f"When running `sp-specify` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
-                f"- Use `spawn_agent` (or native handoffs) for bounded lanes such as repository and local context analysis, references analysis, and ambiguity/risk analysis.\n"
-                f"- Use `wait_agent` only at the documented join points before capability decomposition and before writing `spec.md`, `alignment.md`, and `context.md`.\n"
-                f"- Use `close_agent` after integrating finished worker results.\n"
-                "- Keep the shared workflow language integration-neutral in user-visible output.\n"
-            ),
-        )
-        self._augment_shared_skill(
-            created,
-            project_root,
-            manifest,
-            skills_dir / "sp-plan" / "SKILL.md",
-            f"## {agent_name} Native Multi-Agent Execution",
-            (
-                "\n"
-                f"## {agent_name} Native Multi-Agent Execution\n\n"
-                f"When running `sp-plan` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
-                f"- Use `spawn_agent` (or native handoffs) for bounded lanes such as research, data model design, contracts drafting, and quickstart or validation scenario generation.\n"
-                f"- Use `wait_agent` only at the documented join points before the final constitution and risk re-check and before writing the consolidated implementation plan.\n"
-                f"- Use `close_agent` after integrating finished worker results.\n"
-            ),
-        )
-        self._augment_shared_skill(
-            created,
-            project_root,
-            manifest,
-            skills_dir / "sp-tasks" / "SKILL.md",
-            f"## {agent_name} Native Multi-Agent Execution",
-            (
-                "\n"
-                f"## {agent_name} Native Multi-Agent Execution\n\n"
-                f"When running `sp-tasks` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
-                f"- Use `spawn_agent` (or native handoffs) for bounded lanes such as story and phase decomposition, dependency graph analysis, and write-set or parallel-safety analysis.\n"
-                f"- Use `wait_agent` only at the documented join points before writing `tasks.md` and before emitting canonical parallel batches and join points.\n"
-                f"- Use `close_agent` after integrating finished worker results.\n"
-            ),
-        )
-        self._augment_shared_skill(
-            created,
-            project_root,
-            manifest,
-            skills_dir / "sp-map-codebase" / "SKILL.md",
-            f"## {agent_name} Native Multi-Agent Execution",
-            (
-                "\n"
-                f"## {agent_name} Native Multi-Agent Execution\n\n"
-                f"When running `sp-map-codebase` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
-                f"- Use `spawn_agent` (or native handoffs) for bounded lanes such as architecture/structure mapping, conventions/testing mapping, integrations/runtime mapping, and workflows/operations mapping.\n"
-                f"- Use `wait_agent` only at the documented join points before writing `PROJECT-HANDBOOK.md` and before the final consistency pass.\n"
-                f"- Use `close_agent` after integrating finished worker results.\n"
-            ),
-        )
-
-        self._augment_implement_skill(
-            created,
-            project_root,
-            manifest,
-            skills_dir / "sp-implement" / "SKILL.md",
-        )
-        self._augment_debug_skill(
-            created,
-            project_root,
-            manifest,
-            skills_dir / "sp-debug" / "SKILL.md",
-        )
-        self._augment_quick_skill(
-            created,
-            project_root,
-            manifest,
-            skills_dir / "sp-quick" / "SKILL.md",
+            skills_dir,
         )
 
         created.extend(self.install_scripts(project_root, manifest))
         return created
+
+    def augment_generated_skills(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest: IntegrationManifest,
+        skills_dir: Path,
+    ) -> None:
+        """Hook for integration-specific post-processing of generated skills."""
+        return None
 
     def _augment_shared_skill(
         self,
@@ -939,6 +902,7 @@ class SkillsIntegration(IntegrationBase):
         project_root: Path,
         manifest: IntegrationManifest,
         implement_skill: Path,
+        snapshot: CapabilitySnapshot | None = None,
     ) -> None:
         """Inject Leader Gate and Auto-Parallel guidance into the implement skill."""
         if implement_skill not in created or not implement_skill.is_file():
@@ -1008,6 +972,15 @@ class SkillsIntegration(IntegrationBase):
             )
             content += addendum
 
+        if snapshot is not None:
+            content = self._append_delegation_surface_contract(
+                content=content,
+                agent_name=agent_name,
+                command_name="implement",
+                snapshot=snapshot,
+                heading="Delegation Surface Contract",
+            )
+
         self.write_file_and_record(content, implement_skill, project_root, manifest)
 
     def _augment_debug_skill(
@@ -1016,6 +989,7 @@ class SkillsIntegration(IntegrationBase):
         project_root: Path,
         manifest: IntegrationManifest,
         debug_skill: Path,
+        snapshot: CapabilitySnapshot | None = None,
     ) -> None:
         """Inject Leader Gate and evidence collection guidance into the debug skill."""
         if debug_skill not in created or not debug_skill.is_file():
@@ -1065,7 +1039,17 @@ class SkillsIntegration(IntegrationBase):
             "- Keep fixing, verification, `awaiting_human_verify`, and final session resolution on the leader path.\n"
         )
 
-        self.write_file_and_record(content + addendum, debug_skill, project_root, manifest)
+        content = content + addendum
+        if snapshot is not None:
+            content = self._append_delegation_surface_contract(
+                content=content,
+                agent_name=agent_name,
+                command_name="debug",
+                snapshot=snapshot,
+                heading="Delegation Surface Contract",
+            )
+
+        self.write_file_and_record(content, debug_skill, project_root, manifest)
 
     def _augment_quick_skill(
         self,
@@ -1073,6 +1057,7 @@ class SkillsIntegration(IntegrationBase):
         project_root: Path,
         manifest: IntegrationManifest,
         quick_skill: Path,
+        snapshot: CapabilitySnapshot | None = None,
     ) -> None:
         """Inject Leader Gate and delegation guidance into the quick-task skill."""
         if quick_skill not in created or not quick_skill.is_file():
@@ -1113,6 +1098,14 @@ class SkillsIntegration(IntegrationBase):
 
         marker = f"## {agent_name} Native Multi-Agent Execution"
         if marker in content:
+            if snapshot is not None:
+                content = self._append_delegation_surface_contract(
+                    content=content,
+                    agent_name=agent_name,
+                    command_name="quick",
+                    snapshot=snapshot,
+                    heading="Delegation Surface Contract",
+                )
             self.write_file_and_record(content, quick_skill, project_root, manifest)
             return
 
@@ -1134,4 +1127,14 @@ class SkillsIntegration(IntegrationBase):
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
         )
 
-        self.write_file_and_record(content + addendum, quick_skill, project_root, manifest)
+        content = content + addendum
+        if snapshot is not None:
+            content = self._append_delegation_surface_contract(
+                content=content,
+                agent_name=agent_name,
+                command_name="quick",
+                snapshot=snapshot,
+                heading="Delegation Surface Contract",
+            )
+
+        self.write_file_and_record(content, quick_skill, project_root, manifest)

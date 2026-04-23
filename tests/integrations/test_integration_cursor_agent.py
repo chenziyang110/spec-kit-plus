@@ -49,3 +49,10 @@ def test_cursor_generated_sp_quick_prefers_delegated_worker_execution(tmp_path):
     assert "attempt the smallest safe recovery step before declaring the task blocked" in content
     assert "retry_attempts" in content
     assert "blocker_reason" in content
+    assert "delegation surface contract" in content
+    assert "worker result contract" in content
+    assert "result handoff path" in content
+    assert "done_with_concerns" in content
+    assert "needs_context" in content
+    assert "workertaskresult" in content
+    assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in content

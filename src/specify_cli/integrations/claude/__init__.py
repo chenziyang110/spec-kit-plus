@@ -9,6 +9,7 @@ import yaml
 
 from ..base import SkillsIntegration
 from ..manifest import IntegrationManifest
+from ...orchestration import CapabilitySnapshot, describe_delegation_surface
 from .multi_agent import ClaudeMultiAgentAdapter
 
 # Mapping of command template stem → argument-hint text shown inline
@@ -49,6 +50,45 @@ class ClaudeIntegration(SkillsIntegration):
         "extension": "/SKILL.md",
     }
     context_file = "CLAUDE.md"
+
+    def _claude_capability_snapshot(self) -> CapabilitySnapshot:
+        return CapabilitySnapshot(
+            integration_key=self.key,
+            native_multi_agent=True,
+            sidecar_runtime_supported=True,
+            structured_results=True,
+            durable_coordination=False,
+            native_worker_surface="native-cli",
+            delegation_confidence="medium",
+            model_family="claude",
+            runtime_probe_succeeded=True,
+        )
+
+    def _append_worker_result_contract(
+        self,
+        *,
+        content: str,
+        skill_name: str,
+    ) -> str:
+        marker = "## Claude Worker Result Contract"
+        if marker in content:
+            return content
+
+        descriptor = describe_delegation_surface(
+            command_name=skill_name,
+            snapshot=self._claude_capability_snapshot(),
+        )
+        addendum = (
+            "\n"
+            "## Claude Worker Result Contract\n\n"
+            f"- Preferred result contract: {descriptor.result_contract_hint}\n"
+            f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
+            "- Normalize worker-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
+            "- Keep `reported_status` when normalization occurs so the leader can distinguish raw worker language from canonical orchestration state.\n"
+            "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
+            "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
+        )
+        return content + addendum
 
     @staticmethod
     def inject_argument_hint(content: str, hint: str) -> str:
@@ -198,6 +238,30 @@ class ClaudeIntegration(SkillsIntegration):
             if updated != content:
                 path.write_bytes(updated.encode("utf-8"))
                 self.record_file_in_manifest(path, project_root, manifest)
+
+        runtime_skills = {
+            "implement": skills_dir / "sp-implement" / "SKILL.md",
+            "debug": skills_dir / "sp-debug" / "SKILL.md",
+            "quick": skills_dir / "sp-quick" / "SKILL.md",
+        }
+        snapshot = self._claude_capability_snapshot()
+        for command_name, path in runtime_skills.items():
+            if not path.exists():
+                continue
+            content = path.read_text(encoding="utf-8")
+            content = self._append_delegation_surface_contract(
+                content=content,
+                agent_name="Claude",
+                command_name=command_name,
+                snapshot=snapshot,
+                heading="Delegation Surface Contract",
+            )
+            content = self._append_worker_result_contract(
+                content=content,
+                skill_name=command_name,
+            )
+            path.write_bytes(content.encode("utf-8"))
+            self.record_file_in_manifest(path, project_root, manifest)
 
         return created
 

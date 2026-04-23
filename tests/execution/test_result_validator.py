@@ -109,6 +109,20 @@ def test_validate_worker_task_result_accepts_blocked_result_with_fail_fast_conte
     assert validated.status == "blocked"
 
 
+def test_validate_worker_task_result_accepts_pending_placeholder_without_rule_acknowledgement(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="pending",
+        summary="Pending result placeholder",
+    )
+
+    validated = validate_worker_task_result(result, sample_packet)
+
+    assert validated.status == "pending"
+
+
 def test_validate_worker_task_result_rejects_blocked_result_without_recovery_context(
     sample_packet: WorkerTaskPacket,
 ) -> None:

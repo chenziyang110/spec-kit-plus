@@ -124,6 +124,23 @@ def choose_execution_strategy(
             reason="no-safe-batch",
         )
 
+    if (
+        snapshot.native_multi_agent
+        and snapshot.runtime_probe_succeeded
+        and snapshot.delegation_confidence == "low"
+    ):
+        if snapshot.sidecar_runtime_supported:
+            return ExecutionDecision(
+                command_name=command_name,
+                strategy="sidecar-runtime",
+                reason="native-low-confidence",
+            )
+        return ExecutionDecision(
+            command_name=command_name,
+            strategy="single-agent",
+            reason="fallback-low-confidence",
+        )
+
     if snapshot.native_multi_agent:
         return ExecutionDecision(
             command_name=command_name,

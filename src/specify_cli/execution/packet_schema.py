@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import asdict, dataclass, field, fields
 from typing import Literal
 
 
@@ -42,3 +43,34 @@ class WorkerTaskPacket:
     handoff_requirements: list[str]
     dispatch_policy: DispatchPolicy = field(default_factory=DispatchPolicy)
     packet_version: int = 1
+
+
+def _filter_dataclass_payload(cls: type, payload: dict[str, object]) -> dict[str, object]:
+    allowed = {item.name for item in fields(cls)}
+    return {key: value for key, value in payload.items() if key in allowed}
+
+
+def worker_task_packet_payload(packet: WorkerTaskPacket) -> dict[str, object]:
+    """Return a JSON-serializable payload for a worker packet."""
+
+    return asdict(packet)
+
+
+def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
+    """Parse a worker packet from JSON text."""
+
+    payload = json.loads(text)
+    scope = PacketScope(**_filter_dataclass_payload(PacketScope, payload.get("scope", {})))
+    required_references = [
+        PacketReference(**_filter_dataclass_payload(PacketReference, item))
+        for item in payload.get("required_references", [])
+        if isinstance(item, dict)
+    ]
+    dispatch_policy = DispatchPolicy(
+        **_filter_dataclass_payload(DispatchPolicy, payload.get("dispatch_policy", {}))
+    )
+    packet_payload = _filter_dataclass_payload(WorkerTaskPacket, payload)
+    packet_payload["scope"] = scope
+    packet_payload["required_references"] = required_references
+    packet_payload["dispatch_policy"] = dispatch_policy
+    return WorkerTaskPacket(**packet_payload)

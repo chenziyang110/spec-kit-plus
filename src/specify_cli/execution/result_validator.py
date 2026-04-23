@@ -13,6 +13,9 @@ def validate_worker_task_result(
 ) -> WorkerTaskResult:
     """Return the result when it satisfies the packet's handoff contract."""
 
+    if result.status == "pending":
+        return result
+
     if packet.dispatch_policy.must_acknowledge_rules:
         if not result.rule_acknowledgement.required_references_read:
             raise PacketValidationError("DP3", "worker did not acknowledge required references")

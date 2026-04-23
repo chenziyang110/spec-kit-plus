@@ -24,6 +24,7 @@ def test_runtime_state_payload_serializes_session_and_dispatches():
         failure_class="",
         retry_count=0,
         retry_budget=0,
+        delegation_metadata={"native_surface": "spawn_agent"},
     )
 
     payload = runtime_state_payload(session, [dispatch])
@@ -34,6 +35,7 @@ def test_runtime_state_payload_serializes_session_and_dispatches():
     assert payload["dispatches"][0]["request_id"] == "req-1"
     assert payload["dispatches"][0]["target_worker"] == "worker-a"
     assert payload["dispatches"][0]["failure_class"] == ""
+    assert payload["dispatches"][0]["delegation_metadata"]["native_surface"] == "spawn_agent"
 
 
 def test_runtime_session_round_trips_from_json():
@@ -66,6 +68,7 @@ def test_dispatch_record_round_trips_from_json():
             "failure_class": "transient",
             "retry_count": 1,
             "retry_budget": 2,
+            "delegation_metadata": {"native_surface": "spawn_agent"},
             "created_at": "2026-04-10T00:00:00+00:00",
             "updated_at": "2026-04-10T00:05:00+00:00",
         }
@@ -79,6 +82,7 @@ def test_dispatch_record_round_trips_from_json():
     assert record.failure_class == "transient"
     assert record.retry_count == 1
     assert record.retry_budget == 2
+    assert record.delegation_metadata["native_surface"] == "spawn_agent"
 
 
 def test_runtime_session_parser_ignores_unknown_fields():

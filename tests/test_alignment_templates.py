@@ -674,6 +674,13 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "compile a `WorkerTaskPacket` for each delegated task" in content
     assert "dispatch only from validated `WorkerTaskPacket`" in content
     assert "Do not dispatch from raw task text alone" in content
+    assert ".specify/templates/worker-prompts/implementer.md" in content
+    assert ".specify/templates/worker-prompts/spec-reviewer.md" in content
+    assert ".specify/templates/worker-prompts/code-quality-reviewer.md" in content
+    assert "runtime-managed result channel" in lowered
+    assert "feature_dir/worker-results/<task-id>.json" in lowered
+    assert "specify result submit" in lowered
+    assert "reported_status" in lowered
     assert "boundary-pattern preservation" in lowered
     assert "implement-tracker.md" in content
     assert "execution-state source of truth" in lowered
@@ -701,6 +708,8 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "single-agent" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
+    assert "delegation_confidence" in lowered
+    assert "native-low-confidence" in lowered
     assert "parallel_batches" in lowered
     assert "no-safe-batch" in lowered
     assert "native-supported" in lowered
@@ -742,6 +751,51 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "`plan_gap`" in content
     assert "`spec_gap`" in content
     assert "/sp.spec-extend" in content
+
+
+def test_debug_and_quick_templates_reference_shared_worker_prompt_assets() -> None:
+    debug_content = _read("templates/commands/debug.md")
+    quick_content = _read("templates/commands/quick.md")
+
+    assert ".specify/templates/worker-prompts/debug-investigator.md" in debug_content
+    assert ".specify/templates/worker-prompts/quick-worker.md" in quick_content
+    assert "delegation_confidence" in debug_content.lower()
+    assert "delegation_confidence" in quick_content.lower()
+    assert ".planning/debug/results/<session-slug>/<lane-id>.json" in debug_content.lower()
+    assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in quick_content.lower()
+    assert "specify result submit" in debug_content.lower()
+    assert "specify result submit" in quick_content.lower()
+    assert "reported_status" in debug_content.lower()
+    assert "reported_status" in quick_content.lower()
+
+
+def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() -> None:
+    implementer = _read("templates/worker-prompts/implementer.md")
+    debug_investigator = _read("templates/worker-prompts/debug-investigator.md")
+    quick_worker = _read("templates/worker-prompts/quick-worker.md")
+    spec_reviewer = _read("templates/worker-prompts/spec-reviewer.md")
+    code_quality = _read("templates/worker-prompts/code-quality-reviewer.md")
+
+    assert "# Implementer Worker Prompt" in implementer
+    assert "full task text" in implementer.lower()
+    assert "worker packet" in implementer.lower()
+    assert "status: `done | done_with_concerns | blocked | needs_context`" in implementer.lower()
+
+    assert "# Debug Investigator Worker Prompt" in debug_investigator
+    assert "current hypothesis" in debug_investigator.lower()
+    assert "must not update the debug file" in debug_investigator.lower()
+
+    assert "# Quick Worker Prompt" in quick_worker
+    assert "status.md remains leader-owned" in quick_worker.lower()
+    assert "smallest safe lane" in quick_worker.lower()
+
+    assert "# Spec Reviewer Worker Prompt" in spec_reviewer
+    assert "do not trust implementer summaries" in spec_reviewer.lower()
+    assert "read the actual code" in spec_reviewer.lower()
+
+    assert "# Code Quality Reviewer Worker Prompt" in code_quality
+    assert "only run after spec review passes" in code_quality.lower()
+    assert "file responsibility" in code_quality.lower()
 
 
 def test_specify_template_explicitly_reads_constitution() -> None:

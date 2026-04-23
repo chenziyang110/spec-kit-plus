@@ -20,6 +20,9 @@ def test_claude_adapter_capability_snapshot():
     assert isinstance(snapshot, CapabilitySnapshot)
     assert snapshot.integration_key == "claude"
     assert snapshot.native_multi_agent is True
+    assert snapshot.native_worker_surface == "native-cli"
+    assert snapshot.delegation_confidence == "medium"
+    assert snapshot.runtime_probe_succeeded is True
 
 
 def test_codex_adapter_capability_snapshot():
@@ -30,14 +33,22 @@ def test_codex_adapter_capability_snapshot():
     assert snapshot.integration_key == "codex"
     assert snapshot.native_multi_agent is True
     assert snapshot.sidecar_runtime_supported is True
+    assert snapshot.native_worker_surface == "spawn_agent"
+    assert snapshot.delegation_confidence == "high"
+    assert snapshot.durable_coordination is True
+    assert snapshot.runtime_probe_succeeded is True
 
 
 def test_gemini_adapter_capability_snapshot():
     snapshot = GeminiMultiAgentAdapter().detect_capabilities()
 
     assert snapshot.integration_key == "gemini"
-    assert snapshot.native_multi_agent is True
-    assert snapshot.sidecar_runtime_supported is True
+    assert snapshot.native_multi_agent is False
+    assert snapshot.sidecar_runtime_supported is False
+    assert snapshot.native_worker_surface == "none"
+    assert snapshot.delegation_confidence == "low"
+    assert any("no native subagent" in note.lower() for note in snapshot.notes)
+    assert snapshot.runtime_probe_succeeded is True
 
 
 def test_copilot_adapter_capability_snapshot():
@@ -47,6 +58,18 @@ def test_copilot_adapter_capability_snapshot():
     assert snapshot.native_multi_agent is False
     assert snapshot.sidecar_runtime_supported is True
     assert snapshot.durable_coordination is False
+    assert snapshot.native_worker_surface == "none"
+    assert snapshot.runtime_probe_succeeded is True
+
+
+def test_claude_adapter_uses_model_probe_to_lower_delegation_confidence(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-3-5-haiku")
+
+    snapshot = ClaudeMultiAgentAdapter().detect_capabilities()
+
+    assert snapshot.model_family == "claude-3-5-haiku"
+    assert snapshot.delegation_confidence == "low"
+    assert any("model probe" in note.lower() for note in snapshot.notes)
 
 
 def test_adapters_support_known_commands_and_reject_unknown_commands():
