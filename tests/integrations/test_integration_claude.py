@@ -532,6 +532,13 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "`~/.claude/settings.json` `model`" in lower
     assert "resolved current-session model string" in lower
     assert "cannot be resolved unambiguously" in lower
+    assert "routing alias" in lower
+    assert "for example `anthropic_model=group`" in lower
+    assert "does not prove the active session model" in lower
+    assert "default configuration preference" in lower
+    assert "must not be treated as proof of the current session model" in lower
+    assert "if the only evidence is a routing alias plus a settings default" in lower
+    assert "ask the user for an explicit teammate model" in lower
     assert "create or update local `.claude/agents/<team-name>-<role>.md` files" in lower
     assert 'write the resolved current-session model into the teammate frontmatter as `model: "<resolved-current-model>"`' in lower
     assert "update its `model` field for the current run" in lower
@@ -573,6 +580,8 @@ def test_claude_implement_teams_template_keeps_only_backend_specific_guidance():
     assert 'model: "<resolved-current-model>"' in template
     assert "claude_code_experimental_agent_teams" in lower
     assert "settings.json" in lower
+    assert "for example `anthropic_model=group`" in lower
+    assert "default configuration preference" in lower
     assert "hard prerequisite" in lower
     assert "config.json" in template
     assert "idle" in lower
