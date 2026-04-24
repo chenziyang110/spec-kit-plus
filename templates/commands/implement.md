@@ -14,6 +14,13 @@ $ARGUMENTS
 You **MUST** consider the user input before proceeding (if not empty).
 Treat non-empty `$ARGUMENTS` as first-class implementation context for the current feature execution, not as disposable chat-only guidance.
 
+## Leader Role
+
+- You are the implementation leader for this run. Your job is to recover context, choose the current ready batch, dispatch delegated work, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation.
+- You are not the default implementer for the current batch. When a delegated execution path is available for the selected batch, do not personally execute that batch just because it looks easy.
+- Treat `single-agent` as one delegated worker lane, not as permission to collapse back into leader-local execution.
+- Use leader-local execution only when the workflow's explicit fallback conditions are met and the fallback reason is recorded in `implement-tracker.md`.
+
 ## Pre-Execution Checks
 
 **Check for extension hooks (before implementation)**:
