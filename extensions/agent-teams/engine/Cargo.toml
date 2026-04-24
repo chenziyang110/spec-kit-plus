@@ -1,0 +1,20 @@
+[workspace]
+members = [
+  "crates/omx-mux",
+  "crates/omx-runtime-core",
+  "crates/omx-runtime",
+]
+resolver = "2"
+
+[workspace.package]
+
+version = "0.14.4"
+
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/Yeachan-Heo/oh-my-codex"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

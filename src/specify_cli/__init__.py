@@ -1409,7 +1409,7 @@ def _install_shared_infra(
         for src_path in templates_src.rglob("*"):
             if src_path.is_dir():
                 continue
-            if src_path.name == "vscode-settings.json" or src_path.name.startswith("."):
+            if src_path.name == "vscode-settings.json":
                 continue
 
             rel_path = src_path.relative_to(templates_src)
@@ -2164,6 +2164,11 @@ def init(
         steps_lines.append("   Codex-only runtime")
         steps_lines.append("   - [cyan]specify team[/] - Inspect the official Codex team/runtime surface and environment status")
         steps_lines.append("   - [cyan]$sp-team[/] - Reach the same Codex-only runtime surface from the skills layer")
+        steps_lines.append("   - [cyan]$sp-implement-teams[/] - Run implementation through the Codex-only teams execution surface")
+    if claude_skill_mode:
+        steps_lines.append("   ")
+        steps_lines.append("   Claude Agent Teams")
+        steps_lines.append("   - [cyan]/sp-implement-teams[/] - Run implementation through Claude Code's native Agent Teams surface")
 
     console.print()
     console.print(_open_block("Start Here", steps_lines, accent="cyan"))

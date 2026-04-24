@@ -225,6 +225,12 @@ Current `sp-implement` runtime model in this fork:
 - blocked delegated worker results should carry the blocker, the failed assumption, and the smallest safe recovery step so the leader can fail fast instead of guessing
 - established boundary patterns should be preserved through `Implementation Constitution` and implementation guardrails, not rediscovered ad hoc during coding
 
+Shared runtime-facing guidance across integrations:
+
+- `sp-implement`, `sp-debug`, and `sp-quick` now all carry a shared leader contract, delegation-surface contract, and worker-result contract across Markdown, TOML, and skills-based integrations.
+- The shared contract is integration-neutral: leader role, join-point discipline, structured handoff expectations, `reported_status` preservation, and sidecar fallback semantics are common across CLIs.
+- Only the concrete native dispatch surface remains integration-specific. For example, Codex may name `spawn_agent` and `specify team`, while another CLI may expose only a generic native delegated worker surface or no sidecar runtime at all.
+
 For Codex and other skills-based integrations, the generated commands are installed in skills form. Codex now uses the dedicated `.codex/skills/` directory for generated skills.
 
 Skills-based projects now install two layers into the same skills directory:

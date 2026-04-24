@@ -1,6 +1,6 @@
 # Agent Teams Extension
 
-A powerful extension for `spec-kit-plus` that provides a physically isolated, multi-agent execution engine. It parses your planned tasks and assigns them to autonomous agents running in isolated Tmux sandboxes.
+A bundled multi-agent execution extension for `spec-kit-plus`. It reads the active feature's `tasks.md`, writes an AgentTeams ledger under `.specify/agent-teams/state`, seeds required worker assets into project-local `.codex/`, and launches the upstream oh-my-codex runtime locally.
 
 ## Installation
 
@@ -18,7 +18,7 @@ This extension provides two main commands:
 ```bash
 /sp.agent-teams.run
 ```
-Parses your `.specify/project-map/tasks.md`, provisions isolated Git worktrees, and launches Tmux panes for the agents to execute the tasks concurrently.
+Parses the active feature's `spec.md` and `tasks.md`, provisions isolated Git worktrees, and launches tmux-backed workers to execute the task graph concurrently.
 
 ### 2. Cleanup
 ```bash
@@ -40,6 +40,17 @@ max_fix_attempts: 3
 
 ## Architecture
 
-This extension packages a lightweight version of the `oh-my-codex` agent runtime.
-When you run the command for the first time, it will automatically compile the Rust-based isolation engine and install the necessary Node.js orchestrator dependencies locally within the extension's folder. 
-This ensures your global environment remains clean.
+This extension vendors the runtime sources it needs directly inside `extensions/agent-teams/engine/`:
+
+- Rust workspace crates for `omx-runtime`, `omx-mux`, and `omx-runtime-core`
+- TypeScript runtime/orchestrator sources from `oh-my-codex`
+- bundled role prompts and the `worker` skill used by spawned panes
+
+On first run it will:
+
+1. install the engine's local Node.js dependencies,
+2. compile the bundled TypeScript runtime,
+3. compile the local Rust `omx-runtime` binary,
+4. sync missing `worker` skill and prompts into project-local `.codex/`,
+5. translate the feature task graph into AgentTeams ledger files, and
+6. start the local runtime against `.specify/agent-teams/state`.

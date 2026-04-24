@@ -45,15 +45,16 @@ class CodexIntegration(SkillsIntegration):
         ]
 
     def list_command_templates(self) -> list[Path]:
-        """Return the shared skills plus the Codex-only team skill."""
+        """Return the shared skills plus the Codex-only runtime skills."""
         templates = list(super().list_command_templates())
         commands_dir = self.shared_commands_dir()
         if not commands_dir:
             return templates
 
-        team_template = commands_dir / "team.md"
-        if team_template.exists():
-            templates.append(team_template)
+        for name in ("team.md", "implement-teams.md"):
+            template = commands_dir / name
+            if template.exists():
+                templates.append(template)
         return sorted(templates, key=lambda path: path.name)
 
     def setup(
@@ -175,6 +176,22 @@ class CodexIntegration(SkillsIntegration):
             project_root,
             manifest,
             skills_dir / "sp-quick" / "SKILL.md",
+            snapshot=codex_snapshot,
+        )
+        self._augment_implement_teams_shared_contract(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-implement-teams" / "SKILL.md",
+            canonical_command="sp-implement",
+            teams_command="sp-implement-teams",
+            backend_label="the teams runtime",
+        )
+        self._augment_implement_teams_result_contract(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-implement-teams" / "SKILL.md",
             snapshot=codex_snapshot,
         )
 

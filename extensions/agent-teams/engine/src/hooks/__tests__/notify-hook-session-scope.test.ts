@@ -1,0 +1,331 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { existsSync } from 'fs';
+import { dirname, join } from 'path';
+import { tmpdir } from 'os';
+import { spawnSync } from 'child_process';
+import { fileURLToPath } from 'url';
+import { VISUAL_NEXT_ACTIONS_LIMIT } from '../../visual/constants.js';
+
+function runNotifyHook(payload: Record<string, unknown>) {
+  const testDir = dirname(fileURLToPath(import.meta.url));
+  const repoRoot = join(testDir, '..', '..', '..');
+  return spawnSync(process.execPath, ['dist/scripts/notify-hook.js', JSON.stringify(payload)], {
+    cwd: repoRoot,
+    encoding: 'utf-8',
+    env: {
+      ...process.env,
+      OMX_TEAM_WORKER: '',
+      TMUX: '',
+      TMUX_PANE: '',
+    },
+  });
+}
+
+describe('notify-hook session-scoped iteration updates', () => {
+  it('does not mutate root active mode state when current session scope exists only in session.json', async () => {
+    const wd = await mkdtemp(join(tmpdir(), 'omx-notify-root-fallback-'));
+    try {
+      const stateDir = join(wd, '.omx', 'state');
+      const sessionId = 'sess-current';
+      await mkdir(stateDir, { recursive: true });
+
+      await writeFile(join(stateDir, 'session.json'), JSON.stringify({ session_id: sessionId }));
+      await writeFile(join(stateDir, 'team-state.json'), JSON.stringify({
+        active: true,
+        iteration: 41,
+        max_iterations: 100,
+        current_phase: 'executing',
+      }));
+
+      const result = runNotifyHook({
+        cwd: wd,
+        type: 'agent-turn-complete',
+        thread_id: 'th-root',
+        turn_id: 'tu-root',
+        input_messages: [],
+        last_assistant_message: 'ok',
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+
+      const rootState = JSON.parse(await readFile(join(stateDir, 'team-state.json'), 'utf-8'));
+      assert.equal(rootState.iteration, 41);
+      assert.equal(rootState.last_turn_at, undefined);
+      assert.equal(existsSync(join(stateDir, 'sessions', sessionId, 'team-state.json')), false);
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
+  it('increments iteration for active session-scoped mode states', async () => {
+    const wd = await mkdtemp(join(tmpdir(), 'omx-notify-test-'));
+    try {
+      const stateDir = join(wd, '.omx', 'state');
+      const sessionId = 'sess1';
+      const sessionScopedDir = join(stateDir, 'sessions', sessionId);
+      await mkdir(sessionScopedDir, { recursive: true });
+
+      await writeFile(join(stateDir, 'session.json'), JSON.stringify({ session_id: sessionId }));
+      await writeFile(join(sessionScopedDir, 'team-state.json'), JSON.stringify({ active: true, iteration: 0 }));
+
+      const result = runNotifyHook({
+        cwd: wd,
+        type: 'agent-turn-complete',
+        thread_id: 'th',
+        turn_id: 'tu',
+        input_messages: [],
+        last_assistant_message: 'ok',
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+
+      const updated = JSON.parse(await readFile(join(sessionScopedDir, 'team-state.json'), 'utf-8'));
+      assert.equal(updated.iteration, 1);
+      assert.ok(typeof updated.last_turn_at === 'string' && updated.last_turn_at.length > 0);
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
+  it('auto-expands active Ralph max_iterations by 10 when the run is still progressing', async () => {
+    const wd = await mkdtemp(join(tmpdir(), 'omx-notify-test-'));
+    try {
+      const stateDir = join(wd, '.omx', 'state');
+      const sessionId = 'sess1';
+      const sessionScopedDir = join(stateDir, 'sessions', sessionId);
+      await mkdir(sessionScopedDir, { recursive: true });
+
+      await writeFile(join(stateDir, 'session.json'), JSON.stringify({ session_id: sessionId }));
+      await writeFile(join(sessionScopedDir, 'ralph-state.json'), JSON.stringify({
+        active: true,
+        iteration: 1,
+        max_iterations: 2,
+        current_phase: 'executing',
+      }));
+
+      const result = runNotifyHook({
+        cwd: wd,
+        type: 'agent-turn-complete',
+        thread_id: 'th2',
+        turn_id: 'tu2',
+        input_messages: [],
+        last_assistant_message: 'ok',
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+
+      const updated = JSON.parse(await readFile(join(sessionScopedDir, 'ralph-state.json'), 'utf-8'));
+      assert.equal(updated.iteration, 2);
+      assert.equal(updated.active, true);
+      assert.equal(updated.current_phase, 'executing');
+      assert.equal(updated.max_iterations, 12);
+      assert.equal(updated.stop_reason, undefined);
+      assert.equal(updated.completed_at, undefined);
+      assert.equal(updated.max_iterations_auto_expand_count, 1);
+      assert.ok(typeof updated.max_iterations_auto_expanded_at === 'string' && updated.max_iterations_auto_expanded_at.length > 0);
+      assert.ok(typeof updated.last_turn_at === 'string' && updated.last_turn_at.length > 0);
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
+  it('still marks non-Ralph modes complete when max_iterations is reached', async () => {
+    const wd = await mkdtemp(join(tmpdir(), 'omx-notify-test-'));
+    try {
+      const stateDir = join(wd, '.omx', 'state');
+      const sessionId = 'sess1';
+      const sessionScopedDir = join(stateDir, 'sessions', sessionId);
+      await mkdir(sessionScopedDir, { recursive: true });
+
+      await writeFile(join(stateDir, 'session.json'), JSON.stringify({ session_id: sessionId }));
+      await writeFile(join(sessionScopedDir, 'team-state.json'), JSON.stringify({
+        active: true,
+        iteration: 1,
+        max_iterations: 2,
+        current_phase: 'executing',
+      }));
+
+      const result = runNotifyHook({
+        cwd: wd,
+        type: 'agent-turn-complete',
+        thread_id: 'th2',
+        turn_id: 'tu2',
+        input_messages: [],
+        last_assistant_message: 'ok',
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+
+      const updated = JSON.parse(await readFile(join(sessionScopedDir, 'team-state.json'), 'utf-8'));
+      assert.equal(updated.iteration, 2);
+      assert.equal(updated.active, false);
+      assert.equal(updated.current_phase, 'complete');
+      assert.equal(updated.stop_reason, 'max_iterations_reached');
+      assert.ok(typeof updated.completed_at === 'string' && updated.completed_at.length > 0);
+      assert.ok(typeof updated.last_turn_at === 'string' && updated.last_turn_at.length > 0);
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
+  it('writes hud progress timestamps for leader turns', async () => {
+    const wd = await mkdtemp(join(tmpdir(), 'omx-notify-hud-progress-'));
+    try {
+      const stateDir = join(wd, '.omx', 'state');
+      await mkdir(stateDir, { recursive: true });
+
+      const result = runNotifyHook({
+        cwd: wd,
+        type: 'agent-turn-complete',
+        thread_id: 'th-progress',
+        turn_id: 'tu-progress',
+        input_messages: [],
+        last_assistant_message: 'ok',
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+
+      const hudState = JSON.parse(await readFile(join(stateDir, 'hud-state.json'), 'utf-8')) as Record<string, unknown>;
+      assert.ok(typeof hudState.last_turn_at === 'string' && hudState.last_turn_at.length > 0);
+      assert.ok(typeof hudState.last_progress_at === 'string' && hudState.last_progress_at.length > 0);
+      assert.equal(hudState.last_progress_at, hudState.last_turn_at);
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
+  it('prefers the canonical OMX session scope over a different native payload session id for notify sidefiles', async () => {
+    const wd = await mkdtemp(join(tmpdir(), 'omx-notify-canonical-session-'));
+    try {
+      const stateDir = join(wd, '.omx', 'state');
+      const canonicalSessionId = 'omx-canonical-session';
+      const nativeSessionId = 'codex-native-session';
+      const canonicalDir = join(stateDir, 'sessions', canonicalSessionId);
+      await mkdir(canonicalDir, { recursive: true });
+      await writeFile(join(stateDir, 'session.json'), JSON.stringify({
+        session_id: canonicalSessionId,
+        native_session_id: nativeSessionId,
+        started_at: new Date().toISOString(),
+        cwd: wd,
+      }));
+
+      const result = runNotifyHook({
+        cwd: wd,
+        session_id: nativeSessionId,
+        type: 'agent-turn-complete',
+        thread_id: 'th-canonical',
+        turn_id: 'tu-canonical',
+        input_messages: [],
+        last_assistant_message: 'ok',
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+
+      assert.equal(existsSync(join(canonicalDir, 'hud-state.json')), true);
+      assert.equal(existsSync(join(canonicalDir, 'notify-hook-state.json')), true);
+      assert.equal(existsSync(join(stateDir, 'sessions', nativeSessionId, 'hud-state.json')), false);
+      assert.equal(existsSync(join(stateDir, 'sessions', nativeSessionId, 'notify-hook-state.json')), false);
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
+
+  it('prefers the invocation OMX session id over the persisted canonical session for notify sidefiles when a fork scope exists', async () => {
+    const wd = await mkdtemp(join(tmpdir(), 'omx-notify-fork-session-'));
+    try {
+      const stateDir = join(wd, '.omx', 'state');
+      const canonicalSessionId = 'omx-canonical-session';
+      const forkSessionId = 'omx-fork-session';
+      const nativeSessionId = 'codex-native-session';
+      const forkDir = join(stateDir, 'sessions', forkSessionId);
+      await mkdir(forkDir, { recursive: true });
+      await writeFile(join(stateDir, 'session.json'), JSON.stringify({
+        session_id: canonicalSessionId,
+        native_session_id: nativeSessionId,
+        started_at: new Date().toISOString(),
+        cwd: wd,
+      }));
+
+      const result = spawnSync(process.execPath, ['dist/scripts/notify-hook.js', JSON.stringify({
+        cwd: wd,
+        session_id: nativeSessionId,
+        type: 'agent-turn-complete',
+        thread_id: 'th-fork',
+        turn_id: 'tu-fork',
+        input_messages: [],
+        last_assistant_message: 'ok',
+      })], {
+        cwd: join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..'),
+        encoding: 'utf-8',
+        env: {
+          ...process.env,
+          OMX_SESSION_ID: forkSessionId,
+          OMX_TEAM_WORKER: '',
+          TMUX: '',
+          TMUX_PANE: '',
+        },
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+
+      assert.equal(existsSync(join(forkDir, 'hud-state.json')), true);
+      assert.equal(existsSync(join(forkDir, 'notify-hook-state.json')), true);
+      assert.equal(existsSync(join(stateDir, 'sessions', canonicalSessionId, 'hud-state.json')), false);
+      assert.equal(existsSync(join(stateDir, 'sessions', canonicalSessionId, 'notify-hook-state.json')), false);
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
+  it('persists visual-verdict feedback from runtime assistant output', async () => {
+    const wd = await mkdtemp(join(tmpdir(), 'omx-notify-visual-'));
+    try {
+      const sessionId = 'sessVisual';
+      const result = runNotifyHook({
+        cwd: wd,
+        session_id: sessionId,
+        type: 'agent-turn-complete',
+        thread_id: 'th-visual',
+        turn_id: 'tu-visual',
+        input_messages: [],
+        last_assistant_message: [
+          'Visual verdict ready:',
+          '```json',
+          JSON.stringify({
+            score: 84,
+            verdict: 'revise',
+            category_match: true,
+            differences: [
+              'Primary CTA is 3px too low',
+              'Card corner radius is too round',
+            ],
+            suggestions: [
+              'Move primary CTA up by 3px',
+              'Set card border-radius to 8px',
+            ],
+            reasoning: 'Core layout is close, but CTA alignment and shape still differ.',
+          }, null, 2),
+          '```',
+        ].join('\n'),
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+
+      const progressPath = join(wd, '.omx', 'state', 'sessions', sessionId, 'ralph-progress.json');
+      assert.equal(existsSync(progressPath), true);
+      const progress = JSON.parse(await readFile(progressPath, 'utf-8')) as {
+        visual_feedback?: Array<{
+          score: number;
+          verdict: string;
+          qualitative_feedback?: { next_actions?: string[] };
+        }>;
+      };
+
+      assert.equal(Array.isArray(progress.visual_feedback), true);
+      assert.equal(progress.visual_feedback?.length, 1);
+      assert.equal(progress.visual_feedback?.[0]?.score, 84);
+      assert.equal(progress.visual_feedback?.[0]?.verdict, 'revise');
+      assert.equal(
+        (progress.visual_feedback?.[0]?.qualitative_feedback?.next_actions?.length || 0) <= VISUAL_NEXT_ACTIONS_LIMIT,
+        true,
+      );
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+});

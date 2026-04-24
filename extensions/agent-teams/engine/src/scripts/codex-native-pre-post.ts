@@ -1,0 +1,686 @@
+type CodexHookPayload = Record<string, unknown>;
+
+export interface NormalizedPreToolUsePayload {
+  toolName: string;
+  toolUseId: string;
+  command: string;
+  normalizedCommand: string;
+  isBash: boolean;
+}
+
+export interface NormalizedPostToolUsePayload {
+  toolName: string;
+  toolUseId: string;
+  command: string;
+  normalizedCommand: string;
+  isBash: boolean;
+  rawToolResponse: unknown;
+  parsedToolResponse: Record<string, unknown> | null;
+  exitCode: number | null;
+  stdoutText: string;
+  stderrText: string;
+}
+
+export interface McpTransportFailureSignal {
+  toolName: string;
+  summary: string;
+}
+
+function safeString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function safeInteger(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number.parseInt(value.trim(), 10);
+    if (Number.isInteger(parsed)) return parsed;
+  }
+  return null;
+}
+
+function safeObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function tryParseJsonString(value: unknown): Record<string, unknown> | null {
+  const text = safeString(value).trim();
+  if (!text) return null;
+  try {
+    return safeObject(JSON.parse(text));
+  } catch {
+    return null;
+  }
+}
+
+function readCommand(payload: CodexHookPayload): string {
+  const toolInput = safeObject(payload.tool_input);
+  return safeString(toolInput?.command).trim();
+}
+
+export function normalizePreToolUsePayload(
+  payload: CodexHookPayload,
+): NormalizedPreToolUsePayload {
+  const toolName = safeString(payload.tool_name).trim();
+  const command = readCommand(payload);
+  return {
+    toolName,
+    toolUseId: safeString(payload.tool_use_id).trim(),
+    command,
+    normalizedCommand: command,
+    isBash: toolName === "Bash",
+  };
+}
+
+export function normalizePostToolUsePayload(
+  payload: CodexHookPayload,
+): NormalizedPostToolUsePayload {
+  const toolName = safeString(payload.tool_name).trim();
+  const command = readCommand(payload);
+  const rawToolResponse = payload.tool_response;
+  const parsedToolResponse = tryParseJsonString(rawToolResponse) ?? safeObject(rawToolResponse);
+  const exitCode = safeInteger(parsedToolResponse?.exit_code)
+    ?? safeInteger(parsedToolResponse?.exitCode)
+    ?? null;
+  const rawText = safeString(rawToolResponse).trim();
+  const stdoutText = safeString(parsedToolResponse?.stdout).trim() || rawText;
+  const stderrText = safeString(parsedToolResponse?.stderr).trim();
+
+  return {
+    toolName,
+    toolUseId: safeString(payload.tool_use_id).trim(),
+    command,
+    normalizedCommand: command,
+    isBash: toolName === "Bash",
+    rawToolResponse,
+    parsedToolResponse,
+    exitCode,
+    stdoutText,
+    stderrText,
+  };
+}
+
+function matchesDestructiveFixture(command: string): boolean {
+  return /^\s*rm\s+-rf\s+dist(?:\s|$)/.test(command);
+}
+
+function isMcpLikeToolName(toolName: string): boolean {
+  return /^(mcp__|omx_(?:state|memory|trace|code_intel)\b|state_|project_memory_|notepad_|trace_)/i.test(toolName);
+}
+
+const MCP_TRANSPORT_FAILURE_PATTERNS = [
+  /transport (?:closed|error|failed)/i,
+  /server disconnected/i,
+  /connection (?:closed|reset|lost)/i,
+  /\beconnreset\b/i,
+  /\bepipe\b/i,
+  /broken pipe/i,
+  /stream ended unexpectedly/i,
+  /stdio .*closed/i,
+  /pipe closed/i,
+  /mcp(?: server)? .*closed/i,
+];
+
+type OmxParityCommand =
+  | "state"
+  | "notepad"
+  | "project-memory"
+  | "trace"
+  | "code-intel";
+
+export function detectMcpTransportFailure(
+  payload: CodexHookPayload,
+): McpTransportFailureSignal | null {
+  const normalized = normalizePostToolUsePayload(payload);
+  const combined = [
+    normalized.stderrText,
+    normalized.stdoutText,
+    safeString(normalized.parsedToolResponse?.error),
+    safeString(normalized.parsedToolResponse?.message),
+    safeString(normalized.parsedToolResponse?.details),
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  const mcpContextDetected = isMcpLikeToolName(normalized.toolName)
+    || /\bmcp\b/i.test(combined)
+    || /\bomx-(?:state|memory|trace|code-intel)-server\b/i.test(combined);
+  if (!mcpContextDetected) return null;
+  if (!combined) return null;
+  if (!MCP_TRANSPORT_FAILURE_PATTERNS.some((pattern) => pattern.test(combined))) {
+    return null;
+  }
+
+  return {
+    toolName: normalized.toolName,
+    summary: combined,
+  };
+}
+
+function resolveOmxParityTarget(toolName: string): { command: OmxParityCommand; tool: string } | null {
+  const match = toolName.match(/^mcp__omx_(state|memory|trace|code_intel)__([a-z0-9_]+)$/i);
+  if (!match) return null;
+
+  const [, server, tool] = match;
+  if (server === "state") return { command: "state", tool };
+  if (server === "trace") return { command: "trace", tool };
+  if (server === "code_intel") return { command: "code-intel", tool };
+  if (server === "memory" && tool.startsWith("notepad_")) {
+    return { command: "notepad", tool };
+  }
+  if (server === "memory" && tool.startsWith("project_memory_")) {
+    return { command: "project-memory", tool };
+  }
+  return null;
+}
+
+function shellSingleQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function buildOmxParityFallbackCommand(payload: CodexHookPayload, toolName: string): string | null {
+  const target = resolveOmxParityTarget(toolName);
+  if (!target) return null;
+  const input = safeObject(payload.tool_input) ?? {};
+  return `omx ${target.command} ${target.tool} --input ${shellSingleQuote(JSON.stringify(input))} --json`;
+}
+
+const LORE_TRAILER_PREFIXES = [
+  "Constraint:",
+  "Rejected:",
+  "Confidence:",
+  "Scope-risk:",
+  "Reversibility:",
+  "Directive:",
+  "Tested:",
+  "Not-tested:",
+  "Related:",
+] as const;
+
+const OMX_COAUTHOR_TRAILER = "Co-authored-by: OmX <omx@oh-my-codex.dev>";
+
+function isDoubleQuotedShellEscapeTarget(char: string | undefined): boolean {
+  return char === "\"" || char === "\\" || char === "$" || char === "`" || char === "\n";
+}
+
+function tokenizeShellCommand(commandText: string): string[] | null {
+  const trimmed = commandText.trim();
+  if (!trimmed) return null;
+
+  const tokens: string[] = [];
+  let current = "";
+  let quote: "'" | "\"" | null = null;
+  let escaping = false;
+
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const char = trimmed[index] ?? "";
+    if (escaping) {
+      current += char;
+      escaping = false;
+      continue;
+    }
+
+    if (quote === "'") {
+      if (char === "'") quote = null;
+      else current += char;
+      continue;
+    }
+
+    if (quote === "\"") {
+      if (char === "\"") quote = null;
+      else if (char === "\\") {
+        if (isDoubleQuotedShellEscapeTarget(trimmed[index + 1])) escaping = true;
+        else current += char;
+      }
+      else current += char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+
+    if (char === "'" || char === "\"") {
+      quote = char;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaping = true;
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (escaping || quote) return null;
+  if (current) tokens.push(current);
+  return tokens.length > 0 ? tokens : null;
+}
+
+interface GitCommitCommandParseResult {
+  isGitCommit: boolean;
+  inlineMessage: string | null;
+  requiresExternalMessageSource: boolean;
+}
+
+function isInlineShellEnvAssignment(token: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*=.*$/u.test(token);
+}
+
+function isGitExecutableToken(token: string): boolean {
+  const lowerToken = token.toLowerCase();
+  if (lowerToken === "git" || lowerToken === "git.exe") return true;
+  const normalized = token.replaceAll("\\", "/");
+  const segments = normalized.split("/");
+  const basename = (segments[segments.length - 1] ?? "").toLowerCase();
+  return basename === "git" || basename === "git.exe";
+}
+
+function isEnvExecutableToken(token: string): boolean {
+  const lowerToken = token.toLowerCase();
+  if (lowerToken === "env") return true;
+  const normalized = token.replaceAll("\\", "/");
+  const segments = normalized.split("/");
+  const basename = (segments[segments.length - 1] ?? "").toLowerCase();
+  return basename === "env";
+}
+
+function envOptionConsumesNextValue(token: string): boolean {
+  return token === "-u"
+    || token === "--unset"
+    || token === "-C"
+    || token === "--chdir"
+    || token === "-S"
+    || token === "--split-string";
+}
+
+function findGitCommandTokenIndex(tokens: string[]): number {
+  let index = 0;
+
+  while (index < tokens.length && isInlineShellEnvAssignment(tokens[index] ?? "")) {
+    index += 1;
+  }
+
+  while (index < tokens.length && isEnvExecutableToken(tokens[index] ?? "")) {
+    index += 1;
+    while (index < tokens.length) {
+      const token = tokens[index] ?? "";
+      if (token === "--") {
+        index += 1;
+        break;
+      }
+      if (isInlineShellEnvAssignment(token) || token.startsWith("-")) {
+        if (envOptionConsumesNextValue(token)) {
+          index += 1;
+        }
+        index += 1;
+        continue;
+      }
+      break;
+    }
+    while (index < tokens.length && isInlineShellEnvAssignment(tokens[index] ?? "")) {
+      index += 1;
+    }
+  }
+
+  return index < tokens.length && isGitExecutableToken(tokens[index] ?? "")
+    ? index
+    : -1;
+}
+
+function gitOptionConsumesNextValue(token: string): boolean {
+  return token === "-c"
+    || token === "-C"
+    || token === "--git-dir"
+    || token === "--work-tree"
+    || token === "--namespace"
+    || token === "--super-prefix"
+    || token === "--exec-path"
+    || token === "--config-env"
+    || token === "--attr-source";
+}
+
+function gitOptionStopsBeforeSubcommand(token: string): boolean {
+  return token === "-h"
+    || token === "--help"
+    || token === "--version"
+    || token === "--html-path"
+    || token === "--man-path"
+    || token === "--info-path";
+}
+
+function findGitSubcommandIndex(tokens: string[], gitTokenIndex: number): number {
+  let index = gitTokenIndex + 1;
+
+  while (index < tokens.length) {
+    const token = tokens[index] ?? "";
+    if (!token) {
+      index += 1;
+      continue;
+    }
+    if (token === "--") {
+      index += 1;
+      break;
+    }
+    if (!token.startsWith("-")) break;
+    if (gitOptionStopsBeforeSubcommand(token)) return -1;
+    if (gitOptionConsumesNextValue(token)) {
+      index += 2;
+      continue;
+    }
+    index += 1;
+  }
+
+  return index < tokens.length ? index : -1;
+}
+
+function parseGitCommitCommand(commandText: string): GitCommitCommandParseResult {
+  const tokens = tokenizeShellCommand(commandText);
+  if (!tokens) {
+    return {
+      isGitCommit: false,
+      inlineMessage: null,
+      requiresExternalMessageSource: false,
+    };
+  }
+
+  const gitTokenIndex = findGitCommandTokenIndex(tokens);
+  if (gitTokenIndex < 0 || !isGitExecutableToken(tokens[gitTokenIndex] ?? "")) {
+    return {
+      isGitCommit: false,
+      inlineMessage: null,
+      requiresExternalMessageSource: false,
+    };
+  }
+
+  const subcommandIndex = findGitSubcommandIndex(tokens, gitTokenIndex);
+  if (subcommandIndex < 0 || tokens[subcommandIndex]?.toLowerCase() !== "commit") {
+    return {
+      isGitCommit: false,
+      inlineMessage: null,
+      requiresExternalMessageSource: false,
+    };
+  }
+
+  const messageParts: string[] = [];
+  let requiresExternalMessageSource = false;
+  const args = tokens.slice(subcommandIndex + 1);
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index] ?? "";
+    if (token === "-m" || token === "--message") {
+      const nextValue = args[index + 1];
+      if (typeof nextValue === "string") {
+        messageParts.push(nextValue);
+        index += 1;
+      }
+      continue;
+    }
+    if (token.startsWith("--message=")) {
+      messageParts.push(token.slice("--message=".length));
+      continue;
+    }
+    if (
+      token === "-F"
+      || token === "--file"
+      || token === "-c"
+      || token === "-C"
+      || token === "--reuse-message"
+      || token === "--reedit-message"
+      || token === "--fixup"
+      || token.startsWith("--fixup=")
+      || token === "--squash"
+      || token.startsWith("--squash=")
+      || token === "--template"
+      || token === "-t"
+      || token.startsWith("--file=")
+      || token.startsWith("--reuse-message=")
+      || token.startsWith("--reedit-message=")
+      || token.startsWith("--template=")
+    ) {
+      requiresExternalMessageSource = true;
+    }
+  }
+
+  return {
+    isGitCommit: true,
+    inlineMessage: messageParts.length > 0 ? messageParts.join("\n\n").trim() : null,
+    requiresExternalMessageSource,
+  };
+}
+
+function isLoreTrailerLine(line: string): boolean {
+  return line === OMX_COAUTHOR_TRAILER
+    || LORE_TRAILER_PREFIXES.some((prefix) => line.startsWith(prefix));
+}
+
+function splitParagraphs(text: string): string[] {
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+}
+
+function splitBodyAndTrailerLines(text: string): {
+  bodyText: string;
+  trailerLines: string[];
+} {
+  const paragraphs = splitParagraphs(text);
+  let trailerStart = paragraphs.length;
+
+  while (trailerStart > 0) {
+    const paragraph = paragraphs[trailerStart - 1] ?? "";
+    const lines = paragraph
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length === 0 || !lines.every((line) => isLoreTrailerLine(line))) break;
+    trailerStart -= 1;
+  }
+
+  return {
+    bodyText: paragraphs.slice(0, trailerStart).join("\n\n").trim(),
+    trailerLines: paragraphs
+      .slice(trailerStart)
+      .flatMap((paragraph) => paragraph.split("\n"))
+      .map((line) => line.trim())
+      .filter(Boolean),
+  };
+}
+
+function buildGitCommitComplianceErrors(message: string | null): string[] {
+  if (!message) {
+    return [
+      "Provide the commit message inline with `git commit -m ...` so the pre-tool-use hook can validate Lore format before the command runs.",
+    ];
+  }
+
+  const normalized = message.replace(/\r\n?/g, "\n").trim();
+  if (!normalized) {
+    return [
+      "Provide a non-empty Lore-format commit message with an intent-first subject, narrative body, Lore trailers, and the OmX co-author trailer.",
+    ];
+  }
+
+  const lines = normalized.split("\n");
+  const errors: string[] = [];
+  if (lines[0]?.trim() === "") {
+    errors.push("Start the commit message with a non-empty intent-first subject line.");
+  }
+  if (lines.length < 2 || lines[1]?.trim() !== "") {
+    errors.push("Add a blank line after the subject before the narrative body.");
+  }
+
+  const { bodyText, trailerLines } = splitBodyAndTrailerLines(lines.slice(2).join("\n"));
+  if (!bodyText) {
+    errors.push("Add a narrative body paragraph explaining the decision context.");
+  }
+  if (!trailerLines.some((line) => LORE_TRAILER_PREFIXES.some((prefix) => line.startsWith(prefix)))) {
+    errors.push("Add at least one Lore trailer such as `Constraint:`, `Confidence:`, or `Tested:`.");
+  }
+  if (!trailerLines.includes(OMX_COAUTHOR_TRAILER)) {
+    errors.push(`Add the required co-author trailer: \`${OMX_COAUTHOR_TRAILER}\`.`);
+  }
+
+  return errors;
+}
+
+function buildGitCommitEnforcementOutput(commandText: string): Record<string, unknown> | null {
+  const parsed = parseGitCommitCommand(commandText);
+  if (!parsed.isGitCommit) return null;
+
+  const errors = parsed.requiresExternalMessageSource
+    ? [
+      "Use inline `git commit -m ...` paragraphs for Lore-format commits in this path; file/editor/reuse/fixup message sources are not inspectable safely from pre-tool-use enforcement.",
+    ]
+    : buildGitCommitComplianceErrors(parsed.inlineMessage);
+
+  if (errors.length === 0) return null;
+
+  return {
+    decision: "block",
+    reason:
+      "git commit is blocked until the inline commit message satisfies the Lore format and includes the required OmX co-author trailer.",
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      additionalContext: [
+        "Lore-format git commit enforcement triggered.",
+        ...errors.map((error) => `- ${error}`),
+      ].join("\n"),
+    },
+    systemMessage: [
+      "git commit is blocked until the inline commit message follows the Lore protocol and includes `Co-authored-by: OmX <omx@oh-my-codex.dev>`.",
+      ...errors.map((error) => `- ${error}`),
+    ].join("\n"),
+  };
+}
+
+function commandInvokesOmxQuestion(command: string): boolean {
+  const tokens = tokenizeShellCommand(command)?.map((token) => token.toLowerCase()) ?? [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const rawToken = tokens[index] || '';
+    const token = rawToken.replace(/\\/g, '/').split('/').pop() || '';
+    if ((token === 'omx' || token === 'omx.js') && tokens[index + 1] === 'question') return true;
+    if ((token === 'node' || token === 'node.exe') && /(?:^|\/)omx\.js$/.test(tokens[index + 1] || '') && tokens[index + 2] === 'question') return true;
+  }
+  return /\bomx\s+question\b/i.test(command) || /\bomx\.js['"]?\s+question\b/i.test(command);
+}
+
+function isQuestionReturnPaneAssignment(token: string): boolean {
+  const equalsIndex = token.indexOf('=');
+  if (equalsIndex <= 0) return false;
+  const name = token.slice(0, equalsIndex);
+  if (!['OMX_QUESTION_RETURN_PANE', 'OMX_LEADER_PANE_ID', 'TMUX_PANE'].includes(name)) return false;
+  const value = token.slice(equalsIndex + 1);
+  return /^%\d+$/.test(value) || /^\$\{?TMUX_PANE\}?$/.test(value);
+}
+
+function commandHasQuestionReturnPane(command: string): boolean {
+  return (tokenizeShellCommand(command) ?? []).some(isQuestionReturnPaneAssignment);
+}
+
+function buildOmxQuestionPreToolUseEnforcementOutput(command: string): Record<string, unknown> | null {
+  if (!commandInvokesOmxQuestion(command)) return null;
+  if (commandHasQuestionReturnPane(command)) return null;
+
+  return {
+    decision: "block",
+    reason: "omx question Bash invocations must preserve the leader pane return target.",
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      additionalContext: [
+        "omx question leader-pane enforcement triggered.",
+        "Prefix the Bash command with `OMX_QUESTION_RETURN_PANE=$TMUX_PANE` (or a concrete `%pane` value) so `[omx question answered]` returns to the leader pane even when the tool path drops/stales TMUX_PANE.",
+        `Original command: ${command}`,
+      ].join("\n"),
+    },
+    systemMessage: "omx question is blocked from Bash until the command preserves the leader pane with `OMX_QUESTION_RETURN_PANE=$TMUX_PANE` or an explicit `%pane` value.",
+  };
+}
+
+export function buildNativePreToolUseOutput(
+  payload: CodexHookPayload,
+): Record<string, unknown> | null {
+  const normalized = normalizePreToolUsePayload(payload);
+  if (!normalized.isBash) return null;
+  const gitCommitEnforcement = buildGitCommitEnforcementOutput(normalized.normalizedCommand);
+  if (gitCommitEnforcement) return gitCommitEnforcement;
+  const questionEnforcement = buildOmxQuestionPreToolUseEnforcementOutput(normalized.normalizedCommand);
+  if (questionEnforcement) return questionEnforcement;
+  if (!matchesDestructiveFixture(normalized.normalizedCommand)) return null;
+
+  return {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+    },
+    systemMessage:
+      "Destructive Bash command detected (`rm -rf dist`). Confirm the target and expected side effects before running it.",
+  };
+}
+
+function containsHardFailure(text: string): boolean {
+  return /command not found|permission denied|no such file or directory/i.test(text);
+}
+
+export function buildNativePostToolUseOutput(
+  payload: CodexHookPayload,
+): Record<string, unknown> | null {
+  const mcpTransportFailure = detectMcpTransportFailure(payload);
+  if (mcpTransportFailure) {
+    const fallbackCommand = buildOmxParityFallbackCommand(payload, mcpTransportFailure.toolName);
+    const fallbackText = fallbackCommand
+      ? `Retry via CLI parity with \`${fallbackCommand}\`.`
+      : "Retry via the matching OMX CLI parity surface instead of retrying the MCP transport blindly.";
+    return {
+      decision: "block",
+      reason: "The MCP tool appears to have lost its transport/server connection. Preserve state, debug the transport failure, and use OMX CLI/file-backed fallbacks instead of retrying blindly.",
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse",
+        additionalContext:
+          `Clear MCP transport-death signal detected. Preserve current team/runtime state. ${fallbackText} OMX MCP servers are plain Node stdio processes, so they still shut down when stdin/transport closes. If this happened during team runtime, inspect first with \`omx team status <team>\` or \`omx team api read-stall-state --input '{"team_name":"<team>"}' --json\`, and only force cleanup after capturing needed state. For root-cause debugging, rerun with \`OMX_MCP_TRANSPORT_DEBUG=1\` to log why the stdio transport closed.`,
+      },
+    };
+  }
+
+  const normalized = normalizePostToolUsePayload(payload);
+  if (!normalized.isBash) return null;
+
+  const combined = `${normalized.stderrText}\n${normalized.stdoutText}`.trim();
+  if (containsHardFailure(combined)) {
+    return {
+      decision: "block",
+      reason: "The Bash output indicates a command/setup failure that should be fixed before retrying.",
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse",
+        additionalContext:
+          "Bash reported `command not found`, `permission denied`, or a missing file/path. Verify the command, dependency installation, PATH, file permissions, and referenced paths before retrying.",
+      },
+    };
+  }
+
+  if (
+    normalized.exitCode !== null
+    && normalized.exitCode !== 0
+    && combined.length > 0
+    && !containsHardFailure(combined)
+  ) {
+    return {
+      decision: "block",
+      reason: "The Bash command returned a non-zero exit code but produced useful output that should be reviewed before retrying.",
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse",
+        additionalContext:
+          "The Bash output appears informative despite the non-zero exit code. Review and report the output before retrying instead of assuming the command simply failed.",
+      },
+    };
+  }
+
+  return null;
+}

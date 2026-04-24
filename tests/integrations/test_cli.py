@@ -393,6 +393,7 @@ class TestInitIntegrationFlag:
         assert "$sp-plan" in result.output
         assert "$sp-tasks" in result.output
         assert "$sp-implement" in result.output
+        assert "$sp-implement-teams" in result.output
         assert "$sp-checklist" in result.output
         assert "$sp-analyze" in result.output
         assert "$sp-explain" in result.output
@@ -449,6 +450,7 @@ class TestInitIntegrationFlag:
         assert "/sp-plan" in result.output
         assert "/sp-tasks" in result.output
         assert "/sp-implement" in result.output
+        assert "/sp-implement-teams" in result.output
         assert "/sp-checklist" in result.output
         assert "/sp-analyze" in result.output
         assert "/sp-explain" in result.output

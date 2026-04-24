@@ -6,7 +6,7 @@ scripts:
 
 # AgentTeams Executor
 
-This command bridges spec-kit tasks with the underlying oh-my-codex multi-agent execution engine.
+This command bridges the active feature's `tasks.md` with the bundled AgentTeams execution engine.
 
 ## Context
 
@@ -14,17 +14,18 @@ $ARGUMENTS
 
 ## Steps
 
-1. Check if the internal AgentTeams engine is compiled (Rust/TS dependencies).
-2. If missing, automatically run the build script `scripts/build-engine.sh`.
-3. Parse `.specify/project-map/tasks.md` and `.specify/project-map/spec.md`.
-4. Translate spec-kit tasks into AgentTeams JSON Ledger format in `.specify/agent-teams/state`.
-5. Provision isolated Git Worktrees and Tmux Panes for workers.
-6. Hand over execution to the local orchestrator and stream progress.
+1. Resolve the current feature directory and use that feature's `spec.md` and `tasks.md`.
+2. Check if the internal AgentTeams engine is compiled (Rust/TS dependencies).
+3. If missing, automatically run the build script `scripts/build-engine.sh`.
+4. Translate feature tasks into AgentTeams JSON ledger records in `.specify/agent-teams/state`.
+5. Sync bundled worker prompts/skills into the project-local `.codex/` tree when missing.
+6. Provision isolated Git worktrees and tmux-backed workers through the bundled runtime.
+7. Hand over execution to the local orchestrator and stream progress.
 
 ```bash
 # 1. Execute engine build/check
 bash .specify/extensions/agent-teams/scripts/build-engine.sh
 
-# 2. Invoke the bridge entrypoint to parse tasks and start the orchestrator
-node .specify/extensions/agent-teams/engine/src/cli/bridge.js --spec .specify/project-map/spec.md --tasks .specify/project-map/tasks.md
+# 2. Invoke the bridge entrypoint with the active feature artifacts
+node .specify/extensions/agent-teams/engine/src/cli/bridge.js --spec <FEATURE_DIR>/spec.md --tasks <FEATURE_DIR>/tasks.md
 ```

@@ -3,6 +3,7 @@
 import json
 import os
 from unittest.mock import patch
+from pathlib import Path
 
 import yaml
 
@@ -61,6 +62,7 @@ class TestClaudeIntegration:
         assert parsed["user-invocable"] is True
         assert parsed["disable-model-invocation"] is True
         assert parsed["metadata"]["source"] == "templates/commands/plan.md"
+        assert (skills_dir / "sp-implement-teams" / "SKILL.md").exists()
 
     def test_setup_keeps_passive_skills_model_invokable(self, tmp_path):
         integration = get_integration("claude")
@@ -463,6 +465,85 @@ def test_claude_generated_runtime_facing_skills_include_native_delegation_contra
     assert "feature_dir/worker-results/<task-id>.json" in implement_content
     assert ".planning/debug/results/<session-slug>/<lane-id>.json" in debug_content
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in quick_content
+
+
+def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "claude-implement-leader-gate"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "claude", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai claude failed: {result.output}"
+
+    content = (target / ".claude" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
+
+    assert "## claude code leader gate".lower() in content
+    assert "you are the **leader**, not the concrete implementer" in content
+    assert "autonomous blocker recovery" in content
+    assert "missed_agent_dispatch" in content
+    assert "current runtime's native worker lanes" in content
+    assert "current integration's coordinated runtime surface" in content
+
+
+def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "claude-implement-teams"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "claude", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai claude failed: {result.output}"
+
+    skill_path = target / ".claude" / "skills" / "sp-implement-teams" / "SKILL.md"
+    assert skill_path.exists()
+
+    content = skill_path.read_text(encoding="utf-8")
+    lower = content.lower()
+    assert "claude code agent teams" in lower
+    assert "teamcreate" in lower
+    assert "taskcreate" in lower
+    assert "taskupdate" in lower
+    assert "sendmessage" in lower
+    assert "tasklist" in lower
+    assert "taskget" in lower
+    assert "teamdelete" in lower
+    assert "~/.claude/teams/" in content
+    assert "~/.claude/tasks/" in content
+    assert "shared contract with `/sp-implement`" in lower
+    assert "canonical implementation workflow" in lower
+    assert "implement-tracker.md" in lower
+    assert "workertaskpacket" in lower
+    assert "single-agent" in lower
+    assert "native-multi-agent" in lower
+    assert "sidecar-runtime" in lower
+    assert "join point" in lower
+    assert "worker-results" in lower
+    assert "worker result contract" in lower
+    assert "result file handoff path" in lower
+    assert "feature_dir/worker-results/<task-id>.json" in lower
+    assert "specify team" not in lower
+    assert "sp.agent-teams.run" not in lower
+    assert "specify extension add agent-teams" not in lower
+    assert "tmux" not in lower
+
+
+def test_claude_implement_teams_template_keeps_only_backend_specific_guidance():
+    template = Path(
+        "src/specify_cli/integrations/claude/templates/implement-teams.md"
+    ).read_text(encoding="utf-8")
+
+    assert "## Shared Contract With `/sp-implement`" not in template
 
 
 def test_claude_generated_skills_preserve_agent_required_marker_lines(tmp_path):
