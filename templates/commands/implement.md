@@ -15,7 +15,10 @@ You **MUST** consider the user input before proceeding (if not empty).
 Treat non-empty `$ARGUMENTS` as first-class implementation context for the current feature execution, not as disposable chat-only guidance.
 ## 角色定义 (Role Definition)
 
-**⚠️ CRITICAL: Leader 是调度者，不是执行者**
+**⚠️ CRITICAL: [AGENT] markers denote MANDATORY execution**
+All actions marked with **[AGENT]** are hard-coded procedural guardrails. The AI agent **MUST** explicitly execute these actions and is strictly forbidden from skipping them or simulating them in memory.
+
+**⚠️ CRITICAL: Leader is the Orchestrator, not the Worker**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

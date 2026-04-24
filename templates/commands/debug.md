@@ -11,6 +11,13 @@ scripts:
 $ARGUMENTS
 ```
 
+## Objective
+
+**⚠️ CRITICAL: [AGENT] markers denote MANDATORY execution**
+All actions marked with **[AGENT]** are hard-coded procedural guardrails. The AI agent **MUST** explicitly execute these actions and is strictly forbidden from skipping them or simulating them in memory.
+
+Systematically investigate and repair a failing test, bug, or unexpected behavior through a resumable workflow.
+
 ## Role
 You are the debug session leader. Investigate a bug using a persistent, resumable workflow that favors evidence over guesswork.
 

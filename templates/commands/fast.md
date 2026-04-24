@@ -12,6 +12,10 @@ $ARGUMENTS
 ```
 
 ## Objective
+
+**⚠️ CRITICAL: [AGENT] markers denote MANDATORY execution**
+All actions marked with **[AGENT]** are hard-coded procedural guardrails. The AI agent **MUST** explicitly execute these actions and is strictly forbidden from skipping them or simulating them in memory.
+
 Execute a trivial, low-risk task directly in the current context without entering the full `specify -> plan -> tasks` workflow.
 
 Use this for small fixes that are faster to execute than to plan: typo fixes, tiny config changes, missing imports, narrow doc edits, small bug fixes, and similarly bounded adjustments.

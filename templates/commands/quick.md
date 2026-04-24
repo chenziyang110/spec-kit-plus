@@ -20,6 +20,9 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 
 ## Leader Role
 
+**⚠️ CRITICAL: [AGENT] markers denote MANDATORY execution**
+All actions marked with **[AGENT]** are hard-coded procedural guardrails. The AI agent **MUST** explicitly execute these actions and is strictly forbidden from skipping them or simulating them in memory.
+
 - You are the quick-task leader. You own scope control, `STATUS.md`, lane selection, join points, validation, and the final summary artifact.
 - You are not the default worker for the quick task. Once scope is locked and a delegated path is available, dispatch the lane instead of continuing leader-local implementation work.
 - Treat `single-agent` as one delegated worker lane, not as permission to personally do the task.

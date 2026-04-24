@@ -12,6 +12,9 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Objective
 
+**⚠️ CRITICAL: [AGENT] markers denote MANDATORY execution**
+All actions marked with **[AGENT]** are hard-coded procedural guardrails. The AI agent **MUST** explicitly execute these actions and is strictly forbidden from skipping them or simulating them in memory.
+
 Generate or refresh the canonical handbook/project-map navigation system for
 the current codebase.
 

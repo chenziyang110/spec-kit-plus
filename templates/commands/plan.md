@@ -24,6 +24,13 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 
+## Objective
+
+**⚠️ CRITICAL: [AGENT] markers denote MANDATORY execution**
+All actions marked with **[AGENT]** are hard-coded procedural guardrails. The AI agent **MUST** explicitly execute these actions and is strictly forbidden from skipping them or simulating them in memory.
+
+Generate a durable technical design, architecture, and implementation plan for the current feature specification.
+
 ## Pre-Execution Checks
 
 **Check for extension hooks (before planning)**:

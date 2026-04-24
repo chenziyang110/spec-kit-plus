@@ -22,6 +22,13 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 
+## Objective
+
+**⚠️ CRITICAL: [AGENT] markers denote MANDATORY execution**
+All actions marked with **[AGENT]** are hard-coded procedural guardrails. The AI agent **MUST** explicitly execute these actions and is strictly forbidden from skipping them or simulating them in memory.
+
+Generate an actionable, dependency-ordered task list that decomposes the technical plan into verifiable implementation steps.
+
 ## Pre-Execution Checks
 
 **Check for extension hooks (before tasks generation)**:
