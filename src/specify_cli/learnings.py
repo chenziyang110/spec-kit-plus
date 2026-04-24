@@ -312,6 +312,10 @@ def _read_entries(path: Path) -> tuple[str, list[LearningEntry]]:
     return preamble, [LearningEntry.from_payload(payload) for payload in payloads]
 
 
+def read_learning_entries(path: Path) -> tuple[str, list[LearningEntry]]:
+    return _read_entries(path)
+
+
 def _write_entries(path: Path, preamble: str, entries: list[LearningEntry]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_render_learning_file(preamble, entries), encoding="utf-8")
@@ -512,6 +516,31 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         if is_relevant_to_command(entry, normalized_command) and is_highest_signal(entry)
     ]
 
+    top_warning_entries = sorted(
+        [
+            *[LearningEntry.from_payload(item) for item in promotable],
+            *[LearningEntry.from_payload(item) for item in confirmation_candidates],
+        ],
+        key=lambda entry: (-entry.occurrence_count, entry.recurrence_key),
+    )
+    seen_warning_keys: set[str] = set()
+    top_warnings: list[dict[str, Any]] = []
+    for entry in top_warning_entries:
+        if entry.recurrence_key in seen_warning_keys:
+            continue
+        top_warnings.append(
+            {
+                "recurrence_key": entry.recurrence_key,
+                "summary": entry.summary,
+                "signal_strength": entry.signal_strength,
+                "occurrence_count": entry.occurrence_count,
+                "status": entry.status,
+            }
+        )
+        seen_warning_keys.add(entry.recurrence_key)
+        if len(top_warnings) == 5:
+            break
+
     return {
         "command": normalized_command,
         "paths": paths.to_dict(),
@@ -521,6 +550,15 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         "auto_promoted": [entry.to_payload() for entry in auto_promoted],
         "promotable_candidates": promotable,
         "confirmation_candidates": confirmation_candidates,
+        "summary_counts": {
+            "relevant_rules": len(relevant_rules),
+            "relevant_learnings": len(relevant_learnings),
+            "relevant_candidates": len(relevant_candidates),
+            "auto_promoted": len(auto_promoted),
+            "promotable_candidates": len(promotable),
+            "confirmation_candidates": len(confirmation_candidates),
+        },
+        "top_warnings": top_warnings,
     }
 
 

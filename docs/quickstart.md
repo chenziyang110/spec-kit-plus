@@ -147,7 +147,9 @@ Passive project learning layer:
   - `specify learning status --format json`
   - `specify learning start --command <workflow> --format json`
   - `specify learning capture --command <workflow> ...`
+  - `specify learning aggregate --format json`
   - `specify learning promote --recurrence-key <key> --target learning|rule`
+- `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
 - Treat this as an internal/runtime helper surface, not as a separate daily slash workflow.
 
 ## Detailed Example: Building Taskify

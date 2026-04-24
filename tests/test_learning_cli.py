@@ -277,6 +277,93 @@ def test_learning_start_keeps_repeated_high_signal_candidates_for_confirmation(t
     assert "Always name touched shared surfaces explicitly" in confirmation
 
 
+def test_learning_aggregate_json_reports_grouped_patterns(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+    _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            "Need to preserve shared boundary pattern",
+            "--evidence",
+            "Observed during implementation",
+            "--recurrence-key",
+            "shared.boundary.pattern",
+            "--format",
+            "json",
+        ],
+    )
+
+    result = _invoke_in_project(project, ["learning", "aggregate", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["counts"]["patterns"] == 1
+    assert payload["patterns"][0]["recurrence_key"] == "shared.boundary.pattern"
+
+
+def test_learning_aggregate_write_report_creates_markdown_output(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    result = _invoke_in_project(
+        project,
+        ["learning", "aggregate", "--format", "json", "--write-report"],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    report_path = Path(payload["report_path"])
+    assert report_path.exists()
+    assert "Learning Aggregate Report" in report_path.read_text(encoding="utf-8")
+
+
+def test_learning_start_exposes_top_warnings_and_summary_counts(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    args = [
+        "learning",
+        "capture",
+        "--command",
+        "implement",
+        "--type",
+        "pitfall",
+        "--summary",
+        "Need to preserve shared boundary pattern",
+        "--evidence",
+        "Observed during implementation",
+        "--recurrence-key",
+        "shared.boundary.pattern",
+        "--signal",
+        "high",
+        "--format",
+        "json",
+    ]
+    _invoke_in_project(project, args)
+    _invoke_in_project(project, args)
+
+    result = _invoke_in_project(project, ["learning", "start", "--command", "implement", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["summary_counts"]["relevant_candidates"] == 1
+    assert payload["top_warnings"][0]["recurrence_key"] == "shared.boundary.pattern"
+    assert payload["top_warnings"][0]["summary"] == "Need to preserve shared boundary pattern"
+
+
 def test_learning_help_surfaces_low_level_helper_commands() -> None:
     result = runner.invoke(app, ["learning", "--help"], catch_exceptions=False)
 
