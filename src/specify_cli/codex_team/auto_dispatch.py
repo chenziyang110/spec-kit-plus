@@ -13,7 +13,6 @@ from specify_cli.codex_team import task_ops
 from specify_cli.codex_team.state_paths import (
     codex_team_state_root,
     dispatch_record_path,
-    result_record_path,
     worker_heartbeat_path,
 )
 from specify_cli.codex_team.runtime_bridge import dispatch_runtime_task, ensure_tmux_available

@@ -76,7 +76,6 @@ from specify_cli.codex_team.runtime_bridge import (
 from specify_cli.execution import (
     build_result_handoff_path,
     normalize_worker_task_result_payload,
-    worker_task_result_payload,
     write_normalized_result_handoff,
 )
 from specify_cli.learning_aggregate import (
