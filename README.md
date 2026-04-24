@@ -176,6 +176,11 @@ Passive project learning layer:
   - `specify learning aggregate --format json`
   - `specify learning promote --recurrence-key <key> --target learning|rule`
 - Use `specify learning aggregate` when you want a grouped, promotion-oriented summary of candidate, confirmed, and promoted learning patterns before deciding what should become a shared learning or rule.
+- Durable eval helpers turn promoted rules into local regression checks:
+  - `specify eval create --recurrence-key <key> ...`
+  - `specify eval status --format json`
+  - `specify eval run --format json`
+- Use `specify eval create` after a rule or learning becomes stable enough that the repository should keep proving it, not just remember it.
 - This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across `sp-specify`, `sp-plan`, `sp-tasks`, `sp-implement`, `sp-debug`, `sp-fast`, and `sp-quick`.
 
 After planning, continue with:

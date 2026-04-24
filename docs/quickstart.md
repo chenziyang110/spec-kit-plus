@@ -150,6 +150,10 @@ Passive project learning layer:
   - `specify learning aggregate --format json`
   - `specify learning promote --recurrence-key <key> --target learning|rule`
 - `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
+- Durable eval helpers exist once a rule should become executable proof instead of only remembered guidance:
+  - `specify eval create --recurrence-key <key> ...`
+  - `specify eval status --format json`
+  - `specify eval run --format json`
 - Treat this as an internal/runtime helper surface, not as a separate daily slash workflow.
 
 ## Detailed Example: Building Taskify

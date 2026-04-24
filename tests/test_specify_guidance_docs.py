@@ -109,6 +109,18 @@ def test_guidance_docs_include_learning_aggregate_surface():
     assert "specify learning aggregate" in quickstart
 
 
+def test_guidance_docs_include_eval_helper_surface():
+    readme = Path("README.md").read_text(encoding="utf-8")
+    quickstart = Path("docs/quickstart.md").read_text(encoding="utf-8")
+
+    assert "specify eval create" in readme
+    assert "specify eval run" in readme
+    assert "specify eval status" in readme
+    assert "specify eval create" in quickstart
+    assert "specify eval run" in quickstart
+    assert "specify eval status" in quickstart
+
+
 def test_guidance_docs_explain_implementation_constitution_and_boundary_guardrails():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
