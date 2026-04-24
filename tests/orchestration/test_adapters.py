@@ -72,6 +72,17 @@ def test_claude_adapter_uses_model_probe_to_lower_delegation_confidence(monkeypa
     assert any("model probe" in note.lower() for note in snapshot.notes)
 
 
+def test_claude_adapter_ignores_claude_model_env_var(monkeypatch):
+    monkeypatch.setenv("CLAUDE_MODEL", "claude-3-5-sonnet")
+    # ANTHROPIC_MODEL is not set
+
+    snapshot = ClaudeMultiAgentAdapter().detect_capabilities()
+
+    # Should fall back to integration key or None since CLAUDE_MODEL is ignored
+    assert snapshot.model_family == "claude"
+    assert not any("model probe selected" in note.lower() for note in snapshot.notes)
+
+
 def test_adapters_support_known_commands_and_reject_unknown_commands():
     for adapter in [ClaudeMultiAgentAdapter(), CodexMultiAgentAdapter(), GeminiMultiAgentAdapter()]:
         assert adapter.supports_command("implement") is True

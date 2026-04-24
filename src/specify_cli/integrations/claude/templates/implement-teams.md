@@ -29,7 +29,7 @@ Use this when:
 
 1. Confirm the current project is using the Claude integration and that `tasks.md` is ready.
 2. Confirm Claude Agent Teams is actually enabled before you try to use it:
-   - check whether `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is active in the current shell environment or configured under `env` in `~/.claude/settings.json`
+   - check whether `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is active in the current shell environment
    - if the Agent Teams surface is unavailable, or if the first `TeamCreate` / Agent Teams call fails as though the feature is disabled, stop and explicitly remind the user to enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` instead of continuing with a broken team setup
    - treat this as a hard prerequisite for `/sp-implement-teams`, not as an optional hint
 3. Create or resume a Claude Agent Team for the feature:
@@ -50,13 +50,12 @@ TeamCreate({
    - use `blockedBy` / `blocks` for ordering
    - use `owner` to assign each task to a named teammate
 7. Resolve the current session model before teammate creation:
-   - inspect the highest-confidence source first: any runtime-visible active model, then `ANTHROPIC_MODEL` / `CLAUDE_MODEL`, then `~/.claude/settings.json` `model`
-   - treat routing alias values, for example `ANTHROPIC_MODEL=group`, plus empty `CLAUDE_MODEL`, as unresolved routing hints; that evidence does not prove the active session model
-   - treat `~/.claude/settings.json` `model` as a default configuration preference only; it must not be treated as proof of the current session model
-   - if the only evidence is a routing alias plus a settings default, do not claim that the current session is running the settings model
-   - treat the resolved current-session model string as the default teammate target model for this run unless there is explicit evidence that the lane needs a different class
-   - if the current session model cannot be resolved unambiguously, stop and surface the ambiguity instead of silently inventing a teammate model
-   - in that ambiguous case, ask the user for an explicit teammate model instead of copying a guessed `settings.json` value into teammate frontmatter
+   - inspect the environment variable `ANTHROPIC_MODEL`
+   - treat routing alias values, for example `ANTHROPIC_MODEL=group`, as unresolved routing hints; that evidence does not prove the active session model
+   - do not fallback to `CLAUDE_MODEL`, `~/.claude/settings.json`, or any other local file for session model proof; if `ANTHROPIC_MODEL` is missing or ambiguous, treat the model as unresolved
+   - treat the resolved `ANTHROPIC_MODEL` string as the default teammate target model for this run
+   - if `ANTHROPIC_MODEL` cannot be resolved unambiguously, stop and surface the ambiguity instead of silently inventing a teammate model
+   - in that ambiguous case, ask the user for an explicit teammate model instead of copying a guessed default value into teammate frontmatter
 8. Materialize explicit teammate agent definitions before you create teammates:
    - create or update local `.claude/agents/<team-name>-<role>.md` files for every teammate you intend to launch
    - write the resolved current-session model into the teammate frontmatter as `model: "<resolved-current-model>"`
