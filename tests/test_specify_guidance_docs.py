@@ -216,3 +216,16 @@ def test_agents_declares_native_delegation_defaults():
 
     assert "native subagents or native delegation surface" in agents
     assert "for codex, that runtime surface is `specify team`" in agents
+
+
+def test_guidance_docs_explain_agent_marker_and_managed_agents_block() -> None:
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+    agents = _read("AGENTS.md")
+
+    for content in (readme, quickstart, agents):
+        assert "[AGENT]" in content
+        assert "independent from `[P]`" in content
+
+    assert "<!-- SPEC-KIT:BEGIN -->" in agents
+    assert "<!-- SPEC-KIT:END -->" in agents

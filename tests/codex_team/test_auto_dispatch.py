@@ -22,7 +22,7 @@ from specify_cli.codex_team.state_paths import (
 )
 from specify_cli.execution import worker_task_result_payload
 from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
-from specify_cli.codex_team.task_ops import claim_task, get_task, transition_task_status
+from specify_cli.codex_team.task_ops import TaskOpsError, claim_task, get_task, transition_task_status
 
 
 def _write_feature_tasks(project_root: Path, content: str) -> Path:
@@ -89,6 +89,51 @@ def test_parse_tasks_markdown_finds_parallel_batches_and_statuses(codex_team_pro
     assert parsed.parallel_batches[0].task_ids == ["T002", "T003"]
 
 
+def test_parse_tasks_markdown_captures_agent_required_without_redefining_parallel(
+    codex_team_project_root: Path,
+):
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Setup
+- [ ] T002 [AGENT] Read handbook
+- [ ] T003 [P] [AGENT] Worker lane
+""",
+    )
+
+    parsed = parse_tasks_markdown(feature_dir / "tasks.md")
+
+    assert parsed.tasks[1].agent_required is True
+    assert parsed.tasks[1].parallel is False
+    assert parsed.tasks[1].summary == "Read handbook in src/t002.py"
+    assert parsed.tasks[2].agent_required is True
+    assert parsed.tasks[2].parallel is True
+    assert parsed.tasks[2].summary == "Worker lane in src/t003.py"
+
+
+def test_parse_tasks_markdown_ignores_literal_marker_text_inside_task_summary(
+    codex_team_project_root: Path,
+):
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [ ] T001 Document literal [AGENT] token in docs/markers.md
+- [ ] T002 [P] Preserve literal [AGENT] token in docs/parallel.md
+""",
+    )
+
+    parsed = parse_tasks_markdown(feature_dir / "tasks.md")
+
+    assert parsed.tasks[0].agent_required is False
+    assert parsed.tasks[0].parallel is False
+    assert parsed.tasks[0].summary == "Document literal [AGENT] token in docs/markers.md"
+    assert parsed.tasks[1].agent_required is False
+    assert parsed.tasks[1].parallel is True
+    assert parsed.tasks[1].summary == "Preserve literal [AGENT] token in docs/parallel.md"
+
+
 def test_find_next_ready_parallel_batch_requires_prior_tasks_complete(codex_team_project_root: Path):
     feature_dir = _write_feature_tasks(
         codex_team_project_root,
@@ -103,6 +148,30 @@ def test_find_next_ready_parallel_batch_requires_prior_tasks_complete(codex_team
 
 - `T002`
 - `T003`
+""",
+    )
+
+    parsed = parse_tasks_markdown(feature_dir / "tasks.md")
+
+    assert find_next_ready_parallel_batch(parsed) is None
+
+
+def test_find_next_ready_parallel_batch_blocks_incomplete_sequential_work_between_batch_members(
+    codex_team_project_root: Path,
+):
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [X] T002 [P] Worker A
+- [ ] T003 Sequential prerequisite
+- [ ] T004 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T004`
 """,
     )
 
@@ -283,6 +352,102 @@ def test_route_ready_parallel_batch_requires_runtime_backend(monkeypatch, codex_
             feature_dir=feature_dir,
             session_id="default",
         )
+
+
+def test_route_ready_parallel_batch_rejects_explicit_batches_with_unknown_task_ids(
+    monkeypatch, codex_team_project_root: Path
+):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+    monkeypatch.setattr(
+        "specify_cli.codex_team.auto_dispatch.launch_dispatched_worker",
+        lambda *args, **kwargs: None,
+    )
+
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T999`
+""",
+    )
+
+    with pytest.raises(AutoDispatchError, match="unknown task ids"):
+        route_ready_parallel_batch(
+            codex_team_project_root,
+            feature_dir=feature_dir,
+            session_id="default",
+        )
+
+
+def test_route_ready_parallel_batch_cleans_up_partial_state_when_later_dispatch_fails(
+    monkeypatch, codex_team_project_root: Path
+):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    from specify_cli.codex_team.runtime_bridge import dispatch_runtime_task as real_dispatch_runtime_task
+
+    launched: list[str] = []
+
+    def _dispatch_with_failure(*args, **kwargs):
+        request_id = kwargs["request_id"]
+        if request_id.endswith("t003"):
+            raise RuntimeError("dispatch boom")
+        return real_dispatch_runtime_task(*args, **kwargs)
+
+    def _launch(*args, **kwargs):
+        launched.append(kwargs["task_id"])
+
+    monkeypatch.setattr("specify_cli.codex_team.auto_dispatch.dispatch_runtime_task", _dispatch_with_failure)
+    monkeypatch.setattr("specify_cli.codex_team.auto_dispatch.launch_dispatched_worker", _launch)
+
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+""",
+    )
+
+    with pytest.raises(RuntimeError, match="dispatch boom"):
+        route_ready_parallel_batch(
+            codex_team_project_root,
+            feature_dir=feature_dir,
+            session_id="default",
+        )
+
+    first_request_id = "default-parallel-batch-1-1-t002"
+    second_request_id = "default-parallel-batch-1-1-t003"
+    packets_root = codex_team_project_root / ".specify" / "codex-team" / "state" / "packets"
+
+    assert launched == []
+    assert batch_record_path(codex_team_project_root, "default-parallel-batch-1-1").exists() is False
+    assert dispatch_record_path(codex_team_project_root, first_request_id).exists() is False
+    assert dispatch_record_path(codex_team_project_root, second_request_id).exists() is False
+    assert (packets_root / f"{first_request_id}.json").exists() is False
+    assert (packets_root / f"{second_request_id}.json").exists() is False
+    assert runtime_session_path(codex_team_project_root, "default").exists()
+    session_payload = json.loads(runtime_session_path(codex_team_project_root, "default").read_text(encoding="utf-8"))
+    assert session_payload["status"] == "ready"
+    with pytest.raises(TaskOpsError, match="task T002 not found"):
+        get_task(codex_team_project_root, "T002")
+    with pytest.raises(TaskOpsError, match="task T003 not found"):
+        get_task(codex_team_project_root, "T003")
 
 
 def test_terminal_task_completion_auto_completes_batch(monkeypatch, codex_team_project_root: Path):
@@ -506,6 +671,46 @@ def test_complete_dispatched_batch_waits_for_review_when_review_gate_is_required
     task_payload = get_task(codex_team_project_root, "T002")
     assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "review_pending"
 
+@pytest.mark.parametrize("mode", ["missing", "corrupt"])
+def test_complete_dispatched_batch_fails_closed_when_dispatch_record_is_missing_or_corrupt(
+    monkeypatch,
+    codex_team_project_root: Path,
+    mode: str,
+):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+
+**Join Point 1.1**: merge before T004
+""",
+    )
+
+    route_ready_parallel_batch(codex_team_project_root, feature_dir=feature_dir, session_id="default")
+
+    request_id = "default-parallel-batch-1-1-t003"
+    path = dispatch_record_path(codex_team_project_root, request_id)
+    if mode == "missing":
+        path.unlink()
+    else:
+        path.write_text("{", encoding="utf-8")
+
+    with pytest.raises(AutoDispatchError, match="dispatch record"):
+        complete_dispatched_batch(
+            codex_team_project_root,
+            batch_id="default-parallel-batch-1-1",
+            session_id="default",
+        )
 
 def test_complete_dispatched_batch_requires_result_when_structured_results_expected(monkeypatch, codex_team_project_root: Path):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)

@@ -30,6 +30,10 @@ and refactor planning. Analyze both macro architecture and micro
 implementation-level details; do not stop at repository shape or shallow
 navigation summaries.
 
+## Passive Project Learning Layer
+
+- [AGENT] Run `specify learning start --command map-codebase --format json` when available so passive learning files exist, the current mapping run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+
 ## Output Contract
 
 The only canonical outputs are:
@@ -107,10 +111,8 @@ Rules:
 
 1. **Load the mapping contract**
    - Read `.specify/memory/constitution.md` if present.
-   - Read `.specify/project-map/status.json` if present to recover the current
-     map baseline, dirty state, and previous refresh metadata.
-   - Read `PROJECT-HANDBOOK.md` and all existing `.specify/project-map/*.md`
-     files if present.
+   - [AGENT] Read `.specify/project-map/status.json` if present to recover the current map baseline, dirty state, and previous refresh metadata.
+   - [AGENT] Read `PROJECT-HANDBOOK.md` and all existing `.specify/project-map/*.md` files if present.
    - Read `.specify/templates/project-handbook-template.md` and
      `.specify/templates/project-map/*.md` if present so the generated output
      follows the local navigation contract.
@@ -119,9 +121,7 @@ Rules:
      conventions.
 
 2. **Select the execution strategy**
-   - Before broad scouting begins, assess workload shape and the current agent
-     capability snapshot, then apply the shared policy contract:
-     `choose_execution_strategy(command_name="map-codebase", snapshot, workload_shape)`.
+   - [AGENT] Before broad scouting begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="map-codebase", snapshot, workload_shape)`.
    - Strategy names are canonical and must be used exactly:
      `single-agent`, `native-multi-agent`, `sidecar-runtime`.
    - Decision order is fixed:
@@ -154,7 +154,7 @@ Rules:
      - core code element review
      - data flow and API surface mapping
      - patterns and conventions synthesis
-   - Read only the live files needed to establish current facts for:
+   - [AGENT] Read only the live files needed to establish current facts for:
       - system shape and entrypoints
       - runtime units, execution surfaces, and major capability surfaces
       - directory ownership and write surfaces
@@ -200,8 +200,7 @@ Rules:
         maintainers would need during onboarding or refactor planning
 
 4. **Generate or refresh the topical map**
-   - Map the comprehensive scout into the canonical outputs instead of
-     inventing a standalone technical-document file:
+   - [AGENT] Map the comprehensive scout into the canonical outputs instead of inventing a standalone technical-document file:
      - `PROJECT-HANDBOOK.md` -> project architecture overview summary,
        cross-cutting hotspots, and topic routing
      - `ARCHITECTURE.md` -> top-level architecture pattern, major module
@@ -272,6 +271,7 @@ Rules:
      the handoffs without rediscovering them from scratch.
 
 5. **Generate or refresh `PROJECT-HANDBOOK.md`**
+   - [AGENT] Generate or refresh `PROJECT-HANDBOOK.md`.
    - `PROJECT-HANDBOOK.md` must stay concise and index-first so it remains the
      first-read navigation artifact.
    - Preserve the old single-entry-document strengths by making it easy to
@@ -290,8 +290,7 @@ Rules:
      carry the deeper detail.
 
 6. **Run a consistency pass**
-   - Ensure `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` agree on
-     paths, ownership, and workflow names.
+   - [AGENT] Ensure `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` agree on paths, ownership, and workflow names.
    - Remove duplicate truth blocks when a topic belongs in a topical document
      instead of the root handbook.
    - If touched-area coverage is still missing, stale, too broad, or
@@ -316,10 +315,8 @@ Rules:
      report.
 
 8. **Report completion**
-   - After the refresh succeeds, finalize the refresh through the project-map
-     freshness helper using `complete-refresh` so downstream workflows know the
-     new baseline commit and refresh reason. Use `record-refresh` only for
-     low-level/manual recovery when the standard completion path is unavailable.
+   - [AGENT] Before reporting completion, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `specify learning capture --command map-codebase ...`.
+   - [AGENT] After the refresh succeeds, finalize the refresh through the project-map freshness helper using `complete-refresh` so downstream workflows know the new baseline commit and refresh reason. Use `record-refresh` only for low-level/manual recovery when the standard completion path is unavailable.
    - Summarize which canonical map files were created or refreshed.
    - Call out the highest-signal risky coordination points or stale areas that
      were clarified.

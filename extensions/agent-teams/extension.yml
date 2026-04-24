@@ -1,0 +1,60 @@
+# Extension Manifest Schema v1.0
+schema_version: "1.0"
+
+extension:
+  id: "agent-teams"
+  name: "Agent Teams"
+  version: "0.1.0"
+  description: "A physically isolated multi-agent execution engine powered by Tmux and Rust sandboxing."
+  author: "Community"
+  repository: "https://github.com/statsperform/spec-kit-plus"
+  license: "MIT"
+
+requires:
+  speckit_version: ">=0.2.0"
+  tools:
+    - name: "tmux"
+      required: true
+      version: ">=3.2"
+      description: "Required for physical terminal isolation of agents"
+      check_command: "tmux -V"
+    - name: "rustc"
+      required: true
+      description: "Required to compile the isolation sandbox on first run"
+      check_command: "rustc --version"
+    - name: "npm"
+      required: true
+      description: "Required to install typescript runtime dependencies"
+      check_command: "npm --version"
+  commands:
+    - "sp.tasks"
+
+provides:
+  commands:
+    - name: "sp.agent-teams.run"
+      file: "commands/run.md"
+      description: "Parse tasks.md and execute them using an isolated multi-agent team"
+      aliases: ["sp.team.run", "sp.team.execute"]
+      
+    - name: "sp.agent-teams.cleanup"
+      file: "commands/cleanup.md"
+      description: "Force cleanup of dangling tmux panes and temporary worktrees"
+
+  config:
+    - name: "agent-teams-config.yml"
+      template: "agent-teams-config.template.yml"
+      description: "Concurrency and sandbox configuration"
+      required: false
+
+hooks:
+  after_tasks:
+    command: "sp.agent-teams.run"
+    optional: true
+    prompt: "Would you like to dispatch these tasks to the AgentTeams execution engine?"
+    description: "Automatically trigger multi-agent execution after planning"
+
+tags:
+  - "execution"
+  - "multi-agent"
+  - "isolation"
+  - "tmux"

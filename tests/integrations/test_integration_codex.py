@@ -160,6 +160,27 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     for skill_name in shared_skills:
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "specify team" not in content
+        assert "workflow-state.md" in content
+        assert "workflow_state_file" in content
+        assert "re-read `workflow_state_file`" in content or "re-read `workflow-state-file`" in content
+
+
+def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-agent-marker"
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, result.output
+
+    for skill_name in ("sp-fast", "sp-quick", "sp-map-codebase", "sp-implement", "sp-specify", "sp-plan", "sp-tasks", "sp-debug"):
+        content = (target / ".codex" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
+        assert "[AGENT]" in content
 
 
 def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrails(tmp_path):

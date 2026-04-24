@@ -136,6 +136,13 @@ Use the lightweight routing rules consistently:
 - Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage quick tasks. `specify quick list` defaults to unfinished quick tasks.
 - Upgrade to `/speckit.specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
+Required action markers:
+
+- `[AGENT]` marks a required AI action and is independent from `[P]`.
+- `[P]` still means parallel-safe work; `[AGENT]` does not imply parallelism or delegation by itself.
+- Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file replacement.
+- `/speckit.fast`, `/speckit.quick`, and `/speckit.map-codebase` are the first-wave `[AGENT]` workflows, and the shared `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`, and `/speckit.debug` workflows now use the same marker for hard gates.
+
 Passive project learning layer:
 
 - Generated projects now include `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` as stable shared project memory below the constitution.

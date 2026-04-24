@@ -1,0 +1,13 @@
+// package.json for the internal AgentTeams engine
+{
+  "name": "omx-agent-teams-engine",
+  "version": "1.0.0",
+  "description": "Internal multi-agent execution engine for spec-kit-plus",
+  "main": "src/cli/bridge.js",
+  "scripts": {
+    "start:orchestrator": "node src/cli/orchestrator.js"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

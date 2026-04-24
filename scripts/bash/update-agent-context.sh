@@ -96,6 +96,8 @@ NEW_LANG=""
 NEW_FRAMEWORK=""
 NEW_DB=""
 NEW_PROJECT_TYPE=""
+SPEC_KIT_BLOCK_START="<!-- SPEC-KIT:BEGIN -->"
+SPEC_KIT_BLOCK_END="<!-- SPEC-KIT:END -->"
 
 #==============================================================================
 # Utility Functions
@@ -129,6 +131,117 @@ cleanup() {
 
 # Set up cleanup trap
 trap cleanup EXIT INT TERM
+
+is_managed_agents_file() {
+    local target_file="$1"
+    [[ "$target_file" == "$AGENTS_FILE" ]]
+}
+
+render_speckit_managed_block() {
+    cat <<'EOF'
+<!-- SPEC-KIT:BEGIN -->
+## Spec Kit Plus Managed Rules
+
+- `[AGENT]` marks an action the AI must explicitly execute.
+- `[AGENT]` is independent from `[P]`.
+- Preserve content outside this managed block.
+<!-- SPEC-KIT:END -->
+EOF
+}
+
+upsert_speckit_managed_block() {
+    local target_file="$1"
+    local rendered_block
+    local python_cmd=""
+    rendered_block="$(render_speckit_managed_block)"
+
+    if command -v python3 >/dev/null 2>&1; then
+        python_cmd="python3"
+    elif command -v python >/dev/null 2>&1; then
+        python_cmd="python"
+    else
+        log_error "Python is required to update the managed Spec Kit block"
+        return 1
+    fi
+
+    if ! "$python_cmd" - "$target_file" "$SPEC_KIT_BLOCK_START" "$SPEC_KIT_BLOCK_END" "$rendered_block" <<'PY'
+from pathlib import Path
+import sys
+import os
+import re
+import tempfile
+
+path = Path(sys.argv[1])
+start = sys.argv[2]
+end = sys.argv[3]
+block = sys.argv[4]
+
+content = path.read_text(encoding="utf-8") if path.exists() else ""
+
+def choose_newline(text: str) -> str:
+    if "\r\n" in text:
+        return "\r\n"
+    if "\n" in text:
+        return "\n"
+    if "\r" in text:
+        return "\r"
+    return "\n"
+
+def render_block(template: str, newline: str) -> str:
+    normalized = template.replace("\r\n", "\n").replace("\r", "\n")
+    return normalized.replace("\n", newline)
+
+def count_markers(text: str, marker: str) -> int:
+    return text.count(marker)
+
+def find_complete_blocks(text: str, start_marker: str, end_marker: str):
+    pattern = re.escape(start_marker) + r".*?" + re.escape(end_marker)
+    return list(re.finditer(pattern, text, flags=re.S))
+
+raw_start_count = count_markers(content, start)
+raw_end_count = count_markers(content, end)
+complete_blocks = find_complete_blocks(content, start, end)
+
+if raw_start_count == 1 and raw_end_count == 1 and len(complete_blocks) == 1:
+    match = complete_blocks[0]
+    newline = choose_newline(match.group(0) or content)
+    updated = content[:match.start()] + render_block(block, newline) + content[match.end():]
+elif content:
+    newline = choose_newline(content)
+    rendered = render_block(block, newline)
+    if rendered in content:
+        updated = content
+    else:
+        if content.endswith(newline + newline):
+            separator = ""
+        elif content.endswith(newline):
+            separator = newline
+        else:
+            separator = newline + newline
+        updated = content + separator + rendered
+else:
+    updated = render_block(block, "\n")
+
+target_dir = path.parent if path.parent != Path("") else Path(".")
+fd, temp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=target_dir)
+os.close(fd)
+temp_path = Path(temp_name)
+try:
+    temp_path.write_text(updated, encoding="utf-8")
+    if path.exists():
+        os.chmod(temp_path, path.stat().st_mode)
+    os.replace(temp_path, path)
+finally:
+    if temp_path.exists():
+        temp_path.unlink()
+PY
+    then
+        log_error "Failed to update managed Spec Kit block in $target_file"
+        return 1
+    fi
+
+    return 0
+}
 
 #==============================================================================
 # Validation Functions
@@ -402,11 +515,11 @@ update_existing_agent_file() {
     local new_change_entry=""
     
     # Prepare new technology entries
-    if [[ -n "$tech_stack" ]] && ! grep -q "$tech_stack" "$target_file"; then
+    if [[ -n "$tech_stack" ]] && ! grep -Fq -- "$tech_stack" "$target_file"; then
         new_tech_entries+=("- $tech_stack ($CURRENT_BRANCH)")
     fi
     
-    if [[ -n "$NEW_DB" ]] && [[ "$NEW_DB" != "N/A" ]] && [[ "$NEW_DB" != "NEEDS CLARIFICATION" ]] && ! grep -q "$NEW_DB" "$target_file"; then
+    if [[ -n "$NEW_DB" ]] && [[ "$NEW_DB" != "N/A" ]] && [[ "$NEW_DB" != "NEEDS CLARIFICATION" ]] && ! grep -Fq -- "$NEW_DB" "$target_file"; then
         new_tech_entries+=("- $NEW_DB ($CURRENT_BRANCH)")
     fi
     
@@ -562,6 +675,36 @@ update_agent_file() {
             log_error "Failed to create directory: $target_dir"
             return 1
         fi
+    fi
+
+    if is_managed_agents_file "$target_file"; then
+        local file_exists=false
+        if [[ -f "$target_file" ]]; then
+            file_exists=true
+
+            if [[ ! -r "$target_file" ]]; then
+                log_error "Cannot read existing file: $target_file"
+                return 1
+            fi
+
+            if [[ ! -w "$target_file" ]]; then
+                log_error "Cannot write to existing file: $target_file"
+                return 1
+            fi
+        fi
+
+        if upsert_speckit_managed_block "$target_file"; then
+            if [[ "$file_exists" == true ]]; then
+                log_success "Updated existing $agent_name context file"
+            else
+                log_success "Created new $agent_name context file"
+            fi
+        else
+            log_error "Failed to update managed Spec Kit block"
+            return 1
+        fi
+
+        return 0
     fi
     
     if [[ ! -f "$target_file" ]]; then

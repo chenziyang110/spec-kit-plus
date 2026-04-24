@@ -162,6 +162,13 @@ Routing guide for lightweight work:
 - Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage tracked quick tasks. `specify quick list` defaults to unfinished quick tasks.
 - Move from `sp-quick` to `sp-specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
+Required action markers:
+
+- `[AGENT]` marks a required AI action and is independent from `[P]`.
+- `[P]` still means parallel-safe work; `[AGENT]` does not imply parallelism, delegation, or worker routing by itself.
+- Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file append or replacement.
+- First-wave `[AGENT]` coverage started with `sp-fast`, `sp-quick`, and `sp-map-codebase`; the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows now use the same marker for hard gates and required state updates.
+
 Passive project learning layer:
 
 - Generated projects now include `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` as stable shared project memory below the constitution.
@@ -223,9 +230,9 @@ For Codex and other skills-based integrations, the generated commands are instal
 Skills-based projects now install two layers into the same skills directory:
 
 - explicit workflow skills: `sp-*`
-- passive repository skills: `spec-kit-*`
+- passive bundled skills: keep the directory names from `templates/passive-skills/` (for example `spec-kit-*`, `tdd-workflow`, `frontend-design`)
 
-`sp-*` remains the primary user-facing workflow surface. Passive skills exist to improve automatic routing and guardrails inside Spec Kit Plus repositories, not to replace the explicit workflow commands.
+`sp-*` remains the primary user-facing workflow surface. Passive skills keep their template names and exist to improve automatic routing, guardrails, and bundled capabilities inside Spec Kit Plus repositories, not to replace the explicit workflow commands.
 
 ## Multi-CLI Orchestration (Milestones 1-2)
 

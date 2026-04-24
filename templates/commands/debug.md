@@ -33,7 +33,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ## Passive Project Learning Layer
 
-- Before deeper root-cause analysis, run `specify learning start --command debug --format json` when available so passive learning files exist, the current debug run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+- [AGENT] Run `specify learning start --command debug --format json` when available so passive learning files exist, the current debug run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains debug-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
 - Treat this as passive shared memory, not as a separate user-visible debug workflow.
@@ -48,7 +48,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
    - Record the parent/child relationship in both session files, and after the follow-up session is resolved, return to the parent session to finish the original human verification before archiving it.
 
 2. **Initialize or Resume**
-   - Create or read the session file in `.planning/debug/[slug].md`.
+   - [AGENT] Create or read the session file in `.planning/debug/[slug].md`.
    - Announce the current status, current hypothesis, and immediate next action.
 
 3. **Run the Investigation Protocol**
@@ -74,12 +74,12 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
 - Check whether `.specify/project-map/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-- If freshness is `missing` or `stale`, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
-- If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the failing area, run `/sp-map-codebase` before root-cause analysis continues. If only `review_topics` are non-empty, review those topical files before widening the investigation.
-- Read `PROJECT-HANDBOOK.md` before root-cause analysis so the investigation starts from the current system map.
-- If the handbook navigation system is missing, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
+- [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
+- [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the failing area, run `/sp-map-codebase` before root-cause analysis continues. If only `review_topics` are non-empty, review those topical files before widening the investigation.
+- [AGENT] Read `PROJECT-HANDBOOK.md` before root-cause analysis so the investigation starts from the current system map.
+- [AGENT] If the handbook navigation system is missing, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-- If task-relevant coverage is insufficient for the failing area, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
+- [AGENT] If task-relevant coverage is insufficient for the failing area, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
 - Read whichever of `ARCHITECTURE.md`, `WORKFLOWS.md`, `INTEGRATIONS.md`, `TESTING.md`, and `OPERATIONS.md` map to the failing area.
 - Read the corresponding `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` files for the failing area.
 - Use the navigation system to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
@@ -166,7 +166,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 ## Capability-Aware Investigation
 
 - During `investigating`, decide whether the current investigation should stay `single-agent` or switch to delegated evidence collection before running multiple independent evidence-gathering actions sequentially.
-- Use the shared policy function with the current capability snapshot: `choose_execution_strategy(command_name="debug", snapshot, workload_shape)`.
+- [AGENT] Use the shared policy function with the current capability snapshot: `choose_execution_strategy(command_name="debug", snapshot, workload_shape)`.
 - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
 - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal. If confidence is `low`, prefer sidecar or leader-led investigation over brittle native fan-out.
 - Debug routing decision order:
@@ -194,7 +194,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the evidence/result envelope.
 - Preserve `reported_status` when normalizing worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
 - Idle delegated worker is not an accepted result.
-- The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting delegated execution.
+- [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting delegated execution.
 
 ## Debug File Protocol
 
@@ -233,7 +233,7 @@ The session file must always make it clear:
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
 - If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
 - If you cannot complete that refresh in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield work proceeds.
-- Before the final completion or `awaiting_human_verify` report, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command debug ...`.
+- [AGENT] Before the final completion or `awaiting_human_verify` report, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command debug ...`.
 - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
 - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 

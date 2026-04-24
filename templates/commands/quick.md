@@ -21,27 +21,27 @@ Use this for work that is too large for `sp-fast` but still too small or too wel
 ## Required Context Inputs
 
 - Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
-- Run `specify learning start --command quick --format json` when available so passive learning files exist, the current quick-task run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+- [AGENT] Run `specify learning start --command quick --format json` when available so passive learning files exist, the current quick-task run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` after the constitution gate and before broader quick-task context.
 - If `.planning/learnings/candidates.md` still contains relevant entries after the passive start step, inspect only the entries relevant to the touched area so repeated pitfalls, workflow gaps, and project constraints are not rediscovered from scratch.
 - Check whether `.specify/project-map/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-- If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-- If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the touched area, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topical files before proceeding and refresh the map if they still look insufficient for the quick task.
-- Read `PROJECT-HANDBOOK.md` after the constitution gate and before any broad repository analysis.
-- If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+- [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+- [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the touched area, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topical files before proceeding and refresh the map if they still look insufficient for the quick task.
+- [AGENT] Read `PROJECT-HANDBOOK.md` after the constitution gate and before any broad repository analysis.
+- [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - Treat quick-task routing as a coverage-model check, not just a presence check. Coverage is also insufficient when the handbook/project-map set cannot yet tell you:
   - owning or truth-owning surfaces
   - change-propagation hotspots
   - verification entry points
   - known unknowns or stale evidence boundaries for the touched area
-- If task-relevant coverage is insufficient for the current quick task, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+- [AGENT] If task-relevant coverage is insufficient for the current quick task, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 - Use `Topic Map` to choose only the touched-area topical files needed for the current quick task.
 - Use the loaded handbook/project-map coverage to name the touched area's owning surfaces, change-propagation hotspots, verification entry points, and known unknowns before choosing the quick-task lane shape.
 - Do not load the full topical map unless the task expands beyond its bounded quick-task scope.
 - Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch workers, or analyze repository code until the constitution has been read or confirmed absent.
-- Create or resume `.planning/quick/<id>-<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
+- [AGENT] Create or resume `STATUS.md` at `.planning/quick/<id>-<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
 - Read `.planning/quick/<id>-<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
 - Treat `.planning/quick/index.json` as the derived quick-task index used for list, status, resume, close, and archive operations. If the index is stale or missing, rebuild it from `STATUS.md` files instead of treating it as the primary truth source.
 - Read only the minimum local context required to determine scope, safe lane shape, and the first execution strategy before dispatch.
@@ -90,7 +90,7 @@ The following flags are available and composable:
 - If the handbook navigation system is missing, rebuild it before `STATUS.md` initialization or touched-area analysis proceeds.
 - Before the first delegated lane is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first worker path.
 - Before implementation work starts, identify whether the quick task is best handled as one bounded worker lane or as two or more independent lanes that can safely proceed in parallel.
-- Use the shared policy function before execution begins and again at each join point: `choose_execution_strategy(command_name="quick", snapshot, workload_shape)`.
+- [AGENT] Use the shared policy function before execution begins and again at each join point: `choose_execution_strategy(command_name="quick", snapshot, workload_shape)`.
 - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
 - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for the current native worker path. If confidence is `low`, prefer sidecar or explicit fallback over fragile native dispatch.
 - Decision order:
@@ -353,7 +353,7 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Separate `verified` coverage from `not checked` coverage so readers can tell what was actually proven versus what is only expected to be safe.
    - For each declared surface, give the terminal status conclusion: `confirmed correct`, `fixed in this quick task`, or `not checked in this pass (with reason)`.
    - Make sure the final `STATUS.md` points to the summary, records the terminal state, and makes a future resume decision obvious.
-   - Before the final summary, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `specify learning capture --command quick ...`.
+   - [AGENT] Before the final summary, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command quick ...`.
    - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 

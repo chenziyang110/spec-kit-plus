@@ -35,6 +35,15 @@ def test_specify_template_uses_alignment_first_contract():
     lowered = content.lower()
 
     assert "PROJECT-HANDBOOK.md" in content
+    assert "WORKFLOW_STATE_FILE" in content
+    assert "workflow-state.md" in content
+    assert "Read `templates/workflow-state-template.md`." in content
+    assert "Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known." in content
+    assert "stage-state source of truth" in lowered
+    assert "phase_mode: planning-only" in content
+    assert "forbidden_actions" in content
+    assert "Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`." in content
+    assert "When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding." in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
@@ -180,6 +189,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert "22. Write `context.md` to `CONTEXT_FILE`." in content
     assert "- [ ] context.md exists" in content
     assert "- [ ] Locked decisions are preserved in context.md" in content
+    assert "- [ ] workflow-state.md exists" in content
+    assert "- [ ] workflow-state.md records `sp-specify` with planning-only restrictions" in content
     assert "- context file path" in content
     assert "common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify`" in content
     assert "explicit pre-release check" in lowered
@@ -209,6 +220,13 @@ def test_plan_template_requires_alignment_report_before_planning():
     lowered = content.lower()
 
     assert "PROJECT-HANDBOOK.md" in content
+    assert "workflow-state.md" in content
+    assert "WORKFLOW_STATE_FILE" in content
+    assert "Read `templates/workflow-state-template.md`" in content
+    assert "Create or resume `WORKFLOW_STATE_FILE` before substantial planning analysis." in content
+    assert "phase_mode: design-only" in content
+    assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in content
+    assert "When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding." in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
@@ -330,6 +348,13 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     lowered = content.lower()
 
     assert "PROJECT-HANDBOOK.md" in content
+    assert "workflow-state.md" in content
+    assert "WORKFLOW_STATE_FILE" in content
+    assert "Read `templates/workflow-state-template.md`" in content
+    assert "Create or resume `WORKFLOW_STATE_FILE` before substantial task-generation analysis." in content
+    assert "phase_mode: task-generation-only" in content
+    assert "Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution." in content
+    assert "When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding." in content
     assert ".specify/project-map/ARCHITECTURE.md" in content
     assert ".specify/project-map/STRUCTURE.md" in content
     assert ".specify/project-map/WORKFLOWS.md" in content
@@ -628,6 +653,24 @@ def test_context_template_exists_and_captures_planning_context():
     assert "## Deferred / Future Ideas" in content
 
 
+def test_workflow_state_template_exists_and_captures_phase_lock_contract():
+    content = _read("templates/workflow-state-template.md")
+
+    assert "# Workflow State:" in content
+    assert "## Current Command" in content
+    assert "## Phase Mode" in content
+    assert "## Allowed Artifact Writes" in content
+    assert "## Forbidden Actions" in content
+    assert "## Authoritative Files" in content
+    assert "## Resume Checklist" in content
+    assert "## Exit Criteria" in content
+    assert "## Next Action" in content
+    assert "## Next Command" in content
+    assert "planning-only" in content
+    assert "design-only" in content
+    assert "task-generation-only" in content
+
+
 def test_tasks_templates_default_to_phased_delivery_not_mvp():
     command_content = _read("templates/commands/tasks.md")
     template_content = _read("templates/tasks-template.md")
@@ -662,9 +705,25 @@ def test_tasks_templates_default_to_phased_delivery_not_mvp():
     assert "parallel batch" in template_content.lower()
     assert "join point" in template_content.lower()
     assert "write set" in template_content.lower()
+    assert "**[AGENT]**" in template_content
+    assert "independent from `[P]`" in template_content
     assert "mvp first" not in template_content.lower()
     assert "mvp increment" not in template_content.lower()
     assert "mvp!" not in template_content.lower()
+
+
+def test_shared_workflow_templates_mark_hard_gates_with_agent_marker() -> None:
+    paths = {
+        "specify": Path("templates/commands/specify.md"),
+        "plan": Path("templates/commands/plan.md"),
+        "tasks": Path("templates/commands/tasks.md"),
+        "implement": Path("templates/commands/implement.md"),
+        "debug": Path("templates/commands/debug.md"),
+    }
+
+    for name, path in paths.items():
+        content = path.read_text(encoding="utf-8")
+        assert "[AGENT]" in content, f"{name} template missing [AGENT] marker"
 
 
 def test_implement_template_supports_capability_aware_parallel_batches():
