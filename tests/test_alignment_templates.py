@@ -765,6 +765,10 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "boundary-pattern preservation" in lowered
     assert "implement-tracker.md" in content
     assert "execution-state source of truth" in lowered
+    assert "## execution intent" in lowered
+    assert "intent_outcome:" in lowered
+    assert "intent_constraints:" in lowered
+    assert "success_evidence:" in lowered
     assert "first-class implementation context" in lowered
     assert "user execution notes" in lowered
     assert "build or compile order" in lowered

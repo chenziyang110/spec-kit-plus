@@ -2,6 +2,7 @@ import pytest
 
 from specify_cli.execution.packet_schema import (
     DispatchPolicy,
+    ExecutionIntent,
     PacketReference,
     PacketScope,
     WorkerTaskPacket,
@@ -22,6 +23,11 @@ def sample_packet() -> WorkerTaskPacket:
         task_id="T017",
         story_id="US1",
         objective="Implement auth flow",
+        intent=ExecutionIntent(
+            outcome="Implement auth flow without changing the public contract shape",
+            constraints=["Do not create a parallel auth stack"],
+            success_signals=["login/logout behavior implemented"],
+        ),
         scope=PacketScope(
             write_scope=["src/services/auth_service.py"],
             read_scope=["src/contracts/auth.py"],

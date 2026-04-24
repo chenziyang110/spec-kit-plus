@@ -19,6 +19,8 @@ class PacketValidationError(ValueError):
 def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
     """Return the packet when its hard-fail execution contract is complete."""
 
+    if not packet.intent.outcome or not packet.intent.constraints or not packet.intent.success_signals:
+        raise PacketValidationError("DP1", "execution intent contract must be present in the packet")
     if not packet.scope.write_scope:
         raise PacketValidationError("DP1", "write_scope is required for delegated execution")
     if not packet.required_references:

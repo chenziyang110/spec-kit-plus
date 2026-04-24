@@ -76,8 +76,11 @@ from specify_cli.codex_team.runtime_bridge import (
 from specify_cli.execution import (
     build_result_handoff_path,
     normalize_worker_task_result_payload,
-    worker_task_result_payload,
     write_normalized_result_handoff,
+)
+from specify_cli.learning_aggregate import (
+    aggregate_learning_state,
+    write_learning_aggregate_report,
 )
 from specify_cli.learnings import (
     capture_learning,
@@ -1055,6 +1058,38 @@ def learning_promote_command(
         ("Applies To", ", ".join(entry["applies_to"])),
     ]
     console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Promotion", border_style="cyan"))
+
+
+@learning_app.command("aggregate")
+def learning_aggregate_command(
+    command_name: str | None = typer.Option(None, "--command", help="Optional workflow command filter, for example plan or sp-implement"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    write_report: bool = typer.Option(False, "--write-report", help="Also write a markdown report under .planning/learnings/reports/"),
+    stale_after_days: int = typer.Option(90, "--stale-after-days", help="Mark inactive patterns as stale after this many days"),
+):
+    """Aggregate passive project learnings into a promotion-oriented report."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = aggregate_learning_state(
+        project_root,
+        command_name=command_name,
+        stale_after_days=stale_after_days,
+    )
+    if write_report:
+        payload["report_path"] = str(write_learning_aggregate_report(project_root, payload))
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    rows = [
+        ("Patterns", str(payload["counts"]["patterns"])),
+        ("Promotion Ready", str(payload["counts"]["promotion_ready"])),
+        ("Approaching", str(payload["counts"]["approaching_threshold"])),
+        ("Stale", str(payload["counts"]["stale"])),
+    ]
+    if "report_path" in payload:
+        rows.append(("Report", f"[dim]{payload['report_path']}[/dim]"))
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Aggregate", border_style="cyan"))
 
 def check_tool(tool: str, tracker: StepTracker = None) -> bool:
     """Check if a tool is installed. Optionally update tracker.

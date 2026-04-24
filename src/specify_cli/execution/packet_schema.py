@@ -29,6 +29,13 @@ class DispatchPolicy:
 
 
 @dataclass(slots=True)
+class ExecutionIntent:
+    outcome: str = ""
+    constraints: list[str] = field(default_factory=list)
+    success_signals: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class WorkerTaskPacket:
     feature_id: str
     task_id: str
@@ -41,8 +48,9 @@ class WorkerTaskPacket:
     validation_gates: list[str]
     done_criteria: list[str]
     handoff_requirements: list[str]
+    intent: ExecutionIntent = field(default_factory=ExecutionIntent)
     dispatch_policy: DispatchPolicy = field(default_factory=DispatchPolicy)
-    packet_version: int = 1
+    packet_version: int = 2
 
 
 def _filter_dataclass_payload(cls: type, payload: dict[str, object]) -> dict[str, object]:
@@ -66,10 +74,14 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
         for item in payload.get("required_references", [])
         if isinstance(item, dict)
     ]
+    intent = ExecutionIntent(
+        **_filter_dataclass_payload(ExecutionIntent, payload.get("intent", {}))
+    )
     dispatch_policy = DispatchPolicy(
         **_filter_dataclass_payload(DispatchPolicy, payload.get("dispatch_policy", {}))
     )
     packet_payload = _filter_dataclass_payload(WorkerTaskPacket, payload)
+    packet_payload["intent"] = intent
     packet_payload["scope"] = scope
     packet_payload["required_references"] = required_references
     packet_payload["dispatch_policy"] = dispatch_policy

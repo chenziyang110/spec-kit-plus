@@ -119,6 +119,12 @@ class BatchRecord:
     join_point_name: str = ""
     batch_classification: str = "strict"
     safe_preparation: bool = False
+    review_required: bool = False
+    peer_review_lane_recommended: bool = False
+    review_reason: str = "low_risk_batch"
+    review_status: str = "not_required"
+    review_round: int = 0
+    review_record_ids: list[str] | None = None
     status: str = "dispatched"
     schema_version: str = SCHEMA_VERSION
     created_at: str = ""
@@ -130,6 +136,8 @@ class BatchRecord:
             self.created_at = now
         if not self.updated_at:
             self.updated_at = now
+        if self.review_record_ids is None:
+            self.review_record_ids = []
 
 
 def team_config_payload(*, team_name: str, session_id: str, config_version: str = "1") -> dict[str, Any]:
@@ -270,6 +278,12 @@ def batch_record_payload(
     join_point_name: str = "",
     batch_classification: str = "strict",
     safe_preparation: bool = False,
+    review_required: bool = False,
+    peer_review_lane_recommended: bool = False,
+    review_reason: str = "low_risk_batch",
+    review_status: str = "not_required",
+    review_round: int = 0,
+    review_record_ids: list[str] | None = None,
     status: str = "dispatched",
 ) -> dict[str, Any]:
     return asdict(
@@ -283,6 +297,12 @@ def batch_record_payload(
             join_point_name=join_point_name,
             batch_classification=batch_classification,
             safe_preparation=safe_preparation,
+            review_required=review_required,
+            peer_review_lane_recommended=peer_review_lane_recommended,
+            review_reason=review_reason,
+            review_status=review_status,
+            review_round=review_round,
+            review_record_ids=review_record_ids,
             status=status,
         )
     )

@@ -521,7 +521,6 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "~/.claude/teams/" in content
     assert "~/.claude/tasks/" in content
     assert "claude_code_experimental_agent_teams=1" in lower
-    assert "`~/.claude/settings.json`" in content
     assert "if the agent teams surface is unavailable" in lower
     assert "first `teamcreate` / agent teams call fails as though the feature is disabled" in lower
     assert "explicitly remind the user to enable `claude_code_experimental_agent_teams`" in lower

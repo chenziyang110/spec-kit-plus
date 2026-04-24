@@ -101,6 +101,14 @@ def test_guidance_docs_explain_passive_project_learning_layer():
     assert "specify learning status --format json" in local_dev
 
 
+def test_guidance_docs_include_learning_aggregate_surface():
+    readme = Path("README.md").read_text(encoding="utf-8")
+    quickstart = Path("docs/quickstart.md").read_text(encoding="utf-8")
+
+    assert "specify learning aggregate" in readme
+    assert "specify learning aggregate" in quickstart
+
+
 def test_guidance_docs_explain_implementation_constitution_and_boundary_guardrails():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")

@@ -6,16 +6,10 @@ import json
 from dataclasses import asdict, dataclass, field, fields
 from typing import Literal
 
+from specify_cli.verification import ValidationResult
+
 
 WorkerStatus = Literal["pending", "success", "blocked", "failed"]
-ValidationStatus = Literal["passed", "failed", "skipped"]
-
-
-@dataclass(slots=True)
-class ValidationResult:
-    command: str
-    status: ValidationStatus
-    output: str = ""
 
 
 @dataclass(slots=True)

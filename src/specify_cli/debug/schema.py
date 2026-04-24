@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 from pydantic import BaseModel, Field, model_validator, ConfigDict
+from specify_cli.verification import ValidationStatus
 
 class DebugStatus(str, Enum):
     GATHERING = "gathering"
@@ -92,11 +93,24 @@ class SuggestedSpawnTask(BaseModel):
     reasoning_effort: str
     message: str
 
+
+class ValidationCheck(BaseModel):
+    command: str
+    status: ValidationStatus
+    output: str = ""
+
+
+class ExecutionIntentState(BaseModel):
+    outcome: Optional[str] = None
+    constraints: List[str] = Field(default_factory=list)
+    success_signals: List[str] = Field(default_factory=list)
+
 class Resolution(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
     root_cause: Optional[RootCause] = None
     fix: Optional[str] = None
     verification: Optional[str] = None
+    validation_results: List[ValidationCheck] = Field(default_factory=list)
     files_changed: List[str] = Field(default_factory=list)
     fail_count: int = 0
     report: Optional[str] = None
@@ -138,3 +152,4 @@ class DebugGraphState(BaseModel):
     resolution: Resolution = Field(default_factory=Resolution)
     context: FeatureContext = Field(default_factory=FeatureContext)
     recently_modified: List[str] = Field(default_factory=list)
+    execution_intent: ExecutionIntentState = Field(default_factory=ExecutionIntentState)

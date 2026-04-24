@@ -106,6 +106,10 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "status: gathering | planned | executing | validating | blocked | resolved" in content
     assert "strategy: single-agent | native-multi-agent | sidecar-runtime" in content
     assert "## current focus" in content
+    assert "## execution intent" in content
+    assert "intent_outcome:" in content
+    assert "intent_constraints:" in content
+    assert "success_evidence:" in content
     assert "## execution" in content
     assert "execution_fallback:" in content
     assert "## validation" in content

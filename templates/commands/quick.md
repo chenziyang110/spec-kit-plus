@@ -171,6 +171,15 @@ goal: [bounded quick-task objective]
 current_focus: [what the leader is doing now]
 next_action: [immediate next step]
 
+## Execution Intent
+<!-- OVERWRITE/REFINE when the lane shape or validation target changes -->
+
+intent_outcome: [the bounded behavior change or recovery target for this quick task]
+intent_constraints:
+  - [constraints, forbidden drift, or scope boundaries that must stay active]
+success_evidence:
+  - [the checks or observations required before the quick task can be treated as resolved]
+
 ## Execution
 <!-- OVERWRITE/REFINE as the lane or batch changes -->
 

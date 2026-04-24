@@ -84,7 +84,16 @@ async def test_fixing_to_verifying():
 
 @pytest.mark.asyncio
 async def test_verifying_to_resolved_on_success(monkeypatch):
-    monkeypatch.setattr(graph_module, "run_command", lambda _cmd: "PASS")
+    seen: list[str] = []
+
+    def fake_run_verification_commands(commands, *, runner=None, stop_on_failure=False):
+        seen.extend(commands)
+        return [
+            graph_module.ValidationResult(command=command, status="passed", output="PASS")
+            for command in commands
+        ]
+
+    monkeypatch.setattr(graph_module, "run_verification_commands", fake_run_verification_commands)
 
     state = DebugGraphState(trigger="test bug", slug="test-slug")
     state.symptoms.reproduction_command = "python tests/repro.py"
@@ -95,6 +104,8 @@ async def test_verifying_to_resolved_on_success(monkeypatch):
     result = await node.run(ctx)
     assert isinstance(result, ResolvedNode)
     assert state.resolution.verification == "success"
+    assert seen == ["python tests/repro.py", "pytest tests/test_debug_graph.py"]
+    assert [item.command for item in state.resolution.validation_results] == seen
     assert state.status == DebugStatus.VERIFYING
 
 @pytest.mark.asyncio

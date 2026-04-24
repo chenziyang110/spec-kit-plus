@@ -180,7 +180,9 @@ Passive project learning layer:
   - `specify learning status --format json`
   - `specify learning start --command <workflow> --format json`
   - `specify learning capture --command <workflow> ...`
+  - `specify learning aggregate --format json`
   - `specify learning promote --recurrence-key <key> --target learning|rule`
+- Use `specify learning aggregate` when you want a grouped, promotion-oriented summary of candidate, confirmed, and promoted learning patterns before deciding what should become a shared learning or rule.
 - This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across `sp-specify`, `sp-plan`, `sp-tasks`, `sp-implement`, `sp-debug`, `sp-fast`, and `sp-quick`.
 
 After planning, continue with:

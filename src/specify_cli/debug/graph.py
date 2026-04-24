@@ -1,13 +1,26 @@
 from pathlib import Path
 from typing import Union
 from pydantic_graph import BaseNode, Graph, GraphRunContext, End
-from .schema import DebugGraphState, DebugStatus, EliminatedEntry, EvidenceEntry, SuggestedEvidenceLane
+from .schema import (
+    DebugGraphState,
+    DebugStatus,
+    EliminatedEntry,
+    EvidenceEntry,
+    SuggestedEvidenceLane,
+    ValidationCheck,
+)
 from .persistence import MarkdownPersistenceHandler, build_handoff_report
 from .context import ContextLoader
 from .utils import run_command, edit_file, read_file
 import functools
+from specify_cli.verification import (
+    ValidationResult as SharedValidationResult,
+    run_verification_commands,
+    verification_passed,
+)
 
 __all__ = ["run_command", "edit_file", "read_file"]
+ValidationResult = SharedValidationResult
 
 
 def _await_input(state: DebugGraphState, message: str) -> End:
@@ -383,6 +396,26 @@ def _record_verification_evidence(
         )
     )
 
+
+def _debug_verification_runner(command: str) -> tuple[int, str]:
+    output = run_command(command)
+    return (1, output) if _command_failed(output) else (0, output)
+
+
+def _refresh_execution_intent(state: DebugGraphState, commands: list[str]) -> None:
+    if not state.execution_intent.outcome:
+        state.execution_intent.outcome = (
+            state.resolution.fix
+            or "Verify the current fix against the recorded reproduction"
+        )
+    if not state.execution_intent.constraints:
+        state.execution_intent.constraints = [
+            "Do not mark resolved without verification evidence",
+            "If verification fails, return to investigating instead of layering more fixes blindly",
+        ]
+    if not state.execution_intent.success_signals:
+        state.execution_intent.success_signals = [f"{command} passes" for command in commands]
+
 def persist(func):
     @functools.wraps(func)
     async def wrapper(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]):
@@ -509,35 +542,34 @@ class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['ResolvedNode', 'InvestigatingNode', 'AwaitingHumanNode', End]:
         ctx.state.status = DebugStatus.VERIFYING
         ctx.state.current_node_id = "VerifyingNode"
-        
-        # 1. Run reproduction command
+
+        commands: list[str] = []
         repro_cmd = ctx.state.symptoms.reproduction_command
         if repro_cmd:
-            output = run_command(repro_cmd)
-            command_failed = _command_failed(output)
-            _record_verification_evidence(
-                ctx.state,
-                repro_cmd,
-                output,
-                success=not command_failed,
-            )
-            if command_failed:
-                return self._handle_failed_verification(ctx.state, ctx.deps)
-
-        # 2. Run feature directory tests
+            commands.append(repro_cmd)
         test_targets = _resolve_test_targets(ctx.state)
         if test_targets:
-            test_cmd = f"pytest {' '.join(test_targets)}"
-            output = run_command(test_cmd)
-            command_failed = _command_failed(output)
+            commands.append(f"pytest {' '.join(test_targets)}")
+
+        _refresh_execution_intent(ctx.state, commands)
+        validation_results = run_verification_commands(
+            commands,
+            runner=_debug_verification_runner,
+            stop_on_failure=True,
+        )
+        ctx.state.resolution.validation_results = [
+            ValidationCheck(command=result.command, status=result.status, output=result.output)
+            for result in validation_results
+        ]
+        for result in validation_results:
             _record_verification_evidence(
                 ctx.state,
-                test_cmd,
-                output,
-                success=not command_failed,
+                result.command,
+                result.output,
+                success=result.status == "passed",
             )
-            if command_failed:
-                return self._handle_failed_verification(ctx.state, ctx.deps)
+        if validation_results and not verification_passed(validation_results):
+            return self._handle_failed_verification(ctx.state, ctx.deps)
 
         # If verification passed, move to resolved.
         ctx.state.resolution.verification = "success"
