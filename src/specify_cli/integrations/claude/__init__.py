@@ -254,6 +254,26 @@ class ClaudeIntegration(SkillsIntegration):
             out.append(line)
         return "".join(out)
 
+    def _append_claude_leader_gate(
+        self,
+        *,
+        content: str,
+    ) -> str:
+        marker = "## Claude Code Leader Gate"
+        if marker in content:
+            return content
+
+        addendum = (
+            "\n"
+            "## Claude Code Leader Gate\n\n"
+            "- **⚠️ CRITICAL**: You are the **LEADER**, not the concrete implementer.\n"
+            "- **PROHIBITED**: DO NOT use `write_file`, `replace`, or other file-writing tools directly to implement tasks.\n"
+            "- **MANDATORY**: You MUST delegate every implementation task to a subagent using the `invoke_agent` tool.\n"
+            "- **FLOW**: 1. Parse Tasks -> 2. Select Strategy -> 3. COMPILE WorkerTaskPacket -> 4. CALL Subagent.\n"
+            "- **JUSTIFICATION**: Autonomous blocker recovery and multi-lane coordination require strict role isolation. Breaking this isolation leads to project-map drift and loss of orchestration state.\n"
+        )
+        return content + addendum
+
     def setup(
         self,
         project_root: Path,
@@ -339,6 +359,7 @@ class ClaudeIntegration(SkillsIntegration):
             )
             if command_name == "implement":
                 content = self._append_agent_teams_escalation(content=content)
+                content = self._append_claude_leader_gate(content=content)
             path.write_bytes(content.encode("utf-8"))
             self.record_file_in_manifest(path, project_root, manifest)
 
