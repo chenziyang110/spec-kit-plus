@@ -62,3 +62,14 @@ def test_fast_template_defines_explicit_upgrade_triggers() -> None:
     assert "new workflow" in content
     assert "compatibility" in content
     assert "acceptance criteria" in content
+
+
+def test_fast_template_marks_learning_and_fail_closed_routing_gates_with_agent_marker() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "fast.md").read_text(encoding="utf-8")
+
+    assert "[AGENT] Run `specify learning start --command fast --format json`" in content
+    assert "[AGENT] If freshness is `missing` or `stale`, stop and redirect to `/sp-quick` or `/sp-map-codebase`" in content
+    assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`." in content
+    assert "[AGENT] If `PROJECT-HANDBOOK.md` or `.specify/project-map/` is missing, stop and redirect to `/sp-quick`" in content
+    assert "[AGENT] If the requested change touches a shared surface, risky coordination point, propagation hotspot, non-trivial verification entry point, or known-unknown-heavy area, stop and redirect to `/sp-quick`." in content
+    assert "[AGENT] Before the final report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning" in content

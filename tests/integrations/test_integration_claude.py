@@ -463,3 +463,21 @@ def test_claude_generated_runtime_facing_skills_include_native_delegation_contra
     assert "feature_dir/worker-results/<task-id>.json" in implement_content
     assert ".planning/debug/results/<session-slug>/<lane-id>.json" in debug_content
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in quick_content
+
+
+def test_claude_generated_skills_preserve_agent_required_marker_lines(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "claude-agent-marker"
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "claude", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, result.output
+
+    for skill_name in ("sp-fast", "sp-quick", "sp-map-codebase", "sp-implement", "sp-specify", "sp-plan", "sp-tasks", "sp-debug"):
+        content = (target / ".claude" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
+        assert "[AGENT]" in content

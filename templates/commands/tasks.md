@@ -58,42 +58,68 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Passive Project Learning Layer
 
-- Before deeper task analysis, run `specify learning start --command tasks --format json` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+- [AGENT] Run `specify learning start --command tasks --format json` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader task-generation context.
 - Review `.planning/learnings/candidates.md` only when it still contains task-generation-relevant candidate learnings after the passive start step, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
+## Workflow Phase Lock
+
+- [AGENT] Create or resume `WORKFLOW_STATE_FILE` before substantial task-generation analysis.
+- Read `templates/workflow-state-template.md`.
+- If `WORKFLOW_STATE_FILE` is missing, recreate it from the template and the current spec/plan package instead of continuing from chat memory alone.
+- Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth on resume after compaction for the current command, allowed artifact writes, forbidden actions, authoritative files, next action, and exit criteria.
+- Set or update the state for this run with at least:
+  - `active_command: sp-tasks`
+  - `phase_mode: task-generation-only`
+  - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from task-generation artifacts`
+- Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution.
+- When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
+
 ## Outline
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+   - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
+   - [AGENT] Create or resume `WORKFLOW_STATE_FILE` before substantial task-generation analysis.
+   - Read `templates/workflow-state-template.md`.
+   - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
+   - Persist at least these fields for the active pass:
+     - `active_command: sp-tasks`
+     - `phase_mode: task-generation-only`
+     - `allowed_artifact_writes: tasks.md, workflow-state.md`
+     - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from task-generation artifacts`
+     - `authoritative_files: spec.md, alignment.md, context.md, plan.md, tasks.md`
+   - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 2. **Ensure repository navigation system exists**:
    - Check whether `.specify/project-map/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task-generation request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before generating task batches.
+   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task-generation request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before generating task batches.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
-   - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-   - If task-relevant coverage is insufficient for the current task-generation request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If task-relevant coverage is insufficient for the current task-generation request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 
 3. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
    - **Required when present**: alignment.md (locked decisions, outstanding questions, planning gate context)
+   - **Required when present**: workflow-state.md (current phase lock, allowed actions, forbidden actions, resume contract)
    - **Optional**: references.md (retained sources, reusable insights, spec impact mapping)
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
    - **Required when present**: `.specify/memory/constitution.md` (project constitution and mandatory principles that tasks must preserve)
    - **Required when present**: `.specify/memory/project-rules.md` (shared project defaults that task generation should preserve)
    - **Required when present**: `.specify/memory/project-learnings.md` (confirmed reusable project learnings that may shape decomposition, validation, or guardrails)
    - **If `.planning/learnings/candidates.md` exists**: inspect only the entries relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
-   - **Required**: Read `PROJECT-HANDBOOK.md`
+   - **Required**: [AGENT] Read `PROJECT-HANDBOOK.md`
    - **Required**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`
    - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
+   - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 4. **Execute task generation workflow**:
-   - Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="tasks", snapshot, workload_shape)`
+   - [AGENT] Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="tasks", snapshot, workload_shape)`
    - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
    - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
    - Decision order is fixed:
@@ -126,7 +152,7 @@ You **MUST** consider the user input before proceeding (if not empty).
     - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence.
     - If later work still depends on upstream evidence, add a refinement checkpoint instead of guessing detailed downstream tasks too early.
     - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
-    - Add a `Task Guardrail Index` or equivalent task-to-guardrail mapping when delegated execution needs task-local hard rules, required references, forbidden drift, or validation gates compiled into worker packets
+    - [AGENT] Add a `Task Guardrail Index` or equivalent task-to-guardrail mapping when delegated execution needs task-local hard rules, required references, forbidden drift, or validation gates compiled into worker packets
     - Generate dependency graph showing user story completion order
    - Derive a write set for each task (files or shared registration surfaces it will modify)
    - Group ready tasks into each phase's parallel batches using those write sets
@@ -136,7 +162,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - If `classify_review_gate_policy(workload_shape)` requires a review gate, add an explicit high-risk review checkpoint before downstream tasks continue.
    - High-risk review gates are usually required for shared registration surfaces, schema or migration changes, protocol seams, native/plugin bridges, or generated API surfaces.
    - If a peer-review lane is available and the review can stay read-only, recommend one peer-review lane for the batch; otherwise keep the review gate on the leader path.
-   - Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
+   - [AGENT] Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
    - Create parallel execution examples per user story
    - Validate task completeness (each user story has all needed tasks, independently testable)
    - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly instead of silently dropping it
@@ -166,6 +192,14 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Independent test criteria for each story
    - Suggested first release scope (based on the smallest coherent release slice, not automatically limited to just User Story 1)
    - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
+   - workflow-state path
+   - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
+     - `active_command: sp-tasks`
+     - `phase_mode: task-generation-only`
+     - current authoritative files
+     - exit criteria for task-generation completion
+     - the next action required before handoff
+     - `next_command: /sp.implement`
 
 7. **Check for extension hooks**: After tasks.md is generated, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_tasks` key

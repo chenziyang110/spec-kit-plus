@@ -313,6 +313,11 @@ class TestBuiltInSkillGeneration:
         assert "verification entry points" in specify_body
         assert "known unknowns relevant to the request" in specify_body
         assert "module ownership, reusable components/services/hooks, integration points" in specify_body
+        assert "workflow-state.md" in specify_body
+        assert "Read `.specify/templates/workflow-state-template.md`." in specify_body
+        assert "Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known." in specify_body
+        assert "phase_mode: planning-only" in specify_body
+        assert "Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`." in specify_body
         assert "If the topical coverage for the touched area is missing, stale, or too broad" in specify_body
         assert "Run a codebase scout before clarification." in specify_body
         assert "Build a concise internal scout summary for the request area" in specify_body
@@ -343,6 +348,9 @@ class TestBuiltInSkillGeneration:
         assert "no locked planning decision or implementation constitution rule has been silently omitted" in plan_body
         assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_body
         assert "Dispatch Compilation Hints" in plan_body
+        assert "workflow-state.md" in plan_body
+        assert "phase_mode: design-only" in plan_body
+        assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in plan_body
 
         tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
         assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
@@ -350,6 +358,9 @@ class TestBuiltInSkillGeneration:
         assert "implementation-guardrails phase before setup" in tasks_body
         assert "locked planning decision or implementation constitution rule" in tasks_body
         assert "Task Guardrail Index" in tasks_body
+        assert "workflow-state.md" in tasks_body
+        assert "phase_mode: task-generation-only" in tasks_body
+        assert "Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution." in tasks_body
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body

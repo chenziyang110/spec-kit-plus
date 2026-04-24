@@ -217,3 +217,16 @@ def test_quick_template_defines_empty_call_recovery_and_lifecycle_management() -
     assert "resumable unfinished work" in content
     assert "close" in content
     assert "archive" in content
+
+
+def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent_marker() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8")
+
+    assert "[AGENT] Run `specify learning start --command quick --format json`" in content
+    assert "[AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`." in content
+    assert "[AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] If task-relevant coverage is insufficient for the current quick task, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] Create or resume `STATUS.md`" in content
+    assert "[AGENT] Use the shared policy function before execution begins and again at each join point" in content
+    assert "[AGENT] Before the final summary, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning" in content

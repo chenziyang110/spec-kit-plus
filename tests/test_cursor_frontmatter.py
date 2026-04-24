@@ -20,6 +20,14 @@ SCRIPT_PATH = os.path.join(
     "bash",
     "update-agent-context.sh",
 )
+POWERSHELL_SCRIPT_PATH = os.path.join(
+    os.path.dirname(__file__),
+    os.pardir,
+    "scripts",
+    "powershell",
+    "update-agent-context.ps1",
+)
+POWERSHELL = shutil.which("pwsh") or shutil.which("powershell")
 
 EXPECTED_FRONTMATTER_LINES = [
     "---",
@@ -37,14 +45,127 @@ requires_bash = pytest.mark.skipif(
     shutil.which("bash") is None,
     reason="bash is not installed",
 )
+requires_powershell = pytest.mark.skipif(
+    POWERSHELL is None,
+    reason="PowerShell is not installed",
+)
 
 
 def _bash_path(path: str | Path) -> str:
-    raw = str(path)
+    raw = str(Path(path).resolve())
     normalized = raw.replace("\\", "/")
-    if len(normalized) >= 2 and normalized[1] == ":":
+    if os.name != "nt":
+        return normalized
+
+    bash = shutil.which("bash")
+    if bash is None:
+        return normalized
+
+    probe = subprocess.run(
+        [
+            bash,
+            "-lc",
+            'if [ -r /proc/version ] && grep -qi microsoft /proc/version; then printf wsl; else printf other; fi',
+        ],
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=False,
+        timeout=30,
+    )
+    if probe.stdout.strip() == "wsl" and len(normalized) >= 2 and normalized[1] == ":":
         return f"/mnt/{normalized[0].lower()}{normalized[2:]}"
     return normalized
+
+
+def _create_git_repo(tmp_path: Path) -> Path:
+    """Create a minimal git repo with the spec-kit structure."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    subprocess.run(
+        ["git", "init"], cwd=str(repo), capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=str(repo),
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=str(repo),
+        capture_output=True,
+        check=True,
+    )
+
+    specify_dir = repo / ".specify"
+    specify_dir.mkdir()
+    (specify_dir / "config.yaml").write_text(
+        textwrap.dedent("""\
+            project_type: webapp
+            language: python
+            framework: fastapi
+            database: N/A
+        """)
+    )
+
+    templates_dir = specify_dir / "templates"
+    templates_dir.mkdir()
+    (templates_dir / "agent-file-template.md").write_text(
+        "# [PROJECT NAME] Development Guidelines\n\n"
+        "Auto-generated from all feature plans. Last updated: [DATE]\n\n"
+        "## Active Technologies\n\n"
+        "[EXTRACTED FROM ALL PLAN.MD FILES]\n\n"
+        "## Project Structure\n\n"
+        "[ACTUAL STRUCTURE FROM PLANS]\n\n"
+        "## Development Commands\n\n"
+        "[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES]\n\n"
+        "## Coding Conventions\n\n"
+        "[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE]\n\n"
+        "## Recent Changes\n\n"
+        "[LAST 3 FEATURES AND WHAT THEY ADDED]\n"
+    )
+
+    subprocess.run(
+        ["git", "add", "-A"], cwd=str(repo), capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "init"],
+        cwd=str(repo),
+        capture_output=True,
+        check=True,
+    )
+
+    subprocess.run(
+        ["git", "checkout", "-b", "001-test-feature"],
+        cwd=str(repo),
+        capture_output=True,
+        check=True,
+    )
+
+    spec_dir = repo / "specs" / "001-test-feature"
+    spec_dir.mkdir(parents=True)
+    (spec_dir / "plan.md").write_text(
+        "**Language/Version**: Python 3.13\n"
+        "**Primary Dependencies**: FastAPI\n"
+        "**Storage**: N/A\n"
+        "**Project Type**: webapp\n",
+        encoding="utf-8",
+    )
+
+    return repo
+
+
+def _run_powershell_update(repo: Path, agent_type: str = "cursor-agent"):
+    return subprocess.run(
+        [POWERSHELL, "-NoProfile", "-File", POWERSHELL_SCRIPT_PATH, "-AgentType", agent_type],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        errors="replace",
+        timeout=30,
+    )
 
 
 class TestScriptFrontmatterPattern:
@@ -92,87 +213,7 @@ class TestCursorFrontmatterIntegration:
 
     @pytest.fixture
     def git_repo(self, tmp_path):
-        """Create a minimal git repo with the spec-kit structure."""
-        repo = tmp_path / "repo"
-        repo.mkdir()
-
-        # Init git repo
-        subprocess.run(
-            ["git", "init"], cwd=str(repo), capture_output=True, check=True
-        )
-        subprocess.run(
-            ["git", "config", "user.email", "test@test.com"],
-            cwd=str(repo),
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test"],
-            cwd=str(repo),
-            capture_output=True,
-            check=True,
-        )
-
-        # Create .specify dir with config
-        specify_dir = repo / ".specify"
-        specify_dir.mkdir()
-        (specify_dir / "config.yaml").write_text(
-            textwrap.dedent("""\
-                project_type: webapp
-                language: python
-                framework: fastapi
-                database: N/A
-            """)
-        )
-
-        # Create template
-        templates_dir = specify_dir / "templates"
-        templates_dir.mkdir()
-        (templates_dir / "agent-file-template.md").write_text(
-            "# [PROJECT NAME] Development Guidelines\n\n"
-            "Auto-generated from all feature plans. Last updated: [DATE]\n\n"
-            "## Active Technologies\n\n"
-            "[EXTRACTED FROM ALL PLAN.MD FILES]\n\n"
-            "## Project Structure\n\n"
-            "[ACTUAL STRUCTURE FROM PLANS]\n\n"
-            "## Development Commands\n\n"
-            "[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES]\n\n"
-            "## Coding Conventions\n\n"
-            "[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE]\n\n"
-            "## Recent Changes\n\n"
-            "[LAST 3 FEATURES AND WHAT THEY ADDED]\n"
-        )
-
-        # Create initial commit
-        subprocess.run(
-            ["git", "add", "-A"], cwd=str(repo), capture_output=True, check=True
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "init"],
-            cwd=str(repo),
-            capture_output=True,
-            check=True,
-        )
-
-        # Create a feature branch so CURRENT_BRANCH detection works
-        subprocess.run(
-            ["git", "checkout", "-b", "001-test-feature"],
-            cwd=str(repo),
-            capture_output=True,
-            check=True,
-        )
-
-        # Create a spec so the script detects the feature
-        spec_dir = repo / "specs" / "001-test-feature"
-        spec_dir.mkdir(parents=True)
-        (spec_dir / "plan.md").write_text(
-            "# Test Feature Plan\n\n"
-            "## Technology Stack\n\n"
-            "- Language: Python\n"
-            "- Framework: FastAPI\n"
-        )
-
-        return repo
+        return _create_git_repo(tmp_path)
 
     def _run_update(self, repo, agent_type="cursor-agent"):
         """Run update-agent-context.sh for a specific agent type."""
@@ -207,6 +248,8 @@ class TestCursorFrontmatterIntegration:
 
         # Content after frontmatter should be the template content
         assert "Development Guidelines" in content
+        assert "Python 3.13" in content
+        assert "FastAPI" in content
 
     def test_existing_mdc_without_frontmatter_gets_it_added(self, git_repo):
         """Updating an existing .mdc file that lacks frontmatter must add it."""
@@ -270,9 +313,76 @@ class TestCursorFrontmatterIntegration:
         result = self._run_update(git_repo, agent_type="claude")
         assert result.returncode == 0, f"Script failed: {result.stderr}"
 
-        claude_file = git_repo / ".claude" / "CLAUDE.md"
-        if claude_file.exists():
-            content = claude_file.read_text()
-            assert not content.startswith("---"), (
-                "Non-mdc file should not have frontmatter"
-            )
+        claude_file = git_repo / "CLAUDE.md"
+        assert claude_file.exists(), "Claude file was not created"
+
+        content = claude_file.read_text()
+        assert not content.startswith("---"), (
+            "Non-mdc file should not have frontmatter"
+        )
+
+
+@requires_git
+@requires_powershell
+class TestCursorFrontmatterPowerShellIntegration:
+    @pytest.fixture
+    def git_repo(self, tmp_path):
+        return _create_git_repo(tmp_path)
+
+    def test_new_mdc_file_has_frontmatter(self, git_repo):
+        result = _run_powershell_update(git_repo)
+        assert result.returncode == 0, f"Script failed: {result.stderr or result.stdout}"
+
+        mdc_file = git_repo / ".cursor" / "rules" / "specify-rules.mdc"
+        assert mdc_file.exists(), "Cursor .mdc file was not created"
+
+        content = mdc_file.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        assert lines[0] == "---", f"Expected frontmatter start, got: {lines[0]}"
+        for expected in EXPECTED_FRONTMATTER_LINES:
+            assert expected in content, f"Missing frontmatter line: {expected}"
+        assert "Python 3.13" in content
+        assert "FastAPI" in content
+
+    def test_existing_claude_file_without_sections_gets_sections_added(self, git_repo):
+        claude_file = git_repo / "CLAUDE.md"
+        claude_file.write_text(
+            "# repo Development Guidelines\n\n"
+            "Last updated: 2025-01-01\n",
+            encoding="utf-8",
+        )
+
+        result = _run_powershell_update(git_repo, agent_type="claude")
+        assert result.returncode == 0, f"Script failed: {result.stderr or result.stdout}"
+
+        content = claude_file.read_text(encoding="utf-8")
+        assert "## Active Technologies" in content
+        assert "- Python 3.13 + FastAPI (001-test-feature)" in content
+        assert "## Recent Changes" in content
+        assert "- 001-test-feature: Added Python 3.13 + FastAPI" in content
+        assert not content.startswith("---"), (
+            "Non-mdc file should not have frontmatter"
+        )
+
+    def test_existing_mdc_without_frontmatter_gets_it_added(self, git_repo):
+        cursor_dir = git_repo / ".cursor" / "rules"
+        cursor_dir.mkdir(parents=True, exist_ok=True)
+        mdc_file = cursor_dir / "specify-rules.mdc"
+        mdc_file.write_text(
+            "# repo Development Guidelines\n\n"
+            "Auto-generated from all feature plans. Last updated: 2025-01-01\n\n"
+            "## Active Technologies\n\n"
+            "- Python + FastAPI (main)\n\n"
+            "## Recent Changes\n\n"
+            "- main: Added Python + FastAPI\n",
+            encoding="utf-8",
+        )
+
+        result = _run_powershell_update(git_repo)
+        assert result.returncode == 0, f"Script failed: {result.stderr or result.stdout}"
+
+        content = mdc_file.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        assert lines[0] == "---", f"Expected frontmatter start, got: {lines[0]}"
+        for expected in EXPECTED_FRONTMATTER_LINES:
+            assert expected in content, f"Missing frontmatter line: {expected}"

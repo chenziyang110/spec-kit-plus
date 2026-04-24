@@ -76,6 +76,8 @@ $script:NEW_LANG = ''
 $script:NEW_FRAMEWORK = ''
 $script:NEW_DB = ''
 $script:NEW_PROJECT_TYPE = ''
+$script:SpecKitBlockStart = '<!-- SPEC-KIT:BEGIN -->'
+$script:SpecKitBlockEnd = '<!-- SPEC-KIT:END -->'
 
 function Write-Info { 
     param(
@@ -109,6 +111,131 @@ function Write-Err {
     Write-Host "ERROR: $Message" -ForegroundColor Red 
 }
 
+function Test-IsManagedAgentsFile {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TargetFile
+    )
+    return ([System.IO.Path]::GetFullPath($TargetFile) -eq [System.IO.Path]::GetFullPath($AGENTS_FILE))
+}
+
+function Get-SpecKitManagedBlock {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$Newline = "`n"
+    )
+
+    return (
+        @(
+            '<!-- SPEC-KIT:BEGIN -->'
+            '## Spec Kit Plus Managed Rules'
+            ''
+            '- `[AGENT]` marks an action the AI must explicitly execute.'
+            '- `[AGENT]` is independent from `[P]`.'
+            '- Preserve content outside this managed block.'
+            '<!-- SPEC-KIT:END -->'
+        ) -join $Newline
+    )
+}
+
+function Get-PreferredNewline {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$Text
+    )
+
+    if ($Text.Contains("`r`n")) { return "`r`n" }
+    if ($Text.Contains("`n")) { return "`n" }
+    if ($Text.Contains("`r")) { return "`r" }
+    return "`n"
+}
+
+function Write-Utf8NoBom {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TargetFile,
+        [Parameter(Mandatory=$true)]
+        [string]$Content
+    )
+
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $directory = Split-Path -Parent $TargetFile
+    $tempFile = Join-Path $directory ([System.IO.Path]::GetRandomFileName())
+    $backupFile = Join-Path $directory ([System.IO.Path]::GetRandomFileName())
+
+    try {
+        [System.IO.File]::WriteAllText($tempFile, $Content, $utf8NoBom)
+        if (Test-Path $TargetFile) {
+            [System.IO.File]::Replace($tempFile, $TargetFile, $backupFile)
+            if (Test-Path $backupFile) {
+                Remove-Item -LiteralPath $backupFile -Force
+            }
+        }
+        else {
+            [System.IO.File]::Move($tempFile, $TargetFile)
+        }
+    }
+    finally {
+        if (Test-Path $tempFile) {
+            Remove-Item -LiteralPath $tempFile -Force
+        }
+        if (Test-Path $backupFile) {
+            Remove-Item -LiteralPath $backupFile -Force
+        }
+    }
+}
+
+function Update-SpecKitManagedBlock {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TargetFile
+    )
+
+    $content = if (Test-Path $TargetFile) {
+        Get-Content -LiteralPath $TargetFile -Raw -Encoding utf8
+    } else {
+        ''
+    }
+
+    $rawStartCount = ([regex]::Matches($content, [regex]::Escape($script:SpecKitBlockStart))).Count
+    $rawEndCount = ([regex]::Matches($content, [regex]::Escape($script:SpecKitBlockEnd))).Count
+    $completeBlocks = [regex]::Matches(
+        $content,
+        "(?s)$([regex]::Escape($script:SpecKitBlockStart)).*?$([regex]::Escape($script:SpecKitBlockEnd))"
+    )
+
+    if ($rawStartCount -eq 1 -and $rawEndCount -eq 1 -and $completeBlocks.Count -eq 1) {
+        $match = $completeBlocks[0]
+        $newline = Get-PreferredNewline -Text $match.Value
+        $block = Get-SpecKitManagedBlock -Newline $newline
+        $content = $content.Substring(0, $match.Index) + $block + $content.Substring($match.Index + $match.Length)
+    }
+    elseif ($content.Length -eq 0) {
+        $content = Get-SpecKitManagedBlock
+    }
+    else {
+        $newline = Get-PreferredNewline -Text $content
+        $block = Get-SpecKitManagedBlock -Newline $newline
+        if ($content.Contains($block)) {
+            $content = $content
+        }
+        else {
+            if ($content.EndsWith($newline + $newline)) {
+                $separator = ''
+            }
+            elseif ($content.EndsWith($newline)) {
+                $separator = $newline
+            }
+            else {
+                $separator = $newline + $newline
+            }
+            $content = $content + $separator + $block
+        }
+    }
+
+    Write-Utf8NoBom -TargetFile $TargetFile -Content $content
+}
+
 function Validate-Environment {
     if (-not $CURRENT_BRANCH) {
         Write-Err 'Unable to determine current feature'
@@ -122,9 +249,8 @@ function Validate-Environment {
         exit 1
     }
     if (-not (Test-Path $TEMPLATE_FILE)) {
-        Write-Err "Template file not found at $TEMPLATE_FILE"
-        Write-Info 'Run specify init to scaffold .specify/templates, or add agent-file-template.md there.'
-        exit 1
+        Write-WarningMsg "Template file not found at $TEMPLATE_FILE"
+        Write-WarningMsg 'Creating new agent files will fail'
     }
 }
 
@@ -273,7 +399,7 @@ function New-AgentFile {
 
     $parent = Split-Path -Parent $TargetFile
     if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent | Out-Null }
-    Set-Content -LiteralPath $TargetFile -Value $content -NoNewline -Encoding utf8
+    Write-Utf8NoBom -TargetFile $TargetFile -Content $content
     Remove-Item $temp -Force
     return $true
 }
@@ -304,6 +430,9 @@ function Update-ExistingAgentFile {
     $newChangeEntry = ''
     if ($techStack) { $newChangeEntry = "- ${CURRENT_BRANCH}: Added ${techStack}" }
     elseif ($NEW_DB -and $NEW_DB -notin @('N/A','NEEDS CLARIFICATION')) { $newChangeEntry = "- ${CURRENT_BRANCH}: Added ${NEW_DB}" }
+
+    $hasActiveTechnologies = Select-String -Pattern '^## Active Technologies$' -Path $TargetFile -Quiet
+    $hasRecentChanges = Select-String -Pattern '^## Recent Changes$' -Path $TargetFile -Quiet
 
     $lines = Get-Content -LiteralPath $TargetFile -Encoding utf8
     $output = New-Object System.Collections.Generic.List[string]
@@ -347,13 +476,25 @@ function Update-ExistingAgentFile {
         $newTechEntries | ForEach-Object { $output.Add($_) }
     }
 
+    if (-not $hasActiveTechnologies -and $newTechEntries.Count -gt 0) {
+        if ($output.Count -gt 0) { $output.Add('') }
+        $output.Add('## Active Technologies')
+        $newTechEntries | ForEach-Object { $output.Add($_) }
+    }
+
+    if (-not $hasRecentChanges -and $newChangeEntry) {
+        if ($output.Count -gt 0) { $output.Add('') }
+        $output.Add('## Recent Changes')
+        $output.Add($newChangeEntry)
+    }
+
     # Ensure Cursor .mdc files have YAML frontmatter for auto-inclusion
     if ($TargetFile -match '\.mdc$' -and $output.Count -gt 0 -and $output[0] -ne '---') {
-        $frontmatter = @('---','description: Project Development Guidelines','globs: ["**/*"]','alwaysApply: true','---','')
+        [string[]]$frontmatter = @('---','description: Project Development Guidelines','globs: ["**/*"]','alwaysApply: true','---','')
         $output.InsertRange(0, $frontmatter)
     }
 
-    Set-Content -LiteralPath $TargetFile -Value ($output -join [Environment]::NewLine) -Encoding utf8
+    Write-Utf8NoBom -TargetFile $TargetFile -Content ($output -join [Environment]::NewLine)
     return $true
 }
 
@@ -371,6 +512,22 @@ function Update-AgentFile {
 
     $dir = Split-Path -Parent $TargetFile
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+
+    if (Test-IsManagedAgentsFile -TargetFile $TargetFile) {
+        $exists = Test-Path $TargetFile
+        try {
+            Update-SpecKitManagedBlock -TargetFile $TargetFile
+            if ($exists) {
+                Write-Success "Updated existing $AgentName context file"
+            } else {
+                Write-Success "Created new $AgentName context file"
+            }
+        } catch {
+            Write-Err "Cannot access or update managed Spec Kit block in $TargetFile. $_"
+            return $false
+        }
+        return $true
+    }
 
     if (-not (Test-Path $TargetFile)) {
         if (New-AgentFile -TargetFile $TargetFile -ProjectName $projectName -Date $date) { Write-Success "Created new $AgentName context file" } else { Write-Err 'Failed to create new agent file'; return $false }

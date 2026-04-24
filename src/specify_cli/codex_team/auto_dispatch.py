@@ -14,6 +14,8 @@ from specify_cli.codex_team.state_paths import (
     codex_team_state_root,
     dispatch_record_path,
     result_record_path,
+    runtime_session_path,
+    task_record_path,
     worker_heartbeat_path,
 )
 from specify_cli.codex_team.runtime_bridge import dispatch_runtime_task, ensure_tmux_available
@@ -33,6 +35,7 @@ from specify_cli.execution import (
     validate_worker_task_result,
     worker_task_packet_from_json,
 )
+from specify_cli.workflow_markers import has_agent_marker, has_parallel_marker, strip_known_markers
 
 
 TASK_LINE_RE = re.compile(r"^- \[(?P<mark>[ xX])\] (?P<task_id>T\d+)(?P<rest>.*)$")
@@ -54,6 +57,7 @@ class ParsedTask:
     task_id: str
     completed: bool
     parallel: bool
+    agent_required: bool
     summary: str
     order_index: int
 
@@ -291,8 +295,9 @@ def parse_tasks_markdown(tasks_path: Path) -> ParsedTasksDocument:
                 ParsedTask(
                     task_id=task_match.group("task_id"),
                     completed=task_match.group("mark").lower() == "x",
-                    parallel="[P]" in rest,
-                    summary=rest.strip(),
+                    parallel=has_parallel_marker(rest),
+                    agent_required=has_agent_marker(rest),
+                    summary=strip_known_markers(rest),
                     order_index=len(tasks),
                 )
             )
@@ -327,16 +332,23 @@ def find_next_ready_parallel_batch(parsed: ParsedTasksDocument) -> ParsedParalle
 
     # 1. Try explicit batches first
     for batch in parsed.parallel_batches:
-        members = [tasks_by_id[task_id] for task_id in batch.task_ids if task_id in tasks_by_id]
+        unknown_task_ids = [task_id for task_id in batch.task_ids if task_id not in tasks_by_id]
+        if unknown_task_ids:
+            unknown_text = ", ".join(unknown_task_ids)
+            raise AutoDispatchError(
+                f"explicit batch {batch.batch_name} references unknown task ids: {unknown_text}"
+            )
+
+        members = [tasks_by_id[task_id] for task_id in batch.task_ids]
         pending_members = [task for task in members if not task.completed]
         if not pending_members:
             continue
 
-        first_index = min(task.order_index for task in members)
+        last_pending_index = max(task.order_index for task in pending_members)
         blocked = any(
             not task.completed and task.task_id not in batch.task_ids
             for task in parsed.tasks
-            if task.order_index < first_index
+            if task.order_index < last_pending_index
         )
         if blocked:
             continue
@@ -427,6 +439,75 @@ def _load_batch_record(project_root: Path, batch_id: str) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _cleanup_partial_dispatch_state(
+    project_root: Path,
+    *,
+    session_id: str,
+    original_session_payload: dict[str, object] | None,
+    request_ids: Iterable[str],
+    packet_paths: Iterable[Path],
+    result_paths: Iterable[Path],
+    created_task_ids: Iterable[str],
+) -> None:
+    for request_id in request_ids:
+        dispatch_record_path(project_root, request_id).unlink(missing_ok=True)
+
+    for path in packet_paths:
+        path.unlink(missing_ok=True)
+
+    for path in result_paths:
+        path.unlink(missing_ok=True)
+
+    for task_id in created_task_ids:
+        task_record_path(project_root, task_id).unlink(missing_ok=True)
+
+    if original_session_payload is not None:
+        write_json(runtime_session_path(project_root, session_id), original_session_payload)
+        monitor_summary(project_root, session_id=session_id)
+
+
+def _load_expected_dispatch_records(
+    project_root: Path,
+    *,
+    task_ids: list[str],
+    request_ids: list[str],
+) -> dict[str, dict[str, object]]:
+    dispatch_by_task_id: dict[str, dict[str, object]] = {}
+
+    for request_id in request_ids:
+        dispatch_path = dispatch_record_path(project_root, request_id)
+        if not dispatch_path.exists():
+            raise AutoDispatchError(f"dispatch record for request {request_id} is missing")
+
+        try:
+            dispatch_payload = json.loads(dispatch_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise AutoDispatchError(f"dispatch record for request {request_id} is corrupt") from exc
+
+        packet_summary = dispatch_payload.get("packet_summary", {})
+        if not isinstance(packet_summary, dict):
+            raise AutoDispatchError(f"dispatch record for request {request_id} is corrupt")
+
+        task_id = str(packet_summary.get("task_id", "")).strip()
+        if not task_id:
+            raise AutoDispatchError(f"dispatch record for request {request_id} is corrupt")
+        if task_id not in task_ids:
+            raise AutoDispatchError(
+                f"dispatch record for request {request_id} references unexpected task {task_id}"
+            )
+        if task_id in dispatch_by_task_id:
+            raise AutoDispatchError(f"duplicate dispatch record for task {task_id}")
+
+        dispatch_by_task_id[task_id] = dispatch_payload
+
+    missing_task_ids = [task_id for task_id in task_ids if task_id not in dispatch_by_task_id]
+    if missing_task_ids:
+        missing_text = ", ".join(missing_task_ids)
+        raise AutoDispatchError(f"dispatch records are missing for tasks: {missing_text}")
+
+    return dispatch_by_task_id
+
+
 def launch_dispatched_worker(
     project_root: Path,
     *,
@@ -497,12 +578,23 @@ def route_ready_parallel_batch(
 
     try:
         bootstrap_session(project_root, session_id=session_id)
+        original_session_payload = json.loads(
+            runtime_session_path(project_root, session_id).read_text(encoding="utf-8")
+        )
     except Exception as exc:
         if "already active" not in str(exc):
             raise
+        original_session_payload = json.loads(
+            runtime_session_path(project_root, session_id).read_text(encoding="utf-8")
+        )
 
     request_ids: list[str] = []
     dispatched_task_ids: list[str] = []
+    prepared_request_ids: list[str] = []
+    packet_paths: list[Path] = []
+    result_paths: list[Path] = []
+    created_task_ids: list[str] = []
+    pending_launches: list[dict[str, str]] = []
     batch_id = _batch_id_for(session_id, batch.batch_name)
     codex_snapshot = CapabilitySnapshot(
         integration_key="codex",
@@ -526,69 +618,112 @@ def route_ready_parallel_batch(
             "safe_preparation": False,
         }
     )
-    for task_id in batch.task_ids:
-        task = tasks_by_id.get(task_id)
-        if task is None or task.completed:
-            continue
-        request_id = _request_id_for(session_id, batch.batch_name, task_id)
-        packet = compile_worker_task_packet(
-            project_root=project_root,
-            feature_dir=feature_dir,
-            task_id=task_id,
-        )
-        packet_path = codex_team_state_root(project_root) / "packets" / f"{request_id}.json"
-        result_path = build_result_handoff_path(
-            project_root,
-            command_name="implement",
-            integration_key="codex",
-            request_id=request_id,
-        )
-        write_json(packet_path, asdict(packet))
-
-        try:
-            task_ops.create_task(
-                project_root,
+    try:
+        for task_id in batch.task_ids:
+            task = tasks_by_id.get(task_id)
+            if task is None or task.completed:
+                continue
+            request_id = _request_id_for(session_id, batch.batch_name, task_id)
+            packet = compile_worker_task_packet(
+                project_root=project_root,
+                feature_dir=feature_dir,
                 task_id=task_id,
-                summary=task.summary,
-                metadata={
-                    "feature_dir": feature_dir.as_posix(),
-                    "batch_name": batch.batch_name,
-                    "source": "auto_dispatch",
-                    "packet_path": str(packet_path),
-                },
             )
-        except task_ops.TaskOpsError:
-            pass
+            packet_path = codex_team_state_root(project_root) / "packets" / f"{request_id}.json"
+            result_path = build_result_handoff_path(
+                project_root,
+                command_name="implement",
+                integration_key="codex",
+                request_id=request_id,
+            )
+            prepared_request_ids.append(request_id)
+            packet_paths.append(packet_path)
+            result_paths.append(result_path)
+            write_json(packet_path, asdict(packet))
 
-        dispatch_runtime_task(
+            try:
+                task_ops.create_task(
+                    project_root,
+                    task_id=task_id,
+                    summary=task.summary,
+                    metadata={
+                        "feature_dir": feature_dir.as_posix(),
+                        "batch_name": batch.batch_name,
+                        "source": "auto_dispatch",
+                        "packet_path": str(packet_path),
+                    },
+                )
+                created_task_ids.append(task_id)
+            except task_ops.TaskOpsError:
+                pass
+
+            dispatch_runtime_task(
+                project_root,
+                session_id=session_id,
+                request_id=request_id,
+                target_worker=task_id.lower(),
+                packet_path=str(packet_path),
+                packet_summary={
+                    "task_id": packet.task_id,
+                    "objective": packet.objective,
+                    "write_scope": packet.scope.write_scope,
+                    "summary": render_packet_summary(packet),
+                },
+                delegation_metadata={
+                    "native_surface": delegation_descriptor.native_surface,
+                    "native_dispatch_hint": delegation_descriptor.native_dispatch_hint,
+                    "native_join_hint": delegation_descriptor.native_join_hint,
+                    "sidecar_surface_hint": delegation_descriptor.sidecar_surface_hint,
+                    "result_contract_hint": delegation_descriptor.result_contract_hint,
+                    "structured_results_expected": delegation_descriptor.structured_results_expected,
+                },
+                result_path=str(result_path),
+            )
+            request_ids.append(request_id)
+            dispatched_task_ids.append(task_id)
+            pending_launches.append(
+                {
+                    "task_id": task_id,
+                    "request_id": request_id,
+                    "result_path": str(result_path),
+                }
+            )
+
+        _write_batch_record(
+            project_root,
+            batch_id=batch_id,
+            batch_name=batch.batch_name,
+            session_id=session_id,
+            feature_dir=feature_dir,
+            task_ids=dispatched_task_ids,
+            request_ids=request_ids,
+            join_point_name=batch.join_point_name,
+            batch_classification=batch_policy.batch_classification,
+            safe_preparation=batch_policy.safe_preparation_allowed,
+        )
+    except Exception:
+        _cleanup_partial_dispatch_state(
             project_root,
             session_id=session_id,
-            request_id=request_id,
-            target_worker=task_id.lower(),
-            packet_path=str(packet_path),
-            packet_summary={
-                "task_id": packet.task_id,
-                "objective": packet.objective,
-                "write_scope": packet.scope.write_scope,
-                "summary": render_packet_summary(packet),
-            },
-            delegation_metadata={
-                "native_surface": delegation_descriptor.native_surface,
-                "native_dispatch_hint": delegation_descriptor.native_dispatch_hint,
-                "native_join_hint": delegation_descriptor.native_join_hint,
-                "sidecar_surface_hint": delegation_descriptor.sidecar_surface_hint,
-                "result_contract_hint": delegation_descriptor.result_contract_hint,
-                "structured_results_expected": delegation_descriptor.structured_results_expected,
-            },
-            result_path=str(result_path),
+            original_session_payload=original_session_payload,
+            request_ids=prepared_request_ids,
+            packet_paths=packet_paths,
+            result_paths=result_paths,
+            created_task_ids=created_task_ids,
         )
+        raise
+
+    for pending_launch in pending_launches:
+        task_id = pending_launch["task_id"]
+        request_id = pending_launch["request_id"]
+        result_path = pending_launch["result_path"]
         launch_dispatched_worker(
             project_root,
             session_id=session_id,
             worker_id=task_id.lower(),
             task_id=task_id,
             request_id=request_id,
-            result_path=str(result_path),
+            result_path=result_path,
         )
         current_task = task_ops.get_task(project_root, task_id)
         if batch.join_point_name:
@@ -606,21 +741,7 @@ def route_ready_parallel_batch(
                     "safe_preparation": batch_policy.safe_preparation_allowed,
                 },
             )
-        request_ids.append(request_id)
-        dispatched_task_ids.append(task_id)
 
-    _write_batch_record(
-        project_root,
-        batch_id=batch_id,
-        batch_name=batch.batch_name,
-        session_id=session_id,
-        feature_dir=feature_dir,
-        task_ids=dispatched_task_ids,
-        request_ids=request_ids,
-        join_point_name=batch.join_point_name,
-        batch_classification=batch_policy.batch_classification,
-        safe_preparation=batch_policy.safe_preparation_allowed,
-    )
     monitor_summary(project_root, session_id=session_id)
     return AutoDispatchResult(
         feature_dir=feature_dir,
@@ -690,17 +811,11 @@ def complete_dispatched_batch(
     if not task_ids:
         raise AutoDispatchError(f"batch {batch_id} has no task ids")
 
-    dispatch_by_task_id: dict[str, dict[str, object]] = {}
-    for request_id in request_ids:
-        dispatch_path = dispatch_record_path(project_root, request_id)
-        if not dispatch_path.exists():
-            continue
-        dispatch_payload = json.loads(dispatch_path.read_text(encoding="utf-8"))
-        packet_summary = dispatch_payload.get("packet_summary", {})
-        if isinstance(packet_summary, dict):
-            task_id = str(packet_summary.get("task_id", "")).strip()
-            if task_id:
-                dispatch_by_task_id[task_id] = dispatch_payload
+    dispatch_by_task_id = _load_expected_dispatch_records(
+        project_root,
+        task_ids=task_ids,
+        request_ids=request_ids,
+    )
 
     for task_id in task_ids:
         dispatch_payload = dispatch_by_task_id.get(task_id, {})

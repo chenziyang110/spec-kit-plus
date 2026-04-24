@@ -60,39 +60,65 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Passive Project Learning Layer
 
-- Before deeper planning analysis, run `specify learning start --command plan --format json` when available so passive learning files exist, the current planning run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+- [AGENT] Run `specify learning start --command plan --format json` when available so passive learning files exist, the current planning run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader planning context.
 - Review `.planning/learnings/candidates.md` only when it still contains planning-relevant candidate learnings after the passive start step, especially repeated workflow gaps or project constraints that would otherwise be rediscovered during planning.
 - Treat this as passive shared memory, not as a separate user-visible planning command.
 
+## Workflow Phase Lock
+
+- [AGENT] Create or resume `WORKFLOW_STATE_FILE` before substantial planning analysis.
+- Read `templates/workflow-state-template.md`.
+- If `WORKFLOW_STATE_FILE` is missing, recreate it from the template and the current spec package instead of continuing from chat memory alone.
+- Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth on resume after compaction for the current command, allowed artifact writes, forbidden actions, authoritative files, next action, and exit criteria.
+- Set or update the state for this run with at least:
+  - `active_command: sp-plan`
+  - `phase_mode: design-only`
+  - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from plan artifacts`
+- Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution.
+- When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
+
 ## Outline
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for `FEATURE_SPEC`, `IMPL_PLAN`, `SPECS_DIR`, `BRANCH`, and `FEATURE_DIR`.
+   - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
+   - [AGENT] Create or resume `WORKFLOW_STATE_FILE` before substantial planning analysis.
+   - Read `templates/workflow-state-template.md`.
+   - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
+   - Persist at least these fields for the active pass:
+     - `active_command: sp-plan`
+     - `phase_mode: design-only`
+     - `allowed_artifact_writes: plan.md, research.md, data-model.md, contracts/, quickstart.md, workflow-state.md`
+     - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from plan artifacts`
+     - `authoritative_files: spec.md, alignment.md, context.md, plan.md, research.md`
+   - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 2. **Ensure repository navigation system exists**:
    - Check whether `.specify/project-map/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current planning request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for planning.
+   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current planning request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for planning.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
-   - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-   - If task-relevant coverage is insufficient for the current planning request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If task-relevant coverage is insufficient for the current planning request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 
 3. **Load context**:
    - Read `FEATURE_SPEC`
    - Read `FEATURE_DIR/alignment.md`
    - Read `FEATURE_DIR/context.md`
    - Read `FEATURE_DIR/references.md` if present
+   - Read `FEATURE_DIR/workflow-state.md` if present
    - Read `.specify/memory/constitution.md`
    - Read `.specify/memory/project-rules.md` if present
    - Read `.specify/memory/project-learnings.md` if present
    - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to planning so repeated workflow gaps, implementation constraints, and user defaults are not rediscovered from scratch
-   - Read `PROJECT-HANDBOOK.md`
+   - [AGENT] Read `PROJECT-HANDBOOK.md`
    - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
    - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
    - Read `templates/research-template.md`
+   - Read `templates/workflow-state-template.md`
    - Load the copied IMPL_PLAN template
 
 4. **Validate alignment status before planning**:
@@ -119,7 +145,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Treat `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` as active planning inputs, not descriptive appendix material
    - Treat `context.md` as the primary implementation-context artifact that captures downstream planning decisions explicitly
    - Do not introduce a separate clarification command as the normal next step for routine planning readiness
-   - Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="plan", snapshot, workload_shape)`
+   - [AGENT] Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="plan", snapshot, workload_shape)`
    - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
    - Decision order is fixed:
      - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
@@ -162,7 +188,15 @@ You **MUST** consider the user input before proceeding (if not empty).
     - plan path
     - alignment status
     - generated artifacts
-   - before final completion text, capture any new `workflow_gap` or `project_constraint` learning through `specify learning capture --command plan ...`
+    - workflow-state path
+   - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
+     - `active_command: sp-plan`
+     - `phase_mode: design-only`
+     - current authoritative files
+     - exit criteria for planning completion
+     - the next action required before handoff
+     - `next_command: /sp.tasks`
+   - [AGENT] before final completion text, capture any new `workflow_gap` or `project_constraint` learning through `specify learning capture --command plan ...`
    - keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence
    - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory
    - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.

@@ -53,10 +53,22 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Passive Project Learning Layer
 
-- Before deeper repository analysis, run `specify learning start --command specify --format json` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+- [AGENT] Run `specify learning start --command specify --format json` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains candidate learnings relevant to specification after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
 - Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
+
+## Workflow Phase Lock
+
+- [AGENT] Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known.
+- Read `templates/workflow-state-template.md`.
+- Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth on resume after compaction for the current command, allowed artifact writes, forbidden actions, authoritative files, next action, and exit criteria.
+- Set or update the state for this run with at least:
+  - `active_command: sp-specify`
+  - `phase_mode: planning-only`
+  - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
+- Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.
+- When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 ## Outline
 
@@ -77,15 +89,27 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Set `ALIGNMENT_FILE` to `FEATURE_DIR/alignment.md`.
    - Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`.
    - Set `REFERENCES_FILE` to `FEATURE_DIR/references.md`.
+   - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
+   - [AGENT] Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known.
+   - Read `templates/workflow-state-template.md`.
+   - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
+   - Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth for `sp-specify`.
+   - Persist at least these fields for the active pass:
+     - `active_command: sp-specify`
+     - `phase_mode: planning-only`
+     - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, workflow-state.md, checklists/requirements.md`
+     - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
+     - `authoritative_files: spec.md, alignment.md, context.md, references.md`
+   - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 4. Ensure repository navigation system exists.
    - Check whether `.specify/project-map/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-   - If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
+   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
-   - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - Task-relevant coverage is insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - Treat task-relevant coverage as a coverage-model check, not just a file-presence check. Coverage is also insufficient when the handbook/project-map set cannot yet tell you:
      - owning surfaces and truth locations
@@ -93,7 +117,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
      - change-propagation hotspots
      - verification entry points
      - known unknowns or stale evidence boundaries
-   - If task-relevant coverage is insufficient for the current request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If task-relevant coverage is insufficient for the current request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - Treat `PROJECT-HANDBOOK.md` as the root navigation artifact and use `Topic Map` to choose the smallest relevant topical documents for the touched area.
 
 5. Load context.
@@ -101,11 +125,12 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Read `templates/alignment-template.md`.
    - Read `templates/context-template.md`.
    - Read `templates/references-template.md`.
+   - Read `templates/workflow-state-template.md`.
    - Read `.specify/memory/constitution.md` if present.
    - Read `.specify/memory/project-rules.md` if present.
    - Read `.specify/memory/project-learnings.md` if present.
    - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
-   - Read `PROJECT-HANDBOOK.md` if present and treat it as the primary codebase-scout input for brownfield understanding.
+   - [AGENT] Read `PROJECT-HANDBOOK.md` if present and treat it as the primary codebase-scout input for brownfield understanding.
    - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
    - From the handbook navigation system, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
    - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
@@ -158,7 +183,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 9. Choose alignment mode and collaboration strategy.
    - Lightweight mode for local, context-rich changes.
    - Deep mode for greenfield, multi-capability, or materially ambiguous work.
-   - Before decomposition begins, assess the current workload shape and agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="specify", snapshot, workload_shape)`.
+   - [AGENT] Before decomposition begins, assess the current workload shape and agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="specify", snapshot, workload_shape)`.
    - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
    - Decision order is fixed:
      - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
@@ -526,6 +551,13 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - relevance
     - reusable insights
     - spec impact mapping
+    - After the artifact set is current, write or update `WORKFLOW_STATE_FILE` so it records:
+      - `active_command: sp-specify`
+      - `phase_mode: planning-only`
+      - current authoritative files
+      - exit criteria for planning readiness
+      - the next action required before handoff
+      - `next_command` as either `/sp.plan` or `/sp.spec-extend`
 
 24. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
 
@@ -560,10 +592,12 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
     - [ ] alignment.md exists
     - [ ] context.md exists
+    - [ ] workflow-state.md exists
     - [ ] Task classification is recorded
     - [ ] Release decision is recorded
     - [ ] Release decision is either `Aligned: ready for plan` or `Force proceed with known risks`
     - [ ] Locked decisions are preserved in context.md
+    - [ ] workflow-state.md records `sp-specify` with planning-only restrictions
     - [ ] Remaining risks are empty for normal completion
 
     ## Notes
@@ -578,11 +612,12 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - spec file path
     - alignment report path
     - context file path
+    - workflow-state file path
     - references file path when created
     - checklist results
     - release decision
     - readiness for the next phase (`/sp.plan` for the mainline, or `/sp.spec-extend` when deeper analysis is still needed)
-    - before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `specify learning capture --command specify ...`
+    - [AGENT] before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `specify learning capture --command specify ...`
     - keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence
     - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or a repeated recurrence that should become shared project memory
     - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.

@@ -21,6 +21,15 @@ For AI CLI workflows in this repository:
 - Default to shared-template or shared-runtime improvements whenever that preserves correctness.
 - Only keep an optimization integration-specific when the capability depends on that CLI's native surface, release scope is intentionally limited, or no equivalent behavior exists for other supported CLIs yet.
 - When an improvement ships as integration-specific, document why it is not shared yet and whether other supported CLIs should receive a follow-up adaptation.
+
+<!-- SPEC-KIT:BEGIN -->
+## Spec Kit Plus Managed Rules
+
+- `[AGENT]` marks an action the AI must explicitly execute.
+- `[AGENT]` is independent from `[P]`.
+- `sp-fast`, `sp-quick`, and `sp-map-codebase` are first-wave `[AGENT]` workflows and must participate in the passive learning lifecycle.
+- Existing `AGENTS.md` files must be extended through this managed `SPEC-KIT` block so user-authored content outside the block is preserved.
+<!-- SPEC-KIT:END -->
 # AGENTS.md
 
 ## About Spec Kit and Specify
@@ -431,11 +440,11 @@ Command content with {SCRIPT} and {{args}} placeholders.
 - **Shared `.agents/` folder**:
   - Amp: `.agents/commands/` (shared folder, not `.amp/`)
 - **Codex dedicated folder**:
-  - Codex: `.codex/skills/` (dedicated Codex folder; requires `--ai-skills`; explicit workflow skills use `$sp-<command>`, passive repository skills use `spec-kit-*`)
+- Codex: `.codex/skills/` (dedicated Codex folder; requires `--ai-skills`; explicit workflow skills use `$sp-<command>`, passive bundled skills keep their template directory names such as `spec-kit-*`, `tdd-workflow`, or `frontend-design`)
 - **Skills-based exceptions**:
-  - Kimi Code: `.kimi/skills/` (skills; explicit workflow skills use `/skill:sp-<command>`, passive repository skills use `spec-kit-*`)
+- Kimi Code: `.kimi/skills/` (skills; explicit workflow skills use `/skill:sp-<command>`, passive bundled skills keep their template directory names such as `spec-kit-*`, `tdd-workflow`, or `frontend-design`)
 - **Shared rule for skills-based integrations**:
-  - When an integration installs into a `skills/` directory, explicit workflow skills use the `sp-*` namespace and passive repository skills use the `spec-kit-*` namespace.
+- When an integration installs into a `skills/` directory, explicit workflow skills use the `sp-*` namespace and passive bundled skills keep the directory names defined under `templates/passive-skills/`.
 - **Prompt-based exceptions**:
   - Kiro CLI: `.kiro/prompts/`
   - Pi: `.pi/prompts/`
@@ -449,7 +458,7 @@ Command content with {SCRIPT} and {{args}} placeholders.
   - Kilo Code: `.kilocode/workflows/`
   - Roo Code: `.roo/commands/`
   - IBM Bob: `.bob/commands/`
-  - Antigravity: `.agent/skills/` (`--ai-skills` required; explicit workflow skills use `sp-*`, passive repository skills use `spec-kit-*`; `.agent/commands/` is deprecated)
+- Antigravity: `.agent/skills/` (`--ai-skills` required; explicit workflow skills use `sp-*`, passive bundled skills keep their template directory names; `.agent/commands/` is deprecated)
 
 ## Argument Patterns
 
