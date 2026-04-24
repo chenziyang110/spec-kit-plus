@@ -72,6 +72,15 @@ state_transition: [what internal state should change]
 external_observation: [what should become visible externally]
 break_point: [which link in the loop is currently suspected broken]
 
+## Execution Intent
+<!-- OVERWRITE/REFINE - the current verification target and the evidence required to accept it -->
+
+outcome: [what the current fix or verification pass is trying to prove]
+constraints:
+  - [constraints that must remain true while verifying]
+success_signals:
+  - [observations or checks required before the session can move to resolved]
+
 ## Eliminated
 <!-- APPEND only - prevents re-investigating after context reset -->
 
@@ -99,6 +108,10 @@ root_cause:
   decisive_signal: [single strongest signal that ruled out competing theories]
 fix: [empty until applied]
 verification: [empty until verified]
+validation_results:
+  - command: [verification command]
+    status: passed | failed | skipped
+    output: [summary or command output]
 files_changed: []
 decisive_signals:
   - [signals that directly adjudicated the key hypothesis]

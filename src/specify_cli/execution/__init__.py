@@ -4,6 +4,7 @@ from .packet_compiler import compile_worker_task_packet
 from .packet_renderer import render_packet_summary
 from .packet_schema import (
     DispatchPolicy,
+    ExecutionIntent,
     PacketReference,
     PacketScope,
     WorkerTaskPacket,
@@ -22,9 +23,16 @@ from .result_schema import (
     worker_task_result_payload,
 )
 from .result_validator import validate_worker_task_result
+from specify_cli.verification import (
+    ValidationResult,
+    run_verification_commands,
+    summarize_validation_results,
+    verification_passed,
+)
 
 __all__ = [
     "DispatchPolicy",
+    "ExecutionIntent",
     "PacketReference",
     "PacketScope",
     "PacketValidationError",
@@ -37,8 +45,11 @@ __all__ = [
     "describe_result_handoff_template",
     "render_packet_summary",
     "normalize_worker_task_result_payload",
+    "run_verification_commands",
+    "summarize_validation_results",
     "validate_worker_task_packet",
     "validate_worker_task_result",
+    "verification_passed",
     "worker_task_packet_from_json",
     "worker_task_packet_payload",
     "worker_task_result_from_json",

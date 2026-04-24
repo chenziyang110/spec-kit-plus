@@ -5,7 +5,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .packet_schema import DispatchPolicy, PacketReference, PacketScope, WorkerTaskPacket
+from .packet_schema import (
+    DispatchPolicy,
+    ExecutionIntent,
+    PacketReference,
+    PacketScope,
+    WorkerTaskPacket,
+)
 from .packet_validator import validate_worker_task_packet
 
 
@@ -97,6 +103,11 @@ def compile_worker_task_packet(
         task_id=task_id,
         story_id=_story_id_from_task_body(task_body),
         objective=objective,
+        intent=ExecutionIntent(
+            outcome=objective,
+            constraints=_unique([*forbidden_drift, *hard_rules]),
+            success_signals=done_criteria if (done_criteria := [objective]) else [objective],
+        ),
         scope=PacketScope(
             write_scope=_paths_from_task_body(task_body),
             read_scope=[ref.path for ref in required_references],
@@ -105,7 +116,7 @@ def compile_worker_task_packet(
         hard_rules=hard_rules,
         forbidden_drift=forbidden_drift,
         validation_gates=validation_gates,
-        done_criteria=[objective],
+        done_criteria=done_criteria,
         handoff_requirements=[
             "return changed files",
             "return validation results",

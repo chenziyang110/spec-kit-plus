@@ -11,7 +11,9 @@ def render_packet_summary(packet: WorkerTaskPacket) -> str:
     return (
         f"task_id: {packet.task_id}\n"
         f"objective: {packet.objective}\n"
+        f"intent_outcome: {packet.intent.outcome}\n"
         f"write_scope: {', '.join(packet.scope.write_scope)}\n"
+        f"intent_constraints: {', '.join(packet.intent.constraints)}\n"
         f"required_references: {', '.join(ref.path for ref in packet.required_references)}\n"
         f"validation_gates: {', '.join(packet.validation_gates)}"
     )

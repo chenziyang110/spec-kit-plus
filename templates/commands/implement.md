@@ -96,6 +96,13 @@ current_batch: [ready batch or validation pass]
 goal: [current implementation objective]
 next_action: [immediate next step]
 
+## Execution Intent
+intent_outcome: [the concrete outcome this batch is trying to deliver]
+intent_constraints:
+  - [forbidden drift, boundary rules, or execution constraints that stay active for this batch]
+success_evidence:
+  - [checks or observations required before the leader can accept this batch]
+
 ## Execution State
 completed_tasks:
   - [task ids already completed]

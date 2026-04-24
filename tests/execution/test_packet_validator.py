@@ -2,6 +2,7 @@ import pytest
 
 from specify_cli.execution.packet_schema import (
     DispatchPolicy,
+    ExecutionIntent,
     PacketReference,
     PacketScope,
     WorkerTaskPacket,
@@ -19,6 +20,11 @@ def sample_packet() -> WorkerTaskPacket:
         task_id="T017",
         story_id="US1",
         objective="Implement auth flow",
+        intent=ExecutionIntent(
+            outcome="Implement auth flow without changing the public contract shape",
+            constraints=["Do not create a parallel auth stack"],
+            success_signals=["login/logout behavior implemented"],
+        ),
         scope=PacketScope(
             write_scope=["src/services/auth_service.py"],
             read_scope=["src/contracts/auth.py"],
@@ -61,6 +67,17 @@ def test_validate_worker_task_packet_rejects_missing_validation_gates(
     sample_packet: WorkerTaskPacket,
 ) -> None:
     sample_packet.validation_gates = []
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+
+
+def test_validate_worker_task_packet_rejects_missing_intent_contract(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.intent = ExecutionIntent()
 
     with pytest.raises(PacketValidationError) as exc:
         validate_worker_task_packet(sample_packet)

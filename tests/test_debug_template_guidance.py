@@ -49,6 +49,8 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "control state" in content
     assert "observation state" in content
     assert "closed loop" in content
+    assert "execution intent" in content
+    assert "success evidence" in content
     assert "decisive signals" in content
     assert "owning_layer" in content
     assert "broken_control_state" in content
@@ -104,11 +106,13 @@ def test_debug_session_template_captures_control_plane_debugging_fields() -> Non
     assert "## Control State" in content
     assert "## Observation State" in content
     assert "## Closed Loop" in content
+    assert "## Execution Intent" in content
     assert "summary:" in content
     assert "owning_layer:" in content
     assert "broken_control_state:" in content
     assert "failure_mechanism:" in content
     assert "loop_break:" in content
     assert "decisive_signal:" in content
+    assert "validation_results" in content
     assert "decisive_signals" in content
     assert "rejected_surface_fixes" in content

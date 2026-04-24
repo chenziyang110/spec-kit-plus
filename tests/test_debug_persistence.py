@@ -56,6 +56,21 @@ def test_persistence_round_trips_full_state(tmp_path):
     state.resolution.report = "## Awaiting Human Review\n- Investigate parser boundary"
     state.resolution.decisive_signals = ["runningOrder_=[], waitingQueue_=[task-2], activeCount=1"]
     state.resolution.rejected_surface_fixes = ["normalized UI state without fixing scheduler admission"]
+    state.execution_intent.outcome = "Verify the current fix against the recorded reproduction"
+    state.execution_intent.constraints = [
+        "Do not mark resolved without verification evidence",
+    ]
+    state.execution_intent.success_signals = [
+        "reproduction command passes",
+        "targeted pytest command passes",
+    ]
+    state.resolution.validation_results = [
+        {
+            "command": "python tests/repro.py",
+            "status": "passed",
+            "output": "PASS",
+        }
+    ]
 
     handler.save(state)
     restored = handler.load(tmp_path / "session.md")
@@ -89,6 +104,12 @@ def test_persistence_round_trips_full_state(tmp_path):
     assert restored.resolution.rejected_surface_fixes == [
         "normalized UI state without fixing scheduler admission"
     ]
+    assert restored.execution_intent.outcome == "Verify the current fix against the recorded reproduction"
+    assert restored.execution_intent.success_signals == [
+        "reproduction command passes",
+        "targeted pytest command passes",
+    ]
+    assert restored.resolution.validation_results[0].command == "python tests/repro.py"
 
 
 def test_resolution_root_cause_string_assignment_is_normalized():
