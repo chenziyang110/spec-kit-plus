@@ -1,0 +1,398 @@
+/**
+ * Tests for OpenClaw config reader
+ * Uses node:test and node:assert/strict
+ */
+
+import assert from "node:assert/strict";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import { mkdirSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+
+// We'll test by controlling env vars and a temp config dir
+
+describe("getOpenClawConfig", () => {
+	let tmpDir: string;
+	let originalEnv: NodeJS.ProcessEnv;
+
+	beforeEach(() => {
+		originalEnv = { ...process.env };
+		tmpDir = join(tmpdir(), `omx-openclaw-test-${Date.now()}`);
+		mkdirSync(tmpDir, { recursive: true });
+		process.env.CODEX_HOME = join(tmpDir, ".codex");
+	});
+
+	afterEach(() => {
+		// Restore env
+		for (const key of Object.keys(process.env)) {
+			if (!(key in originalEnv)) delete process.env[key];
+		}
+		for (const [key, val] of Object.entries(originalEnv)) {
+			process.env[key] = val;
+		}
+		// Clean up temp dir
+		try {
+			rmSync(tmpDir, { recursive: true });
+		} catch {
+			/* ignore */
+		}
+		// Reset cache between tests (dynamic import to allow resetting)
+	});
+
+	it("returns null when OMX_OPENCLAW is not set", async () => {
+		delete process.env.OMX_OPENCLAW;
+		const { getOpenClawConfig, resetOpenClawConfigCache } = await import(
+			"../config.js"
+		);
+		resetOpenClawConfigCache();
+		const result = getOpenClawConfig();
+		assert.equal(result, null);
+	});
+
+	it("returns null when OMX_OPENCLAW !== '1'", async () => {
+		process.env.OMX_OPENCLAW = "0";
+		const { getOpenClawConfig, resetOpenClawConfigCache } = await import(
+			"../config.js"
+		);
+		resetOpenClawConfigCache();
+		const result = getOpenClawConfig();
+		assert.equal(result, null);
+	});
+
+	it("returns null when OMX_OPENCLAW_CONFIG file does not exist", async () => {
+		process.env.OMX_OPENCLAW = "1";
+		process.env.OMX_OPENCLAW_CONFIG = join(tmpDir, "nonexistent.json");
+		const { getOpenClawConfig, resetOpenClawConfigCache } = await import(
+			"../config.js"
+		);
+		resetOpenClawConfigCache();
+		const result = getOpenClawConfig();
+		assert.equal(result, null);
+	});
+
+	it("reads config from OMX_OPENCLAW_CONFIG override file", async () => {
+		process.env.OMX_OPENCLAW = "1";
+		const configPath = join(tmpDir, "openclaw.json");
+		const config = {
+			enabled: true,
+			gateways: {
+				myGateway: { type: "http" as const, url: "https://example.com/hook" },
+			},
+			hooks: {
+				"session-start": {
+					gateway: "myGateway",
+					instruction: "Session started",
+					enabled: true,
+				},
+			},
+		};
+		writeFileSync(configPath, JSON.stringify(config));
+		process.env.OMX_OPENCLAW_CONFIG = configPath;
+		const { getOpenClawConfig, resetOpenClawConfigCache } = await import(
+			"../config.js"
+		);
+		resetOpenClawConfigCache();
+		const result = getOpenClawConfig();
+		assert.ok(result !== null);
+		assert.equal(result!.enabled, true);
+		assert.ok("myGateway" in result!.gateways);
+	});
+
+	it("returns null when config has enabled: false", async () => {
+		process.env.OMX_OPENCLAW = "1";
+		const configPath = join(tmpDir, "openclaw.json");
+		writeFileSync(
+			configPath,
+			JSON.stringify({ enabled: false, gateways: {}, hooks: {} }),
+		);
+		process.env.OMX_OPENCLAW_CONFIG = configPath;
+		const { getOpenClawConfig, resetOpenClawConfigCache } = await import(
+			"../config.js"
+		);
+		resetOpenClawConfigCache();
+		const result = getOpenClawConfig();
+		assert.equal(result, null);
+	});
+
+	it("returns null for invalid JSON", async () => {
+		process.env.OMX_OPENCLAW = "1";
+		const configPath = join(tmpDir, "openclaw.json");
+		writeFileSync(configPath, "not-valid-json{{{");
+		process.env.OMX_OPENCLAW_CONFIG = configPath;
+		const { getOpenClawConfig, resetOpenClawConfigCache } = await import(
+			"../config.js"
+		);
+		resetOpenClawConfigCache();
+		const result = getOpenClawConfig();
+		assert.equal(result, null);
+	});
+});
+
+describe("resolveGateway", () => {
+	it("returns null when event not in hooks", async () => {
+		const { resolveGateway } = await import("../config.js");
+		const config = {
+			enabled: true,
+			gateways: { gw: { url: "https://example.com", type: "http" as const } },
+			hooks: {},
+		};
+		const result = resolveGateway(config, "session-start");
+		assert.equal(result, null);
+	});
+
+	it("returns null when mapping is disabled", async () => {
+		const { resolveGateway } = await import("../config.js");
+		const config = {
+			enabled: true,
+			gateways: { gw: { url: "https://example.com", type: "http" as const } },
+			hooks: {
+				"session-start": { gateway: "gw", instruction: "hi", enabled: false },
+			},
+		};
+		const result = resolveGateway(config, "session-start");
+		assert.equal(result, null);
+	});
+
+	it("returns null when gateway name not found", async () => {
+		const { resolveGateway } = await import("../config.js");
+		const config = {
+			enabled: true,
+			gateways: {},
+			hooks: {
+				"session-start": {
+					gateway: "missing",
+					instruction: "hi",
+					enabled: true,
+				},
+			},
+		};
+		const result = resolveGateway(config, "session-start");
+		assert.equal(result, null);
+	});
+
+	it("resolves an HTTP gateway", async () => {
+		const { resolveGateway } = await import("../config.js");
+		const config = {
+			enabled: true,
+			gateways: {
+				gw: { url: "https://example.com/hook", type: "http" as const },
+			},
+			hooks: {
+				"session-start": {
+					gateway: "gw",
+					instruction: "Session started",
+					enabled: true,
+				},
+			},
+		};
+		const result = resolveGateway(config, "session-start");
+		assert.ok(result !== null);
+		assert.equal(result!.gatewayName, "gw");
+		assert.equal(result!.instruction, "Session started");
+	});
+
+	it("resolves a command gateway", async () => {
+		const { resolveGateway } = await import("../config.js");
+		const config = {
+			enabled: true,
+			gateways: { cmd: { type: "command" as const, command: "echo hello" } },
+			hooks: {
+				stop: { gateway: "cmd", instruction: "Stopped", enabled: true },
+			},
+		};
+		const result = resolveGateway(config, "stop");
+		assert.ok(result !== null);
+		assert.equal(result!.gatewayName, "cmd");
+	});
+
+	it("returns null when HTTP gateway has no url", async () => {
+		const { resolveGateway } = await import("../config.js");
+		const config = {
+			enabled: true,
+			gateways: { gw: { url: "", type: "http" as const } },
+			hooks: {
+				"session-start": { gateway: "gw", instruction: "hi", enabled: true },
+			},
+		};
+		const result = resolveGateway(config, "session-start");
+		assert.equal(result, null);
+	});
+});
+
+describe("getOpenClawConfig generic alias normalization", () => {
+	let tmpDir: string;
+	let originalEnv: NodeJS.ProcessEnv;
+
+	beforeEach(() => {
+		originalEnv = { ...process.env };
+		tmpDir = join(tmpdir(), `omx-openclaw-alias-test-${Date.now()}`);
+		mkdirSync(tmpDir, { recursive: true });
+		process.env.OMX_OPENCLAW = "1";
+		process.env.HOME = tmpDir;
+		process.env.CODEX_HOME = join(tmpDir, ".codex");
+		delete process.env.OMX_OPENCLAW_CONFIG;
+	});
+
+	afterEach(() => {
+		for (const key of Object.keys(process.env)) {
+			if (!(key in originalEnv)) delete process.env[key];
+		}
+		for (const [key, val] of Object.entries(originalEnv)) {
+			process.env[key] = val;
+		}
+		try {
+			rmSync(tmpDir, { recursive: true });
+		} catch {
+			/* ignore */
+		}
+	});
+
+	it("normalizes custom_webhook_command alias to openclaw runtime config", async () => {
+		const omxConfigPath = join(tmpDir, ".codex", ".omx-config.json");
+		mkdirSync(join(tmpDir, ".codex"), { recursive: true });
+		writeFileSync(
+			omxConfigPath,
+			JSON.stringify({
+				notifications: {
+					enabled: true,
+					custom_webhook_command: {
+						enabled: true,
+						url: "https://example.com/hook",
+						events: ["session-end", "ask-user-question"],
+						instruction: "Notify {{event}}",
+					},
+				},
+			}),
+		);
+
+		const { getOpenClawConfig, resetOpenClawConfigCache } = await import(
+			"../config.js"
+		);
+		resetOpenClawConfigCache();
+		const result = getOpenClawConfig();
+		assert.ok(result !== null);
+		assert.equal(result!.enabled, true);
+		assert.ok(result!.gateways["custom-webhook"]);
+		assert.equal(result!.hooks["session-end"]?.gateway, "custom-webhook");
+	});
+
+	it("explicit notifications.openclaw wins over generic aliases", async () => {
+		const omxConfigPath = join(tmpDir, ".codex", ".omx-config.json");
+		mkdirSync(join(tmpDir, ".codex"), { recursive: true });
+		writeFileSync(
+			omxConfigPath,
+			JSON.stringify({
+				notifications: {
+					enabled: true,
+					openclaw: {
+						enabled: true,
+						gateways: {
+							explicit: { type: "http", url: "https://explicit.example/hook" },
+						},
+						hooks: {
+							"session-end": {
+								enabled: true,
+								gateway: "explicit",
+								instruction: "explicit instruction",
+							},
+						},
+					},
+					custom_webhook_command: {
+						enabled: true,
+						url: "https://alias.example/hook",
+						events: ["session-end"],
+						instruction: "alias instruction",
+					},
+				},
+			}),
+		);
+
+		const { getOpenClawConfig, resetOpenClawConfigCache } = await import(
+			"../config.js"
+		);
+		resetOpenClawConfigCache();
+		const result = getOpenClawConfig();
+		assert.ok(result !== null);
+		assert.ok(result!.gateways["explicit"]);
+		assert.equal(
+			result!.hooks["session-end"]?.instruction,
+			"explicit instruction",
+		);
+	});
+});
+
+describe("inspectOpenClawConfig", () => {
+	let tmpDir: string;
+	let originalEnv: NodeJS.ProcessEnv;
+
+	beforeEach(() => {
+		originalEnv = { ...process.env };
+		tmpDir = join(tmpdir(), `omx-openclaw-inspect-test-${Date.now()}`);
+		mkdirSync(tmpDir, { recursive: true });
+		process.env.HOME = tmpDir;
+		process.env.CODEX_HOME = join(tmpDir, ".codex");
+		delete process.env.OMX_OPENCLAW_CONFIG;
+		delete process.env.OMX_OPENCLAW_COMMAND;
+	});
+
+	afterEach(() => {
+		for (const key of Object.keys(process.env)) {
+			if (!(key in originalEnv)) delete process.env[key];
+		}
+		for (const [key, val] of Object.entries(originalEnv)) {
+			process.env[key] = val;
+		}
+		try {
+			rmSync(tmpDir, { recursive: true });
+		} catch {
+			/* ignore */
+		}
+	});
+
+	it("reports disabled state when OMX_OPENCLAW is not enabled", async () => {
+		delete process.env.OMX_OPENCLAW;
+		const { inspectOpenClawConfig } = await import("../config.js");
+		const result = inspectOpenClawConfig();
+		assert.equal(result.state, "disabled");
+		assert.equal(result.activationGateEnabled, false);
+	});
+
+	it("reports explicit config overriding aliases", async () => {
+		process.env.OMX_OPENCLAW = "1";
+		const omxConfigPath = join(tmpDir, ".codex", ".omx-config.json");
+		mkdirSync(join(tmpDir, ".codex"), { recursive: true });
+		writeFileSync(
+			omxConfigPath,
+			JSON.stringify({
+				notifications: {
+					openclaw: {
+						enabled: true,
+						gateways: {
+							explicit: { type: "http", url: "https://explicit.example/hook" },
+						},
+						hooks: {
+							"session-end": {
+								enabled: true,
+								gateway: "explicit",
+								instruction: "done",
+							},
+						},
+					},
+					custom_webhook_command: {
+						enabled: true,
+						url: "https://alias.example/hook",
+						events: ["session-end"],
+						instruction: "alias",
+					},
+				},
+			}),
+		);
+
+		const { inspectOpenClawConfig } = await import("../config.js");
+		const result = inspectOpenClawConfig();
+		assert.equal(result.state, "configured");
+		assert.equal(result.configSource, "notifications.openclaw");
+		assert.equal(result.explicitOverridesAliases, true);
+		assert.deepEqual(result.aliasSources, ["custom_webhook_command"]);
+	});
+});

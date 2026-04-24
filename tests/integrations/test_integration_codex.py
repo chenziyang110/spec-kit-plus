@@ -1,5 +1,7 @@
 """Tests for CodexIntegration."""
 
+from pathlib import Path
+
 from .test_integration_base_skills import SkillsIntegrationTests
 
 
@@ -61,7 +63,52 @@ def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_pat
 
     templates = CodexIntegration().list_command_templates()
 
-    assert templates == [commands_dir / "plan.md", commands_dir / "team.md"]
+    assert commands_dir / "plan.md" in templates
+    assert commands_dir / "team.md" in templates
+
+
+def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-implement-teams"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skill_path = target / ".codex" / "skills" / "sp-implement-teams" / "SKILL.md"
+    assert skill_path.exists()
+
+    content = skill_path.read_text(encoding="utf-8")
+    lower = content.lower()
+    assert "codex-only" in lower
+    assert "tmux" in lower
+    assert "tasks.md" in lower
+    assert "sp.agent-teams.run" in content
+    assert "primary product surface" in lower or "primary surface" in lower
+    assert "specify extension add agent-teams" in lower
+    assert "shared contract with `sp-implement`" in lower
+    assert "canonical implementation workflow" in lower
+    assert "implement-tracker.md" in lower
+    assert "workertaskpacket" in lower
+    assert "single-agent" in lower
+    assert "native-multi-agent" in lower
+    assert "sidecar-runtime" in lower
+    assert "join point" in lower
+    assert "worker result contract" in lower
+    assert "result file handoff path" in lower
+    assert ".specify/codex-team/state/results/<request-id>.json" in lower
+
+
+def test_codex_implement_teams_template_keeps_only_backend_specific_guidance():
+    template = Path("templates/commands/implement-teams.md").read_text(encoding="utf-8")
+
+    assert "## Shared Contract With `sp-implement`" not in template
 
 
 def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_path):

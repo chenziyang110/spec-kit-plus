@@ -1,0 +1,790 @@
+/**
+ * Notification Configuration Reader
+ *
+ * Reads notification config from .omx-config.json and provides
+ * backward compatibility with the old stopHookCallbacks format.
+ */
+
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
+import { codexHome } from "../utils/paths.js";
+import type {
+  FullNotificationConfig,
+  NotificationsBlock,
+  NotificationEvent,
+  NotificationPlatform,
+  EventNotificationConfig,
+  DiscordNotificationConfig,
+  DiscordBotNotificationConfig,
+  TelegramNotificationConfig,
+  VerbosityLevel,
+} from "./types.js";
+import { getHookConfig, mergeHookConfigIntoNotificationConfig } from "./hook-config.js";
+import {
+  getTempBuiltinSelectors,
+  isNotifyTempEnvActive,
+  isOpenClawSelectedInTempContract,
+  readNotifyTempContractFromEnv,
+} from "./temp-contract.js";
+
+const CONFIG_FILE = join(codexHome(), ".omx-config.json");
+
+function readRawConfig(): Record<string, unknown> | null {
+  if (!existsSync(CONFIG_FILE)) return null;
+  try {
+    return JSON.parse(readFileSync(CONFIG_FILE, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function migrateStopHookCallbacks(
+  raw: Record<string, unknown>,
+): FullNotificationConfig | null {
+  const callbacks = raw.stopHookCallbacks as
+    | Record<string, unknown>
+    | undefined;
+  if (!callbacks) return null;
+
+  const config: FullNotificationConfig = {
+    enabled: true,
+    events: {
+      "session-end": { enabled: true },
+    },
+  };
+
+  const telegram = callbacks.telegram as Record<string, unknown> | undefined;
+  if (telegram?.enabled) {
+    const telegramConfig: TelegramNotificationConfig = {
+      enabled: true,
+      botToken: (telegram.botToken as string) || "",
+      chatId: (telegram.chatId as string) || "",
+    };
+    config.telegram = telegramConfig;
+  }
+
+  const discord = callbacks.discord as Record<string, unknown> | undefined;
+  if (discord?.enabled) {
+    const discordConfig: DiscordNotificationConfig = {
+      enabled: true,
+      webhookUrl: (discord.webhookUrl as string) || "",
+    };
+    config.discord = discordConfig;
+  }
+
+  return config;
+}
+
+function normalizeOptional(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+export function validateMention(raw: string | undefined): string | undefined {
+  const mention = normalizeOptional(raw);
+  if (!mention) return undefined;
+  if (/^<@!?\d{17,20}>$/.test(mention) || /^<@&\d{17,20}>$/.test(mention)) {
+    return mention;
+  }
+  return undefined;
+}
+
+/**
+ * Validate Slack mention format.
+ * Accepts: <@UXXXXXXXX> (user), <!channel>, <!here>, <!everyone>, <!subteam^SXXXXXXXXX> (user group).
+ * Returns the mention string if valid, undefined otherwise.
+ */
+export function validateSlackMention(raw: string | undefined): string | undefined {
+  const mention = normalizeOptional(raw);
+  if (!mention) return undefined;
+  // <@U...> or <@W...> user mention
+  if (/^<@[UW][A-Z0-9]{8,11}>$/.test(mention)) return mention;
+  // <!channel>, <!here>, <!everyone>
+  if (/^<!(?:channel|here|everyone)>$/.test(mention)) return mention;
+  // <!subteam^S...> user group
+  if (/^<!subteam\^S[A-Z0-9]{8,11}>$/.test(mention)) return mention;
+  return undefined;
+}
+
+export function parseMentionAllowedMentions(
+  mention: string | undefined,
+): { users?: string[]; roles?: string[] } {
+  if (!mention) return {};
+  const userMatch = mention.match(/^<@!?(\d{17,20})>$/);
+  if (userMatch) return { users: [userMatch[1]] };
+  const roleMatch = mention.match(/^<@&(\d{17,20})>$/);
+  if (roleMatch) return { roles: [roleMatch[1]] };
+  return {};
+}
+
+export function buildConfigFromEnv(): FullNotificationConfig | null {
+  const config: FullNotificationConfig = { enabled: false };
+  let hasAnyPlatform = false;
+
+  const discordMention = validateMention(process.env.OMX_DISCORD_MENTION);
+
+  const discordBotToken = process.env.OMX_DISCORD_NOTIFIER_BOT_TOKEN;
+  const discordChannel = process.env.OMX_DISCORD_NOTIFIER_CHANNEL;
+  if (discordBotToken && discordChannel) {
+    config["discord-bot"] = {
+      enabled: true,
+      botToken: discordBotToken,
+      channelId: discordChannel,
+      mention: discordMention,
+    };
+    hasAnyPlatform = true;
+  }
+
+  const discordWebhook = process.env.OMX_DISCORD_WEBHOOK_URL;
+  if (discordWebhook) {
+    config.discord = {
+      enabled: true,
+      webhookUrl: discordWebhook,
+      mention: discordMention,
+    };
+    hasAnyPlatform = true;
+  }
+
+  const telegramToken =
+    process.env.OMX_TELEGRAM_BOT_TOKEN ||
+    process.env.OMX_TELEGRAM_NOTIFIER_BOT_TOKEN;
+  const telegramChatId =
+    process.env.OMX_TELEGRAM_CHAT_ID ||
+    process.env.OMX_TELEGRAM_NOTIFIER_CHAT_ID ||
+    process.env.OMX_TELEGRAM_NOTIFIER_UID;
+  if (telegramToken && telegramChatId) {
+    config.telegram = {
+      enabled: true,
+      botToken: telegramToken,
+      chatId: telegramChatId,
+    };
+    hasAnyPlatform = true;
+  }
+
+  const slackWebhook = process.env.OMX_SLACK_WEBHOOK_URL;
+  if (slackWebhook) {
+    const slackMention = validateSlackMention(process.env.OMX_SLACK_MENTION);
+    config.slack = {
+      enabled: true,
+      webhookUrl: slackWebhook,
+      ...(slackMention !== undefined && { mention: slackMention }),
+    };
+    hasAnyPlatform = true;
+  }
+
+  if (!hasAnyPlatform) return null;
+
+  config.enabled = true;
+  return config;
+}
+
+function mergeEnvIntoFileConfig(
+  fileConfig: FullNotificationConfig,
+  envConfig: FullNotificationConfig,
+): FullNotificationConfig {
+  const merged = { ...fileConfig };
+
+  if (!merged["discord-bot"] && envConfig["discord-bot"]) {
+    merged["discord-bot"] = envConfig["discord-bot"];
+  } else if (merged["discord-bot"] && envConfig["discord-bot"]) {
+    merged["discord-bot"] = {
+      ...merged["discord-bot"],
+      botToken: merged["discord-bot"].botToken || envConfig["discord-bot"].botToken,
+      channelId: merged["discord-bot"].channelId || envConfig["discord-bot"].channelId,
+      mention:
+        merged["discord-bot"].mention !== undefined
+          ? validateMention(merged["discord-bot"].mention)
+          : envConfig["discord-bot"].mention,
+    };
+  }
+
+  if (!merged.discord && envConfig.discord) {
+    merged.discord = envConfig.discord;
+  } else if (merged.discord && envConfig.discord) {
+    merged.discord = {
+      ...merged.discord,
+      webhookUrl: merged.discord.webhookUrl || envConfig.discord.webhookUrl,
+      mention:
+        merged.discord.mention !== undefined
+          ? validateMention(merged.discord.mention)
+          : envConfig.discord.mention,
+    };
+  } else if (merged.discord) {
+    merged.discord = {
+      ...merged.discord,
+      mention: validateMention(merged.discord.mention),
+    };
+  }
+
+  if (!merged.telegram && envConfig.telegram) {
+    merged.telegram = envConfig.telegram;
+  }
+
+  if (!merged.slack && envConfig.slack) {
+    merged.slack = envConfig.slack;
+  } else if (merged.slack && envConfig.slack) {
+    merged.slack = {
+      ...merged.slack,
+      webhookUrl: merged.slack.webhookUrl || envConfig.slack.webhookUrl,
+      mention:
+        merged.slack.mention !== undefined
+          ? validateSlackMention(merged.slack.mention)
+          : envConfig.slack.mention,
+    };
+  } else if (merged.slack) {
+    merged.slack = {
+      ...merged.slack,
+      mention: validateSlackMention(merged.slack.mention),
+    };
+  }
+
+  return merged;
+}
+
+/**
+ * Resolve a named profile from the notifications block.
+ *
+ * Priority:
+ *   1. Explicit `profileName` argument
+ *   2. OMX_NOTIFY_PROFILE environment variable
+ *   3. `defaultProfile` field in config
+ *   4. null (no profile selected → fall back to flat config)
+ */
+export function resolveProfileConfig(
+  notifications: NotificationsBlock,
+  profileName?: string,
+): FullNotificationConfig | null {
+  const profiles = notifications.profiles;
+  if (!profiles || Object.keys(profiles).length === 0) {
+    return null; // no profiles defined, use flat config
+  }
+
+  const name =
+    profileName ||
+    process.env.OMX_NOTIFY_PROFILE ||
+    notifications.defaultProfile;
+
+  if (!name) {
+    return null; // no profile selected, use flat config
+  }
+
+  const profile = profiles[name];
+  if (!profile) {
+    console.warn(
+      `[notifications] Profile "${name}" not found. Available: ${Object.keys(profiles).join(", ")}`,
+    );
+    return null;
+  }
+
+  return profile;
+}
+
+/**
+ * List available profile names from the config file.
+ */
+export function listProfiles(): string[] {
+  const raw = readRawConfig();
+  if (!raw) return [];
+  const notifications = raw.notifications as NotificationsBlock | undefined;
+  if (!notifications?.profiles) return [];
+  return Object.keys(notifications.profiles);
+}
+
+/**
+ * Get the active profile name based on resolution priority.
+ * Returns null if no profile is active (flat config mode).
+ */
+export function getActiveProfileName(): string | null {
+  if (process.env.OMX_NOTIFY_PROFILE) {
+    return process.env.OMX_NOTIFY_PROFILE;
+  }
+  const raw = readRawConfig();
+  if (!raw) return null;
+  const notifications = raw.notifications as NotificationsBlock | undefined;
+  if (!notifications?.profiles || Object.keys(notifications.profiles).length === 0) {
+    return null;
+  }
+  return notifications.defaultProfile || null;
+}
+
+function applyHookConfigIfPresent(config: FullNotificationConfig): FullNotificationConfig {
+  const hookConfig = getHookConfig();
+  if (!hookConfig) return config;
+  return mergeHookConfigIntoNotificationConfig(hookConfig, config);
+}
+
+function hasCustomTransportAlias(config: FullNotificationConfig): boolean {
+  const cli = config.custom_cli_command;
+  const webhook = config.custom_webhook_command;
+  const cliEnabled = Boolean(cli && cli.enabled !== false && cli.command);
+  const webhookEnabled = Boolean(webhook && webhook.enabled !== false && webhook.url);
+  return cliEnabled || webhookEnabled;
+}
+
+function normalizeCustomTransportGate(config: FullNotificationConfig): FullNotificationConfig {
+  if (config.openclaw?.enabled) return config;
+  if (!hasCustomTransportAlias(config)) return config;
+  return {
+    ...config,
+    openclaw: { enabled: true },
+  };
+}
+
+function buildTempModeConfigFromContract(): FullNotificationConfig | null {
+  const contract = readNotifyTempContractFromEnv(process.env);
+  const envActive = isNotifyTempEnvActive(process.env);
+  if (!contract?.active && !envActive) return null;
+
+  const selectors = getTempBuiltinSelectors(contract);
+  const envConfig = buildConfigFromEnv();
+  const config: FullNotificationConfig = { enabled: false };
+
+  if (selectors.has("discord")) {
+    if (envConfig?.discord) config.discord = envConfig.discord;
+    if (envConfig?.["discord-bot"]) config["discord-bot"] = envConfig["discord-bot"];
+  }
+  if (selectors.has("telegram") && envConfig?.telegram) {
+    config.telegram = envConfig.telegram;
+  }
+  if (selectors.has("slack") && envConfig?.slack) {
+    config.slack = envConfig.slack;
+  }
+  if (isOpenClawSelectedInTempContract(contract)) {
+    config.openclaw = { enabled: true };
+  }
+
+  config.enabled = Boolean(
+    config.discord?.enabled
+    || config["discord-bot"]?.enabled
+    || config.telegram?.enabled
+    || config.slack?.enabled
+    || config.openclaw?.enabled,
+  );
+
+  return config;
+}
+
+export function getNotificationConfig(
+  profileName?: string,
+): FullNotificationConfig | null {
+  const tempModeConfig = buildTempModeConfigFromContract();
+  if (tempModeConfig) return tempModeConfig;
+
+  const raw = readRawConfig();
+
+  if (raw) {
+    const notifications = raw.notifications as NotificationsBlock | undefined;
+    if (notifications) {
+      // Try profile resolution first
+      const profileConfig = resolveProfileConfig(notifications, profileName);
+      if (profileConfig) {
+        if (typeof profileConfig.enabled !== "boolean") {
+          return null;
+        }
+        const envConfig = buildConfigFromEnv();
+        const merged = envConfig
+          ? mergeEnvIntoFileConfig(profileConfig, envConfig)
+          : profileConfig;
+        return applyHookConfigIfPresent(normalizeCustomTransportGate(merged));
+      }
+
+      // Fall back to flat config (backward compatible)
+      if (typeof notifications.enabled !== "boolean") {
+        return null;
+      }
+      const envConfig = buildConfigFromEnv();
+      if (envConfig) {
+        return applyHookConfigIfPresent(
+          normalizeCustomTransportGate(mergeEnvIntoFileConfig(notifications, envConfig)),
+        );
+      }
+      const envMention = validateMention(process.env.OMX_DISCORD_MENTION);
+      if (envMention) {
+        const patched = { ...notifications };
+        if (patched["discord-bot"] && patched["discord-bot"].mention === undefined) {
+          patched["discord-bot"] = { ...patched["discord-bot"], mention: envMention };
+        }
+        if (patched.discord && patched.discord.mention === undefined) {
+          patched.discord = { ...patched.discord, mention: envMention };
+        }
+        return applyHookConfigIfPresent(normalizeCustomTransportGate(patched));
+      }
+      return applyHookConfigIfPresent(normalizeCustomTransportGate(notifications));
+    }
+  }
+
+  const envConfig = buildConfigFromEnv();
+  if (envConfig) return applyHookConfigIfPresent(envConfig);
+
+  if (raw) {
+    const migrated = migrateStopHookCallbacks(raw);
+    if (migrated) return applyHookConfigIfPresent(migrated);
+    return null;
+  }
+
+  return null;
+}
+
+const VALID_VERBOSITY_LEVELS: VerbosityLevel[] = ["verbose", "agent", "session", "minimal"];
+const DEFAULT_VERBOSITY: VerbosityLevel = "session";
+
+/**
+ * Numeric rank for verbosity levels (higher = more verbose).
+ */
+const VERBOSITY_RANK: Record<VerbosityLevel, number> = {
+  minimal: 0,
+  session: 1,
+  agent: 2,
+  verbose: 3,
+};
+
+/**
+ * Minimum verbosity level required for each event type.
+ */
+const EVENT_MIN_VERBOSITY: Record<NotificationEvent, VerbosityLevel> = {
+  "session-start": "minimal",
+  "session-stop": "minimal",
+  "session-end": "minimal",
+  "session-idle": "session",
+  "ask-user-question": "agent",
+};
+
+/**
+ * Resolve the effective verbosity level.
+ * Priority: env var > config field > default ("session").
+ */
+export function getVerbosity(config: FullNotificationConfig | null): VerbosityLevel {
+  const envVal = process.env.OMX_NOTIFY_VERBOSITY as string | undefined;
+  if (envVal && VALID_VERBOSITY_LEVELS.includes(envVal as VerbosityLevel)) {
+    return envVal as VerbosityLevel;
+  }
+  if (config?.verbosity && VALID_VERBOSITY_LEVELS.includes(config.verbosity)) {
+    return config.verbosity;
+  }
+  return DEFAULT_VERBOSITY;
+}
+
+/**
+ * Check whether a given event is allowed at the specified verbosity level.
+ */
+export function isEventAllowedByVerbosity(
+  verbosity: VerbosityLevel,
+  event: NotificationEvent,
+): boolean {
+  const required = EVENT_MIN_VERBOSITY[event] ?? "session";
+  return VERBOSITY_RANK[verbosity] >= VERBOSITY_RANK[required];
+}
+
+/**
+ * Whether the given verbosity level should include tmux tail output.
+ */
+export function shouldIncludeTmuxTail(verbosity: VerbosityLevel): boolean {
+  return VERBOSITY_RANK[verbosity] >= VERBOSITY_RANK["session"];
+}
+
+export function isEventEnabled(
+  config: FullNotificationConfig,
+  event: NotificationEvent,
+): boolean {
+  if (!config.enabled) return false;
+
+  // Verbosity gate: reject events below the configured verbosity level
+  const verbosity = getVerbosity(config);
+  if (!isEventAllowedByVerbosity(verbosity, event)) return false;
+
+  const eventConfig = config.events?.[event];
+
+  if (eventConfig && eventConfig.enabled === false) return false;
+
+  if (!eventConfig) {
+    return !!(
+      config.discord?.enabled ||
+      config["discord-bot"]?.enabled ||
+      config.telegram?.enabled ||
+      config.slack?.enabled ||
+      config.webhook?.enabled ||
+      config.openclaw?.enabled ||
+      hasCustomTransportAlias(config)
+    );
+  }
+
+  if (
+    eventConfig.discord?.enabled ||
+    eventConfig["discord-bot"]?.enabled ||
+    eventConfig.telegram?.enabled ||
+    eventConfig.slack?.enabled ||
+    eventConfig.webhook?.enabled
+  ) {
+    return true;
+  }
+
+  return !!(
+    config.discord?.enabled ||
+    config["discord-bot"]?.enabled ||
+    config.telegram?.enabled ||
+    config.slack?.enabled ||
+    config.webhook?.enabled ||
+    config.openclaw?.enabled ||
+    hasCustomTransportAlias(config)
+  );
+}
+
+export function getEnabledPlatforms(
+  config: FullNotificationConfig,
+  event: NotificationEvent,
+): NotificationPlatform[] {
+  if (!config.enabled) return [];
+
+  const platforms: NotificationPlatform[] = [];
+  const eventConfig = config.events?.[event];
+
+  if (eventConfig && eventConfig.enabled === false) return [];
+
+  const checkPlatform = (platform: NotificationPlatform) => {
+    const eventPlatform =
+      eventConfig?.[platform as keyof EventNotificationConfig];
+    if (
+      eventPlatform &&
+      typeof eventPlatform === "object" &&
+      "enabled" in eventPlatform
+    ) {
+      if ((eventPlatform as { enabled: boolean }).enabled) {
+        platforms.push(platform);
+      }
+      return;
+    }
+
+    const topLevel = config[platform as keyof FullNotificationConfig];
+    if (
+      topLevel &&
+      typeof topLevel === "object" &&
+      "enabled" in topLevel &&
+      (topLevel as { enabled: boolean }).enabled
+    ) {
+      platforms.push(platform);
+    }
+  };
+
+  checkPlatform("discord");
+  checkPlatform("discord-bot");
+  checkPlatform("telegram");
+  checkPlatform("slack");
+  checkPlatform("webhook");
+
+  return platforms;
+}
+
+const REPLY_PLATFORM_EVENTS: NotificationEvent[] = [
+  "session-start",
+  "ask-user-question",
+  "session-stop",
+  "session-idle",
+  "session-end",
+];
+
+function getEnabledReplyPlatformConfig<T extends { enabled: boolean }>(
+  config: FullNotificationConfig,
+  platform: "discord-bot" | "telegram",
+): T | undefined {
+  const topLevel = config[platform] as T | undefined;
+  if (topLevel?.enabled) {
+    return topLevel;
+  }
+
+  for (const event of REPLY_PLATFORM_EVENTS) {
+    const eventConfig = config.events?.[event];
+    const eventPlatform =
+      eventConfig?.[platform as keyof EventNotificationConfig];
+
+    if (
+      eventPlatform &&
+      typeof eventPlatform === "object" &&
+      "enabled" in eventPlatform &&
+      (eventPlatform as { enabled: boolean }).enabled
+    ) {
+      return eventPlatform as T;
+    }
+  }
+
+  return undefined;
+}
+
+export function getReplyListenerPlatformConfig(
+  config: FullNotificationConfig | null,
+): {
+  telegramEnabled: boolean;
+  telegramBotToken?: string;
+  telegramChatId?: string;
+  discordEnabled: boolean;
+  discordBotToken?: string;
+  discordChannelId?: string;
+  discordMention?: string;
+} {
+  if (!config) {
+    return {
+      telegramEnabled: false,
+      discordEnabled: false,
+    };
+  }
+
+  const telegramConfig =
+    getEnabledReplyPlatformConfig<TelegramNotificationConfig>(
+      config,
+      "telegram",
+    );
+  const discordBotConfig =
+    getEnabledReplyPlatformConfig<DiscordBotNotificationConfig>(
+      config,
+      "discord-bot",
+    );
+
+  const telegramEnabled = !!(telegramConfig?.botToken && telegramConfig?.chatId);
+  const discordEnabled = !!(discordBotConfig?.botToken && discordBotConfig?.channelId);
+
+  return {
+    telegramEnabled,
+    telegramBotToken: telegramEnabled ? telegramConfig?.botToken : undefined,
+    telegramChatId: telegramEnabled ? telegramConfig?.chatId : undefined,
+    discordEnabled,
+    discordBotToken: discordEnabled ? discordBotConfig?.botToken : undefined,
+    discordChannelId: discordEnabled ? discordBotConfig?.channelId : undefined,
+    discordMention: discordEnabled ? discordBotConfig?.mention : undefined,
+  };
+}
+
+function parseDiscordUserIds(
+  envValue: string | undefined,
+  configValue: unknown,
+): string[] {
+  if (envValue) {
+    const ids = envValue
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => /^\d{17,20}$/.test(id));
+    if (ids.length > 0) return ids;
+  }
+
+  if (Array.isArray(configValue)) {
+    const ids = configValue
+      .filter((id) => typeof id === "string" && /^\d{17,20}$/.test(id));
+    if (ids.length > 0) return ids;
+  }
+
+  return [];
+}
+
+const REPLY_POLL_INTERVAL_MIN_MS = 500;
+const REPLY_POLL_INTERVAL_MAX_MS = 60_000;
+const REPLY_POLL_INTERVAL_DEFAULT_MS = 3_000;
+const REPLY_RATE_LIMIT_MIN_PER_MINUTE = 1;
+const REPLY_RATE_LIMIT_DEFAULT_PER_MINUTE = 10;
+const REPLY_MAX_MESSAGE_LENGTH_MIN = 1;
+const REPLY_MAX_MESSAGE_LENGTH_MAX = 4_000;
+const REPLY_MAX_MESSAGE_LENGTH_DEFAULT = 500;
+
+interface ReplySettingsRaw {
+  enabled?: unknown;
+  authorizedDiscordUserIds?: unknown;
+  pollIntervalMs?: unknown;
+  rateLimitPerMinute?: unknown;
+  maxMessageLength?: unknown;
+  includePrefix?: unknown;
+}
+
+interface NotificationsConfigRaw {
+  reply?: ReplySettingsRaw;
+}
+
+function readReplySettings(raw: Record<string, unknown> | null): ReplySettingsRaw | undefined {
+  const notificationsUnknown = raw?.notifications;
+  if (!notificationsUnknown || typeof notificationsUnknown !== 'object') return undefined;
+  const notifications = notificationsUnknown as NotificationsConfigRaw;
+  return notifications.reply;
+}
+
+function parseIntegerInput(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const parsed = Number.parseInt(trimmed, 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+function normalizeInteger(
+  value: number | undefined,
+  fallback: number,
+  min: number,
+  max?: number,
+): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  if (value < min) return min;
+  if (max !== undefined && value > max) return max;
+  return value;
+}
+
+export function getReplyConfig(): import("./types.js").ReplyConfig | null {
+  const notifConfig = getNotificationConfig();
+  if (!notifConfig?.enabled) return null;
+
+  const hasDiscordBot = !!getEnabledReplyPlatformConfig<DiscordBotNotificationConfig>(
+    notifConfig,
+    "discord-bot",
+  );
+  const hasTelegram = !!getEnabledReplyPlatformConfig<TelegramNotificationConfig>(
+    notifConfig,
+    "telegram",
+  );
+  if (!hasDiscordBot && !hasTelegram) return null;
+
+  const raw = readRawConfig();
+  const replyRaw = readReplySettings(raw);
+
+  const enabled = process.env.OMX_REPLY_ENABLED === "true" || replyRaw?.enabled === true;
+  if (!enabled) return null;
+
+  const authorizedDiscordUserIds = parseDiscordUserIds(
+    process.env.OMX_REPLY_DISCORD_USER_IDS,
+    replyRaw?.authorizedDiscordUserIds,
+  );
+
+  if (hasDiscordBot && authorizedDiscordUserIds.length === 0) {
+    console.warn(
+      "[notifications] Discord reply listening disabled: authorizedDiscordUserIds is empty. " +
+      "Set OMX_REPLY_DISCORD_USER_IDS or add to .omx-config.json notifications.reply.authorizedDiscordUserIds"
+    );
+  }
+
+  const pollIntervalMs = normalizeInteger(
+    parseIntegerInput(process.env.OMX_REPLY_POLL_INTERVAL_MS)
+      ?? parseIntegerInput(replyRaw?.pollIntervalMs),
+    REPLY_POLL_INTERVAL_DEFAULT_MS,
+    REPLY_POLL_INTERVAL_MIN_MS,
+    REPLY_POLL_INTERVAL_MAX_MS,
+  );
+  const rateLimitPerMinute = normalizeInteger(
+    parseIntegerInput(process.env.OMX_REPLY_RATE_LIMIT)
+      ?? parseIntegerInput(replyRaw?.rateLimitPerMinute),
+    REPLY_RATE_LIMIT_DEFAULT_PER_MINUTE,
+    REPLY_RATE_LIMIT_MIN_PER_MINUTE,
+  );
+  const maxMessageLength = normalizeInteger(
+    parseIntegerInput(replyRaw?.maxMessageLength),
+    REPLY_MAX_MESSAGE_LENGTH_DEFAULT,
+    REPLY_MAX_MESSAGE_LENGTH_MIN,
+    REPLY_MAX_MESSAGE_LENGTH_MAX,
+  );
+
+  return {
+    enabled: true,
+    pollIntervalMs,
+    maxMessageLength,
+    rateLimitPerMinute,
+    includePrefix: process.env.OMX_REPLY_INCLUDE_PREFIX !== "false" && (replyRaw?.includePrefix !== false),
+    authorizedDiscordUserIds,
+  };
+}

@@ -155,6 +155,63 @@ class TomlIntegrationTests:
             assert ".specify/project-map/*.md" in content
             assert "/sp-map-codebase" in content
 
+    def test_implement_command_has_shared_leader_gate(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        implement_path = i.commands_dest(tmp_path) / "sp.implement.toml"
+        content = implement_path.read_text(encoding="utf-8")
+        lowered = content.lower()
+        agent_name = i.config["name"].replace(" CLI", "")
+
+        assert f"## {agent_name} Leader Gate" in content
+        assert "you are the **leader**, not the concrete implementer" in lowered
+        assert "autonomous blocker recovery" in lowered
+        assert "missed_agent_dispatch" in lowered
+        assert "single-agent` still means one delegated worker lane" in content
+        assert "current runtime's native worker lanes" in lowered
+        assert "current integration's coordinated runtime surface" in lowered
+        assert "dispatch only from validated `workertaskpacket`" in lowered
+        assert "must not edit implementation files directly while worker delegation is active" in lowered
+
+    def test_runtime_commands_have_shared_delegation_and_result_contracts(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        for name in ("implement", "debug", "quick"):
+            content = (i.commands_dest(tmp_path) / f"sp.{name}.toml").read_text(encoding="utf-8").lower()
+            assert "delegation surface contract" in content
+            assert "native dispatch surface" in content
+            assert "sidecar fallback" in content
+            assert "worker result contract" in content
+            assert "result handoff path" in content
+            assert "reported_status" in content
+            assert "needs_context" in content
+
+    def test_debug_and_quick_commands_have_shared_leader_and_routing_sections(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+        agent_name = i.config["name"].replace(" CLI", "")
+
+        debug_content = (i.commands_dest(tmp_path) / "sp.debug.toml").read_text(encoding="utf-8").lower()
+        quick_content = (i.commands_dest(tmp_path) / "sp.quick.toml").read_text(encoding="utf-8").lower()
+
+        assert f"## {agent_name} Leader Gate".lower() in debug_content
+        assert "you are the **leader**, not a freeform debugger" in debug_content
+        assert "investigation routing contract" in debug_content
+        assert "single-agent" in debug_content
+        assert "native-multi-agent" in debug_content
+        assert "sidecar-runtime" in debug_content
+
+        assert f"## {agent_name} Leader Gate".lower() in quick_content
+        assert "you are the **leader**, not the concrete implementer" in quick_content
+        assert "quick execution routing" in quick_content
+        assert "dispatch exactly one delegated worker lane" in quick_content
+        assert "sidecar-runtime" in quick_content
+
     @pytest.mark.parametrize(
         ("frontmatter", "expected"),
         [

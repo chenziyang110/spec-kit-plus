@@ -13,6 +13,8 @@ Provides:
 
 from __future__ import annotations
 
+import importlib
+import inspect
 import re
 import shutil
 from abc import ABC
@@ -133,10 +135,11 @@ class IntegrationBase(ABC):
         cmd_dir = self.shared_commands_dir()
         if not cmd_dir or not cmd_dir.is_dir():
             return []
+        excluded_templates = {"team.md", "implement-teams.md"}
         return sorted(
             f
             for f in cmd_dir.iterdir()
-            if f.is_file() and f.suffix == ".md" and f.name != "team.md"
+            if f.is_file() and f.suffix == ".md" and f.name not in excluded_templates
         )
 
     def command_filename(self, template_name: str) -> str:
@@ -337,6 +340,264 @@ class IntegrationBase(ABC):
 
         if insert_before:
             return content.replace(insert_before, addendum + f"\n{insert_before}", 1)
+        return content + addendum
+
+    def runtime_capability_snapshot(self) -> CapabilitySnapshot:
+        """Return the best available capability snapshot for this integration."""
+
+        local_snapshot = getattr(self, "_runtime_capability_snapshot", None)
+        if callable(local_snapshot):
+            return local_snapshot()
+
+        package_name = type(self).__module__.rsplit(".", 1)[0]
+        try:
+            module = importlib.import_module(f"{package_name}.multi_agent")
+        except ImportError:
+            module = None
+
+        if module is not None:
+            for _, value in inspect.getmembers(module, inspect.isclass):
+                if getattr(value, "integration_key", None) != self.key:
+                    continue
+                detect_capabilities = getattr(value(), "detect_capabilities", None)
+                if callable(detect_capabilities):
+                    return detect_capabilities()
+
+        from specify_cli.orchestration.adapters import build_capability_snapshot
+
+        return build_capability_snapshot(
+            integration_key=self.key,
+            native_multi_agent=False,
+            sidecar_runtime_supported=False,
+            structured_results=False,
+            durable_coordination=False,
+            native_worker_surface="unknown",
+            delegation_confidence="low",
+            model_family=self.key,
+            notes=[
+                "No integration-specific capability adapter was registered; using the conservative shared delegation contract.",
+            ],
+        )
+
+    def _append_implement_leader_gate(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+    ) -> str:
+        """Append the shared implement leader-gate contract when absent."""
+
+        gate_marker = f"## {agent_name} Leader Gate"
+        if gate_marker in content:
+            return content
+
+        gate_addendum = (
+            "\n"
+            f"## {agent_name} Leader Gate\n\n"
+            f"When running `sp-implement` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
+            "\n"
+            "**Crucial First Step**: You MUST read `PROJECT-HANDBOOK.md` and relevant `.specify/project-map/*.md` files to understand the architectural boundaries and conventions before any implementation actions.\n"
+            "\n"
+            "**Autonomous Blocker Recovery (Hard Rule)**:\n"
+            "- If technical blockers arise (e.g. build errors, missing toolchain components like Win32/x86, environment mismatches), you **MUST** attempt autonomous escalation to a specialist delegated lane or sub-agent (for example a build/toolchain specialist) **BEFORE** asking the user for intervention.\n"
+            "- Only stop and ask the user if the specialist lane confirms that manual human action (like physical installer execution) is the ONLY remaining path.\n"
+            "\n"
+            "Before any code edits, test edits, build commands, or implementation actions:\n"
+            "- Read `FEATURE_DIR/implement-tracker.md` first if it exists, and resume from its recorded blocker, recovery, replanning, or validation state before choosing a new batch.\n"
+            "- **Audit Missed Dispatches**: If you find tasks in the tracker that you performed yourself but could have been delegated, record them under a `missed_agent_dispatch` field in the tracker as a recovery debt.\n"
+            "- If `$ARGUMENTS` is non-empty, extract the important execution constraints or recovery hints from it and persist them under `## User Execution Notes` in `FEATURE_DIR/implement-tracker.md` before dispatching work.\n"
+            "- Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.\n"
+            "- Before any delegated implementation work starts, compile and validate the packet for the current task or batch item.\n"
+            "- If the selected strategy is `native-multi-agent`, you **MUST** dispatch the concrete work through the current runtime's native worker lanes before considering any fallback path.\n"
+            "- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** escalate through the current integration's coordinated runtime surface before doing any concrete implementation work yourself.\n"
+            "- Do **not** fall through from worker delegation or sidecar fallback into local self-execution just because the implementation looks feasible.\n"
+            "- `single-agent` still means one delegated worker lane, not leader self-execution.\n"
+            "- Wait for every delegated lane's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
+            "- Do not treat an idle child as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
+            "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- Dispatch only from validated `WorkerTaskPacket`.\n"
+            "\n"
+            "**Hard rule:** The leader must not edit implementation files directly while worker delegation is active or while `sidecar-runtime` is selected.\n"
+        )
+
+        if "## Outline" in content:
+            return content.replace("## Outline", gate_addendum + "\n## Outline", 1)
+        return content + gate_addendum
+
+    def _append_runtime_worker_result_contract(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+        command_name: str,
+        snapshot: CapabilitySnapshot,
+    ) -> str:
+        """Append the runtime worker-result contract when absent."""
+
+        marker = f"## {agent_name} Worker Result Contract"
+        if marker in content:
+            return content
+
+        descriptor = describe_delegation_surface(
+            command_name=command_name,
+            snapshot=snapshot,
+        )
+        addendum = (
+            "\n"
+            f"## {agent_name} Worker Result Contract\n\n"
+            f"- Preferred result contract: {descriptor.result_contract_hint}\n"
+            f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
+            "- Normalize worker-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
+            "- Keep `reported_status` when normalization occurs so runtime-specific worker language can be reconciled with canonical orchestration state.\n"
+            "- Wait for every delegated lane's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
+            "- Do not treat an idle child as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
+            "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
+            "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
+        )
+        return content + addendum
+
+    def _append_debug_leader_gate(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+    ) -> str:
+        """Append the shared debug leader-gate contract when absent."""
+
+        gate_marker = f"## {agent_name} Leader Gate"
+        if gate_marker in content:
+            return content
+
+        gate_addendum = (
+            "\n"
+            f"## {agent_name} Leader Gate\n\n"
+            f"When running `sp-debug` in {agent_name}, you are the **leader**, not a freeform debugger.\n"
+            "\n"
+            "**Crucial First Step**: You MUST read `PROJECT-HANDBOOK.md` and relevant `.specify/project-map/*.md` files to understand the architectural boundaries and conventions before any investigation or fixes.\n"
+            "\n"
+            "Before applying fixes or running multiple independent investigation actions yourself:\n"
+            "- Read the current debug session state and identify whether the investigation has two or more independent evidence-gathering lanes.\n"
+            "- If the current stage is `investigating` and there are two or more bounded evidence-gathering lanes, you **MUST** route them through the current runtime's delegated worker surface before continuing with more sequential evidence collection yourself.\n"
+            "- Rejoin only at the current investigation join point, then integrate returned results on the leader path.\n"
+            "- If native delegated evidence collection is unavailable or unsuitable, escalate through the coordinated runtime surface before widening leader-local investigation work.\n"
+            "- Do **not** skip delegation just because the evidence tasks look easy; use the lighter `single-agent` path only when the current investigation does not have safe parallel lanes.\n"
+            "\n"
+            "**Hard rule:** During `investigating`, the leader must not let child or delegated lanes mutate the debug file, declare the root cause final, or advance the session state.\n"
+        )
+
+        if "## Session Lifecycle" in content:
+            return content.replace("## Session Lifecycle", gate_addendum + "\n## Session Lifecycle", 1)
+        return content + gate_addendum
+
+    def _append_debug_routing_contract(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+        snapshot: CapabilitySnapshot,
+    ) -> str:
+        """Append the shared debug routing contract when absent."""
+
+        marker = f"## {agent_name} Investigation Routing Contract"
+        if marker in content:
+            return content
+
+        descriptor = describe_delegation_surface(
+            command_name="debug",
+            snapshot=snapshot,
+        )
+        addendum = (
+            "\n"
+            f"## {agent_name} Investigation Routing Contract\n\n"
+            f"When running `sp-debug` in {agent_name}, treat the `investigating` stage as a leader-led routing decision between `single-agent`, `native-multi-agent`, and `sidecar-runtime`.\n"
+            f"- Native dispatch surface: {descriptor.native_dispatch_hint}\n"
+            f"- Integration-native join point: {descriptor.native_join_hint}\n"
+            f"- Sidecar fallback: {descriptor.sidecar_surface_hint}\n"
+            "- If there are two or more independent evidence-gathering lanes, prefer native delegated evidence collection whenever the current runtime can support it safely.\n"
+            "- Suitable child tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and gathering evidence after diagnostic logging has been added.\n"
+            "- Read `diagnostic_profile` from the debug session before choosing child lanes.\n"
+            "- Child lanes must return facts, command results, and observations; they must not update the debug file, declare the root cause final, or transition the session state.\n"
+            "- Keep fixing, verification, `awaiting_human_verify`, and final session resolution on the leader path.\n"
+        )
+        return content + addendum
+
+    def _append_quick_leader_gate(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+    ) -> str:
+        """Append the shared quick leader-gate contract when absent."""
+
+        gate_marker = f"## {agent_name} Leader Gate"
+        if gate_marker in content:
+            return content
+
+        gate_addendum = (
+            "\n"
+            f"## {agent_name} Leader Gate\n\n"
+            f"When running `sp-quick` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
+            "\n"
+            "**Crucial First Step**: You MUST read `PROJECT-HANDBOOK.md` and relevant `.specify/project-map/*.md` files to understand the architectural boundaries and conventions before repository analysis or implementation.\n"
+            "\n"
+            "Before code edits, test edits, or implementation commands:\n"
+            "- Read `.specify/memory/constitution.md` first if it exists.\n"
+            "- Read `STATUS.md` for the active quick-task workspace, or create it if this quick task is new.\n"
+            "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"
+            "- `single-agent` still means one delegated worker lane. Do **not** reinterpret it as leader self-execution.\n"
+            "- If the selected strategy is `native-multi-agent`, you **MUST** dispatch the concrete work through the current runtime's native worker lanes before considering any fallback path.\n"
+            "- If the selected strategy is `single-agent`, you **MUST** dispatch exactly one delegated worker lane before considering any leader-local fallback.\n"
+            "- If two or more safe delegated lanes would materially improve throughput, you **MUST** prefer launching them in parallel.\n"
+            "- Use the current integration's join point to integrate returned results before choosing the next action.\n"
+            "- Wait for every delegated lane's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
+            "- Do not treat an idle child as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
+            "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** escalate through the coordinated runtime surface before doing concrete implementation work yourself.\n"
+            "- Leader-local execution is allowed only when native worker delegation is concretely unavailable and the sidecar runtime path is also unavailable.\n"
+            "- When leader-local fallback is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
+            "\n"
+            "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while delegated execution is active.\n"
+        )
+
+        if "## Process" in content:
+            return content.replace("## Process", gate_addendum + "\n## Process", 1)
+        return content + gate_addendum
+
+    def _append_quick_routing_contract(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+        snapshot: CapabilitySnapshot,
+    ) -> str:
+        """Append the shared quick routing contract when absent."""
+
+        marker = f"## {agent_name} Quick Execution Routing"
+        if marker in content:
+            return content
+
+        descriptor = describe_delegation_surface(
+            command_name="quick",
+            snapshot=snapshot,
+        )
+        addendum = (
+            "\n"
+            f"## {agent_name} Quick Execution Routing\n\n"
+            f"When running `sp-quick` in {agent_name}, prefer native worker delegation whenever the selected quick-task strategy is `native-multi-agent`.\n"
+            f"- Native dispatch surface: {descriptor.native_dispatch_hint}\n"
+            f"- Integration-native join point: {descriptor.native_join_hint}\n"
+            f"- Sidecar fallback: {descriptor.sidecar_surface_hint}\n"
+            "- Once the first lane is chosen, dispatch it before continuing any leader-local deep-dive analysis of the repository.\n"
+            "- If multiple safe worker lanes exist and they materially improve throughput, dispatch them in parallel.\n"
+            "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth.\n"
+            "- Child workers may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
+            f"- Decision order for {agent_name} `sp-quick`: `no-safe-batch` -> `native-preferred` -> `sidecar-fallback` -> `fallback`.\n"
+            "- Interpret `single-agent` as one delegated worker lane, not leader self-execution.\n"
+            "- Interpret `native-multi-agent` as the current runtime's native delegated worker path.\n"
+            "- Interpret `sidecar-runtime` as escalation to the coordinated runtime surface only after native worker delegation is unavailable or unsuitable.\n"
+            "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
+        )
         return content + addendum
 
     @staticmethod
@@ -571,6 +832,7 @@ class MarkdownIntegration(IntegrationBase):
 
         script_type = opts.get("script_type", "sh")
         arg_placeholder = self.registrar_config.get("args", "$ARGUMENTS") if self.registrar_config else "$ARGUMENTS"
+        runtime_snapshot = self.runtime_capability_snapshot()
         created: list[Path] = []
 
         for src_file in templates:
@@ -582,6 +844,45 @@ class MarkdownIntegration(IntegrationBase):
                 agent_name=agent_name.replace(" CLI", ""),
                 command_name=src_file.stem,
             )
+            if src_file.stem == "implement":
+                processed = self._append_implement_leader_gate(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                )
+            if src_file.stem == "debug":
+                processed = self._append_debug_leader_gate(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                )
+                processed = self._append_debug_routing_contract(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    snapshot=runtime_snapshot,
+                )
+            if src_file.stem == "quick":
+                processed = self._append_quick_leader_gate(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                )
+                processed = self._append_quick_routing_contract(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    snapshot=runtime_snapshot,
+                )
+            if src_file.stem in {"implement", "debug", "quick"}:
+                processed = self._append_delegation_surface_contract(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    command_name=src_file.stem,
+                    snapshot=runtime_snapshot,
+                    heading="Delegation Surface Contract",
+                )
+                processed = self._append_runtime_worker_result_contract(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    command_name=src_file.stem,
+                    snapshot=runtime_snapshot,
+                )
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(
                 processed, dest / dst_name, project_root, manifest
@@ -741,6 +1042,7 @@ class TomlIntegration(IntegrationBase):
 
         script_type = opts.get("script_type", "sh")
         arg_placeholder = self.registrar_config.get("args", "{{args}}") if self.registrar_config else "{{args}}"
+        runtime_snapshot = self.runtime_capability_snapshot()
         created: list[Path] = []
 
         for src_file in templates:
@@ -753,6 +1055,45 @@ class TomlIntegration(IntegrationBase):
                 agent_name=agent_name.replace(" CLI", ""),
                 command_name=src_file.stem,
             )
+            if src_file.stem == "implement":
+                processed = self._append_implement_leader_gate(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                )
+            if src_file.stem == "debug":
+                processed = self._append_debug_leader_gate(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                )
+                processed = self._append_debug_routing_contract(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    snapshot=runtime_snapshot,
+                )
+            if src_file.stem == "quick":
+                processed = self._append_quick_leader_gate(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                )
+                processed = self._append_quick_routing_contract(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    snapshot=runtime_snapshot,
+                )
+            if src_file.stem in {"implement", "debug", "quick"}:
+                processed = self._append_delegation_surface_contract(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    command_name=src_file.stem,
+                    snapshot=runtime_snapshot,
+                    heading="Delegation Surface Contract",
+                )
+                processed = self._append_runtime_worker_result_contract(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    command_name=src_file.stem,
+                    snapshot=runtime_snapshot,
+                )
             _, body = self._split_frontmatter(processed)
             toml_content = self._render_toml(description, body)
             dst_name = self.command_filename(src_file.stem)
@@ -895,7 +1236,17 @@ class SkillsIntegration(IntegrationBase):
     ) -> list[Path]:
         """Copy non-``SKILL.md`` support files for a passive skill."""
         created: list[Path] = []
-        for src_file in sorted(path for path in template_dir.rglob("*") if path.is_file()):
+        pending = [template_dir]
+        files: list[Path] = []
+        while pending:
+            current = pending.pop()
+            for child in current.iterdir():
+                if child.is_dir():
+                    pending.append(child)
+                elif child.is_file():
+                    files.append(child)
+
+        for src_file in sorted(files):
             if src_file.name == "SKILL.md":
                 continue
             relative = src_file.relative_to(template_dir)
@@ -946,6 +1297,7 @@ class SkillsIntegration(IntegrationBase):
             if self.registrar_config
             else "$ARGUMENTS"
         )
+        runtime_snapshot = self.runtime_capability_snapshot()
         created: list[Path] = []
 
         for src_file in templates:
@@ -971,6 +1323,46 @@ class SkillsIntegration(IntegrationBase):
                 script_type=script_type,
                 arg_placeholder=arg_placeholder,
             )
+            agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
+            if command_name == "implement":
+                skill_content = self._append_implement_leader_gate(
+                    content=skill_content,
+                    agent_name=agent_name.replace(" CLI", ""),
+                )
+            if command_name == "debug":
+                skill_content = self._append_debug_leader_gate(
+                    content=skill_content,
+                    agent_name=agent_name.replace(" CLI", ""),
+                )
+                skill_content = self._append_debug_routing_contract(
+                    content=skill_content,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    snapshot=runtime_snapshot,
+                )
+            if command_name == "quick":
+                skill_content = self._append_quick_leader_gate(
+                    content=skill_content,
+                    agent_name=agent_name.replace(" CLI", ""),
+                )
+                skill_content = self._append_quick_routing_contract(
+                    content=skill_content,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    snapshot=runtime_snapshot,
+                )
+            if command_name in {"implement", "debug", "quick"}:
+                skill_content = self._append_delegation_surface_contract(
+                    content=skill_content,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    command_name=command_name,
+                    snapshot=runtime_snapshot,
+                    heading="Delegation Surface Contract",
+                )
+                skill_content = self._append_runtime_worker_result_contract(
+                    content=skill_content,
+                    agent_name=agent_name.replace(" CLI", ""),
+                    command_name=command_name,
+                    snapshot=runtime_snapshot,
+                )
 
             # Write sp-<name>/SKILL.md
             skill_dir = skills_dir / skill_name
@@ -1064,40 +1456,10 @@ class SkillsIntegration(IntegrationBase):
         agent_name_full = self.config.get("name", self.key.capitalize())
         agent_name = agent_name_full.replace(" CLI", "")
 
-        gate_marker = f"## {agent_name} Leader Gate"
-        if gate_marker not in content:
-            gate_addendum = (
-                "\n"
-                f"## {agent_name} Leader Gate\n\n"
-                f"When running `sp-implement` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
-                "\n"
-                "**Crucial First Step**: You MUST read `PROJECT-HANDBOOK.md` and relevant `.specify/project-map/*.md` files to understand the architectural boundaries and conventions before any implementation actions.\n"
-                "\n"
-                "**Autonomous Blocker Recovery (Hard Rule)**:\n"
-                "- If technical blockers arise (e.g. build errors, missing toolchain components like Win32/x86, environment mismatches), you **MUST** attempt autonomous escalation to a specialist sub-agent (e.g. `cpp-build-resolver`) **BEFORE** asking the user for intervention.\n"
-                "- Only stop and ask the user if the specialist agent confirms that manual human action (like physical installer execution) is the ONLY remaining path.\n"
-                "\n"
-                "Before any code edits, test edits, build commands, or implementation actions:\n"
-                "- Read `FEATURE_DIR/implement-tracker.md` first if it exists, and resume from its recorded blocker, recovery, replanning, or validation state before choosing a new batch.\n"
-                "- **Audit Missed Dispatches**: If you find tasks in the tracker that you performed yourself but could have been delegated, record them under a `missed_agent_dispatch` field in the tracker as a recovery debt.\n"
-                "- If `$ARGUMENTS` is non-empty, extract the important execution constraints or recovery hints from it and persist them under `## User Execution Notes` in `FEATURE_DIR/implement-tracker.md` before dispatching work.\n"
-                "- Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.\n"
-                "- Before any delegated implementation work starts, compile and validate the packet for the current task or batch item.\n"
-                "- If the selected strategy is `native-multi-agent`, you **MUST** delegate the concrete work through `spawn_agent` worker lanes before considering any fallback path.\n"
-                "- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** before doing any concrete implementation work yourself.\n"
-                "- Do **not** fall through from worker delegation or sidecar fallback into local self-execution just because the implementation looks feasible.\n"
-                "- `single-agent` still means one delegated worker lane, not leader self-execution.\n"
-                "- Wait for every delegated lane's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
-                "- Do not treat an idle child as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
-                "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
-                "- Dispatch only from validated `WorkerTaskPacket`.\n"
-                "\n"
-                "**Hard rule:** The leader must not edit implementation files directly while worker delegation is active or while `sidecar-runtime` is selected.\n"
-            )
-            if "## Outline" in content:
-                content = content.replace("## Outline", gate_addendum + "\n## Outline", 1)
-            else:
-                content += gate_addendum
+        content = self._append_implement_leader_gate(
+            content=content,
+            agent_name=agent_name,
+        )
 
         marker = f"## {agent_name} Auto-Parallel Execution"
         if marker not in content:
@@ -1285,6 +1647,7 @@ class SkillsIntegration(IntegrationBase):
             "- Interpret `single-agent` as one delegated worker lane, not leader self-execution.\n"
             "- Interpret `native-multi-agent` as the native subagents path.\n"
             "- Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable.\n"
+            "- When `sidecar-runtime` is selected for a quick-task batch, call **`specify team auto-dispatch`** before any leader-local implementation fallback.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
         )
 
@@ -1299,3 +1662,73 @@ class SkillsIntegration(IntegrationBase):
             )
 
         self.write_file_and_record(content, quick_skill, project_root, manifest)
+
+    def _augment_implement_teams_result_contract(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest: IntegrationManifest,
+        implement_teams_skill: Path,
+        snapshot: CapabilitySnapshot,
+    ) -> None:
+        """Append the shared implement result contract to a teams-backed skill."""
+        if implement_teams_skill not in created or not implement_teams_skill.is_file():
+            return
+
+        content = implement_teams_skill.read_text(encoding="utf-8")
+        agent_name_full = self.config.get("name", self.key.capitalize())
+        agent_name = agent_name_full.replace(" CLI", "")
+        content = self._append_runtime_worker_result_contract(
+            content=content,
+            agent_name=agent_name,
+            command_name="implement",
+            snapshot=snapshot,
+        )
+        self.write_file_and_record(content, implement_teams_skill, project_root, manifest)
+
+    def _augment_implement_teams_shared_contract(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest: IntegrationManifest,
+        implement_teams_skill: Path,
+        *,
+        canonical_command: str,
+        teams_command: str,
+        backend_label: str,
+    ) -> None:
+        """Append the shared sp-implement contract to a teams-backed skill."""
+        if implement_teams_skill not in created or not implement_teams_skill.is_file():
+            return
+
+        content = implement_teams_skill.read_text(encoding="utf-8")
+        marker = f"## Shared Contract With `{canonical_command}`"
+        if marker in content:
+            return
+
+        addendum = (
+            "\n"
+            f"## Shared Contract With `{canonical_command}`\n\n"
+            f"`{canonical_command}` remains the canonical implementation workflow. "
+            f"`{teams_command}` is the same execution contract with the concrete delegated work pinned to {backend_label}.\n\n"
+            f"When you use `{teams_command}`, keep the same leader-owned execution semantics that `{canonical_command}` requires:\n\n"
+            "1. keep `FEATURE_DIR/implement-tracker.md` as the execution-state source of truth\n"
+            "2. compile and validate a `WorkerTaskPacket` before dispatching each delegated task\n"
+            "3. preserve the canonical strategy names: `single-agent`, `native-multi-agent`, `sidecar-runtime`\n"
+            "4. preserve explicit join point behavior, blocker reporting, retry-pending state, and completion checks\n"
+            "5. preserve the worker result contract and canonical result file handoff path\n\n"
+            f"Before {backend_label} starts concrete work, ensure the current ready batch is prepared the same way `{canonical_command}` would prepare it:\n\n"
+            "1. the current batch is recorded in `implement-tracker.md`\n"
+            "2. each delegated task has a validated `WorkerTaskPacket`\n"
+            "3. join point expectations and result handoff expectations are explicit\n\n"
+            "The only intended difference is the execution surface:\n\n"
+            f"1. `{canonical_command}` may route the current ready batch through native delegated lanes first\n"
+            f"2. `{teams_command}` forces the concrete delegated execution through {backend_label} for the same batch and join-point semantics\n"
+            f"3. {backend_label} must not weaken the tracker, packet, validation, or completion contract\n"
+        )
+
+        if "## Execution Contract" in content:
+            content = content.replace("## Execution Contract", addendum + "\n## Execution Contract", 1)
+        else:
+            content += addendum
+        self.write_file_and_record(content, implement_teams_skill, project_root, manifest)

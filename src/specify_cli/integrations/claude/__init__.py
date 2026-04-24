@@ -24,6 +24,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "plan": "Optional guidance for the planning phase",
     "tasks": "Optional task generation constraints",
     "implement": "Optional implementation guidance or task filter",
+    "implement-teams": "Optional implementation scope or coordination guidance for the Agent Teams run",
     "analyze": "Optional focus areas for analysis, such as boundary guardrail drift (BG1/BG2/BG3)",
     "constitution": "Principles or values for the project constitution",
     "checklist": "Domain or focus area for the checklist",
@@ -92,6 +93,62 @@ class ClaudeIntegration(SkillsIntegration):
             "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
         )
         return content + addendum
+
+    def _append_agent_teams_escalation(
+        self,
+        *,
+        content: str,
+    ) -> str:
+        marker = "## Claude Agent Teams Escalation"
+        if marker in content:
+            return content
+
+        addendum = (
+            "\n"
+            "## Claude Agent Teams Escalation\n\n"
+            "- If durable coordinated execution is required, switch to `/sp-implement-teams` instead of inventing an ad hoc leader-local loop.\n"
+            "- Treat `/sp-implement-teams` as a backend swap for `/sp-implement`, not as a separate implementation contract.\n"
+            "- Treat `/sp-implement-teams` as the Claude-native surface for shared team state, task dependencies, teammate messaging, and shutdown.\n"
+            "- Do not redirect Claude users to Codex runtime surfaces or Codex extension commands.\n"
+        )
+        return content + addendum
+
+    def _install_claude_specific_skills(
+        self,
+        *,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        skills_dir: Path,
+        script_type: str,
+        arg_placeholder: str,
+    ) -> list[Path]:
+        template = Path(__file__).resolve().parent / "templates" / "implement-teams.md"
+        if not template.is_file():
+            return []
+
+        raw = template.read_text(encoding="utf-8")
+        frontmatter = self._parse_skill_frontmatter(raw)
+        description = frontmatter.get(
+            "description",
+            "Execute implementation through Claude Code Agent Teams when you explicitly want durable multi-worker execution.",
+        )
+        skill_content = self._render_skill_content(
+            raw=raw,
+            skill_name="sp-implement-teams",
+            description=description,
+            source="src/specify_cli/integrations/claude/templates/implement-teams.md",
+            script_type=script_type,
+            arg_placeholder=arg_placeholder,
+        )
+        skill_path = skills_dir / "sp-implement-teams" / "SKILL.md"
+        return [
+            self.write_file_and_record(
+                skill_content,
+                skill_path,
+                project_root,
+                manifest,
+            )
+        ]
 
     @staticmethod
     def inject_argument_hint(content: str, hint: str) -> str:
@@ -210,6 +267,21 @@ class ClaudeIntegration(SkillsIntegration):
 
         # Post-process generated skill files for Claude-specific flags
         skills_dir = self.skills_dest(project_root).resolve()
+        script_type = opts.get("script_type", "sh")
+        arg_placeholder = (
+            self.registrar_config.get("args", "$ARGUMENTS")
+            if self.registrar_config
+            else "$ARGUMENTS"
+        )
+        created.extend(
+            self._install_claude_specific_skills(
+                project_root=project_root,
+                manifest=manifest,
+                skills_dir=skills_dir,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+            )
+        )
 
         for path in created:
             # Only touch SKILL.md files under the skills directory
@@ -265,8 +337,29 @@ class ClaudeIntegration(SkillsIntegration):
                 content=content,
                 skill_name=command_name,
             )
+            if command_name == "implement":
+                content = self._append_agent_teams_escalation(content=content)
             path.write_bytes(content.encode("utf-8"))
             self.record_file_in_manifest(path, project_root, manifest)
+
+        implement_teams_skill = skills_dir / "sp-implement-teams" / "SKILL.md"
+        if implement_teams_skill.exists():
+            self._augment_implement_teams_shared_contract(
+                created,
+                project_root,
+                manifest,
+                implement_teams_skill,
+                canonical_command="/sp-implement",
+                teams_command="/sp-implement-teams",
+                backend_label="Claude Code Agent Teams",
+            )
+            content = implement_teams_skill.read_text(encoding="utf-8")
+            content = self._append_worker_result_contract(
+                content=content,
+                skill_name="implement",
+            )
+            implement_teams_skill.write_bytes(content.encode("utf-8"))
+            self.record_file_in_manifest(implement_teams_skill, project_root, manifest)
 
         return created
 

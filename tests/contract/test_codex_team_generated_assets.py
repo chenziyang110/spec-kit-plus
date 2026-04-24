@@ -33,12 +33,13 @@ def test_codex_init_generates_team_assets(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert (project / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
+    assert (project / ".codex" / "skills" / "sp-implement-teams" / "SKILL.md").exists()
     assert (project / ".specify" / "codex-team" / "runtime.json").exists()
     assert (project / ".specify" / "codex-team" / "README.md").exists()
 
 
-def test_non_codex_init_does_not_generate_team_assets(tmp_path):
-    project = tmp_path / "fresh-claude-no-team"
+def test_non_codex_init_does_not_generate_codex_team_assets(tmp_path):
+    project = tmp_path / "fresh-claude-no-codex-team"
     project.mkdir()
 
     old_cwd = os.getcwd()
@@ -63,4 +64,5 @@ def test_non_codex_init_does_not_generate_team_assets(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert not (project / ".claude" / "skills" / "sp-team" / "SKILL.md").exists()
+    assert (project / ".claude" / "skills" / "sp-implement-teams" / "SKILL.md").exists()
     assert not (project / ".specify" / "codex-team" / "runtime.json").exists()

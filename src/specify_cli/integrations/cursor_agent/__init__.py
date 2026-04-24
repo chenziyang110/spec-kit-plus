@@ -39,6 +39,9 @@ class CursorAgentIntegration(MarkdownIntegration):
             runtime_probe_succeeded=True,
         )
 
+    def _runtime_capability_snapshot(self) -> CapabilitySnapshot:
+        return self._cursor_capability_snapshot()
+
     def setup(
         self,
         project_root: Path,
@@ -118,7 +121,10 @@ class CursorAgentIntegration(MarkdownIntegration):
             "## Cursor Delegated Execution\n\n"
             "When running `sp-quick` in Cursor, prefer delegated worker execution whenever the selected quick-task strategy is `single-agent` or `native-multi-agent`.\n"
             "- Treat `single-agent` as one delegated worker lane by default. The leader should coordinate that lane rather than execute the work directly.\n"
+            "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first worker lane is selected.\n"
+            "- If Cursor's native delegated worker path is available for the current batch, you **MUST** use it before considering any leader-local fallback.\n"
             f"- Use Cursor's native delegated worker path for bounded lanes when available. {descriptor.native_dispatch_hint}\n"
+            "- After the first lane is defined, the next concrete action must be dispatch, not additional leader-local repo exploration.\n"
             "- Once the first lane is chosen, dispatch it before continuing any leader-local deep-dive analysis of the repository.\n"
             "- If multiple safe worker lanes exist and they materially improve throughput, dispatch them in parallel instead of defaulting to serial delegation.\n"
             "- Keep `.planning/quick/<slug>/STATUS.md` as the leader-owned source of truth with current focus, execution strategy, active lane or batch, join point, next action, and blockers.\n"
@@ -126,6 +132,7 @@ class CursorAgentIntegration(MarkdownIntegration):
             f"- Join delegated lanes through the integration-native join point: {descriptor.native_join_hint}\n"
             "- Interpret `native-multi-agent` as Cursor's delegated multi-lane path when available.\n"
             "- Interpret `sidecar-runtime` as escalation to the coordinated runtime surface only after native delegated execution is unavailable or unsuitable for the current quick-task batch.\n"
+            "- If native delegated execution is concretely unavailable for the current batch, escalate to the coordinated runtime surface before doing concrete implementation work yourself.\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
             "- Use leader-local execution only after both worker paths are concretely unavailable for the current batch, and record that fallback explicitly in `STATUS.md`.\n"
@@ -140,15 +147,16 @@ class CursorAgentIntegration(MarkdownIntegration):
             snapshot=cursor_snapshot,
             heading="Delegation Surface Contract",
         )
-        content += (
-            "\n"
-            "## Cursor Worker Result Contract\n\n"
-            f"- Preferred result contract: {descriptor.result_contract_hint}\n"
-            f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- Normalize worker-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
-            "- Keep `reported_status` when normalization occurs so Cursor lane output can be reconciled with canonical orchestration state.\n"
-            "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
-            "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
-        )
+        if "## Cursor Worker Result Contract" not in content:
+            content += (
+                "\n"
+                "## Cursor Worker Result Contract\n\n"
+                f"- Preferred result contract: {descriptor.result_contract_hint}\n"
+                f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
+                "- Normalize worker-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
+                "- Keep `reported_status` when normalization occurs so Cursor lane output can be reconciled with canonical orchestration state.\n"
+                "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
+                "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
+            )
 
         self.write_file_and_record(content, quick_command, project_root, manifest)
