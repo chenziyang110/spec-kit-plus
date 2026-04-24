@@ -13,7 +13,7 @@ from .persistence import MarkdownPersistenceHandler, build_handoff_report
 from .context import ContextLoader
 from .utils import run_command, edit_file, read_file
 import functools
-from specify_cli.verification import ValidationResult, run_verification_commands, verification_passed
+from specify_cli.verification import run_verification_commands, verification_passed
 
 __all__ = ["run_command", "edit_file", "read_file"]
 
