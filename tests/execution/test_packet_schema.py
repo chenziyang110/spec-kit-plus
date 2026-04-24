@@ -1,5 +1,6 @@
 from specify_cli.execution.packet_schema import (
     DispatchPolicy,
+    ExecutionIntent,
     PacketReference,
     PacketScope,
     WorkerTaskPacket,
@@ -21,6 +22,11 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
         task_id="T017",
         story_id="US1",
         objective="Implement auth flow",
+        intent=ExecutionIntent(
+            outcome="Implement auth flow without changing the public contract shape",
+            constraints=["Do not create a parallel auth stack"],
+            success_signals=["login/logout behavior implemented"],
+        ),
         scope=PacketScope(
             write_scope=["src/services/auth_service.py"],
             read_scope=["src/contracts/auth.py"],
@@ -39,7 +45,8 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
     )
 
-    assert packet.packet_version == 1
+    assert packet.packet_version == 2
+    assert packet.intent.outcome == "Implement auth flow without changing the public contract shape"
     assert packet.scope.write_scope == ["src/services/auth_service.py"]
     assert packet.dispatch_policy.mode == "hard_fail"
 
@@ -68,6 +75,11 @@ def test_worker_task_packet_round_trips_through_json() -> None:
         task_id="T017",
         story_id="US1",
         objective="Implement auth flow",
+        intent=ExecutionIntent(
+            outcome="Implement auth flow without changing the public contract shape",
+            constraints=["Do not create a parallel auth stack"],
+            success_signals=["login/logout behavior implemented"],
+        ),
         scope=PacketScope(
             write_scope=["src/services/auth_service.py"],
             read_scope=["src/contracts/auth.py"],
@@ -89,6 +101,7 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     restored = worker_task_packet_from_json(json.dumps(worker_task_packet_payload(packet)))
 
     assert restored.task_id == "T017"
+    assert restored.intent.constraints == ["Do not create a parallel auth stack"]
     assert restored.scope.write_scope == ["src/services/auth_service.py"]
     assert restored.required_references[0].path == "src/contracts/auth.py"
 

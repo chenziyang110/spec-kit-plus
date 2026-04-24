@@ -29,6 +29,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
 - **Debug the loop, not just the point**: Validate the path from input event to control decision to resource allocation to state transition to external observation.
 - **Escalate diagnostics when the loop is still ambiguous**: If two investigation rounds do not converge, stop layering plausible small fixes and add decisive instrumentation.
+- **Execution intent stays explicit**: Record the current verification outcome, active constraints, and required success evidence in the session file before and during verification so resume decisions do not depend on chat memory.
 
 ## Passive Project Learning Layer
 
