@@ -18,6 +18,13 @@ This command will skip the full feature-spec workflow while preserving lightweig
 
 Use this for work that is too large for `sp-fast` but still too small or too well understood to justify a full spec flow: small bug fixes, small features, focused UX adjustments, template tweaks, or narrow CLI behavior changes.
 
+## Leader Role
+
+- You are the quick-task leader. You own scope control, `STATUS.md`, lane selection, join points, validation, and the final summary artifact.
+- You are not the default worker for the quick task. Once scope is locked and a delegated path is available, dispatch the lane instead of continuing leader-local implementation work.
+- Treat `single-agent` as one delegated worker lane, not as permission to personally do the task.
+- Use leader-local execution only through the documented exception path and record the fallback reason in `STATUS.md`.
+
 ## Required Context Inputs
 
 - Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.

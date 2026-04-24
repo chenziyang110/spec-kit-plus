@@ -520,6 +520,30 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "teamdelete" in lower
     assert "~/.claude/teams/" in content
     assert "~/.claude/tasks/" in content
+    assert "claude_code_experimental_agent_teams=1" in lower
+    assert "`~/.claude/settings.json`" in content
+    assert "if the agent teams surface is unavailable" in lower
+    assert "first `teamcreate` / agent teams call fails as though the feature is disabled" in lower
+    assert "explicitly remind the user to enable `claude_code_experimental_agent_teams`" in lower
+    assert "hard prerequisite for `/sp-implement-teams`" in lower
+    assert "resolve the current session model before teammate creation" in lower
+    assert "runtime-visible active model" in lower
+    assert "`anthropic_model` / `claude_model`" in lower
+    assert "`~/.claude/settings.json` `model`" in lower
+    assert "resolved current-session model string" in lower
+    assert "cannot be resolved unambiguously" in lower
+    assert "create or update local `.claude/agents/<team-name>-<role>.md` files" in lower
+    assert 'write the resolved current-session model into the teammate frontmatter as `model: "<resolved-current-model>"`' in lower
+    assert "update its `model` field for the current run" in lower
+    assert ".claude/agents/*.md" in content
+    assert "generated teammate definition name" in lower
+    assert "inspect `~/.claude/teams/{team-name}/config.json` after teammate creation" in lower
+    assert "recorded `model`" in content
+    assert "if the runtime cannot use the generated custom teammate definition" in lower
+    assert "`model not found`" in content
+    assert "enters `idle` without consuming its first probe message" in lower
+    assert "treat startup as failed rather than successful" in lower
+    assert "minimal readiness probe message before task assignment" in lower
     assert "shared contract with `/sp-implement`" in lower
     assert "canonical implementation workflow" in lower
     assert "implement-tracker.md" in lower
@@ -542,8 +566,16 @@ def test_claude_implement_teams_template_keeps_only_backend_specific_guidance():
     template = Path(
         "src/specify_cli/integrations/claude/templates/implement-teams.md"
     ).read_text(encoding="utf-8")
+    lower = template.lower()
 
     assert "## Shared Contract With `/sp-implement`" not in template
+    assert ".claude/agents/<team-name>-<role>.md" in template
+    assert 'model: "<resolved-current-model>"' in template
+    assert "claude_code_experimental_agent_teams" in lower
+    assert "settings.json" in lower
+    assert "hard prerequisite" in lower
+    assert "config.json" in template
+    assert "idle" in lower
 
 
 def test_claude_generated_skills_preserve_agent_required_marker_lines(tmp_path):

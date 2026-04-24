@@ -17,6 +17,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - The user is the reporter. They describe symptoms and confirm whether the final behavior is fixed.
 - The leader owns the session file, the current hypothesis, all state transitions, the final fix, and the verification checkpoint.
 - Any delegated helpers are evidence collectors. They do not own the investigation and must not decide that the bug is resolved.
+- You are not the default evidence worker for every lane. When the investigation splits into safe bounded lanes, your job is to route, integrate, and decide rather than manually performing every lane sequentially.
+- Stay on the leader path unless the current strategy truly remains `single-agent`; do not collapse a multi-lane investigation back into leader-local thrash.
 
 ## Operating Principles
 

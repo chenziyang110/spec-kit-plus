@@ -7,6 +7,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
+    assert "## leader role" in content
+    assert "you are the quick-task leader" in content
+    assert "you are not the default worker for the quick task" in content
+    assert "dispatch the lane instead of continuing leader-local implementation work" in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
@@ -71,6 +75,7 @@ def test_quick_template_defines_capability_aware_execution_strategy() -> None:
     assert "leader" in content
     assert "join point" in content
     assert "single-agent still means one delegated worker lane" in content
+    assert "not as permission to personally do the task" in content
     assert "leader-local execution is an exception path" in content
     assert "only when the current quick-task batch cannot proceed through native delegation" in content
     assert "the first actionable execution step after scope lock is to dispatch the first delegated worker lane" in content

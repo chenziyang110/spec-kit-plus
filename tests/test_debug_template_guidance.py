@@ -7,6 +7,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_debug_template_documents_capability_aware_investigation() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "debug.md").read_text(encoding="utf-8").lower()
 
+    assert "you are not the default evidence worker for every lane" in content
+    assert "route, integrate, and decide rather than manually performing every lane sequentially" in content
+    assert "stay on the leader path unless the current strategy truly remains `single-agent`" in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content

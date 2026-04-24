@@ -824,6 +824,11 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
 
+    assert "## Leader Role" in content
+    assert "you are the implementation leader for this run" in lowered
+    assert "you are not the default implementer for the current batch" in lowered
+    assert "single-agent` as one delegated worker lane" in content
+    assert "fallback reason is recorded in `implement-tracker.md`" in lowered
     assert "invoking runtime acts as the leader" in lowered
     assert "delegated worker lane" in lowered
     assert "next executable phase" in lowered
