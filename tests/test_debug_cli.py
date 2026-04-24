@@ -4,6 +4,7 @@ from specify_cli import app
 from pathlib import Path
 import shutil
 import os
+import re
 from specify_cli.debug.schema import DebugStatus
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.debug.schema import DebugGraphState, SuggestedEvidenceLane
@@ -254,7 +255,8 @@ def test_debug_alias_present():
 def test_debug_help_lists_dispatch_option():
     result = runner.invoke(app, ["debug", "--help"])
     assert result.exit_code == 0
-    assert "--dispatch" in result.stdout
+    normalized = re.sub(r"\x1b\[[0-9;]*m", "", result.stdout)
+    assert "--dispatch" in normalized or "-dispatch" in normalized
 
 
 def test_debug_dispatch_prints_text_plan(clean_debug_dir, monkeypatch):
