@@ -207,6 +207,57 @@ def test_route_ready_parallel_batch_dispatches_each_task(monkeypatch, codex_team
     assert task.metadata["join_points"]["Join Point 1.1"]["details"]["batch_classification"] == "strict"
 
 
+def test_route_ready_parallel_batch_records_review_policy(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+    monkeypatch.setattr(
+        "specify_cli.codex_team.auto_dispatch.classify_review_gate_policy",
+        lambda **kwargs: type(
+            "Policy",
+            (),
+            {
+                "requires_review_gate": True,
+                "peer_review_lane_recommended": True,
+                "reason": "schema_change",
+            },
+        )(),
+    )
+
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+
+**Join Point 1.1**: merge before T004
+""",
+    )
+
+    route_ready_parallel_batch(
+        codex_team_project_root,
+        feature_dir=feature_dir,
+        session_id="default",
+    )
+
+    batch_payload = json.loads(
+        batch_record_path(
+            codex_team_project_root,
+            "default-parallel-batch-1-1",
+        ).read_text(encoding="utf-8")
+    )
+    assert batch_payload["review_required"] is True
+    assert batch_payload["peer_review_lane_recommended"] is True
+    assert batch_payload["review_reason"] == "schema_change"
+    assert batch_payload["review_status"] == "awaiting_review"
+
+
 def test_route_ready_parallel_batch_requires_runtime_backend(monkeypatch, codex_team_project_root: Path):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: None)
@@ -378,6 +429,82 @@ def test_complete_dispatched_batch_validates_structured_worker_results(monkeypat
     task_payload = get_task(codex_team_project_root, "T002")
     assert task_payload.metadata["worker_result"]["status"] == "success"
     assert task_payload.metadata["worker_result"]["summary"] == "T002 finished cleanly"
+
+
+def test_complete_dispatched_batch_waits_for_review_when_review_gate_is_required(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+    monkeypatch.setattr(
+        "specify_cli.codex_team.auto_dispatch.classify_review_gate_policy",
+        lambda **kwargs: type(
+            "Policy",
+            (),
+            {
+                "requires_review_gate": True,
+                "peer_review_lane_recommended": True,
+                "reason": "schema_change",
+            },
+        )(),
+    )
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+
+**Join Point 1.1**: merge before T004
+""",
+    )
+
+    route_ready_parallel_batch(codex_team_project_root, feature_dir=feature_dir, session_id="default")
+
+    for task_id in ("T002", "T003"):
+        request_id = f"default-parallel-batch-1-1-{task_id.lower()}"
+        result_path = result_record_path(codex_team_project_root, request_id)
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result = WorkerTaskResult(
+            task_id=task_id,
+            status="success",
+            changed_files=[f"src/{task_id.lower()}.py"],
+            validation_results=[
+                ValidationResult(
+                    command="pytest tests/unit/test_auth_service.py -q",
+                    status="passed",
+                    output="1 passed",
+                )
+            ],
+            summary=f"{task_id} finished cleanly",
+            rule_acknowledgement=RuleAcknowledgement(
+                required_references_read=True,
+                forbidden_drift_respected=True,
+            ),
+        )
+        result_path.write_text(
+            json.dumps(worker_task_result_payload(result), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    completion = complete_dispatched_batch(
+        codex_team_project_root,
+        batch_id="default-parallel-batch-1-1",
+        session_id="default",
+    )
+
+    batch_payload = json.loads(
+        batch_record_path(codex_team_project_root, "default-parallel-batch-1-1").read_text(encoding="utf-8")
+    )
+    assert completion.status == "awaiting_review"
+    assert batch_payload["status"] == "awaiting_review"
+    assert batch_payload["review_status"] == "awaiting_review"
+    task_payload = get_task(codex_team_project_root, "T002")
+    assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "review_pending"
 
 
 def test_complete_dispatched_batch_requires_result_when_structured_results_expected(monkeypatch, codex_team_project_root: Path):
