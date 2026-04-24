@@ -1,8 +1,20 @@
 ---
+name: spec-kit-project-map-gate
 description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require PROJECT-HANDBOOK.md and relevant .specify/project-map context first, or route to sp-map-codebase when that context is missing or stale."
+origin: spec-kit-plus
 ---
 
 # Spec Kit Project Map Gate
+
+This passive skill is the brownfield hard gate, not the route selection layer.
+
+## Complementary Passive Skills
+
+- `spec-kit-workflow-routing` owns route selection into the correct `sp-*` workflow
+  before implementation, planning, or debugging proceeds.
+- `spec-kit-project-learning` owns the shared memory capture layer after context is
+  loaded. Once this gate is satisfied, follow that skill's learning-start and
+  learning-capture expectations for the active workflow.
 
 ## Hard Gate
 
