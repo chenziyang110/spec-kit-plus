@@ -207,6 +207,8 @@ human_needed_checks:
     - **REQUIRED FOR DELEGATED EXECUTION**: If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized delegated result envelope to `FEATURE_DIR/worker-results/<task-id>.json`
     - **REQUIRED FOR DELEGATED EXECUTION**: When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the result envelope
     - **REQUIRED FOR DELEGATED EXECUTION**: Preserve `reported_status` when normalizing worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state
+    - **REQUIRED FOR DELEGATED EXECUTION**: Idle delegated worker is not an accepted result.
+    - **REQUIRED FOR DELEGATED EXECUTION**: The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting delegated execution.
     - **HARD RULE**: dispatch only from validated `WorkerTaskPacket`
     - **HARD RULE**: Do not dispatch from raw task text alone
     - **HARD RULE**: must not dispatch from raw task text alone

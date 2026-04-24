@@ -297,6 +297,48 @@ class IntegrationBase(ABC):
         )
         return content + addendum
 
+    def _append_runtime_project_map_gate(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+        command_name: str,
+    ) -> str:
+        """Append a hard project-map read gate for runtime-facing commands when absent."""
+
+        if command_name not in {"implement", "debug", "quick"}:
+            return content
+
+        marker = f"## {agent_name} Project-Map Hard Gate"
+        if marker in content:
+            return content
+
+        command_step = {
+            "implement": "before any implementation actions",
+            "debug": "before any investigation or fixes",
+            "quick": "before repository analysis or implementation",
+        }[command_name]
+
+        addendum = (
+            "\n"
+            f"## {agent_name} Project-Map Hard Gate\n\n"
+            f"**Crucial First Step**: You MUST read `PROJECT-HANDBOOK.md` and relevant `.specify/project-map/*.md` files {command_step}.\n"
+            "- If the handbook or required topical documents are missing, stale, or too broad for the touched area, run `/sp-map-codebase` before continuing.\n"
+            "- Treat this as a hard gate, not a best-effort reminder; do not continue on chat memory or local instincts when the project map should be the source of truth.\n"
+        )
+
+        insert_before = None
+        if "## Outline" in content:
+            insert_before = "## Outline"
+        elif "## Process" in content:
+            insert_before = "## Process"
+        elif "## Session Lifecycle" in content:
+            insert_before = "## Session Lifecycle"
+
+        if insert_before:
+            return content.replace(insert_before, addendum + f"\n{insert_before}", 1)
+        return content + addendum
+
     @staticmethod
     def process_template(
         content: str,
@@ -534,6 +576,12 @@ class MarkdownIntegration(IntegrationBase):
         for src_file in templates:
             raw = src_file.read_text(encoding="utf-8")
             processed = self.process_template(raw, self.key, script_type, arg_placeholder)
+            agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
+            processed = self._append_runtime_project_map_gate(
+                content=processed,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=src_file.stem,
+            )
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(
                 processed, dest / dst_name, project_root, manifest
@@ -699,6 +747,12 @@ class TomlIntegration(IntegrationBase):
             raw = src_file.read_text(encoding="utf-8")
             description = self._extract_description(raw)
             processed = self.process_template(raw, self.key, script_type, arg_placeholder)
+            agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
+            processed = self._append_runtime_project_map_gate(
+                content=processed,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=src_file.stem,
+            )
             _, body = self._split_frontmatter(processed)
             toml_content = self._render_toml(description, body)
             dst_name = self.command_filename(src_file.stem)
@@ -728,7 +782,9 @@ class SkillsIntegration(IntegrationBase):
     ``--skills``, ``--migrate-legacy``).
 
     ``setup()`` processes each shared command template into a
-    ``sp-<name>/SKILL.md`` file with skills-oriented frontmatter.
+    ``sp-<name>/SKILL.md`` file with skills-oriented frontmatter, and
+    may also install passive repository skills from
+    ``templates/passive-skills/<name>/SKILL.md``.
     """
 
     def skills_dest(self, project_root: Path) -> Path:
@@ -751,6 +807,105 @@ class SkillsIntegration(IntegrationBase):
         subdir = self.config.get("commands_subdir", "skills")
         return project_root / folder / subdir
 
+    def shared_passive_skills_dir(self) -> Path | None:
+        """Return path to the shared passive skill template directory."""
+        import inspect
+
+        pkg_dir = Path(inspect.getfile(IntegrationBase)).resolve().parent.parent
+        for candidate in [
+            pkg_dir / "core_pack" / "passive-skills",
+            pkg_dir.parent.parent / "templates" / "passive-skills",
+        ]:
+            if candidate.is_dir():
+                return candidate
+        return None
+
+    def list_passive_skill_templates(self) -> list[Path]:
+        """Return sorted passive skill directories containing ``SKILL.md``."""
+        passive_dir = self.shared_passive_skills_dir()
+        if not passive_dir or not passive_dir.is_dir():
+            return []
+        return sorted(
+            path
+            for path in passive_dir.iterdir()
+            if path.is_dir() and (path / "SKILL.md").is_file()
+        )
+
+    @staticmethod
+    def _parse_skill_frontmatter(raw: str) -> dict[str, Any]:
+        """Parse YAML frontmatter from a skill template."""
+        import yaml
+
+        frontmatter: dict[str, Any] = {}
+        if raw.startswith("---"):
+            parts = raw.split("---", 2)
+            if len(parts) >= 3:
+                try:
+                    fm = yaml.safe_load(parts[1])
+                    if isinstance(fm, dict):
+                        frontmatter = fm
+                except yaml.YAMLError:
+                    pass
+        return frontmatter
+
+    @staticmethod
+    def _quote_skill_value(value: str) -> str:
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+
+    def _render_skill_content(
+        self,
+        *,
+        raw: str,
+        skill_name: str,
+        description: str,
+        source: str,
+        script_type: str,
+        arg_placeholder: str,
+    ) -> str:
+        """Render a command or passive skill template into normalized ``SKILL.md``."""
+        processed_body = self.process_template(
+            raw, self.key, script_type, arg_placeholder
+        )
+        if processed_body.startswith("---"):
+            parts = processed_body.split("---", 2)
+            if len(parts) >= 3:
+                processed_body = parts[2]
+
+        compatibility = "Requires spec-kit project structure with .specify/ directory"
+        return (
+            f"---\n"
+            f"name: {self._quote_skill_value(skill_name)}\n"
+            f"description: {self._quote_skill_value(description)}\n"
+            f"compatibility: {self._quote_skill_value(compatibility)}\n"
+            f"metadata:\n"
+            f"  author: {self._quote_skill_value('github-spec-kit')}\n"
+            f"  source: {self._quote_skill_value(source)}\n"
+            f"---\n"
+            f"{processed_body}"
+        )
+
+    def _copy_supporting_passive_files(
+        self,
+        *,
+        template_dir: Path,
+        destination_dir: Path,
+        project_root: Path,
+        manifest: IntegrationManifest,
+    ) -> list[Path]:
+        """Copy non-``SKILL.md`` support files for a passive skill."""
+        created: list[Path] = []
+        for src_file in sorted(path for path in template_dir.rglob("*") if path.is_file()):
+            if src_file.name == "SKILL.md":
+                continue
+            relative = src_file.relative_to(template_dir)
+            dst_file = destination_dir / relative
+            dst_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, dst_file)
+            self.record_file_in_manifest(dst_file, project_root, manifest)
+            created.append(dst_file)
+        return created
+
     def setup(
         self,
         project_root: Path,
@@ -764,10 +919,9 @@ class SkillsIntegration(IntegrationBase):
         template.  Each SKILL.md has normalised frontmatter containing
         ``name``, ``description``, ``compatibility``, and ``metadata``.
         """
-        import yaml
-
         templates = self.list_command_templates()
-        if not templates:
+        passive_templates = self.list_passive_skill_templates()
+        if not templates and not passive_templates:
             return []
 
         project_root_resolved = project_root.resolve()
@@ -802,53 +956,20 @@ class SkillsIntegration(IntegrationBase):
             skill_name = f"sp-{command_name.replace('.', '-')}"
 
             # Parse frontmatter for description
-            frontmatter: dict[str, Any] = {}
-            if raw.startswith("---"):
-                parts = raw.split("---", 2)
-                if len(parts) >= 3:
-                    try:
-                        fm = yaml.safe_load(parts[1])
-                        if isinstance(fm, dict):
-                            frontmatter = fm
-                    except yaml.YAMLError:
-                        pass
+            frontmatter = self._parse_skill_frontmatter(raw)
 
-            # Process body through the standard template pipeline
-            processed_body = self.process_template(
-                raw, self.key, script_type, arg_placeholder
-            )
-            # Strip the processed frontmatter — we rebuild it for skills.
-            # Preserve leading whitespace in the body to match release ZIP
-            # output byte-for-byte (the template body starts with \n after
-            # the closing ---).
-            if processed_body.startswith("---"):
-                parts = processed_body.split("---", 2)
-                if len(parts) >= 3:
-                    processed_body = parts[2]
-
-            # Select description — use the original template description
-            # to stay byte-for-byte identical with release ZIP output.
+            # Keep the original template description for ZIP parity.
             description = frontmatter.get("description", "")
             if not description:
                 description = f"Spec Kit: {command_name} workflow"
 
-            # Build SKILL.md with manually formatted frontmatter to match
-            # the release packaging script output exactly (double-quoted
-            # values, no yaml.safe_dump quoting differences).
-            def _quote(v: str) -> str:
-                escaped = v.replace("\\", "\\\\").replace('"', '\\"')
-                return f'"{escaped}"'
-
-            skill_content = (
-                f"---\n"
-                f"name: {_quote(skill_name)}\n"
-                f"description: {_quote(description)}\n"
-                f"compatibility: {_quote('Requires spec-kit project structure with .specify/ directory')}\n"
-                f"metadata:\n"
-                f"  author: {_quote('github-spec-kit')}\n"
-                f"  source: {_quote('templates/commands/' + src_file.name)}\n"
-                f"---\n"
-                f"{processed_body}"
+            skill_content = self._render_skill_content(
+                raw=raw,
+                skill_name=skill_name,
+                description=description,
+                source=f"templates/commands/{src_file.name}",
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
             )
 
             # Write sp-<name>/SKILL.md
@@ -858,6 +979,37 @@ class SkillsIntegration(IntegrationBase):
                 skill_content, skill_file, project_root, manifest
             )
             created.append(dst)
+
+        for template_dir in passive_templates:
+            raw = (template_dir / "SKILL.md").read_text(encoding="utf-8")
+            skill_name = template_dir.name
+            frontmatter = self._parse_skill_frontmatter(raw)
+            description = frontmatter.get("description", "")
+            if not description:
+                description = f"Spec Kit passive skill: {skill_name}"
+
+            skill_content = self._render_skill_content(
+                raw=raw,
+                skill_name=skill_name,
+                description=description,
+                source=f"templates/passive-skills/{skill_name}/SKILL.md",
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+            )
+            skill_dir = skills_dir / skill_name
+            skill_file = skill_dir / "SKILL.md"
+            dst = self.write_file_and_record(
+                skill_content, skill_file, project_root, manifest
+            )
+            created.append(dst)
+            created.extend(
+                self._copy_supporting_passive_files(
+                    template_dir=template_dir,
+                    destination_dir=skill_dir,
+                    project_root=project_root,
+                    manifest=manifest,
+                )
+            )
 
         self.augment_generated_skills(
             created,
@@ -935,6 +1087,9 @@ class SkillsIntegration(IntegrationBase):
                 "- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`specify team auto-dispatch --feature-dir \"<FEATURE_DIR>\"`** before doing any concrete implementation work yourself.\n"
                 "- Do **not** fall through from worker delegation or sidecar fallback into local self-execution just because the implementation looks feasible.\n"
                 "- `single-agent` still means one delegated worker lane, not leader self-execution.\n"
+                "- Wait for every delegated lane's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
+                "- Do not treat an idle child as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
+                "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
                 "- Dispatch only from validated `WorkerTaskPacket`.\n"
                 "\n"
                 "**Hard rule:** The leader must not edit implementation files directly while worker delegation is active or while `sidecar-runtime` is selected.\n"
@@ -1034,6 +1189,9 @@ class SkillsIntegration(IntegrationBase):
             "- Read `diagnostic_profile` from the debug session before choosing child lanes.\n"
             "- The leader **MUST** update the debug file's `Current Focus` before delegating and treat child work as evidence collection for the current hypothesis.\n"
             "- Child agents must return facts, command results, and observations; they must not update the debug file, declare the root cause final, or transition the session state.\n"
+            "- Wait for every delegated lane's structured handoff before accepting the join point or changing the investigation stage.\n"
+            "- Do not treat an idle child as done work; idle without a consumed handoff means the evidence lane is still unresolved.\n"
+            "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             f"- Use `wait_agent` only after the current investigation fan-out reaches its join point.\n"
             f"- Use `close_agent` after integrating finished child results.\n"
             "- Keep fixing, verification, `awaiting_human_verify`, and final session resolution on the leader path.\n"
@@ -1085,6 +1243,9 @@ class SkillsIntegration(IntegrationBase):
                 "- If the selected strategy is `single-agent`, you **MUST** dispatch exactly one delegated worker lane before considering any leader-local fallback.\n"
                 "- If two or more safe delegated lanes would materially improve throughput, you **MUST** prefer launching them in parallel.\n"
                 f"- Use `wait_agent` only at the current join point, integrate returned results, and call `close_agent` for completed workers.\n"
+                "- Wait for every delegated lane's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
+                "- Do not treat an idle child as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
+                "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
                 f"- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`specify team auto-dispatch`** for the quick-task workload before doing concrete implementation work yourself.\n"
                 "- Leader-local execution is allowed only when native worker delegation is concretely unavailable and the sidecar runtime path is also unavailable.\n"
                 "- When leader-local fallback is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"

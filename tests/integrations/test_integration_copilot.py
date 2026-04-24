@@ -212,6 +212,31 @@ class TestCopilotIntegration:
             assert "\nscripts:\n" not in content
             assert "\nagent_scripts:\n" not in content
 
+    def test_runtime_commands_hard_gate_project_map_reads(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+        target = tmp_path / "copilot-project-map-gate"
+
+        result = runner.invoke(
+            app,
+            ["init", str(target), "--ai", "copilot", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        )
+
+        assert result.exit_code == 0, f"init --ai copilot failed: {result.output}"
+
+        for rel in (
+            ".github/agents/sp.implement.agent.md",
+            ".github/agents/sp.debug.agent.md",
+            ".github/agents/sp.quick.agent.md",
+        ):
+            content = (target / rel).read_text(encoding="utf-8").lower()
+            assert "crucial first step" in content
+            assert "project-handbook.md" in content
+            assert ".specify/project-map/*.md" in content
+            assert "/sp-map-codebase" in content
+
     def test_complete_file_inventory_sh(self, tmp_path):
         """Every file produced by specify init --integration copilot --script sh."""
         from typer.testing import CliRunner

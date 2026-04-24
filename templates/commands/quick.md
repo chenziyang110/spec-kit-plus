@@ -112,6 +112,8 @@ The following flags are available and composable:
 - If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized delegated result envelope to `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`
 - When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the delegated result envelope.
 - Preserve `reported_status` when normalizing worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
+- Idle delegated worker is not an accepted result.
+- The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting delegated execution.
 
 ## Quick-Task Workspace Protocol
 

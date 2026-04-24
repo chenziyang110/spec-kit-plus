@@ -26,6 +26,8 @@ Use this template when the debug leader dispatches an evidence-gathering lane fo
 - Blocker, if any
 - If the current runtime supports structured results, return the same facts in a stable evidence payload rather than freeform narration.
 - When the leader provides a delegated result handoff path, write the normalized evidence/result envelope there instead of replying with freeform prose only.
+- The worker must not enter `idle` before the required handoff is written or returned.
+- If the handoff channel fails, return that failure explicitly instead of idling silently.
 
 ## Guardrails
 

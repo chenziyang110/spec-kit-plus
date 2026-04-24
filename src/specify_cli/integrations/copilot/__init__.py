@@ -85,6 +85,11 @@ class CopilotIntegration(IntegrationBase):
         for src_file in templates:
             raw = src_file.read_text(encoding="utf-8")
             processed = self.process_template(raw, self.key, script_type, arg_placeholder)
+            processed = self._append_runtime_project_map_gate(
+                content=processed,
+                agent_name="GitHub Copilot",
+                command_name=src_file.stem,
+            )
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(
                 processed, dest / dst_name, project_root, manifest

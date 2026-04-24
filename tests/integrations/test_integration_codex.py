@@ -38,6 +38,8 @@ class TestCodexAutoPromote:
         assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
         assert (target / ".codex" / "skills" / "sp-plan" / "SKILL.md").exists()
         assert (target / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
+        assert (target / ".codex" / "skills" / "spec-kit-workflow-routing" / "SKILL.md").exists()
+        assert (target / ".codex" / "skills" / "spec-kit-project-map-gate" / "SKILL.md").exists()
         assert (target / ".specify" / "codex-team" / "runtime.json").exists()
         assert (target / ".specify" / "templates" / "project-handbook-template.md").exists()
         assert (target / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
@@ -121,6 +123,8 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "prefer `native-multi-agent`" in content
     assert "only fall back to `specify team`" in content.lower()
     assert "must not edit implementation files directly while worker delegation is active" in content.lower()
+    assert "wait for every delegated lane's structured handoff" in content.lower()
+    assert "do not treat an idle child as done work" in content.lower()
 
 
 def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guidance(tmp_path):
@@ -291,6 +295,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "diagnostic_profile" in content
     assert "scheduler-admission" in content or "evidence-gathering" in content
     assert "must not update the debug file" in content
+    assert "wait for every delegated lane's structured handoff" in content
+    assert "do not treat an idle child as done work" in content
 
 
 def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
@@ -382,6 +388,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "execution_fallback" in content
     assert "join point" in content
     assert "leader" in content
+    assert "wait for every delegated lane's structured handoff" in content
+    assert "do not treat an idle child as done work" in content
     assert ".planning/quick/<id>-<slug>/" in content
     assert ".planning/quick/index.json" in content
     assert "status.md" in content

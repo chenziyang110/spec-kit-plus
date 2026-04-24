@@ -218,6 +218,13 @@ Current `sp-implement` runtime model in this fork:
 
 For Codex and other skills-based integrations, the generated commands are installed in skills form. Codex now uses the dedicated `.codex/skills/` directory for generated skills.
 
+Skills-based projects now install two layers into the same skills directory:
+
+- explicit workflow skills: `sp-*`
+- passive repository skills: `spec-kit-*`
+
+`sp-*` remains the primary user-facing workflow surface. Passive skills exist to improve automatic routing and guardrails inside Spec Kit Plus repositories, not to replace the explicit workflow commands.
+
 ## Multi-CLI Orchestration (Milestones 1-2)
 
 Current orchestration status in this fork:

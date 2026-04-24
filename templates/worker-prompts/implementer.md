@@ -29,6 +29,8 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - Remaining concern, blocker, or missing context
 - When the runtime supports structured delegated results, format the handoff as a `WorkerTaskResult`-style payload with validation evidence and explicit blocker metadata.
 - When the leader provides a delegated result handoff path, write the normalized result envelope there instead of replying with freeform prose only.
+- The worker must not enter `idle` before the required handoff is written or returned.
+- If the handoff channel fails, return that failure explicitly instead of idling silently.
 
 ## Guardrails
 

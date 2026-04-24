@@ -56,3 +56,29 @@ def test_cursor_generated_sp_quick_prefers_delegated_worker_execution(tmp_path):
     assert "needs_context" in content
     assert "workertaskresult" in content
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in content
+
+
+def test_cursor_runtime_commands_hard_gate_project_map_reads(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "cursor-project-map-gate"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "cursor-agent", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
+
+    for rel in (
+        ".cursor/commands/sp.implement.md",
+        ".cursor/commands/sp.debug.md",
+        ".cursor/commands/sp.quick.md",
+    ):
+        content = (target / rel).read_text(encoding="utf-8").lower()
+        assert "crucial first step" in content
+        assert "project-handbook.md" in content
+        assert ".specify/project-map/*.md" in content
+        assert "/sp-map-codebase" in content

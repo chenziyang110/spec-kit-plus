@@ -62,6 +62,23 @@ class TestClaudeIntegration:
         assert parsed["disable-model-invocation"] is True
         assert parsed["metadata"]["source"] == "templates/commands/plan.md"
 
+    def test_setup_keeps_passive_skills_model_invokable(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        passive_skill = tmp_path / ".claude" / "skills" / "spec-kit-workflow-routing" / "SKILL.md"
+        assert passive_skill.exists()
+
+        content = passive_skill.read_text(encoding="utf-8")
+        parts = content.split("---", 2)
+        parsed = yaml.safe_load(parts[1])
+
+        assert parsed["name"] == "spec-kit-workflow-routing"
+        assert "user-invocable" not in parsed
+        assert "disable-model-invocation" not in parsed
+        assert parsed["metadata"]["source"] == "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
+
     def test_setup_installs_update_context_scripts(self, tmp_path):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)
@@ -105,6 +122,8 @@ class TestClaudeIntegration:
 
         assert result.exit_code == 0, result.output
         assert (project / ".claude" / "skills" / "sp-plan" / "SKILL.md").exists()
+        assert (project / ".claude" / "skills" / "spec-kit-workflow-routing" / "SKILL.md").exists()
+        assert (project / ".claude" / "skills" / "spec-kit-project-map-gate" / "SKILL.md").exists()
         assert not (project / ".claude" / "commands").exists()
 
         init_options = json.loads(
@@ -289,12 +308,20 @@ class TestClaudeIntegration:
 class TestClaudeArgumentHints:
     """Verify that argument-hint frontmatter is injected for Claude skills."""
 
+    @staticmethod
+    def _explicit_skill_files(created):
+        return [
+            f
+            for f in created
+            if f.name == "SKILL.md" and f.parent.name.startswith("sp-")
+        ]
+
     def test_all_skills_have_hints(self, tmp_path):
-        """Every generated SKILL.md must contain an argument-hint line."""
+        """Every explicit Claude workflow skill must contain an argument-hint line."""
         i = get_integration("claude")
         m = IntegrationManifest("claude", tmp_path)
         created = i.setup(tmp_path, m, script_type="sh")
-        skill_files = [f for f in created if f.name == "SKILL.md"]
+        skill_files = self._explicit_skill_files(created)
         assert len(skill_files) > 0
         for f in skill_files:
             content = f.read_text(encoding="utf-8")
@@ -307,7 +334,7 @@ class TestClaudeArgumentHints:
         i = get_integration("claude")
         m = IntegrationManifest("claude", tmp_path)
         created = i.setup(tmp_path, m, script_type="sh")
-        skill_files = [f for f in created if f.name == "SKILL.md"]
+        skill_files = self._explicit_skill_files(created)
         for f in skill_files:
             stem = f.parent.name
             if stem.startswith("sp-"):
@@ -326,7 +353,7 @@ class TestClaudeArgumentHints:
         i = get_integration("claude")
         m = IntegrationManifest("claude", tmp_path)
         created = i.setup(tmp_path, m, script_type="sh")
-        skill_files = [f for f in created if f.name == "SKILL.md"]
+        skill_files = self._explicit_skill_files(created)
         for f in skill_files:
             content = f.read_text(encoding="utf-8")
             parts = content.split("---", 2)
@@ -345,7 +372,7 @@ class TestClaudeArgumentHints:
         i = get_integration("claude")
         m = IntegrationManifest("claude", tmp_path)
         created = i.setup(tmp_path, m, script_type="sh")
-        skill_files = [f for f in created if f.name == "SKILL.md"]
+        skill_files = self._explicit_skill_files(created)
         for f in skill_files:
             content = f.read_text(encoding="utf-8")
             lines = content.splitlines()
@@ -422,6 +449,9 @@ def test_claude_generated_runtime_facing_skills_include_native_delegation_contra
         assert "native dispatch surface" in content
         assert "result contract" in content
         assert "result handoff path" in content
+        assert "wait for every delegated lane's structured handoff" in content
+        assert "do not treat an idle child as done work" in content
+        assert "do not interrupt or shut down delegated work before the handoff has been written" in content
         assert "done_with_concerns" in content
         assert "needs_context" in content
         assert "workertaskresult" in content

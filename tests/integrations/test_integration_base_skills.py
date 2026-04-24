@@ -76,7 +76,7 @@ class SkillsIntegrationTests:
         for f in skill_files:
             assert f.exists()
             assert f.name == "SKILL.md"
-            assert f.parent.name.startswith("sp-")
+            assert f.parent.name.startswith(("sp-", "spec-kit-"))
 
     def test_setup_writes_to_correct_directory(self, tmp_path):
         i = get_integration(self.KEY)
@@ -93,22 +93,43 @@ class SkillsIntegrationTests:
             )
 
     def test_skill_directory_structure(self, tmp_path):
-        """Each command produces sp-<name>/SKILL.md."""
+        """Commands and passive skills produce their expected skill directories."""
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         created = i.setup(tmp_path, m)
         skill_files = [f for f in created if "scripts" not in f.parts]
 
         expected_commands = set(self._skill_commands())
+        expected_passive_skills = set(self._passive_skill_names())
 
         # Derive command names from the skill directory names
         actual_commands = set()
+        actual_passive_skills = set()
         for f in skill_files:
-            skill_dir_name = f.parent.name  # e.g. "sp-plan"
-            assert skill_dir_name.startswith("sp-")
-            actual_commands.add(skill_dir_name.removeprefix("sp-"))
+            skill_dir_name = f.parent.name
+            if skill_dir_name.startswith("sp-"):
+                actual_commands.add(skill_dir_name.removeprefix("sp-"))
+            else:
+                actual_passive_skills.add(skill_dir_name)
 
         assert actual_commands == expected_commands
+        assert actual_passive_skills == expected_passive_skills
+
+    def test_passive_skills_use_distinct_non_sp_namespace(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        created = i.setup(tmp_path, m)
+        passive_skill_files = [
+            f for f in created if "scripts" not in f.parts and f.parent.name.startswith("spec-kit-")
+        ]
+
+        assert passive_skill_files, "Expected at least one passive skill to be generated"
+        for skill_file in passive_skill_files:
+            content = skill_file.read_text(encoding="utf-8")
+            parts = content.split("---", 2)
+            fm = yaml.safe_load(parts[1])
+            assert fm["name"].startswith("spec-kit-")
+            assert fm["metadata"]["source"].startswith("templates/passive-skills/")
 
     def test_skill_frontmatter_structure(self, tmp_path):
         """SKILL.md must have name, description, compatibility, metadata."""
@@ -261,6 +282,10 @@ class SkillsIntegrationTests:
         i = get_integration(self.KEY)
         skills_dir = i.skills_dest(project)
         assert skills_dir.is_dir(), f"--ai {self.KEY} did not create skills directory"
+        for skill_name in self._passive_skill_names():
+            assert (skills_dir / skill_name / "SKILL.md").exists(), (
+                f"--ai {self.KEY} did not install passive skill {skill_name}"
+            )
 
     def test_integration_flag_creates_files(self, tmp_path):
         from typer.testing import CliRunner
@@ -282,6 +307,10 @@ class SkillsIntegrationTests:
         i = get_integration(self.KEY)
         skills_dir = i.skills_dest(project)
         assert skills_dir.is_dir(), f"Skills directory {skills_dir} not created"
+        for skill_name in self._passive_skill_names():
+            assert (skills_dir / skill_name / "SKILL.md").exists(), (
+                f"--integration {self.KEY} did not install passive skill {skill_name}"
+            )
 
     # -- IntegrationOption ------------------------------------------------
 
@@ -310,6 +339,18 @@ class SkillsIntegrationTests:
             if path.is_file() and path.name != "vscode-settings.json"
         )
 
+    def _passive_skill_names(self) -> list[str]:
+        i = get_integration(self.KEY)
+        passive_dir = i.shared_passive_skills_dir()
+        if not passive_dir or not passive_dir.is_dir():
+            return []
+
+        return sorted(
+            path.name
+            for path in passive_dir.iterdir()
+            if path.is_dir() and (path / "SKILL.md").is_file()
+        )
+
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the full expected file list for a given script variant."""
         i = get_integration(self.KEY)
@@ -319,6 +360,8 @@ class SkillsIntegrationTests:
         # Skill files
         for cmd in self._skill_commands():
             files.append(f"{skills_prefix}/sp-{cmd}/SKILL.md")
+        for skill_name in self._passive_skill_names():
+            files.append(f"{skills_prefix}/{skill_name}/SKILL.md")
         # Integration metadata
         files += [
             ".specify/init-options.json",

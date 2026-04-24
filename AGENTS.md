@@ -431,9 +431,11 @@ Command content with {SCRIPT} and {{args}} placeholders.
 - **Shared `.agents/` folder**:
   - Amp: `.agents/commands/` (shared folder, not `.amp/`)
 - **Codex dedicated folder**:
-  - Codex: `.codex/skills/` (dedicated Codex folder; requires `--ai-skills`; invoked as `$sp-<command>`)
+  - Codex: `.codex/skills/` (dedicated Codex folder; requires `--ai-skills`; explicit workflow skills use `$sp-<command>`, passive repository skills use `spec-kit-*`)
 - **Skills-based exceptions**:
-  - Kimi Code: `.kimi/skills/` (skills, invoked as `/skill:sp-<command>`)
+  - Kimi Code: `.kimi/skills/` (skills; explicit workflow skills use `/skill:sp-<command>`, passive repository skills use `spec-kit-*`)
+- **Shared rule for skills-based integrations**:
+  - When an integration installs into a `skills/` directory, explicit workflow skills use the `sp-*` namespace and passive repository skills use the `spec-kit-*` namespace.
 - **Prompt-based exceptions**:
   - Kiro CLI: `.kiro/prompts/`
   - Pi: `.pi/prompts/`
@@ -447,7 +449,7 @@ Command content with {SCRIPT} and {{args}} placeholders.
   - Kilo Code: `.kilocode/workflows/`
   - Roo Code: `.roo/commands/`
   - IBM Bob: `.bob/commands/`
-  - Antigravity: `.agent/skills/` (`--ai-skills` required; `.agent/commands/` is deprecated)
+  - Antigravity: `.agent/skills/` (`--ai-skills` required; explicit workflow skills use `sp-*`, passive repository skills use `spec-kit-*`; `.agent/commands/` is deprecated)
 
 ## Argument Patterns
 
@@ -528,5 +530,3 @@ When adding new agents:
 ---
 
 *This documentation should be updated whenever new agents are added to maintain accuracy and completeness.*
-
-

@@ -27,6 +27,8 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 - Blocker or concern
 - When structured delegated results are available, return a `WorkerTaskResult`-style payload so the leader can merge execution state without reinterpreting prose.
 - When the leader provides a delegated result handoff path, write the normalized result envelope there instead of replying with freeform prose only.
+- The worker must not enter `idle` before the required handoff is written or returned.
+- If the handoff channel fails, return that failure explicitly instead of idling silently.
 
 ## Guardrails
 

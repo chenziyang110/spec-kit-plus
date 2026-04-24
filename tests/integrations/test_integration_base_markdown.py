@@ -101,6 +101,26 @@ class MarkdownIntegrationTests:
             assert "\nscripts:\n" not in content, f"{f.name} has unstripped scripts: block"
             assert "\nagent_scripts:\n" not in content, f"{f.name} has unstripped agent_scripts: block"
 
+    def test_runtime_commands_hard_gate_project_map_reads(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        created = i.setup(tmp_path, m)
+        runtime_files = {
+            f"sp.{stem}.md"
+            for stem in ("implement", "debug", "quick")
+        }
+        cmd_files = [
+            f for f in created
+            if f.name in runtime_files and "scripts" not in f.parts
+        ]
+        assert len(cmd_files) == 3
+        for f in cmd_files:
+            content = f.read_text(encoding="utf-8").lower()
+            assert "crucial first step" in content
+            assert "project-handbook.md" in content
+            assert ".specify/project-map/*.md" in content
+            assert "/sp-map-codebase" in content
+
     def test_all_files_tracked_in_manifest(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)

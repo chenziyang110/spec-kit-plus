@@ -85,6 +85,9 @@ class ClaudeIntegration(SkillsIntegration):
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
             "- Normalize worker-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
             "- Keep `reported_status` when normalization occurs so the leader can distinguish raw worker language from canonical orchestration state.\n"
+            "- Wait for every delegated lane's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
+            "- Do not treat an idle child as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
+            "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
             "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
         )
@@ -215,6 +218,8 @@ class ClaudeIntegration(SkillsIntegration):
             except ValueError:
                 continue
             if path.name != "SKILL.md":
+                continue
+            if not path.parent.name.startswith("sp-"):
                 continue
 
             content_bytes = path.read_bytes()

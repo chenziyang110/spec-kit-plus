@@ -701,6 +701,8 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "feature_dir/worker-results/<task-id>.json" in lowered
     assert "specify result submit" in lowered
     assert "reported_status" in lowered
+    assert "idle delegated worker is not an accepted result" in lowered
+    assert "must wait for and consume the structured handoff before closing the join point" in lowered
     assert "boundary-pattern preservation" in lowered
     assert "implement-tracker.md" in content
     assert "execution-state source of truth" in lowered
@@ -787,6 +789,10 @@ def test_debug_and_quick_templates_reference_shared_worker_prompt_assets() -> No
     assert "specify result submit" in quick_content.lower()
     assert "reported_status" in debug_content.lower()
     assert "reported_status" in quick_content.lower()
+    assert "idle delegated worker is not an accepted result" in debug_content.lower()
+    assert "idle delegated worker is not an accepted result" in quick_content.lower()
+    assert "must wait for and consume the structured handoff before closing the join point" in debug_content.lower()
+    assert "must wait for and consume the structured handoff before closing the join point" in quick_content.lower()
 
 
 def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() -> None:
@@ -800,14 +806,17 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "full task text" in implementer.lower()
     assert "worker packet" in implementer.lower()
     assert "status: `done | done_with_concerns | blocked | needs_context`" in implementer.lower()
+    assert "must not enter `idle` before the required handoff is written or returned" in implementer.lower()
 
     assert "# Debug Investigator Worker Prompt" in debug_investigator
     assert "current hypothesis" in debug_investigator.lower()
     assert "must not update the debug file" in debug_investigator.lower()
+    assert "must not enter `idle` before the required handoff is written or returned" in debug_investigator.lower()
 
     assert "# Quick Worker Prompt" in quick_worker
     assert "status.md remains leader-owned" in quick_worker.lower()
     assert "smallest safe lane" in quick_worker.lower()
+    assert "must not enter `idle` before the required handoff is written or returned" in quick_worker.lower()
 
     assert "# Spec Reviewer Worker Prompt" in spec_reviewer
     assert "do not trust implementer summaries" in spec_reviewer.lower()
