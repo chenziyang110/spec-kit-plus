@@ -32,6 +32,11 @@ def batch_record_path(project_root: Path, batch_id: str) -> Path:
     return codex_team_state_root(project_root) / "batches" / f"{batch_id}.json"
 
 
+def review_record_path(project_root: Path, review_id: str) -> Path:
+    """Return the persisted review round record path."""
+    return codex_team_state_root(project_root) / "reviews" / f"{review_id}.json"
+
+
 def task_record_path(project_root: Path, task_id: str) -> Path:
     """Return the persisted task record path."""
     return codex_team_state_root(project_root) / "tasks" / f"{task_id}.json"

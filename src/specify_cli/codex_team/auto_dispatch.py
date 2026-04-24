@@ -24,6 +24,7 @@ from specify_cli.codex_team.state_paths import batch_record_path
 from specify_cli.orchestration import CapabilitySnapshot, describe_delegation_surface
 from specify_cli.orchestration.backends.process_backend import ProcessBackend
 from specify_cli.orchestration.policy import classify_batch_execution_policy
+from specify_cli.orchestration.policy import classify_review_gate_policy
 from specify_cli.orchestration.state_store import write_json
 from specify_cli.execution import (
     build_result_handoff_path,
@@ -397,6 +398,10 @@ def _write_batch_record(
     join_point_name: str,
     batch_classification: str,
     safe_preparation: bool,
+    review_required: bool,
+    peer_review_lane_recommended: bool,
+    review_reason: str,
+    review_status: str,
 ) -> None:
     path = batch_record_path(project_root, batch_id)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -412,6 +417,10 @@ def _write_batch_record(
                 join_point_name=join_point_name,
                 batch_classification=batch_classification,
                 safe_preparation=safe_preparation,
+                review_required=review_required,
+                peer_review_lane_recommended=peer_review_lane_recommended,
+                review_reason=review_reason,
+                review_status=review_status,
             ),
             ensure_ascii=False,
             indent=2,
@@ -526,6 +535,12 @@ def route_ready_parallel_batch(
             "safe_preparation": False,
         }
     )
+    review_policy = classify_review_gate_policy(
+        workload_shape={
+            "parallel_batches": len(batch.task_ids),
+            "review_lane_available": True,
+        }
+    )
     for task_id in batch.task_ids:
         task = tasks_by_id.get(task_id)
         if task is None or task.completed:
@@ -604,6 +619,8 @@ def route_ready_parallel_batch(
                     "feature_dir": feature_dir.as_posix(),
                     "batch_classification": batch_policy.batch_classification,
                     "safe_preparation": batch_policy.safe_preparation_allowed,
+                    "review_required": review_policy.requires_review_gate,
+                    "review_status": "awaiting_review" if review_policy.requires_review_gate else "not_required",
                 },
             )
         request_ids.append(request_id)
@@ -620,6 +637,10 @@ def route_ready_parallel_batch(
         join_point_name=batch.join_point_name,
         batch_classification=batch_policy.batch_classification,
         safe_preparation=batch_policy.safe_preparation_allowed,
+        review_required=review_policy.requires_review_gate,
+        peer_review_lane_recommended=review_policy.peer_review_lane_recommended,
+        review_reason=review_policy.reason,
+        review_status="awaiting_review" if review_policy.requires_review_gate else "not_required",
     )
     monitor_summary(project_root, session_id=session_id)
     return AutoDispatchResult(
@@ -754,20 +775,26 @@ def complete_dispatched_batch(
 
         record = task_ops.get_task(project_root, task_id)
         if join_point_name:
+            join_status = "review_pending" if payload.get("review_required") else "complete"
             task_ops.mark_join_point(
                 project_root,
                 task_id=task_id,
                 join_point_name=join_point_name,
                 expected_version=record.version,
-                status="complete",
+                status=join_status,
                 details={
                     "batch_id": batch_id,
                     "batch_name": payload.get("batch_name", ""),
                     "feature_dir": payload.get("feature_dir", ""),
+                    "review_status": payload.get("review_status", "not_required"),
                 },
             )
 
-    payload["status"] = "completed"
+    if payload.get("review_required"):
+        payload["status"] = "awaiting_review"
+        payload["review_status"] = "awaiting_review"
+    else:
+        payload["status"] = "completed"
     path = batch_record_path(project_root, batch_id)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     monitor_summary(project_root, session_id=session_id)
