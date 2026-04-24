@@ -24,7 +24,6 @@ from .result_schema import (
 )
 from .result_validator import validate_worker_task_result
 from specify_cli.verification import (
-    ValidationResult,
     run_verification_commands,
     summarize_validation_results,
     verification_passed,
