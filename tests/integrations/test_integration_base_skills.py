@@ -72,11 +72,21 @@ class SkillsIntegrationTests:
         m = IntegrationManifest(self.KEY, tmp_path)
         created = i.setup(tmp_path, m)
         assert len(created) > 0
-        skill_files = [f for f in created if "scripts" not in f.parts]
-        for f in skill_files:
+        skills_dir = i.skills_dest(tmp_path).resolve()
+        expected_skill_dirs = {
+            *(f"sp-{command}" for command in self._skill_commands()),
+            *self._passive_skill_names(),
+        }
+        generated_files = [f for f in created if "scripts" not in f.parts]
+        skill_manifests = [f for f in generated_files if f.name == "SKILL.md"]
+
+        assert skill_manifests, "No generated SKILL.md files were created"
+        for f in generated_files:
             assert f.exists()
-            assert f.name == "SKILL.md"
-            assert f.parent.name.startswith(("sp-", "spec-kit-"))
+            rel = f.resolve().relative_to(skills_dir)
+            assert rel.parts[0] in expected_skill_dirs
+        for f in skill_manifests:
+            assert f.parent.name in expected_skill_dirs
 
     def test_setup_writes_to_correct_directory(self, tmp_path):
         i = get_integration(self.KEY)
@@ -84,20 +94,23 @@ class SkillsIntegrationTests:
         created = i.setup(tmp_path, m)
         expected_dir = i.skills_dest(tmp_path)
         assert expected_dir.exists(), f"Expected directory {expected_dir} was not created"
-        skill_files = [f for f in created if "scripts" not in f.parts]
-        assert len(skill_files) > 0, "No skill files were created"
-        for f in skill_files:
-            # Each SKILL.md is in sp-<name>/ under the skills directory
-            assert f.resolve().parent.parent == expected_dir.resolve(), (
-                f"{f} is not under {expected_dir}"
-            )
+        expected_skill_dirs = {
+            *(f"sp-{command}" for command in self._skill_commands()),
+            *self._passive_skill_names(),
+        }
+        generated_files = [f for f in created if "scripts" not in f.parts]
+        skill_manifests = [f for f in generated_files if f.name == "SKILL.md"]
+        assert len(skill_manifests) > 0, "No skill files were created"
+        for f in generated_files:
+            rel = f.resolve().relative_to(expected_dir.resolve())
+            assert rel.parts[0] in expected_skill_dirs, f"{f} is not under {expected_dir}"
 
     def test_skill_directory_structure(self, tmp_path):
         """Commands and passive skills produce their expected skill directories."""
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         created = i.setup(tmp_path, m)
-        skill_files = [f for f in created if "scripts" not in f.parts]
+        skill_files = [f for f in created if f.name == "SKILL.md"]
 
         expected_commands = set(self._skill_commands())
         expected_passive_skills = set(self._passive_skill_names())
@@ -120,7 +133,7 @@ class SkillsIntegrationTests:
         m = IntegrationManifest(self.KEY, tmp_path)
         created = i.setup(tmp_path, m)
         passive_skill_files = [
-            f for f in created if "scripts" not in f.parts and f.parent.name.startswith("spec-kit-")
+            f for f in created if f.name == "SKILL.md" and not f.parent.name.startswith("sp-")
         ]
 
         assert passive_skill_files, "Expected at least one passive skill to be generated"
@@ -128,7 +141,8 @@ class SkillsIntegrationTests:
             content = skill_file.read_text(encoding="utf-8")
             parts = content.split("---", 2)
             fm = yaml.safe_load(parts[1])
-            assert fm["name"].startswith("spec-kit-")
+            assert fm["name"] == skill_file.parent.name
+            assert not fm["name"].startswith("sp-")
             assert fm["metadata"]["source"].startswith("templates/passive-skills/")
 
     def test_skill_frontmatter_structure(self, tmp_path):
@@ -136,7 +150,7 @@ class SkillsIntegrationTests:
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         created = i.setup(tmp_path, m)
-        skill_files = [f for f in created if "scripts" not in f.parts]
+        skill_files = [f for f in created if f.name == "SKILL.md"]
 
         for f in skill_files:
             content = f.read_text(encoding="utf-8")
@@ -155,7 +169,7 @@ class SkillsIntegrationTests:
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         created = i.setup(tmp_path, m)
-        skill_files = [f for f in created if "scripts" not in f.parts]
+        skill_files = [f for f in created if f.name == "SKILL.md"]
 
         for f in skill_files:
             content = f.read_text(encoding="utf-8")
@@ -170,7 +184,7 @@ class SkillsIntegrationTests:
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         created = i.setup(tmp_path, m)
-        skill_files = [f for f in created if "scripts" not in f.parts]
+        skill_files = [f for f in created if f.name == "SKILL.md"]
         assert len(skill_files) > 0
         for f in skill_files:
             content = f.read_text(encoding="utf-8")
@@ -183,7 +197,7 @@ class SkillsIntegrationTests:
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         created = i.setup(tmp_path, m)
-        skill_files = [f for f in created if "scripts" not in f.parts]
+        skill_files = [f for f in created if f.name == "SKILL.md"]
         for f in skill_files:
             content = f.read_text(encoding="utf-8")
             # Body is everything after the second ---
@@ -336,7 +350,9 @@ class SkillsIntegrationTests:
         return sorted(
             path.relative_to(templates_dir).as_posix()
             for path in templates_dir.rglob("*")
-            if path.is_file() and path.name != "vscode-settings.json"
+            if path.is_file()
+            and path.name != "vscode-settings.json"
+            and not path.name.startswith(".")
         )
 
     def _passive_skill_names(self) -> list[str]:
@@ -351,6 +367,18 @@ class SkillsIntegrationTests:
             if path.is_dir() and (path / "SKILL.md").is_file()
         )
 
+    def _passive_skill_files(self) -> list[str]:
+        i = get_integration(self.KEY)
+        passive_dir = i.shared_passive_skills_dir()
+        if not passive_dir or not passive_dir.is_dir():
+            return []
+
+        return sorted(
+            path.relative_to(passive_dir).as_posix()
+            for path in passive_dir.rglob("*")
+            if path.is_file()
+        )
+
     def _expected_files(self, script_variant: str) -> list[str]:
         """Build the full expected file list for a given script variant."""
         i = get_integration(self.KEY)
@@ -360,8 +388,8 @@ class SkillsIntegrationTests:
         # Skill files
         for cmd in self._skill_commands():
             files.append(f"{skills_prefix}/sp-{cmd}/SKILL.md")
-        for skill_name in self._passive_skill_names():
-            files.append(f"{skills_prefix}/{skill_name}/SKILL.md")
+        for relative_file in self._passive_skill_files():
+            files.append(f"{skills_prefix}/{relative_file}")
         # Integration metadata
         files += [
             ".specify/init-options.json",

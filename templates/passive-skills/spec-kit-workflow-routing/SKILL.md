@@ -1,12 +1,26 @@
 ---
+name: "spec-kit-workflow-routing"
 description: "Use when working inside a Spec Kit Plus repository and the user asks for feature work, planning, implementation, explanation, debugging, or code changes without explicitly naming the right sp-* workflow. Route the request to the correct active skill before proceeding."
+origin: spec-kit-plus
 ---
 
 # Spec Kit Workflow Routing
 
 This repository's explicit `sp-*` workflow skills remain the primary execution surface.
 This passive skill exists to route ambiguous requests into the right active workflow
-instead of improvising a custom flow.
+instead of improvising a custom flow. Use it to route into the right active `sp-*` workflow
+before any complementary gate or learning layer runs.
+
+## Complementary Passive Skills
+
+- `spec-kit-project-map-gate` is the hard brownfield context gate. Workflow routing
+  handles route selection into the right active `sp-*` workflow, while the map gate
+  decides whether an existing-code task can continue or must detour through
+  `sp-map-codebase` first.
+- `spec-kit-project-learning` is the shared memory layer that applies after routing.
+  Once the active workflow is selected, that complementary skill defines the
+  workflow-specific learning-start and learning-capture behavior instead of leaving
+  those triggers implicit.
 
 ## Routing Rules
 
