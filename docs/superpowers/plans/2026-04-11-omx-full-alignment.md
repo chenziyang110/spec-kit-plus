@@ -416,7 +416,7 @@ git commit -m "feat: connect implement workflow to codex team runtime"
 
 **Files:**
 - Modify: `README.md`
-- Modify: `项目技术文档.md`
+- Modify: historical single-file technical writeup references
 - Modify: `docs/superpowers/plans/2026-04-11-omx-full-alignment.md`
 
 - [x] **Step 1: Run the targeted full Codex/runtime suite**
@@ -457,6 +457,6 @@ Write the final command results and any residual risks into this plan file.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add README.md 项目技术文档.md docs/superpowers/plans/2026-04-11-omx-full-alignment.md
+git add README.md docs/superpowers/plans/2026-04-11-omx-full-alignment.md
 git commit -m "docs: finalize omx full alignment guidance"
 ```

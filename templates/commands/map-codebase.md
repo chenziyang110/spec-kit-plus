@@ -51,6 +51,21 @@ Supporting metadata written alongside the canonical map:
 
 - `.specify/project-map/status.json`
 
+`status.json` must preserve the current freshness contract. At minimum it should carry:
+
+- `version`
+- `last_mapped_commit`
+- `last_mapped_at`
+- `last_mapped_branch`
+- `freshness`
+- `last_refresh_reason`
+- `last_refresh_topics`
+- `last_refresh_scope`
+- `last_refresh_basis`
+- `last_refresh_changed_files_basis`
+- `dirty`
+- `dirty_reasons`
+
 Rules:
 
 - Refresh the handbook/project-map navigation system when these files already
@@ -61,7 +76,7 @@ Rules:
   area it claims to cover.
 - Layering exists so map consumers can read detail on demand instead of re-reading one monolithic technical document.
 - Do not treat layering as permission to discard technical detail.
-- The topical map must preserve the level of detail needed to replace a legacy project technical document while still splitting that detail across the canonical topical files.
+- The topical map must preserve the level of detail maintainers need without relying on any older monolithic technical writeup while still splitting that detail across the canonical topical files.
 - Task-relevant coverage is insufficient when the touched area is named only
   vaguely, lacks ownership or placement guidance, or lacks workflow,
   constraint, integration, or regression-sensitive testing guidance.
@@ -98,12 +113,14 @@ Rules:
 - Capability cards must capture: Purpose, Owner, Truth lives, Entry points, Downstream consumers, Extend here, Do not extend here, Key contracts, Change propagation, Minimum verification, Failure modes, and Confidence.
 - Confidence must use only: Verified, Inferred, or Unknown-Stale.
 - When a capability card is marked Inferred or Unknown-Stale, summarize that gap again in Known Unknowns, Low-Confidence Areas, or both.
-- If legacy `项目技术文档.md` exists, mine it only for still-useful structure, terminology, ownership hints, and risk framing, then migrate that value into the canonical outputs above.
-- Legacy `项目技术文档.md` is not a source of truth and must not be recreated as an active technical reference.
 - When the repository already contains older technical writeups, treat them as
   optional supporting evidence only. Reuse still-correct terminology,
   structure, ownership hints, and risk framing, but keep the canonical output
   in `PROJECT-HANDBOOK.md` plus `.specify/project-map/*.md`.
+- Capability-card prioritization does not waive area coverage.
+- When an area does not receive a full capability card, still record its
+  ownership or placement guidance, adjacent dependencies, and minimum
+  verification route in the relevant topical document.
 - do not create `.planning/codebase/`, a second mapping tree, or any alternate
   source-of-truth document.
 
@@ -230,6 +247,29 @@ Rules:
        workflows
      - `OPERATIONS.md` -> build/deploy/runtime constraints, troubleshooting,
        and recovery paths
+   - Every topical document should begin with a metadata block:
+     ```markdown
+     **Last Updated:** YYYY-MM-DD
+     **Coverage Scope:** [what area this document covers]
+     **Primary Evidence:** [main files, directories, commands, or tests used]
+     **Update When:** [what changes should trigger edits here]
+     ```
+   - If local templates are absent, default to these section sets instead of free-form prose:
+     - `ARCHITECTURE.md`: Pattern Overview, Layers, Core Abstractions, Main
+       Flows, Truth Ownership and Boundaries, Cross-Cutting Concerns
+     - `STRUCTURE.md`: Directory Layout, Directory Responsibilities, Key File
+       Locations, Shared Coordination Files, Where To Add New Code
+     - `CONVENTIONS.md`: Naming Patterns, Formatting and Linting, Imports and
+       Exports, Error Handling, Comments and Docs, Testing Conventions
+     - `INTEGRATIONS.md`: External Services and Tools, Environment
+       Configuration, CI/CD and Release Surfaces, Runtime Dependencies,
+       Integration Risks
+     - `WORKFLOWS.md`: Core User Flows, Core Maintainer Flows, Adjacent
+       Workflow Risks, Entry Commands and Handoffs
+     - `TESTING.md`: Test Layers, Key Test Directories, Smallest Meaningful
+       Checks, Regression-Sensitive Areas, When To Expand Verification
+     - `OPERATIONS.md`: Startup and Execution Paths, Runtime Constraints,
+       Recovery and Resume, Troubleshooting Entry Points, Operator Notes
    - `ARCHITECTURE.md` must explain layers, abstractions, truth ownership, main
      flows, change propagation paths, and cross-cutting concerns.
    - `STRUCTURE.md` must answer where code lives, what each major directory
@@ -245,6 +285,10 @@ Rules:
      regression-sensitive areas, and verification entry points.
    - `OPERATIONS.md` must capture startup, recovery, troubleshooting, operator
      notes, and known runtime unknowns or stale evidence boundaries.
+   - For each high-value workflow or capability in `TESTING.md`, record a
+     runnable minimum verification path using repository-native commands or
+     scripts when one exists. If none exists, explicitly mark
+     `missing runnable verification`.
    - For each touched area discovered during scouting, ensure the combined
      handbook/project-map outputs give explicit ownership or placement guidance
      plus at least one of workflow, constraint, integration, or
@@ -301,6 +345,8 @@ Rules:
    - Do not duplicate deep topical content there; route to the topical docs.
      The handbook should summarize and point, while the topical documents must
      carry the deeper detail.
+   - Do not put code blocks, API inventories, or the only precise explanation in `PROJECT-HANDBOOK.md`.
+   - Each subsystem or topic-map item in the handbook should stay to one short paragraph and end with an explicit route to the relevant topical file.
 
 6. **Run a consistency pass**
    - [AGENT] Ensure `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` agree on paths, ownership, and workflow names.
@@ -324,6 +370,9 @@ Rules:
        architecture shape, directory responsibilities, dependency
        relationships, core code elements, data flows, API surfaces, and
        patterns/conventions at usable depth
+     - each major directory has at least one responsibility statement and one placement cue
+     - each major API or command surface lists an entrypoint, owner, consumer, and verification route
+     - each high-value workflow or capability records a runnable minimum verification path or the explicit marker `missing runnable verification`
    - If any checklist item fails, continue mapping before the completion
      report.
 

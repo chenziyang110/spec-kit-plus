@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the monolithic `项目技术文档.md` workflow dependency with a workflow-owned navigation system built from `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md`, then wire every relevant workflow, generated skill surface, and validation path to that system.
+**Goal:** Replace the monolithic `legacy single-file technical writeup` workflow dependency with a workflow-owned navigation system built from `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md`, then wire every relevant workflow, generated skill surface, and validation path to that system.
 
 **Architecture:** Implement this in three layers. First, lock the new contract in tests so the change is driven by failures instead of doc drift. Second, add the new template assets and recursive shared-template installation support so generated projects actually receive the handbook system. Third, rewrite workflow templates, skill mirrors, and repository-local artifacts to consume the new navigation model consistently across `sp-specify`, `sp-plan`, `sp-tasks`, `sp-implement`, `sp-fast`, `sp-quick`, and `sp-debug`.
 
@@ -37,7 +37,7 @@
   - Make `_install_shared_infra()` copy nested template directories under `.specify/templates/`.
   - Keep no-overwrite semantics and manifest tracking.
 - Modify: `templates/constitution-template.md`
-  - Change the technical source-of-truth rule from `项目技术文档.md` to the handbook system.
+  - Change the technical source-of-truth rule from `legacy single-file technical writeup` to the handbook system.
 
 ### Workflow templates
 
@@ -75,7 +75,7 @@
 - Add: `.specify/project-map/WORKFLOWS.md`
 - Add: `.specify/project-map/TESTING.md`
 - Add: `.specify/project-map/OPERATIONS.md`
-- Modify: `项目技术文档.md`
+- Modify: historical single-file technical writeup references
 - Modify: `.specify/memory/constitution.md`
 
 ### Tests
@@ -156,7 +156,7 @@ def test_project_map_templates_share_metadata_contract():
 
 - [ ] **Step 2: Rewrite alignment-template assertions around the handbook system**
 
-Update `tests/test_alignment_templates.py` so `specify`, `plan`, `tasks`, and `implement` stop asserting `项目技术文档.md` and start asserting:
+Update `tests/test_alignment_templates.py` so `specify`, `plan`, `tasks`, and `implement` stop asserting `legacy single-file technical writeup` and start asserting:
 
 ```python
 assert "PROJECT-HANDBOOK.md" in content
@@ -170,7 +170,7 @@ assert "Use `Topic Map` to choose the smallest relevant topical documents" in co
 Also replace old scout expectations such as:
 
 ```python
-assert "grounded in the codebase scout from `项目技术文档.md`" in content
+assert "grounded in the codebase scout from `legacy single-file technical writeup`" in content
 ```
 
 with new expectations such as:
@@ -231,7 +231,7 @@ pytest tests/test_project_handbook_templates.py `
 Expected:
 
 - `tests/test_project_handbook_templates.py` fails because the new template files do not exist yet.
-- Existing template-guidance tests fail because the repository still references `项目技术文档.md`.
+- Existing template-guidance tests fail because the repository still references `legacy single-file technical writeup`.
 
 - [ ] **Step 5: Commit the red contract**
 
@@ -286,13 +286,13 @@ Add `templates/project-handbook-template.md` with this exact skeleton:
 
 ## Topic Map
 
-- `.specify/project-map/ARCHITECTURE.md` — layers, abstractions, truth ownership
-- `.specify/project-map/STRUCTURE.md` — where code lives and where to add new code
-- `.specify/project-map/CONVENTIONS.md` — naming, imports, error handling, style
-- `.specify/project-map/INTEGRATIONS.md` — external tools, env, runtime dependencies
-- `.specify/project-map/WORKFLOWS.md` — user flows, maintainer flows, workflow risks
-- `.specify/project-map/TESTING.md` — test layers and smallest meaningful checks
-- `.specify/project-map/OPERATIONS.md` — startup, recovery, troubleshooting, operator notes
+- `.specify/project-map/ARCHITECTURE.md` - layers, abstractions, truth ownership
+- `.specify/project-map/STRUCTURE.md` - where code lives and where to add new code
+- `.specify/project-map/CONVENTIONS.md` - naming, imports, error handling, style
+- `.specify/project-map/INTEGRATIONS.md` - external tools, env, runtime dependencies
+- `.specify/project-map/WORKFLOWS.md` - user flows, maintainer flows, workflow risks
+- `.specify/project-map/TESTING.md` - test layers and smallest meaningful checks
+- `.specify/project-map/OPERATIONS.md` - startup, recovery, troubleshooting, operator notes
 
 ## Update Triggers
 
@@ -426,8 +426,8 @@ Rewrite the engineering-standard bullet in `templates/constitution-template.md` 
 Update `templates/commands/specify.md` so the old section:
 
 ```markdown
-- Check whether `项目技术文档.md` exists at the repository root.
-- If it is missing, analyze the repository and create `项目技术文档.md` before continuing.
+- Check whether `legacy single-file technical writeup` exists at the repository root.
+- If it is missing, analyze the repository and create `legacy single-file technical writeup` before continuing.
 ```
 
 becomes:
@@ -442,7 +442,7 @@ becomes:
 Also replace language such as:
 
 ```markdown
-grounded in the codebase scout from `项目技术文档.md`
+grounded in the codebase scout from `legacy single-file technical writeup`
 ```
 
 with:
@@ -547,7 +547,7 @@ assert "Topic Map" in body
 Replace old assertions such as:
 
 ```python
-assert "If `项目技术文档.md` is missing coverage for the touched area" in body
+assert "If `legacy single-file technical writeup` is missing coverage for the touched area" in body
 ```
 
 with:
@@ -627,7 +627,7 @@ git commit -m "feat: align generated skills with handbook navigation system"
 - Create: `.specify/project-map/WORKFLOWS.md`
 - Create: `.specify/project-map/TESTING.md`
 - Create: `.specify/project-map/OPERATIONS.md`
-- Modify: `项目技术文档.md`
+- Modify: historical single-file technical writeup references
 - Modify: `.specify/memory/constitution.md`
 - Modify: `README.md`
 - Modify: `docs/quickstart.md`
@@ -668,26 +668,15 @@ Populate `.specify/project-map/*.md` with real repository content drawn from:
 
 For example, `ARCHITECTURE.md` should name the CLI layer, integration layer, template/scaffold layer, orchestration/runtime layer, and verification layer. `STRUCTURE.md` should explicitly cover `src/specify_cli/`, `templates/`, `.agents/skills/`, `tests/`, and `.specify/`.
 
-- [ ] **Step 3: Turn `项目技术文档.md` into a compatibility bridge**
+- [ ] **Step 3: Retire the historical single-file technical writeup references**
 
-Replace the current long-form content with a short bridge page:
+Replace any remaining long-form single-file technical writeup content with a
+short note that points readers to:
 
-```markdown
-# 项目技术文档
-
-本文件已降级为兼容入口，不再作为主技术事实来源。
-
-- 根导航入口：`PROJECT-HANDBOOK.md`
-- 分层专题地图：`.specify/project-map/`
-
-优先读取：
 - `PROJECT-HANDBOOK.md`
-- `.specify/project-map/ARCHITECTURE.md`
-- `.specify/project-map/STRUCTURE.md`
-- `.specify/project-map/WORKFLOWS.md`
-```
+- `.specify/project-map/`
 
-Do not keep parallel technical truth in this file.
+Do not keep parallel technical truth in any retained historical writeup.
 
 - [ ] **Step 4: Sync repo-local template copies, constitution, and user-facing docs**
 
@@ -716,7 +705,7 @@ Expected:
 - [ ] **Step 6: Commit the repository migration**
 
 ```bash
-git add PROJECT-HANDBOOK.md .specify/templates/project-handbook-template.md .specify/templates/project-map .specify/templates/constitution-template.md .specify/project-map 项目技术文档.md .specify/memory/constitution.md README.md docs/quickstart.md CHANGELOG.md tests/test_specify_guidance_docs.py
+git add PROJECT-HANDBOOK.md .specify/templates/project-handbook-template.md .specify/templates/project-map .specify/templates/constitution-template.md .specify/project-map .specify/memory/constitution.md README.md docs/quickstart.md CHANGELOG.md tests/test_specify_guidance_docs.py
 git commit -m "docs: migrate repo to project handbook navigation system"
 ```
 
@@ -794,12 +783,12 @@ git commit -m "test: verify handbook navigation system rollout"
 - Recursive template installation and generated-project availability: covered by Task 2.
 - Workflow read contracts for `specify`, `plan`, `tasks`, `implement`, `fast`, `quick`, and `debug`: covered by Task 3.
 - Skill-mirror and generated-surface alignment: covered by Task 4.
-- Repo-local migration and compatibility bridge from `项目技术文档.md`: covered by Task 5.
+- Repo-local migration and compatibility bridge from `legacy single-file technical writeup`: covered by Task 5.
 - Validation and integration confidence: covered by Task 6.
 
 ## Placeholder Scan
 
-- No `TODO`, `TBD`, or “implement later” placeholders were left in the tasks.
+- No `TODO`, `TBD`, or `implement later` placeholders were left in the tasks.
 - Every step names exact files and exact commands.
 - Code and text modifications are shown with concrete target snippets instead of abstract guidance.
 
@@ -808,4 +797,4 @@ git commit -m "test: verify handbook navigation system rollout"
 - Canonical root artifact: `PROJECT-HANDBOOK.md`
 - Canonical topical directory: `.specify/project-map/`
 - Canonical topical files: `ARCHITECTURE.md`, `STRUCTURE.md`, `CONVENTIONS.md`, `INTEGRATIONS.md`, `WORKFLOWS.md`, `TESTING.md`, `OPERATIONS.md`
-- Compatibility bridge only: `项目技术文档.md`
+- Historical single-file technical writeup references retired from the live contract.

@@ -6,7 +6,7 @@
 
 ## Summary
 
-This design replaces the current single-file brownfield scout model centered on `项目技术文档.md` with a workflow-owned navigation system built for progressive disclosure.
+This design replaces the older single-file brownfield scout model with a workflow-owned navigation system built for progressive disclosure.
 
 The approved direction is:
 
@@ -19,7 +19,7 @@ The design keeps the value of a repository-level "project manual" while removing
 
 ## Problem Statement
 
-The current model treats `项目技术文档.md` as both:
+The current model treats one monolithic technical writeup as both:
 
 - a required workflow dependency
 - and a single container for all project understanding
@@ -65,7 +65,7 @@ This design applies those ideas to `spec-kit-plus` while preserving `specify`'s 
 - Do not turn the navigation system into a second planning system.
 - Do not duplicate `spec.md`, `alignment.md`, `context.md`, or `plan.md`.
 - Do not require every workflow to read every topical document on every invocation.
-- Do not preserve `项目技术文档.md` as the long-term primary artifact.
+- Do not preserve any older monolithic technical writeup as a live artifact in the runtime contract.
 - Do not let the navigation system become a narrative changelog.
 
 ## Alternatives Considered
@@ -159,6 +159,21 @@ The initial fixed set is:
 
 These files are shared project artifacts, not feature artifacts.
 
+`status.json` is part of the live contract for freshness and dirty-state tracking. It should persist, at minimum:
+
+- `version`
+- `last_mapped_commit`
+- `last_mapped_at`
+- `last_mapped_branch`
+- `freshness`
+- `last_refresh_reason`
+- `last_refresh_topics`
+- `last_refresh_scope`
+- `last_refresh_basis`
+- `last_refresh_changed_files_basis`
+- `dirty`
+- `dirty_reasons`
+
 ## Root Handbook Template
 
 `PROJECT-HANDBOOK.md` should use this fixed structure:
@@ -207,6 +222,12 @@ For each topical file:
 
 - short rolling summary of the latest navigation-relevant changes
 - not a full changelog
+
+Handbook routing rules:
+
+- keep subsystem or topic-map entries to one short paragraph each
+- end each entry with an explicit route to the relevant topical file
+- do not put code blocks, API inventories, or the only precise explanation in the handbook
 
 ## Topical File Templates
 
@@ -322,6 +343,8 @@ Suggested fixed sections:
 - Smallest Meaningful Checks
 - Regression-Sensitive Areas
 - When To Expand Verification
+
+For each high-value workflow or capability, `TESTING.md` should record a runnable minimum verification path using repository-native commands or scripts when one exists. If no runnable path exists yet, it should explicitly mark `missing runnable verification`.
 
 ### `OPERATIONS.md`
 
@@ -448,30 +471,18 @@ The workflow should eventually validate the navigation system on five axes:
 
 - add `PROJECT-HANDBOOK.md`
 - add `.specify/project-map/` templates
-- keep `项目技术文档.md` temporarily for compatibility
+- define `status.json` as the freshness and dirty-state contract
 
 ### Phase 2: Rewire workflows
 
 - update `sp-specify`, `sp-plan`, `sp-tasks`, `sp-implement`
 - extend `sp-quick`, `sp-fast`, and `sp-debug` with read contracts appropriate to their scope
 
-### Phase 3: Compatibility bridge
-
-During migration, `项目技术文档.md` should become a short bridge artifact rather than the primary source of truth.
-
-Its role should be:
-
-- point to `PROJECT-HANDBOOK.md`
-- point to `.specify/project-map/`
-- avoid carrying independent technical truth
-
-This prevents dual source-of-truth drift.
-
-### Phase 4: Remove the old hard-coded dependency
+### Phase 3: Tighten the live contract
 
 Once all templates, skills, and tests target the new system:
 
-- remove direct hard-coded dependence on `项目技术文档.md`
+- remove references that imply a legacy single-file technical document is still part of the runtime workflow
 - keep only the handbook and project-map artifacts as the canonical navigation system
 
 ## Consequences
@@ -502,7 +513,7 @@ These are implementation questions, not design blockers:
 
 The approved design is:
 
-- replace the monolithic `项目技术文档.md` dependency with a workflow-owned navigation system
+- replace the older monolithic technical-document dependency with a workflow-owned navigation system
 - use `PROJECT-HANDBOOK.md` as the stable root entrypoint
 - use `.specify/project-map/*.md` as the fixed topical depth layer
 - apply read contracts across `sp-specify`, `sp-plan`, `sp-tasks`, `sp-implement`, `sp-quick`, `sp-fast`, and `sp-debug`

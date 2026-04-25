@@ -553,7 +553,11 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     assert "verification entry points" in lowered
     assert "known runtime unknowns" in lowered
     assert "change-propagation hotspots" in lowered
-    assert "legacy `项目技术文档.md`" in content
+    assert "\u9879\u76ee\u6280\u672f\u6587\u6863.md" not in content
+    assert "`status.json` must preserve the current freshness contract" in content
+    assert "last_mapped_commit" in content
+    assert "last_refresh_topics" in content
+    assert "dirty_reasons" in content
 
 
 def test_map_codebase_template_preserves_full_detail_through_layering() -> None:
@@ -562,7 +566,7 @@ def test_map_codebase_template_preserves_full_detail_through_layering() -> None:
 
     assert "Layering exists so map consumers can read detail on demand instead of re-reading one monolithic technical document." in content
     assert "Do not treat layering as permission to discard technical detail." in content
-    assert "The topical map must preserve the level of detail needed to replace a legacy project technical document" in content
+    assert "without relying on any older monolithic technical writeup" in lowered
     assert "high-value contract or implementation detail" in lowered
     assert "external or exported api contracts" in lowered
     assert "core data models, state semantics, and handoff fields" in lowered
@@ -598,6 +602,29 @@ def test_map_codebase_template_preserves_full_detail_through_layering() -> None:
     assert "core data flows" in lowered
     assert "api inventory" in lowered
     assert "common patterns and conventions" in lowered
+    assert "capability-card prioritization does not waive area coverage" in lowered
+    assert "when an area does not receive a full capability card" in lowered
+
+
+def test_map_codebase_template_requires_fixed_topic_structure_and_handbook_routing() -> None:
+    content = _read("templates/commands/map-codebase.md")
+    lowered = content.lower()
+
+    assert "every topical document should begin with a metadata block" in lowered
+    assert "**last updated:** yyyy-mm-dd" in lowered
+    assert "**coverage scope:** [what area this document covers]" in lowered
+    assert "**primary evidence:** [main files, directories, commands, or tests used]" in lowered
+    assert "**update when:** [what changes should trigger edits here]" in lowered
+    assert "if local templates are absent, default to these section sets instead of free-form prose" in lowered
+    assert "pattern overview" in lowered
+    assert "directory responsibilities" in lowered
+    assert "external services and tools" in lowered
+    assert "core user flows" in lowered
+    assert "smallest meaningful checks" in lowered
+    assert "startup and execution paths" in lowered
+    assert "do not put code blocks, api inventories, or the only precise explanation in `project-handbook.md`" in lowered
+    assert "each subsystem or topic-map item in the handbook should stay to one short paragraph" in lowered
+    assert "end with an explicit route to the relevant topical file" in lowered
 
 
 def test_map_codebase_template_requires_detail_acceptance_checklist() -> None:
@@ -613,6 +640,9 @@ def test_map_codebase_template_requires_detail_acceptance_checklist() -> None:
     assert "the handbook stays index-first and points to the topic docs instead of duplicating them" in lowered
     assert "high-value capabilities include owner, truth lives, extension guidance, change propagation, minimum verification, failure modes, and confidence" in lowered
     assert "capability cards use the canonical confidence levels verified, inferred, or unknown-stale" in lowered
+    assert "each major directory has at least one responsibility statement and one placement cue" in lowered
+    assert "each major api or command surface lists an entrypoint, owner, consumer, and verification route" in lowered
+    assert "each high-value workflow or capability records a runnable minimum verification path or the explicit marker `missing runnable verification`" in lowered
 
 
 def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
