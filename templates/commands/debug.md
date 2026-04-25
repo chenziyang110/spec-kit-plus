@@ -43,6 +43,15 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Review `.planning/learnings/candidates.md` only when it still contains debug-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
 - Treat this as passive shared memory, not as a separate user-visible debug workflow.
 
+### Required Context Inputs
+
+- `.specify/memory/constitution.md`
+- `.specify/memory/project-rules.md`
+- `.specify/memory/project-learnings.md`
+- `.planning/learnings/candidates.md`
+- the active feature's `spec.md`, `plan.md`, and `tasks.md`
+- if `context.md` exists for the active feature, read it before proposing a fix
+
 ## Session Lifecycle
 
 1. **Check for Active Session**
