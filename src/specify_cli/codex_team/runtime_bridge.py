@@ -56,18 +56,37 @@ def is_native_windows() -> bool:
     return sys.platform == "win32" and not is_wsl() and not is_msys_or_git_bash()
 
 
+def _winget_links_binary(name: str) -> str | None:
+    """Return a WinGet Links binary path when available on native Windows."""
+    if not is_native_windows():
+        return None
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if not local_app_data:
+        return None
+    candidate = Path(local_app_data) / "Microsoft" / "WinGet" / "Links" / f"{name}.exe"
+    return str(candidate) if candidate.is_file() else None
+
+
 def detect_team_runtime_backend() -> dict[str, object]:
     """Detect the available runtime backend for team-mode coordination."""
     backend_descriptors = detect_available_backends()
 
     tmux = backend_descriptors.get("tmux")
-    tmux_binary = shutil.which("tmux") or (tmux.binary if tmux and tmux.available else None)
+    tmux_binary = (
+        shutil.which("tmux")
+        or _winget_links_binary("tmux")
+        or (tmux.binary if tmux and tmux.available else None)
+    )
     if tmux_binary:
         return {"available": True, "name": "tmux", "binary": tmux_binary}
 
     if is_native_windows():
         psmux = backend_descriptors.get("psmux")
-        psmux_binary = shutil.which("psmux") or (psmux.binary if psmux and psmux.available else None)
+        psmux_binary = (
+            shutil.which("psmux")
+            or _winget_links_binary("psmux")
+            or (psmux.binary if psmux and psmux.available else None)
+        )
         if psmux_binary:
             return {"available": True, "name": "psmux", "binary": psmux_binary}
 

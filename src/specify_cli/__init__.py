@@ -1474,10 +1474,33 @@ def _git_identity_configured(project_root: Path) -> bool:
     return True
 
 
+def _ensure_codex_teams_bootstrap_excludes(project_root: Path) -> None:
+    """Write local git excludes for files that should not block a bootstrap commit."""
+    exclude_path = project_root / ".git" / "info" / "exclude"
+    exclude_path.parent.mkdir(parents=True, exist_ok=True)
+
+    existing = exclude_path.read_text(encoding="utf-8") if exclude_path.exists() else ""
+    existing_lines = {line.strip() for line in existing.splitlines() if line.strip()}
+    required = [
+        ".vs/",
+        ".svn/",
+    ]
+    missing = [entry for entry in required if entry not in existing_lines]
+    if not missing:
+        return
+
+    prefix = "" if not existing or existing.endswith(("\n", "\r")) else "\n"
+    payload = prefix + "\n".join(missing) + "\n"
+    with open(exclude_path, "a", encoding="utf-8") as handle:
+        handle.write(payload)
+
+
 def _create_codex_teams_initial_commit(project_root: Path) -> tuple[bool, str]:
     """Create the first git commit so teams worktrees can be based on HEAD."""
     if not _git_identity_configured(project_root):
         return False, "git user.name and user.email must be configured before an automatic bootstrap commit can be created"
+
+    _ensure_codex_teams_bootstrap_excludes(project_root)
 
     add_result = subprocess.run(
         ["git", "add", "-A"],

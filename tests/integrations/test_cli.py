@@ -978,6 +978,38 @@ def test_create_codex_teams_initial_commit_bootstraps_head(tmp_path):
     assert status.stdout.strip() == ""
 
 
+def test_create_codex_teams_initial_commit_excludes_vs_and_svn_metadata(tmp_path):
+    from specify_cli import _create_codex_teams_initial_commit
+
+    project = tmp_path / "codex-teams-ignore-metadata"
+    project.mkdir()
+    subprocess.run(["git", "init"], cwd=project, capture_output=True, text=True, check=True)
+    subprocess.run(["git", "config", "user.name", "Spec Kit Test"], cwd=project, capture_output=True, text=True, check=True)
+    subprocess.run(["git", "config", "user.email", "spec-kit@example.invalid"], cwd=project, capture_output=True, text=True, check=True)
+    (project / "README.md").write_text("# Test\n", encoding="utf-8")
+    (project / ".vs" / "JZDownloader" / "FileContentIndex").mkdir(parents=True)
+    (project / ".vs" / "JZDownloader" / "FileContentIndex" / "index.vsidx").write_text("cache\n", encoding="utf-8")
+    (project / ".svn" / "pristine").mkdir(parents=True)
+    (project / ".svn" / "pristine" / "base.svn-base").write_text("svn metadata\n", encoding="utf-8")
+
+    ok, detail = _create_codex_teams_initial_commit(project)
+
+    assert ok is True
+    assert "initial git commit" in detail.lower()
+    exclude_path = project / ".git" / "info" / "exclude"
+    exclude_content = exclude_path.read_text(encoding="utf-8")
+    assert ".vs/" in exclude_content
+    assert ".svn/" in exclude_content
+    status = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert status.stdout.strip() == ""
+
+
 def test_maybe_bootstrap_codex_teams_environment_runs_psmux_and_initial_commit(monkeypatch, tmp_path):
     from specify_cli import _maybe_bootstrap_codex_teams_environment
 

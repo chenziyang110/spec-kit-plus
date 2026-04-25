@@ -40,6 +40,22 @@ def test_detect_runtime_backend_uses_psmux_on_native_windows(monkeypatch):
     assert backend["name"] == "psmux"
 
 
+def test_detect_runtime_backend_uses_winget_links_psmux_on_native_windows(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: True)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: None)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    links_dir = tmp_path / "Microsoft" / "WinGet" / "Links"
+    links_dir.mkdir(parents=True)
+    (links_dir / "psmux.exe").write_text("", encoding="utf-8")
+
+    backend = detect_team_runtime_backend()
+
+    assert backend["available"] is True
+    assert backend["name"] == "psmux"
+    assert str(links_dir / "psmux.exe") == backend["binary"]
+
+
 def test_ensure_tmux_available_mentions_psmux_on_native_windows(monkeypatch):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: True)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: None)
