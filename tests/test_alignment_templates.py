@@ -949,6 +949,16 @@ def test_specify_template_explicitly_reads_constitution() -> None:
     assert ".specify/memory/constitution.md" in content
 
 
+def test_checklist_template_prefers_native_question_tools_with_textual_fallback() -> None:
+    content = _read("templates/commands/checklist.md")
+    lowered = content.lower()
+
+    assert "When the runtime exposes a native structured question tool" in content
+    assert "Treat the textual Q1/Q2/Q3 and Q4/Q5 format as fallback-only guidance" in content
+    assert "native tool fields" in lowered
+    assert "Output the questions (label Q1/Q2/Q3)." in content
+
+
 def test_alignment_template_exists():
     content = _read("templates/alignment-template.md")
 

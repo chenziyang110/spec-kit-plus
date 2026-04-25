@@ -69,6 +69,9 @@ scripts:
    - Audience: Reviewer (PR) if code-related; Author otherwise
    - Focus: Top 2 relevance clusters
 
+   When the runtime exposes a native structured question tool, use that native tool for these contextual questions and map the same Q1/Q2/Q3 or Q4/Q5 intent into the native tool fields instead of rendering the textual labels verbatim.
+   Treat the textual Q1/Q2/Q3 and Q4/Q5 format as fallback-only guidance; the textual labels below apply only when no suitable native structured question tool is available.
+
    Output the questions (label Q1/Q2/Q3). After answers: if ≥2 scenario classes (Alternate / Exception / Recovery / Non-Functional domain) remain unclear, you MAY ask up to TWO more targeted follow‑ups (Q4/Q5) with a one-line justification each (e.g., "Unresolved recovery path risk"). Do not exceed five total questions. Skip escalation if user explicitly declines more.
 
 3. **Understand user request**: Combine `$ARGUMENTS` + clarifying answers:
