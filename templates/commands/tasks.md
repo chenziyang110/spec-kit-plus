@@ -123,6 +123,7 @@ scripts:
 4. **Execute task generation workflow**:
    - [AGENT] Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="tasks", snapshot, workload_shape)`
    - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
+   - The chosen execution strategy applies to the **current ready batch**, not automatically to the entire feature or task graph.
    - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
    - Decision order is fixed:
      - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
@@ -137,6 +138,12 @@ scripts:
      - before writing `tasks.md`
      - before emitting canonical parallel batches and join points
    - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in the generated report and implementation strategy section.
+   - Separately classify the **feature delivery shape** for the whole task graph using plain language, for example:
+     - `serial phases with intra-phase parallel batches`
+     - `mostly sequential`
+     - `pipeline-heavy`
+     - `parallel-ready after foundational work`
+   - If any future or later-phase batch is parallelizable but the **current ready batch** is not, state that explicitly instead of collapsing the entire feature into a blanket `single-agent` label.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
    - Load plan.md and extract tech stack, libraries, project structure
    - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
@@ -191,12 +198,16 @@ scripts:
 6. **Report**: Output path to generated tasks.md and summary:
    - Total task count
    - Task count per user story
+   - Feature delivery shape (whole task graph)
+   - Current ready batch strategy (scoped to the next executable batch only)
+   - Current ready batch strategy reason code
    - Parallel opportunities identified
    - Parallel batch count and the join points that gate downstream work
    - Independent test criteria for each story
    - Suggested first release scope (based on the smallest coherent release slice, not automatically limited to just User Story 1)
    - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
    - workflow-state path
+   - If the current ready batch strategy is `single-agent` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`

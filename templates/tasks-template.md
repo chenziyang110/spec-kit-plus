@@ -272,6 +272,28 @@ Task: "Create [Entity2] model in src/models/[entity2].py"
 
 ## Implementation Strategy
 
+### Feature Delivery Shape
+
+- Describe the whole task graph in plain language, for example:
+  - serial phases with intra-phase parallel batches
+  - mostly sequential
+  - pipeline-heavy
+  - parallel-ready after foundational work
+- Do not use the current batch execution strategy as a blanket label for the whole feature.
+
+### Current Ready Batch Strategy
+
+- Record the strategy for the **next executable batch only**:
+  - `single-agent`
+  - `native-multi-agent`
+  - `sidecar-runtime`
+- Also record the policy reason code, for example:
+  - `no-safe-batch`
+  - `native-supported`
+  - `native-missing`
+  - `fallback`
+- If later batches are parallelizable but the current batch is not, say that explicitly instead of implying the whole feature has no parallelism.
+
 ### First Release Candidate
 
 1. Complete Phase 1: Setup
