@@ -57,6 +57,7 @@ Use `sp-quick` when all of these are true:
 - The task is bounded and clearly described.
 - The work is small but non-trivial.
 - A lightweight plan is useful, but a full spec package would be overhead.
+- Use this path when you want to skip the full `specify -> plan -> tasks -> implement` workflow for a bounded task.
 - The task does not require a new long-lived feature spec under `specs/<feature>/`.
 
 If the task is trivial and local:
