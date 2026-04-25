@@ -6,8 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .baseline_check import classify_baseline_build_status, detect_native_build_shell
 from .runtime_bridge import codex_team_runtime_status
-from .state_paths import codex_team_state_root, executor_record_root
+from .state_paths import codex_team_state_root, executor_record_root, task_record_path
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -94,11 +95,14 @@ def _recent_batches(project_root: Path, *, limit: int = 5) -> list[dict[str, Any
     batches_root = codex_team_state_root(project_root) / "batches"
     candidates = sorted(batches_root.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
     batches: list[dict[str, Any]] = []
+    baseline = classify_baseline_build_status(project_root)
 
     for path in candidates[:limit]:
         payload = _read_json(path)
         if payload is None:
             continue
+        lane_status = _lane_status_for_batch(project_root, payload)
+        repo_verification_status = _repo_verification_status_for_batch(payload, baseline)
         batches.append(
             {
                 "batch_id": payload.get("batch_id", path.stem),
@@ -106,10 +110,36 @@ def _recent_batches(project_root: Path, *, limit: int = 5) -> list[dict[str, Any
                 "status": payload.get("status", ""),
                 "review_status": payload.get("review_status", ""),
                 "task_ids": payload.get("task_ids", []),
+                "lane_status": lane_status,
+                "repo_verification_status": repo_verification_status,
             }
         )
 
     return batches
+
+
+def _lane_status_for_batch(project_root: Path, payload: dict[str, Any]) -> str:
+    raw_status = str(payload.get("status", "")).strip()
+    if raw_status == "completed":
+        for task_id in payload.get("task_ids", []):
+            task_payload = _read_json(task_record_path(project_root, str(task_id)))
+            metadata = task_payload.get("metadata", {}) if isinstance(task_payload, dict) else {}
+            if metadata.get("concerns_present"):
+                return "completed_with_concerns"
+        return "completed"
+    if raw_status in {"failed", "blocked"}:
+        return "failed"
+    return "unknown"
+
+
+def _repo_verification_status_for_batch(payload: dict[str, Any], baseline: dict[str, Any]) -> str:
+    if baseline["status"] == "blocked":
+        return "blocked_by_baseline"
+    if baseline["status"] == "clean":
+        return "passed"
+    if str(payload.get("status", "")).strip() == "failed":
+        return "failed"
+    return "unknown"
 
 
 def codex_team_doctor(
@@ -126,6 +156,8 @@ def codex_team_doctor(
             integration_key=integration_key,
             session_id=session_id,
         ),
+        "native_build_shell": detect_native_build_shell(project_root),
+        "baseline_build": classify_baseline_build_status(project_root),
         "transcript": _latest_executor_transcript(project_root),
         "failed_dispatches": _recent_failed_dispatches(project_root),
         "recent_batches": _recent_batches(project_root),

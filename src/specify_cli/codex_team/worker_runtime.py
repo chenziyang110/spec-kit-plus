@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import socket
-import time
 from pathlib import Path
 
-from specify_cli.codex_team.state_paths import shutdown_path
+from specify_cli.codex_team.packet_executor import execute_packet, load_packet, write_result_file
+from specify_cli.codex_team.state_paths import codex_team_state_root, dispatch_record_path
 from specify_cli.codex_team.worker_ops import (
     bootstrap_worker_identity,
     write_worker_heartbeat,
@@ -48,53 +49,125 @@ def main() -> int:
         },
     )
 
-    executor_mode = os.environ.get("SPECIFY_CODEX_TEAM_EXECUTOR", "").strip().lower()
-    if executor_mode != LEGACY_HEARTBEAT_EXECUTOR:
+    packet_path = _resolve_packet_path(project_root, request_id=args.request_id)
+    if packet_path is None:
         write_worker_heartbeat(
             project_root,
             worker_id=args.worker_id,
-            status="executor_missing",
+            status="failed",
             details={
                 "session_id": args.session_id,
                 "task_id": args.task_id,
                 "request_id": args.request_id,
                 "worktree": args.worktree,
                 "result_path": args.result_path,
-                "reason": (
-                    "No packet executor is configured for specify team auto-dispatch. "
-                    "Worker runtime started in status-only mode."
-                ),
+                "reason": "worker runtime could not resolve a packet path for this request",
             },
         )
-        return 0
+        return 1
 
-    while True:
-        write_worker_heartbeat(
-            project_root,
-            worker_id=args.worker_id,
-            status="ready",
-            details={
-                "session_id": args.session_id,
-                "task_id": args.task_id,
-                "request_id": args.request_id,
-                "worktree": args.worktree,
-                "result_path": args.result_path,
-            },
-        )
-        if shutdown_path(project_root, args.session_id).exists():
-            write_worker_heartbeat(
-                project_root,
-                worker_id=args.worker_id,
-                status="shutdown_requested",
-                details={
-                    "session_id": args.session_id,
-                    "task_id": args.task_id,
-                    "request_id": args.request_id,
-                    "result_path": args.result_path,
-                },
-            )
-            return 0
-        time.sleep(max(args.heartbeat_interval, 1.0))
+    result_path = (
+        Path(args.result_path)
+        if args.result_path
+        else codex_team_state_root(project_root) / "results" / f"{args.request_id or args.task_id}.json"
+    )
+    packet = load_packet(packet_path)
+
+    write_worker_heartbeat(
+        project_root,
+        worker_id=args.worker_id,
+        status="starting",
+        details={
+            "session_id": args.session_id,
+            "task_id": args.task_id,
+            "request_id": args.request_id,
+            "packet_path": str(packet_path),
+            "worktree": args.worktree,
+            "result_path": str(result_path),
+        },
+    )
+    outcome = execute_packet(
+        packet,
+        project_root=project_root,
+        session_id=args.session_id,
+        request_id=args.request_id,
+        worker_id=args.worker_id,
+        worktree=Path(args.worktree),
+    )
+    write_worker_heartbeat(
+        project_root,
+        worker_id=args.worker_id,
+        status="executing",
+        details={
+            "session_id": args.session_id,
+            "task_id": args.task_id,
+            "request_id": args.request_id,
+            "packet_path": str(packet_path),
+            "worktree": args.worktree,
+            "result_path": str(result_path),
+            "executor_command": outcome.executor_command,
+        },
+    )
+    write_result_file(result_path, outcome.result)
+    write_worker_heartbeat(
+        project_root,
+        worker_id=args.worker_id,
+        status="result_written",
+        details={
+            "session_id": args.session_id,
+            "task_id": args.task_id,
+            "request_id": args.request_id,
+            "packet_path": str(packet_path),
+            "worktree": args.worktree,
+            "result_path": str(result_path),
+            "executor_command": outcome.executor_command,
+        },
+    )
+    write_worker_heartbeat(
+        project_root,
+        worker_id=args.worker_id,
+        status=_terminal_worker_status(outcome.result.status),
+        details={
+            "session_id": args.session_id,
+            "task_id": args.task_id,
+            "request_id": args.request_id,
+            "packet_path": str(packet_path),
+            "worktree": args.worktree,
+            "result_path": str(result_path),
+            "executor_command": outcome.executor_command,
+            "reason": outcome.reason,
+            "result_status": outcome.result.status,
+        },
+    )
+    return 0
+
+
+def _resolve_packet_path(project_root: Path, *, request_id: str) -> Path | None:
+    if request_id:
+        dispatch_path = dispatch_record_path(project_root, request_id)
+        if dispatch_path.exists():
+            try:
+                payload = json.loads(dispatch_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                payload = {}
+            packet_path = str(payload.get("packet_path", "")).strip()
+            if packet_path:
+                candidate = Path(packet_path)
+                if candidate.exists():
+                    return candidate
+
+        candidate = codex_team_state_root(project_root) / "packets" / f"{request_id}.json"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _terminal_worker_status(result_status: str) -> str:
+    if result_status == "success":
+        return "completed"
+    if result_status == "blocked":
+        return "blocked"
+    return "failed"
 
 
 if __name__ == "__main__":

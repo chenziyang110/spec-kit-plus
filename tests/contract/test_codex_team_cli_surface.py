@@ -53,6 +53,8 @@ def test_team_status_subcommand_shows_runtime_info(tmp_path: Path):
     assert "executor available" in result.output
     assert "git HEAD available" in result.output
     assert "worktree-ready" in result.output
+    assert "native build shell" in result.output.lower()
+    assert "baseline build" in result.output.lower()
 
 
 def test_team_status_subcommand_surfaces_missing_prerequisite_next_steps(tmp_path: Path):
@@ -71,6 +73,8 @@ def test_team_doctor_subcommand_shows_diagnostics(tmp_path: Path):
     assert result.exit_code == 0, result.output
     lowered = result.output.lower()
     assert "executor available" in lowered
+    assert "baseline build" in lowered
+    assert "native build shell" in lowered
     assert "latest transcript" in lowered
     assert "failed dispatches" in lowered
 
@@ -111,6 +115,20 @@ def test_team_live_probe_subcommand_shows_probe_result(tmp_path: Path):
     lowered = result.output.lower()
     assert "probe status: passed" in lowered
     assert "transcript path:" in lowered
+
+
+def test_team_sync_back_subcommand_shows_candidate_files_in_dry_run(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    worker_file = project / ".specify" / "codex-team" / "worktrees" / "default" / "worker-a" / "src" / "app.py"
+    worker_file.parent.mkdir(parents=True, exist_ok=True)
+    worker_file.write_text("print('candidate')\n", encoding="utf-8")
+
+    result = _invoke_in_project(project, ["team", "sync-back", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    lowered = result.output.lower()
+    assert "sync-back candidates" in lowered
+    assert "src/app.py" in lowered
 
 
 def test_team_await_subcommand_reports_monitor_snapshot(tmp_path: Path):

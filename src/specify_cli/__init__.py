@@ -70,6 +70,12 @@ from specify_cli.codex_team.auto_dispatch import (
     complete_dispatched_batch,
     route_ready_parallel_batch,
 )
+from specify_cli.codex_team.result_template import (
+    build_request_result_template,
+    normalize_result_submission,
+    render_schema_help,
+)
+from specify_cli.codex_team.sync_back import apply_sync_back, plan_sync_back
 from specify_cli.codex_team.runtime_bridge import (
     RuntimeEnvironmentError,
     detect_team_runtime_backend,
@@ -2877,8 +2883,15 @@ def team_status(
     console.print(runtime_state_summary(project_root))
     console.print(f"runtime backend: {status['runtime_backend'] or 'unavailable'}")
     console.print(f"runtime backend available: {status['runtime_backend_available']}")
+    console.print(f"runtime backend source: {status['runtime_backend_source']}")
     console.print(f"executor available: {status['executor_available']}")
     console.print(f"executor mode: {status['executor_mode']}")
+    console.print(f"native build shell: {status['native_build_shell']['source']} (ready={status['native_build_shell']['ready']})")
+    if status["native_build_shell"].get("target_arch"):
+        console.print(f"native build target arch: {status['native_build_shell']['target_arch']}")
+    console.print(f"baseline build: {status['baseline_build']['status']}")
+    if status["baseline_build"].get("reason"):
+        console.print(f"baseline build reason: {status['baseline_build']['reason']}")
     console.print(f"git repo detected: {status['git_repo_detected']}")
     console.print(f"git HEAD available: {status['git_head_available']}")
     console.print(f"leader workspace clean: {status['leader_workspace_clean']}")
@@ -2956,6 +2969,15 @@ def team_doctor_command(
     console.print(f"executor available: {status['executor_available']}")
     console.print(f"executor mode: {status['executor_mode']}")
     console.print(f"teams ready: {status['teams_ready']}")
+    console.print(
+        f"native build shell: {report['native_build_shell']['source']} "
+        f"(ready={report['native_build_shell']['ready']})"
+    )
+    if report["native_build_shell"].get("target_arch"):
+        console.print(f"native build target arch: {report['native_build_shell']['target_arch']}")
+    console.print(f"baseline build: {report['baseline_build']['status']}")
+    if report["baseline_build"].get("reason"):
+        console.print(f"baseline build reason: {report['baseline_build']['reason']}")
     if status["runtime_state"] is not None:
         console.print(
             f"live session: {status['runtime_state']['session']['session_id']} "
@@ -2985,6 +3007,17 @@ def team_doctor_command(
         for item in failed_dispatches:
             console.print(f"- {item['request_id']} -> {item['target_worker']}: {item['reason']}")
 
+    console.print("[bold]Recent Batches[/bold]")
+    recent_batches = report["recent_batches"]
+    if not recent_batches:
+        console.print("- none")
+    else:
+        for item in recent_batches:
+            console.print(
+                f"- {item['batch_name']} ({item['batch_id']}): lane={item['lane_status']} "
+                f"repo={item['repo_verification_status']}"
+            )
+
 
 @team_app.command("live-probe")
 def team_live_probe_command(
@@ -3004,6 +3037,35 @@ def team_live_probe_command(
     dispatch = payload.get("dispatch") or {}
     if dispatch.get("reason"):
         console.print(f"dispatch reason: {dispatch['reason']}")
+
+
+@team_app.command("sync-back")
+def team_sync_back(
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show candidate files without copying them"),
+    allow_dirty: bool = typer.Option(False, "--allow-dirty", help="Allow sync-back when the main workspace is dirty"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+    if dry_run:
+        plan = plan_sync_back(project_root, session_id=session_id, allow_dirty=allow_dirty)
+        console.print("[bold]Sync-back candidates[/bold]")
+        if not plan["candidates"]:
+            console.print("- none")
+            return
+        for candidate in plan["candidates"]:
+            console.print(f"- {candidate['relative_path']} ({candidate['worker_id']})")
+        return
+
+    try:
+        result = apply_sync_back(project_root, session_id=session_id, allow_dirty=allow_dirty)
+    except RuntimeError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    console.print(f"Copied {result['copied_count']} file(s) from worker worktrees.")
+    for candidate in result["copied"]:
+        console.print(f"- {candidate['relative_path']} ({candidate['worker_id']})")
 
 
 @team_app.command("resume")
@@ -3122,12 +3184,23 @@ def team_complete_batch(
 
 @team_app.command("submit-result")
 def team_submit_result(
-    request_id: str = typer.Option(..., "--request-id", help="Dispatch request identifier"),
-    result_file: str = typer.Option(..., "--result-file", help="Path to worker result JSON"),
+    request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request identifier"),
+    result_file: str | None = typer.Option(None, "--result-file", help="Path to worker result JSON"),
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    print_schema: bool = typer.Option(False, "--print-schema", help="Print the worker result schema and exit"),
 ):
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
+
+    if print_schema:
+        console.print(render_schema_help())
+        return
+    if not request_id:
+        console.print("[red]Error:[/red] --request-id is required unless --print-schema is used.")
+        raise typer.Exit(1)
+    if not result_file:
+        console.print("[red]Error:[/red] --result-file is required unless --print-schema is used.")
+        raise typer.Exit(1)
 
     result_path = Path(result_file)
     if not result_path.is_absolute():
@@ -3137,7 +3210,11 @@ def team_submit_result(
         raise typer.Exit(1)
 
     try:
-        result = normalize_worker_task_result_payload(result_path.read_text(encoding="utf-8"))
+        result = normalize_result_submission(
+            project_root,
+            request_id,
+            result_path.read_text(encoding="utf-8"),
+        )
         record = submit_runtime_result(
             project_root,
             session_id=session_id,
@@ -3152,6 +3229,33 @@ def team_submit_result(
         f"Submitted result for [cyan]{record.request_id}[/cyan] with status "
         f"[green]{record.status}[/green]."
     )
+
+
+@team_app.command("result-template")
+def team_result_template(
+    request_id: str = typer.Option(..., "--request-id", help="Dispatch request identifier"),
+    output: str | None = typer.Option(None, "--output", help="Optional file path to write the template to"),
+):
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+
+    try:
+        payload = build_request_result_template(project_root, request_id)
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    rendered = json.dumps(payload, ensure_ascii=False, indent=2)
+    if not output:
+        print(rendered)
+        return
+
+    output_path = Path(output)
+    if not output_path.is_absolute():
+        output_path = (project_root / output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(rendered, encoding="utf-8")
+    console.print(f"Wrote result template for [cyan]{request_id}[/cyan] to [cyan]{output_path}[/cyan].")
 
 
 @team_app.command("api")
@@ -3260,7 +3364,11 @@ def team_api(
             print(json.dumps(envelope, ensure_ascii=False, default=str))
             return
         try:
-            result = normalize_worker_task_result_payload(result_path.read_text(encoding="utf-8"))
+            result = normalize_result_submission(
+                project_root,
+                request_id,
+                result_path.read_text(encoding="utf-8"),
+            )
             record = submit_runtime_result(
                 project_root,
                 session_id=session_id,

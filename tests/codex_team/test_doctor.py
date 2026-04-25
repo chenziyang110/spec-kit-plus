@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from specify_cli.codex_team.runtime_bridge import bootstrap_runtime_session, dispatch_runtime_task
+from specify_cli.codex_team.state_paths import batch_record_path, task_record_path
 
 
 def test_codex_team_doctor_surfaces_latest_runtime_transcript_and_failed_dispatches(
@@ -10,6 +11,9 @@ def test_codex_team_doctor_surfaces_latest_runtime_transcript_and_failed_dispatc
 ):
     from specify_cli.codex_team.doctor import codex_team_doctor
 
+    runtime_cli = codex_team_project_root / "fake-runtime-cli.js"
+    runtime_cli.write_text("// fake runtime cli\n", encoding="utf-8")
+    monkeypatch.setenv("SPECIFY_CODEX_TEAM_RUNTIME_CLI", str(runtime_cli))
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr(
         "specify_cli.codex_team.runtime_bridge.shutil.which",
@@ -115,6 +119,9 @@ def test_codex_team_doctor_surfaces_latest_runtime_transcript_and_failed_dispatc
     report = codex_team_doctor(codex_team_project_root, session_id="default")
 
     assert report["status"]["executor_available"] is True
+    assert "baseline_build" in report
+    assert "native_build_shell" in report
+    assert report["recent_batches"] == []
     assert report["transcript"]["path"] == str(transcript_path)
     assert report["transcript"]["returncode"] == 1
     assert report["transcript"]["state_probe"]["team_name"] == "ct-doctor"
@@ -123,3 +130,83 @@ def test_codex_team_doctor_surfaces_latest_runtime_transcript_and_failed_dispatc
     assert report["failed_dispatches"][0]["request_id"] == "req-doctor"
     assert "structured worker result" in report["failed_dispatches"][0]["reason"]
 
+
+def test_codex_team_doctor_reports_lane_and_repo_verification_status(
+    monkeypatch,
+    codex_team_project_root: Path,
+):
+    from specify_cli.codex_team.doctor import codex_team_doctor
+
+    runtime_cli = codex_team_project_root / "fake-runtime-cli.js"
+    runtime_cli.write_text("// fake runtime cli\n", encoding="utf-8")
+    monkeypatch.setenv("SPECIFY_CODEX_TEAM_RUNTIME_CLI", str(runtime_cli))
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr(
+        "specify_cli.codex_team.runtime_bridge.shutil.which",
+        lambda name: r"C:\tool.exe" if name in {"tmux", "node"} else None,
+    )
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+
+    baseline_path = codex_team_project_root / ".specify" / "codex-team" / "state" / "baseline-build.json"
+    baseline_path.parent.mkdir(parents=True, exist_ok=True)
+    baseline_path.write_text(
+        json.dumps(
+            {
+                "status": "blocked",
+                "reason": "baseline compile debt",
+                "checked_at": "2026-04-26T00:00:00Z",
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    task_payload = {
+        "task_id": "T900",
+        "summary": "seed",
+        "status": "completed",
+        "owner": "worker-a",
+        "version": 1,
+        "schema_version": "1.0",
+        "created_at": "2026-04-26T00:00:00Z",
+        "updated_at": "2026-04-26T00:00:00Z",
+        "metadata": {
+            "concerns_present": True,
+        },
+    }
+    task_record_path(codex_team_project_root, "T900").parent.mkdir(parents=True, exist_ok=True)
+    task_record_path(codex_team_project_root, "T900").write_text(
+        json.dumps(task_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    batch_payload = {
+        "batch_id": "batch-1",
+        "batch_name": "Batch 1",
+        "session_id": "default",
+        "feature_dir": "specs/001",
+        "task_ids": ["T900"],
+        "request_ids": ["req-1"],
+        "join_point_name": "Join 1",
+        "batch_classification": "strict",
+        "safe_preparation": False,
+        "review_required": False,
+        "peer_review_lane_recommended": False,
+        "review_reason": "low_risk_batch",
+        "review_status": "not_required",
+        "review_round": 0,
+        "review_record_ids": [],
+        "status": "completed",
+        "schema_version": "1.0",
+        "created_at": "2026-04-26T00:00:00Z",
+        "updated_at": "2026-04-26T00:00:00Z",
+    }
+    batch_record_path(codex_team_project_root, "batch-1").parent.mkdir(parents=True, exist_ok=True)
+    batch_record_path(codex_team_project_root, "batch-1").write_text(
+        json.dumps(batch_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    report = codex_team_doctor(codex_team_project_root, session_id="default")
+
+    assert report["recent_batches"][0]["lane_status"] == "completed_with_concerns"
+    assert report["recent_batches"][0]["repo_verification_status"] == "blocked_by_baseline"

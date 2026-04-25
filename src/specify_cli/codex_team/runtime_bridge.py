@@ -4,21 +4,25 @@ from __future__ import annotations
 
 import os
 import platform
+from specify_cli.codex_team.packet_executor import resolve_packet_executor_command
 import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .baseline_check import classify_baseline_build_status, detect_native_build_shell
 from specify_cli.orchestration.backends.detect import detect_available_backends
 from specify_cli.orchestration.state_store import write_json
 from specify_cli.execution import (
     normalize_worker_task_result_payload,
+    summarize_validation_results,
     validate_worker_task_result,
     worker_task_packet_from_json,
     worker_task_result_payload,
 )
 
+from . import task_ops
 from .manifests import (
     DispatchRecord,
     RuntimeSession,
@@ -100,25 +104,33 @@ def detect_team_runtime_backend() -> dict[str, object]:
 
     if is_native_windows():
         psmux = backend_descriptors.get("psmux")
-        psmux_binary = (
-            shutil.which("psmux")
-            or _winget_links_binary("psmux")
-            or _winget_package_binary("psmux", ("psmux.exe", "tmux.exe"))
-            or (psmux.binary if psmux and psmux.available else None)
-        )
+        psmux_binary = shutil.which("psmux")
+        source = "path"
+        if not psmux_binary:
+            psmux_binary = _winget_links_binary("psmux")
+            source = "winget_links"
+        if not psmux_binary:
+            psmux_binary = _winget_package_binary("psmux", ("psmux.exe", "tmux.exe"))
+            source = "winget_package"
+        if not psmux_binary and psmux and psmux.available:
+            psmux_binary = psmux.binary
+            source = "backend_descriptor"
         if psmux_binary:
-            return {"available": True, "name": "psmux", "binary": psmux_binary}
+            return {"available": True, "name": "psmux", "binary": psmux_binary, "source": source}
 
     tmux = backend_descriptors.get("tmux")
-    tmux_binary = (
-        shutil.which("tmux")
-        or _winget_links_binary("tmux")
-        or (tmux.binary if tmux and tmux.available else None)
-    )
+    tmux_binary = shutil.which("tmux")
+    source = "path"
+    if not tmux_binary:
+        tmux_binary = _winget_links_binary("tmux")
+        source = "winget_links"
+    if not tmux_binary and tmux and tmux.available:
+        tmux_binary = tmux.binary
+        source = "backend_descriptor"
     if tmux_binary:
-        return {"available": True, "name": "tmux", "binary": tmux_binary}
+        return {"available": True, "name": "tmux", "binary": tmux_binary, "source": source}
 
-    return {"available": False, "name": None, "binary": None}
+    return {"available": False, "name": None, "binary": None, "source": "unavailable"}
 
 
 def ensure_tmux_available() -> None:
@@ -175,6 +187,8 @@ def _candidate_agent_teams_engine_roots(project_root: Path) -> list[Path]:
     package_root = Path(__file__).resolve().parents[1]
     repo_root = Path(__file__).resolve().parents[3]
     candidates = [
+        project_root / ".specify" / "extensions" / "agent-teams" / "engine",
+        project_root / "extensions" / "agent-teams" / "engine",
         package_root / "core_pack" / "extensions" / "agent-teams" / "engine",
         repo_root / "extensions" / "agent-teams" / "engine",
     ]
@@ -210,19 +224,27 @@ def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
     configured = os.environ.get("SPECIFY_CODEX_TEAM_EXECUTOR", "").strip().lower()
     runtime_cli_path = _detect_agent_teams_runtime_cli(project_root)
     node_binary = shutil.which("node")
+    packet_executor_command = resolve_packet_executor_command()
 
     if configured == LEGACY_HEARTBEAT_EXECUTOR:
         return {
             "available": True,
             "mode": LEGACY_HEARTBEAT_EXECUTOR,
             "reason": (
-                "Experimental legacy heartbeat runtime enabled. "
-                "This mode exists for internal tests and orchestration-only flows."
+                "Legacy worker runtime enabled. "
+                "Workers will consume packets and write structured results directly."
             ),
             "configured_value": configured,
             "bundled_runtime_binary": None,
             "runtime_cli_path": None,
-            "next_steps": [],
+            "packet_executor_command": packet_executor_command or [],
+            "next_steps": (
+                []
+                if packet_executor_command
+                else [
+                    "Configure SPECIFY_CODEX_TEAM_PACKET_EXECUTOR for delegated packet execution, or use agent-teams-runtime when a runtime-cli-backed executor is available."
+                ]
+            ),
         }
 
     prefer_agent_teams = configured == AGENT_TEAMS_EXECUTOR or (
@@ -236,6 +258,7 @@ def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
             "configured_value": configured,
             "bundled_runtime_binary": None,
             "runtime_cli_path": runtime_cli_path,
+            "packet_executor_command": packet_executor_command or [],
             "next_steps": [],
         }
 
@@ -259,6 +282,7 @@ def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
         "configured_value": configured,
         "bundled_runtime_binary": None,
         "runtime_cli_path": runtime_cli_path,
+        "packet_executor_command": packet_executor_command or [],
         "next_steps": next_steps,
     }
 
@@ -399,6 +423,8 @@ def submit_runtime_result(
 
     session = _load_runtime_session(project_root, session_id)
     record = _load_dispatch_record(project_root, request_id)
+    if record.status in {"completed", "failed", "blocked"}:
+        raise RuntimeEnvironmentError(f"request {request_id} already has a terminal result")
     packet_path = Path(record.packet_path) if record.packet_path else None
     if packet_path is None or not packet_path.exists():
         raise RuntimeEnvironmentError(f"packet for request {request_id} is unavailable")
@@ -419,9 +445,112 @@ def submit_runtime_result(
         record.status = "failed"
     record.updated_at = _utc_now()
 
+    _sync_task_state_from_result(
+        project_root,
+        packet_task_id=packet.task_id,
+        request_id=request_id,
+        target_worker=record.target_worker or packet.task_id.lower(),
+        validated=validated,
+    )
+
     write_json(runtime_session_path(project_root, session_id), runtime_state_payload(session)["session"])
     write_json(dispatch_record_path(project_root, request_id), runtime_state_payload(session, [record])["dispatches"][0])
     return record
+
+
+def _sync_task_state_from_result(
+    project_root: Path,
+    *,
+    packet_task_id: str,
+    request_id: str,
+    target_worker: str,
+    validated,
+) -> None:
+    try:
+        task_record = task_ops.get_task(project_root, packet_task_id)
+    except task_ops.TaskOpsError:
+        task_record = task_ops.create_task(
+            project_root,
+            task_id=packet_task_id,
+            summary=validated.summary or packet_task_id,
+            metadata={"source": "submit_runtime_result"},
+        )
+
+    current_claim = (task_record.metadata or {}).get("current_claim")
+    claim_token = current_claim.get("claim_id") if isinstance(current_claim, dict) else None
+
+    if task_record.status == task_ops.TASK_STATUS_PENDING:
+        claim_token = task_ops.claim_task(
+            project_root,
+            task_id=packet_task_id,
+            worker_id=target_worker,
+            expected_version=task_record.version,
+        )
+        task_record = task_ops.transition_task_status(
+            project_root,
+            task_id=packet_task_id,
+            new_status=task_ops.TASK_STATUS_IN_PROGRESS,
+            owner=target_worker,
+            expected_version=task_record.version + 1,
+            claim_token=claim_token,
+        )
+    elif task_record.status == task_ops.TASK_STATUS_IN_PROGRESS:
+        if not current_claim or current_claim.get("worker_id") != target_worker or not claim_token:
+            raise RuntimeEnvironmentError(
+                f"task {packet_task_id} is in progress but has no matching claim for worker {target_worker}"
+            )
+    elif task_record.status in task_ops.TERMINAL_STATUSES:
+        raise RuntimeEnvironmentError(f"task {packet_task_id} already reached terminal status {task_record.status}")
+
+    final_status = (
+        task_ops.TASK_STATUS_COMPLETED
+        if validated.status == "success"
+        else task_ops.TASK_STATUS_FAILED
+    )
+    failure_class = "blocked" if validated.status == "blocked" else ""
+    terminal_record = task_ops.transition_task_status(
+        project_root,
+        task_id=packet_task_id,
+        new_status=final_status,
+        owner=target_worker,
+        expected_version=task_record.version,
+        claim_token=claim_token,
+        failure_class=failure_class,
+    )
+    latest_record = task_ops.get_task(project_root, packet_task_id)
+
+    validation_summary = summarize_validation_results(validated.validation_results)
+    task_ops.update_task_metadata(
+        project_root,
+        packet_task_id,
+        expected_version=latest_record.version,
+        metadata={
+            "result_request_id": request_id,
+            "reported_status": validated.reported_status or validated.status,
+            "concerns_present": bool(validated.concerns),
+            "last_validation_summary": {
+                "total": validation_summary.total,
+                "passed": validation_summary.passed,
+                "failed": validation_summary.failed,
+                "skipped": validation_summary.skipped,
+                "overall_status": validation_summary.overall_status,
+            },
+            "worker_result": {
+                "status": validated.status,
+                "summary": validated.summary,
+                "changed_files": validated.changed_files,
+                "concerns": validated.concerns,
+                "validation_results": [
+                    {
+                        "command": item.command,
+                        "status": item.status,
+                        "output": item.output,
+                    }
+                    for item in validated.validation_results
+                ],
+            },
+        },
+    )
 
 
 def mark_runtime_failure(
@@ -491,6 +620,8 @@ def codex_team_runtime_status(
     git_status = codex_team_git_readiness(project_root)
     toolchain_status = native_windows_toolchain_readiness()
     executor_status = detect_codex_team_executor(project_root)
+    native_build_shell = detect_native_build_shell(project_root)
+    baseline_build = classify_baseline_build_status(project_root)
     state_root = codex_team_state_root(project_root)
     live_runtime_state = _load_live_runtime_state(project_root, session_id)
     session = RuntimeSession(
@@ -529,11 +660,15 @@ def codex_team_runtime_status(
         "available": available,
         "runtime_backend_available": backend["available"],
         "runtime_backend": backend["name"],
+        "runtime_backend_binary": backend["binary"],
+        "runtime_backend_source": backend["source"],
         "tmux_available": backend["name"] == "tmux",
         "native_windows": is_native_windows(),
         "native_toolchain_ready": toolchain_status["ready"],
         "native_toolchain_required": toolchain_status["required"],
         "native_toolchain_missing": toolchain_status["missing"],
+        "native_build_shell": native_build_shell,
+        "baseline_build": baseline_build,
         "git_repo_detected": git_status["git_repo_detected"],
         "git_head_available": git_status["git_head_available"],
         "leader_workspace_clean": git_status["leader_workspace_clean"],
@@ -543,6 +678,7 @@ def codex_team_runtime_status(
         "executor_reason": executor_status["reason"],
         "executor_bundled_runtime_binary": executor_status["bundled_runtime_binary"],
         "executor_runtime_cli_path": executor_status["runtime_cli_path"],
+        "executor_packet_executor_command": executor_status.get("packet_executor_command", []),
         "teams_ready": (
             available
             and backend["available"]

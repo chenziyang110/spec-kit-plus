@@ -22,6 +22,7 @@ def team_help_text() -> str:
         f"Use `{TEAM_COMMAND_NAME}` for the Codex-only team/runtime surface. "
         f"Launch the full-screen observer with `{TEAM_COMMAND_NAME} watch` when you need a live board over members and flow. "
         f"Submit structured worker results through `{TEAM_COMMAND_NAME} submit-result` or `{TEAM_COMMAND_NAME} api submit-result` when automation needs a stable result contract. "
+        f"Generate canonical payloads with `{TEAM_COMMAND_NAME} result-template` and inspect the schema with `{TEAM_COMMAND_NAME} submit-result --print-schema`. "
         "`omx` and `$team` are not the official product surface. "
         "Existing Codex project upgrades remain optional support, not a first-release requirement."
     )

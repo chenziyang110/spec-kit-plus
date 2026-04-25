@@ -207,6 +207,36 @@ def test_team_api_complete_batch_returns_json_payload(tmp_path: Path):
     assert envelope["payload"]["status"] == "completed"
 
 
+def test_team_submit_result_updates_task_and_batch_state(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    env = _fake_tmux_env(tmp_path)
+
+    dispatched = _invoke_in_project(
+        project,
+        ["team", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        env=env,
+    )
+    assert dispatched.exit_code == 0, dispatched.output
+
+    _write_success_results(project)
+    for task_id in ("T002", "T003"):
+        request_id = f"default-parallel-batch-1-1-{task_id.lower()}"
+        result_path = result_record_path(project, request_id)
+        submit = _invoke_in_project(
+            project,
+            ["team", "submit-result", "--request-id", request_id, "--result-file", str(result_path)],
+            env=env,
+        )
+        assert submit.exit_code == 0, submit.output
+
+    batch_payload = json.loads(batch_record_path(project, "default-parallel-batch-1-1").read_text(encoding="utf-8"))
+    task_payload = json.loads(task_record_path(project, "T002").read_text(encoding="utf-8"))
+    assert batch_payload["status"] == "completed"
+    assert task_payload["status"] == "completed"
+    assert task_payload["metadata"]["result_request_id"] == "default-parallel-batch-1-1-t002"
+    assert task_payload["metadata"]["join_points"]["Join Point 1.1"]["status"] == "complete"
+
+
 def test_team_auto_dispatch_blocks_when_project_map_is_dirty(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
@@ -227,3 +257,42 @@ def test_team_auto_dispatch_blocks_when_project_map_is_dirty(tmp_path: Path):
     assert result.exit_code != 0
     assert "Project-map freshness is stale" in result.output
     assert "map-codebase" in result.output
+
+
+def test_team_auto_dispatch_blocks_when_baseline_build_is_known_blocked(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    env = _fake_tmux_env(tmp_path)
+
+    status_path = project / ".specify" / "project-map" / "status.json"
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    payload["freshness"] = "fresh"
+    payload["dirty"] = False
+    payload["dirty_reasons"] = []
+    status_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    baseline_path = project / ".specify" / "codex-team" / "state" / "baseline-build.json"
+    baseline_path.parent.mkdir(parents=True, exist_ok=True)
+    baseline_path.write_text(
+        json.dumps(
+            {
+                "status": "blocked",
+                "reason": "baseline compile debt: missing generated headers",
+                "checked_at": "2026-04-26T00:00:00Z",
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["team", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        env=env,
+    )
+
+    assert result.exit_code != 0
+    lowered = result.output.lower()
+    assert "baseline build is blocked" in lowered
+    normalized = " ".join(lowered.split())
+    assert "missing generated headers" in normalized

@@ -106,6 +106,15 @@ After initialization, treat the generated commands as three groups:
 - **Support skills**: `/speckit.map-codebase`, `/speckit.spec-extend`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.debug`, `/speckit.explain`
 - **Codex-only runtime**: `specify team` and `sp-team` when the project was initialized for Codex
 
+For Codex team-mode execution, use the runtime surface deliberately:
+
+- Run `specify team doctor` before the first coordinated batch so backend readiness, executor availability, baseline build state, and the latest transcript are visible up front.
+- Run `specify team live-probe` when the runtime was just installed, recently repaired, or still looks suspect after `doctor`.
+- Use `specify team result-template --request-id <id>` and `specify team submit-result --print-schema` instead of inventing handoff JSON by guesswork.
+- Use `specify team sync-back` after worker execution when the canonical code changes landed under `.specify/codex-team/worktrees/<session>/...` and need to be promoted back to the main workspace.
+- Interpret `DONE_WITH_CONCERNS` as lane-local completion with follow-up concerns, not silent success.
+- Treat lane-local completion and repo-global verification separately: a batch can be complete while `doctor` still reports repo verification blocked by baseline debt.
+
 Generated project navigation now follows the handbook system:
 
 - Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
