@@ -17,3 +17,10 @@ def test_team_help_text_mentions_submit_result_surface() -> None:
 
     assert "submit-result" in help_text
     assert "structured worker results" in help_text
+
+
+def test_team_help_text_mentions_watch_surface() -> None:
+    help_text = team_help_text().lower()
+
+    assert "team watch" in help_text
+    assert "full-screen observer" in help_text

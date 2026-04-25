@@ -63,6 +63,7 @@ from specify_cli.codex_team import (
     team_availability_message,
     team_help_text,
 )
+from specify_cli.codex_team.watch_tui import run_team_watch
 from specify_cli.codex_team.auto_dispatch import (
     AutoDispatchError,
     AutoDispatchUnavailableError,
@@ -2900,6 +2901,34 @@ def team_status(
         console.print("[bold]Next steps[/bold]")
         for step in status["next_steps"]:
             console.print(f"- {step}")
+
+
+@team_app.command("watch")
+def team_watch(
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    refresh_interval: float = typer.Option(1.0, "--refresh-interval", help="Refresh interval in seconds"),
+    focus: str = typer.Option("", "--focus", help="Initial focused worker or leader"),
+    view: str = typer.Option("split", "--view", help="Initial watch view: members, flow, or split"),
+):
+    """Open the full-screen observer over team members and flow."""
+    project_root = Path.cwd()
+    _require_codex_team_project(project_root)
+
+    normalized_view = view.strip().lower()
+    if normalized_view not in {"members", "flow", "split"}:
+        console.print("[red]Error:[/red] --view must be one of: members, flow, split.")
+        raise typer.Exit(1)
+    if refresh_interval <= 0:
+        console.print("[red]Error:[/red] --refresh-interval must be greater than 0.")
+        raise typer.Exit(1)
+
+    run_team_watch(
+        project_root,
+        session_id=session_id,
+        refresh_interval=refresh_interval,
+        focus=focus.strip(),
+        view=normalized_view,
+    )
 
 
 @team_app.command("await")

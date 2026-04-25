@@ -6,6 +6,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+import specify_cli
 from specify_cli import app
 from specify_cli.codex_team import task_ops
 from specify_cli.codex_team.state_paths import runtime_session_path
@@ -167,3 +168,43 @@ def test_team_cleanup_subcommand_requires_terminal_session(tmp_path: Path):
     result = _invoke_in_project(project, ["team", "cleanup"])
     assert result.exit_code == 0, result.output
     assert "cleaned session" in result.output.lower()
+
+
+def test_team_watch_subcommand_is_exposed_in_help(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+
+    result = _invoke_in_project(project, ["team", "watch", "--help"])
+
+    assert result.exit_code == 0, result.output
+    lowered = result.output.lower()
+    assert "full-screen" in lowered
+    assert "refresh-interval" in lowered
+    assert "view" in lowered
+
+
+def test_team_watch_subcommand_routes_to_watch_runner(tmp_path: Path, monkeypatch):
+    project = _create_codex_project(tmp_path)
+    captured: dict[str, object] = {}
+
+    def _run_team_watch(project_root: Path, *, session_id: str, refresh_interval: float, focus: str, view: str) -> None:
+        captured["project_root"] = project_root
+        captured["session_id"] = session_id
+        captured["refresh_interval"] = refresh_interval
+        captured["focus"] = focus
+        captured["view"] = view
+
+    monkeypatch.setattr(specify_cli, "run_team_watch", _run_team_watch)
+
+    result = _invoke_in_project(
+        project,
+        ["team", "watch", "--refresh-interval", "2.5", "--focus", "worker-2", "--view", "flow"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured == {
+        "project_root": project,
+        "session_id": "default",
+        "refresh_interval": 2.5,
+        "focus": "worker-2",
+        "view": "flow",
+    }

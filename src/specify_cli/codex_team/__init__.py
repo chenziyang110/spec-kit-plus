@@ -35,6 +35,8 @@ from .runtime_bridge import (
 )
 from .doctor import codex_team_doctor
 from .live_probe import codex_team_live_probe
+from .watch_state import build_watch_snapshot
+from .watch_tui import run_team_watch
 from .state_paths import (
     codex_team_state_root,
     dispatch_record_path,
@@ -70,6 +72,8 @@ __all__ = [
     "runtime_state_summary",
     "runtime_state_payload",
     "submit_runtime_result",
+    "build_watch_snapshot",
+    "run_team_watch",
     "team_availability_message",
     "team_help_text",
     "upgrade_existing_codex_project",
