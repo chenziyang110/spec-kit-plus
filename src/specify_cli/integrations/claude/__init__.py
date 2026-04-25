@@ -28,6 +28,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "analyze": "Optional focus areas for analysis, such as boundary guardrail drift (BG1/BG2/BG3)",
     "constitution": "Principles or values for the project constitution",
     "checklist": "Domain or focus area for the checklist",
+    "test": "Optional testing-system scope, module focus, or audit-only guidance",
     "map-codebase": "Optional subsystem or workflow area to emphasize while mapping",
     "taskstoissues": "Optional filter or label for GitHub issues",
 }

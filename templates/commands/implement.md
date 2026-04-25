@@ -203,6 +203,9 @@ human_needed_checks:
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read `.specify/memory/project-rules.md` if present.
    - **REQUIRED**: Read `.specify/memory/project-learnings.md` if present.
+   - **REQUIRED WHEN PRESENT**: Read `.specify/testing/TESTING_CONTRACT.md` before choosing the next batch so testing obligations are treated as binding execution constraints.
+   - **REQUIRED WHEN PRESENT**: Read `.specify/testing/TESTING_PLAYBOOK.md` before verification so canonical test and coverage commands come from the project playbook instead of ad hoc guessing.
+   - **REQUIRED WHEN PRESENT**: Read `.specify/testing/COVERAGE_BASELINE.json` before final validation when coverage policy exists for the touched modules.
    - **IF `.planning/learnings/candidates.md` EXISTS**: Inspect only the entries relevant to implementation so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
@@ -318,6 +321,7 @@ human_needed_checks:
    - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
    - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
+   - **Testing contract is binding when present**: If `.specify/testing/TESTING_CONTRACT.md` exists, add or update the required failing tests or regression tests before treating a behavior change as complete.
    - **File-based coordination**: Tasks affecting the same files must run sequentially
    - **Shared-surface coordination**: Treat shared registration files, router tables, export barrels, dependency injection containers, and similar coordination points as write conflicts even if the main feature files differ
    - **Boundary-pattern preservation**: When a task touches an established framework-owned surface, extend the existing pattern instead of introducing a parallel adapter, raw rewrite, or compatibility shim unless `plan.md` explicitly authorizes that change
@@ -356,6 +360,7 @@ human_needed_checks:
    - Verify all required tasks are completed
    - Check that implemented features match the original specification, accepted behavior, and any independent test criteria captured in `tasks.md`
    - Validate that tests pass and coverage meets requirements
+   - If `.specify/testing/TESTING_PLAYBOOK.md` exists, use its canonical commands for full validation, targeted module validation, and coverage rather than inventing substitute commands.
    - Confirm the implementation follows the technical plan
    - If validation finds missing user-visible behavior or unmet acceptance criteria, record an `open_gaps` entry instead of silently claiming completion
    - Classify each unresolved gap:

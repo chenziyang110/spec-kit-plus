@@ -105,6 +105,9 @@ scripts:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
    - **Required when present**: alignment.md (locked decisions, outstanding questions, planning gate context)
    - **Required when present**: workflow-state.md (current phase lock, allowed actions, forbidden actions, resume contract)
+   - **Required when present**: `.specify/testing/TESTING_CONTRACT.md` (project-level testing rules and required regression behavior)
+   - **Required when present**: `.specify/testing/TESTING_PLAYBOOK.md` (canonical test and coverage commands)
+   - **Required when present**: `.specify/testing/COVERAGE_BASELINE.json` (baseline or threshold context by module)
    - **Optional**: references.md (retained sources, reusable insights, spec impact mapping)
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
    - **Required when present**: `.specify/memory/constitution.md` (project constitution and mandatory principles that tasks must preserve)
@@ -146,6 +149,8 @@ scripts:
    - If research.md exists: Extract decisions for setup tasks
     - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
     - Generate tasks organized by user story (see Task Generation Rules below)
+    - If `.specify/testing/TESTING_CONTRACT.md` exists, treat tests as default deliverables for affected behavior changes instead of leaving them globally optional
+    - If the testing contract names required regression or coverage work for an affected module, preserve that requirement explicitly in the task list
     - Top-level tasks should usually fit one bounded implementation slice: roughly 10-20 minutes, one stable objective, one isolated write set, and one verification path.
     - A delegated worker can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks.
     - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence.
@@ -237,7 +242,7 @@ The tasks.md should be immediately executable - each task must be specific enoug
 
 **CRITICAL**: Tasks MUST be organized by user story to enable independent implementation and testing.
 
-**Tests are OPTIONAL**: Only generate test tasks if explicitly requested in the feature specification or if user requests TDD approach.
+**Tests are contract-driven**: If `.specify/testing/TESTING_CONTRACT.md` exists, generate test tasks by default for affected behavior changes, bug fixes, and regression-sensitive modules. Only omit tests when the change is clearly docs-only/process-only or the testing contract explicitly allows the omission.
 
 ### Checklist Format (REQUIRED)
 
@@ -293,12 +298,12 @@ Every task MUST strictly follow this format:
      - Models needed for that story
      - Services needed for that story
      - Interfaces/UI needed for that story
-     - If tests requested: Tests specific to that story
+     - If `.specify/testing/TESTING_CONTRACT.md` exists or the spec explicitly requires tests: Tests specific to that story
    - Mark story dependencies (most stories should be independent)
 
 2. **From Contracts**:
    - Map each interface contract → to the user story it serves
-   - If tests requested: Each interface contract → contract test task [P] before implementation in that story's phase
+   - If `.specify/testing/TESTING_CONTRACT.md` exists or the spec explicitly requires tests: Each interface contract → contract test task [P] before implementation in that story's phase
 
 3. **From Data Model**:
    - Map each entity to the user story(ies) that need it

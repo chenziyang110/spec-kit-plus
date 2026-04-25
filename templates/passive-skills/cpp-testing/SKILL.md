@@ -1,6 +1,14 @@
 ---
 name: cpp-testing
-description: Use only when writing/updating/fixing C++ tests, configuring GoogleTest/CTest, diagnosing failing or flaky tests, or adding coverage/sanitizers.
+description: |
+  Use ONLY when user explicitly requests C++ test code, GoogleTest/Catch2/CTest configuration,
+  test failure diagnosis, or coverage/sanitizer for C++ projects.
+
+  Triggers: "write test cpp", "gtest", "GoogleTest", "catch2", "doctest",
+  "C++ coverage", "sanitizer", "ubsan", "asan", "C++ mock".
+
+  Do NOT activate for: general C++ coding without test context, CMake build
+  configuration, C++ template/compile errors, or header-only library setup.
 origin: ECC
 ---
 
@@ -24,6 +32,15 @@ Agent-focused testing workflow for modern C++ (C++17/20) using GoogleTest/Google
 - Performance tuning without test regressions to validate
 - Non-C++ projects or non-test tasks
 
+### Stop Conditions — When to ASK instead of generating
+
+Before generating any test code, STOP and ask the user if:
+- The code under test has **zero testability** (global state, hard-coded I/O, no virtual/interface boundaries)
+- **No test framework** is detected in CMakeLists.txt (no GTest/Catch2/CTest)
+- The request is **ambiguous**: "test my code" or "add tests" without specifying files or classes
+- A **required test dependency** (GTest, Catch2) is not declared in CMake
+- The test would require **secrets, real credentials, or production database access**
+
 ## Core Concepts
 
 - **TDD loop**: red → green → refactor (tests first, minimal fix, then cleanups).
@@ -32,6 +49,87 @@ Agent-focused testing workflow for modern C++ (C++17/20) using GoogleTest/Google
 - **Mocks vs fakes**: mock for interactions, fake for stateful behavior.
 - **CTest discovery**: use `gtest_discover_tests()` for stable test discovery.
 - **CI signal**: run subset first, then full suite with `--output-on-failure`.
+
+## Agent Execution Protocol
+
+When this skill is activated, follow this exact execution sequence:
+
+### Phase 1: Context Analysis
+Before writing any test code:
+1. Identify the C++ standard (17/20/23) and build tool (CMake preferred).
+2. Check for existing test files (`tests/`, `*_test.cpp`) to infer naming conventions and style.
+3. Analyze the code under test: identify public API surface, side effects, memory management patterns, and concurrency.
+4. Determine request type: (a) new tests, (b) fixing broken tests, (c) coverage/sanitizers, (d) flaky test diagnosis.
+
+### Phase 2: Strategy Selection
+Based on Phase 1, select the appropriate strategy:
+- **Pure functions / value objects**: unit tests only, no mocks needed. Use `TEST`/`TEST_F`.
+- **External dependencies (I/O, network)**: use GoogleMock (`EXPECT_CALL`) or fakes for stateful behavior.
+- **Memory-critical code**: enable AddressSanitizer (ASan) and UndefinedBehaviorSanitizer (UBSan) in CI.
+- **Concurrent code**: use ThreadSanitizer (TSan); avoid sleeps, use condition variables/latches.
+
+### Decision Tree (Complex Scenarios)
+
+```text
+Q1: External I/O (filesystem, network, hardware)?
+  → Yes → Q2
+  → No  → Pure unit test, no mocks needed
+
+Q2: Mockable (virtual interface, template parameter, function pointer)?
+  → Yes → Mock at boundary (GoogleMock EXPECT_CALL, MOCK_METHOD)
+  → No  → Q3
+
+Q3: Needs real behavior (memory, concurrency)?
+  → Yes → Integration test + ASan/UBSan/TSan in CI
+  → No  → Use fake/test double
+
+Q4: Memory-critical / UB risk?
+  → Yes → Enable AddressSanitizer + UndefinedBehaviorSanitizer
+  → No  → Standard TEST/TEST_F
+
+Q5: Concurrency test?
+  → Yes → ThreadSanitizer + deterministic thread scheduling
+  → No  → Standard unit test
+```
+
+### Phase 3: Test Case Design
+Apply systematic test design before coding:
+1. **Happy path**: normal input → expected output.
+2. **Boundary values**: empty containers, `nullptr`, `std::nullopt`, max container size, numeric limits.
+3. **Error cases**: exceptions, error codes, invalid arguments, resource exhaustion.
+4. **Memory & concurrency**: memory leaks (use `testing::internal::Leakable` pattern), data races, RAII correctness.
+
+### Phase 4: Code Generation
+Output tests in this exact structure:
+```
+#### Test Strategy Summary
+- [ ] Scope: Unit / Integration
+- [ ] Framework: GoogleTest + GoogleMock + CMake/CTest
+- [ ] Mocking: Yes/No — GoogleMock / fakes
+- [ ] Edge cases covered: <list>
+
+#### Generated Test Code
+<file_path>
+<code>
+
+#### Running Commands
+```bash
+ctest --test-dir build --output-on-failure
+./build/example_tests --gtest_filter=TestSuite.TestName
+```
+
+#### Coverage Impact (if applicable)
+- Estimated coverage change: <X%>
+- Command to verify: `cmake -S . -B build-cov -DENABLE_COVERAGE=ON && cmake --build build-cov && ctest --test-dir build-cov`
+```
+
+### Phase 5: Verification Checklist
+Before completing, verify:
+- [ ] Tests compile without errors (`cmake --build build`).
+- [ ] Each test has exactly one logical assertion focus (use `ASSERT_*` for preconditions, `EXPECT_*` for checks).
+- [ ] Mocks are reset between tests (reconstruct fixtures in `SetUp`).
+- [ ] No `sleep` used for synchronization (use condition variables or latches).
+- [ ] Flaky test guardrails applied (unique temp dirs, deterministic seeds, ASan/UBSan in CI).
 
 ## TDD Workflow
 
@@ -158,7 +256,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
 # Prefer project-locked versions. If using a tag, use a pinned version per project policy.
-set(GTEST_VERSION v1.17.0) # Adjust to project policy.
+set(GTEST_VERSION v1.15.2) # Latest stable as of 2025; verify at github.com/google/googletest
 FetchContent_Declare(
   googletest
   # Google Test framework (official repository)
@@ -263,12 +361,88 @@ if(ENABLE_TSAN)
 endif()
 ```
 
+## CI/CD Integration (GitHub Actions)
+
+```yaml
+# .github/workflows/test.yml
+name: Test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -B build -DCMAKE_BUILD_TYPE=Debug
+      - run: cmake --build build
+      - run: cd build && ctest --output-on-failure
+```
+
 ## Flaky Tests Guardrails
 
 - Never use `sleep` for synchronization; use condition variables or latches.
 - Make temp directories unique per test and always clean them.
 - Avoid real time, network, or filesystem dependencies in unit tests.
 - Use deterministic seeds for randomized inputs.
+
+## Test Case Design Patterns
+
+Apply these systematic patterns before writing test code to ensure robust coverage beyond the happy path.
+
+### 1. Boundary Value Analysis
+Test at the edges of valid input domains: empty, zero, maximum, null, and just-outside valid ranges.
+
+```cpp
+// tests/validator_test.cpp
+#include <gtest/gtest.h>
+#include <string>
+
+TEST(ValidatorTest, RejectsInvalidInput) {
+    EXPECT_THROW(validator.validate(""), std::invalid_argument);
+    EXPECT_THROW(validator.validate(" "), std::invalid_argument);
+    EXPECT_THROW(validator.validate(std::string(10001, 'a')), std::invalid_argument);
+}
+```
+
+### 2. Negative / Error Case Testing
+Verify the system behaves correctly under invalid or unexpected conditions.
+
+```cpp
+// tests/calculator_test.cpp
+#include <gtest/gtest.h>
+
+TEST(CalculatorTest, ThrowsOnDivideByZero) {
+    EXPECT_THROW(calculator.divide(10, 0), std::runtime_error);
+}
+```
+
+### 3. State-Based Testing
+For objects with internal state, verify transitions between states are correct and irreversible where expected.
+
+```cpp
+// tests/connection_test.cpp
+#include <gtest/gtest.h>
+
+TEST(ConnectionTest, StateTransitionsAreCorrect) {
+    Connection conn;
+    EXPECT_EQ(conn.state(), State::CLOSED);
+    conn.open();
+    EXPECT_EQ(conn.state(), State::OPEN);
+    conn.close();
+    EXPECT_EQ(conn.state(), State::CLOSED);
+    // Idempotency
+    conn.close();
+    EXPECT_EQ(conn.state(), State::CLOSED);
+}
+```
+
+## Common Test Smells to Avoid
+
+- **Assertion Roulette**: Many assertions without descriptive messages, making failure diagnosis ambiguous. *Fix: Use `EXPECT_EQ(val1, val2) << "context message"` or `ASSERT_*` for critical checks.*
+- **Happy Path Bias**: Only testing successful scenarios, leaving error paths uncovered. *Fix: Test invalid inputs, edge values, `EXPECT_THROW` for exceptions.*
+- **Mock Overdose**: Too many mocks hiding integration issues or coupling tests to implementation. *Fix: Mock only at interface/virtual boundaries; prefer fakes for stateful behavior.*
+- **The Free Ride**: Tests that execute code but assert nothing meaningful. *Fix: Every test must have at least one specific, falsifiable assertion.*
+- **Obscure Test**: Long test cases with no clear fixture/test split. *Fix: Use `TEST_F` for shared setup, keep individual `TEST` methods short.*
+- **Flaky Test**: Non-deterministic results from memory, threads, or unsanitized UB. *Fix: Enable ASan/UBSan/TSan in CI; use deterministic inputs; avoid shared mutable state.*
 
 ## Best Practices
 
@@ -318,7 +492,18 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 }
 ```
 
+### Mutation Testing (Mull)
+
+```bash
+# Mull: LLVM-based mutation testing for C/C++
+# https://github.com/mull-project/mull
+mull-cxx -test-framework=GoogleTest -compilation-database-path=build/compile_commands.json
+# Report: mutation score per function with killed/survived mutants
+```
+
+> Mutation testing introduces code changes (e.g., `+` → `-`, removing `const`) to verify tests detect them. **Target ≥80% mutation score** for critical code paths.
+
 ## Alternatives to GoogleTest
 
-- **Catch2**: header-only, expressive matchers
-- **doctest**: lightweight, minimal compile overhead
+- **Catch2** (v3.7.x): header-only, expressive matchers
+- **doctest** (v2.4.x): lightweight, minimal compile overhead

@@ -255,13 +255,17 @@ class TestBuiltInSkillGeneration:
         assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
+        assert (skills_dir / "sp-test" / "SKILL.md").exists()
         assert (skills_dir / "sp-fast" / "SKILL.md").exists()
         assert (skills_dir / "sp-quick" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-rules-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learnings-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "testing" / "testing-contract-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "testing" / "testing-playbook-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "testing" / "coverage-baseline-template.json").exists()
 
-        for skill_name in ("sp-specify", "sp-plan", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
+        for skill_name in ("sp-specify", "sp-plan", "sp-test", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
             body = _body_without_frontmatter(skills_dir / skill_name / "SKILL.md").lower()
             assert ".specify/memory/project-rules.md" in body
             assert ".specify/memory/project-learnings.md" in body
@@ -407,6 +411,20 @@ class TestBuiltInSkillGeneration:
         assert "patterns and conventions synthesis" in map_body.lower()
         assert "the generated navigation system should collectively cover the equivalent of these seven technical-document chapters" in map_body.lower()
 
+        test_body = _body_without_frontmatter(skills_dir / "sp-test" / "SKILL.md")
+        assert ".specify/testing/TESTING_CONTRACT.md" in test_body
+        assert ".specify/testing/TESTING_PLAYBOOK.md" in test_body
+        assert ".specify/testing/COVERAGE_BASELINE.json" in test_body
+        assert "audit-only" in test_body.lower()
+        assert "bootstrap" in test_body.lower()
+        assert "refresh" in test_body.lower()
+        assert ".specify/templates/passive-skills/*-testing/" in test_body.lower()
+        assert 'choose_execution_strategy(command_name="test"' in test_body.lower()
+        assert "single-agent" in test_body.lower()
+        assert "native-multi-agent" in test_body.lower()
+        assert "sidecar-runtime" in test_body.lower()
+        assert "before mutating shared repository test framework/config files" in test_body.lower()
+
 
 class TestSkillDescriptions:
     """Built-in command descriptions should stay aligned with bundled templates."""
@@ -425,6 +443,7 @@ class TestSkillDescriptions:
         assert "boundary-guardrail analysis" in SKILL_DESCRIPTIONS["analyze"].lower()
         assert "development rules" in SKILL_DESCRIPTIONS["constitution"].lower()
         assert "checklist" in SKILL_DESCRIPTIONS["checklist"].lower()
+        assert "testing system" in SKILL_DESCRIPTIONS["test"].lower()
         assert "truly trivial" in SKILL_DESCRIPTIONS["fast"].lower()
         assert "lightweight tracked planning" in SKILL_DESCRIPTIONS["quick"].lower()
         assert "handbook/project-map coverage" in SKILL_DESCRIPTIONS["map-codebase"].lower()

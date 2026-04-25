@@ -34,6 +34,8 @@ def test_repo_contains_expected_passive_skill_templates() -> None:
     assert "spec-kit-project-learning/SKILL.md" in passive_files
     assert "tdd-workflow/SKILL.md" in passive_files
     assert "frontend-design/SKILL.md" in passive_files
+    assert "python-testing/SKILL.md" in passive_files
+    assert "js-testing/SKILL.md" in passive_files
     assert "code-review-skill/reference/react.md" in passive_files
 
 

@@ -109,6 +109,9 @@ agent_scripts:
    - Read `FEATURE_DIR/context.md`
    - Read `FEATURE_DIR/references.md` if present
    - Read `FEATURE_DIR/workflow-state.md` if present
+   - Read `.specify/testing/TESTING_CONTRACT.md` if present
+   - Read `.specify/testing/TESTING_PLAYBOOK.md` if present
+   - Read `.specify/testing/COVERAGE_BASELINE.json` if present
    - Read `.specify/memory/constitution.md`
    - Read `.specify/memory/project-rules.md` if present
    - Read `.specify/memory/project-learnings.md` if present
@@ -174,6 +177,8 @@ agent_scripts:
     - Fill Constitution Check from the constitution
    - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
    - Copy locked planning decisions from `alignment.md`, `context.md`, and `spec.md` into planning constraints, assumptions, or design notes so they are not silently dropped
+   - If `.specify/testing/TESTING_CONTRACT.md` exists, copy the project-level testing rules into the implementation plan instead of treating tests as optional follow-up work
+   - If `.specify/testing/TESTING_PLAYBOOK.md` exists, preserve the canonical test, targeted-test, and coverage commands inside the generated plan artifacts
    - Promote framework and boundary rules from "technical background" into explicit implementation constraints rather than leaving them as implied context
    - Evaluate gates (ERROR if violations are unjustified)
    - Phase 0: generate `research.md` and resolve all `NEEDS CLARIFICATION`

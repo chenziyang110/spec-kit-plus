@@ -89,6 +89,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
 - Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
 - Read `.specify/memory/project-learnings.md` if present before forming or validating a fix.
+- Read `.specify/testing/TESTING_CONTRACT.md` if present before validating a fix so bug-resolution expectations include any project-wide regression-test requirements.
+- Read `.specify/testing/TESTING_PLAYBOOK.md` if present before final verification so the canonical debug-side test commands come from the repository playbook.
 - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to the failing area so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
 - Read the active feature's `spec.md`, `plan.md`, and `tasks.md` when available to recover intended behavior, locked planning decisions, and implementation boundaries relevant to the bug.
 - If `context.md` exists for the active feature, read it before proposing a fix so locked decisions, canonical references, and user-signaled constraints are not bypassed during debugging.
@@ -225,6 +227,7 @@ The session file must always make it clear:
   - the reproduction path,
   - the most relevant tests,
   - and any logging-enhanced repro flow needed to prove the mechanism changed.
+- If `.specify/testing/TESTING_CONTRACT.md` exists and the bug touches a covered module, add or update a regression test before considering the session resolved.
 - Verify the full control loop, not only one function or field:
   - triggering input,
   - control decision,

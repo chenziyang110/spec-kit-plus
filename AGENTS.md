@@ -49,6 +49,7 @@ specify -> plan
 ```
 
 Treat `spec-extend` as the optional enhancement path when an existing spec needs deeper analysis before planning.
+Treat `sp-test` as the optional project-level testing-system bootstrap or refresh path that writes a durable testing contract while preserving the mainline `specify -> plan` guidance.
 
 ---
 

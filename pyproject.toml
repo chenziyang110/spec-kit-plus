@@ -51,6 +51,7 @@ packages = ["src/specify_cli"]
 "templates/commands" = "specify_cli/core_pack/commands"
 "templates/passive-skills" = "specify_cli/core_pack/passive-skills"
 "templates/project-map" = "specify_cli/core_pack/project-map"
+"templates/testing" = "specify_cli/core_pack/templates/testing"
 "templates/worker-prompts" = "specify_cli/core_pack/worker-prompts"
 "scripts/bash" = "specify_cli/core_pack/scripts/bash"
 "scripts/powershell" = "specify_cli/core_pack/scripts/powershell"

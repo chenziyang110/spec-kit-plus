@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "generated_by": "sp-test",
+  "modules": [
+    {
+      "name": "example-module",
+      "language": "python",
+      "framework": "pytest",
+      "baseline_percent": null,
+      "target_percent": null,
+      "status": "unknown",
+      "notes": []
+    }
+  ]
+}

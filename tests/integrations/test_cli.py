@@ -165,7 +165,7 @@ class TestInitIntegrationFlag:
         assert result.exit_code == 0, result.output
 
         skills_dir = project / ".claude" / "skills"
-        for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-explain", "sp-debug"):
+        for skill_name in ("sp-specify", "sp-plan", "sp-test", "sp-tasks", "sp-explain", "sp-debug"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "single-agent" in content
             assert "native-multi-agent" in content
@@ -401,6 +401,7 @@ class TestInitIntegrationFlag:
         assert "$sp-implement" in result.output
         assert "$sp-implement-teams" in result.output
         assert "$sp-checklist" in result.output
+        assert "$sp-test" in result.output
         assert "$sp-analyze" in result.output
         assert "$sp-explain" in result.output
         assert "$sp-map-codebase" in result.output
@@ -458,6 +459,7 @@ class TestInitIntegrationFlag:
         assert "/sp-implement" in result.output
         assert "/sp-implement-teams" in result.output
         assert "/sp-checklist" in result.output
+        assert "/sp-test" in result.output
         assert "/sp-analyze" in result.output
         assert "/sp-explain" in result.output
         assert "/sp-map-codebase" in result.output

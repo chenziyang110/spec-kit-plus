@@ -13,6 +13,7 @@ def test_workflow_routing_references_map_gate_and_project_learning_roles() -> No
 
     assert "spec-kit-project-map-gate" in content
     assert "spec-kit-project-learning" in content
+    assert "sp-test" in content
     assert "route into the right active `sp-*` workflow" in content
     assert "hard brownfield context gate" in content
     assert "learning-start" in content
@@ -36,6 +37,7 @@ def test_project_learning_defines_explicit_start_and_capture_matrix_for_core_wor
         "sp-specify": "specify",
         "sp-plan": "plan",
         "sp-tasks": "tasks",
+        "sp-test": "test",
         "sp-implement": "implement",
         "sp-debug": "debug",
         "sp-fast": "fast",

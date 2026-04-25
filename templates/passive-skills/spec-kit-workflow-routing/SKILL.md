@@ -27,6 +27,8 @@ before any complementary gate or learning layer runs.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
+- Use `sp-test` when the repository needs a project-level unit testing bootstrap,
+  refresh, or testing-contract pass instead of an ordinary feature workflow.
 - Use `sp-specify` for new capability, behavior, or requirement changes that need an
   aligned spec package before implementation.
 - Use `sp-spec-extend` when an existing spec package needs deeper analysis before

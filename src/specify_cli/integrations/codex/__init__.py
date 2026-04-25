@@ -168,6 +168,21 @@ class CodexIntegration(SkillsIntegration):
                 f"- Use `close_agent` after integrating finished worker results.\n"
             ),
         )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-test" / "SKILL.md",
+            f"## {agent_name} Native Multi-Agent Execution",
+            (
+                "\n"
+                f"## {agent_name} Native Multi-Agent Execution\n\n"
+                f"When running `sp-test` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
+                f"- Use `spawn_agent` (or native handoffs) for bounded lanes such as repository/module test-surface inventory, framework/config adoption analysis, coverage baseline collection, and testing contract/playbook drafting.\n"
+                f"- Use `wait_agent` only at the documented join points before mutating shared repository test framework/config files and before writing the consolidated `.specify/testing/*` artifacts.\n"
+                f"- Use `close_agent` after integrating finished worker results.\n"
+            ),
+        )
 
         self._augment_implement_skill(
             created,

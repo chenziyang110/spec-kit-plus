@@ -1809,6 +1809,37 @@ def _install_shared_infra(
             rel = dst.relative_to(project_path).as_posix()
             manifest.record_existing(rel)
 
+        # Wheel installs split several template directories out of
+        # ``core_pack/templates`` into sibling directories. Mirror them back
+        # into ``.specify/templates`` so runtime behavior matches source checkouts.
+        if core:
+            extra_template_dirs = (
+                "command-partials",
+                "passive-skills",
+                "project-map",
+                "worker-prompts",
+            )
+            for extra_name in extra_template_dirs:
+                extra_src = core / extra_name
+                if not extra_src.is_dir():
+                    continue
+
+                extra_dest = dest_templates / extra_name
+                extra_dest.mkdir(parents=True, exist_ok=True)
+                for src_path in extra_src.rglob("*"):
+                    if src_path.is_dir():
+                        continue
+                    rel_path = src_path.relative_to(extra_src)
+                    dst = extra_dest / rel_path
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    if dst.exists():
+                        skipped_files.append(str(dst.relative_to(project_path)))
+                        continue
+
+                    shutil.copy2(src_path, dst)
+                    rel = dst.relative_to(project_path).as_posix()
+                    manifest.record_existing(rel)
+
     # Seed the live project-map status file so downstream workflows share a
     # stable freshness surface even before the first real map refresh.
     status_path = project_path / ".specify" / "project-map" / "status.json"
@@ -2004,6 +2035,7 @@ SKILL_DESCRIPTIONS = {
     "analyze": "Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution.",
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
     "checklist": "Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.",
+    "test": "Use when you need to bootstrap or refresh the project's unit testing system so later Spec Kit Plus workflows can keep tests current by default.",
     "map-codebase": "Use when handbook/project-map coverage is missing, stale, or insufficient and you need to generate or refresh the codebase navigation system from live code.",
     "taskstoissues": "Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.",
 }
@@ -2594,6 +2626,7 @@ def init(
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-codebase')}[/] - Generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` for existing code before specification or planning")
+    steps_lines.append(f"   - [cyan]{_display_cmd('test')}[/] - Bootstrap or refresh the project-wide testing system and write a durable testing contract")
     steps_lines.append(f"   - [cyan]{_display_cmd('spec-extend')}[/] - Deepen an existing spec before planning when analysis or references still need work")
     steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
     steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/], including boundary guardrail gaps")

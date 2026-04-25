@@ -297,7 +297,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skills_dir = target / ".codex" / "skills"
-    for skill_name in ("sp-specify", "sp-plan", "sp-tasks", "sp-implement"):
+    for skill_name in ("sp-specify", "sp-plan", "sp-test", "sp-tasks", "sp-implement"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "single-agent" in content
         assert "native-multi-agent" in content
@@ -318,6 +318,11 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "workflow-state.md" in content
         assert "workflow_state_file" in content
         assert "re-read `workflow_state_file`" in content or "re-read `workflow-state-file`" in content
+
+    test_content = (skills_dir / "sp-test" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "specify team" not in test_content
+    assert "testing-state.md" in test_content
+    assert "testing_state_file" in test_content or "testing-state-file" in test_content
 
 
 def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tmp_path):
