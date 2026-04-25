@@ -13,3 +13,11 @@ def test_readme_describes_sp_implement_as_leader_worker_runtime() -> None:
     assert "join point" in content
     assert "blocker" in content
     assert "retry" in content
+
+
+def test_readme_mentions_specify_team_watch_surface() -> None:
+    content = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
+
+    assert "specify team watch" in content
+    assert "full-screen" in content
+    assert "members and flow" in content

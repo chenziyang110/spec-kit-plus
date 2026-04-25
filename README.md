@@ -276,6 +276,7 @@ specify team
 
 `specify team` is the official CLI surface for the runtime. All operations start from this command, so avoid advertising other entry points such as `omx` or `$team`.
 
+- `specify team watch` opens a full-screen observer over members and flow, with lightweight terminal interaction for focus switching, detail expansion, and view cycling.
 - `specify team status` dumps the latest JSON snapshot of the team phase, worker roster, task queue, and mailbox state.
 - `specify team await` blocks until the runtime reaches a terminal phase so operators can wait for batch completion.
 - `specify team resume` re-attaches to an existing runtime session by replaying the metadata in `.specify/codex-team/` and restarting the tmux backend.
@@ -306,6 +307,7 @@ Operators should treat this directory as the single source of truth for resumes,
 ### Operator guidance and backend requirements
 
 - The runtime currently requires a tmux-capable backend (`tmux` on Unix/WSL or a Windows-compatible alternative) to host worker panes; the CLI validates the backend before bootstrapping a session.
+- `specify team watch` is the operator-facing live board: use it when you need a continuous view of members and flow instead of one-shot diagnostics.
 - Use `specify team resume` whenever a previously-running session still holds worker heartbeats or task claims to prevent duplicate boots.
 - Issue `specify team shutdown` before terminating the tmux backend so the runtime can flush claims and notify join points, then run `specify team cleanup` once the CLI reports the phase is `shutdown`/`cleaned`.
 - `specify team await` is useful for scripts that need to pause until the team exits the `dispatch` phase without polling `state/` files directly.
