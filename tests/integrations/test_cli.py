@@ -928,6 +928,7 @@ def test_install_psmux_for_codex_teams_uses_exact_winget_id(monkeypatch):
         commands.append(cmd)
         return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
 
+    monkeypatch.setattr("specify_cli.detect_team_runtime_backend", lambda: {"available": False, "name": None, "binary": None})
     monkeypatch.setattr("specify_cli.shutil.which", lambda name: "C:\\Windows\\System32\\winget.exe" if name == "winget" else None)
     monkeypatch.setattr("specify_cli.subprocess.run", fake_run)
 
@@ -944,6 +945,18 @@ def test_install_psmux_for_codex_teams_uses_exact_winget_id(monkeypatch):
         "--accept-package-agreements",
         "--accept-source-agreements",
     ]]
+
+
+def test_install_psmux_for_codex_teams_skips_when_already_available(monkeypatch):
+    from specify_cli import _install_psmux_for_codex_teams
+
+    monkeypatch.setattr("specify_cli.detect_team_runtime_backend", lambda: {"available": True, "name": "psmux", "binary": "C:\\psmux\\tmux.exe"})
+    monkeypatch.setattr("specify_cli.shutil.which", lambda name: None)
+
+    ok, detail = _install_psmux_for_codex_teams()
+
+    assert ok is True
+    assert "already installed" in detail.lower()
 
 
 def test_create_codex_teams_initial_commit_bootstraps_head(tmp_path):

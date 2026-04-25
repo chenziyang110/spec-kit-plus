@@ -67,9 +67,42 @@ def _winget_links_binary(name: str) -> str | None:
     return str(candidate) if candidate.is_file() else None
 
 
+def _winget_package_binary(package_fragment: str, binary_names: tuple[str, ...]) -> str | None:
+    """Return a binary path from a WinGet package install directory when present."""
+    if not is_native_windows():
+        return None
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if not local_app_data:
+        return None
+    packages_root = Path(local_app_data) / "Microsoft" / "WinGet" / "Packages"
+    if not packages_root.is_dir():
+        return None
+
+    fragment = package_fragment.casefold()
+    for package_dir in packages_root.iterdir():
+        if not package_dir.is_dir() or fragment not in package_dir.name.casefold():
+            continue
+        for binary_name in binary_names:
+            candidate = package_dir / binary_name
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
 def detect_team_runtime_backend() -> dict[str, object]:
     """Detect the available runtime backend for team-mode coordination."""
     backend_descriptors = detect_available_backends()
+
+    if is_native_windows():
+        psmux = backend_descriptors.get("psmux")
+        psmux_binary = (
+            shutil.which("psmux")
+            or _winget_links_binary("psmux")
+            or _winget_package_binary("psmux", ("psmux.exe", "tmux.exe"))
+            or (psmux.binary if psmux and psmux.available else None)
+        )
+        if psmux_binary:
+            return {"available": True, "name": "psmux", "binary": psmux_binary}
 
     tmux = backend_descriptors.get("tmux")
     tmux_binary = (
@@ -79,16 +112,6 @@ def detect_team_runtime_backend() -> dict[str, object]:
     )
     if tmux_binary:
         return {"available": True, "name": "tmux", "binary": tmux_binary}
-
-    if is_native_windows():
-        psmux = backend_descriptors.get("psmux")
-        psmux_binary = (
-            shutil.which("psmux")
-            or _winget_links_binary("psmux")
-            or (psmux.binary if psmux and psmux.available else None)
-        )
-        if psmux_binary:
-            return {"available": True, "name": "psmux", "binary": psmux_binary}
 
     return {"available": False, "name": None, "binary": None}
 

@@ -25,6 +25,7 @@ Or install globally:
 """
 
 import os
+import re
 import subprocess
 import sys
 import zipfile
@@ -68,6 +69,7 @@ from specify_cli.codex_team.auto_dispatch import (
 )
 from specify_cli.codex_team.runtime_bridge import (
     RuntimeEnvironmentError,
+    detect_team_runtime_backend,
     dispatch_runtime_task,
     ensure_tmux_available,
     mark_runtime_failure,
@@ -659,6 +661,158 @@ def _run_quick_helper(
         console.print("[red]Error:[/red] Quick helper returned an invalid payload")
         raise typer.Exit(1)
     return payload
+
+
+SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
+SPEC_KIT_BLOCK_END = "<!-- SPEC-KIT:END -->"
+
+
+def _preferred_newline(text: str) -> str:
+    if "\r\n" in text:
+        return "\r\n"
+    if "\n" in text:
+        return "\n"
+    if "\r" in text:
+        return "\r"
+    return "\n"
+
+
+def _render_spec_kit_managed_block(*, newline: str) -> str:
+    return newline.join(
+        [
+            SPEC_KIT_BLOCK_START,
+            "## Spec Kit Plus Managed Rules",
+            "",
+            "- `[AGENT]` marks an action the AI must explicitly execute.",
+            "- `[AGENT]` is independent from `[P]`.",
+            "- Preserve content outside this managed block.",
+            SPEC_KIT_BLOCK_END,
+        ]
+    )
+
+
+def _upsert_spec_kit_managed_block(target_path: Path) -> bool:
+    content = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+    raw_start_count = content.count(SPEC_KIT_BLOCK_START)
+    raw_end_count = content.count(SPEC_KIT_BLOCK_END)
+    complete_blocks = list(
+        re.finditer(
+            rf"{re.escape(SPEC_KIT_BLOCK_START)}.*?{re.escape(SPEC_KIT_BLOCK_END)}",
+            content,
+            flags=re.S,
+        )
+    )
+
+    if raw_start_count == 1 and raw_end_count == 1 and len(complete_blocks) == 1:
+        match = complete_blocks[0]
+        newline = _preferred_newline(match.group(0) or content)
+        block = _render_spec_kit_managed_block(newline=newline)
+        updated = content[: match.start()] + block + content[match.end() :]
+    elif content:
+        newline = _preferred_newline(content)
+        block = _render_spec_kit_managed_block(newline=newline)
+        if block in content:
+            updated = content
+        else:
+            if content.endswith(newline + newline):
+                separator = ""
+            elif content.endswith(newline):
+                separator = newline
+            else:
+                separator = newline + newline
+            updated = content + separator + block
+    else:
+        updated = _render_spec_kit_managed_block(newline="\n")
+
+    if updated == content and target_path.exists():
+        return False
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_bytes(updated.encode("utf-8"))
+    return True
+
+
+def _render_bootstrap_context_content(project_root: Path, context_path: Path) -> str:
+    template_path = project_root / ".specify" / "templates" / "agent-file-template.md"
+    if template_path.exists():
+        content = template_path.read_text(encoding="utf-8")
+    else:
+        content = (
+            "# [PROJECT NAME] Development Guidelines\n\n"
+            "Auto-generated from Spec Kit Plus. Last updated: [DATE]\n\n"
+            "## Active Technologies\n\n"
+            "[EXTRACTED FROM ALL PLAN.MD FILES]\n\n"
+            "## Project Structure\n\n"
+            "```text\n"
+            "[ACTUAL STRUCTURE FROM PLANS]\n"
+            "```\n\n"
+            "## Commands\n\n"
+            "[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES]\n\n"
+            "## Code Style\n\n"
+            "[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE]\n\n"
+            "## Recent Changes\n\n"
+            "[LAST 3 FEATURES AND WHAT THEY ADDED]\n"
+        )
+
+    replacements = {
+        "[PROJECT NAME]": project_root.resolve().name,
+        "[DATE]": date.today().isoformat(),
+        "[EXTRACTED FROM ALL PLAN.MD FILES]": "- Bootstrap context only; run specify -> plan to capture active technologies",
+        "[ACTUAL STRUCTURE FROM PLANS]": ".specify/\nspecs/",
+        "[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES]": "specify check\nspecify --help",
+        "[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE]": "General: Follow existing repository conventions and refresh this file after the first plan.",
+        "[LAST 3 FEATURES AND WHAT THEY ADDED]": "- Initial Spec Kit Plus scaffolding",
+    }
+    for token, value in replacements.items():
+        content = content.replace(token, value)
+
+    if context_path.suffix == ".mdc":
+        frontmatter = (
+            "---\n"
+            "description: Project Development Guidelines\n"
+            'globs: ["**/*"]\n'
+            "alwaysApply: true\n"
+            "---\n\n"
+        )
+        content = frontmatter + content
+
+    return content
+
+
+def _bootstrap_integration_context_file(
+    project_root: Path,
+    integration: Any,
+    manifest: Any,
+) -> Path | None:
+    context_file = getattr(integration, "context_file", None)
+    if not context_file:
+        return None
+
+    project_root_resolved = project_root.resolve()
+    target_path = (project_root / context_file).resolve()
+    try:
+        rel = target_path.relative_to(project_root_resolved)
+    except ValueError as exc:
+        raise ValueError(
+            f"context file {target_path} escapes project root {project_root_resolved}"
+        ) from exc
+
+    existed = target_path.exists()
+
+    if rel.as_posix() == "AGENTS.md":
+        changed = _upsert_spec_kit_managed_block(target_path)
+        if changed and not existed:
+            manifest.record_existing(rel)
+        return target_path
+
+    if existed:
+        return target_path
+
+    content = _render_bootstrap_context_content(project_root, target_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_bytes(content.encode("utf-8"))
+    manifest.record_existing(rel)
+    return target_path
 
 
 def _render_quick_task_table(tasks: list[dict[str, Any]]) -> None:
@@ -1443,6 +1597,9 @@ CODEX_TEAMS_INITIAL_COMMIT_MESSAGE = "chore: bootstrap codex teams workspace"
 
 def _install_psmux_for_codex_teams() -> tuple[bool, str]:
     """Attempt to install psmux via winget on native Windows."""
+    if detect_team_runtime_backend().get("name") == "psmux":
+        return True, "psmux is already installed"
+
     if not shutil.which("winget"):
         return False, "winget is not available in this shell"
 
@@ -1450,6 +1607,8 @@ def _install_psmux_for_codex_teams() -> tuple[bool, str]:
         WINDOWS_PSMUX_INSTALL_CMD,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if result.returncode == 0:
@@ -1467,6 +1626,8 @@ def _git_identity_configured(project_root: Path) -> bool:
             cwd=project_root,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         if probe.returncode != 0 or not probe.stdout.strip():
@@ -1507,6 +1668,8 @@ def _create_codex_teams_initial_commit(project_root: Path) -> tuple[bool, str]:
         cwd=project_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if add_result.returncode != 0:
@@ -1518,6 +1681,8 @@ def _create_codex_teams_initial_commit(project_root: Path) -> tuple[bool, str]:
         cwd=project_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if commit_result.returncode == 0:
@@ -2174,7 +2339,6 @@ def init(
                 manifest,
                 resolved_integration.key,
             )
-            manifest.save()
 
             _write_integration_json(
                 project_path,
@@ -2187,6 +2351,12 @@ def init(
             # Install shared infrastructure (scripts, templates)
             tracker.start("shared-infra")
             _install_shared_infra(project_path, selected_script, tracker=tracker)
+            _bootstrap_integration_context_file(
+                project_path,
+                resolved_integration,
+                manifest,
+            )
+            manifest.save()
             tracker.complete("shared-infra", f"scripts ({selected_script}) + templates")
 
             ensure_executable_scripts(project_path, tracker=tracker)
@@ -3415,6 +3585,11 @@ def integration_install(
             manifest,
             integration.key,
         )
+        _bootstrap_integration_context_file(
+            project_root,
+            integration,
+            manifest,
+        )
         manifest.save()
         _write_integration_json(project_root, integration.key, selected_script)
         _update_init_options_for_integration(project_root, integration, script_type=selected_script)
@@ -3687,6 +3862,11 @@ def integration_switch(
             project_root,
             manifest,
             target_integration.key,
+        )
+        _bootstrap_integration_context_file(
+            project_root,
+            target_integration,
+            manifest,
         )
         manifest.save()
         _write_integration_json(project_root, target_integration.key, selected_script)
