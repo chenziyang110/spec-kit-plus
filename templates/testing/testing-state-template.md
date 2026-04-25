@@ -11,16 +11,25 @@ updated: [ISO timestamp]
 - next_action:
 - selected_modules:
 - selected_language_skills:
+- inventory_source: specify testing inventory --format json
 
 ## Module Inventory
 
 - module:
+  - module_name:
+  - module_root:
+  - module_kind: root-module | workspace-root | nested-module
   - language:
+  - manifest_path:
+  - selected_skill:
   - framework:
+  - framework_confidence: high | medium | low
   - canonical_test_path:
   - canonical_test_command:
   - coverage_command:
   - state: missing | partial | healthy | gap
+  - classification_reason:
+  - selection_override_reason:
   - planned_action: bootstrap-framework | add-core-tests | raise-coverage | adopt-existing | audit-only
 
 ## Testing Assets

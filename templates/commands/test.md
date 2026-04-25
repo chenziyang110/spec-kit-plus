@@ -79,15 +79,22 @@ workflow_contract:
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.
 
 2. **Inventory the current testing surface**
-   - Read the repository manifests and build files that define language or package boundaries, such as `pyproject.toml`, `package.json`, `go.mod`, `Cargo.toml`, `composer.json`, `Gemfile`, `build.gradle.kts`, `pom.xml`, `pubspec.yaml`, `Package.swift`, `CMakeLists.txt`, and equivalent files that actually exist.
-   - Build a module inventory containing:
-     - language/runtime
-     - module/package path
-     - current test framework
-     - current test directory/layout
-     - current test command(s)
-     - current coverage command(s)
-     - whether tests appear missing, weak, stale, or healthy
+   - Run `specify testing inventory --format json` from the repository root.
+   - Treat the command output as the canonical starting inventory for:
+     - `module_root`
+     - `module_name`
+     - `module_kind`
+     - `language`
+     - `manifest_path`
+     - `selected_skill`
+     - `framework`
+     - `framework_confidence`
+     - `canonical_test_path`
+     - `canonical_test_command`
+     - `coverage_command`
+     - `state`
+     - `classification_reason`
+   - If the command returns no modules, fall back to direct repository inspection and record the gap explicitly instead of inventing fake module boundaries.
    - Record the inventory in `TESTING_STATE_FILE`.
 
 3. **Choose the run mode**
@@ -96,11 +103,11 @@ workflow_contract:
    - Else set mode to `refresh`.
 
 4. **Select bundled language testing skills**
-   - For each module that needs testing work, choose the most specific bundled testing skill from `.specify/templates/passive-skills/*-testing/SKILL.md`.
-   - Use repository evidence, not generic preference, to choose the framework guidance.
-   - If a module already has a stable framework, choose that framework's skill and extend it rather than rebuilding from scratch.
-   - If a module has no clear test framework, let the selected language testing skill define the recommended default.
-   - Record the module -> skill mapping in `TESTING_STATE_FILE`.
+   - Start from `selected_skill` in the `specify testing inventory --format json` payload.
+   - Use the inventory result as the default skill choice unless newer repository evidence proves it wrong.
+   - If a module already has a stable framework, keep the inventory-selected skill and extend that framework rather than rebuilding from scratch.
+   - If the inventory identifies a language but no stable framework, use the selected language testing skill to choose the recommended default.
+   - Record the final module -> skill mapping in `TESTING_STATE_FILE`, including any override reason when the runtime selection differs from the inventory payload.
 
 5. **Choose an execution strategy before broad test-system work begins**
    - [AGENT] Before repository fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="test", snapshot, workload_shape)`.

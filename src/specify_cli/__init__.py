@@ -428,6 +428,13 @@ quick_app = typer.Typer(
 )
 app.add_typer(quick_app, name="quick")
 
+testing_app = typer.Typer(
+    name="testing",
+    help="Inspect repository testing inventory and test-system surfaces",
+    add_completion=False,
+)
+app.add_typer(testing_app, name="testing")
+
 project_map_app = typer.Typer(
     name="project-map",
     help="Inspect and manage project-map freshness state",
@@ -916,6 +923,45 @@ def quick_archive(
     payload = _run_quick_helper("archive", quick_id=quick_id)
     task = payload.get("task", {})
     console.print(f"Archived quick task {task.get('id')} to {task.get('workspace_path')}.")
+
+
+@testing_app.command("inventory")
+def testing_inventory_command(
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Scan the current repository and summarize test-system modules and frameworks."""
+    from .testing_inventory import build_testing_inventory
+
+    project_root = Path.cwd()
+    payload = build_testing_inventory(project_root)
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    rows = [
+        ("Project Root", payload["project_root"]),
+        ("Module Count", str(payload["module_count"])),
+        ("Languages", ", ".join(payload["languages"]) if payload["languages"] else "none"),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Testing Inventory", border_style="cyan"))
+
+    table = Table(title="Modules")
+    table.add_column("Module", style="cyan")
+    table.add_column("Language")
+    table.add_column("Kind")
+    table.add_column("Framework")
+    table.add_column("State")
+    table.add_column("Skill")
+    for module in payload["modules"]:
+        table.add_row(
+            str(module.get("module_root", "")),
+            str(module.get("language", "")),
+            str(module.get("module_kind", "")),
+            str(module.get("framework", "")),
+            str(module.get("state", "")),
+            str(module.get("selected_skill", "") or ""),
+        )
+    console.print(table)
 
 
 @project_map_app.command("check")

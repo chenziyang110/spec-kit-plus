@@ -24,6 +24,10 @@ def test_test_template_bootstraps_testing_contract_assets():
     assert "refresh" in lowered
     assert "audit-only" in lowered
     assert ".specify/templates/passive-skills/*-testing/" in lowered
+    assert "specify testing inventory --format json" in lowered
+    assert "module_kind" in lowered
+    assert "framework_confidence" in lowered
+    assert "selected_skill" in lowered
     assert "testing-contract-template.md" in lowered
     assert "testing-playbook-template.md" in lowered
     assert "coverage-baseline-template.json" in lowered
