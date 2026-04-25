@@ -1,6 +1,8 @@
 """Tests for CodexIntegration."""
 
+import json
 from pathlib import Path
+from unittest.mock import patch
 
 from .test_integration_base_skills import SkillsIntegrationTests
 
@@ -47,6 +49,65 @@ class TestCodexAutoPromote:
         assert (target / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
         assert (target / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
         assert (target / ".specify" / "project-map" / "status.json").exists()
+
+    def test_ai_codex_auto_installs_agent_teams_extension(self, tmp_path):
+        """Codex init should bootstrap the bundled teams extension automatically."""
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+        target = tmp_path / "codex-with-teams"
+        ext_dir = tmp_path / "agent-teams"
+        ext_dir.mkdir()
+        (ext_dir / "commands").mkdir()
+        (ext_dir / "commands" / "run.md").write_text(
+            "---\n"
+            'description: "Run bundled teams execution"\n'
+            "---\n\n"
+            "bundled run\n",
+            encoding="utf-8",
+        )
+        (ext_dir / "commands" / "cleanup.md").write_text(
+            "---\n"
+            'description: "Clean bundled teams execution"\n'
+            "---\n\n"
+            "bundled cleanup\n",
+            encoding="utf-8",
+        )
+        (ext_dir / "extension.yml").write_text(
+            "schema_version: '1.0'\n"
+            "extension:\n"
+            "  id: 'agent-teams'\n"
+            "  name: 'Agent Teams'\n"
+            "  version: '0.1.0'\n"
+            "  description: 'Bundled teams runtime'\n"
+            "requires:\n"
+            "  speckit_version: '>=0.1.0'\n"
+            "provides:\n"
+            "  commands:\n"
+            "    - name: 'sp.agent-teams.run'\n"
+            "      file: 'commands/run.md'\n"
+            "      description: 'Run bundled teams execution'\n"
+            "    - name: 'sp.agent-teams.cleanup'\n"
+            "      file: 'commands/cleanup.md'\n"
+            "      description: 'Clean bundled teams execution'\n",
+            encoding="utf-8",
+        )
+
+        with patch("specify_cli._locate_bundled_extension_source", return_value=ext_dir):
+            result = runner.invoke(
+                app,
+                ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+            )
+
+        assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+        registry_path = target / ".specify" / "extensions" / ".registry"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        assert "agent-teams" in registry["extensions"]
+        assert registry["extensions"]["agent-teams"]["source"] == "bundled"
+        assert (target / ".specify" / "extensions" / "agent-teams" / "extension.yml").exists()
+        assert (target / ".codex" / "skills" / "sp-agent-teams-run" / "SKILL.md").exists()
 
 
 def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_path):

@@ -49,6 +49,19 @@ def test_team_status_subcommand_shows_runtime_info(tmp_path: Path):
     assert result.exit_code == 0, result.output
     assert "Codex team runtime" in result.output
     assert "runtime backend" in result.output
+    assert "agent-teams extension installed" in result.output
+    assert "git HEAD available" in result.output
+    assert "worktree-ready" in result.output
+
+
+def test_team_status_subcommand_surfaces_missing_prerequisite_next_steps(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    result = _invoke_in_project(project, ["team", "status"])
+
+    assert result.exit_code == 0, result.output
+    assert "Next steps" in result.output
+    assert "specify extension add agent-teams" in result.output
+    assert "initial commit" in result.output.lower()
 
 
 def test_team_await_subcommand_reports_monitor_snapshot(tmp_path: Path):

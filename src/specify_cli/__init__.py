@@ -1349,6 +1349,85 @@ def _locate_core_pack() -> Path | None:
     return None
 
 
+def _bundled_extension_roots() -> list[Path]:
+    """Return candidate directories that may contain bundled extensions."""
+    roots: list[Path] = []
+    seen: set[Path] = set()
+
+    core = _locate_core_pack()
+    if core:
+        bundled_root = (core / "extensions").resolve()
+        if bundled_root.is_dir() and bundled_root not in seen:
+            roots.append(bundled_root)
+            seen.add(bundled_root)
+
+    repo_root = _project_root_from_source()
+    source_root = (repo_root / "extensions").resolve()
+    if source_root.is_dir() and source_root not in seen:
+        roots.append(source_root)
+        seen.add(source_root)
+
+    return roots
+
+
+def _locate_bundled_extension_source(extension: str) -> Path | None:
+    """Return a bundled extension source directory by ID or display name."""
+    normalized = extension.strip()
+    if not normalized:
+        return None
+
+    from .extensions import ExtensionManifest, ValidationError
+
+    for root in _bundled_extension_roots():
+        direct = root / normalized
+        if (direct / "extension.yml").is_file():
+            return direct
+
+    normalized_folded = normalized.casefold()
+    for root in _bundled_extension_roots():
+        for child in root.iterdir():
+            if not child.is_dir():
+                continue
+            manifest_path = child / "extension.yml"
+            if not manifest_path.is_file():
+                continue
+            try:
+                manifest = ExtensionManifest(manifest_path)
+            except ValidationError:
+                continue
+            if manifest.id == normalized or manifest.name.casefold() == normalized_folded:
+                return child
+    return None
+
+
+def _install_bundled_extension(
+    project_root: Path,
+    extension: str,
+    *,
+    priority: int = 10,
+    skip_if_installed: bool = False,
+):
+    """Install a bundled extension into the current project when available."""
+    from .extensions import ExtensionManager, ExtensionManifest
+
+    source_dir = _locate_bundled_extension_source(extension)
+    if source_dir is None:
+        return None
+
+    manager = ExtensionManager(project_root)
+    manifest = ExtensionManifest(source_dir / "extension.yml")
+    if skip_if_installed and manager.registry.is_installed(manifest.id):
+        return manifest
+
+    installed_manifest = manager.install_from_directory(
+        source_dir,
+        get_speckit_version(),
+        priority=priority,
+    )
+    manager.registry.update(installed_manifest.id, {"source": "bundled"})
+    return installed_manifest
+
+
 def _install_shared_infra(
     project_path: Path,
     script_type: str,
@@ -1921,6 +2000,7 @@ def init(
 
     # Track git error message outside Live context so it persists
     git_error_message = None
+    codex_team_extension_warning: str | None = None
 
     with Live(tracker.render(), console=console, refresh_per_second=8, transient=True) as live:
         tracker.attach_refresh(lambda: live.update(tracker.render()))
@@ -2007,6 +2087,16 @@ def init(
                 init_opts["ai_skills"] = True
             save_init_options(project_path, init_opts)
 
+            if resolved_integration.key == "codex":
+                try:
+                    _install_bundled_extension(
+                        project_path,
+                        "agent-teams",
+                        skip_if_installed=True,
+                    )
+                except Exception as ext_err:
+                    codex_team_extension_warning = str(ext_err)
+
             # Install preset if specified
             if preset:
                 try:
@@ -2061,6 +2151,21 @@ def init(
 
     console.print(tracker.render())
     console.print("\n[bold green]Spec Kit Plus project ready.[/bold green]")
+
+    if codex_team_extension_warning:
+        console.print()
+        console.print(_open_block(
+            "Codex Teams Extension Warning",
+            [
+                "Codex project scaffolding completed, but the bundled teams extension was not installed automatically.",
+                "",
+                codex_team_extension_warning,
+                "",
+                "You can retry later with:",
+                "[cyan]specify extension add agent-teams[/cyan]",
+            ],
+            accent="yellow",
+        ))
 
     # Show git error details if initialization failed
     if git_error_message:
@@ -2133,6 +2238,24 @@ def init(
             f"{step_num}. Start {agent_label} in this project directory; Spec Kit Plus skills were installed to [cyan]{skills_path}[/cyan]"
         )
         step_num += 1
+
+    if codex_skill_mode:
+        team_status = codex_team_runtime_status(project_path, integration_key="codex")
+        readiness_lines = [
+            f"agent-teams extension installed: [cyan]{team_status['agent_teams_extension_installed']}[/cyan]",
+            f"runtime backend available: [cyan]{team_status['runtime_backend_available']}[/cyan]",
+            f"git repo detected: [cyan]{team_status['git_repo_detected']}[/cyan]",
+            f"git HEAD available: [cyan]{team_status['git_head_available']}[/cyan]",
+            f"leader workspace clean: [cyan]{team_status['leader_workspace_clean']}[/cyan]",
+            f"worktree-ready: [cyan]{team_status['worktree_ready']}[/cyan]",
+        ]
+        if team_status["next_steps"]:
+            readiness_lines.append("")
+            readiness_lines.append("Next steps")
+            readiness_lines.extend(f"- {step}" for step in team_status["next_steps"])
+        console.print()
+        console.print(_open_block("Codex Teams Readiness", readiness_lines, accent="cyan"))
+
     usage_label = "skills" if native_skill_mode else "slash commands"
 
     def _display_cmd(name: str) -> str:
@@ -2382,14 +2505,24 @@ def team_status(
 
     status = codex_team_runtime_status(project_root, integration_key=integration_key)
     console.print(runtime_state_summary(project_root))
+    console.print(f"agent-teams extension installed: {status['agent_teams_extension_installed']}")
     console.print(f"runtime backend: {status['runtime_backend'] or 'unavailable'}")
     console.print(f"runtime backend available: {status['runtime_backend_available']}")
+    console.print(f"git repo detected: {status['git_repo_detected']}")
+    console.print(f"git HEAD available: {status['git_head_available']}")
+    console.print(f"leader workspace clean: {status['leader_workspace_clean']}")
+    console.print(f"worktree-ready: {status['worktree_ready']}")
+    console.print(f"teams ready: {status['teams_ready']}")
     console.print("runtime config: [cyan].specify/codex-team/runtime.json[/cyan]")
     if not status["runtime_backend_available"]:
         try:
             ensure_tmux_available()
         except RuntimeEnvironmentError as exc:
             console.print(f"[yellow]Warning:[/yellow] {exc}")
+    if status["next_steps"]:
+        console.print("[bold]Next steps[/bold]")
+        for step in status["next_steps"]:
+            console.print(f"- {step}")
 
 
 @team_app.command("await")
@@ -4411,45 +4544,52 @@ def extension_add(
                         zip_path.unlink()
 
             else:
-                # Install from catalog
-                catalog = ExtensionCatalog(project_root)
+                # Prefer extensions bundled with this Spec Kit installation before catalog lookup.
+                manifest = _install_bundled_extension(
+                    project_root,
+                    extension,
+                    priority=priority,
+                )
+                if manifest is None:
+                    # Install from catalog
+                    catalog = ExtensionCatalog(project_root)
 
-                # Check if extension exists in catalog (supports both ID and display name)
-                ext_info, catalog_error = _resolve_catalog_extension(extension, catalog, "add")
-                if catalog_error:
-                    console.print(f"[red]Error:[/red] Could not query extension catalog: {catalog_error}")
-                    raise typer.Exit(1)
-                if not ext_info:
-                    console.print(f"[red]Error:[/red] Extension '{extension}' not found in catalog")
-                    console.print("\nSearch available extensions:")
-                    console.print("  specify extension search")
-                    raise typer.Exit(1)
+                    # Check if extension exists in catalog (supports both ID and display name)
+                    ext_info, catalog_error = _resolve_catalog_extension(extension, catalog, "add")
+                    if catalog_error:
+                        console.print(f"[red]Error:[/red] Could not query extension catalog: {catalog_error}")
+                        raise typer.Exit(1)
+                    if not ext_info:
+                        console.print(f"[red]Error:[/red] Extension '{extension}' not found in catalog")
+                        console.print("\nSearch available extensions:")
+                        console.print("  specify extension search")
+                        raise typer.Exit(1)
 
-                # Enforce install_allowed policy
-                if not ext_info.get("_install_allowed", True):
-                    catalog_name = ext_info.get("_catalog_name", "community")
-                    console.print(
-                        f"[red]Error:[/red] '{extension}' is available in the "
-                        f"'{catalog_name}' catalog but installation is not allowed from that catalog."
-                    )
-                    console.print(
-                        f"\nTo enable installation, add '{extension}' to an approved catalog "
-                        f"(install_allowed: true) in .specify/extension-catalogs.yml."
-                    )
-                    raise typer.Exit(1)
+                    # Enforce install_allowed policy
+                    if not ext_info.get("_install_allowed", True):
+                        catalog_name = ext_info.get("_catalog_name", "community")
+                        console.print(
+                            f"[red]Error:[/red] '{extension}' is available in the "
+                            f"'{catalog_name}' catalog but installation is not allowed from that catalog."
+                        )
+                        console.print(
+                            f"\nTo enable installation, add '{extension}' to an approved catalog "
+                            f"(install_allowed: true) in .specify/extension-catalogs.yml."
+                        )
+                        raise typer.Exit(1)
 
-                # Download extension ZIP (use resolved ID, not original argument which may be display name)
-                extension_id = ext_info['id']
-                console.print(f"Downloading {ext_info['name']} v{ext_info.get('version', 'unknown')}...")
-                zip_path = catalog.download_extension(extension_id)
+                    # Download extension ZIP (use resolved ID, not original argument which may be display name)
+                    extension_id = ext_info['id']
+                    console.print(f"Downloading {ext_info['name']} v{ext_info.get('version', 'unknown')}...")
+                    zip_path = catalog.download_extension(extension_id)
 
-                try:
-                    # Install from downloaded ZIP
-                    manifest = manager.install_from_zip(zip_path, speckit_version, priority=priority)
-                finally:
-                    # Clean up downloaded ZIP
-                    if zip_path.exists():
-                        zip_path.unlink()
+                    try:
+                        # Install from downloaded ZIP
+                        manifest = manager.install_from_zip(zip_path, speckit_version, priority=priority)
+                    finally:
+                        # Clean up downloaded ZIP
+                        if zip_path.exists():
+                            zip_path.unlink()
 
         console.print("\n[green]✓[/green] Extension installed successfully!")
         console.print(f"\n[bold]{manifest.name}[/bold] (v{manifest.version})")

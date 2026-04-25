@@ -89,6 +89,33 @@ def test_runtime_status_reports_non_codex_as_unavailable(monkeypatch, codex_team
     assert status["runtime_state"]["session"]["status"] == "created"
 
 
+def test_runtime_status_surfaces_extension_and_git_prerequisites(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.codex_team_extension_installed", lambda project_root: False)
+    monkeypatch.setattr(
+        "specify_cli.codex_team.runtime_bridge.codex_team_git_readiness",
+        lambda project_root: {
+            "git_repo_detected": False,
+            "git_head_available": False,
+            "leader_workspace_clean": False,
+            "worktree_ready": False,
+            "git_next_steps": ['Create an initial commit before teams execution: git add . && git commit -m "Initial commit"'],
+        },
+    )
+
+    status = codex_team_runtime_status(codex_team_project_root, integration_key="codex")
+
+    assert status["agent_teams_extension_installed"] is False
+    assert status["git_repo_detected"] is False
+    assert status["git_head_available"] is False
+    assert status["leader_workspace_clean"] is False
+    assert status["worktree_ready"] is False
+    assert status["teams_ready"] is False
+    assert any("specify extension add agent-teams" in step for step in status["next_steps"])
+    assert any("initial commit" in step.lower() for step in status["next_steps"])
+
+
 def test_submit_runtime_result_writes_canonical_result_and_updates_dispatch(monkeypatch, codex_team_project_root: Path):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")

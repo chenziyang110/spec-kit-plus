@@ -48,6 +48,20 @@ packages = ["src/specify_cli"]
 "templates/passive-skills" = "specify_cli/core_pack/passive-skills"
 "scripts/bash" = "specify_cli/core_pack/scripts/bash"
 "scripts/powershell" = "specify_cli/core_pack/scripts/powershell"
+"extensions/agent-teams/.extensionignore" = "specify_cli/core_pack/extensions/agent-teams/.extensionignore"
+"extensions/agent-teams/extension.yml" = "specify_cli/core_pack/extensions/agent-teams/extension.yml"
+"extensions/agent-teams/agent-teams-config.template.yml" = "specify_cli/core_pack/extensions/agent-teams/agent-teams-config.template.yml"
+"extensions/agent-teams/commands" = "specify_cli/core_pack/extensions/agent-teams/commands"
+"extensions/agent-teams/scripts" = "specify_cli/core_pack/extensions/agent-teams/scripts"
+"extensions/agent-teams/engine/Cargo.toml" = "specify_cli/core_pack/extensions/agent-teams/engine/Cargo.toml"
+"extensions/agent-teams/engine/Cargo.lock" = "specify_cli/core_pack/extensions/agent-teams/engine/Cargo.lock"
+"extensions/agent-teams/engine/package.json" = "specify_cli/core_pack/extensions/agent-teams/engine/package.json"
+"extensions/agent-teams/engine/package-lock.json" = "specify_cli/core_pack/extensions/agent-teams/engine/package-lock.json"
+"extensions/agent-teams/engine/tsconfig.json" = "specify_cli/core_pack/extensions/agent-teams/engine/tsconfig.json"
+"extensions/agent-teams/engine/src" = "specify_cli/core_pack/extensions/agent-teams/engine/src"
+"extensions/agent-teams/engine/crates" = "specify_cli/core_pack/extensions/agent-teams/engine/crates"
+"extensions/agent-teams/engine/prompts" = "specify_cli/core_pack/extensions/agent-teams/engine/prompts"
+"extensions/agent-teams/engine/skills" = "specify_cli/core_pack/extensions/agent-teams/engine/skills"
 
 [project.optional-dependencies]
 test = [

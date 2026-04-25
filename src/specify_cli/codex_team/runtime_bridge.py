@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import platform
 import shutil
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -88,6 +89,73 @@ def ensure_tmux_available() -> None:
     raise RuntimeEnvironmentError(
         "tmux is required for the Codex team runtime in first-release environments."
     )
+
+
+def codex_team_extension_installed(project_root: Path) -> bool:
+    """Return whether the bundled agent-teams extension is installed in the project."""
+    try:
+        from specify_cli.extensions import ExtensionManager
+    except Exception:
+        return False
+
+    try:
+        manager = ExtensionManager(project_root)
+    except Exception:
+        return False
+    return manager.registry.is_installed("agent-teams")
+
+
+def _git_probe(project_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run a git probe command without raising on failure."""
+    return subprocess.run(
+        ["git", *args],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def codex_team_git_readiness(project_root: Path) -> dict[str, object]:
+    """Return git/worktree readiness information for team-mode execution."""
+    repo_probe = _git_probe(project_root, "rev-parse", "--is-inside-work-tree")
+    git_repo_detected = repo_probe.returncode == 0 and repo_probe.stdout.strip().lower() == "true"
+
+    if not git_repo_detected:
+        return {
+            "git_repo_detected": False,
+            "git_head_available": False,
+            "leader_workspace_clean": False,
+            "worktree_ready": False,
+            "git_next_steps": [
+                "Initialize git before teams execution: git init",
+                'Create an initial commit before teams execution: git add . && git commit -m "Initial commit"',
+            ],
+        }
+
+    head_probe = _git_probe(project_root, "rev-parse", "--verify", "HEAD")
+    git_head_available = head_probe.returncode == 0
+    status_probe = _git_probe(project_root, "status", "--short")
+    leader_workspace_clean = status_probe.returncode == 0 and not status_probe.stdout.strip()
+    worktree_ready = git_head_available and leader_workspace_clean
+
+    git_next_steps: list[str] = []
+    if not git_head_available:
+        git_next_steps.append(
+            'Create an initial commit before teams execution: git add . && git commit -m "Initial commit"'
+        )
+    elif not leader_workspace_clean:
+        git_next_steps.append(
+            "Commit or stash leader workspace changes before teams execution."
+        )
+
+    return {
+        "git_repo_detected": True,
+        "git_head_available": git_head_available,
+        "leader_workspace_clean": leader_workspace_clean,
+        "worktree_ready": worktree_ready,
+        "git_next_steps": git_next_steps,
+    }
 
 
 def _load_runtime_session(project_root: Path, session_id: str) -> RuntimeSession:
@@ -227,10 +295,12 @@ def codex_team_runtime_status(project_root: Path, *, integration_key: str | None
     """Return a compact runtime status payload for help text and tests."""
     available = integration_key == "codex"
     backend = detect_team_runtime_backend()
+    extension_installed = codex_team_extension_installed(project_root)
+    git_status = codex_team_git_readiness(project_root)
     state_root = codex_team_state_root(project_root)
     session = RuntimeSession(
         session_id="preview",
-        status="ready" if available and backend["available"] else "created",
+        status="ready" if available and backend["available"] and extension_installed and git_status["worktree_ready"] else "created",
         environment_check="pass" if backend["available"] else "fail",
     )
     dispatch = DispatchRecord(
@@ -238,12 +308,33 @@ def codex_team_runtime_status(project_root: Path, *, integration_key: str | None
         target_worker="preview-worker",
         status="pending",
     )
+    next_steps: list[str] = []
+    if available and not extension_installed:
+        next_steps.append("Install the teams extension: specify extension add agent-teams")
+    if available and not backend["available"]:
+        if is_native_windows():
+            next_steps.append("Install a Windows team runtime backend: winget install psmux")
+        else:
+            next_steps.append("Install tmux before teams execution.")
+    next_steps.extend(git_status["git_next_steps"])
     return {
         "available": available,
+        "agent_teams_extension_installed": extension_installed,
         "runtime_backend_available": backend["available"],
         "runtime_backend": backend["name"],
         "tmux_available": backend["name"] == "tmux",
         "native_windows": is_native_windows(),
+        "git_repo_detected": git_status["git_repo_detected"],
+        "git_head_available": git_status["git_head_available"],
+        "leader_workspace_clean": git_status["leader_workspace_clean"],
+        "worktree_ready": git_status["worktree_ready"],
+        "teams_ready": (
+            available
+            and extension_installed
+            and backend["available"]
+            and git_status["worktree_ready"]
+        ),
+        "next_steps": next_steps,
         "state_root": state_root,
         "runtime_state": runtime_state_payload(session, [dispatch]),
         "runtime_state_summary": (

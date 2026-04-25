@@ -49,6 +49,10 @@ class TestInitIntegrationFlag:
         assert (project / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
         assert (project / ".specify" / "project-map" / "status.json").exists()
         assert "specify team" in result.output
+        assert "Codex Teams Readiness" in result.output
+        assert "agent-teams extension installed" in result.output
+        assert "git repo detected" in result.output
+        assert "worktree-ready" in result.output
 
     def test_non_codex_init_does_not_advertise_specify_team_surface(self, tmp_path):
         from typer.testing import CliRunner
