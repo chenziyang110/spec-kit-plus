@@ -52,7 +52,6 @@ class TestInitIntegrationFlag:
         assert (project / ".specify" / "project-map" / "status.json").exists()
         assert "specify team" in result.output
         assert "Codex Teams Readiness" in result.output
-        assert "agent-teams extension installed" in result.output
         assert "git repo detected" in result.output
         assert "worktree-ready" in result.output
 

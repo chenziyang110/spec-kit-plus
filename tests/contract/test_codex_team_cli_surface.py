@@ -50,7 +50,6 @@ def test_team_status_subcommand_shows_runtime_info(tmp_path: Path):
     assert "Codex team runtime" in result.output
     assert "runtime backend" in result.output
     assert "executor available" in result.output
-    assert "agent-teams extension installed" in result.output
     assert "git HEAD available" in result.output
     assert "worktree-ready" in result.output
 

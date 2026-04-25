@@ -7,9 +7,10 @@ def test_runtime_status_reports_agent_teams_executor_when_runtime_cli_exists(
 ):
     from specify_cli.codex_team.runtime_bridge import codex_team_runtime_status
 
-    runtime_cli = codex_team_project_root / ".specify" / "extensions" / "agent-teams" / "engine" / "dist" / "team" / "runtime-cli.js"
+    runtime_cli = codex_team_project_root / "fake-runtime-cli.js"
     runtime_cli.parent.mkdir(parents=True, exist_ok=True)
     runtime_cli.write_text("// fake runtime cli\n", encoding="utf-8")
+    monkeypatch.setenv("SPECIFY_CODEX_TEAM_RUNTIME_CLI", str(runtime_cli))
 
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr(

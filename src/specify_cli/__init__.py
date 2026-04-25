@@ -2387,8 +2387,6 @@ def init(
 
     # Track git error message outside Live context so it persists
     git_error_message = None
-    codex_team_extension_warning: str | None = None
-
     with Live(tracker.render(), console=console, refresh_per_second=8, transient=True) as live:
         tracker.attach_refresh(lambda: live.update(tracker.render()))
         try:
@@ -2479,16 +2477,6 @@ def init(
                 init_opts["ai_skills"] = True
             save_init_options(project_path, init_opts)
 
-            if resolved_integration.key == "codex":
-                try:
-                    _install_bundled_extension(
-                        project_path,
-                        "agent-teams",
-                        skip_if_installed=True,
-                    )
-                except Exception as ext_err:
-                    codex_team_extension_warning = str(ext_err)
-
             # Install preset if specified
             if preset:
                 try:
@@ -2543,21 +2531,6 @@ def init(
 
     console.print(tracker.render())
     console.print("\n[bold green]Spec Kit Plus project ready.[/bold green]")
-
-    if codex_team_extension_warning:
-        console.print()
-        console.print(_open_block(
-            "Codex Teams Extension Warning",
-            [
-                "Codex project scaffolding completed, but the bundled teams extension was not installed automatically.",
-                "",
-                codex_team_extension_warning,
-                "",
-                "You can retry later with:",
-                "[cyan]specify extension add agent-teams[/cyan]",
-            ],
-            accent="yellow",
-        ))
 
     # Show git error details if initialization failed
     if git_error_message:
@@ -2638,7 +2611,6 @@ def init(
             team_status=team_status,
         )
         readiness_lines = [
-            f"agent-teams extension installed: [cyan]{team_status['agent_teams_extension_installed']}[/cyan]",
             f"runtime backend available: [cyan]{team_status['runtime_backend_available']}[/cyan]",
             f"git repo detected: [cyan]{team_status['git_repo_detected']}[/cyan]",
             f"git HEAD available: [cyan]{team_status['git_head_available']}[/cyan]",
@@ -2902,7 +2874,6 @@ def team_status(
 
     status = codex_team_runtime_status(project_root, integration_key=integration_key, session_id=session_id)
     console.print(runtime_state_summary(project_root))
-    console.print(f"agent-teams extension installed: {status['agent_teams_extension_installed']}")
     console.print(f"runtime backend: {status['runtime_backend'] or 'unavailable'}")
     console.print(f"runtime backend available: {status['runtime_backend_available']}")
     console.print(f"executor available: {status['executor_available']}")

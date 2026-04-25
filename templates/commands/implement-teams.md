@@ -39,11 +39,13 @@ Use this when:
 2. Create or resume `FEATURE_DIR/implement-tracker.md`, then recover the active execution batch from tracker state before trusting `tasks.md`.
 3. Treat `FEATURE_DIR/implement-tracker.md` as the implementation-state source of truth and treat `tasks.md` as planning input only.
 4. Confirm the native runtime backend is ready through the official `specify team` runtime checks.
-5. On Windows, require the same native shell to resolve `psmux`, `codex`, `node`, `npm`, `cargo`, and `git`.
-6. Route durable execution through `specify team` and its runtime/API surfaces.
-7. Preserve the shared `sp-implement` contract: tracker continuity, validated `WorkerTaskPacket`s, explicit join points, and structured result handoff discipline.
-8. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
-9. If the user only wants to inspect the Codex runtime surface before implementing, redirect them to `specify team` or `$sp-team`.
+5. Run `specify team doctor` before the first teams dispatch for the current feature so executor availability, latest transcript, failed dispatches, and team-state evidence are visible up front.
+6. When the runtime was newly installed, recently repaired, or still looks suspect after `doctor`, run `specify team live-probe` before touching the real implementation batch.
+7. On Windows, require the same native shell to resolve `psmux`, `codex`, `node`, `npm`, `cargo`, and `git`.
+8. Route durable execution through `specify team` and its runtime/API surfaces.
+9. Preserve the shared `sp-implement` contract: tracker continuity, validated `WorkerTaskPacket`s, explicit join points, and structured result handoff discipline.
+10. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
+11. If the user only wants to inspect the Codex runtime surface before implementing, redirect them to `specify team` or `$sp-team`.
 
 ## Output Expectations
 
@@ -53,4 +55,6 @@ Successful runs should leave the user with:
 2. worker worktrees under `.specify/codex-team/worktrees` or the active runtime worktree root
 3. leader-visible progress through the team mailbox and monitor snapshot
 4. the same implementation lifecycle semantics as `sp-implement`, including tracker continuity, join point visibility, and result handoff discipline
-5. implementation framed as "teams execution" through the official `specify team` runtime rather than extension internals
+5. executor diagnostics and latest transcript evidence available through `specify team doctor`
+6. a repeatable minimal runtime acceptance check available through `specify team live-probe`
+7. implementation framed as "teams execution" through the official `specify team` runtime rather than extension internals

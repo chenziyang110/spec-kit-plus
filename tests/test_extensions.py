@@ -280,19 +280,6 @@ class TestExtensionManifest:
         assert hash_value.startswith("sha256:")
         assert len(hash_value) > 10
 
-    def test_bundled_agent_teams_manifest_is_valid(self):
-        """The bundled agent-teams extension must remain installable."""
-        manifest_path = REPO_ROOT / "extensions" / "agent-teams" / "extension.yml"
-
-        manifest = ExtensionManifest(manifest_path)
-
-        assert manifest.id == "agent-teams"
-        assert {command["name"] for command in manifest.commands} == {
-            "sp.agent-teams.run",
-            "sp.agent-teams.cleanup",
-        }
-
-
 # ===== ExtensionRegistry Tests =====
 
 class TestExtensionRegistry:
@@ -2932,75 +2919,6 @@ class TestExtensionIgnore:
 
 class TestExtensionAddCLI:
     """CLI integration tests for extension add command."""
-
-    def test_add_uses_bundled_extension_when_available(self, tmp_path):
-        """Bundled extensions should install without requiring a catalog hit."""
-        from typer.testing import CliRunner
-        from unittest.mock import patch
-        from specify_cli import app
-
-        runner = CliRunner()
-
-        project_dir = tmp_path / "test-project"
-        project_dir.mkdir()
-        (project_dir / ".specify").mkdir()
-        (project_dir / ".specify" / "extensions").mkdir(parents=True)
-
-        ext_dir = tmp_path / "agent-teams"
-        ext_dir.mkdir()
-        (ext_dir / "commands").mkdir()
-        (ext_dir / "commands" / "run.md").write_text(
-            "---\n"
-            'description: "Run bundled teams execution"\n'
-            "---\n\n"
-            "bundled run\n",
-            encoding="utf-8",
-        )
-        (ext_dir / "commands" / "cleanup.md").write_text(
-            "---\n"
-            'description: "Clean bundled teams execution"\n'
-            "---\n\n"
-            "bundled cleanup\n",
-            encoding="utf-8",
-        )
-        (ext_dir / "extension.yml").write_text(
-            "schema_version: '1.0'\n"
-            "extension:\n"
-            "  id: 'agent-teams'\n"
-            "  name: 'Agent Teams'\n"
-            "  version: '0.1.0'\n"
-            "  description: 'Bundled teams runtime'\n"
-            "requires:\n"
-            "  speckit_version: '>=0.1.0'\n"
-            "provides:\n"
-            "  commands:\n"
-            "    - name: 'sp.agent-teams.run'\n"
-            "      file: 'commands/run.md'\n"
-            "      description: 'Run bundled teams execution'\n"
-            "    - name: 'sp.agent-teams.cleanup'\n"
-            "      file: 'commands/cleanup.md'\n"
-            "      description: 'Clean bundled teams execution'\n",
-            encoding="utf-8",
-        )
-
-        with patch.object(Path, "cwd", return_value=project_dir), \
-             patch("specify_cli._locate_bundled_extension_source", return_value=ext_dir), \
-             patch("specify_cli.extensions.ExtensionCatalog") as mock_catalog:
-            result = runner.invoke(
-                app,
-                ["extension", "add", "agent-teams"],
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 0, result.output
-        assert "Extension installed successfully" in strip_ansi(result.output)
-        assert mock_catalog.called is False
-
-        manager = ExtensionManager(project_dir)
-        metadata = manager.registry.get("agent-teams")
-        assert metadata is not None
-        assert metadata["source"] == "bundled"
-        assert (project_dir / ".specify" / "extensions" / "agent-teams" / "extension.yml").exists()
 
     def test_add_by_display_name_uses_resolved_id_for_download(self, tmp_path):
         """extension add by display name should use resolved ID for download_extension()."""

@@ -16,48 +16,6 @@ class TestCodexIntegration(SkillsIntegrationTests):
     REGISTRAR_DIR = ".codex/skills"
     CONTEXT_FILE = "AGENTS.md"
 
-    @staticmethod
-    def _bundled_agent_teams_expected_files() -> list[str]:
-        from specify_cli import _locate_bundled_extension_source
-        from specify_cli.extensions import ExtensionManager
-
-        source_dir = _locate_bundled_extension_source("agent-teams")
-        assert source_dir is not None
-
-        files = [
-            ".specify/extensions.yml",
-            ".specify/extensions/.registry",
-        ]
-
-        ignore_fn = ExtensionManager._load_extensionignore(source_dir)
-        pending = [source_dir]
-        while pending:
-            current = pending.pop()
-            children = sorted(current.iterdir(), key=lambda path: path.name)
-            ignored = (
-                ignore_fn(str(current), [child.name for child in children])
-                if ignore_fn is not None
-                else set()
-            )
-            for child in children:
-                if child.name in ignored:
-                    continue
-                if child.is_dir():
-                    pending.append(child)
-                elif child.is_file():
-                    files.append(
-                        f".specify/extensions/agent-teams/{child.relative_to(source_dir).as_posix()}"
-                    )
-
-        manifest = yaml.safe_load((source_dir / "extension.yml").read_text(encoding="utf-8"))
-        commands = manifest.get("provides", {}).get("commands", [])
-        for command in commands:
-            name = command.get("name")
-            if isinstance(name, str) and name:
-                files.append(f".codex/skills/{name.replace('.', '-')}/SKILL.md")
-
-        return sorted(files)
-
     def _expected_files(self, script_variant: str) -> list[str]:
         files = super()._expected_files(script_variant)
         files.extend(
@@ -68,7 +26,6 @@ class TestCodexIntegration(SkillsIntegrationTests):
                 ".specify/codex-team/runtime.json",
             ]
         )
-        files.extend(self._bundled_agent_teams_expected_files())
         return sorted(files)
 
 
@@ -94,65 +51,6 @@ class TestCodexAutoPromote:
         assert (target / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
         assert (target / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
         assert (target / ".specify" / "project-map" / "status.json").exists()
-
-    def test_ai_codex_auto_installs_agent_teams_extension(self, tmp_path):
-        """Codex init should bootstrap the bundled teams extension automatically."""
-        from typer.testing import CliRunner
-        from specify_cli import app
-
-        runner = CliRunner()
-        target = tmp_path / "codex-with-teams"
-        ext_dir = tmp_path / "agent-teams"
-        ext_dir.mkdir()
-        (ext_dir / "commands").mkdir()
-        (ext_dir / "commands" / "run.md").write_text(
-            "---\n"
-            'description: "Run bundled teams execution"\n'
-            "---\n\n"
-            "bundled run\n",
-            encoding="utf-8",
-        )
-        (ext_dir / "commands" / "cleanup.md").write_text(
-            "---\n"
-            'description: "Clean bundled teams execution"\n'
-            "---\n\n"
-            "bundled cleanup\n",
-            encoding="utf-8",
-        )
-        (ext_dir / "extension.yml").write_text(
-            "schema_version: '1.0'\n"
-            "extension:\n"
-            "  id: 'agent-teams'\n"
-            "  name: 'Agent Teams'\n"
-            "  version: '0.1.0'\n"
-            "  description: 'Bundled teams runtime'\n"
-            "requires:\n"
-            "  speckit_version: '>=0.1.0'\n"
-            "provides:\n"
-            "  commands:\n"
-            "    - name: 'sp.agent-teams.run'\n"
-            "      file: 'commands/run.md'\n"
-            "      description: 'Run bundled teams execution'\n"
-            "    - name: 'sp.agent-teams.cleanup'\n"
-            "      file: 'commands/cleanup.md'\n"
-            "      description: 'Clean bundled teams execution'\n",
-            encoding="utf-8",
-        )
-
-        with patch("specify_cli._locate_bundled_extension_source", return_value=ext_dir):
-            result = runner.invoke(
-                app,
-                ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
-            )
-
-        assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
-
-        registry_path = target / ".specify" / "extensions" / ".registry"
-        registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        assert "agent-teams" in registry["extensions"]
-        assert registry["extensions"]["agent-teams"]["source"] == "bundled"
-        assert (target / ".specify" / "extensions" / "agent-teams" / "extension.yml").exists()
-        assert (target / ".codex" / "skills" / "sp-agent-teams-run" / "SKILL.md").exists()
 
 
 def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_path):
@@ -204,6 +102,8 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "implement-tracker.md" in lower
     assert "execution-state source of truth" in lower
     assert "workertaskpacket" in lower
+    assert "specify team doctor" in lower
+    assert "specify team live-probe" in lower
     assert "single-agent" in lower
     assert "native-multi-agent" in lower
     assert "sidecar-runtime" in lower
@@ -217,6 +117,8 @@ def test_codex_implement_teams_template_keeps_only_backend_specific_guidance():
     template = Path("templates/commands/implement-teams.md").read_text(encoding="utf-8")
 
     assert "## Shared Contract With `sp-implement`" not in template
+    assert "specify team doctor" in template
+    assert "specify team live-probe" in template
 
 
 def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_path):

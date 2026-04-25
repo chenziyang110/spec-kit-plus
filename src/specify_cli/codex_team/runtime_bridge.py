@@ -175,7 +175,6 @@ def _candidate_agent_teams_engine_roots(project_root: Path) -> list[Path]:
     package_root = Path(__file__).resolve().parents[1]
     repo_root = Path(__file__).resolve().parents[3]
     candidates = [
-        project_root / ".specify" / "extensions" / "agent-teams" / "engine",
         package_root / "core_pack" / "extensions" / "agent-teams" / "engine",
         repo_root / "extensions" / "agent-teams" / "engine",
     ]
@@ -209,7 +208,6 @@ def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
     """Return whether a packet executor is wired into ``specify team``."""
 
     configured = os.environ.get("SPECIFY_CODEX_TEAM_EXECUTOR", "").strip().lower()
-    extension_installed = codex_team_extension_installed(project_root)
     runtime_cli_path = _detect_agent_teams_runtime_cli(project_root)
     node_binary = shutil.which("node")
 
@@ -222,7 +220,6 @@ def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
                 "This mode exists for internal tests and orchestration-only flows."
             ),
             "configured_value": configured,
-            "extension_installed": extension_installed,
             "bundled_runtime_binary": None,
             "runtime_cli_path": None,
             "next_steps": [],
@@ -237,17 +234,14 @@ def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
             "mode": AGENT_TEAMS_EXECUTOR,
             "reason": "Bundled agent-teams runtime-cli is available for delegated batch execution.",
             "configured_value": configured,
-            "extension_installed": extension_installed,
             "bundled_runtime_binary": None,
             "runtime_cli_path": runtime_cli_path,
             "next_steps": [],
         }
 
     next_steps: list[str] = []
-    if not extension_installed and runtime_cli_path is None:
-        next_steps.append("Install the bundled executor surface with: specify extension add agent-teams")
-    elif runtime_cli_path is None:
-        next_steps.append("Build the bundled agent-teams runtime before enabling teams execution.")
+    if runtime_cli_path is None:
+        next_steps.append("Bundled teams runtime assets are missing from this checkout. Restore or rebuild the internal runtime before enabling teams execution.")
     elif not node_binary:
         next_steps.append("Install Node.js or make `node` available on PATH before enabling teams execution.")
     next_steps.append(
@@ -263,7 +257,6 @@ def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
             "but it cannot truthfully execute worker packets."
         ),
         "configured_value": configured,
-        "extension_installed": extension_installed,
         "bundled_runtime_binary": None,
         "runtime_cli_path": runtime_cli_path,
         "next_steps": next_steps,
@@ -291,21 +284,6 @@ def resolve_agent_teams_runtime_binary(engine_root: Path) -> Path | None:
         if candidate.is_file():
             return candidate
     return None
-
-
-def codex_team_extension_installed(project_root: Path) -> bool:
-    """Return whether the bundled agent-teams extension is installed in the project."""
-    try:
-        from specify_cli.extensions import ExtensionManager
-    except Exception:
-        return False
-
-    try:
-        manager = ExtensionManager(project_root)
-    except Exception:
-        return False
-    return manager.registry.is_installed("agent-teams")
-
 
 def _git_probe(project_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     """Run a git probe command without raising on failure."""
@@ -510,7 +488,6 @@ def codex_team_runtime_status(
     """Return a compact runtime status payload for help text and tests."""
     available = integration_key == "codex"
     backend = detect_team_runtime_backend()
-    extension_installed = codex_team_extension_installed(project_root)
     git_status = codex_team_git_readiness(project_root)
     toolchain_status = native_windows_toolchain_readiness()
     executor_status = detect_codex_team_executor(project_root)
@@ -550,7 +527,6 @@ def codex_team_runtime_status(
     next_steps.extend(git_status["git_next_steps"])
     return {
         "available": available,
-        "agent_teams_extension_installed": extension_installed,
         "runtime_backend_available": backend["available"],
         "runtime_backend": backend["name"],
         "tmux_available": backend["name"] == "tmux",

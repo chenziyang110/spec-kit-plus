@@ -27,13 +27,10 @@ def test_wheel_force_include_bundles_workflow_state_template() -> None:
     ) in pyproject
 
 
-def test_wheel_force_include_bundles_agent_teams_extension_assets() -> None:
+def test_wheel_force_include_bundles_internal_codex_team_runtime_assets() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     expected_entries = [
-        '"extensions/agent-teams/extension.yml" = "specify_cli/core_pack/extensions/agent-teams/extension.yml"',
-        '"extensions/agent-teams/commands" = "specify_cli/core_pack/extensions/agent-teams/commands"',
-        '"extensions/agent-teams/scripts" = "specify_cli/core_pack/extensions/agent-teams/scripts"',
         '"extensions/agent-teams/engine/package.json" = "specify_cli/core_pack/extensions/agent-teams/engine/package.json"',
         '"extensions/agent-teams/engine/src" = "specify_cli/core_pack/extensions/agent-teams/engine/src"',
         '"extensions/agent-teams/engine/crates" = "specify_cli/core_pack/extensions/agent-teams/engine/crates"',
@@ -45,7 +42,7 @@ def test_wheel_force_include_bundles_agent_teams_extension_assets() -> None:
         assert entry in pyproject
 
 
-def test_agent_teams_cargo_lock_is_tracked_for_force_include() -> None:
+def test_internal_codex_team_runtime_cargo_lock_is_tracked_for_force_include() -> None:
     tracked = subprocess.run(
         ["git", "ls-files", "extensions/agent-teams/engine/Cargo.lock"],
         cwd=REPO_ROOT,
