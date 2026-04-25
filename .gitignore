@@ -40,6 +40,7 @@ env/
 .env.local
 .env*
 *.lock
+!extensions/agent-teams/engine/Cargo.lock
 node_modules/
 target/
 coverage/

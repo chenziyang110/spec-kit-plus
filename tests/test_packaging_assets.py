@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 
@@ -35,3 +36,15 @@ def test_wheel_force_include_bundles_agent_teams_extension_assets() -> None:
 
     for entry in expected_entries:
         assert entry in pyproject
+
+
+def test_agent_teams_cargo_lock_is_tracked_for_force_include() -> None:
+    tracked = subprocess.run(
+        ["git", "ls-files", "extensions/agent-teams/engine/Cargo.lock"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    assert tracked == "extensions/agent-teams/engine/Cargo.lock"
