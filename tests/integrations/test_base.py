@@ -167,3 +167,73 @@ class TestBasePrimitives:
             assert f.parent.name == "commands"
             assert f.name.startswith("sp.")
             assert f.name.endswith(".md")
+
+    def test_resolve_template_includes_supports_nested_partials(self, tmp_path):
+        templates = tmp_path / "templates"
+        templates.mkdir()
+        nested = templates / "nested.md"
+        nested.write_text("Nested body\n", encoding="utf-8")
+        partial = templates / "partial.md"
+        partial.write_text(
+            "Partial start\n{{spec-kit-include: nested.md}}Partial end\n",
+            encoding="utf-8",
+        )
+        root = templates / "root.md"
+        root.write_text(
+            "Top\n{{spec-kit-include: partial.md}}Bottom\n",
+            encoding="utf-8",
+        )
+
+        resolved = IntegrationBase.resolve_template_includes(
+            root.read_text(encoding="utf-8"),
+            root.parent,
+        )
+
+        assert resolved == "Top\nPartial start\nNested body\nPartial end\nBottom\n"
+
+    def test_resolve_template_includes_rejects_cycles(self, tmp_path):
+        templates = tmp_path / "templates"
+        templates.mkdir()
+        first = templates / "first.md"
+        second = templates / "second.md"
+        first.write_text("{{spec-kit-include: second.md}}\n", encoding="utf-8")
+        second.write_text("{{spec-kit-include: first.md}}\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="include cycle"):
+            IntegrationBase.resolve_template_includes(
+                first.read_text(encoding="utf-8"),
+                first.parent,
+            )
+
+    def test_process_template_renders_workflow_contract_summary_from_frontmatter(self, tmp_path):
+        template = tmp_path / "plan.md"
+        template.write_text(
+            "---\n"
+            "description: Use when the spec package is ready for planning.\n"
+            "workflow_contract:\n"
+            "  when_to_use: The spec package is planning-ready.\n"
+            "  primary_objective: Produce implementation design artifacts.\n"
+            "  primary_outputs: plan.md, research.md, and quickstart.md.\n"
+            "  default_handoff: /sp-tasks after planning is complete.\n"
+            "scripts:\n"
+            "  sh: scripts/bash/setup-plan.sh --json\n"
+            "---\n\n"
+            "## Objective\n\n"
+            "Translate the specification into a planning package.\n",
+            encoding="utf-8",
+        )
+
+        processed = IntegrationBase.process_template(
+            template.read_text(encoding="utf-8"),
+            "stub",
+            "sh",
+            template_path=template,
+        )
+
+        assert "## Workflow Contract Summary" in processed
+        assert "- **When to use**: The spec package is planning-ready." in processed
+        assert "- **Primary objective**: Produce implementation design artifacts." in processed
+        assert "- **Primary outputs**: plan.md, research.md, and quickstart.md." in processed
+        assert "- **Default handoff**: /sp-tasks after planning is complete." in processed
+        assert "routing metadata only" in processed.lower()
+        assert processed.index("## Workflow Contract Summary") < processed.index("## Objective")

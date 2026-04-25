@@ -84,7 +84,13 @@ class CopilotIntegration(IntegrationBase):
         # 1. Process and write command files as .agent.md
         for src_file in templates:
             raw = src_file.read_text(encoding="utf-8")
-            processed = self.process_template(raw, self.key, script_type, arg_placeholder)
+            processed = self.process_template(
+                raw,
+                self.key,
+                script_type,
+                arg_placeholder,
+                template_path=src_file,
+            )
             processed = self._append_runtime_project_map_gate(
                 content=processed,
                 agent_name="GitHub Copilot",

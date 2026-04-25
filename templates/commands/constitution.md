@@ -1,18 +1,17 @@
 ---
-description: Create or update the project constitution from interactive or provided principle inputs, ensuring all dependent templates stay in sync.
+description: Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.
+workflow_contract:
+  when_to_use: The project's governing principles need to be created or updated before downstream workflow work should continue.
+  primary_objective: Update `.specify/memory/constitution.md` and propagate any principle changes into dependent templates and guidance.
+  primary_outputs: A synchronized constitution plus any required template or docs updates triggered by the principle change.
+  default_handoff: /sp-specify after the constitution is stable enough for downstream feature work.
 handoffs: 
   - label: Build Specification
     agent: sp.specify
     prompt: Implement the feature specification based on the updated constitution. I want to build...
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
+{{spec-kit-include: ../command-partials/constitution/shell.md}}
 
 ## Outline
 

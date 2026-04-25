@@ -1,11 +1,13 @@
 from pathlib import Path
 
+from .template_utils import read_template
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_fast_template_exists_and_defines_scope_gate() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "fast.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/fast.md").lower()
 
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
@@ -26,7 +28,9 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "known unknowns" in content
     assert "if `project-handbook.md` or `.specify/project-map/` is missing" in content
     assert "redirect to `/sp-quick` so the navigation system can be rebuilt safely" in content
-    assert "execute a trivial task directly" in content
+    assert "## workflow contract summary" in content
+    assert "apply the smallest direct change" in content
+    assert "execute a trivial, low-risk task directly" in content
     assert "scope gate" in content
     assert "at most 3 files" in content or "no more than 3 files" in content
     assert "no new dependencies" in content
@@ -42,7 +46,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
 
 
 def test_fast_template_stays_lightweight() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "fast.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/fast.md").lower()
 
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
@@ -50,7 +54,7 @@ def test_fast_template_stays_lightweight() -> None:
 
 
 def test_fast_template_defines_explicit_upgrade_triggers() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "fast.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/fast.md").lower()
 
     assert "upgrade to `/sp-quick` immediately if" in content
     assert "more than 3 files" in content
@@ -65,7 +69,7 @@ def test_fast_template_defines_explicit_upgrade_triggers() -> None:
 
 
 def test_fast_template_marks_learning_and_fail_closed_routing_gates_with_agent_marker() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "fast.md").read_text(encoding="utf-8")
+    content = read_template("templates/commands/fast.md")
 
     assert "[AGENT] Run `specify learning start --command fast --format json`" in content
     assert "[AGENT] If freshness is `missing` or `stale`, stop and redirect to `/sp-quick` or `/sp-map-codebase`" in content

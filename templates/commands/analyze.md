@@ -1,17 +1,16 @@
 ---
-description: Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, context.md, plan.md, and tasks.md after task generation, including boundary guardrail drift.
+description: Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution.
+workflow_contract:
+  when_to_use: '`tasks.md` is available and you need a read-only analysis pass before trusting the current artifact set for execution.'
+  primary_objective: 'Identify inconsistencies, ambiguities, drift, and boundary-guardrail gaps across `spec.md`, `context.md`, `plan.md`, and `tasks.md`.'
+  primary_outputs: A structured analysis report only. This command does not edit files.
+  default_handoff: Route into `/sp-spec-extend`, `/sp-plan`, `/sp-tasks`, or `/sp-implement` based on the findings instead of silently patching artifacts.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
+{{spec-kit-include: ../command-partials/analyze/shell.md}}
 
 ## Goal
 
@@ -263,6 +262,6 @@ Ask the user: "Would you like me to suggest concrete remediation edits for the t
 - **Use examples over exhaustive rules** (cite specific instances, not generic patterns)
 - **Report zero issues gracefully** (emit success report with coverage statistics)
 
-## Context
+## Invocation Context
 
 {ARGS}

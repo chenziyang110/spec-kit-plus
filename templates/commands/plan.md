@@ -1,5 +1,10 @@
 ---
-description: Execute the implementation planning workflow using the plan template to generate design artifacts.
+description: Use when the current specification package is ready for implementation planning and you need design artifacts before task breakdown or coding.
+workflow_contract:
+  when_to_use: The current spec package is ready for design work, but implementation should not start until explicit planning artifacts exist.
+  primary_objective: Produce the planning artifact set that turns specification intent into an implementation-ready architecture and execution approach.
+  primary_outputs: '`plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, and `workflow-state.md` under the active `FEATURE_DIR`.'
+  default_handoff: /sp-tasks for decomposition, optionally /sp-checklist for quality checks on the resulting plan package.
 handoffs:
   - label: Create Tasks
     agent: sp.tasks
@@ -16,13 +21,7 @@ agent_scripts:
   ps: scripts/powershell/update-agent-context.ps1 -AgentType __AGENT__
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
+{{spec-kit-include: ../command-partials/plan/shell.md}}
 
 ## Pre-Execution Checks
 

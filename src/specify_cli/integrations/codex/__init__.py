@@ -32,6 +32,18 @@ class CodexIntegration(SkillsIntegration):
         "extension": "/SKILL.md",
     }
     context_file = "AGENTS.md"
+    question_tool_config = {
+        "tool_name": "request_user_input",
+        "availability_note": "if the current Codex runtime exposes it",
+        "question_limit": "1-3 short questions per call",
+        "option_limit": "2-3 options per question",
+        "question_fields": ["header", "id", "question", "options"],
+        "option_fields": ["label", "description"],
+        "extra_notes": [
+            "Put the recommended option first and suffix its label with `(Recommended)` when that distinction matters.",
+            "Use this native surface for one bounded clarification or selection step; if it is unavailable or too narrow for the needed interaction, fall back immediately to the template's textual question format.",
+        ],
+    }
 
     @classmethod
     def options(cls) -> list[IntegrationOption]:

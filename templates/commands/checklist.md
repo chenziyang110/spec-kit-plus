@@ -1,5 +1,10 @@
 ---
-description: Generate a custom checklist for the current feature based on user requirements.
+description: Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.
+workflow_contract:
+  when_to_use: You need a domain-specific checklist to inspect the quality of requirements or planning artifacts before execution.
+  primary_objective: Generate a tailored checklist that acts like unit tests for the written requirements, not for the implementation.
+  primary_outputs: A custom checklist aligned to the current feature, audience, and review depth.
+  default_handoff: Apply the checklist to the relevant artifact set and then return to the planning workflow with any resulting gaps.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json
   ps: scripts/powershell/check-prerequisites.ps1 -Json
@@ -26,13 +31,7 @@ scripts:
 
 **Metaphor**: If your spec is code written in English, the checklist is its unit test suite. You're testing whether the requirements are well-written, complete, unambiguous, and ready for implementation - NOT whether the implementation works.
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
+{{spec-kit-include: ../command-partials/checklist/shell.md}}
 
 ## Execution Steps
 

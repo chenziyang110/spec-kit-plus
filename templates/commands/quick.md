@@ -1,22 +1,16 @@
 ---
-description: Execute a small ad-hoc task through a lightweight planning and validation path.
+description: Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.
+workflow_contract:
+  when_to_use: The task is too large or risky for `sp-fast` but does not justify the full `specify -> plan -> tasks -> implement` flow.
+  primary_objective: Keep the task resumable and tracked while applying only the minimum planning, research, and validation depth it needs.
+  primary_outputs: '`.planning/quick/<id>-<slug>/STATUS.md`, quick-task summary artifacts, and the scoped implementation changes for the task.'
+  default_handoff: Resume the quick task until resolved, or escalate to /sp-specify if the scope grows into multi-capability or acceptance-criteria-heavy work.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json
   ps: scripts/powershell/check-prerequisites.ps1 -Json
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-## Objective
-Execute a small, ad-hoc task through a lightweight planning and validation path without entering the full `specify -> plan -> tasks` workflow.
-
-This command will skip the full feature-spec workflow while preserving lightweight planning and verification.
-
-Use this for work that is too large for `sp-fast` but still too small or too well understood to justify a full spec flow: small bug fixes, small features, focused UX adjustments, template tweaks, or narrow CLI behavior changes.
+{{spec-kit-include: ../command-partials/quick/shell.md}}
 
 ## Leader Role
 
@@ -310,6 +304,12 @@ resume_decision: [resume here | blocked waiting | resolved]
 - If the current pass only covers representative examples, do not claim completion.
 - If coverage is still incomplete, continue the sweep, add stronger search or verification, or mark the task blocked with the exact remaining gap.
 - `All affected surfaces` means the declared sweep set, not just the files already inspected.
+
+## Output Contract
+
+- Keep `STATUS.md` accurate enough that another session can resume without chat memory.
+- Produce scoped implementation changes, verification evidence, and a truthful resolved/blocked state for the quick task.
+- Preserve escalation history so it is clear why the task stayed quick or needed to grow.
 
 ## Process
 

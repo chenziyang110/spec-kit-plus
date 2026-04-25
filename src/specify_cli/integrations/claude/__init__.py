@@ -51,6 +51,17 @@ class ClaudeIntegration(SkillsIntegration):
         "extension": "/SKILL.md",
     }
     context_file = "CLAUDE.md"
+    question_tool_config = {
+        "tool_name": "AskUserQuestion",
+        "question_limit": "1-4 questions per call",
+        "option_limit": "2-4 options per question",
+        "question_fields": ["question", "header", "options", "multiSelect"],
+        "option_fields": ["label", "description", "preview (optional)"],
+        "extra_notes": [
+            "Use `multiSelect: false` unless the workflow explicitly needs multiple selections.",
+            "Use `metadata` only when tracking or analytics context adds value; otherwise keep the call minimal.",
+        ],
+    }
 
     def _claude_capability_snapshot(self) -> CapabilitySnapshot:
         return CapabilitySnapshot(

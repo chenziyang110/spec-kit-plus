@@ -1,5 +1,10 @@
 ---
-description: Create or update the feature specification from a natural language feature description.
+description: Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.
+workflow_contract:
+  when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
+  primary_objective: 'Produce the specification artifact set grounded in repository reality: `spec.md`, `alignment.md`, `context.md`, and supporting references when needed.'
+  primary_outputs: '`FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
+  default_handoff: /sp-plan once planning-critical ambiguity is reduced far enough; otherwise stay in clarification or recommend /sp-spec-extend.
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -9,13 +14,7 @@ scripts:
   ps: scripts/powershell/create-new-feature.ps1 "{ARGS}"
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
+{{spec-kit-include: ../command-partials/specify/shell.md}}
 
 ## Pre-Execution Checks
 

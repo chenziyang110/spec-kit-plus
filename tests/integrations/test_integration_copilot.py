@@ -28,11 +28,15 @@ class TestCopilotIntegration:
 
     @classmethod
     def _expected_inventory(cls, script_variant: str) -> list[str]:
+        copilot = get_integration("copilot")
         expected = []
 
         for stem in cls._command_stems():
             expected.append(f".github/agents/sp.{stem}.agent.md")
             expected.append(f".github/prompts/sp.{stem}.prompt.md")
+
+        if copilot.context_file:
+            expected.append(copilot.context_file)
 
         expected.extend(
             [

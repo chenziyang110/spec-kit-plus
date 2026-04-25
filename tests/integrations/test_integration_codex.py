@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import yaml
+
 from .test_integration_base_skills import SkillsIntegrationTests
 
 
@@ -13,6 +15,48 @@ class TestCodexIntegration(SkillsIntegrationTests):
     COMMANDS_SUBDIR = "skills"
     REGISTRAR_DIR = ".codex/skills"
     CONTEXT_FILE = "AGENTS.md"
+
+    @staticmethod
+    def _bundled_agent_teams_expected_files() -> list[str]:
+        from specify_cli import _locate_bundled_extension_source
+        from specify_cli.extensions import ExtensionManager
+
+        source_dir = _locate_bundled_extension_source("agent-teams")
+        assert source_dir is not None
+
+        files = [
+            ".specify/extensions.yml",
+            ".specify/extensions/.registry",
+        ]
+
+        ignore_fn = ExtensionManager._load_extensionignore(source_dir)
+        pending = [source_dir]
+        while pending:
+            current = pending.pop()
+            children = sorted(current.iterdir(), key=lambda path: path.name)
+            ignored = (
+                ignore_fn(str(current), [child.name for child in children])
+                if ignore_fn is not None
+                else set()
+            )
+            for child in children:
+                if child.name in ignored:
+                    continue
+                if child.is_dir():
+                    pending.append(child)
+                elif child.is_file():
+                    files.append(
+                        f".specify/extensions/agent-teams/{child.relative_to(source_dir).as_posix()}"
+                    )
+
+        manifest = yaml.safe_load((source_dir / "extension.yml").read_text(encoding="utf-8"))
+        commands = manifest.get("provides", {}).get("commands", [])
+        for command in commands:
+            name = command.get("name")
+            if isinstance(name, str) and name:
+                files.append(f".codex/skills/{name.replace('.', '-')}/SKILL.md")
+
+        return sorted(files)
 
     def _expected_files(self, script_variant: str) -> list[str]:
         files = super()._expected_files(script_variant)
@@ -24,6 +68,7 @@ class TestCodexIntegration(SkillsIntegrationTests):
                 ".specify/codex-team/runtime.json",
             ]
         )
+        files.extend(self._bundled_agent_teams_expected_files())
         return sorted(files)
 
 
@@ -273,6 +318,33 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "workflow-state.md" in content
         assert "workflow_state_file" in content
         assert "re-read `workflow_state_file`" in content or "re-read `workflow-state-file`" in content
+
+
+def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-question-tool"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    for skill_name in ("sp-specify", "sp-spec-extend", "sp-checklist", "sp-quick"):
+        content = (target / ".codex" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
+        lower = content.lower()
+        assert "request_user_input" in content
+        assert "if the current codex runtime exposes it" in lower
+        assert "recommended option first" in lower
+        assert "fall back immediately" in lower or "fall back to the" in lower
+
+    quick_content = (target / ".codex" / "skills" / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "--discuss" in quick_content
+    assert "multiple unfinished quick tasks exist" in quick_content
 
 
 def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):

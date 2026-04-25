@@ -178,6 +178,26 @@ class MarkdownIntegrationTests:
         assert "dispatch exactly one delegated worker lane" in quick_content
         assert "sidecar-runtime" in quick_content
 
+    def test_question_driven_commands_define_native_tool_preference_with_fallback(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+        agent_name = i.config["name"].replace(" CLI", "").lower()
+
+        for name in ("specify", "spec-extend", "checklist", "quick"):
+            content = (i.commands_dest(tmp_path) / f"sp.{name}.md").read_text(encoding="utf-8").lower()
+            assert f"## {agent_name} structured question preference" in content
+            assert "native structured question tool" in content
+            assert (
+                "template's existing textual question format" in content
+                or "existing plain-text" in content
+                or "shared open question block structure" in content
+                or "plain-text confirmation question" in content
+                or "textual question format" in content
+                or "plain-text clarification" in content
+            )
+            assert "active question exactly once" in content
+
     def test_all_files_tracked_in_manifest(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
@@ -311,6 +331,7 @@ class MarkdownIntegrationTests:
         # Integration scripts
         files.append(f".specify/integrations/{self.KEY}/scripts/update-context.ps1")
         files.append(f".specify/integrations/{self.KEY}/scripts/update-context.sh")
+        files.append(self.CONTEXT_FILE)
 
         # Framework files
         files.append(f".specify/integration.json")
@@ -359,6 +380,27 @@ class MarkdownIntegrationTests:
         assert actual == expected, (
             f"Missing: {sorted(set(expected) - set(actual))}\n"
             f"Extra: {sorted(set(actual) - set(expected))}"
+        )
+
+    def test_init_bootstraps_context_file(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / f"context-{self.KEY}"
+        project.mkdir()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = CliRunner().invoke(app, [
+                "init", "--here", "--ai", self.KEY, "--script", "sh",
+                "--no-git", "--ignore-agent-tools",
+            ], catch_exceptions=False)
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, f"init --ai {self.KEY} failed: {result.output}"
+        assert (project / self.CONTEXT_FILE).is_file(), (
+            f"--ai {self.KEY} did not create context file {self.CONTEXT_FILE}"
         )
 
     def test_complete_file_inventory_ps(self, tmp_path):

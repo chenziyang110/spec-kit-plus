@@ -1,20 +1,16 @@
 ---
-description: Execute a trivial task directly without entering the full specify-plan workflow.
+description: Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.
+workflow_contract:
+  when_to_use: The work is genuinely local and low-risk enough to stay on the fast path.
+  primary_objective: Apply the smallest direct change and run the smallest meaningful verification without opening the full planning workflow.
+  primary_outputs: A tightly scoped local change plus a concise report of what changed, what was verified, and any remaining risk.
+  default_handoff: Upgrade immediately to /sp-quick if scope, coupling, or uncertainty expands.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json
   ps: scripts/powershell/check-prerequisites.ps1 -Json
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-## Objective
-Execute a trivial, low-risk task directly in the current context without entering the full `specify -> plan -> tasks` workflow.
-
-Use this for small fixes that are faster to execute than to plan: typo fixes, tiny config changes, missing imports, narrow doc edits, small bug fixes, and similarly bounded adjustments.
+{{spec-kit-include: ../command-partials/fast/shell.md}}
 
 ## Scope Gate
 
@@ -87,6 +83,12 @@ Upgrade to `/sp-specify` immediately if:
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
    - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before the final report so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
    - If that refresh would break the fast-path scope or cannot be completed safely in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase`.
+
+## Output Contract
+
+- Keep the outcome to one tightly scoped change set plus the minimum truthful verification evidence.
+- Report what changed, how it was verified, and what residual risk remains.
+- Capture any high-signal learning surfaced by the pass before closing the task.
 
 ## Guardrails
 

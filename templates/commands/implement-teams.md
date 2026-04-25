@@ -1,8 +1,15 @@
 ---
-description: Execute implementation through the Codex-only team/runtime surface when you explicitly want durable multi-worker execution.
+description: Use when implementation already fits sp-implement but requires the Codex-only durable team/runtime surface for coordinated multi-worker execution.
+workflow_contract:
+  when_to_use: The work is already ready for `sp-implement`, but you explicitly want the durable teams runtime as the execution backend.
+  primary_objective: Execute the same implementation contract through the Codex-only teams surface rather than through a lighter runtime path.
+  primary_outputs: The normal implementation lifecycle artifacts plus team-runtime state, worktrees, and leader-visible progress signals.
+  default_handoff: Continue coordinated implementation through the teams runtime; use cleanup or recovery only through the internal surfaces named below.
 ---
 
 # Codex Implement Teams
+
+{{spec-kit-include: ../command-partials/implement-teams/shell.md}}
 
 User-facing workflow skill:
 

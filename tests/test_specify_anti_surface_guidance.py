@@ -1,11 +1,13 @@
 from pathlib import Path
 
+from .template_utils import read_template
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _read(path: str) -> str:
-    return (PROJECT_ROOT / path).read_text(encoding="utf-8")
+    return read_template(path)
 
 
 def test_specify_template_blocks_surface_only_release_patterns() -> None:

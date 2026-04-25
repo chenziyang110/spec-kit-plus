@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+from .template_utils import read_template
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PRIMARY_TUI_TEMPLATE_PATHS = (
@@ -14,7 +16,7 @@ ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")
 
 
 def _read(path: str) -> str:
-    return (PROJECT_ROOT / path).read_text(encoding="utf-8")
+    return read_template(path)
 
 
 def _extract_step_6_strategy_block(content: str) -> str:
@@ -415,7 +417,9 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     content = _read("templates/commands/analyze.md")
     lowered = content.lower()
 
-    assert "description: Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, context.md, plan.md, and tasks.md after task generation, including boundary guardrail drift." in content
+    assert "description: Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution." in content
+    assert "## Workflow Contract Summary" in content
+    assert "This command does not edit files." in content
     assert "PROJECT-HANDBOOK.md" in content
     assert ".specify/project-map/status.json" in content
     assert ".specify/project-map/ARCHITECTURE.md" in content
@@ -722,7 +726,7 @@ def test_shared_workflow_templates_mark_hard_gates_with_agent_marker() -> None:
     }
 
     for name, path in paths.items():
-        content = path.read_text(encoding="utf-8")
+        content = read_template(path.as_posix())
         assert "[AGENT]" in content, f"{name} template missing [AGENT] marker"
 
 

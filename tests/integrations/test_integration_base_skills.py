@@ -262,6 +262,26 @@ class SkillsIntegrationTests:
         assert "dispatch exactly one delegated worker lane" in quick_content
         assert "sidecar-runtime" in quick_content
 
+    def test_question_driven_skills_define_native_tool_preference_with_fallback(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+        agent_name = i.config["name"].replace(" CLI", "").lower()
+
+        for name in ("specify", "spec-extend", "checklist", "quick"):
+            content = (i.skills_dest(tmp_path) / f"sp-{name}" / "SKILL.md").read_text(encoding="utf-8").lower()
+            assert f"## {agent_name} structured question preference" in content
+            assert "native structured question tool" in content
+            assert (
+                "template's existing textual question format" in content
+                or "existing plain-text" in content
+                or "shared open question block structure" in content
+                or "plain-text confirmation question" in content
+                or "textual question format" in content
+                or "plain-text clarification" in content
+            )
+            assert "active question exactly once" in content
+
     def test_all_files_tracked_in_manifest(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
@@ -358,6 +378,27 @@ class SkillsIntegrationTests:
                 f"--ai {self.KEY} did not install passive skill {skill_name}"
             )
 
+    def test_init_bootstraps_context_file(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / f"context-{self.KEY}"
+        project.mkdir()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = CliRunner().invoke(app, [
+                "init", "--here", "--ai", self.KEY, "--script", "sh", "--no-git",
+                "--ignore-agent-tools",
+            ], catch_exceptions=False)
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, f"init --ai {self.KEY} failed: {result.output}"
+        assert (project / self.CONTEXT_FILE).is_file(), (
+            f"--ai {self.KEY} did not create context file {self.CONTEXT_FILE}"
+        )
+
     def test_integration_flag_creates_files(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -446,6 +487,7 @@ class SkillsIntegrationTests:
             files.append(f"{skills_prefix}/sp-{cmd}/SKILL.md")
         for relative_file in self._passive_skill_files():
             files.append(f"{skills_prefix}/{relative_file}")
+        files.append(self.CONTEXT_FILE)
         # Integration metadata
         files += [
             ".specify/init-options.json",

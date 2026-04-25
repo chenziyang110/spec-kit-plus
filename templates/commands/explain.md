@@ -1,5 +1,10 @@
 ---
-description: Explain the current stage artifact in plain language with a structured terminal presentation.
+description: Use when the user needs the current stage artifact explained in plain language without changing the underlying spec, plan, or tasks.
+workflow_contract:
+  when_to_use: The user needs to understand the current planning-stage artifact before deciding whether to continue, revise, or proceed.
+  primary_objective: Translate the current stage artifact into plain language while staying faithful to what is actually on disk.
+  primary_outputs: A structured explanation only; do not rewrite stage artifacts unless another command explicitly requests it.
+  default_handoff: /sp-plan or /sp-tasks only after the user is satisfied with the current understanding and wants to advance.
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -12,13 +17,7 @@ scripts:
   ps: scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
+{{spec-kit-include: ../command-partials/explain/shell.md}}
 
 ## Outline
 

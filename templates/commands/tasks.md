@@ -1,5 +1,10 @@
 ---
-description: Generate an actionable, dependency-ordered tasks.md for the feature based on available design artifacts.
+description: Use when plan artifacts exist and execution needs dependency-aware tasks, guardrails, and parallelization guidance before implementation.
+workflow_contract:
+  when_to_use: Planning artifacts already exist and the remaining gap is concrete execution slicing rather than more design work.
+  primary_objective: Produce `tasks.md` with dependency ordering, guardrail carry-forward, execution batches, and join points.
+  primary_outputs: '`FEATURE_DIR/tasks.md` and the task decomposition metadata needed for later analysis and implementation.'
+  default_handoff: /sp-analyze for cross-artifact drift checks, then /sp-implement for execution.
 handoffs: 
   - label: Analyze For Consistency
     agent: sp.analyze
@@ -14,13 +19,7 @@ scripts:
   ps: scripts/powershell/check-prerequisites.ps1 -Json
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
+{{spec-kit-include: ../command-partials/tasks/shell.md}}
 
 ## Pre-Execution Checks
 

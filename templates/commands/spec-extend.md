@@ -1,5 +1,10 @@
 ---
-description: Re-open the current specification, deepen weak analysis, and update spec artifacts through targeted enhancement.
+description: Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.
+workflow_contract:
+  when_to_use: The current spec package exists, but planning-critical ambiguity or new evidence makes /sp-plan unreliable.
+  primary_objective: Strengthen the existing spec package without rerunning the entire `sp-specify` flow from scratch.
+  primary_outputs: Updated `spec.md`, `alignment.md`, `context.md`, and `references.md` inside the active `FEATURE_DIR`.
+  default_handoff: /sp-plan if the package becomes planning-ready; otherwise continue clarification or run another enhancement pass.
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -10,13 +15,7 @@ scripts:
   ps: scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
+{{spec-kit-include: ../command-partials/spec-extend/shell.md}}
 
 ## Outline
 
@@ -78,7 +77,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - whether the spec package is now ready for `/sp.plan` or still needs more clarification
    - whether another `/sp.specify` or `/sp.spec-extend` pass is still justified before planning
 
-## Output Contract
+## Presentation Contract
 
 When communicating findings and completion, use a structured terminal presentation built from open blocks with:
 

@@ -1,15 +1,16 @@
 ---
-description: Systematic and resumable bug investigation and fixing.
+description: Use when a bug, regression, failed verification, or unexpected runtime behavior needs a resumable investigation and fix workflow.
+workflow_contract:
+  when_to_use: A defect or failed verification needs structured root-cause investigation instead of ad hoc fixes.
+  primary_objective: Build a resumable debug session that gathers evidence, identifies root cause, applies a fix, and verifies the result.
+  primary_outputs: Debug-session state, evidence, verified fix artifacts when justified, and an honest blocked/resolved status.
+  default_handoff: Stay inside the debug session until resolved or blocked; route back to execution only after the defect contract is satisfied.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json
   ps: scripts/powershell/check-prerequisites.ps1 -Json
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
+{{spec-kit-include: ../command-partials/debug/shell.md}}
 
 ## Role
 You are the debug session leader. Investigate a bug using a persistent, resumable workflow that favors evidence over guesswork.

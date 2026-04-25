@@ -36,3 +36,36 @@ def test_gemini_runtime_commands_hard_gate_project_map_reads(tmp_path):
         assert "project-handbook.md" in content
         assert ".specify/project-map/*.md" in content
         assert "/sp-map-codebase" in content
+
+
+def test_gemini_question_driven_commands_prefer_ask_user_with_fallback(tmp_path):
+    runner = CliRunner()
+    target = tmp_path / "gemini-question-tool"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "gemini", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai gemini failed: {result.output}"
+
+    for rel in (
+        ".gemini/commands/sp.specify.toml",
+        ".gemini/commands/sp.spec-extend.toml",
+        ".gemini/commands/sp.checklist.toml",
+        ".gemini/commands/sp.quick.toml",
+    ):
+        content = (target / rel).read_text(encoding="utf-8")
+        lower = content.lower()
+        assert "ask_user" in content
+        assert "`choice`, `yesno`, and `text`" in content
+        assert "`header`" in content
+        assert "`type`" in content
+        assert "active question exactly once" in lower
+        assert (
+            "fall back to the" in lower
+            or "existing plain-text" in lower
+            or "plain-text confirmation question" in lower
+            or "textual question format" in lower
+            or "plain-text clarification" in lower
+        )

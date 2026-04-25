@@ -1,17 +1,17 @@
 ---
-description: Execute the implementation plan by processing and executing all tasks defined in tasks.md
+description: Use when tasks.md exists and the planned work should be executed through the tracked implementation workflow.
+workflow_contract:
+  when_to_use: '`tasks.md` is ready and the feature should move from planning into tracked execution batches.'
+  primary_objective: Execute the ready batches while preserving tracker state, delegated worker contracts, verification discipline, and resumability.
+  primary_outputs: Verified code, test, and documentation changes plus implementation-tracker and worker-result artifacts for the active feature.
+  default_handoff: Continue with the next ready batch, route blockers into /sp-debug, or report completion only when the implementation contract is actually satisfied.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
 ---
 
-## User Input
+{{spec-kit-include: ../command-partials/implement/shell.md}}
 
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
 Treat non-empty `$ARGUMENTS` as first-class implementation context for the current feature execution, not as disposable chat-only guidance.
 
 ## Leader Role

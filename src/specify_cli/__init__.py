@@ -1993,19 +1993,19 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
-    "specify": "Create or update the feature specification from a natural language feature description with shared collaboration routing.",
-    "spec-extend": "Re-open the current specification, deepen weak analysis, and update spec artifacts through targeted enhancement.",
-    "explain": "Explain the current stage artifact in plain language with a structured terminal presentation and conservative cross-check routing.",
-    "fast": "Execute a trivial task directly and skip the full specify-plan workflow when the work is small, local, and low risk.",
-    "quick": "Execute a small ad-hoc task through a lightweight planning and validation path without entering the full specify-plan workflow.",
-    "plan": "Execute the implementation planning workflow using the plan template to generate design artifacts with shared collaboration routing.",
-    "tasks": "Break down implementation plans into actionable task lists with shared collaboration routing and join-point-aware decomposition.",
-    "implement": "Execute all tasks from the task breakdown with unified strategy routing (single-agent, native-multi-agent, sidecar-runtime).",
-    "analyze": "Perform cross-artifact consistency analysis across spec.md, context.md, plan.md, and tasks.md, including boundary guardrail drift checks (BG1/BG2/BG3).",
-    "constitution": "Create or update project governing principles and development guidelines.",
-    "checklist": "Generate custom quality checklists for validating requirements completeness and clarity.",
-    "map-codebase": "Generate or refresh the handbook navigation system from the live codebase, including PROJECT-HANDBOOK.md and .specify/project-map/.",
-    "taskstoissues": "Convert tasks from tasks.md into GitHub issues.",
+    "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
+    "spec-extend": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
+    "explain": "Use when the user needs the current stage artifact explained in plain language without changing the underlying spec, plan, or tasks.",
+    "fast": "Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.",
+    "quick": "Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.",
+    "plan": "Use when the current specification package is ready for implementation planning and you need design artifacts before task breakdown or coding.",
+    "tasks": "Use when plan artifacts exist and execution needs dependency-aware tasks, guardrails, and parallelization guidance before implementation.",
+    "implement": "Use when tasks.md exists and the planned work should be executed through the tracked implementation workflow.",
+    "analyze": "Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution.",
+    "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
+    "checklist": "Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.",
+    "map-codebase": "Use when handbook/project-map coverage is missing, stale, or insufficient and you need to generate or refresh the codebase navigation system from live code.",
+    "taskstoissues": "Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.",
 }
 
 

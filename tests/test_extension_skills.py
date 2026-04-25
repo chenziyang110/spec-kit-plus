@@ -266,6 +266,8 @@ class TestBuiltInSkillGeneration:
             assert ".specify/memory/project-rules.md" in body
             assert ".specify/memory/project-learnings.md" in body
             assert ".planning/learnings/candidates.md" in body
+            assert "workflow contract summary" in body
+            assert "routing metadata only" in body
         assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
         assert "spec-extend" in result.output.lower()
 
@@ -410,28 +412,24 @@ class TestSkillDescriptions:
     """Built-in command descriptions should stay aligned with bundled templates."""
 
     def test_skill_descriptions_include_new_surfaces(self):
-        assert "feature specification" in SKILL_DESCRIPTIONS["specify"].lower()
-        assert "natural language" in SKILL_DESCRIPTIONS["specify"].lower()
-        assert "shared collaboration routing" in SKILL_DESCRIPTIONS["specify"].lower()
-        assert "current specification" in SKILL_DESCRIPTIONS["spec-extend"].lower()
-        assert "targeted enhancement" in SKILL_DESCRIPTIONS["spec-extend"].lower()
-        assert "current stage artifact" in SKILL_DESCRIPTIONS["explain"].lower()
+        for name, description in SKILL_DESCRIPTIONS.items():
+            assert description.startswith("Use when"), f"{name} description should be trigger-oriented"
+
+        assert "guided requirement discovery" in SKILL_DESCRIPTIONS["specify"].lower()
+        assert "planning-ready specification package" in SKILL_DESCRIPTIONS["specify"].lower()
+        assert "planning-critical gaps" in SKILL_DESCRIPTIONS["spec-extend"].lower()
         assert "plain language" in SKILL_DESCRIPTIONS["explain"].lower()
-        assert "conservative cross-check routing" in SKILL_DESCRIPTIONS["explain"].lower()
-        assert "implementation planning workflow" in SKILL_DESCRIPTIONS["plan"].lower()
-        assert "design artifacts" in SKILL_DESCRIPTIONS["plan"].lower()
-        assert "shared collaboration routing" in SKILL_DESCRIPTIONS["plan"].lower()
-        assert "shared collaboration routing" in SKILL_DESCRIPTIONS["tasks"].lower()
-        assert "join-point-aware" in SKILL_DESCRIPTIONS["tasks"].lower()
-        assert "context.md" in SKILL_DESCRIPTIONS["analyze"].lower()
-        assert "boundary guardrail drift" in SKILL_DESCRIPTIONS["analyze"].lower()
-        assert "bg1/bg2/bg3" in SKILL_DESCRIPTIONS["analyze"].lower()
-        assert "trivial task" in SKILL_DESCRIPTIONS["fast"].lower()
-        assert "skip the full specify-plan workflow" in SKILL_DESCRIPTIONS["fast"].lower()
-        assert "ad-hoc task" in SKILL_DESCRIPTIONS["quick"].lower()
-        assert "lightweight planning and validation path" in SKILL_DESCRIPTIONS["quick"].lower()
-        assert "handbook navigation system" in SKILL_DESCRIPTIONS["map-codebase"].lower()
-        assert "project-handbook.md" in SKILL_DESCRIPTIONS["map-codebase"].lower()
+        assert "implementation planning" in SKILL_DESCRIPTIONS["plan"].lower()
+        assert "dependency-aware tasks" in SKILL_DESCRIPTIONS["tasks"].lower()
+        assert "tracked implementation workflow" in SKILL_DESCRIPTIONS["implement"].lower()
+        assert "boundary-guardrail analysis" in SKILL_DESCRIPTIONS["analyze"].lower()
+        assert "development rules" in SKILL_DESCRIPTIONS["constitution"].lower()
+        assert "checklist" in SKILL_DESCRIPTIONS["checklist"].lower()
+        assert "truly trivial" in SKILL_DESCRIPTIONS["fast"].lower()
+        assert "lightweight tracked planning" in SKILL_DESCRIPTIONS["quick"].lower()
+        assert "handbook/project-map coverage" in SKILL_DESCRIPTIONS["map-codebase"].lower()
+        assert "github issues" in SKILL_DESCRIPTIONS["taskstoissues"].lower()
+
     def test_returns_none_when_no_init_options(self, project_dir):
         """Should return None when init-options.json is missing."""
         manager = ExtensionManager(project_dir)

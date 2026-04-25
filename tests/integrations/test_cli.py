@@ -533,15 +533,17 @@ class TestInitIntegrationFlag:
         assert isinstance(explain_fm["description"], str) and explain_fm["description"].strip()
         assert isinstance(map_codebase_fm["description"], str) and map_codebase_fm["description"].strip()
 
-        assert "feature specification" in specify_fm["description"].lower()
-        assert "natural language" in specify_fm["description"].lower()
-        assert "current specification" in spec_extend_fm["description"].lower()
-        assert "targeted enhancement" in spec_extend_fm["description"].lower()
-        assert "implementation planning workflow" in plan_fm["description"].lower()
-        assert "design artifacts" in plan_fm["description"].lower()
-        assert "current stage artifact" in explain_fm["description"].lower()
+        assert specify_fm["description"].startswith("Use when")
+        assert spec_extend_fm["description"].startswith("Use when")
+        assert plan_fm["description"].startswith("Use when")
+        assert explain_fm["description"].startswith("Use when")
+        assert map_codebase_fm["description"].startswith("Use when")
+        assert "guided requirement discovery" in specify_fm["description"].lower()
+        assert "planning-ready specification package" in specify_fm["description"].lower()
+        assert "planning-critical gaps" in spec_extend_fm["description"].lower()
+        assert "implementation planning" in plan_fm["description"].lower()
         assert "plain language" in explain_fm["description"].lower()
-        assert "handbook navigation system" in map_codebase_fm["description"].lower()
+        assert "handbook/project-map coverage" in map_codebase_fm["description"].lower()
         assert "spec-extend" in result.output.lower()
         assert "spec-extend" in result.output
         assert "explain" in result.output
@@ -924,7 +926,7 @@ def test_install_psmux_for_codex_teams_uses_exact_winget_id(monkeypatch):
 
     commands: list[list[str]] = []
 
-    def fake_run(cmd, capture_output, text, check):
+    def fake_run(cmd, capture_output, text, check, **kwargs):
         commands.append(cmd)
         return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
 

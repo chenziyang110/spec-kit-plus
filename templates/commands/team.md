@@ -1,8 +1,15 @@
 ---
-description: Use the Codex-only team/runtime surface from the official `specify` product entry point.
+description: Use when you need the Codex-only `specify team` runtime surface from the official product entry point.
+workflow_contract:
+  when_to_use: You need the official Codex team/runtime surface instead of an agent-specific alias or extension-internal command.
+  primary_objective: Route the operator to `specify team` and validate the supported runtime boundary.
+  primary_outputs: Runtime entrypoint guidance and environment validation only.
+  default_handoff: '`specify team` or the generated `sp-team` skill surface.'
 ---
 
 # Codex Team Runtime
+
+{{spec-kit-include: ../command-partials/team/shell.md}}
 
 Official product surface:
 

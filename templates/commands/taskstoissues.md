@@ -1,18 +1,17 @@
 ---
-description: Convert existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts.
+description: Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.
+workflow_contract:
+  when_to_use: The task plan is stable enough to project onto GitHub issues instead of staying only in `tasks.md`.
+  primary_objective: Convert the current task graph into actionable GitHub issues while preserving ordering and dependency intent.
+  primary_outputs: GitHub issues aligned with the current `tasks.md` structure and design artifact context.
+  default_handoff: Start implementation from the tracked issues or refresh the issue set after later task-plan changes.
 tools: ['github/github-mcp-server/issue_write']
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
+{{spec-kit-include: ../command-partials/taskstoissues/shell.md}}
 
 ## Outline
 

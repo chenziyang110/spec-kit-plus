@@ -135,6 +135,36 @@ class TestClaudeIntegration:
         assert init_options["ai_skills"] is True
         assert init_options["integration"] == "claude"
 
+    def test_init_bootstraps_context_file(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "claude-context"
+        project.mkdir()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert (project / "CLAUDE.md").is_file()
+
     def test_integration_flag_creates_skill_files(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -626,3 +656,33 @@ def test_claude_generated_skills_preserve_agent_required_marker_lines(tmp_path):
     for skill_name in ("sp-fast", "sp-quick", "sp-map-codebase", "sp-implement", "sp-specify", "sp-plan", "sp-tasks", "sp-debug"):
         content = (target / ".claude" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
         assert "[AGENT]" in content
+
+
+def test_claude_question_driven_skills_prefer_ask_user_question_with_fallback(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "claude-question-tool"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "claude", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai claude failed: {result.output}"
+
+    for skill_name in ("sp-specify", "sp-spec-extend", "sp-checklist", "sp-quick"):
+        content = (target / ".claude" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
+        lower = content.lower()
+        assert "AskUserQuestion" in content
+        assert "`question`" in content
+        assert "`header`" in content
+        assert "`multiSelect`" in content
+        assert "active question exactly once" in lower
+        assert (
+            "fall back to the" in lower
+            or "plain-text confirmation question" in lower
+            or "textual question format" in lower
+            or "plain-text clarification" in lower
+        )

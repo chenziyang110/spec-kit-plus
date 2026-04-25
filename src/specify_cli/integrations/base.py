@@ -86,6 +86,9 @@ class IntegrationBase(ABC):
     context_file: str | None = None
     """Relative path to the agent context file (e.g. ``CLAUDE.md``)."""
 
+    question_tool_config: dict[str, Any] | None = None
+    """Optional structured-question-tool metadata for the integration."""
+
     # -- Public API -------------------------------------------------------
 
     @classmethod
@@ -269,6 +272,105 @@ class IntegrationBase(ABC):
             created.append(dst_script)
 
         return created
+
+    def _question_tool_use_cases(self, command_name: str) -> list[str]:
+        use_cases = {
+            "specify": [
+                "planning-critical clarification",
+                "capability split confirmation",
+                "current-understanding confirmation before `Aligned: ready for plan`",
+            ],
+            "spec-extend": [
+                "high-impact gap confirmation",
+                "scope or constraint confirmation when enhancement changes planning readiness",
+            ],
+            "checklist": [
+                "initial contextual clarifying questions (`Q1`-`Q3`)",
+                "optional targeted follow-ups (`Q4`-`Q5`) when high-value gaps remain",
+            ],
+            "quick": [
+                "lightweight clarification when `--discuss` is active",
+                "resume selection when multiple unfinished quick tasks exist",
+            ],
+        }
+        return use_cases.get(command_name, [])
+
+    def _question_tool_fallback_hint(self, command_name: str) -> str:
+        fallback_hints = {
+            "specify": "If the native tool is unavailable or unsuitable, fall back to the shared open question block structure already defined in this template.",
+            "spec-extend": "If the native tool is unavailable or unsuitable, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
+            "checklist": "If the native tool is unavailable or unsuitable, keep the template's existing `Q1`/`Q2`/`Q3` (and optional `Q4`/`Q5`) textual question format.",
+            "quick": "If the native tool is unavailable or unsuitable, use the template's existing concise plain-text clarification or quick-task selection wording.",
+        }
+        return fallback_hints.get(
+            command_name,
+            "If the native tool is unavailable or unsuitable, fall back to the template's existing textual question format.",
+        )
+
+    def _append_question_tool_preference(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+        command_name: str,
+    ) -> str:
+        question_driven_commands = {"specify", "spec-extend", "checklist", "quick"}
+        if command_name not in question_driven_commands:
+            return content
+
+        marker = f"## {agent_name} Structured Question Preference"
+        if marker in content:
+            return content
+
+        config = self.question_tool_config or {}
+        tool_name = config.get("tool_name")
+        availability_note = config.get("availability_note")
+        question_limit = config.get("question_limit")
+        option_limit = config.get("option_limit")
+        question_fields = config.get("question_fields") or []
+        option_fields = config.get("option_fields") or []
+        extra_notes = config.get("extra_notes") or []
+
+        lines = [
+            "",
+            f"## {agent_name} Structured Question Preference",
+            "",
+            "- Prefer the runtime's native structured question tool for interactive clarification, confirmation, or bounded user selections whenever that tool is available.",
+            "- Ask only the minimum number of questions required by this workflow's existing contract.",
+            "- Keep the user-visible question text in the user's current language and keep option labels short.",
+            "- Do not emit both a native tool question and the textual fallback block in the same turn. The user should see the active question exactly once.",
+            f"- {self._question_tool_fallback_hint(command_name)}",
+        ]
+
+        use_cases = self._question_tool_use_cases(command_name)
+        if use_cases:
+            lines.append(f"- In `{command_name}`, use this preference for:")
+            for use_case in use_cases:
+                lines.append(f"  - {use_case}")
+
+        if tool_name:
+            tool_intro = f"- Native tool target: `{tool_name}`"
+            if availability_note:
+                tool_intro += f" {availability_note}"
+            lines.append(tool_intro)
+        if question_limit:
+            lines.append(f"- Question count: {question_limit}")
+        if option_limit:
+            lines.append(f"- Option count: {option_limit}")
+        if question_fields:
+            lines.append(
+                "- Required question fields: "
+                + ", ".join(f"`{field}`" for field in question_fields)
+            )
+        if option_fields:
+            lines.append(
+                "- Option fields: "
+                + ", ".join(f"`{field}`" for field in option_fields)
+            )
+        for note in extra_notes:
+            lines.append(f"- {note}")
+
+        return content + "\n".join(lines) + "\n"
 
     def _append_delegation_surface_contract(
         self,
@@ -601,23 +703,169 @@ class IntegrationBase(ABC):
         return content + addendum
 
     @staticmethod
+    def resolve_template_includes(
+        content: str,
+        base_dir: Path | None,
+        *,
+        _stack: tuple[Path, ...] = (),
+    ) -> str:
+        """Resolve narrow include directives inside shared prompt templates."""
+
+        if not isinstance(content, str) or not content or base_dir is None:
+            return content
+
+        include_pattern = re.compile(
+            r"(?m)^[ \t]*\{\{spec-kit-include:\s*(?P<path>[^}]+?)\s*\}\}[ \t]*(?:\r?\n)?"
+        )
+
+        def _replace(match: re.Match[str]) -> str:
+            rel_path = match.group("path").strip()
+            include_path = (base_dir / rel_path).resolve()
+
+            if include_path in _stack:
+                chain = " -> ".join(str(path) for path in (*_stack, include_path))
+                raise ValueError(f"Template include cycle detected: {chain}")
+            if not include_path.is_file():
+                raise FileNotFoundError(
+                    f"Template include not found: {include_path}"
+                )
+
+            included = include_path.read_text(encoding="utf-8")
+            return IntegrationBase.resolve_template_includes(
+                included,
+                include_path.parent,
+                _stack=(*_stack, include_path),
+            )
+
+        return include_pattern.sub(_replace, content)
+
+    @staticmethod
+    def _split_frontmatter(content: str) -> tuple[str, str]:
+        """Split YAML frontmatter from the remaining content.
+
+        Returns ``("", content)`` when no complete frontmatter block is
+        present. The body is preserved exactly as written so later
+        rendering stages keep their intended formatting.
+        """
+        if not content.startswith("---"):
+            return "", content
+
+        lines = content.splitlines(keepends=True)
+        if not lines or lines[0].rstrip("\r\n") != "---":
+            return "", content
+
+        frontmatter_end = -1
+        for i, line in enumerate(lines[1:], start=1):
+            if line.rstrip("\r\n") == "---":
+                frontmatter_end = i
+                break
+
+        if frontmatter_end == -1:
+            return "", content
+
+        frontmatter = "".join(lines[1:frontmatter_end])
+        body = "".join(lines[frontmatter_end + 1 :])
+        return frontmatter, body
+
+    @staticmethod
+    def _parse_frontmatter_mapping(frontmatter_text: str) -> dict[str, Any]:
+        """Parse YAML frontmatter into a mapping, returning ``{}`` on failure."""
+        import yaml
+
+        if not frontmatter_text:
+            return {}
+
+        try:
+            frontmatter = yaml.safe_load(frontmatter_text) or {}
+        except yaml.YAMLError:
+            return {}
+
+        if not isinstance(frontmatter, dict):
+            return {}
+
+        return frontmatter
+
+    @staticmethod
+    def _render_workflow_contract_summary(frontmatter: dict[str, Any]) -> str:
+        """Render the shared workflow contract summary from frontmatter."""
+        workflow_contract = frontmatter.get("workflow_contract")
+        if not isinstance(workflow_contract, dict):
+            return ""
+
+        fields = (
+            ("When to use", "when_to_use"),
+            ("Primary objective", "primary_objective"),
+            ("Primary outputs", "primary_outputs"),
+            ("Default handoff", "default_handoff"),
+        )
+
+        rendered_lines = ["## Workflow Contract Summary", ""]
+        for label, key in fields:
+            value = workflow_contract.get(key)
+            if not isinstance(value, str) or not value.strip():
+                return ""
+            rendered_lines.append(f"- **{label}**: {value.strip()}")
+
+        rendered_lines.append(
+            "- **Execution note**: This summary is routing metadata only. "
+            "Follow the full contract below end-to-end rather than inferring "
+            "behavior from the description alone."
+        )
+        return "\n".join(rendered_lines) + "\n\n"
+
+    @staticmethod
+    def render_template_content(
+        content: str,
+        template_path: Path | None = None,
+    ) -> str:
+        """Resolve shared template structure before agent-specific processing.
+
+        This expands ``{{spec-kit-include: ...}}`` directives and renders
+        the shared workflow-contract summary from frontmatter when present.
+        """
+        content = IntegrationBase.resolve_template_includes(
+            content,
+            template_path.parent if template_path is not None else None,
+        )
+
+        frontmatter_text, body = IntegrationBase._split_frontmatter(content)
+        if not frontmatter_text or "## Workflow Contract Summary" in body:
+            return content
+
+        summary = IntegrationBase._render_workflow_contract_summary(
+            IntegrationBase._parse_frontmatter_mapping(frontmatter_text)
+        )
+        if not summary:
+            return content
+
+        rendered_body = body.lstrip("\r\n")
+        return f"---\n{frontmatter_text}---\n\n{summary}{rendered_body}"
+
+    @staticmethod
     def process_template(
         content: str,
         agent_name: str,
         script_type: str,
         arg_placeholder: str = "$ARGUMENTS",
+        template_path: Path | None = None,
     ) -> str:
         """Process a raw command template into agent-ready content.
 
         Performs the same transformations as the release script:
-        1. Extract ``scripts.<script_type>`` value from YAML frontmatter
-        2. Replace ``{SCRIPT}`` with the extracted script command
-        3. Extract ``agent_scripts.<script_type>`` and replace ``{AGENT_SCRIPT}``
-        4. Strip ``scripts:`` and ``agent_scripts:`` sections from frontmatter
-        5. Replace ``{ARGS}`` with *arg_placeholder*
-        6. Replace ``__AGENT__`` with *agent_name*
-        7. Rewrite paths: ``scripts/`` → ``.specify/scripts/`` etc.
+        1. Resolve ``{{spec-kit-include: ...}}`` directives
+        2. Extract ``scripts.<script_type>`` value from YAML frontmatter
+        3. Replace ``{SCRIPT}`` with the extracted script command
+        4. Extract ``agent_scripts.<script_type>`` and replace ``{AGENT_SCRIPT}``
+        5. Strip ``scripts:`` and ``agent_scripts:`` sections from frontmatter
+        6. Replace ``{ARGS}`` with *arg_placeholder*
+        7. Replace ``__AGENT__`` with *agent_name*
+        8. Rewrite paths: ``scripts/`` → ``.specify/scripts/`` etc.
         """
+        content = IntegrationBase.render_template_content(
+            content,
+            template_path=template_path,
+        )
+
         # 1. Extract script command from frontmatter
         script_command = ""
         script_pattern = re.compile(
@@ -837,7 +1085,13 @@ class MarkdownIntegration(IntegrationBase):
 
         for src_file in templates:
             raw = src_file.read_text(encoding="utf-8")
-            processed = self.process_template(raw, self.key, script_type, arg_placeholder)
+            processed = self.process_template(
+                raw,
+                self.key,
+                script_type,
+                arg_placeholder,
+                template_path=src_file,
+            )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
             processed = self._append_runtime_project_map_gate(
                 content=processed,
@@ -883,6 +1137,11 @@ class MarkdownIntegration(IntegrationBase):
                     command_name=src_file.stem,
                     snapshot=runtime_snapshot,
                 )
+            processed = self._append_question_tool_preference(
+                content=processed,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=src_file.stem,
+            )
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(
                 processed, dest / dst_name, project_root, manifest
@@ -921,17 +1180,9 @@ class TomlIntegration(IntegrationBase):
         and ``>``) keep their YAML semantics instead of being treated as
         raw text.
         """
-        import yaml
-
-        frontmatter_text, _ = TomlIntegration._split_frontmatter(content)
-        if not frontmatter_text:
-            return ""
-        try:
-            frontmatter = yaml.safe_load(frontmatter_text) or {}
-        except yaml.YAMLError:
-            return ""
-
-        if not isinstance(frontmatter, dict):
+        frontmatter_text, _ = IntegrationBase._split_frontmatter(content)
+        frontmatter = IntegrationBase._parse_frontmatter_mapping(frontmatter_text)
+        if not frontmatter:
             return ""
 
         description = frontmatter.get("description", "")
@@ -947,25 +1198,7 @@ class TomlIntegration(IntegrationBase):
         present. The body is preserved exactly as written so prompt text
         keeps its intended formatting.
         """
-        if not content.startswith("---"):
-            return "", content
-
-        lines = content.splitlines(keepends=True)
-        if not lines or lines[0].rstrip("\r\n") != "---":
-            return "", content
-
-        frontmatter_end = -1
-        for i, line in enumerate(lines[1:], start=1):
-            if line.rstrip("\r\n") == "---":
-                frontmatter_end = i
-                break
-
-        if frontmatter_end == -1:
-            return "", content
-
-        frontmatter = "".join(lines[1:frontmatter_end])
-        body = "".join(lines[frontmatter_end + 1 :])
-        return frontmatter, body
+        return IntegrationBase._split_frontmatter(content)
 
     @staticmethod
     def _render_toml_string(value: str) -> str:
@@ -1048,7 +1281,13 @@ class TomlIntegration(IntegrationBase):
         for src_file in templates:
             raw = src_file.read_text(encoding="utf-8")
             description = self._extract_description(raw)
-            processed = self.process_template(raw, self.key, script_type, arg_placeholder)
+            processed = self.process_template(
+                raw,
+                self.key,
+                script_type,
+                arg_placeholder,
+                template_path=src_file,
+            )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
             processed = self._append_runtime_project_map_gate(
                 content=processed,
@@ -1094,6 +1333,11 @@ class TomlIntegration(IntegrationBase):
                     command_name=src_file.stem,
                     snapshot=runtime_snapshot,
                 )
+            processed = self._append_question_tool_preference(
+                content=processed,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=src_file.stem,
+            )
             _, body = self._split_frontmatter(processed)
             toml_content = self._render_toml(description, body)
             dst_name = self.command_filename(src_file.stem)
@@ -1175,19 +1419,8 @@ class SkillsIntegration(IntegrationBase):
     @staticmethod
     def _parse_skill_frontmatter(raw: str) -> dict[str, Any]:
         """Parse YAML frontmatter from a skill template."""
-        import yaml
-
-        frontmatter: dict[str, Any] = {}
-        if raw.startswith("---"):
-            parts = raw.split("---", 2)
-            if len(parts) >= 3:
-                try:
-                    fm = yaml.safe_load(parts[1])
-                    if isinstance(fm, dict):
-                        frontmatter = fm
-                except yaml.YAMLError:
-                    pass
-        return frontmatter
+        frontmatter_text, _ = IntegrationBase._split_frontmatter(raw)
+        return IntegrationBase._parse_frontmatter_mapping(frontmatter_text)
 
     @staticmethod
     def _quote_skill_value(value: str) -> str:
@@ -1203,10 +1436,15 @@ class SkillsIntegration(IntegrationBase):
         source: str,
         script_type: str,
         arg_placeholder: str,
+        template_path: Path | None = None,
     ) -> str:
         """Render a command or passive skill template into normalized ``SKILL.md``."""
         processed_body = self.process_template(
-            raw, self.key, script_type, arg_placeholder
+            raw,
+            self.key,
+            script_type,
+            arg_placeholder,
+            template_path=template_path,
         )
         if processed_body.startswith("---"):
             parts = processed_body.split("---", 2)
@@ -1322,6 +1560,7 @@ class SkillsIntegration(IntegrationBase):
                 source=f"templates/commands/{src_file.name}",
                 script_type=script_type,
                 arg_placeholder=arg_placeholder,
+                template_path=src_file,
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
             if command_name == "implement":
@@ -1363,6 +1602,11 @@ class SkillsIntegration(IntegrationBase):
                     command_name=command_name,
                     snapshot=runtime_snapshot,
                 )
+            skill_content = self._append_question_tool_preference(
+                content=skill_content,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=command_name,
+            )
 
             # Write sp-<name>/SKILL.md
             skill_dir = skills_dir / skill_name
@@ -1387,6 +1631,7 @@ class SkillsIntegration(IntegrationBase):
                 source=f"templates/passive-skills/{skill_name}/SKILL.md",
                 script_type=script_type,
                 arg_placeholder=arg_placeholder,
+                template_path=template_dir / "SKILL.md",
             )
             skill_dir = skills_dir / skill_name
             skill_file = skill_dir / "SKILL.md"

@@ -1,19 +1,13 @@
 ---
-description: Analyze the current codebase and generate or refresh the handbook navigation system.
+description: Use when handbook/project-map coverage is missing, stale, or insufficient and you need to generate or refresh the codebase navigation system from live code.
+workflow_contract:
+  when_to_use: A workflow needs reliable handbook/project-map coverage and the current navigation artifacts are missing, stale, or too weak for the touched area.
+  primary_objective: Generate or refresh the canonical navigation artifact set directly from the live repository.
+  primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json`.'
+  default_handoff: Return to the blocked workflow that required fresh navigation coverage.
 ---
 
-## User Input
-
-```text
-$ARGUMENTS
-```
-
-You **MUST** consider the user input before proceeding (if not empty).
-
-## Objective
-
-Generate or refresh the canonical handbook/project-map navigation system for
-the current codebase.
+{{spec-kit-include: ../command-partials/map-codebase/shell.md}}
 
 This workflow is the explicit brownfield mapping entrypoint. When another
 workflow needs fresh navigation coverage, it should run `/sp-map-codebase`
@@ -29,6 +23,12 @@ technical asset for onboarding, architecture review, technical-debt assessment,
 and refactor planning. Analyze both macro architecture and micro
 implementation-level details; do not stop at repository shape or shallow
 navigation summaries.
+
+## Context
+
+- Primary inputs: the live codebase, any existing handbook/project-map artifacts, passive learning files, and optional focus hints from `$ARGUMENTS`.
+- This command owns the canonical navigation outputs; it must not create an alternate mapping tree.
+- The resulting map should make later `sp-*` workflows safer by replacing guesswork with current repository evidence.
 
 ## Passive Project Learning Layer
 
@@ -106,6 +106,19 @@ Rules:
   in `PROJECT-HANDBOOK.md` plus `.specify/project-map/*.md`.
 - do not create `.planning/codebase/`, a second mapping tree, or any alternate
   source-of-truth document.
+
+## Process
+
+- Recover the current handbook/project-map baseline if one exists.
+- Scout the live repository deeply enough to refresh ownership, contracts, workflows, integrations, testing, and operations coverage.
+- Synthesize that evidence back into the canonical handbook/project-map outputs.
+- Update map freshness metadata before handing control back to the blocked workflow.
+
+## Guardrails
+
+- Do not create alternate mapping outputs or a second source of truth.
+- Do not collapse high-value technical detail into vague summaries.
+- Do not claim sufficient coverage for an area when the map still lacks ownership, propagation, verification, or known-unknown framing.
 
 ## Outline
 

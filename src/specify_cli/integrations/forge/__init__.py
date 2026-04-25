@@ -82,7 +82,13 @@ class ForgeIntegration(MarkdownIntegration):
         for src_file in templates:
             raw = src_file.read_text(encoding="utf-8")
             # Process template with standard MarkdownIntegration logic
-            processed = self.process_template(raw, self.key, script_type, arg_placeholder)
+            processed = self.process_template(
+                raw,
+                self.key,
+                script_type,
+                arg_placeholder,
+                template_path=src_file,
+            )
 
             # FORGE-SPECIFIC: Ensure any remaining $ARGUMENTS placeholders are
             # converted to {{parameters}}
