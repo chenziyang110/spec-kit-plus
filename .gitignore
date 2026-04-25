@@ -61,3 +61,4 @@ docs/dev
 # Codex team runtime state
 .specify/codex-team/state/
 .specify/codex-team/worktrees/
+.worktrees/
