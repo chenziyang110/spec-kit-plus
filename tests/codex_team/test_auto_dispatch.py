@@ -635,7 +635,7 @@ def test_route_ready_parallel_batch_uses_agent_teams_batch_executor_when_availab
     assert result.batch_name == "Parallel Batch 1.1"
     assert len(launched) == 1
     assert launched[0]["batch_id"] == "default-parallel-batch-1-1"
-    assert launched[0]["runtime_cli_path"] == str(Path("extensions/agent-teams/engine/dist/team/runtime-cli.js").resolve())
+    assert launched[0]["runtime_cli_path"] == str(runtime_cli)
     assert [task["task_id"] for task in launched[0]["task_specs"]] == ["T002", "T003"]
 
 

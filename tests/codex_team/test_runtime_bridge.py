@@ -16,6 +16,7 @@ from specify_cli.codex_team.runtime_bridge import (
 from specify_cli.codex_team.state_paths import dispatch_record_path, result_record_path
 from specify_cli.execution import worker_task_result_payload
 from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
+from specify_cli.codex_team import task_ops
 
 
 def test_ensure_tmux_available_raises_when_tmux_missing(monkeypatch):
@@ -110,8 +111,14 @@ def test_runtime_bridge_accepts_windows_runtime_exe(tmp_path: Path):
 
 
 def test_runtime_status_reports_codex_availability(monkeypatch, codex_team_project_root: Path):
+    runtime_cli = codex_team_project_root / "fake-runtime-cli.js"
+    runtime_cli.write_text("// fake runtime cli\n", encoding="utf-8")
+    monkeypatch.setenv("SPECIFY_CODEX_TEAM_RUNTIME_CLI", str(runtime_cli))
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
-    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+    monkeypatch.setattr(
+        "specify_cli.codex_team.runtime_bridge.shutil.which",
+        lambda name: r"C:\tool.exe" if name in {"tmux", "node"} else None,
+    )
 
     status = codex_team_runtime_status(codex_team_project_root, integration_key="codex")
 
@@ -315,3 +322,148 @@ def test_submit_runtime_result_normalizes_done_with_concerns_payload(monkeypatch
     )
 
     assert record.status == "completed"
+
+
+def test_submit_runtime_result_updates_task_record_and_clears_claim(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    created = task_ops.create_task(codex_team_project_root, task_id="T301", summary="Implement thing")
+    token = task_ops.claim_task(
+        codex_team_project_root,
+        task_id="T301",
+        worker_id="worker-301",
+        expected_version=created.version,
+    )
+    in_progress = task_ops.transition_task_status(
+        codex_team_project_root,
+        task_id="T301",
+        new_status="in_progress",
+        owner="worker-301",
+        expected_version=created.version + 1,
+        claim_token=token,
+    )
+
+    bootstrap_runtime_session(codex_team_project_root, "task-result-session")
+    packet_path = codex_team_project_root / ".specify" / "codex-team" / "state" / "packets" / "req-task-result.json"
+    packet_path.parent.mkdir(parents=True, exist_ok=True)
+    packet_path.write_text(
+        """
+{
+  "feature_id": "001-feature",
+  "task_id": "T301",
+  "story_id": "US1",
+  "objective": "Implement thing",
+  "scope": {"write_scope": ["src/app.py"], "read_scope": ["src/contracts.py"]},
+  "required_references": [{"path": "src/contracts.py", "reason": "preserve contract"}],
+  "hard_rules": ["do not drift"],
+  "forbidden_drift": ["no parallel stack"],
+  "validation_gates": ["pytest -q"],
+  "done_criteria": ["works"],
+  "handoff_requirements": ["return changed files"],
+  "dispatch_policy": {"mode": "hard_fail", "must_acknowledge_rules": true},
+  "packet_version": 1
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    dispatch_runtime_task(
+        codex_team_project_root,
+        session_id="task-result-session",
+        request_id="req-task-result",
+        target_worker="worker-301",
+        packet_path=str(packet_path),
+        delegation_metadata={"structured_results_expected": True},
+    )
+
+    record = submit_runtime_result(
+        codex_team_project_root,
+        session_id="task-result-session",
+        request_id="req-task-result",
+        result={
+            "taskId": "T301",
+            "status": "DONE_WITH_CONCERNS",
+            "files_changed": ["src/app.py"],
+            "message": "done with concerns",
+            "issues": ["follow-up cleanup remains"],
+            "validationResults": [
+                {"command": "pytest -q", "status": "passed", "output": "1 passed"}
+            ],
+            "ruleAcknowledgement": {
+                "required_references_read": True,
+                "forbidden_drift_respected": True,
+            },
+        },
+    )
+
+    assert record.status == "completed"
+    task_record = task_ops.get_task(codex_team_project_root, "T301")
+    assert task_record.status == "completed"
+    assert task_record.metadata.get("current_claim") is None
+    assert task_record.metadata["result_request_id"] == "req-task-result"
+    assert task_record.metadata["reported_status"] == "done_with_concerns"
+    assert task_record.metadata["concerns_present"] is True
+    assert task_record.version > in_progress.version
+
+
+def test_submit_runtime_result_rejects_repeat_submission(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    bootstrap_runtime_session(codex_team_project_root, "dup-session")
+    packet_path = codex_team_project_root / ".specify" / "codex-team" / "state" / "packets" / "req-dup.json"
+    packet_path.parent.mkdir(parents=True, exist_ok=True)
+    packet_path.write_text(
+        """
+{
+  "feature_id": "001-feature",
+  "task_id": "T401",
+  "story_id": "US1",
+  "objective": "Implement thing",
+  "scope": {"write_scope": ["src/app.py"], "read_scope": ["src/contracts.py"]},
+  "required_references": [{"path": "src/contracts.py", "reason": "preserve contract"}],
+  "hard_rules": ["do not drift"],
+  "forbidden_drift": ["no parallel stack"],
+  "validation_gates": ["pytest -q"],
+  "done_criteria": ["works"],
+  "handoff_requirements": ["return changed files"],
+  "dispatch_policy": {"mode": "hard_fail", "must_acknowledge_rules": true},
+  "packet_version": 1
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    dispatch_runtime_task(
+        codex_team_project_root,
+        session_id="dup-session",
+        request_id="req-dup",
+        target_worker="worker-dup",
+        packet_path=str(packet_path),
+        delegation_metadata={"structured_results_expected": True},
+    )
+
+    first = WorkerTaskResult(
+        task_id="T401",
+        status="success",
+        changed_files=["src/app.py"],
+        validation_results=[ValidationResult(command="pytest -q", status="passed", output="1 passed")],
+        summary="done",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+        ),
+    )
+    submit_runtime_result(
+        codex_team_project_root,
+        session_id="dup-session",
+        request_id="req-dup",
+        result=first,
+    )
+
+    with pytest.raises(RuntimeEnvironmentError, match="already has a terminal result"):
+        submit_runtime_result(
+            codex_team_project_root,
+            session_id="dup-session",
+            request_id="req-dup",
+            result=first,
+        )

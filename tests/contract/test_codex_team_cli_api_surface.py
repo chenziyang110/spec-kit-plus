@@ -89,7 +89,11 @@ def _seed_runtime_dispatch(project: Path, *, request_id: str = "req-submit", ses
 
 def test_api_status_returns_json(tmp_path: Path):
     project = _create_codex_project(tmp_path)
-    result = _invoke_in_project(project, ["team", "api", "status"])
+    runtime_cli = project / "fake-runtime-cli.js"
+    runtime_cli.write_text("// fake runtime cli\n", encoding="utf-8")
+    env = os.environ.copy()
+    env["SPECIFY_CODEX_TEAM_RUNTIME_CLI"] = str(runtime_cli)
+    result = _invoke_in_project(project, ["team", "api", "status"], env=env)
     assert result.exit_code == 0, result.output
     envelope = json.loads(result.output.strip())
     assert envelope["operation"] == "status"
@@ -235,3 +239,69 @@ def test_team_submit_result_command_normalizes_done_with_concerns_payload(tmp_pa
     assert result.exit_code == 0, result.output
     stored = json.loads(dispatch_record_path(project, "req-alias").read_text(encoding="utf-8"))
     assert stored["status"] == "completed"
+
+
+def test_team_result_template_command_prints_canonical_payload(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    _seed_runtime_dispatch(project, request_id="req-template")
+
+    result = _invoke_in_project(
+        project,
+        ["team", "result-template", "--request-id", "req-template"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["task_id"] == "T001"
+    assert payload["validation_results"][0]["command"] == "pytest -q"
+
+
+def test_team_submit_result_print_schema_outputs_shape_hint(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+
+    result = _invoke_in_project(
+        project,
+        ["team", "submit-result", "--print-schema"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "required_fields" in result.output
+    assert "task_id" in result.output
+    assert "validation_results" in result.output
+
+
+def test_team_submit_result_reports_bom_payload_actionably(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    _seed_runtime_dispatch(project, request_id="req-bom")
+
+    result_file = project / "bom-result.json"
+    result_file.write_text("\ufeff{}", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["team", "submit-result", "--request-id", "req-bom", "--result-file", str(result_file)],
+    )
+
+    assert result.exit_code != 0
+    lowered = result.output.lower()
+    assert "utf-8 bom" in lowered
+    assert "result-template" in lowered
+
+
+def test_team_submit_result_reports_missing_required_fields_actionably(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    _seed_runtime_dispatch(project, request_id="req-missing-fields")
+
+    result_file = project / "missing-result.json"
+    result_file.write_text(json.dumps({"summary": "oops"}, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["team", "submit-result", "--request-id", "req-missing-fields", "--result-file", str(result_file)],
+    )
+
+    assert result.exit_code != 0
+    lowered = result.output.lower()
+    assert "missing required fields" in lowered
+    assert "task_id" in lowered
+    assert "status" in lowered

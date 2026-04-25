@@ -44,8 +44,12 @@ Use this when:
 7. On Windows, require the same native shell to resolve `psmux`, `codex`, `node`, `npm`, `cargo`, and `git`.
 8. Route durable execution through `specify team` and its runtime/API surfaces.
 9. Preserve the shared `sp-implement` contract: tracker continuity, validated `WorkerTaskPacket`s, explicit join points, and structured result handoff discipline.
-10. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
-11. If the user only wants to inspect the Codex runtime surface before implementing, redirect them to `specify team` or `$sp-team`.
+10. Use `specify team result-template --request-id <id>` or `specify team submit-result --print-schema` for structured result handoff instead of ad hoc JSON guessing.
+11. Treat a blocked baseline build as a pre-dispatch runtime concern; do not mix existing repo compile debt into the current batch verdict.
+12. After worker execution, use `specify team sync-back` when leader-visible results need to be promoted from worker worktrees back into the active workspace.
+13. Distinguish lane-local completion from repo-global verification: `DONE_WITH_CONCERNS` means the lane finished with follow-up concerns, while repo-wide failure may still be caused by baseline debt.
+14. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
+15. If the user only wants to inspect the Codex runtime surface before implementing, redirect them to `specify team` or `$sp-team`.
 
 ## Output Expectations
 
@@ -58,3 +62,6 @@ Successful runs should leave the user with:
 5. executor diagnostics and latest transcript evidence available through `specify team doctor`
 6. a repeatable minimal runtime acceptance check available through `specify team live-probe`
 7. implementation framed as "teams execution" through the official `specify team` runtime rather than extension internals
+8. a formal structured result template via `specify team result-template`
+9. an official sync-back path when worker worktrees and the main workspace diverge
+10. batch outcome visibility that distinguishes lane-local completion from repo-global verification blockers

@@ -25,6 +25,7 @@ from specify_cli.codex_team.runtime_bridge import (
     ensure_codex_team_executor_available,
     ensure_codex_team_runtime_prerequisites,
 )
+from specify_cli.codex_team.baseline_check import classify_baseline_build_status
 from specify_cli.codex_team.runtime_state import batch_record_payload
 from specify_cli.codex_team.session_ops import bootstrap_session, monitor_summary
 from specify_cli.codex_team.worktree_ops import worker_worktree_path
@@ -803,6 +804,12 @@ def route_ready_parallel_batch(
         executor = ensure_codex_team_executor_available(project_root)
     except RuntimeError as exc:  # RuntimeEnvironmentError subclass
         raise AutoDispatchUnavailableError(str(exc)) from exc
+    baseline_build = classify_baseline_build_status(project_root)
+    if baseline_build["status"] == "blocked":
+        raise AutoDispatchUnavailableError(
+            f"Baseline build is blocked: {baseline_build['reason'] or 'unknown baseline failure'}. "
+            "Resolve the baseline blocker or refresh the cached baseline assessment before auto-dispatch."
+        )
 
     batch = materialize_runtime_batch(feature_dir)
 
