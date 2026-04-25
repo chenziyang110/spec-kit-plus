@@ -417,6 +417,10 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "DP2" in analyze_content
     assert "DP3" in analyze_content
     assert "Boundary Guardrail Table" in analyze_content
+    assert "Closed-loop requirement" in analyze_content
+    assert "Recommended Re-entry" in analyze_content
+    assert "If the highest-impact issue lives in `spec.md` or `context.md`" in analyze_content
+    assert "If analysis runs after `/sp-implement` has already started or finished" in analyze_content
 
 
 def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_path):

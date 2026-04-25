@@ -63,7 +63,7 @@ Use `/speckit.spec-extend` only when an existing spec needs deeper analysis befo
 /speckit.tasks
 ```
 
-Optionally, validate the plan with `/speckit.analyze`:
+Optionally, validate the plan with `/speckit.analyze`. If it flags upstream issues, resolve them through the re-entry path below before proceeding:
 
 ```markdown
 /speckit.analyze
@@ -103,7 +103,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `/speckit.constitution`, `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`
-- **Support skills**: `/speckit.map-codebase`, `/speckit.spec-extend`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.explain`
+- **Support skills**: `/speckit.map-codebase`, `/speckit.spec-extend`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.debug`, `/speckit.explain`
 - **Codex-only runtime**: `specify team` and `sp-team` when the project was initialized for Codex
 
 Generated project navigation now follows the handbook system:
@@ -120,6 +120,8 @@ Use support skills when they solve a specific gap:
 - `/speckit.spec-extend` when an existing spec still needs deeper analysis before planning
 - `/speckit.checklist` when you want to audit requirement quality after planning
 - `/speckit.analyze` when you want a cross-artifact consistency check before implementation
+- `/speckit.debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
+- When you run `/speckit.analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `/speckit.analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
 - `/speckit.analyze` should also flag delegated packet failures through `DP1`, `DP2`, and `DP3` when worker packets or worker results lose required rule-carrying evidence
 - `/speckit.explain` when you want the current spec, plan, or tasks state restated in plain language
@@ -220,6 +222,14 @@ Have your AI agent audit the implementation plan using `/speckit.analyze`:
 ```bash
 /speckit.analyze
 ```
+
+If `/speckit.analyze` finds issues, do not treat the report as informational only:
+
+- If the problem is in `spec.md` or `context.md`, return to `/speckit.spec-extend`, then rerun `/speckit.plan`, `/speckit.tasks`, and `/speckit.analyze`.
+- If the problem is in `plan.md`, return to `/speckit.plan`, then rerun `/speckit.tasks` and `/speckit.analyze`.
+- If the problem is only in `tasks.md`, rerun `/speckit.tasks`, then `/speckit.analyze`.
+- If the problem is execution-only with no upstream artifact drift, continue in `/speckit.implement` or route into `/speckit.debug`.
+- If analysis happens after implementation has already started or finished, treat the current implementation as provisional until the highest invalid stage has been repaired and downstream artifacts have been regenerated.
 
 Finally, implement the solution:
 

@@ -136,7 +136,7 @@ specify -> plan
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- Support skills: `map-codebase`, `test`, `spec-extend`, `checklist`, `analyze`, `explain`
+- Support skills: `map-codebase`, `test`, `spec-extend`, `checklist`, `analyze`, `debug`, `explain`
 - Codex-only runtime: `specify team` and `sp-team`
 
 Optional follow-up commands:
@@ -146,7 +146,9 @@ Optional follow-up commands:
 - `spec-extend` to deepen an existing spec before planning when analysis, references, or gaps need more work
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
 - `analyze` to perform a cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md`
+- `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
 - `explain` to describe the current spec, plan, task, or implement artifact in plain language
+- when you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing worker validation evidence)
 
@@ -191,6 +193,14 @@ After planning, continue with:
 ```text
 tasks -> implement
 ```
+
+Closed-loop remediation after `analyze`:
+
+- If the defect is in `spec.md` or `context.md`, go back to `spec-extend`, then rerun `plan`, `tasks`, and `analyze` before resuming `implement`.
+- If the defect is in `plan.md`, go back to `plan`, then rerun `tasks` and `analyze` before resuming `implement`.
+- If the defect is only in `tasks.md`, rerun `tasks`, then `analyze`, then resume `implement`.
+- If the defect is execution-only with no upstream artifact drift, continue in `implement` or route into `debug`.
+- If `analyze` is run after `implement` has already started or finished, treat the current implementation as provisional until the highest invalid stage has been repaired and downstream artifacts have been regenerated.
 
 Boundary-sensitive implementation rule:
 

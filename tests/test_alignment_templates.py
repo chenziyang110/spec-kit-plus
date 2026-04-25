@@ -420,6 +420,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "description: Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution." in content
     assert "## Workflow Contract Summary" in content
     assert "This command does not edit files." in content
+    assert "before, during, or after implementation revalidation" in lowered
     assert "PROJECT-HANDBOOK.md" in content
     assert ".specify/project-map/status.json" in content
     assert ".specify/project-map/ARCHITECTURE.md" in content
@@ -468,6 +469,15 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "recommend `/sp.plan` to add `Implementation Constitution`" in content
     assert "If `BG2` exists" in content
     assert "If `BG3` exists" in content
+    assert "Closed-loop requirement" in content
+    assert "Recommended Next Command" in content
+    assert "### 9. Define Workflow Re-entry" in content
+    assert "Recommended Re-entry" in content
+    assert "If the highest-impact issue lives in `spec.md` or `context.md`" in content
+    assert "If the highest-impact issue lives in `plan.md`" in content
+    assert "If the highest-impact issue lives only in `tasks.md`" in content
+    assert "If analysis runs after `/sp-implement` has already started or finished" in content
+    assert "exact workflow re-entry path" in content
 
 
 def test_debug_template_reads_constitution_and_feature_context_before_fixing() -> None:

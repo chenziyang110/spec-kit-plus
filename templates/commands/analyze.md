@@ -1,10 +1,10 @@
 ---
 description: Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution.
 workflow_contract:
-  when_to_use: '`tasks.md` is available and you need a read-only analysis pass before trusting the current artifact set for execution.'
+  when_to_use: '`tasks.md` is available and you need a read-only analysis pass before, during, or after implementation revalidation.'
   primary_objective: 'Identify inconsistencies, ambiguities, drift, and boundary-guardrail gaps across `spec.md`, `context.md`, `plan.md`, and `tasks.md`.'
   primary_outputs: A structured analysis report only. This command does not edit files.
-  default_handoff: Route into `/sp-spec-extend`, `/sp-plan`, `/sp-tasks`, or `/sp-implement` based on the findings instead of silently patching artifacts.
+  default_handoff: Route into `/sp-spec-extend`, `/sp-plan`, `/sp-tasks`, `/sp-debug`, or `/sp-implement` based on the findings; if analysis runs after implementation has started or finished, reopen the highest invalid stage and regenerate downstream artifacts before continuing.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
@@ -14,11 +14,13 @@ scripts:
 
 ## Goal
 
-Identify inconsistencies, duplications, ambiguities, and underspecified items across the core planning artifacts (`spec.md`, `context.md`, `plan.md`, `tasks.md`) before implementation. This command MUST run only after `/sp.tasks` has successfully produced a complete `tasks.md`.
+Identify inconsistencies, duplications, ambiguities, and underspecified items across the core planning artifacts (`spec.md`, `context.md`, `plan.md`, `tasks.md`) before implementation, during execution, or after implementation when revalidation is needed. This command MUST run only after `/sp.tasks` has successfully produced a complete `tasks.md`.
 
 ## Operating Constraints
 
 **STRICTLY READ-ONLY**: Do **not** modify any files. Output a structured analysis report. Offer an optional remediation plan (user must explicitly approve before any follow-up editing commands would be invoked manually).
+
+**Closed-loop requirement**: Do not present findings as a dead-end audit. The report MUST tell the user which workflow stage to reopen, which downstream artifacts must be regenerated, and whether `/sp.implement` may continue immediately or must pause until upstream remediation is complete.
 
 **Constitution Authority**: The project constitution (`.specify/memory/constitution.md`) is **non-negotiable** within this analysis scope. Constitution conflicts are automatically CRITICAL and require adjustment of the spec, plan, or tasks—not dilution, reinterpretation, or silent ignoring of the principle. If a principle itself needs to change, that must occur in a separate, explicit constitution update outside `/sp.analyze`.
 
@@ -239,11 +241,22 @@ At end of report, output a concise Next Actions block:
 - If a `Boundary Guardrail Gap` exists: explicitly recommend `/sp.plan` to add `Implementation Constitution`, then `/sp.tasks` if task guardrails must be regenerated
 - If `BG2` exists: explicitly recommend regenerating or editing `tasks.md` before implementation starts
 - If `BG3` exists: explicitly recommend updating implementation guidance before `/sp.implement` continues
+- Always include one explicit `Recommended Next Command` and, when upstream remediation is required, list the downstream commands that must be rerun before implementation can resume
 - Provide explicit command suggestions: e.g., "Run /sp.specify with refinement", "Run /sp.plan to adjust architecture", "Manually edit tasks.md to add coverage for 'performance-metrics'"
 
-### 9. Offer Remediation
+### 9. Define Workflow Re-entry
 
-Ask the user: "Would you like me to suggest concrete remediation edits for the top N issues?" (Do NOT apply them automatically.)
+After `Next Actions`, output a short `Recommended Re-entry` block that names the highest workflow stage that must be reopened and the minimum downstream regeneration path. Use this routing table:
+
+- If the highest-impact issue lives in `spec.md` or `context.md`: route to `/sp-spec-extend` (or a targeted manual spec/context edit), then `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
+- If the highest-impact issue lives in `plan.md`: route to `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
+- If the highest-impact issue lives only in `tasks.md`: route to `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
+- If the issues are limited to execution evidence, worker packets, runtime handoff state, or implementation-only verification gaps with no upstream artifact drift: route to `/sp-implement` or `/sp-debug` as appropriate
+- If analysis runs after `/sp-implement` has already started or finished, do not frame findings as informational only. Reopen the highest invalid stage, regenerate downstream artifacts, and treat the current implementation output as provisional until the re-entry path has been completed
+
+### 10. Offer Remediation
+
+Ask the user: "Would you like me to draft concrete remediation edits and the exact workflow re-entry path for the top N issues?" (Do NOT apply them automatically.)
 
 ## Operating Principles
 

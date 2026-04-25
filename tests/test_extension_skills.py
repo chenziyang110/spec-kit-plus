@@ -389,6 +389,11 @@ class TestBuiltInSkillGeneration:
         assert "Boundary Guardrail Table" in analyze_body
         assert "Boundary Guardrail Gap Count" in analyze_body
         assert "If a `Boundary Guardrail Gap` exists" in analyze_body
+        assert "Closed-loop requirement" in analyze_body
+        assert "Recommended Re-entry" in analyze_body
+        assert "If the highest-impact issue lives in `spec.md` or `context.md`" in analyze_body
+        assert "If analysis runs after `/sp-implement` has already started or finished" in analyze_body
+        assert "exact workflow re-entry path" in analyze_body
 
         map_body = _body_without_frontmatter(skills_dir / "sp-map-codebase" / "SKILL.md")
         assert "PROJECT-HANDBOOK.md" in map_body

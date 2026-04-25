@@ -34,6 +34,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "`spec-extend`" in readme
     assert "`checklist`" in readme
     assert "`analyze`" in readme
+    assert "`debug`" in readme
     assert "`explain`" in readme
     assert "`map-codebase`" in readme
     assert "`specify team`" in readme
@@ -44,6 +45,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "/speckit.spec-extend" in quickstart
     assert "/speckit.checklist" in quickstart
     assert "/speckit.analyze" in quickstart
+    assert "/speckit.debug" in quickstart
     assert "/speckit.map-codebase" in quickstart
 
 
@@ -136,6 +138,23 @@ def test_guidance_docs_explain_boundary_guardrail_issue_family():
     assert "BG1" in quickstart
     assert "BG2" in quickstart
     assert "BG3" in quickstart
+
+
+def test_guidance_docs_explain_analyze_reentry_loop():
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    for content in (readme, quickstart):
+        assert "when you run" in content.lower()
+        assert "gate, not a dead-end audit" in content
+        assert "reopen the highest invalid stage" in content
+        assert "regenerate downstream artifacts" in content
+        assert "If the defect is in `spec.md` or `context.md`" in content or "If the problem is in `spec.md` or `context.md`" in content
+        assert "If the defect is in `plan.md`" in content or "If the problem is in `plan.md`" in content
+        assert "If the defect is only in `tasks.md`" in content or "If the problem is only in `tasks.md`" in content
+        assert "execution-only" in content
+        assert "provisional" in content
+        assert "started or finished" in content
 
 
 def test_guidance_docs_explain_rule_carrying_worker_packets():
