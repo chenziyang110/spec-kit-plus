@@ -6,7 +6,6 @@ import json
 import os
 import re
 import tomllib
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -43,9 +42,11 @@ MANIFEST_FILES = {
     "pubspec.yaml": "dart",
     "Package.swift": "swift",
     "pom.xml": "java",
-    "build.gradle": "kotlin",
-    "build.gradle.kts": "kotlin",
-    "CMakeLists.txt": "cpp",
+}
+SPECIAL_MANIFEST_NAMES = {
+    "build.gradle",
+    "build.gradle.kts",
+    "CMakeLists.txt",
 }
 
 LANGUAGE_SKILL_MAP = {
@@ -82,7 +83,7 @@ def _iter_manifest_paths(project_root: Path) -> list[Path]:
         dirs[:] = [name for name in dirs if name not in IGNORE_DIRS]
         root_path = Path(root)
         for file_name in files:
-            if file_name in MANIFEST_FILES:
+            if file_name in MANIFEST_FILES or file_name in SPECIAL_MANIFEST_NAMES:
                 manifests.append(root_path / file_name)
                 continue
             if file_name.endswith(".csproj"):
@@ -122,6 +123,44 @@ def _detect_language(manifest_path: Path) -> str:
         return "csharp"
     if manifest_path.name == "build.zig":
         return "zig"
+    if manifest_path.name in {"build.gradle", "build.gradle.kts"}:
+        gradle_text = _read_text(manifest_path).lower()
+        module_root = manifest_path.parent
+        if (
+            "org.jetbrains.kotlin" in gradle_text
+            or "kotlin(" in gradle_text
+            or "kotlin-android" in gradle_text
+            or (module_root / "src" / "main" / "kotlin").exists()
+            or (module_root / "src" / "test" / "kotlin").exists()
+        ):
+            return "kotlin"
+        return "java"
+    if manifest_path.name == "CMakeLists.txt":
+        cmake_text = _read_text(manifest_path).lower()
+        module_root = manifest_path.parent
+        if re.search(r"\blanguages\s+[^)\n]*\bcxx\b", cmake_text) or "enable_language(cxx" in cmake_text:
+            return "cpp"
+        if re.search(r"\blanguages\s+[^)\n]*\bc\b", cmake_text) or "enable_language(c)" in cmake_text:
+            return "c"
+        cpp_suffixes = {".cpp", ".cxx", ".cc", ".hpp", ".hxx", ".hh"}
+        c_suffixes = {".c", ".h"}
+        has_cpp = False
+        has_c = False
+        for root, dirs, files in os.walk(module_root):
+            dirs[:] = [name for name in dirs if name not in IGNORE_DIRS]
+            for file_name in files:
+                suffix = Path(file_name).suffix.lower()
+                if suffix in cpp_suffixes:
+                    has_cpp = True
+                elif suffix in c_suffixes:
+                    has_c = True
+            if has_cpp:
+                break
+        if has_cpp:
+            return "cpp"
+        if has_c:
+            return "c"
+        return "cpp"
     return MANIFEST_FILES.get(manifest_path.name, "unknown")
 
 
@@ -168,7 +207,10 @@ def _detect_framework(module_root: Path, manifest_path: Path, language: str) -> 
             return "pytest", "high"
         if (module_root / "conftest.py").exists():
             return "pytest", "medium"
-        return "unittest", "low"
+        test_path = _detect_test_path(module_root, language)
+        if test_path:
+            return "unittest", "medium"
+        return "unknown", "low"
 
     if language == "javascript":
         package_json = _load_json(manifest_path)
@@ -265,7 +307,11 @@ def _detect_framework(module_root: Path, manifest_path: Path, language: str) -> 
 
 def _canonical_commands(module_root: Path, manifest_path: Path, language: str, framework: str) -> tuple[str | None, str | None]:
     if language == "python":
-        return "pytest", "pytest --cov"
+        if framework == "pytest":
+            return "pytest", "pytest --cov"
+        if framework == "unittest":
+            return "python -m unittest discover", "coverage run -m unittest discover"
+        return None, None
 
     if language == "javascript":
         package_json = _load_json(manifest_path)
@@ -308,6 +354,8 @@ def _canonical_commands(module_root: Path, manifest_path: Path, language: str, f
 
 
 def _module_state(framework: str, test_path: str | None, test_command: str | None, coverage_command: str | None) -> str:
+    if framework == "unknown" and not test_path and not test_command and not coverage_command:
+        return "missing"
     if framework == "unknown":
         return "gap"
     if test_path and test_command:
