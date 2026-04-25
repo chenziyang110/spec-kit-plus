@@ -38,7 +38,7 @@ description: "Task list template for feature implementation"
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel only when the task has an isolated write set, no incomplete dependencies, stable upstream inputs, and its own verification path
-- **[AGENT]**: ⚠️ **CRITICAL/MANDATORY**: Marks a guardrail action or task the AI **MUST** explicitly execute. This is a hard-coded procedural requirement that cannot be skipped or ignored. It is independent from `[P]`.
+- **[AGENT]**: Marks a task or guardrail action the AI must explicitly execute; it is independent from `[P]`
 - **Write set**: Include all files and shared coordination surfaces the task will modify, including routers, registries, export barrels, schema indexes, and dependency injection containers
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
 - Include exact file paths in descriptions
