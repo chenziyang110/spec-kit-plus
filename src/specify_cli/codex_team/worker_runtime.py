@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import json
+import os
 import socket
 import time
 from pathlib import Path
@@ -13,7 +13,9 @@ from specify_cli.codex_team.worker_ops import (
     bootstrap_worker_identity,
     write_worker_heartbeat,
 )
-from specify_cli.execution import WorkerTaskResult, worker_task_result_payload
+
+
+LEGACY_HEARTBEAT_EXECUTOR = "legacy-heartbeat-runtime"
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -33,23 +35,6 @@ def main() -> int:
     args = _build_parser().parse_args()
     project_root = Path(args.project_root)
 
-    result_path = Path(args.result_path) if args.result_path else None
-    if result_path and not result_path.exists():
-        result_path.parent.mkdir(parents=True, exist_ok=True)
-        placeholder = WorkerTaskResult(
-            task_id=args.task_id,
-            status="pending",
-            summary=f"Pending result placeholder for request {args.request_id or args.task_id}",
-        )
-        result_path.write_text(
-            json.dumps(
-                worker_task_result_payload(placeholder),
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-
     bootstrap_worker_identity(
         project_root,
         worker_id=args.worker_id,
@@ -62,6 +47,26 @@ def main() -> int:
             "result_path": args.result_path,
         },
     )
+
+    executor_mode = os.environ.get("SPECIFY_CODEX_TEAM_EXECUTOR", "").strip().lower()
+    if executor_mode != LEGACY_HEARTBEAT_EXECUTOR:
+        write_worker_heartbeat(
+            project_root,
+            worker_id=args.worker_id,
+            status="executor_missing",
+            details={
+                "session_id": args.session_id,
+                "task_id": args.task_id,
+                "request_id": args.request_id,
+                "worktree": args.worktree,
+                "result_path": args.result_path,
+                "reason": (
+                    "No packet executor is configured for specify team auto-dispatch. "
+                    "Worker runtime started in status-only mode."
+                ),
+            },
+        )
+        return 0
 
     while True:
         write_worker_heartbeat(

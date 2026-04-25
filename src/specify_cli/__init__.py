@@ -54,6 +54,8 @@ from typer.core import TyperGroup
 import readchar
 
 from specify_cli.codex_team import (
+    codex_team_doctor,
+    codex_team_live_probe,
     codex_team_runtime_status,
     runtime_state_summary,
     session_ops,
@@ -2898,16 +2900,25 @@ def team_status(
     console.print(team_help_text())
     console.print(team_availability_message(integration_key))
 
-    status = codex_team_runtime_status(project_root, integration_key=integration_key)
+    status = codex_team_runtime_status(project_root, integration_key=integration_key, session_id=session_id)
     console.print(runtime_state_summary(project_root))
     console.print(f"agent-teams extension installed: {status['agent_teams_extension_installed']}")
     console.print(f"runtime backend: {status['runtime_backend'] or 'unavailable'}")
     console.print(f"runtime backend available: {status['runtime_backend_available']}")
+    console.print(f"executor available: {status['executor_available']}")
+    console.print(f"executor mode: {status['executor_mode']}")
     console.print(f"git repo detected: {status['git_repo_detected']}")
     console.print(f"git HEAD available: {status['git_head_available']}")
     console.print(f"leader workspace clean: {status['leader_workspace_clean']}")
     console.print(f"worktree-ready: {status['worktree_ready']}")
     console.print(f"teams ready: {status['teams_ready']}")
+    if status["runtime_state"] is not None:
+        console.print(
+            f"live session: {status['runtime_state']['session']['session_id']} "
+            f"({status['runtime_state']['session']['status']})"
+        )
+    else:
+        console.print("live session: none")
     console.print("runtime config: [cyan].specify/codex-team/runtime.json[/cyan]")
     if not status["runtime_backend_available"]:
         try:
@@ -2930,6 +2941,69 @@ def team_await(
     console.print(f"Monitor snapshot: {snapshot.snapshot_id}")
     console.print(f"Task count: {snapshot.task_count}")
     console.print(f"Worker count: {snapshot.worker_count}")
+
+
+@team_app.command("doctor")
+def team_doctor_command(
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    integration_key = _require_codex_team_project(project_root)
+    report = codex_team_doctor(project_root, session_id=session_id, integration_key=integration_key)
+
+    status = report["status"]
+    transcript = report["transcript"]
+    console.print(f"executor available: {status['executor_available']}")
+    console.print(f"executor mode: {status['executor_mode']}")
+    console.print(f"teams ready: {status['teams_ready']}")
+    if status["runtime_state"] is not None:
+        console.print(
+            f"live session: {status['runtime_state']['session']['session_id']} "
+            f"({status['runtime_state']['session']['status']})"
+        )
+    else:
+        console.print("live session: none")
+
+    console.print("[bold]Latest Transcript[/bold]")
+    if transcript is None:
+        console.print("- none")
+    else:
+        console.print(f"- path: {transcript.get('path', '')}")
+        console.print(f"- returncode: {transcript.get('returncode', 'unknown')}")
+        if transcript.get("state_probe"):
+            probe = transcript["state_probe"]
+            console.print(f"- team: {probe.get('team_name', '')}")
+            console.print(f"- phase: {probe.get('phase', 'unknown')}")
+        if transcript.get("stderr_tail"):
+            console.print(f"- stderr: {transcript['stderr_tail']}")
+
+    console.print("[bold]Failed Dispatches[/bold]")
+    failed_dispatches = report["failed_dispatches"]
+    if not failed_dispatches:
+        console.print("- none")
+    else:
+        for item in failed_dispatches:
+            console.print(f"- {item['request_id']} -> {item['target_worker']}: {item['reason']}")
+
+
+@team_app.command("live-probe")
+def team_live_probe_command(
+    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+):
+    project_root = Path.cwd()
+    integration_key = _require_codex_team_project(project_root)
+    try:
+        payload = codex_team_live_probe(project_root, session_id=session_id, integration_key=integration_key)
+    except RuntimeEnvironmentError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    console.print(f"probe status: {'passed' if payload['ok'] else 'failed'}")
+    console.print(f"probe request: {payload['request_id']}")
+    console.print(f"transcript path: {payload['transcript_path']}")
+    dispatch = payload.get("dispatch") or {}
+    if dispatch.get("reason"):
+        console.print(f"dispatch reason: {dispatch['reason']}")
 
 
 @team_app.command("resume")
@@ -3082,7 +3156,7 @@ def team_submit_result(
 
 @team_app.command("api")
 def team_api(
-    operation: str = typer.Argument(..., help="API operation (status|tasks|auto-dispatch|complete-batch|submit-result)"),
+    operation: str = typer.Argument(..., help="API operation (status|doctor|live-probe|tasks|auto-dispatch|complete-batch|submit-result)"),
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for auto-dispatch"),
     batch_id: str | None = typer.Option(None, "--batch-id", help="Batch identifier for completion"),
     request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request identifier for result submission"),
@@ -3093,7 +3167,27 @@ def team_api(
     integration_key = _require_codex_team_project(project_root)
     envelope: dict[str, Any] = {"operation": operation, "status": "ok", "payload": {}}
     if operation == "status":
-        envelope["payload"] = codex_team_runtime_status(project_root, integration_key=integration_key)
+        envelope["payload"] = codex_team_runtime_status(
+            project_root,
+            integration_key=integration_key,
+            session_id=session_id,
+        )
+    elif operation == "doctor":
+        envelope["payload"] = codex_team_doctor(
+            project_root,
+            session_id=session_id,
+            integration_key=integration_key,
+        )
+    elif operation == "live-probe":
+        try:
+            envelope["payload"] = codex_team_live_probe(
+                project_root,
+                session_id=session_id,
+                integration_key=integration_key,
+            )
+        except RuntimeEnvironmentError as exc:
+            envelope["status"] = "error"
+            envelope["payload"] = {"message": str(exc)}
     elif operation == "tasks":
         records = task_ops.list_tasks(project_root)
         envelope["payload"] = {"tasks": [asdict(record) for record in records]}

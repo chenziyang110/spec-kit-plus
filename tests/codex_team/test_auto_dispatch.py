@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import re
+import time
 
 import pytest
 
@@ -23,6 +24,11 @@ from specify_cli.codex_team.state_paths import (
 from specify_cli.execution import worker_task_result_payload
 from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
 from specify_cli.codex_team.task_ops import TaskOpsError, claim_task, get_task, transition_task_status
+
+
+@pytest.fixture(autouse=True)
+def _enable_legacy_executor(monkeypatch):
+    monkeypatch.setenv("SPECIFY_CODEX_TEAM_EXECUTOR", "legacy-heartbeat-runtime")
 
 
 def _write_feature_tasks(project_root: Path, content: str) -> Path:
@@ -60,6 +66,53 @@ def _write_feature_tasks(project_root: Path, content: str) -> Path:
     tasks_path = feature_dir / "tasks.md"
     tasks_path.write_text(normalized, encoding="utf-8")
     return feature_dir
+
+
+def _write_fake_agent_teams_runtime_cli(path: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "import json, os, sys",
+                "from pathlib import Path",
+                "",
+                "payload = json.loads(sys.stdin.read())",
+                "state_root = Path(os.environ['OMX_TEAM_STATE_ROOT'])",
+                "team_name = payload['teamName']",
+                "tasks_dir = state_root / 'team' / team_name / 'tasks'",
+                "tasks_dir.mkdir(parents=True, exist_ok=True)",
+                "marker_start = 'BEGIN_WORKER_TASK_RESULT_JSON'",
+                "marker_end = 'END_WORKER_TASK_RESULT_JSON'",
+                "for index, task in enumerate(payload['tasks'], start=1):",
+                "    description = task['description']",
+                "    start = description.index(marker_start) + len(marker_start)",
+                "    end = description.index(marker_end)",
+                "    payload_text = description[start:end].strip()",
+                "    result_payload = json.loads(payload_text)",
+                "    result_text = json.dumps(result_payload, ensure_ascii=False, indent=2)",
+                "    task_payload = {",
+                "        'id': str(index),",
+                "        'subject': task['subject'],",
+                "        'description': description,",
+                "        'status': 'completed',",
+                "        'result': f'{marker_start}\\n{result_text}\\n{marker_end}',",
+                "        'created_at': '2026-04-25T00:00:00Z',",
+                "    }",
+                "    (tasks_dir / f'task-{index}.json').write_text(json.dumps(task_payload, ensure_ascii=False, indent=2), encoding='utf-8')",
+                "json.dump({'status': 'completed', 'teamName': team_name, 'taskResults': [], 'duration': 0, 'workerCount': len(payload['tasks'])}, sys.stdout)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def _wait_for_result_files(project_root: Path, request_ids: list[str], timeout_s: float = 8.0) -> None:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if all(result_record_path(project_root, request_id).exists() for request_id in request_ids):
+            return
+        time.sleep(0.1)
+    missing = [request_id for request_id in request_ids if not result_record_path(project_root, request_id).exists()]
+    raise AssertionError(f"timed out waiting for canonical result files: {', '.join(missing)}")
 
 
 def test_parse_tasks_markdown_finds_parallel_batches_and_statuses(codex_team_project_root: Path):
@@ -498,6 +551,148 @@ def test_route_ready_parallel_batch_requires_runtime_backend(monkeypatch, codex_
             feature_dir=feature_dir,
             session_id="default",
         )
+
+
+def test_route_ready_parallel_batch_requires_configured_executor(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr(
+        "specify_cli.codex_team.runtime_bridge.shutil.which",
+        lambda name: r"C:\tmux.exe" if name == "tmux" else None,
+    )
+    monkeypatch.delenv("SPECIFY_CODEX_TEAM_EXECUTOR", raising=False)
+
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+""",
+    )
+
+    with pytest.raises(AutoDispatchUnavailableError, match="No packet executor is configured"):
+        route_ready_parallel_batch(
+            codex_team_project_root,
+            feature_dir=feature_dir,
+            session_id="default",
+        )
+
+
+def test_route_ready_parallel_batch_uses_agent_teams_batch_executor_when_available(
+    monkeypatch,
+    codex_team_project_root: Path,
+):
+    monkeypatch.setenv("SPECIFY_CODEX_TEAM_EXECUTOR", "agent-teams-runtime")
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr(
+        "specify_cli.codex_team.runtime_bridge.shutil.which",
+        lambda name: r"C:\tool.exe" if name in {"tmux", "node"} else None,
+    )
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+
+    runtime_cli = codex_team_project_root / ".specify" / "extensions" / "agent-teams" / "engine" / "dist" / "team" / "runtime-cli.js"
+    runtime_cli.parent.mkdir(parents=True, exist_ok=True)
+    runtime_cli.write_text("// fake runtime cli\n", encoding="utf-8")
+
+    launched: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        "specify_cli.codex_team.auto_dispatch.launch_agent_teams_batch_executor",
+        lambda project_root, **kwargs: launched.append(kwargs),
+    )
+    monkeypatch.setattr(
+        "specify_cli.codex_team.auto_dispatch.launch_dispatched_worker",
+        lambda *args, **kwargs: pytest.fail("legacy worker launcher should not run in agent-teams mode"),
+    )
+
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+""",
+    )
+
+    result = route_ready_parallel_batch(
+        codex_team_project_root,
+        feature_dir=feature_dir,
+        session_id="default",
+    )
+
+    assert result.batch_name == "Parallel Batch 1.1"
+    assert len(launched) == 1
+    assert launched[0]["batch_id"] == "default-parallel-batch-1-1"
+    assert launched[0]["runtime_cli_path"] == str(runtime_cli)
+    assert [task["task_id"] for task in launched[0]["task_specs"]] == ["T002", "T003"]
+
+
+def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(
+    monkeypatch,
+    codex_team_project_root: Path,
+):
+    monkeypatch.setenv("SPECIFY_CODEX_TEAM_EXECUTOR", "agent-teams-runtime")
+    runtime_cli = codex_team_project_root / "fake-runtime-cli.py"
+    _write_fake_agent_teams_runtime_cli(runtime_cli)
+    monkeypatch.setenv("SPECIFY_CODEX_TEAM_RUNTIME_CLI", str(runtime_cli))
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr(
+        "specify_cli.codex_team.runtime_bridge.shutil.which",
+        lambda name: r"C:\tool.exe" if name in {"tmux", "node"} else None,
+    )
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+
+**Join Point 1.1**: merge before T004
+""",
+    )
+
+    result = route_ready_parallel_batch(
+        codex_team_project_root,
+        feature_dir=feature_dir,
+        session_id="default",
+    )
+
+    request_ids = [
+        "default-parallel-batch-1-1-t002",
+        "default-parallel-batch-1-1-t003",
+    ]
+    _wait_for_result_files(codex_team_project_root, request_ids)
+
+    completion = complete_dispatched_batch(
+        codex_team_project_root,
+        batch_id=result.batch_id,
+        session_id="default",
+    )
+
+    assert completion.status == "completed"
+    task_payload = get_task(codex_team_project_root, "T002")
+    assert task_payload.metadata["worker_result"]["status"] == "success"
+    assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "complete"
 
 
 def test_route_ready_parallel_batch_rejects_explicit_batches_with_unknown_task_ids(

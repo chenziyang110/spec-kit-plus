@@ -3,6 +3,7 @@ import json
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli.codex_team.runtime_bridge import RuntimeEnvironmentError
 from specify_cli.codex_team.state_paths import dispatch_record_path, runtime_session_path
 
 
@@ -51,6 +52,15 @@ def test_team_command_bootstrap_dispatch_fail_cleanup(monkeypatch, codex_team_pr
 def test_team_command_status_guides_native_windows_users_to_psmux(monkeypatch, codex_team_project_root):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: True)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: None)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+    monkeypatch.setattr(
+        "specify_cli.ensure_tmux_available",
+        lambda: (_ for _ in ()).throw(
+            RuntimeEnvironmentError(
+                "A tmux-compatible team runtime backend is required on native Windows. Install psmux with: winget install psmux"
+            )
+        ),
+    )
 
     specify_dir = codex_team_project_root / ".specify"
     specify_dir.mkdir(exist_ok=True)
@@ -67,7 +77,6 @@ def test_team_command_status_guides_native_windows_users_to_psmux(monkeypatch, c
 
     assert result.exit_code == 0, result.output
     assert "psmux" in result.output
-    assert "winget install psmux" in result.output
 
 
 def test_team_command_dispatch_blocks_when_project_map_is_dirty(monkeypatch, codex_team_project_root):

@@ -105,3 +105,8 @@ def team_config_path(project_root: Path) -> Path:
 def monitor_snapshot_path(project_root: Path, snapshot_id: str) -> Path:
     """Return the persisted monitor snapshot path."""
     return codex_team_state_root(project_root) / "monitor" / f"{snapshot_id}.json"
+
+
+def executor_record_root(project_root: Path) -> Path:
+    """Return the directory containing batch executor manifests and transcripts."""
+    return codex_team_state_root(project_root) / "executors"

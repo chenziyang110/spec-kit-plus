@@ -5,6 +5,7 @@ import pytest
 
 from specify_cli.codex_team.runtime_bridge import (
     RuntimeEnvironmentError,
+    ensure_codex_team_executor_available,
     codex_team_runtime_status,
     detect_team_runtime_backend,
     ensure_tmux_available,
@@ -89,6 +90,7 @@ def test_runtime_status_reports_native_windows_toolchain_requirements(monkeypatc
     assert status["runtime_backend"] == "psmux"
     assert status["native_windows"] is True
     assert status["teams_ready"] is False
+    assert status["executor_available"] is False
     assert status["native_toolchain_ready"] is False
     assert status["native_toolchain_missing"] == ["codex", "node", "npm", "cargo"]
 
@@ -116,7 +118,12 @@ def test_runtime_status_reports_codex_availability(monkeypatch, codex_team_proje
     assert status["available"] is True
     assert status["runtime_backend"] == "tmux"
     assert status["runtime_backend_available"] is True
-    assert status["runtime_state"]["session"]["environment_check"] == "pass"
+    assert status["runtime_state"] is None
+    assert status["runtime_state_source"] == "none"
+    assert status["preview_runtime_state"]["session"]["environment_check"] == "pass"
+    assert status["preview_runtime_state"]["session"]["session_id"] == "preview"
+    assert status["executor_available"] is True
+    assert status["executor_mode"] == "agent-teams-runtime"
 
 
 def test_runtime_status_reports_psmux_backend_on_native_windows(monkeypatch, codex_team_project_root: Path):
@@ -131,7 +138,7 @@ def test_runtime_status_reports_psmux_backend_on_native_windows(monkeypatch, cod
     assert status["available"] is True
     assert status["runtime_backend"] == "psmux"
     assert status["runtime_backend_available"] is True
-    assert status["runtime_state"]["session"]["environment_check"] == "pass"
+    assert status["preview_runtime_state"]["session"]["environment_check"] == "pass"
 
 
 def test_runtime_status_reports_non_codex_as_unavailable(monkeypatch, codex_team_project_root: Path):
@@ -141,13 +148,14 @@ def test_runtime_status_reports_non_codex_as_unavailable(monkeypatch, codex_team
     status = codex_team_runtime_status(codex_team_project_root, integration_key="claude")
 
     assert status["available"] is False
-    assert status["runtime_state"]["session"]["status"] == "created"
+    assert status["preview_runtime_state"]["session"]["status"] == "created"
 
 
 def test_runtime_status_surfaces_extension_and_git_prerequisites(monkeypatch, codex_team_project_root: Path):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.codex_team_extension_installed", lambda project_root: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge._detect_agent_teams_runtime_cli", lambda project_root: None)
     monkeypatch.setattr(
         "specify_cli.codex_team.runtime_bridge.codex_team_git_readiness",
         lambda project_root: {
@@ -167,8 +175,27 @@ def test_runtime_status_surfaces_extension_and_git_prerequisites(monkeypatch, co
     assert status["leader_workspace_clean"] is False
     assert status["worktree_ready"] is False
     assert status["teams_ready"] is False
-    assert all("specify extension add agent-teams" not in step for step in status["next_steps"])
+    assert any("specify extension add agent-teams" in step for step in status["next_steps"])
     assert any("initial commit" in step.lower() for step in status["next_steps"])
+
+
+def test_runtime_status_surfaces_live_session_separately_from_preview(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    bootstrap_runtime_session(codex_team_project_root, "default")
+
+    status = codex_team_runtime_status(codex_team_project_root, integration_key="codex")
+
+    assert status["runtime_state_source"] == "live"
+    assert status["runtime_state"]["session"]["session_id"] == "default"
+    assert status["preview_runtime_state"]["session"]["session_id"] == "preview"
+
+
+def test_ensure_codex_team_executor_available_raises_without_executor(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge._detect_agent_teams_runtime_cli", lambda project_root: None)
+    with pytest.raises(RuntimeEnvironmentError, match="No packet executor is configured"):
+        ensure_codex_team_executor_available(codex_team_project_root)
 
 
 def test_submit_runtime_result_writes_canonical_result_and_updates_dispatch(monkeypatch, codex_team_project_root: Path):

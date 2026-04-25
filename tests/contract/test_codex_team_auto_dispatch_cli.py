@@ -86,6 +86,7 @@ def _fake_tmux_env(tmp_path: Path) -> dict[str, str]:
     (bin_dir / script_name).write_text("", encoding="utf-8")
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
+    env["SPECIFY_CODEX_TEAM_EXECUTOR"] = "legacy-heartbeat-runtime"
     return env
 
 

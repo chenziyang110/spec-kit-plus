@@ -33,6 +33,8 @@ from .runtime_bridge import (
     mark_runtime_failure,
     submit_runtime_result,
 )
+from .doctor import codex_team_doctor
+from .live_probe import codex_team_live_probe
 from .state_paths import (
     codex_team_state_root,
     dispatch_record_path,
@@ -49,6 +51,8 @@ __all__ = [
     "TEAM_COMMAND_NAME",
     "TEAM_SKILL_NAME",
     "bootstrap_runtime_session",
+    "codex_team_doctor",
+    "codex_team_live_probe",
     "codex_team_assets_for_project",
     "codex_team_runtime_status",
     "codex_team_state_root",

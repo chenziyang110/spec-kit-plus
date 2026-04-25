@@ -34,6 +34,8 @@ class RuntimeEnvironmentError(RuntimeError):
 
 
 NATIVE_WINDOWS_REQUIRED_TOOLS = ("codex", "node", "npm", "cargo", "git")
+LEGACY_HEARTBEAT_EXECUTOR = "legacy-heartbeat-runtime"
+AGENT_TEAMS_EXECUTOR = "agent-teams-runtime"
 
 
 def _utc_now() -> str:
@@ -167,6 +169,114 @@ def ensure_codex_team_runtime_prerequisites() -> None:
     ensure_tmux_available()
     if is_native_windows():
         ensure_native_windows_toolchain_available()
+
+
+def _candidate_agent_teams_engine_roots(project_root: Path) -> list[Path]:
+    package_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[3]
+    candidates = [
+        project_root / ".specify" / "extensions" / "agent-teams" / "engine",
+        package_root / "core_pack" / "extensions" / "agent-teams" / "engine",
+        repo_root / "extensions" / "agent-teams" / "engine",
+    ]
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve(strict=False)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        unique.append(candidate)
+    return unique
+
+
+def _detect_agent_teams_runtime_cli(project_root: Path) -> str | None:
+    override = os.environ.get("SPECIFY_CODEX_TEAM_RUNTIME_CLI", "").strip()
+    if override:
+        candidate = Path(override)
+        if not candidate.is_absolute():
+            candidate = (project_root / candidate).resolve()
+        return str(candidate) if candidate.is_file() else None
+
+    for engine_root in _candidate_agent_teams_engine_roots(project_root):
+        candidate = engine_root / "dist" / "team" / "runtime-cli.js"
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
+    """Return whether a packet executor is wired into ``specify team``."""
+
+    configured = os.environ.get("SPECIFY_CODEX_TEAM_EXECUTOR", "").strip().lower()
+    extension_installed = codex_team_extension_installed(project_root)
+    runtime_cli_path = _detect_agent_teams_runtime_cli(project_root)
+    node_binary = shutil.which("node")
+
+    if configured == LEGACY_HEARTBEAT_EXECUTOR:
+        return {
+            "available": True,
+            "mode": LEGACY_HEARTBEAT_EXECUTOR,
+            "reason": (
+                "Experimental legacy heartbeat runtime enabled. "
+                "This mode exists for internal tests and orchestration-only flows."
+            ),
+            "configured_value": configured,
+            "extension_installed": extension_installed,
+            "bundled_runtime_binary": None,
+            "runtime_cli_path": None,
+            "next_steps": [],
+        }
+
+    prefer_agent_teams = configured == AGENT_TEAMS_EXECUTOR or (
+        not configured and runtime_cli_path is not None
+    )
+    if prefer_agent_teams and runtime_cli_path and node_binary:
+        return {
+            "available": True,
+            "mode": AGENT_TEAMS_EXECUTOR,
+            "reason": "Bundled agent-teams runtime-cli is available for delegated batch execution.",
+            "configured_value": configured,
+            "extension_installed": extension_installed,
+            "bundled_runtime_binary": None,
+            "runtime_cli_path": runtime_cli_path,
+            "next_steps": [],
+        }
+
+    next_steps: list[str] = []
+    if not extension_installed and runtime_cli_path is None:
+        next_steps.append("Install the bundled executor surface with: specify extension add agent-teams")
+    elif runtime_cli_path is None:
+        next_steps.append("Build the bundled agent-teams runtime before enabling teams execution.")
+    elif not node_binary:
+        next_steps.append("Install Node.js or make `node` available on PATH before enabling teams execution.")
+    next_steps.append(
+        "Use sp-implement for implementation work until a packet executor is wired into specify team."
+    )
+
+    return {
+        "available": False,
+        "mode": "none",
+        "reason": (
+            "No packet executor is configured for specify team auto-dispatch. "
+            "The current runtime can report state and accept submitted results, "
+            "but it cannot truthfully execute worker packets."
+        ),
+        "configured_value": configured,
+        "extension_installed": extension_installed,
+        "bundled_runtime_binary": None,
+        "runtime_cli_path": runtime_cli_path,
+        "next_steps": next_steps,
+    }
+
+
+def ensure_codex_team_executor_available(project_root: Path) -> dict[str, object]:
+    """Fail visibly when ``specify team`` has no packet executor configured."""
+
+    executor = detect_codex_team_executor(project_root)
+    if executor["available"]:
+        return executor
+    raise RuntimeEnvironmentError(str(executor["reason"]))
 
 
 def resolve_agent_teams_runtime_binary(engine_root: Path) -> Path | None:
@@ -383,17 +493,40 @@ def cleanup_runtime_session(project_root: Path, session_id: str) -> RuntimeSessi
     return session
 
 
-def codex_team_runtime_status(project_root: Path, *, integration_key: str | None) -> dict[str, object]:
+def _load_live_runtime_state(project_root: Path, session_id: str) -> dict[str, object] | None:
+    path = runtime_session_path(project_root, session_id)
+    if not path.exists():
+        return None
+    session = runtime_session_from_json(path.read_text(encoding="utf-8"))
+    return runtime_state_payload(session, [])
+
+
+def codex_team_runtime_status(
+    project_root: Path,
+    *,
+    integration_key: str | None,
+    session_id: str = "default",
+) -> dict[str, object]:
     """Return a compact runtime status payload for help text and tests."""
     available = integration_key == "codex"
     backend = detect_team_runtime_backend()
     extension_installed = codex_team_extension_installed(project_root)
     git_status = codex_team_git_readiness(project_root)
     toolchain_status = native_windows_toolchain_readiness()
+    executor_status = detect_codex_team_executor(project_root)
     state_root = codex_team_state_root(project_root)
+    live_runtime_state = _load_live_runtime_state(project_root, session_id)
     session = RuntimeSession(
         session_id="preview",
-        status="ready" if available and backend["available"] and git_status["worktree_ready"] and toolchain_status["ready"] else "created",
+        status=(
+            "ready"
+            if available
+            and backend["available"]
+            and git_status["worktree_ready"]
+            and toolchain_status["ready"]
+            and executor_status["available"]
+            else "created"
+        ),
         environment_check="pass" if backend["available"] else "fail",
     )
     dispatch = DispatchRecord(
@@ -413,6 +546,7 @@ def codex_team_runtime_status(project_root: Path, *, integration_key: str | None
             "Use a single native Windows shell for teams execution so psmux, codex, node, npm, cargo, and git resolve together. "
             f"Missing: {missing_text}"
         )
+    next_steps.extend(str(step) for step in executor_status["next_steps"])
     next_steps.extend(git_status["git_next_steps"])
     return {
         "available": available,
@@ -428,15 +562,23 @@ def codex_team_runtime_status(project_root: Path, *, integration_key: str | None
         "git_head_available": git_status["git_head_available"],
         "leader_workspace_clean": git_status["leader_workspace_clean"],
         "worktree_ready": git_status["worktree_ready"],
+        "executor_available": executor_status["available"],
+        "executor_mode": executor_status["mode"],
+        "executor_reason": executor_status["reason"],
+        "executor_bundled_runtime_binary": executor_status["bundled_runtime_binary"],
+        "executor_runtime_cli_path": executor_status["runtime_cli_path"],
         "teams_ready": (
             available
             and backend["available"]
             and toolchain_status["ready"]
             and git_status["worktree_ready"]
+            and executor_status["available"]
         ),
         "next_steps": next_steps,
         "state_root": state_root,
-        "runtime_state": runtime_state_payload(session, [dispatch]),
+        "runtime_state": live_runtime_state,
+        "runtime_state_source": "live" if live_runtime_state is not None else "none",
+        "preview_runtime_state": runtime_state_payload(session, [dispatch]),
         "runtime_state_summary": (
             "Runtime state surfaces worker outcomes, join points, retry-pending work, and blockers."
         ),

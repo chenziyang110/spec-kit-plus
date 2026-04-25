@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass
+from hashlib import sha1
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -20,6 +22,7 @@ from specify_cli.codex_team.state_paths import (
 )
 from specify_cli.codex_team.runtime_bridge import (
     dispatch_runtime_task,
+    ensure_codex_team_executor_available,
     ensure_codex_team_runtime_prerequisites,
 )
 from specify_cli.codex_team.runtime_state import batch_record_payload
@@ -49,6 +52,9 @@ INLINE_TASK_ID_RE = re.compile(r"`(T\d+)`")
 TRACKER_CURRENT_BATCH_RE = re.compile(r"(?m)^current_batch:\s*(?P<value>.+?)\s*$")
 SECTION_RE = re.compile(r"(?ms)^#{2,3}\s+(?P<title>.+?)\n(?P<body>.*?)(?=^#{2,3}\s+|\Z)")
 MATERIALIZED_TASK_RE = re.compile(r"^\s*-\s+(?P<task_id>[A-Za-z0-9_-]+)\s+(?P<summary>.+?)\s*$")
+RESULT_START_MARKER = "BEGIN_WORKER_TASK_RESULT_JSON"
+RESULT_END_MARKER = "END_WORKER_TASK_RESULT_JSON"
+PACKAGE_SRC_ROOT = Path(__file__).resolve().parents[2]
 
 
 class AutoDispatchError(RuntimeError):
@@ -116,6 +122,65 @@ class BatchCompletionResult:
     status: str
     join_point_name: str
     task_ids: list[str]
+
+
+def _agent_teams_team_name(batch_id: str) -> str:
+    token = sha1(batch_id.encode("utf-8")).hexdigest()[:10]
+    return f"ct-{token}"
+
+
+def _worker_result_template(packet: Any) -> dict[str, object]:
+    return {
+        "task_id": packet.task_id,
+        "status": "success",
+        "changed_files": list(packet.scope.write_scope),
+        "validation_results": [
+            {
+                "command": gate,
+                "status": "passed",
+                "output": "",
+            }
+            for gate in packet.validation_gates
+        ],
+        "summary": packet.objective,
+        "concerns": [],
+        "reported_status": "",
+        "blockers": [],
+        "failed_assumptions": [],
+        "suggested_recovery_actions": [],
+        "rule_acknowledgement": {
+            "required_references_read": True,
+            "forbidden_drift_respected": True,
+        },
+    }
+
+
+def _agent_teams_task_description(packet: Any, *, request_id: str) -> str:
+    template = json.dumps(_worker_result_template(packet), ensure_ascii=False, indent=2)
+    lines = [
+        f"Delegated task {packet.task_id}",
+        f"Objective: {packet.objective}",
+        "",
+        "Required implementation references:",
+        *[f"- {reference.path}" for reference in packet.required_references],
+        "",
+        "Forbidden implementation drift:",
+        *[f"- {rule}" for rule in packet.forbidden_drift],
+        "",
+        "Validation gates:",
+        *[f"- {gate}" for gate in packet.validation_gates],
+        "",
+        f"Canonical request id: {request_id}",
+        "When you finish, put a machine-readable WorkerTaskResult JSON block in the task result text.",
+        "Use the exact markers below and keep the JSON valid.",
+        RESULT_START_MARKER,
+        template,
+        RESULT_END_MARKER,
+        "",
+        "If you are blocked or failed, keep the same JSON shape but set status to blocked/failed and fill blockers, failed_assumptions, and suggested_recovery_actions truthfully.",
+        "Set changed_files to the files you actually changed and preserve rule_acknowledgement truthfully.",
+    ]
+    return "\n".join(lines)
 
 
 @dataclass(slots=True)
@@ -654,7 +719,9 @@ def launch_dispatched_worker(
     worktree.mkdir(parents=True, exist_ok=True)
 
     env = {
-        "PYTHONPATH": str((project_root / "src").resolve()),
+        "PYTHONPATH": os.pathsep.join(
+            [str(PACKAGE_SRC_ROOT), os.environ.get("PYTHONPATH", "")]
+        ).strip(os.pathsep),
     }
     command = [
         sys.executable,
@@ -678,6 +745,52 @@ def launch_dispatched_worker(
     ProcessBackend().launch(command, cwd=project_root, env=env)
 
 
+def launch_agent_teams_batch_executor(
+    project_root: Path,
+    *,
+    session_id: str,
+    batch_id: str,
+    runtime_cli_path: str,
+    task_specs: list[dict[str, str]],
+) -> None:
+    manifest_path = codex_team_state_root(project_root) / "executors" / f"{batch_id}.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "runtime_cli_path": runtime_cli_path,
+                "state_root": str(codex_team_state_root(project_root) / "agent-teams" / batch_id),
+                "team_name": _agent_teams_team_name(batch_id),
+                "worker_count": len(task_specs),
+                "cwd": str(project_root),
+                "tasks": task_specs,
+                "session_id": session_id,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    env = {
+        "PYTHONPATH": os.pathsep.join(
+            [str(PACKAGE_SRC_ROOT), os.environ.get("PYTHONPATH", "")]
+        ).strip(os.pathsep),
+    }
+    ProcessBackend().launch(
+        [
+            sys.executable,
+            "-m",
+            "specify_cli.codex_team.agent_teams_executor",
+            "--project-root",
+            str(project_root),
+            "--manifest-path",
+            str(manifest_path),
+        ],
+        cwd=project_root,
+        env=env,
+    )
+
+
 def route_ready_parallel_batch(
     project_root: Path,
     *,
@@ -687,6 +800,7 @@ def route_ready_parallel_batch(
     """Dispatch the next ready explicit parallel batch into the team runtime."""
     try:
         ensure_codex_team_runtime_prerequisites()
+        executor = ensure_codex_team_executor_available(project_root)
     except RuntimeError as exc:  # RuntimeEnvironmentError subclass
         raise AutoDispatchUnavailableError(str(exc)) from exc
 
@@ -799,6 +913,7 @@ def route_ready_parallel_batch(
                     "sidecar_surface_hint": delegation_descriptor.sidecar_surface_hint,
                     "result_contract_hint": delegation_descriptor.result_contract_hint,
                     "structured_results_expected": delegation_descriptor.structured_results_expected,
+                    "executor_mode": executor["mode"],
                 },
                 result_path=str(result_path),
             )
@@ -824,18 +939,44 @@ def route_ready_parallel_batch(
         )
         raise
 
-    for pending_launch in pending_launches:
-        task_id = pending_launch["task_id"]
-        request_id = pending_launch["request_id"]
-        result_path = pending_launch["result_path"]
-        launch_dispatched_worker(
+    if executor["mode"] == "agent-teams-runtime":
+        launch_agent_teams_batch_executor(
             project_root,
             session_id=session_id,
-            worker_id=task_id.lower(),
-            task_id=task_id,
-            request_id=request_id,
-            result_path=result_path,
+            batch_id=batch_id,
+            runtime_cli_path=str(executor["runtime_cli_path"]),
+            task_specs=[
+                {
+                    "task_id": task.task_id,
+                    "request_id": _request_id_for(session_id, batch.batch_name, task.task_id),
+                    "subject": task.task_id,
+                    "description": _agent_teams_task_description(
+                        worker_task_packet_from_json(packet_path.read_text(encoding="utf-8")),
+                        request_id=_request_id_for(session_id, batch.batch_name, task.task_id),
+                    ),
+                }
+                for task, packet_path in zip(
+                    [task for task in batch.tasks if not task.completed],
+                    packet_paths,
+                    strict=False,
+                )
+            ],
         )
+    else:
+        for pending_launch in pending_launches:
+            task_id = pending_launch["task_id"]
+            request_id = pending_launch["request_id"]
+            result_path = pending_launch["result_path"]
+            launch_dispatched_worker(
+                project_root,
+                session_id=session_id,
+                worker_id=task_id.lower(),
+                task_id=task_id,
+                request_id=request_id,
+                result_path=result_path,
+            )
+
+    for task_id in dispatched_task_ids:
         current_task = task_ops.get_task(project_root, task_id)
         if batch.join_point_name:
             task_ops.mark_join_point(
@@ -951,10 +1092,15 @@ def complete_dispatched_batch(
         packet_path = str(dispatch_payload.get("packet_path", "")).strip()
         result_path = str(dispatch_payload.get("result_path", "")).strip()
         delegation_metadata = dispatch_payload.get("delegation_metadata", {})
+        dispatch_status = str(dispatch_payload.get("status", "")).strip()
+        dispatch_reason = str(dispatch_payload.get("reason", "")).strip()
         structured_results_expected = bool(
             isinstance(delegation_metadata, dict)
             and delegation_metadata.get("structured_results_expected")
         )
+
+        if dispatch_status in {"failed", "retry_pending"} and dispatch_reason:
+            raise AutoDispatchError(f"dispatch result for {task_id} is unavailable: {dispatch_reason}")
 
         if structured_results_expected and not result_path:
             raise AutoDispatchError(f"dispatch result for {task_id} is missing structured worker result path")

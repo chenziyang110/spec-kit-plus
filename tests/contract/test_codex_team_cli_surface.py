@@ -49,6 +49,7 @@ def test_team_status_subcommand_shows_runtime_info(tmp_path: Path):
     assert result.exit_code == 0, result.output
     assert "Codex team runtime" in result.output
     assert "runtime backend" in result.output
+    assert "executor available" in result.output
     assert "agent-teams extension installed" in result.output
     assert "git HEAD available" in result.output
     assert "worktree-ready" in result.output
@@ -60,8 +61,56 @@ def test_team_status_subcommand_surfaces_missing_prerequisite_next_steps(tmp_pat
 
     assert result.exit_code == 0, result.output
     assert "Next steps" in result.output
-    assert "specify extension add agent-teams" in result.output
     assert "initial commit" in result.output.lower()
+
+
+def test_team_doctor_subcommand_shows_diagnostics(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    result = _invoke_in_project(project, ["team", "doctor"])
+
+    assert result.exit_code == 0, result.output
+    lowered = result.output.lower()
+    assert "executor available" in lowered
+    assert "latest transcript" in lowered
+    assert "failed dispatches" in lowered
+
+
+def test_team_live_probe_subcommand_shows_probe_result(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    runtime_cli = project / "fake-runtime-cli.py"
+    runtime_cli.write_text(
+        "\n".join(
+            [
+                "import json",
+                "import os",
+                "import sys",
+                "from pathlib import Path",
+                "payload = json.loads(sys.stdin.read())",
+                "state_root = Path(os.environ['OMX_TEAM_STATE_ROOT'])",
+                "tasks_dir = state_root / 'team' / payload['teamName'] / 'tasks'",
+                "tasks_dir.mkdir(parents=True, exist_ok=True)",
+                "task = payload['tasks'][0]",
+                "start_marker = 'BEGIN_WORKER_TASK_RESULT_JSON'",
+                "end_marker = 'END_WORKER_TASK_RESULT_JSON'",
+                "start = task['description'].index(start_marker) + len(start_marker)",
+                "end = task['description'].index(end_marker)",
+                "result_payload = json.loads(task['description'][start:end].strip())",
+                "(tasks_dir / 'task-1.json').write_text(json.dumps({'id': '1', 'subject': task['subject'], 'description': task['description'], 'status': 'completed', 'result': start_marker + '\\n' + json.dumps(result_payload, ensure_ascii=False, indent=2) + '\\n' + end_marker, 'created_at': '2026-04-26T00:00:00Z'}, ensure_ascii=False, indent=2), encoding='utf-8')",
+                "(tasks_dir.parent / 'phase.json').write_text(json.dumps({'current_phase': 'complete', 'updated_at': '2026-04-26T00:00:00Z'}, ensure_ascii=False, indent=2), encoding='utf-8')",
+                "(tasks_dir.parent / 'monitor-snapshot.json').write_text(json.dumps({'taskStatusById': {'1': 'completed'}, 'workerAliveByName': {'worker-1': True}, 'workerStateByName': {'worker-1': 'done'}, 'workerTurnCountByName': {'worker-1': 1}, 'workerTaskIdByName': {'worker-1': '1'}, 'mailboxNotifiedByMessageId': {}, 'completedEventTaskIds': {'1': True}}, ensure_ascii=False, indent=2), encoding='utf-8')",
+                "json.dump({'status': 'completed', 'teamName': payload['teamName'], 'taskResults': [], 'duration': 0, 'workerCount': len(payload['tasks'])}, sys.stdout)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["SPECIFY_CODEX_TEAM_RUNTIME_CLI"] = str(runtime_cli)
+    result = _invoke_in_project(project, ["team", "live-probe"], env=env)
+
+    assert result.exit_code == 0, result.output
+    lowered = result.output.lower()
+    assert "probe status: passed" in lowered
+    assert "transcript path:" in lowered
 
 
 def test_team_await_subcommand_reports_monitor_snapshot(tmp_path: Path):

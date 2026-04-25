@@ -25,12 +25,12 @@ def _create_codex_project(tmp_path: Path) -> Path:
     return project
 
 
-def _invoke_in_project(project: Path, args: list[str]):
+def _invoke_in_project(project: Path, args: list[str], env: dict[str, str] | None = None):
     runner = CliRunner()
     old_cwd = os.getcwd()
     try:
         os.chdir(project)
-        result = runner.invoke(app, args)
+        result = runner.invoke(app, args, env=env or os.environ)
     finally:
         os.chdir(old_cwd)
     return result
@@ -95,7 +95,11 @@ def test_api_status_returns_json(tmp_path: Path):
     assert envelope["operation"] == "status"
     assert envelope["status"] == "ok"
     assert "payload" in envelope
-    assert envelope["payload"]["runtime_state"]["session"]["session_id"] == "preview"
+    assert envelope["payload"]["runtime_state"] is None
+    assert envelope["payload"]["runtime_state_source"] == "none"
+    assert envelope["payload"]["preview_runtime_state"]["session"]["session_id"] == "preview"
+    assert envelope["payload"]["executor_available"] is True
+    assert envelope["payload"]["executor_mode"] == "agent-teams-runtime"
     assert "runtime_state_summary" in envelope["payload"]
     assert "join points" in envelope["payload"]["runtime_state_summary"].lower()
     assert "blockers" in envelope["payload"]["runtime_state_summary"].lower()
@@ -110,6 +114,58 @@ def test_api_tasks_reports_existing_task(tmp_path: Path):
     envelope = json.loads(result.output.strip())
     tasks = envelope["payload"]["tasks"]
     assert any(task["task_id"] == "api-task" for task in tasks)
+
+
+def test_api_doctor_returns_json(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    result = _invoke_in_project(project, ["team", "api", "doctor"])
+
+    assert result.exit_code == 0, result.output
+    envelope = json.loads(result.output.strip())
+    assert envelope["operation"] == "doctor"
+    assert envelope["status"] == "ok"
+    assert "status" in envelope["payload"]
+    assert "transcript" in envelope["payload"]
+    assert "failed_dispatches" in envelope["payload"]
+
+
+def test_api_live_probe_returns_json(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    runtime_cli = project / "fake-runtime-cli.py"
+    runtime_cli.write_text(
+        "\n".join(
+            [
+                "import json",
+                "import os",
+                "import sys",
+                "from pathlib import Path",
+                "payload = json.loads(sys.stdin.read())",
+                "state_root = Path(os.environ['OMX_TEAM_STATE_ROOT'])",
+                "tasks_dir = state_root / 'team' / payload['teamName'] / 'tasks'",
+                "tasks_dir.mkdir(parents=True, exist_ok=True)",
+                "task = payload['tasks'][0]",
+                "start_marker = 'BEGIN_WORKER_TASK_RESULT_JSON'",
+                "end_marker = 'END_WORKER_TASK_RESULT_JSON'",
+                "start = task['description'].index(start_marker) + len(start_marker)",
+                "end = task['description'].index(end_marker)",
+                "result_payload = json.loads(task['description'][start:end].strip())",
+                "(tasks_dir / 'task-1.json').write_text(json.dumps({'id': '1', 'subject': task['subject'], 'description': task['description'], 'status': 'completed', 'result': start_marker + '\\n' + json.dumps(result_payload, ensure_ascii=False, indent=2) + '\\n' + end_marker, 'created_at': '2026-04-26T00:00:00Z'}, ensure_ascii=False, indent=2), encoding='utf-8')",
+                "(tasks_dir.parent / 'phase.json').write_text(json.dumps({'current_phase': 'complete', 'updated_at': '2026-04-26T00:00:00Z'}, ensure_ascii=False, indent=2), encoding='utf-8')",
+                "(tasks_dir.parent / 'monitor-snapshot.json').write_text(json.dumps({'taskStatusById': {'1': 'completed'}, 'workerAliveByName': {'worker-1': True}, 'workerStateByName': {'worker-1': 'done'}, 'workerTurnCountByName': {'worker-1': 1}, 'workerTaskIdByName': {'worker-1': '1'}, 'mailboxNotifiedByMessageId': {}, 'completedEventTaskIds': {'1': True}}, ensure_ascii=False, indent=2), encoding='utf-8')",
+                "json.dump({'status': 'completed', 'teamName': payload['teamName'], 'taskResults': [], 'duration': 0, 'workerCount': len(payload['tasks'])}, sys.stdout)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["SPECIFY_CODEX_TEAM_RUNTIME_CLI"] = str(runtime_cli)
+    result = _invoke_in_project(project, ["team", "api", "live-probe"], env=env)
+
+    assert result.exit_code == 0, result.output
+    envelope = json.loads(result.output.strip())
+    assert envelope["operation"] == "live-probe"
+    assert envelope["status"] == "ok"
+    assert envelope["payload"]["ok"] is True
 
 
 def test_api_submit_result_returns_json_and_persists_result(tmp_path: Path):
