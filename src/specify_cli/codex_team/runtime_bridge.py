@@ -33,6 +33,9 @@ class RuntimeEnvironmentError(RuntimeError):
     """Raised when the runtime cannot be used in the current environment."""
 
 
+NATIVE_WINDOWS_REQUIRED_TOOLS = ("codex", "node", "npm", "cargo", "git")
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -133,6 +136,53 @@ def ensure_tmux_available() -> None:
     )
 
 
+def native_windows_toolchain_readiness() -> dict[str, object]:
+    """Return native Windows toolchain readiness for the Codex team runtime."""
+    if not is_native_windows():
+        return {"required": [], "missing": [], "ready": True}
+
+    missing = [tool for tool in NATIVE_WINDOWS_REQUIRED_TOOLS if not shutil.which(tool)]
+    return {
+        "required": list(NATIVE_WINDOWS_REQUIRED_TOOLS),
+        "missing": missing,
+        "ready": not missing,
+    }
+
+
+def ensure_native_windows_toolchain_available() -> None:
+    """Fail visibly when the native Windows Codex team toolchain is incomplete."""
+    readiness = native_windows_toolchain_readiness()
+    if readiness["ready"]:
+        return
+
+    missing = ", ".join(str(tool) for tool in readiness["missing"])
+    raise RuntimeEnvironmentError(
+        "The native Windows Codex team runtime must run from a single native shell with "
+        f"psmux, codex, node, npm, cargo, and git available. Missing: {missing}"
+    )
+
+
+def ensure_codex_team_runtime_prerequisites() -> None:
+    """Validate the runtime backend plus the Windows-native toolchain contract."""
+    ensure_tmux_available()
+    if is_native_windows():
+        ensure_native_windows_toolchain_available()
+
+
+def resolve_agent_teams_runtime_binary(engine_root: Path) -> Path | None:
+    """Return the first available bundled runtime binary for the given engine root."""
+    candidates = [
+        engine_root / "target" / "release" / "omx-runtime",
+        engine_root / "target" / "release" / "omx-runtime.exe",
+        engine_root / "target" / "debug" / "omx-runtime",
+        engine_root / "target" / "debug" / "omx-runtime.exe",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def codex_team_extension_installed(project_root: Path) -> bool:
     """Return whether the bundled agent-teams extension is installed in the project."""
     try:
@@ -212,7 +262,7 @@ def _load_dispatch_record(project_root: Path, request_id: str) -> DispatchRecord
 
 def bootstrap_runtime_session(project_root: Path, session_id: str) -> RuntimeSession:
     """Validate the environment and persist a ready runtime session."""
-    ensure_tmux_available()
+    ensure_codex_team_runtime_prerequisites()
     session = RuntimeSession(
         session_id=session_id,
         status="ready",
@@ -339,10 +389,11 @@ def codex_team_runtime_status(project_root: Path, *, integration_key: str | None
     backend = detect_team_runtime_backend()
     extension_installed = codex_team_extension_installed(project_root)
     git_status = codex_team_git_readiness(project_root)
+    toolchain_status = native_windows_toolchain_readiness()
     state_root = codex_team_state_root(project_root)
     session = RuntimeSession(
         session_id="preview",
-        status="ready" if available and backend["available"] and extension_installed and git_status["worktree_ready"] else "created",
+        status="ready" if available and backend["available"] and git_status["worktree_ready"] and toolchain_status["ready"] else "created",
         environment_check="pass" if backend["available"] else "fail",
     )
     dispatch = DispatchRecord(
@@ -351,13 +402,17 @@ def codex_team_runtime_status(project_root: Path, *, integration_key: str | None
         status="pending",
     )
     next_steps: list[str] = []
-    if available and not extension_installed:
-        next_steps.append("Install the teams extension: specify extension add agent-teams")
     if available and not backend["available"]:
         if is_native_windows():
             next_steps.append("Install a Windows team runtime backend: winget install psmux")
         else:
             next_steps.append("Install tmux before teams execution.")
+    if available and is_native_windows() and not toolchain_status["ready"]:
+        missing_text = ", ".join(str(tool) for tool in toolchain_status["missing"])
+        next_steps.append(
+            "Use a single native Windows shell for teams execution so psmux, codex, node, npm, cargo, and git resolve together. "
+            f"Missing: {missing_text}"
+        )
     next_steps.extend(git_status["git_next_steps"])
     return {
         "available": available,
@@ -366,14 +421,17 @@ def codex_team_runtime_status(project_root: Path, *, integration_key: str | None
         "runtime_backend": backend["name"],
         "tmux_available": backend["name"] == "tmux",
         "native_windows": is_native_windows(),
+        "native_toolchain_ready": toolchain_status["ready"],
+        "native_toolchain_required": toolchain_status["required"],
+        "native_toolchain_missing": toolchain_status["missing"],
         "git_repo_detected": git_status["git_repo_detected"],
         "git_head_available": git_status["git_head_available"],
         "leader_workspace_clean": git_status["leader_workspace_clean"],
         "worktree_ready": git_status["worktree_ready"],
         "teams_ready": (
             available
-            and extension_installed
             and backend["available"]
+            and toolchain_status["ready"]
             and git_status["worktree_ready"]
         ),
         "next_steps": next_steps,

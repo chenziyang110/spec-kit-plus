@@ -13,10 +13,10 @@ sp-implement-teams
 ## Boundary
 
 1. Codex-only
-2. Implementation-phase entry point only; use it after `tasks.md` is ready
-3. Requires a tmux-capable environment
+2. Implementation-phase entry point only; use it after the active execution batch is known
+3. On Windows, support only `native Windows + psmux`
 4. Requires a clean leader workspace for worker worktrees
-5. This is the user-facing surface; do not teach `sp.agent-teams.run` as the primary product surface
+5. This is the user-facing surface; use `specify team` as the runtime surface and do not teach extension internals as the primary product surface
 
 ## When To Use
 
@@ -28,27 +28,22 @@ Use this when:
 
 ## Execution Contract
 
-1. Confirm the current project is using the Codex integration and that `tasks.md` is ready.
-2. Confirm `tmux` is available and the leader workspace is clean enough for worktree-based execution.
-3. Check whether the `agent-teams` extension is installed in this project.
-4. If the extension is installed, route the implementation run through `sp.agent-teams.run`.
-5. Treat `sp.agent-teams.run` as internal plumbing, not the name you teach users.
-6. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
-7. If the extension is not installed, stop and tell the user that `sp-implement-teams` requires the `agent-teams` extension, then suggest:
-
-```text
-specify extension add agent-teams
-```
-
-8. Use `sp.agent-teams.cleanup` only for cleanup or recovery after interrupted runs.
+1. Confirm the current project is using the Codex integration.
+2. Create or resume `FEATURE_DIR/implement-tracker.md`, then recover the active execution batch from tracker state before trusting `tasks.md`.
+3. Treat `FEATURE_DIR/implement-tracker.md` as the implementation-state source of truth and treat `tasks.md` as planning input only.
+4. Confirm the native runtime backend is ready through the official `specify team` runtime checks.
+5. On Windows, require the same native shell to resolve `psmux`, `codex`, `node`, `npm`, `cargo`, and `git`.
+6. Route durable execution through `specify team` and its runtime/API surfaces.
+7. Preserve the shared `sp-implement` contract: tracker continuity, validated `WorkerTaskPacket`s, explicit join points, and structured result handoff discipline.
+8. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
 9. If the user only wants to inspect the Codex runtime surface before implementing, redirect them to `specify team` or `$sp-team`.
 
 ## Output Expectations
 
 Successful runs should leave the user with:
 
-1. team state under `.specify/agent-teams/state`
-2. worker worktrees under `.specify/agent-teams/worktrees`
+1. canonical team state under `.specify/codex-team/state`
+2. worker worktrees under `.specify/codex-team/worktrees` or the active runtime worktree root
 3. leader-visible progress through the team mailbox and monitor snapshot
 4. the same implementation lifecycle semantics as `sp-implement`, including tracker continuity, join point visibility, and result handoff discipline
-5. implementation framed as "teams execution" rather than extension internals
+5. implementation framed as "teams execution" through the official `specify team` runtime rather than extension internals

@@ -122,10 +122,14 @@ export function resolveRuntimeBinaryPath(options: RuntimeBinaryDiscoveryOptions 
   if (envOverride) return envOverride;
 
   const workspaceDebug = options.debugPath ?? resolve(__bridge_dirname, '../../target/debug/omx-runtime');
+  const workspaceDebugExe = `${workspaceDebug}.exe`;
   if (exists(workspaceDebug)) return workspaceDebug;
+  if (exists(workspaceDebugExe)) return workspaceDebugExe;
 
   const workspaceRelease = options.releasePath ?? resolve(__bridge_dirname, '../../target/release/omx-runtime');
+  const workspaceReleaseExe = `${workspaceRelease}.exe`;
   if (exists(workspaceRelease)) return workspaceRelease;
+  if (exists(workspaceReleaseExe)) return workspaceReleaseExe;
 
   return options.fallbackBinary ?? 'omx-runtime';
 }

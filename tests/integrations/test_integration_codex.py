@@ -148,14 +148,16 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     content = skill_path.read_text(encoding="utf-8")
     lower = content.lower()
     assert "codex-only" in lower
-    assert "tmux" in lower
-    assert "tasks.md" in lower
-    assert "sp.agent-teams.run" in content
+    assert "psmux" in lower
+    assert "native windows" in lower
+    assert "specify team" in lower
+    assert "sp.agent-teams.run" not in lower
     assert "primary product surface" in lower or "primary surface" in lower
-    assert "specify extension add agent-teams" in lower
+    assert "specify extension add agent-teams" not in lower
     assert "shared contract with `sp-implement`" in lower
     assert "canonical implementation workflow" in lower
     assert "implement-tracker.md" in lower
+    assert "execution-state source of truth" in lower
     assert "workertaskpacket" in lower
     assert "single-agent" in lower
     assert "native-multi-agent" in lower

@@ -59,6 +59,9 @@ def test_detect_runtime_backend_uses_winget_links_psmux_on_native_windows(monkey
 def test_ensure_tmux_available_mentions_psmux_on_native_windows(monkeypatch):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: True)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: None)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge._winget_links_binary", lambda name: None)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge._winget_package_binary", lambda package, binaries: None)
 
     with pytest.raises(RuntimeEnvironmentError) as excinfo:
         ensure_tmux_available()
@@ -66,6 +69,42 @@ def test_ensure_tmux_available_mentions_psmux_on_native_windows(monkeypatch):
     message = str(excinfo.value)
     assert "psmux" in message
     assert "winget install psmux" in message
+
+
+def test_runtime_status_reports_native_windows_toolchain_requirements(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: True)
+    monkeypatch.setattr(
+        "specify_cli.codex_team.runtime_bridge.shutil.which",
+        lambda name: {
+            "psmux": r"C:\psmux.exe",
+            "git": r"C:\git.exe",
+        }.get(name),
+    )
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge._winget_links_binary", lambda name: None)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge._winget_package_binary", lambda package, binaries: None)
+
+    status = codex_team_runtime_status(codex_team_project_root, integration_key="codex")
+
+    assert status["runtime_backend"] == "psmux"
+    assert status["native_windows"] is True
+    assert status["teams_ready"] is False
+    assert status["native_toolchain_ready"] is False
+    assert status["native_toolchain_missing"] == ["codex", "node", "npm", "cargo"]
+
+
+def test_runtime_bridge_accepts_windows_runtime_exe(tmp_path: Path):
+    from specify_cli.codex_team.runtime_bridge import resolve_agent_teams_runtime_binary
+
+    engine_root = tmp_path / "engine"
+    release_dir = engine_root / "target" / "release"
+    release_dir.mkdir(parents=True)
+    runtime_exe = release_dir / "omx-runtime.exe"
+    runtime_exe.write_text("", encoding="utf-8")
+
+    resolved = resolve_agent_teams_runtime_binary(engine_root)
+
+    assert resolved == runtime_exe
 
 
 def test_runtime_status_reports_codex_availability(monkeypatch, codex_team_project_root: Path):
@@ -128,7 +167,7 @@ def test_runtime_status_surfaces_extension_and_git_prerequisites(monkeypatch, co
     assert status["leader_workspace_clean"] is False
     assert status["worktree_ready"] is False
     assert status["teams_ready"] is False
-    assert any("specify extension add agent-teams" in step for step in status["next_steps"])
+    assert all("specify extension add agent-teams" not in step for step in status["next_steps"])
     assert any("initial commit" in step.lower() for step in status["next_steps"])
 
 

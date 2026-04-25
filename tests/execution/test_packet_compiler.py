@@ -55,3 +55,37 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     assert any("public behavior" in rule.lower() for rule in packet.hard_rules)
     assert packet.scope.write_scope == ["src/services/auth_service.py"]
     assert packet.validation_gates == ["pytest tests/unit/test_auth_service.py -q"]
+
+
+def test_compile_worker_task_packet_accepts_materialized_task_input(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST preserve the runtime contract\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Required Implementation References",
+                "",
+                "- `src/contracts/auth.py`",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="BLL-lane",
+        task_body="[US1] Refactor BLL lane in src/bll_manager.py",
+    )
+
+    assert packet.task_id == "BLL-lane"
+    assert packet.story_id == "US1"
+    assert packet.scope.write_scope == ["src/bll_manager.py"]

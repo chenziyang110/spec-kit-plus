@@ -180,6 +180,152 @@ def test_find_next_ready_parallel_batch_blocks_incomplete_sequential_work_betwee
     assert find_next_ready_parallel_batch(parsed) is None
 
 
+def test_materialize_runtime_batch_from_tracker_uses_current_batch_metadata(
+    codex_team_project_root: Path,
+):
+    from specify_cli.codex_team import auto_dispatch as auto_dispatch_module
+
+    feature_dir = codex_team_project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        """---
+status: executing
+feature: 001-test-feature
+created: 2026-04-25T00:00:00+00:00
+updated: 2026-04-25T00:00:00+00:00
+resume_decision: resume-here
+---
+
+## Current Focus
+current_batch: phase3-bll-aria2
+goal: Resume the active refactor batch
+next_action: Dispatch BLL and Aria2 lanes
+
+## Execution State
+completed_tasks:
+  - T001
+in_progress_tasks:
+failed_tasks:
+retry_attempts: 0
+""",
+        encoding="utf-8",
+    )
+    (feature_dir / "phase3-refactor-plan.md").write_text(
+        """## Batch phase3-bll-aria2
+
+- BLL-lane Refactor BLLDownloadManager in JZDownloader/BLLDownloadManager.cpp
+- Aria2-lane Continue the Aria2 split in JZDownloader/Aria2Adapter.cpp
+""",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        """# Tasks
+
+- [ ] T001 Old foundational task
+""",
+        encoding="utf-8",
+    )
+
+    batch = auto_dispatch_module.materialize_runtime_batch(feature_dir)
+
+    assert batch.batch_name == "phase3-bll-aria2"
+    assert batch.join_point_name == "phase3-bll-aria2-join"
+    assert [task.task_id for task in batch.tasks] == ["BLL-lane", "Aria2-lane"]
+
+
+def test_route_ready_parallel_batch_prefers_tracker_state_over_stale_tasks(
+    monkeypatch, codex_team_project_root: Path
+):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: True)
+    monkeypatch.setattr(
+        "specify_cli.codex_team.runtime_bridge.shutil.which",
+        lambda name: {
+            "psmux": r"C:\psmux.exe",
+            "codex": r"C:\codex.exe",
+            "node": r"C:\node.exe",
+            "npm": r"C:\npm.cmd",
+            "cargo": r"C:\cargo.exe",
+            "git": r"C:\git.exe",
+        }.get(name),
+    )
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+    monkeypatch.setattr(
+        "specify_cli.codex_team.auto_dispatch.launch_dispatched_worker",
+        lambda *args, **kwargs: None,
+    )
+
+    feature_dir = codex_team_project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (codex_team_project_root / ".specify" / "memory").mkdir(parents=True, exist_ok=True)
+    (codex_team_project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST add tests for delegated public behavior\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Implementation Constitution",
+                "",
+                "### Required Implementation References",
+                "",
+                "- `src/contracts/auth.py`",
+                "",
+                "### Forbidden Implementation Drift",
+                "",
+                "- Do not create a parallel auth stack",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        """---
+status: executing
+feature: 001-test-feature
+created: 2026-04-25T00:00:00+00:00
+updated: 2026-04-25T00:00:00+00:00
+resume_decision: resume-here
+---
+
+## Current Focus
+current_batch: phase3-bll-aria2
+goal: Resume the active refactor batch
+next_action: Dispatch BLL and Aria2 lanes
+
+## Execution State
+completed_tasks:
+  - T001
+in_progress_tasks:
+failed_tasks:
+retry_attempts: 0
+""",
+        encoding="utf-8",
+    )
+    (feature_dir / "phase3-refactor-plan.md").write_text(
+        """## Batch phase3-bll-aria2
+
+- BLL-lane [US1] Refactor BLLDownloadManager in JZDownloader/BLLDownloadManager.cpp
+- Aria2-lane [US1] Continue the Aria2 split in JZDownloader/Aria2Adapter.cpp
+""",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        """# Tasks
+
+- [ ] T001 Old foundational task in src/t001.py
+""",
+        encoding="utf-8",
+    )
+
+    result = route_ready_parallel_batch(
+        codex_team_project_root,
+        feature_dir=feature_dir,
+        session_id="default",
+    )
+
+    assert result.batch_name == "phase3-bll-aria2"
+    assert result.dispatched_task_ids == ["BLL-lane", "Aria2-lane"]
+
+
 def test_route_ready_parallel_batch_dispatches_each_task(monkeypatch, codex_team_project_root: Path):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")

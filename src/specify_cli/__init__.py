@@ -2919,7 +2919,7 @@ def team_notify_hook(
 
 @team_app.command("auto-dispatch")
 def team_auto_dispatch(
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory that contains tasks.md"),
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory that contains the active implementation state artifacts"),
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
     project_root = Path.cwd()

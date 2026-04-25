@@ -18,7 +18,10 @@ from specify_cli.codex_team.state_paths import (
     task_record_path,
     worker_heartbeat_path,
 )
-from specify_cli.codex_team.runtime_bridge import dispatch_runtime_task, ensure_tmux_available
+from specify_cli.codex_team.runtime_bridge import (
+    dispatch_runtime_task,
+    ensure_codex_team_runtime_prerequisites,
+)
 from specify_cli.codex_team.runtime_state import batch_record_payload
 from specify_cli.codex_team.session_ops import bootstrap_session, monitor_summary
 from specify_cli.codex_team.worktree_ops import worker_worktree_path
@@ -43,6 +46,9 @@ TASK_LINE_RE = re.compile(r"^- \[(?P<mark>[ xX])\] (?P<task_id>T\d+)(?P<rest>.*)
 PARALLEL_BATCH_RE = re.compile(r"^\*\*(?P<name>Parallel Batch [^*]+)\*\*$")
 JOIN_POINT_RE = re.compile(r"^\*\*(?P<name>Join Point [^*]+)\*\*")
 INLINE_TASK_ID_RE = re.compile(r"`(T\d+)`")
+TRACKER_CURRENT_BATCH_RE = re.compile(r"(?m)^current_batch:\s*(?P<value>.+?)\s*$")
+SECTION_RE = re.compile(r"(?ms)^#{2,3}\s+(?P<title>.+?)\n(?P<body>.*?)(?=^#{2,3}\s+|\Z)")
+MATERIALIZED_TASK_RE = re.compile(r"^\s*-\s+(?P<task_id>[A-Za-z0-9_-]+)\s+(?P<summary>.+?)\s*$")
 
 
 class AutoDispatchError(RuntimeError):
@@ -74,6 +80,23 @@ class ParsedParallelBatch:
 class ParsedTasksDocument:
     tasks: list[ParsedTask]
     parallel_batches: list[ParsedParallelBatch]
+
+
+@dataclass(slots=True)
+class MaterializedTask:
+    task_id: str
+    summary: str
+    task_body: str
+    completed: bool = False
+    parallel: bool = True
+    agent_required: bool = True
+
+
+@dataclass(slots=True)
+class MaterializedBatch:
+    batch_name: str
+    join_point_name: str
+    tasks: list[MaterializedTask]
 
 
 @dataclass(slots=True)
@@ -323,6 +346,99 @@ def parse_tasks_markdown(tasks_path: Path) -> ParsedTasksDocument:
     return ParsedTasksDocument(tasks=tasks, parallel_batches=parallel_batches)
 
 
+def _extract_tracker_scalar(text: str, key: str) -> str:
+    pattern = TRACKER_CURRENT_BATCH_RE if key == "current_batch" else re.compile(
+        rf"(?m)^{re.escape(key)}:\s*(?P<value>.+?)\s*$"
+    )
+    match = pattern.search(text)
+    return match.group("value").strip() if match else ""
+
+
+def _candidate_phase_plan_paths(feature_dir: Path) -> list[Path]:
+    patterns = ("phase*.md", "*phase*.md", "*refactor-plan*.md")
+    candidates: list[Path] = []
+    for pattern in patterns:
+        candidates.extend(path for path in feature_dir.glob(pattern) if path.is_file())
+    unique: dict[Path, None] = {}
+    for candidate in candidates:
+        unique[candidate] = None
+    return list(unique.keys())
+
+
+def _section_body(text: str, title: str) -> str:
+    normalized_title = title.strip().lower()
+    for match in SECTION_RE.finditer(text):
+        heading = match.group("title").strip().lower()
+        if heading == normalized_title or heading == f"batch {normalized_title}":
+            return match.group("body").strip()
+    return ""
+
+
+def _materialized_tasks_from_phase_plan(phase_plan: Path, batch_name: str) -> list[MaterializedTask]:
+    body = _section_body(phase_plan.read_text(encoding="utf-8"), batch_name)
+    if not body:
+        return []
+
+    tasks: list[MaterializedTask] = []
+    for raw_line in body.splitlines():
+        match = MATERIALIZED_TASK_RE.match(raw_line)
+        if not match:
+            continue
+        task_id = match.group("task_id").strip()
+        summary = match.group("summary").strip()
+        tasks.append(
+            MaterializedTask(
+                task_id=task_id,
+                summary=summary,
+                task_body=summary,
+            )
+        )
+    return tasks
+
+
+def materialize_runtime_batch(feature_dir: Path) -> MaterializedBatch:
+    """Build a runtime batch from tracker/phase-plan state before falling back to tasks.md."""
+    tracker_path = feature_dir / "implement-tracker.md"
+    if tracker_path.exists():
+        tracker_text = tracker_path.read_text(encoding="utf-8")
+        current_batch = _extract_tracker_scalar(tracker_text, "current_batch")
+        if current_batch:
+            for phase_plan in _candidate_phase_plan_paths(feature_dir):
+                tasks = _materialized_tasks_from_phase_plan(phase_plan, current_batch)
+                if tasks:
+                    return MaterializedBatch(
+                        batch_name=current_batch,
+                        join_point_name=f"{current_batch}-join",
+                        tasks=tasks,
+                    )
+
+    tasks_path = feature_dir / "tasks.md"
+    if not tasks_path.exists():
+        raise AutoDispatchError(f"tasks.md not found in {feature_dir}")
+
+    parsed = parse_tasks_markdown(tasks_path)
+    batch = find_next_ready_parallel_batch(parsed)
+    if batch is None:
+        raise AutoDispatchError("no ready parallel batch found")
+
+    tasks_by_id = {task.task_id: task for task in parsed.tasks}
+    return MaterializedBatch(
+        batch_name=batch.batch_name,
+        join_point_name=batch.join_point_name,
+        tasks=[
+            MaterializedTask(
+                task_id=task_id,
+                summary=tasks_by_id[task_id].summary,
+                task_body=tasks_by_id[task_id].summary,
+                completed=tasks_by_id[task_id].completed,
+                parallel=tasks_by_id[task_id].parallel,
+                agent_required=tasks_by_id[task_id].agent_required,
+            )
+            for task_id in batch.task_ids
+        ],
+    )
+
+
 def find_next_ready_parallel_batch(parsed: ParsedTasksDocument) -> ParsedParallelBatch | None:
     """Return the first explicit or inferred parallel batch whose prerequisites are complete.
 
@@ -570,20 +686,11 @@ def route_ready_parallel_batch(
 ) -> AutoDispatchResult:
     """Dispatch the next ready explicit parallel batch into the team runtime."""
     try:
-        ensure_tmux_available()
+        ensure_codex_team_runtime_prerequisites()
     except RuntimeError as exc:  # RuntimeEnvironmentError subclass
         raise AutoDispatchUnavailableError(str(exc)) from exc
 
-    tasks_path = feature_dir / "tasks.md"
-    if not tasks_path.exists():
-        raise AutoDispatchError(f"tasks.md not found in {feature_dir}")
-
-    parsed = parse_tasks_markdown(tasks_path)
-    batch = find_next_ready_parallel_batch(parsed)
-    if batch is None:
-        raise AutoDispatchError("no ready parallel batch found")
-
-    tasks_by_id = {task.task_id: task for task in parsed.tasks}
+    batch = materialize_runtime_batch(feature_dir)
 
     try:
         bootstrap_session(project_root, session_id=session_id)
@@ -622,27 +729,28 @@ def route_ready_parallel_batch(
     )
     batch_policy = classify_batch_execution_policy(
         workload_shape={
-            "parallel_batches": len(batch.task_ids),
+            "parallel_batches": len(batch.tasks),
             "overlapping_write_sets": False,
             "safe_preparation": False,
         }
     )
     review_policy = classify_review_gate_policy(
         workload_shape={
-            "parallel_batches": len(batch.task_ids),
+            "parallel_batches": len(batch.tasks),
             "review_lane_available": True,
         }
     )
     try:
-        for task_id in batch.task_ids:
-            task = tasks_by_id.get(task_id)
-            if task is None or task.completed:
+        for task in batch.tasks:
+            if task.completed:
                 continue
+            task_id = task.task_id
             request_id = _request_id_for(session_id, batch.batch_name, task_id)
             packet = compile_worker_task_packet(
                 project_root=project_root,
                 feature_dir=feature_dir,
                 task_id=task_id,
+                task_body=task.task_body,
             )
             packet_path = codex_team_state_root(project_root) / "packets" / f"{request_id}.json"
             result_path = build_result_handoff_path(

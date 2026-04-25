@@ -68,6 +68,7 @@ def compile_worker_task_packet(
     project_root: Path,
     feature_dir: Path,
     task_id: str,
+    task_body: str | None = None,
 ) -> WorkerTaskPacket:
     """Compile a delegated execution packet from constitution, plan, and tasks."""
 
@@ -75,8 +76,8 @@ def compile_worker_task_packet(
     plan_text = _read(feature_dir / "plan.md")
     tasks_text = _read(feature_dir / "tasks.md")
 
-    task_body = _task_body(tasks_text, task_id)
-    objective = task_body
+    resolved_task_body = task_body if task_body is not None else _task_body(tasks_text, task_id)
+    objective = resolved_task_body
 
     required_references = [
         PacketReference(
@@ -101,7 +102,7 @@ def compile_worker_task_packet(
     packet = WorkerTaskPacket(
         feature_id=feature_dir.name,
         task_id=task_id,
-        story_id=_story_id_from_task_body(task_body),
+        story_id=_story_id_from_task_body(resolved_task_body),
         objective=objective,
         intent=ExecutionIntent(
             outcome=objective,
@@ -109,7 +110,7 @@ def compile_worker_task_packet(
             success_signals=done_criteria if (done_criteria := [objective]) else [objective],
         ),
         scope=PacketScope(
-            write_scope=_paths_from_task_body(task_body),
+            write_scope=_paths_from_task_body(resolved_task_body),
             read_scope=[ref.path for ref in required_references],
         ),
         required_references=required_references,
