@@ -495,6 +495,14 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert ".specify/project-map/integrations.md" in content
     assert ".specify/project-map/testing.md" in content
     assert ".specify/project-map/operations.md" in content
+    assert "observer framing" in content
+    assert "compressed observer framing" in content
+    assert "full observer framing" in content
+    assert "do not read source files" in content
+    assert "do not inspect logs" in content
+    assert "primary suspected loop" in content
+    assert "alternative cause candidates" in content
+    assert "transition memo" in content
     assert "if the handbook navigation system is missing" in content
     assert "run `/sp-map-codebase` before root-cause analysis continues" in content
     assert "truth-owning layers" in content
@@ -509,6 +517,26 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "must not update the debug file" in content
     assert "wait for every delegated lane's structured handoff" in content
     assert "do not treat an idle child as done work" in content
+
+
+def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-debug-question-tool"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    content = (target / ".codex" / "skills" / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "request_user_input" in content
+    assert "native structured question tool" in content
+    assert "missing-information question" in content or "plain-text clarification" in content
 
 
 def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):

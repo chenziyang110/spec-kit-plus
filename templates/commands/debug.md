@@ -30,6 +30,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Control state is not observation state**: Keep scheduling, admission, allocation, and ownership state separate from UI, logs, event streams, caches, and snapshots.
 - **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Update it before each action.
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
+- **Begin as an observer**: Start by acting like a knowledgeable outsider who only has the user report plus the current system map. Do not rush into code-level detail just because implementation files exist.
+- **Observer framing comes before evidence collection**: The first pass should generate multiple plausible causes from the map and user report before reproduction, logs, code, or test reads begin.
 - **Debug the loop, not just the point**: Validate the path from input event to control decision to resource allocation to state transition to external observation.
 - **Escalate diagnostics when the loop is still ambiguous**: If two investigation rounds do not converge, stop layering plausible small fixes and add decisive instrumentation.
 - **Execution intent stays explicit**: Record the current verification outcome, active constraints, and required success evidence in the session file before and during verification so resume decisions do not depend on chat memory.
@@ -55,7 +57,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
    - Announce the current status, current hypothesis, and immediate next action.
 
 3. **Run the Investigation Protocol**
-   - Move through the investigation stages below.
+   - Move through the investigation stages below, starting with observer framing and the transition memo before evidence collection begins.
    - Update the debug file before each action.
    - Append every confirmed finding to `Evidence`.
    - Append every disproven theory to `Eliminated`.
@@ -73,7 +75,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ## Investigation Protocol
 
-### Required Context Inputs
+### Observer Framing Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
 - Check whether `.specify/project-map/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
@@ -89,27 +91,52 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
 - Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
 - Read `.specify/memory/project-learnings.md` if present before forming or validating a fix.
-- Read `.specify/testing/TESTING_CONTRACT.md` if present before validating a fix so bug-resolution expectations include any project-wide regression-test requirements.
-- Read `.specify/testing/TESTING_PLAYBOOK.md` if present before final verification so the canonical debug-side test commands come from the repository playbook.
 - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to the failing area so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
-- Read the active feature's `spec.md`, `plan.md`, and `tasks.md` when available to recover intended behavior, locked planning decisions, and implementation boundaries relevant to the bug.
-- If `context.md` exists for the active feature, read it before proposing a fix so locked decisions, canonical references, and user-signaled constraints are not bypassed during debugging.
+- During observer framing, do not read source files, test files, log files, or feature-specific planning artifacts such as `spec.md`, `plan.md`, `tasks.md`, or `context.md`.
+- During observer framing, do not read test files or test outputs; save those for the investigator phase.
+- During observer framing, do not inspect logs or runtime output; keep the analysis at the system-map level.
+- During observer framing, do not run reproduction commands, test commands, or instrumentation.
+- Use only the user report plus the current system map to reason about likely owning layers, truth owners, workflow boundaries, and possible failure loops.
+- If the user already supplied strong low-level evidence such as a full stack trace, explicit failing command, explicit failing file, explicit repro command, or precise error text with location, use **compressed observer framing** rather than skipping the observer stage.
+- If critical information is still missing during observer framing, ask at most one concise missing-information question before moving on.
 
-### Stage 1: Symptom Intake
-- Capture expected behavior, actual behavior, reproduction steps, and observed errors.
-- Do not ask the user for the fix. Ask only for symptom detail or missing reproduction information.
+### Stage 1: Observer Framing
+- Based on the user report plus the current system map, produce a user-visible observer analysis board before any code-level investigation begins.
+- The observer analysis board should include:
+  - `Primary suspected loop`
+  - `Alternative cause candidates`
+  - `Why each candidate fits`
+  - `Map evidence`
+  - `Missing questions`
+  - `Recommended first probe`
+- Generate multiple plausible causes where possible instead of collapsing immediately to one hypothesis.
+- Record the same observer framing in the debug session before moving on.
+- Keep observer framing at the architecture/workflow/truth-ownership level. Do not claim code-level certainty yet.
 
-### Stage 2: Reproduction Gate
+### Stage 2: Transition Memo
+- Convert observer framing into an actionable investigation order.
+- Record whether this pass used `full observer framing` or `compressed observer framing`, and why.
+- Pick the first candidate to test in evidence investigation and say why it should go first.
+- Record what evidence surfaces are now unlocked: reproduction, logs, code, tests, or instrumentation.
+- After writing the transition memo, automatically continue into evidence investigation. Do not stop for confirmation unless human action is required.
+- Treat the transition memo as the bridge between the outsider view and the investigator view. The later evidence phase must carry the observer framing forward instead of discarding it.
+
+### Stage 3: Reproduction Gate
+- Capture expected behavior, actual behavior, reproduction steps, and observed errors in the session file before running the first repro.
 - Confirm that the bug is reproducible through a command, script, or explicit manual sequence.
 - If reproduction is not yet verified, stop and gather what is missing before theorizing.
 
-### Stage 3: Log Review
+### Stage 4: Log Review
 - Inspect existing logs, error output, and test output before changing code.
 - Identify whether the current observability already shows:
   - where the failure occurs,
   - which inputs or branches matter,
   - what external dependencies returned,
   - and what state changed immediately before failure.
+- Read the active feature's `spec.md`, `plan.md`, and `tasks.md` when available to recover intended behavior, locked planning decisions, and implementation boundaries relevant to the bug.
+- If `context.md` exists for the active feature, read it before proposing a fix so locked decisions, canonical references, and user-signaled constraints are not bypassed during debugging.
+- Read `.specify/testing/TESTING_CONTRACT.md` if present before validating a fix so bug-resolution expectations include any project-wide regression-test requirements.
+- Read `.specify/testing/TESTING_PLAYBOOK.md` if present before final verification so the canonical debug-side test commands come from the repository playbook.
 
 ### Required Framing Before Hypothesis
 - Before committing to a root-cause theory, write a **Truth Ownership Map** in the debug session:
@@ -123,7 +150,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
   - input event -> control decision -> resource allocation -> state transition -> external observation
 - Prefer hypotheses that explain the control-plane truth, not just the visible symptom layer.
 
-### Stage 4: Observability Assessment
+### Stage 5: Observability Assessment
 - If the current logs cannot answer those questions, treat observability as insufficient.
 - During `investigating`, you may add or refine diagnostic logging, tracing, or instrumentation, then rerun the reproduction or tests to collect stronger evidence.
 - Prefer diagnostic logging that clarifies boundaries, inputs, branches, outputs, and state transitions.
@@ -139,19 +166,20 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
   - **UI projection**: source-of-truth state, publish boundary, transformed view-model state, render/polling output
 - If two hypothesis/experiment cycles fail to converge, escalate observability explicitly. Add instrumentation that can directly falsify the remaining competing explanations instead of applying another surface-level fix.
 
-### Stage 5: Hypothesis Formation
+### Stage 6: Hypothesis Formation
 - Form one specific, falsifiable hypothesis from the evidence.
 - Record the hypothesis, the test to run, and the expected result in `Current Focus`.
+- State how the hypothesis relates back to the observer framing board: does it confirm, refine, or eliminate one of the observer candidates?
 - State why the hypothesis targets the owning layer or control state rather than a downstream projection.
 
-### Stage 6: Experiment Loop
+### Stage 7: Experiment Loop
 - Run one experiment for the active hypothesis.
 - Append the observed result to `Evidence`.
 - If the result disproves the hypothesis, append it to `Eliminated` and return to Stage 5.
 - If the result confirms the failure mechanism, record the root cause and continue to fixing.
 - Record any **rejected surface fixes** that improved symptoms without restoring the control loop, so future resumes do not mistake symptom relief for root-cause resolution.
 
-### Stage 7: Root Cause Confirmation
+### Stage 8: Root Cause Confirmation
 - Before entering fixing, be able to explain:
   - what failed,
   - why it failed,
@@ -191,6 +219,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
   - assessing whether existing logs are sufficient,
   - and gathering output after temporary or durable diagnostic logging has been added.
 - Keep the debug session leader-led: delegated helpers return facts, command results, and observations for the current hypothesis.
+- Delegated helpers must not redo observer framing from scratch; they inherit the observer framing and transition memo as the current outsider model.
 - Delegated helpers must not mutate the debug session state, declare the root cause final, or archive the session.
 - Before dispatching delegated investigation work, update the debug file to reflect the exact current focus and what evidence is being gathered next.
 - Use `.specify/templates/worker-prompts/debug-investigator.md` as the default evidence-collector contract whenever the current integration can delegate a debug lane.
@@ -210,6 +239,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Update Rule**: Update the file before taking an action.
 
 The session file must always make it clear:
+- what the observer framing concluded,
 - what the active hypothesis is,
 - what experiment is being run,
 - why the current logs are sufficient or insufficient,

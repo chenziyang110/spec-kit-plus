@@ -430,6 +430,19 @@ class TestBuiltInSkillGeneration:
         assert "sidecar-runtime" in test_body.lower()
         assert "before mutating shared repository test framework/config files" in test_body.lower()
 
+        debug_body = _body_without_frontmatter(skills_dir / "sp-debug" / "SKILL.md")
+        debug_lower = debug_body.lower()
+        assert "observer framing" in debug_lower
+        assert "compressed observer framing" in debug_lower
+        assert "full observer framing" in debug_lower
+        assert "do not read source files" in debug_lower
+        assert "do not inspect logs" in debug_lower
+        assert "do not read test files" in debug_lower
+        assert "primary suspected loop" in debug_lower
+        assert "alternative cause candidates" in debug_lower
+        assert "transition memo" in debug_lower
+        assert "automatically continue into evidence investigation" in debug_lower
+
 
 class TestSkillDescriptions:
     """Built-in command descriptions should stay aligned with bundled templates."""

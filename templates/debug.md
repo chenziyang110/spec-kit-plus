@@ -12,6 +12,9 @@ slug: [session slug]
 status: gathering | investigating | fixing | verifying | awaiting_human_verify | resolved
 trigger: "[verbatim user input]"
 diagnostic_profile: scheduler-admission | cache-snapshot | ui-projection | general
+observer_mode: full | compressed
+observer_framing_completed: [true once observer framing is written]
+skip_observer_reason: [why observer framing was compressed]
 current_node_id: [ID of the active graph node]
 created: [ISO timestamp]
 updated: [ISO timestamp]
@@ -35,6 +38,36 @@ reproduction: [how to trigger]
 reproduction_command: [command or script if available]
 started: [when it broke / always broken]
 reproduction_verified: [true once repro confirmed]
+
+## Observer Framing
+<!-- OVERWRITE/REFINE before evidence investigation - outsider view only -->
+
+summary: [high-level outsider summary of the issue]
+primary_suspected_loop: [most likely workflow/control loop break from the map view]
+suspected_owning_layer: [layer most likely to own the truth]
+suspected_truth_owner: [module/system area most likely defining the broken truth]
+recommended_first_probe: [best first evidence action for the investigator view]
+missing_questions:
+  - [question that would materially narrow the issue]
+alternative_cause_candidates:
+  - candidate: [candidate cause]
+    why_it_fits: [why it fits the symptom]
+    map_evidence: [which handbook/project-map evidence supports it]
+    would_rule_out: [what missing information or evidence would eliminate it]
+
+## Transition Memo
+<!-- OVERWRITE/REFINE between observer framing and evidence investigation -->
+
+first_candidate_to_test: [which observer candidate the investigator should test first]
+why_first: [why this candidate is the best first probe]
+evidence_unlock:
+  - reproduction
+  - logs
+  - code
+  - tests
+  - instrumentation
+carry_forward_notes:
+  - [what the investigator must preserve from observer framing]
 
 ## Suggested Evidence Lanes
 <!-- OVERWRITE/REFINE - recommended fan-out lanes for delegated or manual evidence collection -->
@@ -142,6 +175,17 @@ rejected_surface_fixes:
 - Reference point for what we're trying to fix
 - Fields: expected, actual, errors, reproduction, reproduction_command, started, reproduction_verified
 
+**Observer Framing:**
+- OVERWRITE/REFINE before evidence investigation begins
+- Must be built from the user report plus handbook/project-map context only
+- Do not use code files, test files, logs, or direct repro results here
+- Capture an outsider analysis, not a final root-cause verdict
+
+**Transition Memo:**
+- OVERWRITE/REFINE after observer framing
+- Converts the outsider analysis into the first investigator-facing probe order
+- Records which evidence surfaces are now unlocked and what the investigator must carry forward
+
 **Suggested Evidence Lanes:**
 - OVERWRITE/REFINE as the diagnostic profile changes
 - These lanes are the default fan-out plan for delegated evidence gathering or manual division of work
@@ -162,6 +206,16 @@ rejected_surface_fixes:
 - OVERWRITE/REFINE as understanding improves
 - Tracks the full path: input event -> control decision -> resource allocation -> state transition -> external observation
 - Use `break_point` to record which link is currently believed to be broken
+
+The session file must always make it clear:
+- what the observer framing concluded,
+- what the active hypothesis is,
+- what experiment is being run,
+- why the current logs are sufficient or insufficient,
+- which layer owns the relevant truth,
+- which state is control state versus observation state,
+- where the closed loop is currently believed to break,
+- and what the next action is if the session resumes later.
 
 **Eliminated:**
 - APPEND only - never remove entries

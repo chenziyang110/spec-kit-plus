@@ -184,7 +184,7 @@ class MarkdownIntegrationTests:
         i.setup(tmp_path, m)
         agent_name = i.config["name"].replace(" CLI", "").lower()
 
-        for name in ("specify", "spec-extend", "checklist", "quick"):
+        for name in ("specify", "spec-extend", "checklist", "quick", "debug"):
             content = (i.commands_dest(tmp_path) / f"sp.{name}.md").read_text(encoding="utf-8").lower()
             assert f"## {agent_name} structured question preference" in content
             assert "native structured question tool" in content
@@ -195,6 +195,7 @@ class MarkdownIntegrationTests:
                 or "plain-text confirmation question" in content
                 or "textual question format" in content
                 or "plain-text clarification" in content
+                or "missing-information question" in content
             )
             assert "active question exactly once" in content
 

@@ -292,6 +292,10 @@ class IntegrationBase(ABC):
                 "lightweight clarification when `--discuss` is active",
                 "resume selection when multiple unfinished quick tasks exist",
             ],
+            "debug": [
+                "missing-information questions during observer framing",
+                "compressed observer framing when the user already supplied strong low-level evidence",
+            ],
         }
         return use_cases.get(command_name, [])
 
@@ -301,6 +305,7 @@ class IntegrationBase(ABC):
             "spec-extend": "If the native tool is unavailable or unsuitable, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
             "checklist": "If the native tool is unavailable or unsuitable, keep the template's existing `Q1`/`Q2`/`Q3` (and optional `Q4`/`Q5`) textual question format.",
             "quick": "If the native tool is unavailable or unsuitable, use the template's existing concise plain-text clarification or quick-task selection wording.",
+            "debug": "If the native tool is unavailable or unsuitable, ask one concise missing-information question in plain text during observer framing before entering reproduction work.",
         }
         return fallback_hints.get(
             command_name,
@@ -314,7 +319,7 @@ class IntegrationBase(ABC):
         agent_name: str,
         command_name: str,
     ) -> str:
-        question_driven_commands = {"specify", "spec-extend", "checklist", "quick"}
+        question_driven_commands = {"specify", "spec-extend", "checklist", "quick", "debug"}
         if command_name not in question_driven_commands:
             return content
 
