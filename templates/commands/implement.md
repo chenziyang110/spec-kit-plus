@@ -13,52 +13,14 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 Treat non-empty `$ARGUMENTS` as first-class implementation context for the current feature execution, not as disposable chat-only guidance.
-## 角色定义 (Role Definition)
 
-**⚠️ CRITICAL: Leader 是调度者，不是执行者**
+## Leader Role
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Leader (你)                                                │
-│  - 读取规划文档和任务列表                                     │
-│  - 选择执行策略                                               │
-│  - 编译 WorkerTaskPacket                                     │
-│  - 分发任务给子代理                                           │
-│  - 收集结果并验证                                             │
-│  - 跨 join point 推进                                       │
-├─────────────────────────────────────────────────────────────┤
-│  Worker (子代理)                                              │
-│  - 执行具体实现任务                                           │
-│  - 写入代码文件                                               │
-│  - 返回结构化结果                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+- You are the implementation leader for this run. Your job is to recover context, choose the current ready batch, dispatch delegated work, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation.
+- You are not the default implementer for the current batch. When a delegated execution path is available for the selected batch, do not personally execute that batch just because it looks easy.
+- Treat `single-agent` as one delegated worker lane, not as permission to collapse back into leader-local execution.
+- Use leader-local execution only when the workflow's explicit fallback conditions are met and the fallback reason is recorded in `implement-tracker.md`.
 
-**禁止事项**：
-- ❌ Leader 直接用 `Write`/`Edit` 工具写代码
-- ❌ Leader 自己执行任务
-- ❌ 跳过 Agent 分发直接干活
-
-**强制事项**：
-- ✅ 必须用 `Agent` 工具分发任务
-- ✅ 必须等待结构化 handoff
-- ✅ 必须收集 Worker 结果后才能继续
-
----
-
-## 硬规则 (Hard Rules)
-
-| 规则 | 说明 |
-|------|------|
-| **RULE-01** | Leader 禁止直接用 Write/Edit 工具写代码 |
-| **RULE-02** | 必须先编译 WorkerTaskPacket 才能分发 |
-| **RULE-03** | 必须用 Agent 工具分发任务 |
-| **RULE-04** | 必须等待结构化 handoff 才能继续 |
-| **RULE-05** | Idle 子代理 ≠ 完成工作 |
-
----
-
-## User Input
 ## Pre-Execution Checks
 
 **Check for extension hooks (before implementation)**:
@@ -309,8 +271,6 @@ human_needed_checks:
    - **Terraform**: `.terraform/`, `*.tfstate*`, `*.tfvars`, `.terraform.lock.hcl`
    - **Kubernetes/k8s**: `*.secret.yaml`, `secrets/`, `.kube/`, `kubeconfig*`, `*.key`, `*.crt`
 
-### Step 3: 解析任务 (Parse Tasks)
-
 5. Parse tasks.md structure and extract:
    - **Task phases**: Setup, Tests, Core, Integration, Polish
    - **Task dependencies**: Sequential vs parallel execution rules
@@ -320,61 +280,48 @@ human_needed_checks:
    - **Join points**: Synchronization steps that must complete before downstream work starts
    - **Execution flow**: Order and dependency requirements
 
-### Step 4: 选择策略 (Select Strategy)
-
 6. Select an execution strategy for each ready batch before writing code:
-
-#### 策略决策表
-
-| 场景 | 推荐策略 | 决策逻辑 |
-|------|----------|----------|
-| **默认/顺序任务** | `single-agent` | `parallel_batches <= 0` 或存在 `overlapping_writes` |
-| **独立并行任务** | `native-multi-agent` | `native_multi_agent` 支持且信心度非 `low` |
-| **复杂/特殊环境** | `sidecar-runtime` | `sidecar_runtime_supported` 且 native 不支持 |
-
-**⚠️ 重要**: `single-agent` 仍然意味着通过 Agent 分发，不是 leader 自执行！
-
-### Step 5: 编译 WorkerTaskPacket (Mandatory)
-
-**HARD RULE**: 必须先编译 WorkerTaskPacket 才能分发！使用以下结构：
-
-```markdown
-# WorkerTaskPacket
-
-## 任务信息
-task_id: [任务 ID]
-description: [任务描述]
-
-## 产出文件
-files_to_create: [要创建的文件列表]
-files_to_modify: [要修改的文件列表]
-
-## 约束与参考
-constraints:
-  - [禁止的行为/必须遵守的规范]
-references:
-  - [相关文件路径]
-
-## 成功标准
-success_criteria:
-  - [完成标准]
-```
-
-### Step 6: 分发任务 (Dispatch)
+   - The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.
+   - The shared implement template is the primary source of truth for this leader-only milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
+   - Use the shared policy function before each batch with the current agent capability snapshot: `choose_execution_strategy(command_name="implement", snapshot, workload_shape)`
+   - Also classify whether the current batch needs a review gate before the join point: `classify_review_gate_policy(workload_shape)`
+   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for native delegation. If confidence is `low`, do not force native worker fan-out just because the integration can theoretically support it.
+   - Decision order (must match policy):
+      - If `parallel_batches <= 0` or overlapping write sets -> `single-agent` (`no-safe-batch`)
+      - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
+      - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
+      - Else -> `single-agent` (`fallback` or `fallback-low-confidence`)
+   - single-agent still means one delegated worker lane, not leader self-execution.
+   - Re-evaluate the execution strategy at every new parallel batch or join point instead of choosing once for the whole feature
+   - Refine only the current executable window after each join point. Do not pre-expand later batches when their exact shape depends on current batch evidence.
+   - Grouped parallelism is the default when multiple ready tasks have isolated write sets and stable upstream inputs.
+   - Pipeline execution is preferred when outputs flow stage-by-stage from one bounded task to the next and each stage becomes the next stage's input.
+   - Every pipeline stage still needs an explicit checkpoint before downstream work continues.
+   - If `classify_review_gate_policy(workload_shape)` requires review, do not cross the join point until the batch has passed worker self-check and leader acceptance.
+   - If the policy recommends a peer-review lane and a read-only verification lane is available, run one peer-review lane for the high-risk batch before the leader accepts it.
+   - Reserve peer-review lanes for high-risk batches such as shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces.
+   - When `sidecar-runtime` is selected, use the integration's coordinated runtime surface for the current ready batch, report concrete blockers, keep join-point semantics explicit, and surface retry-pending or blocked runtime state truthfully so runtime/API handoffs stay auditable and safe.
+    - Before dispatching a concrete implementation batch, answer from repository evidence:
+      - What framework or boundary pattern owns the touched surface?
+      - Which files define the existing pattern that must be preserved?
+      - What implementation drift is forbidden for this batch?
+      - Which task or plan item proves that this constraint is intentional rather than inferred?
+      - Which compiled `WorkerTaskPacket` captures the hard rules, required references, validation gates, and done criteria for this delegated task?
+    - If those answers are not grounded in the current repository files, stop guesswork, read the missing references, and update `implement-tracker.md` before continuing.
 
 7. Execute implementation following the task plan:
    - **Phase-by-phase execution**: Complete each phase before moving to the next
    - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
-
-   **分发命令模板**:
-   ```bash
-   Agent(
-     name="[worker-name]",
-     prompt="[WorkerTaskPacket 内容]",
-     subagent_type="general-purpose"
-   )
-   ```
+   - **Capability-aware execution**: After selecting the strategy, execute the current ready batch through `native-multi-agent` or `sidecar-runtime` when selected by policy; otherwise execute via `single-agent` while preserving join-point semantics through the delegated worker lane.
+   - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
+   - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
+   - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
+   - **File-based coordination**: Tasks affecting the same files must run sequentially
+   - **Shared-surface coordination**: Treat shared registration files, router tables, export barrels, dependency injection containers, and similar coordination points as write conflicts even if the main feature files differ
+   - **Boundary-pattern preservation**: When a task touches an established framework-owned surface, extend the existing pattern instead of introducing a parallel adapter, raw rewrite, or compatibility shim unless `plan.md` explicitly authorizes that change
+   - **Validation checkpoints**: Verify each phase completion before proceeding
 
 8. Implementation execution rules:
    - **Setup first**: Initialize project structure, dependencies, configuration
@@ -383,48 +330,50 @@ success_criteria:
    - **Integration work**: Database connections, middleware, logging, external services
    - **Polish and validation**: Unit tests, performance optimization, documentation
 
-### Step 7: 收集结果 (Collect Results)
-
 9. Progress tracking and error handling:
    - Report progress after each completed task
-   - **Halt execution if any non-parallel task fails**
+   - Halt execution if any non-parallel task fails
    - For tasks in parallel batches, continue with successful tasks, report failed ones, and do not cross the batch's join point until the failed work is resolved or explicitly deferred
-   - **REQUIRED**: 必须等待并解析结构化的 `WorkerTaskResult` (或 handoff json)。
-   - **WorkerTaskResult 结构**:
-     ```json
-     {
-       "task_id": "[任务 ID]",
-       "status": "DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT",
-       "changed_files": ["文件列表"],
-       "validation_evidence": "验证证据",
-       "blockers": { "summary": "...", "failed_assumption": "..." }
-     }
-     ```
+   - For high-risk batches, treat acceptance as a three-layer check:
+     - worker self-check
+     - optional read-only peer-review lane when `classify_review_gate_policy(workload_shape)` recommends it
+     - leader/orchestrator review before crossing the join point
+   - Blocked delegated worker results must include a concrete blocker summary, the failed assumption or dependency, and the smallest safe recovery step before the leader accepts the result.
    - Persist completed work, failed work, blocker evidence, `retry_attempts`, `recovery_action`, and `next_action` in `implement-tracker.md` as soon as they change
    - Before declaring the feature blocked, attempt the smallest safe recovery step that matches the evidence:
      - read the most relevant local implementation context for the failing area
      - run the smallest meaningful repro, failing test, or validation command
+     - inspect immediate logs or error output
      - make one focused repair attempt when the evidence is clear
-   - If recovery attempts still fail, set tracker status to `blocked`, keep the blocker explicit, and preserve the best known `next_action`.
+     - if uncertainty remains high, do focused implementation research for the narrow blocker before widening scope
+   - If recovery attempts still fail, set tracker status to `blocked`, keep the blocker explicit, and preserve the best known `next_action` for the next `sp-implement` run
+   - Provide clear error messages with context for debugging
+   - Suggest next steps if implementation cannot proceed
    - **IMPORTANT** For completed tasks, make sure to mark the task off as [X] in the tasks file.
-
-### Step 8: 验证完成 (Validate Completion)
 
 10. Completion validation:
    - Enter tracker status `validating` after the last ready implementation task is complete. `tasks.md` being fully checked off is not sufficient for completion by itself.
-   - Verify all required tasks are completed and match the original specification.
-   - If validation finds missing user-visible behavior or unmet acceptance criteria, record an `open_gaps` entry:
-     - `execution_gap`: implementation exists but behaves incorrectly.
-     - `research_gap`: blocker is a missing technical decision.
-     - `plan_gap`: current plan/tasks do not cover the work needed.
-     - `spec_gap`: requirement itself is ambiguous or contradictory.
-   - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green.
-   - [AGENT] Before the final completion report, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning.
-   - Report final status with summary of completed work and any unresolved gaps.
+   - Verify all required tasks are completed
+   - Check that implemented features match the original specification, accepted behavior, and any independent test criteria captured in `tasks.md`
+   - Validate that tests pass and coverage meets requirements
+   - Confirm the implementation follows the technical plan
+   - If validation finds missing user-visible behavior or unmet acceptance criteria, record an `open_gaps` entry instead of silently claiming completion
+   - Classify each unresolved gap:
+     - `execution_gap`: implementation exists but still behaves incorrectly; continue fixing within the current implementation loop
+     - `research_gap`: the blocker is a missing technical decision or evidence gap; update `research.md`, record the new finding in the tracker, then continue
+     - `plan_gap`: the current plan/tasks do not cover the work needed to satisfy the feature goal; update `plan.md` and `tasks.md`, set tracker status to `replanning`, then continue from the next ready batch after the replan
+     - `spec_gap`: the requirement itself is ambiguous, contradictory, or newly changed; stop autonomous replanning, keep the gap explicit in the tracker, and recommend `/sp.spec-extend`
+   - If the completed implementation changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`, run `/sp-map-codebase` before final completion reporting so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
+   - If you cannot complete that refresh in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before the next brownfield workflow proceeds.
+   - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
+   - [AGENT] Before the final completion report, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command implement ...`.
+   - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
+   - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
+   - Report final status with summary of completed work, remaining human-needed checks, and any unresolved gaps
 
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/sp.tasks` first to regenerate the task list.
 
-### Step 9: 扩展钩子 (Extension Hooks)
+11. **Check for extension hooks**: After completion validation, check if `.specify/extensions.yml` exists in the project root.
     - If it exists, read it and look for entries under the `hooks.after_implement` key
     - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
     - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
