@@ -94,6 +94,63 @@ class ClaudeIntegration(SkillsIntegration):
         )
         return content + addendum
 
+    def _replace_frontmatter_description(
+        self,
+        *,
+        content: str,
+        description: str,
+    ) -> str:
+        """Replace the frontmatter description while preserving file structure."""
+        lines = content.splitlines(keepends=True)
+        out: list[str] = []
+        dash_count = 0
+        replaced = False
+
+        for line in lines:
+            stripped = line.rstrip("\n\r")
+            if stripped == "---":
+                dash_count += 1
+                out.append(line)
+                continue
+            if dash_count == 1 and not replaced and stripped.startswith("description:"):
+                if line.endswith("\r\n"):
+                    eol = "\r\n"
+                elif line.endswith("\n"):
+                    eol = "\n"
+                else:
+                    eol = ""
+                escaped = description.replace("\\", "\\\\").replace('"', '\\"')
+                out.append(f'description: "{escaped}"{eol}')
+                replaced = True
+                continue
+            out.append(line)
+        return "".join(out)
+
+    def _append_dispatch_first_gate(
+        self,
+        *,
+        content: str,
+    ) -> str:
+        marker = "## Claude Dispatch-First Gate"
+        if marker in content:
+            return content
+
+        addendum = (
+            "\n"
+            "## Claude Dispatch-First Gate\n\n"
+            "- For `sp-implement`, attempt delegated execution before leader-local implementation.\n"
+            "- Use Claude's native delegated child-worker path as the default first attempt for the current ready batch whenever the batch is safe to delegate.\n"
+            "- Treat `single-agent` as one delegated child-worker lane, not as permission for the leader to implement directly.\n"
+            "- If multiple safe worker lanes exist for the current batch, dispatch them in parallel instead of defaulting to serial leader-local work.\n"
+            "- Prefer delegated child-worker fan-out over local deep-dive execution when the ready tasks have isolated write sets and stable upstream inputs.\n"
+            "- Do not begin concrete implementation on the leader path while an untried delegated path is available for the current batch.\n"
+            "- Only fall back to leader-local execution after recording a concrete fallback reason in `FEATURE_DIR/implement-tracker.md`.\n"
+            "- If the current batch needs durable shared coordination or explicit teammate messaging, escalate to `/sp-implement-teams` instead of simulating that coordination on the leader path.\n"
+        )
+        if "## Leader Role" in content:
+            return content.replace("## Leader Role", addendum + "\n## Leader Role", 1)
+        return content + addendum
+
     def _append_agent_teams_escalation(
         self,
         *,
@@ -326,6 +383,12 @@ class ClaudeIntegration(SkillsIntegration):
             if not path.exists():
                 continue
             content = path.read_text(encoding="utf-8")
+            if command_name == "implement":
+                content = self._replace_frontmatter_description(
+                    content=content,
+                    description="Execute the implementation plan by dispatching tasks to worker agents and integrating their results",
+                )
+                content = self._append_dispatch_first_gate(content=content)
             content = self._append_delegation_surface_contract(
                 content=content,
                 agent_name="Claude",

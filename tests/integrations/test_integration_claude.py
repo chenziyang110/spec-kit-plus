@@ -483,12 +483,42 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
 
     content = (target / ".claude" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
 
+    assert "## claude dispatch-first gate" in content
+    assert "attempt delegated execution before leader-local implementation" in content
+    assert "treat `single-agent` as one delegated child-worker lane" in content
+    assert "if multiple safe worker lanes exist for the current batch, dispatch them in parallel" in content
+    assert "do not begin concrete implementation on the leader path while an untried delegated path is available" in content
+    assert "only fall back to leader-local execution after recording a concrete fallback reason" in content
+    assert "/sp-implement-teams" in content
     assert "## claude code leader gate".lower() in content
     assert "you are the **leader**, not the concrete implementer" in content
     assert "autonomous blocker recovery" in content
     assert "missed_agent_dispatch" in content
     assert "current runtime's native worker lanes" in content
     assert "current integration's coordinated runtime surface" in content
+
+
+def test_claude_generated_sp_implement_description_prefers_worker_dispatch(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "claude-implement-description"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "claude", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai claude failed: {result.output}"
+
+    content = (target / ".claude" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
+    parts = content.split("---", 2)
+    parsed = yaml.safe_load(parts[1])
+
+    assert parsed["description"] == (
+        "Execute the implementation plan by dispatching tasks to worker agents and integrating their results"
+    )
 
 
 def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_path):
