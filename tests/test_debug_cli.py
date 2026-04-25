@@ -7,7 +7,7 @@ import os
 import re
 from specify_cli.debug.schema import DebugStatus
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
-from specify_cli.debug.schema import DebugGraphState, SuggestedEvidenceLane
+from specify_cli.debug.schema import DebugGraphState, ObserverCauseCandidate, SuggestedEvidenceLane
 
 runner = CliRunner()
 
@@ -170,6 +170,18 @@ def test_debug_prints_checkpoint_for_incomplete_session(clean_debug_dir, monkeyp
     async def fake_run_debug_session(state, handler, *, resumed=False):
         state.status = DebugStatus.INVESTIGATING
         state.diagnostic_profile = "scheduler-admission"
+        state.observer_mode = "full"
+        state.observer_framing_completed = True
+        state.observer_framing.summary = "Observer framing points to scheduler ownership drift."
+        state.observer_framing.primary_suspected_loop = "scheduler-admission"
+        state.observer_framing.suspected_owning_layer = "scheduler"
+        state.observer_framing.recommended_first_probe = "Compare queue and running sets before reading code."
+        state.observer_framing.alternative_cause_candidates = [
+            ObserverCauseCandidate(candidate="ownership set never released")
+        ]
+        state.transition_memo.first_candidate_to_test = "ownership set never released"
+        state.transition_memo.why_first = "Best fits the outsider framing."
+        state.transition_memo.evidence_unlock = ["reproduction", "logs", "code"]
         state.suggested_evidence_lanes = [
             SuggestedEvidenceLane(
                 name="queue-snapshot",
@@ -189,6 +201,10 @@ def test_debug_prints_checkpoint_for_incomplete_session(clean_debug_dir, monkeyp
     assert "current stage" in result.stdout.lower()
     assert "diagnostic profile" in result.stdout.lower()
     assert "scheduler-admission" in result.stdout.lower()
+    assert "observer framing" in result.stdout.lower()
+    assert "primary suspected loop" in result.stdout.lower()
+    assert "transition memo" in result.stdout.lower()
+    assert "first candidate to test" in result.stdout.lower()
     assert "suggested evidence lanes" in result.stdout.lower()
     assert "suggested codex dispatch" in result.stdout.lower()
     assert "suggested codex spawn payloads" in result.stdout.lower()

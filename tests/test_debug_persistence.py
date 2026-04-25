@@ -3,7 +3,14 @@ from pathlib import Path
 import pytest
 
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
-from specify_cli.debug.schema import DebugGraphState, DebugStatus, EvidenceEntry, OwnershipEntry, SuggestedEvidenceLane
+from specify_cli.debug.schema import (
+    DebugGraphState,
+    DebugStatus,
+    EvidenceEntry,
+    ObserverCauseCandidate,
+    OwnershipEntry,
+    SuggestedEvidenceLane,
+)
 
 
 def test_persistence_round_trips_full_state(tmp_path):
@@ -23,6 +30,27 @@ def test_persistence_round_trips_full_state(tmp_path):
     state.symptoms.expected = "final token preserved"
     state.symptoms.actual = "final token missing"
     state.symptoms.reproduction_verified = True
+    state.observer_mode = "compressed"
+    state.observer_framing_completed = True
+    state.skip_observer_reason = "user supplied an explicit reproduction command"
+    state.observer_framing.summary = "Observer framing points to a parser boundary issue before code inspection."
+    state.observer_framing.primary_suspected_loop = "parser-boundary"
+    state.observer_framing.suspected_owning_layer = "parser"
+    state.observer_framing.suspected_truth_owner = "token boundary logic"
+    state.observer_framing.recommended_first_probe = "Verify the parse boundary against the reproduction before reading helper code."
+    state.observer_framing.missing_questions = ["Does the final token disappear on every reproduction path?"]
+    state.observer_framing.alternative_cause_candidates = [
+        ObserverCauseCandidate(
+            candidate="parser upper bound excludes final token",
+            why_it_fits="The symptom is a missing final token rather than random corruption.",
+            map_evidence="Parser owns token boundary truth.",
+            would_rule_out="A reproduction showing the parser output already contains the final token.",
+        )
+    ]
+    state.transition_memo.first_candidate_to_test = "parser upper bound excludes final token"
+    state.transition_memo.why_first = "Best matches the observer framing and the user report."
+    state.transition_memo.evidence_unlock = ["reproduction", "code", "tests"]
+    state.transition_memo.carry_forward_notes = ["Treat the parser boundary as the first truth owner to verify."]
     state.truth_ownership.append(
         OwnershipEntry(
             layer="scheduler",
@@ -80,6 +108,14 @@ def test_persistence_round_trips_full_state(tmp_path):
     assert restored.suggested_evidence_lanes[0].focus == "waiting and promotion flow"
     assert restored.current_focus.next_action == "Line 1\nline 2: still same field"
     assert restored.symptoms.reproduction_verified is True
+    assert restored.observer_mode == "compressed"
+    assert restored.observer_framing_completed is True
+    assert restored.skip_observer_reason == "user supplied an explicit reproduction command"
+    assert restored.observer_framing.summary == "Observer framing points to a parser boundary issue before code inspection."
+    assert restored.observer_framing.primary_suspected_loop == "parser-boundary"
+    assert restored.observer_framing.alternative_cause_candidates[0].candidate == "parser upper bound excludes final token"
+    assert restored.transition_memo.first_candidate_to_test == "parser upper bound excludes final token"
+    assert restored.transition_memo.evidence_unlock == ["reproduction", "code", "tests"]
     assert restored.truth_ownership[0].layer == "scheduler"
     assert restored.truth_ownership[0].owns == "admitted running set"
     assert restored.control_state == ["activeCount", "runningOrder_"]

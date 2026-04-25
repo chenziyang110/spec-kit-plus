@@ -93,6 +93,64 @@ def _print_root_cause_summary(state: DebugGraphState) -> None:
         console.print(f"- Primary decisive signal: {root_cause.decisive_signal}")
 
 
+def _print_observer_framing_summary(state: DebugGraphState) -> None:
+    observer = state.observer_framing
+    if not any(
+        (
+            observer.summary,
+            observer.primary_suspected_loop,
+            observer.suspected_owning_layer,
+            observer.suspected_truth_owner,
+            observer.recommended_first_probe,
+            observer.missing_questions,
+            observer.alternative_cause_candidates,
+        )
+    ):
+        return
+
+    console.print("[bold]Observer Framing[/bold]")
+    if state.observer_mode:
+        console.print(f"- Mode: {state.observer_mode}")
+    if state.skip_observer_reason:
+        console.print(f"- Compression reason: {state.skip_observer_reason}")
+    if observer.summary:
+        console.print(f"- Summary: {observer.summary}")
+    if observer.primary_suspected_loop:
+        console.print(f"- Primary suspected loop: {observer.primary_suspected_loop}")
+    if observer.suspected_owning_layer:
+        console.print(f"- Suspected owning layer: {observer.suspected_owning_layer}")
+    if observer.suspected_truth_owner:
+        console.print(f"- Suspected truth owner: {observer.suspected_truth_owner}")
+    if observer.recommended_first_probe:
+        console.print(f"- Recommended first probe: {observer.recommended_first_probe}")
+    if observer.missing_questions:
+        console.print("- Missing questions:")
+        for question in observer.missing_questions:
+            console.print(f"  - {question}")
+    if observer.alternative_cause_candidates:
+        console.print("- Alternative cause candidates:")
+        for candidate in observer.alternative_cause_candidates:
+            console.print(f"  - {candidate.candidate}")
+
+
+def _print_transition_memo(state: DebugGraphState) -> None:
+    memo = state.transition_memo
+    if not any((memo.first_candidate_to_test, memo.why_first, memo.evidence_unlock, memo.carry_forward_notes)):
+        return
+
+    console.print("[bold]Transition Memo[/bold]")
+    if memo.first_candidate_to_test:
+        console.print(f"- First candidate to test: {memo.first_candidate_to_test}")
+    if memo.why_first:
+        console.print(f"- Why first: {memo.why_first}")
+    if memo.evidence_unlock:
+        console.print(f"- Evidence unlock: {', '.join(memo.evidence_unlock)}")
+    if memo.carry_forward_notes:
+        console.print("- Carry forward:")
+        for note in memo.carry_forward_notes:
+            console.print(f"  - {note}")
+
+
 def _missing_root_cause_fields(state: DebugGraphState) -> list[str]:
     root_cause = state.resolution.root_cause
     if not root_cause:
@@ -140,6 +198,8 @@ def _print_session_checkpoint(state: DebugGraphState, handler: MarkdownPersisten
             console.print("[bold]Suggested Codex Spawn Payloads[/bold]")
             for task in spawn_plan:
                 console.print(f"- {task.lane_name}: {task.agent_type} ({task.reasoning_effort})")
+    _print_observer_framing_summary(state)
+    _print_transition_memo(state)
     _print_root_cause_summary(state)
 
     missing_root_fields = _missing_root_cause_fields(state)

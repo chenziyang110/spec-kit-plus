@@ -6,6 +6,7 @@ from .schema import (
     DebugStatus,
     EliminatedEntry,
     EvidenceEntry,
+    ObserverCauseCandidate,
     SuggestedEvidenceLane,
     ValidationCheck,
 )
@@ -190,6 +191,159 @@ def _build_suggested_evidence_lanes(state: DebugGraphState) -> list[SuggestedEvi
 
 def _refresh_lane_plan(state: DebugGraphState) -> None:
     state.suggested_evidence_lanes = _build_suggested_evidence_lanes(state)
+
+
+def _strong_low_level_evidence_present(state: DebugGraphState) -> tuple[bool, str | None]:
+    haystacks = [
+        state.trigger,
+        state.symptoms.errors,
+        state.symptoms.reproduction_command,
+        state.current_focus.next_action,
+    ]
+    text = " ".join(part.lower() for part in haystacks if part)
+    if state.symptoms.reproduction_command:
+        return True, "user supplied an explicit reproduction command"
+    if any(token in text for token in ("traceback", "stack trace", "panic:", "segfault", ".py:", "exception", "line ")):
+        return True, "user supplied strong low-level failure evidence"
+    return False, None
+
+
+def _observer_candidates_for_profile(profile: str) -> list[ObserverCauseCandidate]:
+    if profile == "scheduler-admission":
+        return [
+            ObserverCauseCandidate(
+                candidate="scheduler ownership state never released correctly",
+                why_it_fits="The symptom pattern matches queues, slots, or running/admitted state drifting out of sync.",
+                map_evidence="Scheduler/admission problems usually live in the truth-owning control plane rather than in UI projections.",
+                would_rule_out="A verified scheduler state transition showing ownership releases and reassignments are correct.",
+            ),
+            ObserverCauseCandidate(
+                candidate="resource counters or slot accounting are stale",
+                why_it_fits="Admission bugs often come from counters disagreeing with ownership sets.",
+                map_evidence="Resource allocation sits in the control-state path of the closed loop.",
+                would_rule_out="Counter traces that stay consistent with queue and running-set changes.",
+            ),
+            ObserverCauseCandidate(
+                candidate="promotion handoff between waiting and running is broken",
+                why_it_fits="The user-visible symptom can occur when the queue changes but the next runnable task never crosses the boundary.",
+                map_evidence="Promotion is the boundary where control decisions become state transitions.",
+                would_rule_out="A clean promotion trace from waiting to running with matching external observation.",
+            ),
+        ]
+    if profile == "cache-snapshot":
+        return [
+            ObserverCauseCandidate(
+                candidate="authoritative state is correct but snapshot invalidation is stale",
+                why_it_fits="Users often report old state persisting when snapshots are not refreshed after control-plane changes.",
+                map_evidence="Snapshot/cache layers are observation layers, not truth owners.",
+                would_rule_out="Evidence that the authoritative state itself is wrong before any snapshot is written.",
+            ),
+            ObserverCauseCandidate(
+                candidate="snapshot refresh path is not triggered on the relevant control-plane event",
+                why_it_fits="The symptom fits a valid state transition with no matching refresh boundary call.",
+                map_evidence="Refresh paths sit at the boundary between control state and observation state.",
+                would_rule_out="A verified refresh trace showing the event reliably triggers cache refresh.",
+            ),
+            ObserverCauseCandidate(
+                candidate="observer is reading the wrong projection layer",
+                why_it_fits="Some stale-state reports come from a secondary table, cache, or event stream rather than the primary snapshot.",
+                map_evidence="Project maps often expose multiple observation layers for the same underlying state.",
+                would_rule_out="Evidence that every projection layer agrees and still shows the wrong value.",
+            ),
+        ]
+    if profile == "ui-projection":
+        return [
+            ObserverCauseCandidate(
+                candidate="projection transform is wrong even though source-of-truth is healthy",
+                why_it_fits="UI-only symptoms often emerge when source state is correct but the transformation layer drops or rewrites fields.",
+                map_evidence="Projection is an observation concern, not usually the primary truth owner.",
+                would_rule_out="Evidence that the source-of-truth state is already wrong before transformation.",
+            ),
+            ObserverCauseCandidate(
+                candidate="published source state is stale before the UI receives it",
+                why_it_fits="The screen can be correct relative to what it received, while the publish boundary already carried stale data.",
+                map_evidence="UI bugs often sit at the publish boundary rather than in rendering itself.",
+                would_rule_out="A publish trace showing correct source state entering the projection layer.",
+            ),
+            ObserverCauseCandidate(
+                candidate="render/polling timing causes a stale observation window",
+                why_it_fits="Transient stale output often comes from observation timing rather than stable state corruption.",
+                map_evidence="Polling and render timing live in observation state, not control state.",
+                would_rule_out="Evidence that the wrong value persists even after a stable post-update observation window.",
+            ),
+        ]
+    return [
+        ObserverCauseCandidate(
+            candidate="owning layer truth is wrong",
+            why_it_fits="The user-visible symptom may be a direct effect of a broken control-plane decision.",
+            map_evidence="Truth ownership should be established before blaming projections or caches.",
+            would_rule_out="Evidence that the owning layer state is correct and the bug only appears downstream.",
+        ),
+        ObserverCauseCandidate(
+            candidate="boundary contract between control state and observation is broken",
+            why_it_fits="Many bugs come from a correct decision never being published or translated correctly.",
+            map_evidence="Closed-loop breaks frequently happen at handoff boundaries.",
+            would_rule_out="A clean handoff trace with correct downstream observation.",
+        ),
+        ObserverCauseCandidate(
+            candidate="observation layer is stale or reading the wrong source",
+            why_it_fits="The user may be seeing the wrong projection even if control state is healthy.",
+            map_evidence="Observation layers are allowed to drift unless refresh/invalidation works correctly.",
+            would_rule_out="Evidence that all observation layers agree and still reflect a control-plane failure.",
+        ),
+    ]
+
+
+def _populate_observer_framing(state: DebugGraphState) -> None:
+    if state.observer_framing_completed:
+        return
+
+    profile = _debug_profile(state)
+    compressed, reason = _strong_low_level_evidence_present(state)
+    state.observer_mode = "compressed" if compressed else "full"
+    state.skip_observer_reason = reason if compressed else None
+
+    profile_summary = {
+        "scheduler-admission": "The issue most likely lives in a scheduler/admission control loop rather than only in a projection layer.",
+        "cache-snapshot": "The issue most likely involves stale observation state, snapshot invalidation, or cache refresh rather than immediate business logic alone.",
+        "ui-projection": "The issue most likely sits in a UI/projection boundary, publish step, or render/poll observation layer.",
+        "general": "The issue needs an outsider pass to identify the likely truth owner and failure boundary before evidence collection begins.",
+    }[profile]
+
+    first_probe = {
+        "scheduler-admission": "Verify queue, slot, and ownership-set transitions before reading implementation details.",
+        "cache-snapshot": "Compare authoritative state versus snapshot/refresh boundaries before chasing code-level fixes.",
+        "ui-projection": "Check whether the source-of-truth state is already wrong before blaming the render layer.",
+        "general": "Start by validating the owning layer and the first control-to-observation handoff.",
+    }[profile]
+
+    state.observer_framing.summary = profile_summary
+    state.observer_framing.primary_suspected_loop = profile
+    state.observer_framing.suspected_owning_layer = {
+        "scheduler-admission": "scheduler/admission control",
+        "cache-snapshot": "authoritative state + snapshot boundary",
+        "ui-projection": "publish/projection boundary",
+        "general": "truth-owning control layer",
+    }[profile]
+    state.observer_framing.suspected_truth_owner = state.observer_framing.suspected_owning_layer
+    state.observer_framing.recommended_first_probe = first_probe
+    state.observer_framing.missing_questions = [
+        "What exact user-visible symptom persists if we ignore implementation details and only describe the workflow break?",
+    ]
+    state.observer_framing.alternative_cause_candidates = _observer_candidates_for_profile(profile)
+
+    state.transition_memo.first_candidate_to_test = (
+        state.observer_framing.alternative_cause_candidates[0].candidate
+        if state.observer_framing.alternative_cause_candidates
+        else None
+    )
+    state.transition_memo.why_first = "It best matches the current outsider framing and offers the narrowest first evidence probe."
+    state.transition_memo.evidence_unlock = ["reproduction", "logs", "code", "tests", "instrumentation"]
+    state.transition_memo.carry_forward_notes = [
+        "Do not discard the observer framing when code-level evidence appears.",
+        "Treat later hypotheses as confirmations or eliminations of observer candidates, not as a fresh unframed search.",
+    ]
+    state.observer_framing_completed = True
 
 
 def _prioritized_file_prompt(state: DebugGraphState) -> str | None:
@@ -454,18 +608,20 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         if not ctx.state.recently_modified:
             ctx.state.recently_modified = loader.get_recent_git_changes()
 
+        _populate_observer_framing(ctx.state)
+
         # 3. Add logic to ensure ctx.state.symptoms.expected and ctx.state.symptoms.actual are populated.
         if not ctx.state.symptoms.expected or not ctx.state.symptoms.actual:
             return _await_input(
                 ctx.state,
-                "Collect expected and actual behavior before continuing.",
+                "Observer framing complete. Collect expected and actual behavior before continuing into evidence investigation.",
             )
         
         # 4. Implement "Reproduction First" gate in GatheringNode
         if not ctx.state.symptoms.reproduction_verified:
             return _await_input(
                 ctx.state,
-                "Reproduction not verified. Please create a reproduction script and run it to verify the bug. Update symptoms.reproduction_verified to True once confirmed.",
+                "Observer framing complete. Reproduction not verified. Please create a reproduction script and run it to verify the bug. Update symptoms.reproduction_verified to True once confirmed.",
             )
 
         return InvestigatingNode()

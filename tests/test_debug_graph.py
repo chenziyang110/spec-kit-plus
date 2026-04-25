@@ -24,6 +24,29 @@ async def test_gathering_to_investigating():
     result = await node.run(ctx)
     assert isinstance(result, InvestigatingNode)
     assert state.status == DebugStatus.GATHERING
+    assert state.observer_framing_completed is True
+    assert state.observer_mode == "full"
+    assert state.observer_framing.primary_suspected_loop is not None
+    assert state.transition_memo.first_candidate_to_test is not None
+
+
+@pytest.mark.asyncio
+async def test_gathering_node_uses_compressed_observer_framing_for_strong_low_level_evidence():
+    state = DebugGraphState(trigger="Traceback in parser.py line 42", slug="test-slug")
+    state.symptoms.expected = "Expected parser output"
+    state.symptoms.actual = "Actual parser output"
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.symptoms.reproduction_verified = True
+    ctx = GraphRunContext(state=state, deps=None)
+    node = GatheringNode()
+
+    result = await node.run(ctx)
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.observer_framing_completed is True
+    assert state.observer_mode == "compressed"
+    assert state.skip_observer_reason is not None
+    assert state.observer_framing.recommended_first_probe is not None
 
 @pytest.mark.asyncio
 async def test_investigating_to_fixing():

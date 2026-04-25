@@ -27,6 +27,30 @@ class Symptoms(BaseModel):
     started: Optional[str] = None
     reproduction_verified: bool = False
 
+
+class ObserverCauseCandidate(BaseModel):
+    candidate: str
+    why_it_fits: Optional[str] = None
+    map_evidence: Optional[str] = None
+    would_rule_out: Optional[str] = None
+
+
+class ObserverFramingState(BaseModel):
+    summary: Optional[str] = None
+    primary_suspected_loop: Optional[str] = None
+    suspected_owning_layer: Optional[str] = None
+    suspected_truth_owner: Optional[str] = None
+    recommended_first_probe: Optional[str] = None
+    missing_questions: List[str] = Field(default_factory=list)
+    alternative_cause_candidates: List[ObserverCauseCandidate] = Field(default_factory=list)
+
+
+class TransitionMemoState(BaseModel):
+    first_candidate_to_test: Optional[str] = None
+    why_first: Optional[str] = None
+    evidence_unlock: List[str] = Field(default_factory=list)
+    carry_forward_notes: List[str] = Field(default_factory=list)
+
 class EliminatedEntry(BaseModel):
     hypothesis: str
     evidence: str
@@ -136,12 +160,17 @@ class DebugGraphState(BaseModel):
     child_slugs: List[str] = Field(default_factory=list)
     resume_after_child: bool = False
     diagnostic_profile: Optional[str] = None
+    observer_mode: Optional[str] = None
+    observer_framing_completed: bool = False
+    skip_observer_reason: Optional[str] = None
     current_node_id: Optional[str] = None
     created: datetime = Field(default_factory=datetime.now)
     updated: datetime = Field(default_factory=datetime.now)
     
     current_focus: Focus = Field(default_factory=Focus)
     symptoms: Symptoms = Field(default_factory=Symptoms)
+    observer_framing: ObserverFramingState = Field(default_factory=ObserverFramingState)
+    transition_memo: TransitionMemoState = Field(default_factory=TransitionMemoState)
     eliminated: List[EliminatedEntry] = Field(default_factory=list)
     evidence: List[EvidenceEntry] = Field(default_factory=list)
     suggested_evidence_lanes: List[SuggestedEvidenceLane] = Field(default_factory=list)

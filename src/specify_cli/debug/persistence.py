@@ -112,6 +112,65 @@ def build_handoff_report(state: DebugGraphState) -> str:
     else:
         lines.append("- Not recorded")
 
+    lines.extend(["", "### Observer Framing"])
+    if state.observer_framing.summary:
+        lines.append(f"- Summary: {state.observer_framing.summary}")
+    if state.observer_framing.primary_suspected_loop:
+        lines.append(f"- Primary suspected loop: {state.observer_framing.primary_suspected_loop}")
+    if state.observer_framing.suspected_owning_layer:
+        lines.append(f"- Suspected owning layer: {state.observer_framing.suspected_owning_layer}")
+    if state.observer_framing.suspected_truth_owner:
+        lines.append(f"- Suspected truth owner: {state.observer_framing.suspected_truth_owner}")
+    if state.observer_framing.recommended_first_probe:
+        lines.append(f"- Recommended first probe: {state.observer_framing.recommended_first_probe}")
+    if state.observer_framing.missing_questions:
+        lines.append("- Missing questions:")
+        for question in state.observer_framing.missing_questions:
+            lines.append(f"  - {question}")
+    if state.observer_framing.alternative_cause_candidates:
+        lines.append("- Alternative cause candidates:")
+        for candidate in state.observer_framing.alternative_cause_candidates:
+            lines.append(f"  - {candidate.candidate}")
+            if candidate.why_it_fits:
+                lines.append(f"    - why it fits: {candidate.why_it_fits}")
+            if candidate.map_evidence:
+                lines.append(f"    - map evidence: {candidate.map_evidence}")
+            if candidate.would_rule_out:
+                lines.append(f"    - would rule out: {candidate.would_rule_out}")
+    if not any(
+        (
+            state.observer_framing.summary,
+            state.observer_framing.primary_suspected_loop,
+            state.observer_framing.suspected_owning_layer,
+            state.observer_framing.suspected_truth_owner,
+            state.observer_framing.recommended_first_probe,
+            state.observer_framing.missing_questions,
+            state.observer_framing.alternative_cause_candidates,
+        )
+    ):
+        lines.append("- Not recorded")
+
+    lines.extend(["", "### Transition Memo"])
+    if state.transition_memo.first_candidate_to_test:
+        lines.append(f"- First candidate to test: {state.transition_memo.first_candidate_to_test}")
+    if state.transition_memo.why_first:
+        lines.append(f"- Why first: {state.transition_memo.why_first}")
+    if state.transition_memo.evidence_unlock:
+        lines.append(f"- Evidence unlock: {', '.join(state.transition_memo.evidence_unlock)}")
+    if state.transition_memo.carry_forward_notes:
+        lines.append("- Carry forward:")
+        for note in state.transition_memo.carry_forward_notes:
+            lines.append(f"  - {note}")
+    if not any(
+        (
+            state.transition_memo.first_candidate_to_test,
+            state.transition_memo.why_first,
+            state.transition_memo.evidence_unlock,
+            state.transition_memo.carry_forward_notes,
+        )
+    ):
+        lines.append("- Not recorded")
+
     lines.extend(["", "### Decisive Signals"])
     if state.resolution.decisive_signals:
         for signal in state.resolution.decisive_signals:
@@ -216,6 +275,9 @@ class MarkdownPersistenceHandler:
             "child_slugs": state.child_slugs,
             "resume_after_child": state.resume_after_child,
             "diagnostic_profile": state.diagnostic_profile,
+            "observer_mode": state.observer_mode,
+            "observer_framing_completed": state.observer_framing_completed,
+            "skip_observer_reason": state.skip_observer_reason,
             "current_node_id": state.current_node_id,
             "created": state.created.isoformat(),
             "updated": datetime.now().isoformat()
@@ -228,6 +290,8 @@ class MarkdownPersistenceHandler:
         sections = [
             ("Current Focus", state.current_focus.model_dump(mode="json")),
             ("Symptoms", state.symptoms.model_dump(mode="json")),
+            ("Observer Framing", state.observer_framing.model_dump(mode="json")),
+            ("Transition Memo", state.transition_memo.model_dump(mode="json")),
             ("Suggested Evidence Lanes", [lane.model_dump(mode="json") for lane in state.suggested_evidence_lanes]),
             ("Truth Ownership", [entry.model_dump(mode="json") for entry in state.truth_ownership]),
             ("Control State", state.control_state),
@@ -310,11 +374,16 @@ class MarkdownPersistenceHandler:
                 "child_slugs": frontmatter.get("child_slugs", []),
                 "resume_after_child": frontmatter.get("resume_after_child", False),
                 "diagnostic_profile": frontmatter.get("diagnostic_profile"),
+                "observer_mode": frontmatter.get("observer_mode"),
+                "observer_framing_completed": frontmatter.get("observer_framing_completed", False),
+                "skip_observer_reason": frontmatter.get("skip_observer_reason"),
                 "current_node_id": frontmatter.get("current_node_id"),
                 "created": frontmatter["created"],
                 "updated": frontmatter["updated"],
                 "current_focus": sections.get("Current Focus") or {},
                 "symptoms": sections.get("Symptoms") or {},
+                "observer_framing": sections.get("Observer Framing") or {},
+                "transition_memo": sections.get("Transition Memo") or {},
                 "suggested_evidence_lanes": sections.get("Suggested Evidence Lanes") or [],
                 "truth_ownership": sections.get("Truth Ownership") or [],
                 "control_state": sections.get("Control State") or [],
