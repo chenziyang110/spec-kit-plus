@@ -35,6 +35,9 @@ from specify_cli.extensions import (
 )
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
 # ===== Fixtures =====
 
 @pytest.fixture
@@ -276,6 +279,18 @@ class TestExtensionManifest:
         hash_value = manifest.get_hash()
         assert hash_value.startswith("sha256:")
         assert len(hash_value) > 10
+
+    def test_bundled_agent_teams_manifest_is_valid(self):
+        """The bundled agent-teams extension must remain installable."""
+        manifest_path = REPO_ROOT / "extensions" / "agent-teams" / "extension.yml"
+
+        manifest = ExtensionManifest(manifest_path)
+
+        assert manifest.id == "agent-teams"
+        assert {command["name"] for command in manifest.commands} == {
+            "sp.agent-teams.run",
+            "sp.agent-teams.cleanup",
+        }
 
 
 # ===== ExtensionRegistry Tests =====

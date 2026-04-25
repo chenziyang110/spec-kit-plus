@@ -1428,6 +1428,125 @@ def _install_bundled_extension(
     return installed_manifest
 
 
+WINDOWS_PSMUX_WINGET_ID = "marlocarlo.psmux"
+WINDOWS_PSMUX_INSTALL_CMD = [
+    "winget",
+    "install",
+    "--id",
+    WINDOWS_PSMUX_WINGET_ID,
+    "--exact",
+    "--accept-package-agreements",
+    "--accept-source-agreements",
+]
+CODEX_TEAMS_INITIAL_COMMIT_MESSAGE = "chore: bootstrap codex teams workspace"
+
+
+def _install_psmux_for_codex_teams() -> tuple[bool, str]:
+    """Attempt to install psmux via winget on native Windows."""
+    if not shutil.which("winget"):
+        return False, "winget is not available in this shell"
+
+    result = subprocess.run(
+        WINDOWS_PSMUX_INSTALL_CMD,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        return True, "Installed psmux via winget"
+
+    detail = (result.stderr or result.stdout or "").strip() or "winget install failed"
+    return False, detail
+
+
+def _git_identity_configured(project_root: Path) -> bool:
+    """Return whether git user identity is configured for the repository."""
+    for key in ("user.name", "user.email"):
+        probe = subprocess.run(
+            ["git", "config", "--get", key],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if probe.returncode != 0 or not probe.stdout.strip():
+            return False
+    return True
+
+
+def _create_codex_teams_initial_commit(project_root: Path) -> tuple[bool, str]:
+    """Create the first git commit so teams worktrees can be based on HEAD."""
+    if not _git_identity_configured(project_root):
+        return False, "git user.name and user.email must be configured before an automatic bootstrap commit can be created"
+
+    add_result = subprocess.run(
+        ["git", "add", "-A"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if add_result.returncode != 0:
+        detail = (add_result.stderr or add_result.stdout or "").strip() or "git add failed"
+        return False, detail
+
+    commit_result = subprocess.run(
+        ["git", "commit", "-m", CODEX_TEAMS_INITIAL_COMMIT_MESSAGE],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if commit_result.returncode == 0:
+        return True, "Created an initial git commit for Codex teams"
+
+    detail = (commit_result.stderr or commit_result.stdout or "").strip() or "git commit failed"
+    return False, detail
+
+
+def _maybe_bootstrap_codex_teams_environment(
+    project_root: Path,
+    *,
+    team_status: dict[str, Any],
+) -> dict[str, Any]:
+    """Offer best-effort Codex teams bootstrap steps in interactive sessions."""
+    if not sys.stdin.isatty():
+        return team_status
+
+    status = team_status
+
+    if (
+        status["native_windows"]
+        and not status["runtime_backend_available"]
+        and shutil.which("winget")
+    ):
+        if typer.confirm("Install psmux now so Codex teams can run on Windows?", default=True):
+            ok, detail = _install_psmux_for_codex_teams()
+            if ok:
+                console.print(f"[green]✓[/green] {detail}")
+            else:
+                console.print(f"[yellow]Warning:[/yellow] {detail}")
+            status = codex_team_runtime_status(project_root, integration_key="codex")
+
+    if (
+        status["git_repo_detected"]
+        and not status["git_head_available"]
+    ):
+        prompt = (
+            "Create an initial git commit now so Codex teams can create worker worktrees? "
+            "This stages and commits the current working tree."
+        )
+        if typer.confirm(prompt, default=True):
+            ok, detail = _create_codex_teams_initial_commit(project_root)
+            if ok:
+                console.print(f"[green]✓[/green] {detail}")
+            else:
+                console.print(f"[yellow]Warning:[/yellow] {detail}")
+            status = codex_team_runtime_status(project_root, integration_key="codex")
+
+    return status
+
+
 def _install_shared_infra(
     project_path: Path,
     script_type: str,
@@ -2241,6 +2360,10 @@ def init(
 
     if codex_skill_mode:
         team_status = codex_team_runtime_status(project_path, integration_key="codex")
+        team_status = _maybe_bootstrap_codex_teams_environment(
+            project_path,
+            team_status=team_status,
+        )
         readiness_lines = [
             f"agent-teams extension installed: [cyan]{team_status['agent_teams_extension_installed']}[/cyan]",
             f"runtime backend available: [cyan]{team_status['runtime_backend_available']}[/cyan]",

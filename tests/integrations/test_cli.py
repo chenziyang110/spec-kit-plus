@@ -2,6 +2,8 @@
 
 import json
 import os
+import subprocess
+from pathlib import Path
 
 import yaml
 
@@ -915,3 +917,107 @@ class TestInitIntegrationFlag:
         assert init_result.exit_code == 0, init_result.output
         assert refresh_result.exit_code != 0
         assert "unknown topic" in refresh_result.output.lower()
+
+
+def test_install_psmux_for_codex_teams_uses_exact_winget_id(monkeypatch):
+    from specify_cli import _install_psmux_for_codex_teams
+
+    commands: list[list[str]] = []
+
+    def fake_run(cmd, capture_output, text, check):
+        commands.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr("specify_cli.shutil.which", lambda name: "C:\\Windows\\System32\\winget.exe" if name == "winget" else None)
+    monkeypatch.setattr("specify_cli.subprocess.run", fake_run)
+
+    ok, detail = _install_psmux_for_codex_teams()
+
+    assert ok is True
+    assert "Installed psmux" in detail
+    assert commands == [[
+        "winget",
+        "install",
+        "--id",
+        "marlocarlo.psmux",
+        "--exact",
+        "--accept-package-agreements",
+        "--accept-source-agreements",
+    ]]
+
+
+def test_create_codex_teams_initial_commit_bootstraps_head(tmp_path):
+    from specify_cli import _create_codex_teams_initial_commit
+
+    project = tmp_path / "codex-teams-git"
+    project.mkdir()
+    subprocess.run(["git", "init"], cwd=project, capture_output=True, text=True, check=True)
+    subprocess.run(["git", "config", "user.name", "Spec Kit Test"], cwd=project, capture_output=True, text=True, check=True)
+    subprocess.run(["git", "config", "user.email", "spec-kit@example.invalid"], cwd=project, capture_output=True, text=True, check=True)
+    (project / "README.md").write_text("# Test\n", encoding="utf-8")
+
+    ok, detail = _create_codex_teams_initial_commit(project)
+
+    assert ok is True
+    assert "initial git commit" in detail.lower()
+    head = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD"],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    status = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert head.returncode == 0
+    assert status.stdout.strip() == ""
+
+
+def test_maybe_bootstrap_codex_teams_environment_runs_psmux_and_initial_commit(monkeypatch, tmp_path):
+    from specify_cli import _maybe_bootstrap_codex_teams_environment
+
+    project = tmp_path / "codex-bootstrap"
+    project.mkdir()
+
+    statuses = [
+        {
+            "native_windows": True,
+            "runtime_backend_available": True,
+            "git_repo_detected": True,
+            "git_head_available": False,
+        },
+        {
+            "native_windows": True,
+            "runtime_backend_available": True,
+            "git_repo_detected": True,
+            "git_head_available": True,
+        },
+    ]
+    confirms = iter([True, True])
+    calls: list[str] = []
+
+    monkeypatch.setattr("specify_cli.sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("specify_cli.shutil.which", lambda name: "C:\\Windows\\System32\\winget.exe" if name == "winget" else None)
+    monkeypatch.setattr("specify_cli.typer.confirm", lambda prompt, default=True: next(confirms))
+    monkeypatch.setattr("specify_cli._install_psmux_for_codex_teams", lambda: (calls.append("psmux") or True, "Installed psmux via winget"))
+    monkeypatch.setattr("specify_cli._create_codex_teams_initial_commit", lambda project_root: (calls.append("git") or True, "Created an initial git commit for Codex teams"))
+    monkeypatch.setattr("specify_cli.codex_team_runtime_status", lambda project_root, integration_key="codex": statuses.pop(0))
+
+    final_status = _maybe_bootstrap_codex_teams_environment(
+        project,
+        team_status={
+            "native_windows": True,
+            "runtime_backend_available": False,
+            "git_repo_detected": True,
+            "git_head_available": False,
+        },
+    )
+
+    assert calls == ["psmux", "git"]
+    assert final_status["runtime_backend_available"] is True
+    assert final_status["git_head_available"] is True

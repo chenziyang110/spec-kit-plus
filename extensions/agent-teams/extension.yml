@@ -34,7 +34,6 @@ provides:
     - name: "sp.agent-teams.run"
       file: "commands/run.md"
       description: "Parse tasks.md and execute them using an isolated multi-agent team"
-      aliases: ["sp.team.run", "sp.team.execute"]
       
     - name: "sp.agent-teams.cleanup"
       file: "commands/cleanup.md"
