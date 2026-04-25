@@ -87,6 +87,9 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Default to concise clarification turns" in content
     assert "Do not restate the full current understanding after every answer" in content
     assert "Save the full synthesis for the alignment-ready turn" in content
+    assert "When the runtime exposes a native structured question tool" in content
+    assert "Treat the shared open question block structure below as fallback-only text format guidance" in content
+    assert "When using a native structured question tool, map the same stage, topic, prompt, example, recommendation, options, and reply guidance into the native tool fields" in content
     assert re.search(r"open (question )?blocks?", lowered)
     _assert_contains_any(lowered, "stage header", "stage title")
     _assert_contains_any(lowered, "question header", "question title")
@@ -100,6 +103,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Do not repeat the same question" in content
     assert "If the runtime exposes separate progress/commentary and final reply channels" in content
     assert "The user should see the current clarification question exactly once." in content
+    assert "Use this open question block structure in the user's current language when rendering the textual fallback block" in content
     assert "Ask at most one unanswered high-impact question per message" in content
     assert "each clarification turn should contain at most one short checkpoint" in content
     assert "decompose" in lowered

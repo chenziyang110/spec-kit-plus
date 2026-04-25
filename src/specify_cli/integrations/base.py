@@ -340,7 +340,8 @@ class IntegrationBase(ABC):
             "",
             f"## {agent_name} Structured Question Preference",
             "",
-            "- Prefer the runtime's native structured question tool for interactive clarification, confirmation, or bounded user selections whenever that tool is available.",
+            "- Use the runtime's native structured question tool for interactive clarification, confirmation, or bounded user selections whenever that tool is available and suitable for the current turn.",
+            "- Treat the template's textual question format as fallback-only guidance in those turns; use it to shape the question content, but do not render the textual block unless the native tool is unavailable or unsuitable.",
             "- Ask only the minimum number of questions required by this workflow's existing contract.",
             "- Keep the user-visible question text in the user's current language and keep option labels short.",
             "- Do not emit both a native tool question and the textual fallback block in the same turn. The user should see the active question exactly once.",
@@ -358,6 +359,10 @@ class IntegrationBase(ABC):
             if availability_note:
                 tool_intro += f" {availability_note}"
             lines.append(tool_intro)
+            if not availability_note:
+                lines.append(
+                    "- When this native tool target is listed for the integration and the runtime does not signal otherwise, assume it is available by default in normal interactive sessions."
+                )
         if question_limit:
             lines.append(f"- Question count: {question_limit}")
         if option_limit:

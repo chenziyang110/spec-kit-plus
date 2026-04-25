@@ -380,8 +380,10 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Keep grouped recaps compact; omit sections that would be empty, repetitive, or low-value.
     - Keep progress tracking scoped to the current capability or bounded spec slice rather than to a fixed global question budget.
     - Do not present the clarification loop as a fixed total such as `2 / 5`.
-    - Use shared open question blocks for every interactive question in this workflow.
-    - Each open question block must present, in order: a stage header, question header, prompt, example when useful, recommendation, options, and reply instruction.
+    - When the runtime exposes a native structured question tool, use that native tool for every interactive clarification, confirmation, or bounded selection in this workflow.
+    - Treat the shared open question block structure below as fallback-only text format guidance; render the textual block only when no suitable native structured question tool is available.
+    - When using a native structured question tool, map the same stage, topic, prompt, example, recommendation, options, and reply guidance into the native tool fields instead of rendering the textual block verbatim.
+    - Each textual fallback open question block must present, in order: a stage header, question header, prompt, example when useful, recommendation, options, and reply instruction.
     - Keep the stage header minimal: `SPECIFY SESSION` plus the current capability-scoped progress marker, for example `Capability 1 / 3 | Question 2`.
     - Use the question header for a short topic label only.
     - Default to a one-sentence prompt. Put extra context into the example line, grouped sub-points, or recommendation line instead of turning the prompt into a paragraph.
@@ -416,7 +418,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Make the closeout explicit: if ambiguity remains, ask whether the user wants to continue exploring or move to the next step with the documented risks.
     - Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions in place of concrete behavior, boundary handling, compatibility impact, or acceptance proof.
 
-    Use this open question block structure in the user's current language:
+    Use this open question block structure in the user's current language when rendering the textual fallback block:
 
     ```text
     Stage header

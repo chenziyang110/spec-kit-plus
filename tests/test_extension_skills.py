@@ -296,6 +296,8 @@ class TestBuiltInSkillGeneration:
         specify_body = _body_without_frontmatter(skills_dir / "sp-specify" / "SKILL.md")
         specify_outline = _extract_section(specify_body, "Outline")
         assert "open question block" in specify_outline.lower()
+        assert "native structured question tool" in specify_body.lower()
+        assert "fallback-only text format guidance" in specify_body.lower()
         _assert_terms_in_order(
             specify_outline,
             "Stage header",

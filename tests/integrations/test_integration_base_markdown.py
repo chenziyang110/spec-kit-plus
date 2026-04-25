@@ -188,6 +188,7 @@ class MarkdownIntegrationTests:
             content = (i.commands_dest(tmp_path) / f"sp.{name}.md").read_text(encoding="utf-8").lower()
             assert f"## {agent_name} structured question preference" in content
             assert "native structured question tool" in content
+            assert "fallback-only guidance" in content
             assert (
                 "template's existing textual question format" in content
                 or "existing plain-text" in content
