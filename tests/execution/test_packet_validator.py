@@ -52,6 +52,7 @@ def sample_packet() -> WorkerTaskPacket:
         validation_gates=["pytest tests/unit/test_auth_service.py -q"],
         done_criteria=["login/logout behavior implemented"],
         handoff_requirements=["return changed files"],
+        platform_guardrails=["supported_platforms: windows, linux"],
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
     )
 
@@ -101,6 +102,28 @@ def test_validate_worker_task_packet_rejects_missing_context_bundle(
     sample_packet: WorkerTaskPacket,
 ) -> None:
     sample_packet.context_bundle = []
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP2"
+
+
+def test_validate_worker_task_packet_rejects_missing_handoff_requirements(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.handoff_requirements = []
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+
+
+def test_validate_worker_task_packet_rejects_missing_platform_guardrails(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.platform_guardrails = []
 
     with pytest.raises(PacketValidationError) as exc:
         validate_worker_task_packet(sample_packet)

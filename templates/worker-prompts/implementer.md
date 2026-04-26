@@ -10,6 +10,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
   - required references
   - verification gates
   - done criteria
+- Provide platform guardrails and completion-handoff expectations explicitly when the lane depends on supported-platform constraints, conditional compilation, runtime-managed result channels, or a promised result handoff path.
 - Name the write set, shared surfaces, and forbidden drift explicitly.
 
 ## Worker Contract
@@ -29,6 +30,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - Remaining concern, blocker, or missing context
 - When the runtime supports structured delegated results, format the handoff as a `WorkerTaskResult`-style payload with validation evidence and explicit blocker metadata.
 - When the leader provides a delegated result handoff path, write the normalized result envelope there instead of replying with freeform prose only.
+- If the delegated lane requires lifecycle signals such as `task_started`, `task_blocked`, or `task_completed`, emit them as part of the promised completion-handoff protocol instead of assuming a status flip is enough.
 - The worker must not enter `idle` before the required handoff is written or returned.
 - If the handoff channel fails, return that failure explicitly instead of idling silently.
 
@@ -36,5 +38,6 @@ Use this template when the leader dispatches a concrete implementation lane for 
 
 - Do not widen scope.
 - Do not silently skip packet rules.
+- Do not ignore platform guardrails or conditional-compilation requirements carried by the packet.
 - Do not claim verification that was not run.
 - If a required decision is missing, stop and return `NEEDS_CONTEXT`.

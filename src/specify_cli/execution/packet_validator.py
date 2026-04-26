@@ -33,4 +33,8 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
         raise PacketValidationError("DP1", "validation_gates must be present in the packet")
     if not packet.done_criteria:
         raise PacketValidationError("DP1", "done_criteria must be present in the packet")
+    if not packet.handoff_requirements:
+        raise PacketValidationError("DP1", "handoff_requirements must be present in the packet")
+    if not packet.platform_guardrails:
+        raise PacketValidationError("DP2", "platform_guardrails must be compiled into the packet")
     return packet

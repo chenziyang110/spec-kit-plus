@@ -67,6 +67,7 @@ class WorkerTaskPacket:
     validation_gates: list[str]
     done_criteria: list[str]
     handoff_requirements: list[str]
+    platform_guardrails: list[str] = field(default_factory=list)
     intent: ExecutionIntent = field(default_factory=ExecutionIntent)
     dispatch_policy: DispatchPolicy = field(default_factory=DispatchPolicy)
     packet_version: int = 2

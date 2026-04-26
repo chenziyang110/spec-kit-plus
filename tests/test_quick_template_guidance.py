@@ -70,11 +70,12 @@ def test_quick_template_defines_capability_aware_execution_strategy() -> None:
 
     assert "choose_execution_strategy" in content
     assert "single-agent" in content
+    assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
     assert "leader" in content
     assert "join point" in content
-    assert "single-agent still means one delegated worker lane" in content
+    assert "`single-lane` still means one delegated worker lane" in content
     assert "not as permission to personally do the task" in content
     assert "leader-local execution is an exception path" in content
     assert "only when the current quick-task batch cannot proceed through native delegation" in content
@@ -104,7 +105,7 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "id: [quick-task id]" in content
     assert "slug: [quick-task slug]" in content
     assert "status: gathering | planned | executing | validating | blocked | resolved" in content
-    assert "strategy: single-agent | native-multi-agent | sidecar-runtime" in content
+    assert "strategy: single-lane | native-multi-agent | sidecar-runtime" in content
     assert "## current focus" in content
     assert "## execution intent" in content
     assert "intent_outcome:" in content
@@ -138,7 +139,7 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
     assert "constitution first" in content
     assert "before `status.md` initialization or touched-area analysis proceeds" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
-    assert "treat `single-agent` as a delegated single-worker path by default" in content
+    assert "treat `single-lane` as a delegated single-worker path by default" in content
     assert "dispatch that worker path before doing any further local repository deep dive" in content
     assert "resolved" in content
     assert "blocked" in content

@@ -63,7 +63,7 @@ Use `/speckit.spec-extend` only when an existing spec needs deeper analysis befo
 /speckit.tasks
 ```
 
-Optionally, validate the plan with `/speckit.analyze`. If it flags upstream issues, resolve them through the re-entry path below before proceeding:
+Before implementation, run `/speckit.analyze`. Treat it as the required gate before implementation once `tasks.md` exists. If it flags upstream issues, resolve them through the re-entry path below before proceeding:
 
 ```markdown
 /speckit.analyze
@@ -85,15 +85,18 @@ When the feature touches an established boundary pattern in the target project, 
 - Delegated execution should not rely on raw task text when architecture or quality rules matter.
 - `/speckit.plan` should provide `Dispatch Compilation Hints`.
 - `/speckit.implement` should compile and validate a `WorkerTaskPacket` before dispatching native workers or sidecar workers.
+- Delegated packets should carry platform guardrails when the lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
 - If the active integration exposes a runtime-managed result channel, delegated workers should use it. Otherwise they should write normalized result envelopes to the workflow-specific worker-results path.
 - When the local `specify` CLI is available and no runtime-managed result channel exists, delegated workers should prefer `specify result path` and `specify result submit` instead of inventing ad-hoc result locations or payload shapes.
 - Preserve the raw `reported_status` when worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` is normalized into canonical orchestration state.
 - Top-level `tasks.md` items should usually fit one coffee-break-sized implementation slice, roughly 10-20 minutes, while delegated workers may still break them into smaller 2-5 minute atomic steps internally.
 - Keep decomposition progressive: refine only the current executable window after each join point instead of over-specifying later batches too early.
+- Every join point that gates downstream work should name a validation target, a validation command or check, and a pass condition.
 - Grouped parallelism is the default when ready tasks have isolated write sets; use a pipeline shape only when outputs flow stage-by-stage and keep explicit checkpoints between stages.
 - For high-risk batches touching shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces, add a review gate before crossing the join point.
 - If a read-only verification lane is available, use one peer-review lane only for those high-risk batches rather than for every batch.
 - If delegated work returns `blocked`, require the blocker, the failed assumption, and the smallest safe recovery step before accepting the result.
+- If a delegated lane reports `completed` or slips into `idle` before the promised handoff arrives, treat it as a stale lane and recover explicitly instead of assuming success.
 
 > [!TIP]
 > **Phased Implementation**: For complex projects, implement in phases to avoid overwhelming the agent's context. Start with core functionality, validate it works, then add features incrementally.
@@ -112,8 +115,10 @@ For Codex team-mode execution, use the runtime surface deliberately:
 - Run `specify team live-probe` when the runtime was just installed, recently repaired, or still looks suspect after `doctor`.
 - Use `specify team result-template --request-id <id>` and `specify team submit-result --print-schema` instead of inventing handoff JSON by guesswork.
 - Use `specify team sync-back` after worker execution when the canonical code changes landed under `.specify/codex-team/worktrees/<session>/...` and need to be promoted back to the main workspace.
+- In execution-oriented workflows, treat `single-lane` as the delegated single-worker path. Legacy `single-agent` state should be read as a compatibility alias, not as permission for leader-local execution.
 - Interpret `DONE_WITH_CONCERNS` as lane-local completion with follow-up concerns, not silent success.
 - Treat lane-local completion and repo-global verification separately: a batch can be complete while `doctor` still reports repo verification blocked by baseline debt.
+- Keep join point validation explicit in team-mode runs, and do not accept `idle` without the promised result handoff as completed work.
 
 Generated project navigation now follows the handbook system:
 
@@ -125,17 +130,17 @@ Generated project navigation now follows the handbook system:
 
 Use support skills when they solve a specific gap:
 
-- `/speckit.map-codebase` when you are working in an existing codebase and need to generate or refresh the handbook/project-map navigation system before deeper workflow steps
+- `/speckit.map-codebase` as the required brownfield gate when you are working in an existing codebase; generate or refresh the handbook/project-map navigation system before deeper workflow steps
 - `/speckit.spec-extend` when an existing spec still needs deeper analysis before planning
 - `/speckit.checklist` when you want to audit requirement quality after planning
-- `/speckit.analyze` when you want a cross-artifact consistency check before implementation
+- `/speckit.analyze` as the required gate before implementation once `tasks.md` exists
 - `/speckit.debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
 - When you run `/speckit.analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `/speckit.analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
 - `/speckit.analyze` should also flag delegated packet failures through `DP1`, `DP2`, and `DP3` when worker packets or worker results lose required rule-carrying evidence
 - `/speckit.explain` when you want the current spec, plan, or tasks state restated in plain language
 
-If you're starting from an existing codebase, run `/speckit.map-codebase` first so the brownfield navigation artifacts are fresh before requirement, planning, or implementation work continues. Downstream workflows use `.specify/project-map/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
+If you're starting from an existing codebase, `/speckit.map-codebase` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use `.specify/project-map/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
 
 Use the lightweight routing rules consistently:
 

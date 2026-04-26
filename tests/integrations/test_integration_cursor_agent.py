@@ -30,11 +30,12 @@ def test_cursor_generated_sp_quick_prefers_delegated_worker_execution(tmp_path):
 
     assert ".specify/memory/constitution.md" in content
     assert "single-agent" in content
+    assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
     assert "cursor leader gate" in content
     assert "cursor delegated execution" in content
-    assert "single-agent still means one delegated worker lane" in content
+    assert "`single-lane` still means one delegated worker lane" in content
     assert "read `.specify/memory/constitution.md` first if it exists" in content
     assert "do **not** perform broad repository analysis" in content
     assert "if cursor's native delegated worker path is available" in content

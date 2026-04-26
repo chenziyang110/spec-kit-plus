@@ -6,10 +6,14 @@ from specify_cli.orchestration.models import (
     Batch,
     CapabilitySnapshot,
     ExecutionStrategy,
+    ExecutionSurface,
     ExecutionDecision,
     Lane,
+    LaneTopology,
     ReviewGatePolicy,
     Session,
+    prefers_single_lane_label,
+    single_worker_delegation_default,
     utc_now,
 )
 
@@ -45,15 +49,17 @@ def test_capability_snapshot_has_canonical_fields_and_defaults():
 def test_execution_decision_has_canonical_fields_defaults_and_values():
     decision = ExecutionDecision(
         command_name="implement",
-        strategy="single-agent",
+        strategy="single-lane",
         reason="default",
     )
     field_names = [item.name for item in fields(ExecutionDecision)]
 
     assert decision.command_name == "implement"
-    assert decision.strategy == "single-agent"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "default"
     assert decision.fallback_from is None
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "native-delegation"
     assert datetime.fromisoformat(decision.created_at).utcoffset().total_seconds() == 0
     assert field_names == [
         "command_name",
@@ -61,6 +67,8 @@ def test_execution_decision_has_canonical_fields_defaults_and_values():
         "reason",
         "fallback_from",
         "created_at",
+        "lane_topology",
+        "execution_surface",
     ]
 
 
@@ -95,9 +103,39 @@ def test_session_batch_and_lane_have_utc_defaults():
 def test_execution_strategy_literal_values_are_canonical():
     assert get_args(ExecutionStrategy) == (
         "single-agent",
+        "single-lane",
         "native-multi-agent",
         "sidecar-runtime",
     )
+
+
+def test_lane_topology_and_execution_surface_literals_are_canonical():
+    assert get_args(LaneTopology) == ("single-lane", "multi-lane")
+    assert get_args(ExecutionSurface) == (
+        "native-delegation",
+        "sidecar-runtime",
+        "leader-local",
+    )
+
+
+def test_execution_decision_derives_debug_single_agent_as_leader_local():
+    decision = ExecutionDecision(
+        command_name="debug",
+        strategy="single-agent",
+        reason="no-safe-batch",
+    )
+
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "leader-local"
+
+
+def test_single_lane_label_preference_is_command_specific():
+    assert prefers_single_lane_label("implement") is True
+    assert prefers_single_lane_label("quick") is True
+    assert prefers_single_lane_label("debug") is False
+    assert single_worker_delegation_default("implement") is True
+    assert single_worker_delegation_default("quick") is True
+    assert single_worker_delegation_default("debug") is False
 
 
 def test_review_gate_policy_has_canonical_fields_and_defaults():

@@ -53,6 +53,16 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
                 "### Forbidden Implementation Drift",
                 "",
                 "- Do not create a parallel auth stack",
+                "",
+                "### Platform Guardrails",
+                "",
+                "- supported_platforms: windows, linux",
+                "- require conditional compilation for unix-only APIs",
+                "",
+                "### Completion Handoff Protocol",
+                "",
+                "- send task_started before long-running work",
+                "- write structured result handoff before idling",
             ]
         ),
         encoding="utf-8",
@@ -97,6 +107,14 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     assert packet.context_bundle[-1].kind == "task_reference"
     assert "PROJECT-HANDBOOK.md" in packet.scope.read_scope
     assert ".specify/testing/TESTING_PLAYBOOK.md" in packet.scope.read_scope
+    assert packet.platform_guardrails == [
+        "supported_platforms: windows, linux",
+        "require conditional compilation for unix-only APIs",
+    ]
+    assert packet.handoff_requirements[-2:] == [
+        "send task_started before long-running work",
+        "write structured result handoff before idling",
+    ]
 
 
 def test_compile_worker_task_packet_accepts_materialized_task_input(

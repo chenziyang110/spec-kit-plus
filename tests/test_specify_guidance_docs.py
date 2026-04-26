@@ -69,6 +69,19 @@ def test_guidance_docs_position_map_codebase_for_existing_projects():
     assert "Run `map-codebase` first" in readme
     assert "/speckit.map-codebase" in quickstart
     assert "existing codebase" in quickstart.lower()
+    assert "required brownfield gate" in readme.lower()
+    assert "required brownfield gate" in quickstart.lower()
+    assert "task generation" in quickstart.lower()
+
+
+def test_guidance_docs_frame_analyze_as_pre_implement_gate():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    assert "tasks -> analyze -> implement" in readme
+    assert "before implementation, run `/speckit.analyze`" in quickstart
+    assert "default pre-implementation gate" in readme
+    assert "required gate before implementation once `tasks.md` exists" in quickstart
 
 
 def test_guidance_docs_explain_fast_quick_specify_routing():
@@ -179,6 +192,7 @@ def test_guidance_docs_explain_rule_carrying_worker_packets():
         assert "Task Guardrail Index" in content
         assert "WorkerTaskPacket" in content
         assert "raw task text" in content
+        assert "platform guardrails" in content.lower()
         assert "DP1" in content
         assert "DP2" in content
         assert "DP3" in content
@@ -213,9 +227,32 @@ def test_guidance_docs_explain_task_shaping_and_fail_fast_rules():
         assert "grouped parallelism is the default" in content
         assert "pipeline shape" in content or "pipeline" in content
         assert "review gate" in content
+        assert "validation target" in content
+        assert "pass condition" in content
+        assert "stale lane" in content
         assert "peer-review lane" in content
         assert "failed assumption" in content
         assert "smallest safe recovery step" in content
+
+
+def test_guidance_docs_explain_single_lane_compatibility_for_execution_workflows():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    assert "single-lane" in readme
+    assert "compatibility alias" in readme
+    assert "single-lane" in quickstart
+    assert "compatibility alias" in quickstart
+
+
+def test_guidance_docs_explain_team_runtime_join_point_and_stale_lane_rules():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    for content in (readme, quickstart):
+        assert "platform guardrails" in content
+        assert "validation target" in content
+        assert "stale lane" in content
 
 
 def test_guidance_docs_explain_resumable_quick_management():

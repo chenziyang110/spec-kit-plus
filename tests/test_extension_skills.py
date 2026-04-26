@@ -376,6 +376,8 @@ class TestBuiltInSkillGeneration:
         assert "whether or not `.specify/testing/testing_contract.md` exists" in tasks_body.lower()
         assert "behavior changes, bug fixes, and refactors" in tasks_body.lower()
         assert "add explicit bootstrap tasks to establish the smallest runnable test surface first" in tasks_body.lower()
+        assert "implementation remains blocked until `/sp-analyze`" in tasks_body.lower()
+        assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in tasks_body.lower()
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body
@@ -388,6 +390,8 @@ class TestBuiltInSkillGeneration:
         assert "must not dispatch from raw task text alone" in implement_body.lower()
         assert "write the failing test first for every behavior-changing task, bug fix, or refactor" in implement_body.lower()
         assert "do not write production code for the batch until the red state is verified" in implement_body.lower()
+        assert "if `workflow_state_file` still points to `/sp.analyze`" in implement_body.lower()
+        assert "do not self-authorize an `/sp-implement` start from chat memory alone" in implement_body.lower()
 
         analyze_body = _body_without_frontmatter(skills_dir / "sp-analyze" / "SKILL.md")
         assert "Boundary Guardrail Gaps" in analyze_body
@@ -402,6 +406,10 @@ class TestBuiltInSkillGeneration:
         assert "If a `Boundary Guardrail Gap` exists" in analyze_body
         assert "Closed-loop requirement" in analyze_body
         assert "Recommended Re-entry" in analyze_body
+        assert "This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`." in analyze_body
+        assert "this command may update `workflow-state.md` to record the cleared or blocked gate result" in analyze_body.lower()
+        assert "analysis-only" in analyze_body.lower()
+        assert "`next_command: /sp.implement`" in analyze_body
         assert "If the highest-impact issue lives in `spec.md` or `context.md`" in analyze_body
         assert "If analysis runs after `/sp-implement` has already started or finished" in analyze_body
         assert "exact workflow re-entry path" in analyze_body

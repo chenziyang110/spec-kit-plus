@@ -126,6 +126,7 @@ class TestInitIntegrationFlag:
         assert implement_skill.exists()
         content = implement_skill.read_text(encoding="utf-8")
         assert "single-agent" in content
+        assert "single-lane" in content
         assert "native-multi-agent" in content
         assert "sidecar-runtime" in content
         assert "project-handbook.md" in content.lower()
@@ -384,7 +385,7 @@ class TestInitIntegrationFlag:
         assert "Spec Kit Plus project ready." in result.output
         assert "Start Here" in result.output
         assert "Plus Next Steps" not in result.output
-        assert "Optional support skills" in result.output
+        assert "Support and gate skills" in result.output
         assert "Plus Enhancement Skills" not in result.output
         assert "Agent Folder Security" not in result.output
         assert "Spec Kit Plus skills were" in result.output
@@ -406,6 +407,8 @@ class TestInitIntegrationFlag:
         assert "$sp-map-codebase" in result.output
         assert "$sp-spec-extend" in result.output
         assert "$sp-team" in result.output
+        assert "required for existing code" in result.output
+        assert "default gate before" in result.output
         assert "The Codex team skill is available as" not in result.output
         assert "spec-extend" in result.output
         assert "spec-extend" in result.output.lower()
@@ -445,7 +448,7 @@ class TestInitIntegrationFlag:
         assert "Initialize Spec Kit Plus Project" in result.output
         assert "Spec Kit Plus project ready." in result.output
         assert "Start Here" in result.output
-        assert "Optional support skills" in result.output
+        assert "Support and gate skills" in result.output
         assert "Spec Kit Plus skills were" in result.output
         assert ".claude/skills" in result.output
         assert "Start using skills with your AI agent" in result.output
@@ -463,6 +466,8 @@ class TestInitIntegrationFlag:
         assert "/sp-explain" in result.output
         assert "/sp-map-codebase" in result.output
         assert "/sp-spec-extend" in result.output
+        assert "required for existing code" in result.output
+        assert "default gate before" in result.output
         assert "/sp-learnings" not in result.output
         assert "Codex-only runtime" not in result.output
         assert "specify team" not in result.output.lower()

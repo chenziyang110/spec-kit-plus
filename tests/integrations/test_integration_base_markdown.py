@@ -137,7 +137,7 @@ class MarkdownIntegrationTests:
         assert "you are the **leader**, not the concrete implementer" in lowered
         assert "autonomous blocker recovery" in lowered
         assert "missed_agent_dispatch" in lowered
-        assert "single-agent` still means one delegated worker lane" in content
+        assert "`single-lane` still means one delegated worker lane" in content
         assert "current runtime's native worker lanes" in lowered
         assert "current integration's coordinated runtime surface" in lowered
         assert "dispatch only from validated `workertaskpacket`" in lowered
@@ -177,6 +177,7 @@ class MarkdownIntegrationTests:
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
+        assert "single-lane" in quick_content
         assert "dispatch exactly one delegated worker lane" in quick_content
         assert "sidecar-runtime" in quick_content
 

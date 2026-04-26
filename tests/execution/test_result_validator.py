@@ -64,6 +64,7 @@ def sample_packet() -> WorkerTaskPacket:
         validation_gates=["pytest tests/unit/test_auth_service.py -q"],
         done_criteria=["login/logout behavior implemented"],
         handoff_requirements=["return changed files"],
+        platform_guardrails=["supported_platforms: windows, linux"],
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
     )
 

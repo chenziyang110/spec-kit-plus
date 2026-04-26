@@ -29,7 +29,7 @@ sp-implement-teams
 
 Use this when:
 
-1. `sp-implement` would otherwise run a single-agent or ad hoc implementation flow
+1. `sp-implement` would otherwise run a `single-lane` or ad hoc implementation flow
 2. you want the current feature implemented through durable coordinated workers
 3. the work has already been decomposed into task-ready execution slices
 
@@ -45,11 +45,14 @@ Use this when:
 8. Route durable execution through `specify team` and its runtime/API surfaces.
 9. Preserve the shared `sp-implement` contract: tracker continuity, validated `WorkerTaskPacket`s, explicit join points, and structured result handoff discipline.
 10. Use `specify team result-template --request-id <id>` or `specify team submit-result --print-schema` for structured result handoff instead of ad hoc JSON guessing.
-11. Treat a blocked baseline build as a pre-dispatch runtime concern; do not mix existing repo compile debt into the current batch verdict.
-12. After worker execution, use `specify team sync-back` when leader-visible results need to be promoted from worker worktrees back into the active workspace.
-13. Distinguish lane-local completion from repo-global verification: `DONE_WITH_CONCERNS` means the lane finished with follow-up concerns, while repo-wide failure may still be caused by baseline debt.
-14. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
-15. If the user only wants to inspect the Codex runtime surface before implementing, redirect them to `specify team` or `$sp-team`.
+11. Materialize each delegated lane as an explicit execution packet: write set, required references, forbidden drift, validation command, completion-handoff protocol, and platform guardrails must stay visible to the leader and worker.
+12. Treat a blocked baseline build as a pre-dispatch runtime concern; do not mix existing repo compile debt into the current batch verdict.
+13. After worker execution, use `specify team sync-back` when leader-visible results need to be promoted from worker worktrees back into the active workspace.
+14. Distinguish lane-local completion from repo-global verification: `DONE_WITH_CONCERNS` means the lane finished with follow-up concerns, while repo-wide failure may still be caused by baseline debt.
+15. Every join point that gates downstream work must have an explicit validation target, validation command or check, and pass condition before the runtime crosses it.
+16. If a lane flips to `completed` or drifts into `idle` before the promised result handoff or completion evidence arrives, treat it as a stale lane and recover explicitly instead of counting it as finished work.
+17. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
+18. If the user only wants to inspect the Codex runtime surface before implementing, redirect them to `specify team` or `$sp-team`.
 
 ## Output Expectations
 

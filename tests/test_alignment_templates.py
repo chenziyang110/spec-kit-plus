@@ -443,8 +443,14 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
 
     assert "description: Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution." in content
     assert "## Workflow Contract Summary" in content
-    assert "This command does not edit files." in content
+    assert "This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`." in content
+    assert "this command may update `workflow-state.md` to record the cleared or blocked gate result" in lowered
     assert "before, during, or after implementation revalidation" in lowered
+    assert "workflow-state.md" in content
+    assert "analysis-only" in lowered
+    assert "`next_command: /sp.implement`" in content
+    assert "when no upstream remediation is required" in lowered
+    assert "`next_command: /sp.plan`" in content or "`next_command: /sp.tasks`" in content
     assert "PROJECT-HANDBOOK.md" in content
     assert ".specify/project-map/status.json" in content
     assert ".specify/project-map/ARCHITECTURE.md" in content
@@ -502,6 +508,14 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "If the highest-impact issue lives only in `tasks.md`" in content
     assert "If analysis runs after `/sp-implement` has already started or finished" in content
     assert "exact workflow re-entry path" in content
+
+
+def test_workflow_state_template_supports_analyze_gate_phase():
+    content = _read("templates/workflow-state-template.md")
+    lowered = content.lower()
+
+    assert "analysis-only" in lowered
+    assert "/sp.analyze" in content
 
 
 def test_debug_template_reads_constitution_and_feature_context_before_fixing() -> None:
@@ -861,6 +875,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "smallest safe recovery step" in lowered
     assert "execution strategy" in lowered
     assert "single-agent" in lowered
+    assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
     assert "delegation_confidence" in lowered
@@ -897,7 +912,7 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "## Leader Role" in content
     assert "you are the implementation leader for this run" in lowered
     assert "you are not the default implementer for the current batch" in lowered
-    assert "single-agent` as one delegated worker lane" in content
+    assert "`single-lane` as one delegated worker lane" in content or "`single-lane` still means one delegated worker lane" in content
     assert "fallback reason is recorded in `implement-tracker.md`" in lowered
     assert "invoking runtime acts as the leader" in lowered
     assert "delegated worker lane" in lowered
@@ -906,11 +921,72 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "join point" in lowered
     assert "retry-pending" in lowered or "retry pending" in lowered
     assert "blocker" in lowered
+    assert "do not stop to ask the user whether the `single-lane` batch should switch to delegated execution" in lowered
     assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
+    assert "core implementation complete" in lowered
+    assert "ready for integration testing" in lowered
+    assert "overall feature completion" in lowered
+    assert "e2e" in lowered
+    assert "polish" in lowered
     assert "`research_gap`" in content
     assert "`plan_gap`" in content
     assert "`spec_gap`" in content
     assert "/sp.spec-extend" in content
+
+
+def test_shared_implement_teams_contract_preserves_explicit_execution_packet_fields():
+    content = _read("src/specify_cli/integrations/base.py").lower()
+
+    assert "every delegated task in the teams-backed flow must still behave like an explicit execution packet" in content
+    assert "write set and shared surfaces" in content
+    assert "explicit verification command or acceptance check" in content
+    assert "canonical result handoff path or runtime-managed result channel expectation" in content
+    assert "completion-handoff protocol covering start, blocker, and final completion evidence" in content
+    assert "platform guardrails" in content
+    assert "status flip alone" in content
+
+
+def test_implement_template_requires_explicit_join_point_validation_blocks():
+    content = _read("templates/commands/implement.md").lower()
+
+    assert "join point validation" in content
+    assert "validation target" in content
+    assert "validation command" in content
+    assert "pass condition" in content
+    assert "if the validation command is missing" in content
+
+
+def test_tasks_templates_require_join_point_validation_details():
+    command_content = _read("templates/commands/tasks.md").lower()
+    template_content = _read("templates/tasks-template.md").lower()
+
+    assert "for every explicit join point, include a validation target" in command_content
+    assert "join point validation notes" in command_content
+    assert "join point validation:" in template_content
+    assert "validation target:" in template_content
+    assert "validation command:" in template_content
+    assert "pass condition:" in template_content
+
+
+def test_tasks_template_fail_closes_into_analyze_before_implement():
+    content = _read("templates/commands/tasks.md")
+    lowered = content.lower()
+
+    assert "default_handoff: /sp-analyze" in content
+    assert "Implement Project" not in content
+    assert "`next_command: /sp.analyze`" in content
+    assert "implementation remains blocked until `/sp-analyze`" in lowered
+    assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in lowered
+
+
+def test_implement_template_honors_pending_analyze_gate_from_workflow_state():
+    content = _read("templates/commands/implement.md")
+    lowered = content.lower()
+
+    assert "Read `FEATURE_DIR/workflow-state.md` if present" in content
+    assert "if `workflow_state_file` still points to `/sp.analyze`" in lowered
+    assert "stop and run `/sp-analyze` first" in lowered
+    assert "do not self-authorize an `/sp-implement` start from chat memory alone" in lowered
 
 
 def test_debug_and_quick_templates_reference_shared_worker_prompt_assets() -> None:
@@ -944,6 +1020,9 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "full task text" in implementer.lower()
     assert "worker packet" in implementer.lower()
     assert "status: `done | done_with_concerns | blocked | needs_context`" in implementer.lower()
+    assert "platform guardrails" in implementer.lower()
+    assert "completion-handoff protocol" in implementer.lower()
+    assert "task_started" in implementer.lower()
     assert "must not enter `idle` before the required handoff is written or returned" in implementer.lower()
 
     assert "# Debug Investigator Worker Prompt" in debug_investigator

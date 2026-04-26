@@ -6,7 +6,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal
 
-ExecutionStrategy = Literal["single-agent", "native-multi-agent", "sidecar-runtime"]
+ExecutionStrategy = Literal["single-agent", "single-lane", "native-multi-agent", "sidecar-runtime"]
+LaneTopology = Literal["single-lane", "multi-lane"]
+ExecutionSurface = Literal["native-delegation", "sidecar-runtime", "leader-local"]
 # Backward-compatible alias for early Task 1 references.
 Strategy = ExecutionStrategy
 NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
@@ -43,6 +45,22 @@ class ExecutionDecision:
     reason: str
     fallback_from: ExecutionStrategy | None = None
     created_at: str = field(default_factory=utc_now)
+    lane_topology: LaneTopology | None = None
+    execution_surface: ExecutionSurface | None = None
+
+    def __post_init__(self) -> None:
+        if self.lane_topology is None:
+            object.__setattr__(
+                self,
+                "lane_topology",
+                _derive_lane_topology(self.command_name, self.strategy),
+            )
+        if self.execution_surface is None:
+            object.__setattr__(
+                self,
+                "execution_surface",
+                _derive_execution_surface(self.command_name, self.strategy),
+            )
 
 
 @dataclass(slots=True)
@@ -129,3 +147,33 @@ class Lane:
 
 # Backward-compatible alias for early Task 1 references.
 utc_now_iso = utc_now
+
+
+def prefers_single_lane_label(command_name: str) -> bool:
+    """Return whether the command should prefer the user-visible `single-lane` label."""
+
+    return command_name in {"implement", "quick"}
+
+
+def single_worker_delegation_default(command_name: str) -> bool:
+    """Return whether a single worker lane should still prefer delegated execution."""
+
+    return command_name in {"implement", "quick"}
+
+
+def _derive_lane_topology(command_name: str, strategy: ExecutionStrategy) -> LaneTopology:
+    if strategy == "native-multi-agent":
+        return "multi-lane"
+    if strategy == "sidecar-runtime":
+        return "multi-lane"
+    return "single-lane"
+
+
+def _derive_execution_surface(command_name: str, strategy: ExecutionStrategy) -> ExecutionSurface:
+    if strategy == "sidecar-runtime":
+        return "sidecar-runtime"
+    if strategy == "native-multi-agent":
+        return "native-delegation"
+    if strategy == "single-lane" or (strategy == "single-agent" and single_worker_delegation_default(command_name)):
+        return "native-delegation"
+    return "leader-local"

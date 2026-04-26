@@ -146,4 +146,4 @@ class TestKimiNextSteps:
         assert result.exit_code == 0
         assert "/skill:sp-constitution" in result.output
         assert "/sp.constitution" not in result.output
-        assert "Optional skills that you can use for your specs" in result.output
+        assert "Support and gate skills that improve safety and confidence around your specs" in result.output

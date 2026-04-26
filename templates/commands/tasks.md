@@ -4,15 +4,11 @@ workflow_contract:
   when_to_use: Planning artifacts already exist and the remaining gap is concrete execution slicing rather than more design work.
   primary_objective: Produce `tasks.md` with dependency ordering, guardrail carry-forward, execution batches, and join points.
   primary_outputs: '`FEATURE_DIR/tasks.md` and the task decomposition metadata needed for later analysis and implementation.'
-  default_handoff: /sp-analyze for cross-artifact drift checks, then /sp-implement for execution.
+  default_handoff: /sp-analyze for cross-artifact drift checks; only continue to /sp-implement after analyze clears upstream drift.
 handoffs: 
   - label: Analyze For Consistency
     agent: sp.analyze
     prompt: Run a project analysis for consistency
-    send: true
-  - label: Implement Project
-    agent: sp.implement
-    prompt: Start the implementation in phases
     send: true
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json
@@ -73,6 +69,8 @@ scripts:
   - `phase_mode: task-generation-only`
   - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from task-generation artifacts`
 - Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution.
+- Implementation remains blocked until `/sp-analyze` confirms the current task package does not need upstream regeneration.
+- Do not hand off directly to `/sp-implement` from `sp-tasks`; the analyze gate is mandatory unless the user is explicitly resuming a previously cleared execution state.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 ## Outline
@@ -175,6 +173,7 @@ scripts:
    - High-risk review gates are usually required for shared registration surfaces, schema or migration changes, protocol seams, native/plugin bridges, or generated API surfaces.
    - If a peer-review lane is available and the review can stay read-only, recommend one peer-review lane for the batch; otherwise keep the review gate on the leader path.
    - [AGENT] Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
+   - [AGENT] For every explicit join point, include a validation target, a validation command or concrete manual check, and a pass condition so later implementation does not need to guess what makes the join point safe to cross
    - Create parallel execution examples per user story
    - Validate task completeness (each user story has all needed tasks, independently testable)
    - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly instead of silently dropping it
@@ -190,6 +189,7 @@ scripts:
    - Clear file paths for each task
    - Dependencies section showing story completion order
    - Parallel batches and join points for each phase where they matter
+   - Join point validation notes whenever a join point gates downstream implementation or shared-surface merge work
    - Parallel execution examples per story
     - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution
     - Planning inputs section showing implementation constitution rules when they materially shape execution
@@ -215,7 +215,7 @@ scripts:
      - current authoritative files
      - exit criteria for task-generation completion
      - the next action required before handoff
-     - `next_command: /sp.implement`
+     - `next_command: /sp.analyze`
 
 7. **Check for extension hooks**: After tasks.md is generated, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_tasks` key

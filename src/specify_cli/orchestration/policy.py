@@ -9,6 +9,8 @@ from .models import (
     CapabilitySnapshot,
     ExecutionDecision,
     ReviewGatePolicy,
+    prefers_single_lane_label,
+    single_worker_delegation_default,
 )
 
 _PARALLEL_BATCH_COUNT_KEYS = (
@@ -101,6 +103,10 @@ def choose_execution_strategy(
     """Choose the execution strategy using the shared first-release policy."""
 
     shape = workload_shape if isinstance(workload_shape, Mapping) else {}
+    single_worker_delegates = single_worker_delegation_default(command_name)
+    single_worker_strategy = (
+        "single-lane" if prefers_single_lane_label(command_name) else "single-agent"
+    )
     parallel_batches = _get_shape_int(shape, _PARALLEL_BATCH_COUNT_KEYS)
     if parallel_batches is None:
         # Backward compatibility: derive batch count from older boolean surfaces.
@@ -118,10 +124,35 @@ def choose_execution_strategy(
     )
 
     if parallel_batches <= 0 or has_overlapping_write_sets:
+        if single_worker_delegates:
+            if (
+                snapshot.native_multi_agent
+                and not (
+                    snapshot.runtime_probe_succeeded
+                    and snapshot.delegation_confidence == "low"
+                )
+            ):
+                return ExecutionDecision(
+                    command_name=command_name,
+                    strategy=single_worker_strategy,
+                    reason="no-safe-batch",
+                    lane_topology="single-lane",
+                    execution_surface="native-delegation",
+                )
+            if snapshot.sidecar_runtime_supported:
+                return ExecutionDecision(
+                    command_name=command_name,
+                    strategy="sidecar-runtime",
+                    reason="no-safe-batch",
+                    lane_topology="single-lane",
+                    execution_surface="sidecar-runtime",
+                )
         return ExecutionDecision(
             command_name=command_name,
-            strategy="single-agent",
+            strategy=single_worker_strategy,
             reason="no-safe-batch",
+            lane_topology="single-lane",
+            execution_surface="leader-local",
         )
 
     if (
@@ -134,11 +165,15 @@ def choose_execution_strategy(
                 command_name=command_name,
                 strategy="sidecar-runtime",
                 reason="native-low-confidence",
+                lane_topology="multi-lane",
+                execution_surface="sidecar-runtime",
             )
         return ExecutionDecision(
             command_name=command_name,
-            strategy="single-agent",
+            strategy=single_worker_strategy,
             reason="fallback-low-confidence",
+            lane_topology="single-lane",
+            execution_surface="leader-local",
         )
 
     if snapshot.native_multi_agent:
@@ -146,6 +181,8 @@ def choose_execution_strategy(
             command_name=command_name,
             strategy="native-multi-agent",
             reason="native-supported",
+            lane_topology="multi-lane",
+            execution_surface="native-delegation",
         )
 
     if snapshot.sidecar_runtime_supported:
@@ -153,12 +190,16 @@ def choose_execution_strategy(
             command_name=command_name,
             strategy="sidecar-runtime",
             reason="native-missing",
+            lane_topology="multi-lane",
+            execution_surface="sidecar-runtime",
         )
 
     return ExecutionDecision(
         command_name=command_name,
-        strategy="single-agent",
+        strategy=single_worker_strategy,
         reason="fallback",
+        lane_topology="single-lane",
+        execution_surface="leader-local",
     )
 
 

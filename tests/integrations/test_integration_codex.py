@@ -105,12 +105,26 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "specify team doctor" in lower
     assert "specify team live-probe" in lower
     assert "single-agent" in lower
+    assert "single-lane" in lower
     assert "native-multi-agent" in lower
     assert "sidecar-runtime" in lower
     assert "join point" in lower
     assert "worker result contract" in lower
     assert "result file handoff path" in lower
     assert ".specify/codex-team/state/results/<request-id>.json" in lower
+    assert "core implementation complete" in lower
+    assert "ready for integration testing" in lower
+    assert "overall feature completion" in lower
+    assert "e2e" in lower
+    assert "polish" in lower
+    assert "explicit execution packet shape" in lower or "explicit execution packet" in lower
+    assert "write set and shared surfaces" in lower
+    assert "explicit verification command or acceptance check" in lower
+    assert "completion-handoff protocol" in lower
+    assert "platform guardrails" in lower
+    assert "status flip alone" in lower
+    assert "validation target" in lower
+    assert "stale lane" in lower
 
 
 def test_codex_implement_teams_template_keeps_only_backend_specific_guidance():
@@ -119,6 +133,8 @@ def test_codex_implement_teams_template_keeps_only_backend_specific_guidance():
     assert "## Shared Contract With `sp-implement`" not in template
     assert "specify team doctor" in template
     assert "specify team live-probe" in template
+    assert "validation target" in template.lower()
+    assert "stale lane" in template.lower()
 
 
 def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_path):
@@ -160,10 +176,11 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "close_agent" in content
     assert "specify team" in content
     assert "single-agent" in content
+    assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
     assert "invoking runtime acts as the leader" in content
-    assert "single-agent still means one delegated worker lane" in content
+    assert "`single-lane` still means one delegated worker lane" in content
     assert "selects the next executable phase and ready batch" in content
     assert "run `/sp-map-codebase` before final completion reporting" in content.lower()
     assert "verification is truthfully green and no explicit blocker prevents completion" in content.lower()
@@ -172,6 +189,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "join point" in content.lower()
     assert "retry-pending" in content.lower() or "retry pending" in content.lower()
     assert "blocker" in content.lower()
+    assert "do **not** ask the user whether the `single-lane` batch should switch to delegated execution" in content.lower()
     assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
     assert "`research_gap`" in content
     assert "`plan_gap`" in content
@@ -324,6 +342,10 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "Boundary Guardrail Table" in analyze_content
     assert "Closed-loop requirement" in analyze_content
     assert "Recommended Re-entry" in analyze_content
+    assert "This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`." in analyze_content
+    assert "workflow-state.md" in analyze_content
+    assert "analysis-only" in analyze_content.lower()
+    assert "`next_command: /sp.implement`" in analyze_content
     assert "If the highest-impact issue lives in `spec.md` or `context.md`" in analyze_content
     assert "If analysis runs after `/sp-implement` has already started or finished" in analyze_content
 
@@ -521,15 +543,17 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "close_agent" in content
     assert "specify team" in content
     assert "single-agent" in content
+    assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
-    assert "single-agent still means one delegated worker lane" in content
+    assert "`single-lane` still means one delegated worker lane" in content
     assert "dispatch exactly one delegated worker lane" in content
     assert "read `.specify/memory/constitution.md` first if it exists" in content
     assert "crucial first step" in content
     assert "the next concrete action must be dispatch" in content or "once the first lane is chosen" in content
     assert "materially improve throughput" in content
     assert "local execution is the last fallback" in content
+    assert "compatibility alias for the same delegated single-lane path" in content
     assert "execution_fallback" in content
     assert "join point" in content
     assert "leader" in content
@@ -546,7 +570,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "resolved/" in content
     assert "status.md template" in content
     assert "status: gathering | planned | executing | validating | blocked | resolved" in content
-    assert "strategy: single-agent | native-multi-agent | sidecar-runtime" in content
+    assert "strategy: single-lane | native-multi-agent | sidecar-runtime" in content
     assert "summary pointer" in content
     assert "if exactly one unfinished quick task exists" in content
     assert "if multiple unfinished quick tasks exist" in content

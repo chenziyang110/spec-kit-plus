@@ -25,8 +25,10 @@ def test_choose_execution_strategy_blocks_parallel_when_batch_is_not_safe() -> N
     )
 
     assert decision.command_name == "implement"
-    assert decision.strategy == "single-agent"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "no-safe-batch"
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "native-delegation"
 
 
 def test_choose_execution_strategy_prefers_native_multi_agent_when_available() -> None:
@@ -47,6 +49,8 @@ def test_choose_execution_strategy_prefers_native_multi_agent_when_available() -
 
     assert decision.strategy == "native-multi-agent"
     assert decision.reason == "native-supported"
+    assert decision.lane_topology == "multi-lane"
+    assert decision.execution_surface == "native-delegation"
 
 
 def test_choose_execution_strategy_prefers_native_for_codex_implement_when_available() -> None:
@@ -68,6 +72,8 @@ def test_choose_execution_strategy_prefers_native_for_codex_implement_when_avail
     assert decision.strategy == "native-multi-agent"
     assert decision.reason == "native-supported"
     assert decision.fallback_from is None
+    assert decision.lane_topology == "multi-lane"
+    assert decision.execution_surface == "native-delegation"
 
 
 def test_choose_execution_strategy_falls_back_to_sidecar_when_native_is_missing() -> None:
@@ -89,6 +95,8 @@ def test_choose_execution_strategy_falls_back_to_sidecar_when_native_is_missing(
     assert decision.strategy == "sidecar-runtime"
     assert decision.reason == "native-missing"
     assert decision.fallback_from is None
+    assert decision.lane_topology == "multi-lane"
+    assert decision.execution_surface == "sidecar-runtime"
 
 
 def test_choose_execution_strategy_prefers_sidecar_when_native_confidence_is_low() -> None:
@@ -111,6 +119,8 @@ def test_choose_execution_strategy_prefers_sidecar_when_native_confidence_is_low
 
     assert decision.strategy == "sidecar-runtime"
     assert decision.reason == "native-low-confidence"
+    assert decision.lane_topology == "multi-lane"
+    assert decision.execution_surface == "sidecar-runtime"
 
 
 def test_choose_execution_strategy_uses_single_agent_when_native_confidence_is_low_and_no_sidecar() -> None:
@@ -131,8 +141,10 @@ def test_choose_execution_strategy_uses_single_agent_when_native_confidence_is_l
         },
     )
 
-    assert decision.strategy == "single-agent"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "fallback-low-confidence"
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "leader-local"
 
 
 def test_choose_execution_strategy_uses_parallel_batches_even_with_safe_alias() -> None:
@@ -152,8 +164,10 @@ def test_choose_execution_strategy_uses_parallel_batches_even_with_safe_alias() 
         },
     )
 
-    assert decision.strategy == "single-agent"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "no-safe-batch"
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "native-delegation"
 
 
 def test_choose_execution_strategy_treats_non_empty_overlap_collections_as_conflicts() -> None:
@@ -172,8 +186,10 @@ def test_choose_execution_strategy_treats_non_empty_overlap_collections_as_confl
         },
     )
 
-    assert decision.strategy == "single-agent"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "no-safe-batch"
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "native-delegation"
 
 
 def test_choose_execution_strategy_treats_empty_overlap_collections_as_no_conflict() -> None:
@@ -194,6 +210,8 @@ def test_choose_execution_strategy_treats_empty_overlap_collections_as_no_confli
 
     assert decision.strategy == "native-multi-agent"
     assert decision.reason == "native-supported"
+    assert decision.lane_topology == "multi-lane"
+    assert decision.execution_surface == "native-delegation"
 
 
 def test_choose_execution_strategy_treats_boolean_parallel_batches_as_unset() -> None:
@@ -213,8 +231,10 @@ def test_choose_execution_strategy_treats_boolean_parallel_batches_as_unset() ->
         },
     )
 
-    assert decision.strategy == "single-agent"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "no-safe-batch"
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "native-delegation"
 
 
 def test_choose_execution_strategy_supports_specify_command_name() -> None:
@@ -236,6 +256,8 @@ def test_choose_execution_strategy_supports_specify_command_name() -> None:
     assert decision.command_name == "specify"
     assert decision.strategy == "native-multi-agent"
     assert decision.reason == "native-supported"
+    assert decision.lane_topology == "multi-lane"
+    assert decision.execution_surface == "native-delegation"
 
 
 def test_choose_execution_strategy_supports_plan_command_name() -> None:
@@ -257,6 +279,8 @@ def test_choose_execution_strategy_supports_plan_command_name() -> None:
     assert decision.command_name == "plan"
     assert decision.strategy == "sidecar-runtime"
     assert decision.reason == "native-missing"
+    assert decision.lane_topology == "multi-lane"
+    assert decision.execution_surface == "sidecar-runtime"
 
 
 def test_choose_execution_strategy_keeps_non_implement_codex_commands_on_shared_policy() -> None:
@@ -277,6 +301,8 @@ def test_choose_execution_strategy_keeps_non_implement_codex_commands_on_shared_
 
     assert decision.strategy == "native-multi-agent"
     assert decision.reason == "native-supported"
+    assert decision.lane_topology == "multi-lane"
+    assert decision.execution_surface == "native-delegation"
 
 
 def test_choose_execution_strategy_supports_tasks_command_name() -> None:
@@ -298,6 +324,8 @@ def test_choose_execution_strategy_supports_tasks_command_name() -> None:
     assert decision.command_name == "tasks"
     assert decision.strategy == "native-multi-agent"
     assert decision.reason == "native-supported"
+    assert decision.lane_topology == "multi-lane"
+    assert decision.execution_surface == "native-delegation"
 
 
 def test_choose_execution_strategy_supports_explain_command_name() -> None:
@@ -319,6 +347,30 @@ def test_choose_execution_strategy_supports_explain_command_name() -> None:
     assert decision.command_name == "explain"
     assert decision.strategy == "single-agent"
     assert decision.reason == "no-safe-batch"
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "leader-local"
+
+
+def test_choose_execution_strategy_routes_single_lane_implement_work_to_sidecar_when_native_is_missing() -> None:
+    snapshot = CapabilitySnapshot(
+        integration_key="codex",
+        native_multi_agent=False,
+        sidecar_runtime_supported=True,
+    )
+
+    decision = choose_execution_strategy(
+        command_name="implement",
+        snapshot=snapshot,
+        workload_shape={
+            "parallel_batches": 0,
+            "overlapping_write_sets": False,
+        },
+    )
+
+    assert decision.strategy == "sidecar-runtime"
+    assert decision.reason == "no-safe-batch"
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "sidecar-runtime"
 
 
 def test_classify_batch_execution_policy_marks_low_risk_preparation_as_mixed_tolerance() -> None:

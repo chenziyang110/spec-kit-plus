@@ -2707,9 +2707,9 @@ def init(
     console.print(_open_block("Start Here", steps_lines, accent="cyan"))
 
     enhancement_intro = (
-        "Optional skills that you can use for your specs [bright_black](improve quality & confidence)[/bright_black]"
+        "Support and gate skills that improve safety and confidence around your specs"
         if native_skill_mode
-        else "Optional commands that you can use for your specs [bright_black](improve quality & confidence)[/bright_black]"
+        else "Support and gate commands that improve safety and confidence around your specs"
     )
     enhancement_lines = [enhancement_intro, ""]
     if codex_skill_mode:
@@ -2718,14 +2718,14 @@ def init(
         )
     enhancement_lines.extend(
         [
-            f"○ [cyan]{_display_cmd('map-codebase')}[/] [bright_black](optional)[/bright_black] - Generate or refresh the handbook/project-map navigation system for existing code before specification, planning, or implementation resumes",
+            f"○ [cyan]{_display_cmd('map-codebase')}[/] [bright_black](required for existing code)[/bright_black] - Generate or refresh the handbook/project-map navigation system before deeper brownfield specification, planning, task generation, or implementation resumes",
             f"○ [cyan]{_display_cmd('spec-extend')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
-            f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
+            f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](default gate before implement)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
             f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, or task artifact in plain language before moving forward",
             f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
         ]
     )
-    enhancements_title = "Optional support skills" if native_skill_mode else "Optional support commands"
+    enhancements_title = "Support and gate skills" if native_skill_mode else "Support and gate commands"
     console.print()
     console.print(_open_block(enhancements_title, enhancement_lines, accent="cyan"))
 

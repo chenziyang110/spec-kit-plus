@@ -613,10 +613,11 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
 
     assert "## claude dispatch-first gate" in content
     assert "attempt delegated execution before leader-local implementation" in content
-    assert "treat `single-agent` as one delegated child-worker lane" in content
+    assert "treat `single-lane` as one delegated child-worker lane" in content
     assert "if multiple safe worker lanes exist for the current batch, dispatch them in parallel" in content
     assert "do not begin concrete implementation on the leader path while an untried delegated path is available" in content
     assert "only fall back to leader-local execution after recording a concrete fallback reason" in content
+    assert "compatibility alias for the same delegated single-lane path" in content
     assert "/sp-implement-teams" in content
     assert "## claude code leader gate".lower() in content
     assert "you are the **leader**, not the concrete implementer" in content
@@ -691,6 +692,16 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "read-order" in lower or "read order" in lower
     assert "ack the context bundle before claiming work" in lower
     assert "sendmessage" in lower and "context_ack" in lower
+    assert "create the full task set before wiring `blockedby` / `blocks` dependencies" in lower
+    assert "write set and shared surfaces" in lower
+    assert "explicit verification command or acceptance check" in lower
+    assert "canonical result handoff path" in lower
+    assert "completion protocol covering start, blocker, and final completion evidence" in lower
+    assert "task_started" in lower
+    assert "task_blocked" in lower
+    assert "task_completed" in lower
+    assert "supported_platforms: windows, linux" in lower
+    assert "conditional compilation" in lower
     assert "inherit claude code's configured subagent model behavior" in lower
     assert "`claude_code_subagent_model`" in lower
     assert "do not derive teammate model from `anthropic_model`" in lower
@@ -706,6 +717,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "implement-tracker.md" in lower
     assert "workertaskpacket" in lower
     assert "single-agent" in lower
+    assert "single-lane" in lower
     assert "native-multi-agent" in lower
     assert "sidecar-runtime" in lower
     assert "join point" in lower
@@ -713,6 +725,13 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "worker result contract" in lower
     assert "result file handoff path" in lower
     assert "feature_dir/worker-results/<task-id>.json" in lower
+    assert "core implementation complete" in lower
+    assert "ready for integration testing" in lower
+    assert "overall feature completion" in lower
+    assert "e2e" in lower
+    assert "polish" in lower
+    assert "shutdown_response" in lower
+    assert "accepted shutdown, not that it already left the team" in lower
     assert "specify team" not in lower
     assert "sp.agent-teams.run" not in lower
     assert "specify extension add agent-teams" not in lower
@@ -732,6 +751,10 @@ def test_claude_implement_teams_template_keeps_only_backend_specific_guidance():
     assert "claude_code_experimental_agent_teams" in lower
     assert "hard prerequisite" in lower
     assert "idle" in lower
+    assert "shared completion contract is fully satisfied" in lower
+    assert "task_started" in lower
+    assert "task_completed" in lower
+    assert "shutdown_response" in lower
 
 
 def test_claude_generated_skills_preserve_agent_required_marker_lines(tmp_path):

@@ -95,7 +95,8 @@ class CursorAgentIntegration(MarkdownIntegration):
                 "- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<slug>/STATUS.md` if this quick task is new.\n"
                 "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first worker lane is selected.\n"
                 "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"
-                "- `single-agent` still means one delegated worker lane. Do **not** reinterpret it as leader self-execution.\n"
+                "- `single-lane` still means one delegated worker lane. Do **not** reinterpret it as leader self-execution.\n"
+                "- Treat legacy `single-agent` state as a compatibility alias for the same delegated single-lane path.\n"
                 "- If Cursor's native delegated worker path is available for the current batch, you **MUST** use it before considering any leader-local fallback.\n"
                 "- If two or more safe delegated lanes would materially improve throughput, you **MUST** prefer launching them in parallel instead of serializing them without a concrete coordination reason.\n"
                 "- After the first lane is defined, the next concrete action must be dispatch, not additional leader-local repo exploration.\n"
@@ -104,7 +105,7 @@ class CursorAgentIntegration(MarkdownIntegration):
                 "- Leader-local execution is allowed only when native delegated execution is unavailable for the current batch and the coordinated runtime path is also unavailable or unsuitable.\n"
                 "- When leader-local fallback is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
                 "\n"
-                "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while delegated execution is active. Local execution is the last fallback, not the default reading of `single-agent`.\n"
+                "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while delegated execution is active. Local execution is the last fallback, not the default reading of `single-lane`.\n"
             )
             if "## Process" in content:
                 content = content.replace("## Process", gate_addendum + "\n## Process", 1)
@@ -119,8 +120,9 @@ class CursorAgentIntegration(MarkdownIntegration):
         addendum = (
             "\n"
             "## Cursor Delegated Execution\n\n"
-            "When running `sp-quick` in Cursor, prefer delegated worker execution whenever the selected quick-task strategy is `single-agent` or `native-multi-agent`.\n"
-            "- Treat `single-agent` as one delegated worker lane by default. The leader should coordinate that lane rather than execute the work directly.\n"
+            "When running `sp-quick` in Cursor, prefer delegated worker execution whenever the selected quick-task strategy is `single-lane` or `native-multi-agent`.\n"
+            "- Treat `single-lane` as one delegated worker lane by default. The leader should coordinate that lane rather than execute the work directly.\n"
+            "- Treat legacy `single-agent` state as a compatibility alias for the same delegated single-lane path.\n"
             "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first worker lane is selected.\n"
             "- If Cursor's native delegated worker path is available for the current batch, you **MUST** use it before considering any leader-local fallback.\n"
             f"- Use Cursor's native delegated worker path for bounded lanes when available. {descriptor.native_dispatch_hint}\n"

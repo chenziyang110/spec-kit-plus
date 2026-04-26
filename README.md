@@ -139,20 +139,20 @@ Skill map after `specify init`:
 - Support skills: `map-codebase`, `test`, `spec-extend`, `checklist`, `analyze`, `debug`, `explain`
 - Codex-only runtime: `specify team` and `sp-team`
 
-Optional follow-up commands:
+Conditional gates and follow-up commands:
 
-- `map-codebase` to generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` for an existing codebase before specification, planning, or implementation continues
+- `map-codebase` is the required brownfield gate for an existing codebase; generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before specification, planning, task generation, or implementation continues
 - `test` to bootstrap or refresh a durable project-wide unit testing system, testing contract, and standard test/coverage playbook
 - `spec-extend` to deepen an existing spec before planning when analysis, references, or gaps need more work
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
-- `analyze` to perform a cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md`
+- `analyze` is the default pre-implementation gate once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` before implementation starts
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
 - `explain` to describe the current spec, plan, task, or implement artifact in plain language
 - when you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing worker validation evidence)
 
-Already have code? Run `map-codebase` first so the current codebase is mapped into `PROJECT-HANDBOOK.md` and `.specify/project-map/` before deeper brownfield workflow steps.
+Already have code? Run `map-codebase` first and treat it as the required brownfield gate before deeper specification, planning, task generation, or implementation work.
 Generated projects also track handbook freshness in `.specify/project-map/status.json`, so brownfield workflows can decide whether the current navigation baseline is fresh, possibly stale, or stale before proceeding.
 
 Routing guide for lightweight work:
@@ -192,7 +192,7 @@ Passive project learning layer:
 After planning, continue with:
 
 ```text
-tasks -> implement
+tasks -> analyze -> implement
 ```
 
 Closed-loop remediation after `analyze`:
@@ -215,11 +215,12 @@ Boundary-sensitive implementation rule:
 - Delegated execution should no longer rely on raw task text when architecture or quality rules matter.
 - `plan` should provide `Dispatch Compilation Hints`.
 - `implement` should compile and validate a `WorkerTaskPacket` before dispatching native workers or sidecar workers.
+- Delegated packets should carry platform guardrails when a lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
 
 Current `sp-implement` runtime model in this fork:
 
 - `sp-implement` acts as a milestone-level orchestration leader rather than the direct executor
-- concrete implementation runs through delegated execution paths (`single-agent`, `native-multi-agent`, or `sidecar-runtime`)
+- concrete implementation runs through delegated execution paths (`single-lane`, `native-multi-agent`, or `sidecar-runtime`), with legacy `single-agent` state preserved only as a compatibility alias for the same delegated single-worker path
 - delegated workers should execute from compiled `WorkerTaskPacket` contracts rather than rediscovering rules from background context
 - delegated result handoff should use the runtime-managed result channel when one exists; otherwise workers should write normalized result envelopes to the declared filesystem handoff path for the current workflow
 - implementation lanes without a runtime-managed channel should use `FEATURE_DIR/worker-results/<task-id>.json`
@@ -230,11 +231,13 @@ Current `sp-implement` runtime model in this fork:
 - top-level `tasks.md` items should stay bounded to one coffee-break-sized implementation slice, usually roughly 10-20 minutes, while delegated workers may still execute them through smaller 2-5 minute atomic steps
 - task decomposition should stay progressive: refine only the current executable window after each join point instead of pre-expanding later batches that still depend on upstream evidence
 - parallel work is coordinated through explicit join points before dependent work continues
+- every join point that gates downstream work should name a validation target, a validation command or check, and a pass condition
 - grouped parallelism is the default when ready tasks have isolated write sets; use a pipeline shape only when outputs must flow stage-by-stage and keep explicit checkpoints between stages
 - high-risk batches touching shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces should add a review gate before crossing the join point
 - if a read-only verification lane is available, use one peer-review lane only for those high-risk batches rather than for every batch
 - runtime surfaces can report retry-pending work and blockers instead of hiding those states in chat-only narration
 - blocked delegated worker results should carry the blocker, the failed assumption, and the smallest safe recovery step so the leader can fail fast instead of guessing
+- if a delegated lane reports `completed` or drifts into `idle` before the promised handoff arrives, treat it as a stale lane and recover explicitly instead of assuming success
 - established boundary patterns should be preserved through `Implementation Constitution` and implementation guardrails, not rediscovered ad hoc during coding
 
 Shared runtime-facing guidance across integrations:
@@ -257,7 +260,8 @@ Skills-based projects now install two layers into the same skills directory:
 Current orchestration status in this fork:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
-- `implement`, `specify`, `plan`, `tasks`, and `explain` now share the canonical strategy vocabulary: `single-agent`, `native-multi-agent`, and `sidecar-runtime`
+- `specify`, `plan`, `tasks`, `explain`, and debug-oriented workflows still use the generic strategy vocabulary `single-agent`, `native-multi-agent`, and `sidecar-runtime`
+- execution-oriented workflows surface `single-lane` as the delegated single-worker label for implement/quick while keeping legacy `single-agent` state compatible under the hood
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
 - `specify team` remains the Codex compatibility surface for runtime-heavy execution
 - Claude, Gemini, and Copilot ship first-release adapter skeletons (alongside Codex) for native-first capability reporting

@@ -64,6 +64,13 @@ def _unique(values: list[str]) -> list[str]:
     return ordered
 
 
+def _section_or_subsection_values(text: str, *titles: str) -> list[str]:
+    values: list[str] = []
+    for title in titles:
+        values.extend(_bullet_values(_section_body(text, title)))
+    return _unique(values)
+
+
 def _context_bundle_from_project_docs(
     project_root: Path,
     *,
@@ -190,6 +197,11 @@ def compile_worker_task_packet(
         for value in _bullet_values(_section_body(plan_text, "Required Implementation References"))
     ]
     forbidden_drift = _bullet_values(_section_body(plan_text, "Forbidden Implementation Drift"))
+    platform_guardrails = _section_or_subsection_values(
+        plan_text,
+        "Platform Guardrails",
+        "Platform Constraints",
+    )
     hard_rules = _unique(
         _bullet_values(constitution_text)
         + _bullet_values(_section_body(plan_text, "Task-Level Quality Floor"))
@@ -201,6 +213,25 @@ def compile_worker_task_packet(
     ]
     if not validation_gates:
         validation_gates = [f"pytest -q -k {task_id.lower()}"]
+
+    handoff_requirements = _unique(
+        [
+            "return changed files",
+            "return validation results",
+            "return blockers",
+        ]
+        + _section_or_subsection_values(
+            plan_text,
+            "Completion Handoff Protocol",
+            "Result Handoff Requirements",
+        )
+    )
+
+    if not platform_guardrails:
+        platform_guardrails = [
+            "Respect the repository's supported platforms and do not assume a platform-specific API is always available without evidence.",
+            "Use conditional guards or equivalent isolation when implementation details differ across supported platforms.",
+        ]
 
     context_bundle = _context_bundle_from_project_docs(
         project_root,
@@ -228,11 +259,8 @@ def compile_worker_task_packet(
         forbidden_drift=forbidden_drift,
         validation_gates=validation_gates,
         done_criteria=done_criteria,
-        handoff_requirements=[
-            "return changed files",
-            "return validation results",
-            "return blockers",
-        ],
+        handoff_requirements=handoff_requirements,
+        platform_guardrails=platform_guardrails,
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
     )
     return validate_worker_task_packet(packet)

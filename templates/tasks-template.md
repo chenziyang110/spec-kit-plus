@@ -124,6 +124,10 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T012 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
 - [ ] T013 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
 **Join Point 1.1**: Confirm both tests fail for the expected reasons before writing production code
+Join Point Validation:
+- Validation target: failing contract and integration tests for User Story 1
+- Validation command: `pytest tests/contract/test_[name].py tests/integration/test_[name].py -q`
+- Pass condition: both tests fail for the expected missing-behavior reasons, not for setup or syntax errors
 
 ### Implementation for User Story 1
 
@@ -131,6 +135,10 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T014 [P] [US1] Create [Entity1] model in src/models/[entity1].py
 - [ ] T015 [P] [US1] Create [Entity2] model in src/models/[entity2].py
 **Join Point 1.2**: Resolve any shared exports, registrations, or schema indexes before service work
+Join Point Validation:
+- Validation target: shared exports, registrations, or schema indexes updated after the parallel model batch
+- Validation command: [Smallest trustworthy command or review check for the touched shared surface]
+- Pass condition: downstream service work sees one canonical shared surface update with no conflicting registrations or missing exports
 - [ ] T016 [US1] Implement [Service] in src/services/[service].py (depends on T014, T015)
 - [ ] T017 [US1] Implement [endpoint/feature] in src/[location]/[file].py while preserving the established boundary/framework pattern named in `plan.md`
 - [ ] T018 [US1] Add validation and error handling

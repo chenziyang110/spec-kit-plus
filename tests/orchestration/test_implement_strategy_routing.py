@@ -21,7 +21,7 @@ def test_implement_routes_to_single_agent_when_workload_is_unsafe() -> None:
     )
 
     assert decision.command_name == "implement"
-    assert decision.strategy == "single-agent"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "no-safe-batch"
 
 
@@ -103,7 +103,7 @@ def test_implement_routes_to_single_agent_when_parallel_batch_count_is_zero() ->
         },
     )
 
-    assert decision.strategy == "single-agent"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "no-safe-batch"
 
 

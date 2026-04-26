@@ -18,7 +18,8 @@ Treat non-empty `$ARGUMENTS` as first-class implementation context for the curre
 
 - You are the implementation leader for this run. Your job is to recover context, choose the current ready batch, dispatch delegated work, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation.
 - You are not the default implementer for the current batch. When a delegated execution path is available for the selected batch, do not personally execute that batch just because it looks easy.
-- Treat `single-agent` as one delegated worker lane, not as permission to collapse back into leader-local execution.
+- Treat `single-lane` as one delegated worker lane, not as permission to collapse back into leader-local execution.
+- Treat legacy `single-agent` tracker or state values as compatibility aliases for the same delegated single-lane path.
 - Use leader-local execution only when the workflow's explicit fallback conditions are met and the fallback reason is recorded in `implement-tracker.md`.
 
 ## Pre-Execution Checks
@@ -183,6 +184,9 @@ human_needed_checks:
 
 3. Load and analyze the implementation context:
    - **REQUIRED**: [AGENT] Create or resume `FEATURE_DIR/implement-tracker.md` immediately after `FEATURE_DIR` is known.
+   - **REQUIRED WHEN PRESENT**: Read `FEATURE_DIR/workflow-state.md` if present before choosing the next batch.
+   - **IF `WORKFLOW_STATE_FILE` STILL POINTS TO `/sp.analyze` OR SHOWS TASK-GENERATION STATE WAITING FOR ANALYSIS**: stop and run `/sp-analyze` first. Do not self-authorize an `/sp-implement` start from chat memory alone.
+   - **IF `WORKFLOW_STATE_FILE` POINTS TO ANOTHER UPSTREAM COMMAND SUCH AS `/sp.plan`, `/sp.tasks`, OR `/sp.spec-extend`**: follow that recorded upstream command first and treat the current implementation attempt as blocked by analysis until the workflow state is cleared back to `/sp.implement`.
    - **IF TRACKER EXISTS WITH STATUS `blocked` OR `replanning`**: Read `blockers`, `open_gaps`, `recovery_action`, and `next_action` first, then continue from that state instead of restarting the workflow from scratch.
    - **IF TRACKER EXISTS WITH STATUS `validating`**: Resume the unfinished validation checks before considering any new implementation work.
    - **IF TRACKER EXISTS WITH STATUS `executing` OR `recovering`**: Resume from the recorded `current_batch`, `failed_tasks`, and `retry_attempts` rather than recomputing progress from chat narration.
@@ -288,14 +292,14 @@ human_needed_checks:
    - The shared implement template is the primary source of truth for this leader-only milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
    - Use the shared policy function before each batch with the current agent capability snapshot: `choose_execution_strategy(command_name="implement", snapshot, workload_shape)`
    - Also classify whether the current batch needs a review gate before the join point: `classify_review_gate_policy(workload_shape)`
-   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - For `sp-implement`, strategy names are `single-lane`, `native-multi-agent`, `sidecar-runtime`. Treat legacy `single-agent` values as compatibility aliases for `single-lane`.
    - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for native delegation. If confidence is `low`, do not force native worker fan-out just because the integration can theoretically support it.
    - Decision order (must match policy):
-      - If `parallel_batches <= 0` or overlapping write sets -> `single-agent` (`no-safe-batch`)
+      - If `parallel_batches <= 0` or overlapping write sets -> `single-lane` (`no-safe-batch`)
       - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
       - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
-      - Else -> `single-agent` (`fallback` or `fallback-low-confidence`)
-   - single-agent still means one delegated worker lane, not leader self-execution.
+      - Else -> `single-lane` (`fallback` or `fallback-low-confidence`)
+   - `single-lane` still means one delegated worker lane, not leader self-execution.
    - Re-evaluate the execution strategy at every new parallel batch or join point instead of choosing once for the whole feature
    - Refine only the current executable window after each join point. Do not pre-expand later batches when their exact shape depends on current batch evidence.
    - Grouped parallelism is the default when multiple ready tasks have isolated write sets and stable upstream inputs.
@@ -304,6 +308,8 @@ human_needed_checks:
    - If `classify_review_gate_policy(workload_shape)` requires review, do not cross the join point until the batch has passed worker self-check and leader acceptance.
    - If the policy recommends a peer-review lane and a read-only verification lane is available, run one peer-review lane for the high-risk batch before the leader accepts it.
    - Reserve peer-review lanes for high-risk batches such as shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces.
+   - **Join Point Validation**: Every join point must name a validation target, a validation command or concrete check, and a pass condition before downstream work continues.
+   - **Join Point Validation**: If the validation command is missing, define the smallest trustworthy command or explicit manual check before accepting the join point; do not wave the batch through on narration alone.
    - When `sidecar-runtime` is selected, use the integration's coordinated runtime surface for the current ready batch, report concrete blockers, keep join-point semantics explicit, and surface retry-pending or blocked runtime state truthfully so runtime/API handoffs stay auditable and safe.
     - Before dispatching a concrete implementation batch, answer from repository evidence:
       - What framework or boundary pattern owns the touched surface?
@@ -317,7 +323,8 @@ human_needed_checks:
    - **Phase-by-phase execution**: Complete each phase before moving to the next
    - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
-   - **Capability-aware execution**: After selecting the strategy, execute the current ready batch through `native-multi-agent` or `sidecar-runtime` when selected by policy; otherwise execute via `single-agent` while preserving join-point semantics through the delegated worker lane.
+   - **Capability-aware execution**: After selecting the strategy, execute the current ready batch through `native-multi-agent` or `sidecar-runtime` when selected by policy; otherwise execute via `single-lane` while preserving join-point semantics through the delegated worker lane.
+   - Do not stop to ask the user whether the `single-lane` batch should switch to delegated execution; dispatch the delegated lane by default and only discuss a fallback after the delegation surfaces have concretely failed.
    - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
    - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
@@ -341,6 +348,7 @@ human_needed_checks:
    - Report progress after each completed task
    - Halt execution if any non-parallel task fails
    - For tasks in parallel batches, continue with successful tasks, report failed ones, and do not cross the batch's join point until the failed work is resolved or explicitly deferred
+   - If a delegated lane flips to `completed` or drifts into `idle` before the promised handoff, result file, or completion evidence arrives, treat it as a stale lane rather than accepted work: probe once for the missing handoff, then re-dispatch, block, or defer explicitly instead of silently continuing
    - For high-risk batches, treat acceptance as a three-layer check:
      - worker self-check
      - optional read-only peer-review lane when `classify_review_gate_policy(workload_shape)` recommends it
@@ -366,6 +374,7 @@ human_needed_checks:
    - If `.specify/testing/TESTING_PLAYBOOK.md` exists, use its canonical commands for full validation, targeted module validation, and coverage rather than inventing substitute commands.
    - Confirm the implementation follows the technical plan
    - If validation finds missing user-visible behavior or unmet acceptance criteria, record an `open_gaps` entry instead of silently claiming completion
+   - Do not use final-completion language such as `core implementation complete`, `implementation complete`, or `ready for integration testing` as shorthand for overall feature completion while required E2E, Polish, documentation, quickstart, or other planned validation tasks remain incomplete; report that partial state explicitly instead
    - Classify each unresolved gap:
      - `execution_gap`: implementation exists but still behaves incorrectly; continue fixing within the current implementation loop
      - `research_gap`: the blocker is a missing technical decision or evidence gap; update `research.md`, record the new finding in the tracker, then continue

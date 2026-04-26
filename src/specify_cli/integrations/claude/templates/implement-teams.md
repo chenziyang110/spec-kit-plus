@@ -21,7 +21,7 @@ User-facing workflow skill:
 
 Use this when:
 
-1. `/sp-implement` would otherwise run a single-agent or native delegated flow
+1. `/sp-implement` would otherwise run a `single-lane` or native delegated flow
 2. you want durable coordinated execution with a shared task list and explicit teammate messaging
 3. the implementation work is already decomposed into task-ready execution slices
 
@@ -54,9 +54,49 @@ TeamCreate({
 6. Convert the ready implementation slices into explicit shared tasks with `TaskCreate`.
    - every shared task must carry the execution context bundle, not just the task summary
    - the task body must tell the teammate which context items are required, what each item is for, and which ones must be read before work starts
+   - create the full task set before wiring `blockedBy` / `blocks` dependencies; do not point one task at another task record that does not exist yet
+   - every shared task must preserve an explicit execution packet shape, not just prose:
+     - task id and subject
+     - write set and shared surfaces
+     - required references and forbidden drift
+     - deliverables
+     - explicit verification command or acceptance check
+     - canonical result handoff path when the leader expects a file handoff
+     - completion protocol covering start, blocker, and final completion evidence
+     - platform guardrails such as supported platforms or required conditional compilation for platform-specific code
+   - use a standardized task body shape such as:
+
+```text
+Task ID: T001
+Subject: Protocol update for foreground process payload
+Write Set:
+- apps/local-agent/src/protocol.rs
+- apps/relay-server/src/protocol.rs
+Required References:
+- PROJECT-HANDBOOK.md
+- .specify/project-map/WORKFLOWS.md
+Deliverables:
+- matching protocol definitions on both sides
+- focused tests updated
+Verification:
+- cargo test -p local-agent
+Result Handoff:
+- write the normalized result envelope to FEATURE_DIR/worker-results/T001.json when the leader requests a file handoff
+Completion Protocol:
+1. SendMessage({ type: "task_started", task_id: "T001" })
+2. run the required verification
+3. TaskUpdate({ taskId: "T001", status: "completed" })
+4. SendMessage({ type: "task_completed", task_id: "T001", summary: "...", verification: "...", files_changed: [...] })
+Platform Guardrails:
+- supported_platforms: windows, linux
+- use conditional compilation for platform-specific code instead of assuming unix-only APIs are always available
+Join Point:
+- Join Point 1.1
+```
 7. Encode dependencies and ownership with `TaskUpdate`:
    - use `blockedBy` / `blocks` for ordering
    - use `owner` to assign each task to a named teammate
+   - finish all `TaskCreate` calls for the current ready batch first, then wire dependency edges and ownership in a second pass so dependency references never point at missing task records
 8. Inherit Claude Code's configured subagent model behavior before teammate creation:
    - rely on Claude Code's current subagent configuration instead of resolving teammate model choice manually for this workflow
    - if `CLAUDE_CODE_SUBAGENT_MODEL` is configured in the environment, treat it as the active subagent model hint for this run
@@ -79,13 +119,21 @@ TeamCreate({
    - the readiness probe must confirm the teammate consumed the execution context bundle and can echo a `context_ack` containing the required paths or read-order items before any real work is assigned
 11. Tell every teammate to call `TaskList`, claim or inspect its assigned work, and use `SendMessage` for coordination instead of silent progress.
    - ack the context bundle before claiming work; a teammate must not claim work until it has confirmed the required paths
+   - after claiming work, the teammate must emit an explicit `task_started` message before settling into background execution so the leader can distinguish real execution from a silent idle lane
 12. Track progress through the shared task list:
    - `TaskUpdate({ taskId, status: "in_progress" })`
    - `TaskUpdate({ taskId, status: "completed" })`
    - `TaskList()` and `TaskGet(taskId: "...")` to inspect team state
+   - treat `TaskUpdate({ status: "completed" })` as necessary but not sufficient when the task promised a completion handoff, verification summary, or result file
 13. Use `SendMessage` for handoffs, blockers, dependency releases, and context acknowledgement receipts. Approve structured messages such as `context_ack`, `shutdown_request`, or `plan_approval_request` when they arrive.
+   - when execution actually begins, prefer `task_started` messages with the task id and a short execution note
+   - when blocked, require a `task_blocked` message naming the blocker, failed assumption, and smallest safe recovery step
+   - when complete, require a `task_completed` message that includes task id, summary, verification run, files changed, and any residual concern even if the task status is already marked `completed`
+   - when a result handoff path was promised, the teammate must write that result before entering `idle`; a completion message without the promised handoff is incomplete
 14. Keep the same completion discipline as `/sp-implement`: do not cross the join point or declare completion until structured handoffs are consumed, the tracker/result state is updated, and every teammate has confirmed the required context bundle for its lane.
-15. When implementation is done, request shutdown for each teammate, then clean up the team with `TeamDelete()`.
+15. Only after the shared completion contract is fully satisfied may you request shutdown for each teammate, then clean up the team with `TeamDelete()`.
+   - if the team has only finished core implementation or is merely ready for integration testing while required E2E, Polish, documentation, or validation tasks remain, report partial progress and keep the remaining work explicit instead of declaring overall feature completion
+   - a `shutdown_response` or other approval signal means the teammate accepted shutdown, not that it already left the team; confirm active membership before treating cleanup as complete
 
 ## Output Expectations
 

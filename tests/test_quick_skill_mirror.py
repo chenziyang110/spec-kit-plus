@@ -30,7 +30,7 @@ def test_repo_quick_skill_mirror_has_codex_delegation_contract(tmp_path: Path) -
     assert "single-agent" in body
     assert "native-multi-agent" in body
     assert "sidecar-runtime" in body
-    assert "single-agent still means one delegated worker lane" in body
+    assert "`single-lane` still means one delegated worker lane" in body
     assert "before any substantial repository analysis" in body
     assert "first hard gate" in body
     assert "codex leader gate" in body

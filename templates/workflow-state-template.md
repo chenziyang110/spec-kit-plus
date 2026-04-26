@@ -7,7 +7,7 @@
 
 ## Phase Mode
 
-- phase_mode: `planning-only | design-only | task-generation-only | execution-only`
+- phase_mode: `planning-only | design-only | task-generation-only | analysis-only | execution-only`
 - summary: [One-sentence reminder of what this phase is allowed to do]
 
 ## Allowed Artifact Writes
@@ -38,4 +38,4 @@
 
 ## Next Command
 
-- `/sp.plan | /sp.tasks | /sp.implement | /sp.spec-extend`
+- `/sp.plan | /sp.tasks | /sp.analyze | /sp.implement | /sp.spec-extend`
