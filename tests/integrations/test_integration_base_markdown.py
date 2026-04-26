@@ -11,6 +11,8 @@ from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
 from specify_cli.integrations.base import MarkdownIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
 
+SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
+
 
 class MarkdownIntegrationTests:
     """Mixin — set class-level constants and inherit these tests.
@@ -394,7 +396,7 @@ class MarkdownIntegrationTests:
         try:
             os.chdir(project)
             result = CliRunner().invoke(app, [
-                "init", "--here", "--ai", self.KEY, "--script", "sh",
+                "init", "--here", "--force", "--ai", self.KEY, "--script", "sh",
                 "--no-git", "--ignore-agent-tools",
             ], catch_exceptions=False)
         finally:
@@ -404,6 +406,80 @@ class MarkdownIntegrationTests:
         assert (project / self.CONTEXT_FILE).is_file(), (
             f"--ai {self.KEY} did not create context file {self.CONTEXT_FILE}"
         )
+
+    def test_init_bootstrapped_context_file_contains_managed_guidance(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / f"context-guidance-{self.KEY}"
+        project.mkdir()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = CliRunner().invoke(app, [
+                "init", "--here", "--force", "--ai", self.KEY, "--script", "sh",
+                "--no-git", "--ignore-agent-tools",
+            ], catch_exceptions=False)
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, f"init --ai {self.KEY} failed: {result.output}"
+        content = (project / self.CONTEXT_FILE).read_text(encoding="utf-8")
+        assert "## Active Technologies" in content
+        assert SPEC_KIT_BLOCK_START in content
+        assert "[AGENT]" in content
+        assert "specify -> plan" in content
+        assert "PROJECT-HANDBOOK.md" in content
+        assert ".specify/project-map/" in content
+        assert ".specify/memory/project-rules.md" in content
+        assert "## Workflow Routing" in content
+        assert "sp-fast" in content
+        assert "sp-quick" in content
+        assert "sp-specify" in content
+        assert "sp-debug" in content
+        assert "sp-test" in content
+        assert "## Artifact Priority" in content
+        assert "workflow-state.md" in content
+        assert "alignment.md" in content
+        assert "context.md" in content
+        assert "plan.md" in content
+        assert "tasks.md" in content
+        assert ".specify/testing/TESTING_CONTRACT.md" in content
+        assert ".specify/project-map/status.json" in content
+        assert "## Map Maintenance" in content
+        assert "refresh `PROJECT-HANDBOOK.md`" in content
+        assert "mark `.specify/project-map/status.json` dirty" in content
+
+    def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / f"context-existing-{self.KEY}"
+        project.mkdir()
+        context_path = project / self.CONTEXT_FILE
+        context_path.parent.mkdir(parents=True, exist_ok=True)
+        initial = "# User Context\n\nKeep this line.\n"
+        context_path.write_text(initial, encoding="utf-8")
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = CliRunner().invoke(app, [
+                "init", "--here", "--force", "--ai", self.KEY, "--script", "sh",
+                "--no-git", "--ignore-agent-tools",
+            ], catch_exceptions=False)
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, f"init --ai {self.KEY} failed: {result.output}"
+        content = context_path.read_text(encoding="utf-8")
+        assert content.startswith(initial)
+        assert SPEC_KIT_BLOCK_START in content
+        assert "PROJECT-HANDBOOK.md" in content
+        assert ".specify/project-map/" in content
+        assert "## Workflow Routing" in content
+        assert "## Artifact Priority" in content
+        assert "## Map Maintenance" in content
 
     def test_complete_file_inventory_ps(self, tmp_path):
         """Every file produced by specify init --integration <key> --script ps."""

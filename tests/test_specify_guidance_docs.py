@@ -85,6 +85,19 @@ def test_guidance_docs_explain_fast_quick_specify_routing():
         assert "acceptance criteria" in content
 
 
+def test_guidance_docs_explain_failing_test_first_execution_rule():
+    readme = _read("README.md").lower()
+    agents = _read("AGENTS.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    for content in (readme, agents, quickstart):
+        assert "failing test first" in content
+        assert "sp-fast" in content or "/speckit.fast" in content
+        assert "sp-quick" in content or "/speckit.quick" in content
+        assert "sp-implement" in content or "/speckit.implement" in content
+        assert "sp-debug" in content or "/speckit.debug" in content
+
+
 def test_guidance_docs_explain_passive_project_learning_layer():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
@@ -248,3 +261,8 @@ def test_guidance_docs_explain_agent_marker_and_managed_agents_block() -> None:
 
     assert "<!-- SPEC-KIT:BEGIN -->" in agents
     assert "<!-- SPEC-KIT:END -->" in agents
+    assert "## Workflow Routing" in agents
+    assert "## Artifact Priority" in agents
+    assert "## Map Maintenance" in agents
+    assert "workflow-state.md" in agents
+    assert ".specify/project-map/status.json" in agents

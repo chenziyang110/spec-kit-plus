@@ -337,3 +337,98 @@ def test_powershell_script_updates_existing_agents_without_template(
     assert content[: content.index(BLOCK_START)] == initial
     assert BLOCK_START in content
     assert BLOCK_END in content
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+def test_bash_script_updates_existing_non_agents_file_with_managed_guidance(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    claude = repo / "CLAUDE.md"
+    initial = "# User CLAUDE\n\nCustom note.\n"
+    claude.write_text(initial, encoding="utf-8")
+
+    result = _run_bash_update(repo, "claude")
+
+    assert result.returncode == 0, result.stderr
+    content = claude.read_text(encoding="utf-8")
+    assert content.startswith(initial)
+    assert BLOCK_START in content
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/" in content
+    assert "## Active Technologies" in content
+    assert "Python 3.13" in content
+    assert "Typer" in content
+    assert "## Workflow Routing" in content
+    assert "sp-fast" in content
+    assert "## Artifact Priority" in content
+    assert "workflow-state.md" in content
+    assert "## Map Maintenance" in content
+    assert ".specify/project-map/status.json" in content
+
+
+def test_powershell_script_updates_existing_non_agents_file_with_managed_guidance(
+    tmp_path: Path,
+) -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is not installed")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    claude = repo / "CLAUDE.md"
+    initial = "# User CLAUDE\r\n\r\nCustom note.\r\n"
+    claude.write_bytes(initial.encode("utf-8"))
+
+    result = _run_powershell_update(repo, "claude")
+
+    assert result.returncode == 0, result.stderr
+    content = _read_utf8_without_bom(claude)
+    assert content.startswith(initial)
+    assert BLOCK_START in content
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/" in content
+    assert "## Active Technologies" in content
+    assert "Python 3.13 + Typer" in content
+    assert "## Workflow Routing" in content
+    assert "sp-fast" in content
+    assert "## Artifact Priority" in content
+    assert "workflow-state.md" in content
+    assert "## Map Maintenance" in content
+    assert ".specify/project-map/status.json" in content
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+def test_bash_script_updates_agy_root_agents_file(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    result = _run_bash_update(repo, "agy")
+
+    assert result.returncode == 0, result.stderr
+    assert (repo / "AGENTS.md").exists()
+    assert not (repo / ".agent" / "rules" / "specify-rules.md").exists()
+
+
+def test_powershell_script_updates_agy_root_agents_file(
+    tmp_path: Path,
+) -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is not installed")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+
+    result = _run_powershell_update(repo, "agy")
+
+    assert result.returncode == 0, result.stderr
+    assert (repo / "AGENTS.md").exists()
+    assert not (repo / ".agent" / "rules" / "specify-rules.md").exists()

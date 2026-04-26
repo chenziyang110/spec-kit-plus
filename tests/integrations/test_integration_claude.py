@@ -12,6 +12,8 @@ from specify_cli.integrations.base import IntegrationBase
 from specify_cli.integrations.claude import ARGUMENT_HINTS
 from specify_cli.integrations.manifest import IntegrationManifest
 
+SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
+
 
 class TestClaudeIntegration:
     def test_registered(self):
@@ -164,6 +166,102 @@ class TestClaudeIntegration:
 
         assert result.exit_code == 0, result.output
         assert (project / "CLAUDE.md").is_file()
+
+    def test_init_bootstrapped_context_file_contains_managed_guidance(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "claude-context-guidance"
+        project.mkdir()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        content = (project / "CLAUDE.md").read_text(encoding="utf-8")
+        assert "## Active Technologies" in content
+        assert SPEC_KIT_BLOCK_START in content
+        assert "[AGENT]" in content
+        assert "specify -> plan" in content
+        assert "PROJECT-HANDBOOK.md" in content
+        assert ".specify/project-map/" in content
+        assert ".specify/memory/project-rules.md" in content
+        assert "## Workflow Routing" in content
+        assert "sp-fast" in content
+        assert "sp-quick" in content
+        assert "sp-specify" in content
+        assert "sp-debug" in content
+        assert "sp-test" in content
+        assert "## Artifact Priority" in content
+        assert "workflow-state.md" in content
+        assert "alignment.md" in content
+        assert "context.md" in content
+        assert "plan.md" in content
+        assert "tasks.md" in content
+        assert ".specify/testing/TESTING_CONTRACT.md" in content
+        assert ".specify/project-map/status.json" in content
+        assert "## Map Maintenance" in content
+        assert "refresh `PROJECT-HANDBOOK.md`" in content
+        assert "mark `.specify/project-map/status.json` dirty" in content
+
+    def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "claude-context-existing"
+        project.mkdir()
+        claude_file = project / "CLAUDE.md"
+        initial = "# User CLAUDE\n\nCustom note.\n"
+        claude_file.write_text(initial, encoding="utf-8")
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--force",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        content = claude_file.read_text(encoding="utf-8")
+        assert content.startswith(initial)
+        assert SPEC_KIT_BLOCK_START in content
+        assert "PROJECT-HANDBOOK.md" in content
+        assert ".specify/project-map/" in content
+        assert "## Workflow Routing" in content
+        assert "## Artifact Priority" in content
+        assert "## Map Maintenance" in content
 
     def test_integration_flag_creates_skill_files(self, tmp_path):
         from typer.testing import CliRunner

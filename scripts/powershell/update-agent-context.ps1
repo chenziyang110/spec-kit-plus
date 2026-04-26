@@ -61,7 +61,7 @@ $AMP_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 $SHAI_FILE     = Join-Path $REPO_ROOT 'SHAI.md'
 $TABNINE_FILE  = Join-Path $REPO_ROOT 'TABNINE.md'
 $KIRO_FILE     = Join-Path $REPO_ROOT 'AGENTS.md'
-$AGY_FILE      = Join-Path $REPO_ROOT '.agent/rules/specify-rules.md'
+$AGY_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 $BOB_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 $VIBE_FILE     = Join-Path $REPO_ROOT '.vibe/agents/specify-agents.md'
 $KIMI_FILE     = Join-Path $REPO_ROOT 'KIMI.md'
@@ -132,6 +132,48 @@ function Get-SpecKitManagedBlock {
             ''
             '- `[AGENT]` marks an action the AI must explicitly execute.'
             '- `[AGENT]` is independent from `[P]`.'
+            ''
+            '## Workflow Mainline'
+            ''
+            '- Treat `specify -> plan` as the default path.'
+            '- Use `spec-extend` only when an existing spec needs deeper analysis before planning.'
+            ''
+            '## Brownfield Context Gate'
+            ''
+            '- `PROJECT-HANDBOOK.md` is the root navigation artifact.'
+            '- Deep project knowledge lives under `.specify/project-map/`.'
+            '- Before planning, debugging, or implementing against existing code, read `PROJECT-HANDBOOK.md` and the smallest relevant `.specify/project-map/*.md` files.'
+            '- If handbook/project-map coverage is missing, stale, or too broad, run the runtime''s `map-codebase` workflow entrypoint before continuing.'
+            ''
+            '## Project Memory'
+            ''
+            '- Passive project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`.'
+            '- Prefer generated project-local Spec Kit workflows, skills, and commands over ad-hoc execution when they fit the task.'
+            ''
+            '## Workflow Routing'
+            ''
+            '- Use `sp-fast` only for trivial, low-risk local changes that do not need planning artifacts.'
+            '- Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.'
+            '- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.'
+            '- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.'
+            '- Use `sp-test` when the project-level testing contract or testing system coverage needs bootstrap, refresh, or audit work.'
+            ''
+            '## Artifact Priority'
+            ''
+            '- `.specify/memory/constitution.md` is the principle-level source of truth when present.'
+            '- `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress.'
+            '- `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.'
+            '- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.'
+            '- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.'
+            '- `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain implementation and debugging when present.'
+            '- `.specify/project-map/status.json` determines whether handbook/project-map coverage can be trusted as fresh.'
+            ''
+            '## Map Maintenance'
+            ''
+            '- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.'
+            '- If that refresh cannot happen in the current pass, mark `.specify/project-map/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-codebase`.'
+            '- Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the navigation system current.'
+            ''
             '- Preserve content outside this managed block.'
             '<!-- SPEC-KIT:END -->'
         ) -join $Newline
@@ -513,32 +555,32 @@ function Update-AgentFile {
     $dir = Split-Path -Parent $TargetFile
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
 
-    if (Test-IsManagedAgentsFile -TargetFile $TargetFile) {
-        $exists = Test-Path $TargetFile
-        try {
-            Update-SpecKitManagedBlock -TargetFile $TargetFile
-            if ($exists) {
-                Write-Success "Updated existing $AgentName context file"
-            } else {
-                Write-Success "Created new $AgentName context file"
-            }
-        } catch {
-            Write-Err "Cannot access or update managed Spec Kit block in $TargetFile. $_"
-            return $false
-        }
-        return $true
-    }
+    $exists = Test-Path $TargetFile
 
-    if (-not (Test-Path $TargetFile)) {
-        if (New-AgentFile -TargetFile $TargetFile -ProjectName $projectName -Date $date) { Write-Success "Created new $AgentName context file" } else { Write-Err 'Failed to create new agent file'; return $false }
-    } else {
+    if (-not $exists) {
+        if (-not (New-AgentFile -TargetFile $TargetFile -ProjectName $projectName -Date $date)) { Write-Err 'Failed to create new agent file'; return $false }
+    } elseif (-not (Test-IsManagedAgentsFile -TargetFile $TargetFile)) {
         try {
-            if (Update-ExistingAgentFile -TargetFile $TargetFile -Date $date) { Write-Success "Updated existing $AgentName context file" } else { Write-Err 'Failed to update agent file'; return $false }
+            if (-not (Update-ExistingAgentFile -TargetFile $TargetFile -Date $date)) { Write-Err 'Failed to update agent file'; return $false }
         } catch {
             Write-Err "Cannot access or update existing file: $TargetFile. $_"
             return $false
         }
     }
+
+    try {
+        Update-SpecKitManagedBlock -TargetFile $TargetFile
+    } catch {
+        Write-Err "Cannot access or update managed Spec Kit block in $TargetFile. $_"
+        return $false
+    }
+
+    if ($exists) {
+        Write-Success "Updated existing $AgentName context file"
+    } else {
+        Write-Success "Created new $AgentName context file"
+    }
+
     return $true
 }
 

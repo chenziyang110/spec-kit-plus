@@ -69,6 +69,9 @@ Upgrade to `/sp-specify` immediately if:
 
 3. **Execute inline**
    - Read the relevant file(s).
+   - If the task is behavior-changing rather than docs-only, write a failing targeted test or failing repro check before editing production code.
+   - Do not use manual sanity checks as a substitute for red when behavior changes.
+   - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-test` or `/sp-quick` instead of hand-waving the verification gap.
    - Do the work directly in the current context.
    - Keep the change as small and local as possible.
 
