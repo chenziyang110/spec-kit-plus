@@ -22,6 +22,11 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "transition memo" in content
     assert "automatically continue into evidence investigation" in content
     assert "skip the observer framing stage" not in content
+    assert "hard gate" in content
+    assert "reading code before finishing observer framing is a workflow violation" in content
+    assert "observer_framing_completed" in content
+    assert "no source-code reads, test reads, log reads, or repro commands are allowed" in content
+    assert "compressed framing still requires the full observer framing section" in content
     assert "you are not the default evidence worker for every lane" in content
     assert "route, integrate, and decide rather than manually performing every lane sequentially" in content
     assert "stay on the leader path unless the current strategy truly remains `single-agent`" in content
@@ -86,6 +91,10 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "mark `.specify/project-map/status.json` dirty" in content
     assert "if you cannot complete that refresh in the current pass" in content
     assert "highest-signal" in content
+    assert "write a failing automated repro test before changing production code" in content
+    assert "do not modify production behavior until the red state is proven" in content
+    assert "if no reliable automated test surface exists for the failing behavior" in content
+    assert "add the missing harness first or route through `/sp-test`" in content
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:
@@ -97,6 +106,7 @@ def test_debug_template_uses_stage_and_protocol_structure() -> None:
     assert "## investigation protocol" in content
     assert "stage 1: observer framing" in content
     assert "stage 2: transition memo" in content
+    assert "observer gate" in content
     assert "stage 3: reproduction gate" in content
     assert "stage 4: log review" in content
     assert "required framing before hypothesis" in content
@@ -119,10 +129,12 @@ def test_debug_template_keeps_shared_guidance_integration_neutral() -> None:
 
 def test_debug_session_template_captures_control_plane_debugging_fields() -> None:
     content = (PROJECT_ROOT / "templates" / "debug.md").read_text(encoding="utf-8")
+    lowered = content.lower()
 
     assert "observer_mode:" in content
     assert "observer_framing_completed:" in content
     assert "skip_observer_reason:" in content
+    assert "true only after observer framing and transition memo are both written" in content
     assert "## Observer Framing" in content
     assert "## Transition Memo" in content
     assert "primary_suspected_loop:" in content
@@ -143,3 +155,4 @@ def test_debug_session_template_captures_control_plane_debugging_fields() -> Non
     assert "validation_results" in content
     assert "decisive_signals" in content
     assert "rejected_surface_fixes" in content
+    assert "no source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`" in lowered

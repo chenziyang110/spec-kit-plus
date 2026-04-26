@@ -67,6 +67,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 3. **Run the Investigation Protocol**
    - Move through the investigation stages below, starting with observer framing and the transition memo before evidence collection begins.
+   - **Hard gate**: Do not enter Stage 3 (`Reproduction Gate`) or perform any code, log, test, or repro action until the observer gate has passed.
+   - The observer gate passes only when the debug session records `observer_framing_completed: true`, `observer_mode`, the required `Observer Framing` fields, and the required `Transition Memo` fields.
    - Update the debug file before each action.
    - Append every confirmed finding to `Evidence`.
    - Append every disproven theory to `Eliminated`.
@@ -110,6 +112,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - If critical information is still missing during observer framing, ask at most one concise missing-information question before moving on.
 
 ### Stage 1: Observer Framing
+- This stage is **mandatory**. Reading code before finishing observer framing is a workflow violation, not an optimization.
 - Based on the user report plus the current system map, produce a user-visible observer analysis board before any code-level investigation begins.
 - The observer analysis board should include:
   - `Primary suspected loop`
@@ -121,6 +124,9 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Generate multiple plausible causes where possible instead of collapsing immediately to one hypothesis.
 - Record the same observer framing in the debug session before moving on.
 - Keep observer framing at the architecture/workflow/truth-ownership level. Do not claim code-level certainty yet.
+- This stage is not complete until the debug session contains non-empty values for `summary`, `primary_suspected_loop`, `suspected_owning_layer`, `suspected_truth_owner`, `recommended_first_probe`, and at least one `alternative_cause_candidate`.
+- If there are no meaningful missing questions, record that explicitly instead of leaving the field empty.
+- Compressed framing still requires the full Observer Framing section to be written; compression lowers certainty expectations, not delivery requirements.
 
 ### Stage 2: Transition Memo
 - Convert observer framing into an actionable investigation order.
@@ -129,6 +135,17 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Record what evidence surfaces are now unlocked: reproduction, logs, code, tests, or instrumentation.
 - After writing the transition memo, automatically continue into evidence investigation. Do not stop for confirmation unless human action is required.
 - Treat the transition memo as the bridge between the outsider view and the investigator view. The later evidence phase must carry the observer framing forward instead of discarding it.
+- If `observer_mode` is `compressed`, fill `skip_observer_reason` with the decisive low-level evidence that justified compression.
+
+### Observer Gate
+- Before Stage 3 begins, verify all of the following in the debug session:
+  - `observer_framing_completed: true`
+  - `observer_mode` is set to `full` or `compressed`
+  - `skip_observer_reason` is filled when `observer_mode` is `compressed`
+  - `Observer Framing` contains the required outsider-analysis fields
+  - `Transition Memo` contains `first_candidate_to_test`, `why_first`, and at least one `evidence_unlock` entry
+- If any observer-gate item is missing, return to Stage 1 or Stage 2 instead of reading code, logs, tests, or running reproduction.
+- No source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`.
 
 ### Stage 3: Reproduction Gate
 - Capture expected behavior, actual behavior, reproduction steps, and observed errors in the session file before running the first repro.
@@ -242,10 +259,14 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 ## Debug File Protocol
 
 - **Location**: `.planning/debug/[slug].md`
+- **observer_framing_completed**: `false` until Observer Framing and Transition Memo are both written and the observer gate is satisfied.
+- **observer_mode**: must be set to `full` or `compressed` before Stage 3.
+- **skip_observer_reason**: required whenever `observer_mode` is `compressed`.
 - **Current Focus**: OVERWRITE on every update. Reflects exactly what the leader is doing now.
 - **Evidence**: APPEND confirmed findings only.
 - **Eliminated**: APPEND disproven theories only.
 - **Update Rule**: Update the file before taking an action.
+- No source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`.
 
 The session file must always make it clear:
 - what the observer framing concluded,
@@ -260,6 +281,9 @@ The session file must always make it clear:
 ## Fix and Verify Protocol
 
 - Enter `fixing` only after the root cause is confirmed.
+- Write a failing automated repro test before changing production code.
+- Do not modify production behavior until the RED state is proven.
+- If no reliable automated test surface exists for the failing behavior, add the missing harness first or route through `/sp-test` before code changes.
 - Apply the minimum code change needed to address that root cause.
 - Fix the owning control-plane failure first. Do not treat a UI/status smoothing change as sufficient unless the closed loop is proven healthy end-to-end.
 - After changing code, rerun:

@@ -13,8 +13,8 @@ status: gathering | investigating | fixing | verifying | awaiting_human_verify |
 trigger: "[verbatim user input]"
 diagnostic_profile: scheduler-admission | cache-snapshot | ui-projection | general
 observer_mode: full | compressed
-observer_framing_completed: [true once observer framing is written]
-skip_observer_reason: [why observer framing was compressed]
+observer_framing_completed: [true only after observer framing and transition memo are both written and the observer gate passes]
+skip_observer_reason: [required when observer framing was compressed]
 current_node_id: [ID of the active graph node]
 created: [ISO timestamp]
 updated: [ISO timestamp]
@@ -180,11 +180,19 @@ rejected_surface_fixes:
 - Must be built from the user report plus handbook/project-map context only
 - Do not use code files, test files, logs, or direct repro results here
 - Capture an outsider analysis, not a final root-cause verdict
+- This section is incomplete until `summary`, `primary_suspected_loop`, `suspected_owning_layer`, `suspected_truth_owner`, `recommended_first_probe`, and at least one `alternative_cause_candidate` are filled
+- Compressed framing still requires the full Observer Framing section; compression only changes why the phase was shortened
 
 **Transition Memo:**
 - OVERWRITE/REFINE after observer framing
 - Converts the outsider analysis into the first investigator-facing probe order
 - Records which evidence surfaces are now unlocked and what the investigator must carry forward
+- This section is incomplete until `first_candidate_to_test`, `why_first`, and at least one `evidence_unlock` entry are filled
+
+**Observer Gate:**
+- Set `observer_framing_completed: true` only after both `Observer Framing` and `Transition Memo` are complete
+- If `observer_mode` is `compressed`, `skip_observer_reason` must be non-empty
+- No source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`
 
 **Suggested Evidence Lanes:**
 - OVERWRITE/REFINE as the diagnostic profile changes
