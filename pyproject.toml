@@ -19,6 +19,7 @@ dependencies = [
 
 [project.scripts]
 specify = "specify_cli:main"
+specify-teams-mcp = "specify_cli.mcp.teams_server:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -66,6 +67,9 @@ packages = ["src/specify_cli"]
 "extensions/agent-teams/engine/skills" = "specify_cli/core_pack/extensions/agent-teams/engine/skills"
 
 [project.optional-dependencies]
+mcp = [
+    "mcp[cli]>=1,<2",
+]
 test = [
     "pytest>=7.0",
     "pytest-asyncio>=0.23",

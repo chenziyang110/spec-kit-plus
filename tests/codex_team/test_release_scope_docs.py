@@ -10,3 +10,4 @@ def test_readme_describes_codex_only_first_release_scope():
     assert "single-agent" in readme
     assert "native-multi-agent" in readme
     assert "sidecar-runtime" in readme
+    assert "specify-teams-mcp" in readme

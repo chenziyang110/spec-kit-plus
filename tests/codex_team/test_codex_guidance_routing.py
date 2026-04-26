@@ -66,3 +66,4 @@ def test_team_guidance_declares_codex_only_scope() -> None:
 
     assert "codex-only" in lower
     assert "do not surface" in lower
+    assert "specify-teams-mcp" in lower

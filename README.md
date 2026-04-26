@@ -286,6 +286,12 @@ specify team
 - `specify team submit-result --request-id <id> --result-file <path>` validates and records a structured worker result for an existing dispatch.
 - `specify team api <operation>` proxies structured JSON operations (task claims, worker heartbeats, events) into the runtime; use it when automation needs a predictable channel.
 
+For agents and automation, prefer the optional MCP supplement instead of having the model compose CLI invocations directly:
+
+- `specify-teams-mcp` exposes an agent-facing MCP facade for the structured control plane
+- the MCP layer is intended for agent/tool consumers
+- `specify team` remains the human/operator CLI and parity fallback surface
+
 This command suite powers both the `sp-team` skill and the runtime APIs that downstream tooling relies on, which is why the command is restricted to Codex-initiated projects.
 
 ### Runtime state location and lifecycle

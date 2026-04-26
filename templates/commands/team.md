@@ -35,3 +35,5 @@ Validation:
 ## Audience
 
 This guidance belongs to the Codex-only team/runtime surface. Do not surface these instructions through other agent integrations or treat non-Codex runtimes as the intended audience.
+
+Agent automation should prefer the `specify-teams-mcp` MCP facade when it is configured. Keep `specify team` as the human/operator CLI and parity fallback surface.

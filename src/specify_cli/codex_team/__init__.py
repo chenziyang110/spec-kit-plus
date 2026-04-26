@@ -7,6 +7,7 @@ from .commands import (
     team_availability_message,
     team_help_text,
 )
+from .api_surface import TeamApiError, run_team_api_operation
 from .installer import (
     CODEX_TEAM_HELPER_FILES,
     CODEx_TEAM_HELPER_FILES,
@@ -52,6 +53,7 @@ __all__ = [
     "RuntimeSession",
     "TEAM_COMMAND_NAME",
     "TEAM_SKILL_NAME",
+    "TeamApiError",
     "bootstrap_runtime_session",
     "codex_team_doctor",
     "codex_team_live_probe",
@@ -74,6 +76,7 @@ __all__ = [
     "submit_runtime_result",
     "build_watch_snapshot",
     "run_team_watch",
+    "run_team_api_operation",
     "team_availability_message",
     "team_help_text",
     "upgrade_existing_codex_project",

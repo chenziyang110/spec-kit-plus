@@ -35,7 +35,6 @@ import json
 import json5
 import stat
 import yaml
-from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 from typing import Any, Optional, Tuple
@@ -59,7 +58,6 @@ from specify_cli.codex_team import (
     codex_team_runtime_status,
     runtime_state_summary,
     session_ops,
-    task_ops,
     team_availability_message,
     team_help_text,
 )
@@ -86,7 +84,6 @@ from specify_cli.codex_team.runtime_bridge import (
 )
 from specify_cli.execution import (
     build_result_handoff_path,
-    normalize_worker_task_result_payload,
     write_normalized_result_handoff,
 )
 from specify_cli.learning_aggregate import (
@@ -3304,127 +3301,22 @@ def team_api(
     result_file: str | None = typer.Option(None, "--result-file", help="Path to worker result JSON for result submission"),
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
+    from specify_cli.codex_team.api_surface import TeamApiError, run_team_api_operation
+
     project_root = Path.cwd()
-    integration_key = _require_codex_team_project(project_root)
-    envelope: dict[str, Any] = {"operation": operation, "status": "ok", "payload": {}}
-    if operation == "status":
-        envelope["payload"] = codex_team_runtime_status(
+    try:
+        envelope = run_team_api_operation(
             project_root,
-            integration_key=integration_key,
+            operation,
+            feature_dir=feature_dir,
+            batch_id=batch_id,
+            request_id=request_id,
+            result_file=result_file,
             session_id=session_id,
         )
-    elif operation == "doctor":
-        envelope["payload"] = codex_team_doctor(
-            project_root,
-            session_id=session_id,
-            integration_key=integration_key,
-        )
-    elif operation == "live-probe":
-        try:
-            envelope["payload"] = codex_team_live_probe(
-                project_root,
-                session_id=session_id,
-                integration_key=integration_key,
-            )
-        except RuntimeEnvironmentError as exc:
-            envelope["status"] = "error"
-            envelope["payload"] = {"message": str(exc)}
-    elif operation == "tasks":
-        records = task_ops.list_tasks(project_root)
-        envelope["payload"] = {"tasks": [asdict(record) for record in records]}
-    elif operation == "auto-dispatch":
-        if not feature_dir:
-            console.print("[red]Error:[/red] --feature-dir is required for auto-dispatch.")
-            raise typer.Exit(1)
-        freshness = inspect_project_map_freshness(project_root)
-        if freshness["freshness"] in {"missing", "stale"}:
-            envelope["status"] = "error"
-            envelope["payload"] = {
-                "message": f"Project-map freshness is {freshness['freshness']}. Refresh map-codebase before auto-dispatch.",
-                "freshness": freshness["freshness"],
-                "reasons": freshness.get("reasons", []),
-            }
-            print(json.dumps(envelope, ensure_ascii=False, default=str))
-            return
-        try:
-            result = route_ready_parallel_batch(
-                project_root,
-                feature_dir=(project_root / feature_dir).resolve(),
-                session_id=session_id,
-            )
-        except AutoDispatchError as exc:
-            envelope["status"] = "error"
-            envelope["payload"] = {"message": str(exc)}
-        else:
-            envelope["payload"] = {
-                "feature_dir": str(result.feature_dir),
-                "batch_id": result.batch_id,
-                "batch_name": result.batch_name,
-                "join_point_name": result.join_point_name,
-                "dispatched_task_ids": result.dispatched_task_ids,
-                "request_ids": result.request_ids,
-            }
-    elif operation == "complete-batch":
-        if not batch_id:
-            console.print("[red]Error:[/red] --batch-id is required for complete-batch.")
-            raise typer.Exit(1)
-        try:
-            result = complete_dispatched_batch(
-                project_root,
-                batch_id=batch_id,
-                session_id=session_id,
-            )
-        except AutoDispatchError as exc:
-            envelope["status"] = "error"
-            envelope["payload"] = {"message": str(exc)}
-        else:
-            envelope["payload"] = {
-                "batch_id": result.batch_id,
-                "batch_name": result.batch_name,
-                "status": result.status,
-                "join_point_name": result.join_point_name,
-                "task_ids": result.task_ids,
-            }
-    elif operation == "submit-result":
-        if not request_id:
-            console.print("[red]Error:[/red] --request-id is required for submit-result.")
-            raise typer.Exit(1)
-        if not result_file:
-            console.print("[red]Error:[/red] --result-file is required for submit-result.")
-            raise typer.Exit(1)
-        result_path = Path(result_file)
-        if not result_path.is_absolute():
-            result_path = (project_root / result_path).resolve()
-        if not result_path.exists():
-            envelope["status"] = "error"
-            envelope["payload"] = {"message": f"Result file not found: {result_path}"}
-            print(json.dumps(envelope, ensure_ascii=False, default=str))
-            return
-        try:
-            result = normalize_result_submission(
-                project_root,
-                request_id,
-                result_path.read_text(encoding="utf-8"),
-            )
-            record = submit_runtime_result(
-                project_root,
-                session_id=session_id,
-                request_id=request_id,
-                result=result,
-            )
-        except Exception as exc:
-            envelope["status"] = "error"
-            envelope["payload"] = {"message": str(exc)}
-        else:
-            envelope["payload"] = {
-                "request_id": record.request_id,
-                "target_worker": record.target_worker,
-                "status": record.status,
-                "result_path": record.result_path,
-            }
-    else:
-        console.print(f"[red]Error:[/red] Unknown API operation '{operation}'.")
-        raise typer.Exit(1)
+    except TeamApiError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
     print(json.dumps(envelope, ensure_ascii=False, default=str))
 
 
