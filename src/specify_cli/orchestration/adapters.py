@@ -26,7 +26,7 @@ FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
 )
 
 _MODEL_ENV_KEYS: dict[str, tuple[str, ...]] = {
-    "claude": ("ANTHROPIC_MODEL",),
+    "claude": ("CLAUDE_CODE_SUBAGENT_MODEL", "ANTHROPIC_MODEL"),
     "codex": ("OPENAI_MODEL", "CODEX_MODEL"),
     "gemini": ("GEMINI_MODEL",),
     "copilot": ("COPILOT_MODEL", "GITHUB_COPILOT_MODEL"),

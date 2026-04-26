@@ -29,8 +29,9 @@ Use this when:
 
 1. Confirm the current project is using the Claude integration and that `tasks.md` is ready.
 2. Confirm Claude Agent Teams is actually enabled before you try to use it:
-   - check whether `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is active in the current shell environment
-   - if the Agent Teams surface is unavailable, or if the first `TeamCreate` / Agent Teams call fails as though the feature is disabled, stop and explicitly remind the user to enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` instead of continuing with a broken team setup
+   - confirm the current Claude Code configuration enables Agent Teams, whether that configuration lives in `settings.json` or the environment
+   - treat `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` as the canonical Claude Code setting/env key for that feature gate when you need to name the switch explicitly
+   - if the Agent Teams surface is unavailable, or if the first `TeamCreate` / Agent Teams call fails as though the feature is disabled, stop and explicitly remind the user to enable Agent Teams in Claude Code settings or environment instead of continuing with a broken team setup
    - treat this as a hard prerequisite for `/sp-implement-teams`, not as an optional hint
 3. Create or resume a Claude Agent Team for the feature:
 
@@ -49,38 +50,33 @@ TeamCreate({
 6. Encode dependencies and ownership with `TaskUpdate`:
    - use `blockedBy` / `blocks` for ordering
    - use `owner` to assign each task to a named teammate
-7. Resolve the current session model before teammate creation:
-   - inspect the environment variable `ANTHROPIC_MODEL`
-   - treat routing alias values, for example `ANTHROPIC_MODEL=group`, as unresolved routing hints; that evidence does not prove the active session model
-   - do not fallback to `CLAUDE_MODEL`, `~/.claude/settings.json`, or any other local file for session model proof; if `ANTHROPIC_MODEL` is missing or ambiguous, treat the model as unresolved
-   - treat the resolved `ANTHROPIC_MODEL` string as the default teammate target model for this run
-   - if `ANTHROPIC_MODEL` cannot be resolved unambiguously, stop and surface the ambiguity instead of silently inventing a teammate model
-   - in that ambiguous case, ask the user for an explicit teammate model instead of copying a guessed default value into teammate frontmatter
-8. Materialize explicit teammate agent definitions before you create teammates:
-   - create or update local `.claude/agents/<team-name>-<role>.md` files for every teammate you intend to launch
-   - write the resolved current-session model into the teammate frontmatter as `model: "<resolved-current-model>"`
-   - keep the teammate role description in that file so model choice and teammate identity live in one source of truth instead of being split across chat and ad hoc spawn parameters
-   - when a pre-existing teammate definition already exists, update its `model` field for the current run instead of assuming stale frontmatter still matches the active session model
-9. Create the teammates from those agent definitions:
-   - reference the generated teammate definition name instead of relying on prompt-only specialization when the current Claude build supports custom teammate definitions in Agent Teams
+7. Inherit Claude Code's configured subagent model behavior before teammate creation:
+   - rely on Claude Code's current subagent configuration instead of resolving teammate model choice manually for this workflow
+   - if `CLAUDE_CODE_SUBAGENT_MODEL` is configured in the environment, treat it as the active subagent model hint for this run
+   - when subagent model behavior is configured through Claude Code settings, trust that configuration instead of re-deriving or copying model values into teammate setup
+   - do not derive teammate model from `ANTHROPIC_MODEL`
+   - do not ask the user for an explicit teammate model just to launch the team
+   - do not require local `.claude/agents/<team-name>-<role>.md` teammate definitions solely to force a model choice
+8. Create the teammates on the native Agent Teams surface:
+   - reference a generated teammate definition name when the current Claude build supports it and you genuinely need reusable teammate packaging
+   - prompt-only specialization is acceptable when you do not need a persisted custom teammate definition
    - use read-only style teammate definitions for analysis or planning lanes and implementation-oriented teammate definitions for write lanes
    - set `team_name` so every teammate joins the same shared ledger
    - prefer `run_in_background: true` for long-running execution
    - use `isolation: "worktree"` when the lane needs isolated edits
-10. Verify the launched teammate instead of assuming startup succeeded:
-   - inspect `~/.claude/teams/{team-name}/config.json` after teammate creation and confirm the recorded `model` for that teammate matches the resolved value you intended to use
-   - if the runtime cannot use the generated custom teammate definition, stop and surface that capability gap explicitly instead of silently falling back to a generic teammate
-   - if the teammate falls back to an unexpected model, shows `model not found`, or enters `idle` without consuming its first probe message, treat startup as failed rather than successful
-   - on failure, recreate or update the teammate with an explicit Claude-supported model value before assigning real implementation work
+9. Verify the launched teammate instead of assuming startup succeeded:
+   - inspect the team ledger and shared task state after teammate creation and confirm the teammate joined the intended team
+   - if the runtime cannot use the chosen teammate configuration, simplify the launch path instead of forcing an explicit model override
+   - if the teammate enters `idle` without consuming its first probe message, treat startup as failed rather than successful
    - use a minimal readiness probe message before task assignment so an idle lane is detected early and does not silently absorb a real task
-11. Tell every teammate to call `TaskList`, claim or inspect its assigned work, and use `SendMessage` for coordination instead of silent progress.
-12. Track progress through the shared task list:
+10. Tell every teammate to call `TaskList`, claim or inspect its assigned work, and use `SendMessage` for coordination instead of silent progress.
+11. Track progress through the shared task list:
    - `TaskUpdate({ taskId, status: "in_progress" })`
    - `TaskUpdate({ taskId, status: "completed" })`
    - `TaskList()` and `TaskGet(taskId: "...")` to inspect team state
-13. Use `SendMessage` for handoffs, blockers, and dependency releases. Approve structured messages such as `shutdown_request` or `plan_approval_request` when they arrive.
-14. Keep the same completion discipline as `/sp-implement`: do not cross the join point or declare completion until structured handoffs are consumed and the tracker/result state is updated.
-15. When implementation is done, request shutdown for each teammate, then clean up the team with `TeamDelete()`.
+12. Use `SendMessage` for handoffs, blockers, and dependency releases. Approve structured messages such as `shutdown_request` or `plan_approval_request` when they arrive.
+13. Keep the same completion discipline as `/sp-implement`: do not cross the join point or declare completion until structured handoffs are consumed and the tracker/result state is updated.
+14. When implementation is done, request shutdown for each teammate, then clean up the team with `TeamDelete()`.
 
 ## Output Expectations
 
@@ -91,4 +87,4 @@ Successful runs should leave the user with:
 3. explicit teammate ownership, status transitions, and dependency tracking
 4. the same implementation lifecycle semantics as `/sp-implement`, including tracker continuity, join point visibility, and result handoff discipline
 5. implementation framed as Claude Code Agent Teams execution, not as Codex runtime or extension plumbing
-6. explicit evidence of the resolved teammate model choice and the generated `.claude/agents/*.md` teammate definitions used for that run
+6. explicit evidence that teammates inherited Claude Code's configured subagent model behavior when applicable, without ad hoc model-guessing or forced local teammate model files

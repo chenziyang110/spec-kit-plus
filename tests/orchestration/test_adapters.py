@@ -63,13 +63,23 @@ def test_copilot_adapter_capability_snapshot():
 
 
 def test_claude_adapter_uses_model_probe_to_lower_delegation_confidence(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-3-5-haiku")
+    monkeypatch.setenv("CLAUDE_CODE_SUBAGENT_MODEL", "claude-3-5-haiku")
 
     snapshot = ClaudeMultiAgentAdapter().detect_capabilities()
 
     assert snapshot.model_family == "claude-3-5-haiku"
     assert snapshot.delegation_confidence == "low"
     assert any("model probe" in note.lower() for note in snapshot.notes)
+
+
+def test_claude_adapter_falls_back_to_anthropic_model_when_subagent_model_missing(monkeypatch):
+    monkeypatch.delenv("CLAUDE_CODE_SUBAGENT_MODEL", raising=False)
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-3-5-sonnet")
+
+    snapshot = ClaudeMultiAgentAdapter().detect_capabilities()
+
+    assert snapshot.model_family == "claude-3-5-sonnet"
+    assert any("model probe selected" in note.lower() for note in snapshot.notes)
 
 
 def test_claude_adapter_ignores_claude_model_env_var(monkeypatch):

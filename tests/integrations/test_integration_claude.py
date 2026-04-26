@@ -678,29 +678,18 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "teamdelete" in lower
     assert "~/.claude/teams/" in content
     assert "~/.claude/tasks/" in content
-    assert "claude_code_experimental_agent_teams=1" in lower
-    assert "if the agent teams surface is unavailable" in lower
-    assert "first `teamcreate` / agent teams call fails as though the feature is disabled" in lower
-    assert "explicitly remind the user to enable `claude_code_experimental_agent_teams`" in lower
+    assert "settings.json" in lower
+    assert "claude_code_experimental_agent_teams" in lower
+    assert "if the first `teamcreate` / agent teams call fails as though the feature is disabled" in lower
+    assert "explicitly remind the user to enable agent teams in claude code settings or environment" in lower
     assert "hard prerequisite for `/sp-implement-teams`" in lower
-    assert "resolve the current session model before teammate creation" in lower
-    assert "inspect the environment variable `anthropic_model`" in lower
-    assert "do not fallback to `claude_model`, `~/.claude/settings.json`, or any other local file" in lower
-    assert "resolved `anthropic_model` string" in lower
-    assert "cannot be resolved unambiguously" in lower
-    assert "routing alias" in lower
-    assert "for example `anthropic_model=group`" in lower
-    assert "does not prove the active session model" in lower
-    assert "ask the user for an explicit teammate model" in lower
-    assert "create or update local `.claude/agents/<team-name>-<role>.md` files" in lower
-    assert 'write the resolved current-session model into the teammate frontmatter as `model: "<resolved-current-model>"`' in lower
-    assert "update its `model` field for the current run" in lower
-    assert ".claude/agents/*.md" in content
-    assert "generated teammate definition name" in lower
-    assert "inspect `~/.claude/teams/{team-name}/config.json` after teammate creation" in lower
-    assert "recorded `model`" in content
-    assert "if the runtime cannot use the generated custom teammate definition" in lower
-    assert "`model not found`" in content
+    assert "inherit claude code's configured subagent model behavior" in lower
+    assert "`claude_code_subagent_model`" in lower
+    assert "do not derive teammate model from `anthropic_model`" in lower
+    assert "do not ask the user for an explicit teammate model" in lower
+    assert "do not require local `.claude/agents/<team-name>-<role>.md` teammate definitions solely to force a model choice" in lower
+    assert "prompt-only specialization is acceptable" in lower
+    assert "claude code's configured subagent model behavior" in lower
     assert "enters `idle` without consuming its first probe message" in lower
     assert "treat startup as failed rather than successful" in lower
     assert "minimal readiness probe message before task assignment" in lower
@@ -729,12 +718,11 @@ def test_claude_implement_teams_template_keeps_only_backend_specific_guidance():
     lower = template.lower()
 
     assert "## Shared Contract With `/sp-implement`" not in template
-    assert ".claude/agents/<team-name>-<role>.md" in template
-    assert 'model: "<resolved-current-model>"' in template
+    assert "`claude_code_subagent_model`" in lower
+    assert "do not derive teammate model from `anthropic_model`" in lower
+    assert "prompt-only specialization is acceptable" in lower
     assert "claude_code_experimental_agent_teams" in lower
-    assert "for example `anthropic_model=group`" in lower
     assert "hard prerequisite" in lower
-    assert "config.json" in template
     assert "idle" in lower
 
 
