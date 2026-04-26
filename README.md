@@ -287,7 +287,7 @@ specify team
 - `specify team resume` re-attaches to an existing runtime session by replaying the metadata in `.specify/codex-team/` and restarting the tmux backend.
 - `specify team shutdown` requests a graceful stop, letting workers finish or fail their in-flight tasks before tearing down.
 - `specify team cleanup` removes `.specify/codex-team/` state after shutdown succeeds; run it only once shutdown has settled to avoid corrupting the state folder.
-- `specify team submit-result --request-id <id> --result-file <path>` validates and records a structured worker result for an existing dispatch.
+- `specify team submit-result --request-id <id> --result-file <path>` validates and records a structured worker result for an existing dispatch. Use `specify team result-template --request-id <id>` only to generate the canonical `pending` placeholder; do not submit that template unchanged.
 - `specify team api <operation>` proxies structured JSON operations (task claims, worker heartbeats, events) into the runtime; use it when automation needs a predictable channel.
 
 For agents and automation, prefer the optional MCP supplement instead of having the model compose CLI invocations directly:

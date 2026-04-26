@@ -253,7 +253,9 @@ def test_team_result_template_command_prints_canonical_payload(tmp_path: Path):
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output.strip())
     assert payload["task_id"] == "T001"
+    assert payload["status"] == "pending"
     assert payload["validation_results"][0]["command"] == "pytest -q"
+    assert payload["validation_results"][0]["status"] == "skipped"
 
 
 def test_team_submit_result_print_schema_outputs_shape_hint(tmp_path: Path):
@@ -268,6 +270,8 @@ def test_team_submit_result_print_schema_outputs_shape_hint(tmp_path: Path):
     assert "required_fields" in result.output
     assert "task_id" in result.output
     assert "validation_results" in result.output
+    assert "canonical_template_defaults" in result.output
+    assert "pending" in result.output
 
 
 def test_team_submit_result_reports_bom_payload_actionably(tmp_path: Path):
@@ -305,3 +309,38 @@ def test_team_submit_result_reports_missing_required_fields_actionably(tmp_path:
     assert "missing required fields" in lowered
     assert "task_id" in lowered
     assert "status" in lowered
+
+
+def test_team_submit_result_rejects_pending_template_payload_actionably(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    _seed_runtime_dispatch(project, request_id="req-pending")
+
+    result_file = project / "pending-result.json"
+    result_file.write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "pending",
+                "validation_results": [
+                    {
+                        "command": "pytest -q",
+                        "status": "skipped",
+                        "output": "NOT RUN - replace with actual command output after execution",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["team", "submit-result", "--request-id", "req-pending", "--result-file", str(result_file)],
+    )
+
+    assert result.exit_code != 0
+    lowered = result.output.lower()
+    assert "pending result templates cannot be submitted" in lowered
+    assert "real success, blocked, or failed result" in lowered

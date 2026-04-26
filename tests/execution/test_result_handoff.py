@@ -1,8 +1,12 @@
 from pathlib import Path
 
+import json
+import pytest
+
 from specify_cli.execution.result_handoff import (
     build_result_handoff_path,
     describe_result_handoff_template,
+    write_normalized_result_handoff,
 )
 
 
@@ -60,3 +64,31 @@ def test_build_result_handoff_path_for_debug_workspace(project_root: Path = Path
     )
 
     assert str(path).replace("\\", "/").endswith(".planning/debug/results/cache-stuck/evidence-a.json")
+
+
+def test_write_normalized_result_handoff_rejects_pending_template_payload(
+    project_root: Path = Path("F:/tmp/project"),
+) -> None:
+    with pytest.raises(ValueError, match="Pending result templates cannot be written"):
+        write_normalized_result_handoff(
+            project_root,
+            command_name="quick",
+            integration_key="cursor-agent",
+            raw_result=json.dumps(
+                {
+                    "task_id": "lane-a",
+                    "status": "pending",
+                    "validation_results": [
+                        {
+                            "command": "pytest -q",
+                            "status": "skipped",
+                            "output": "NOT RUN - replace with actual command output after execution",
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            quick_workspace=project_root / ".planning" / "quick" / "001-fix",
+            lane_id="lane-a",
+        )

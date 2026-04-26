@@ -38,6 +38,23 @@ def _bullet_values(text: str) -> list[str]:
     return [match.group("value").strip() for match in BULLET_RE.finditer(text)]
 
 
+def _leading_bullet_values(text: str) -> list[str]:
+    values: list[str] = []
+    collecting = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = BULLET_RE.match(raw_line)
+        if match:
+            collecting = True
+            values.append(match.group("value").strip())
+            continue
+        if collecting:
+            break
+    return values
+
+
 def _story_id_from_task_body(task_body: str) -> str:
     match = STORY_RE.search(task_body)
     return match.group(1) if match else "UNASSIGNED"
@@ -208,11 +225,9 @@ def compile_worker_task_packet(
     )
     validation_gates = [
         value
-        for value in _bullet_values(_section_body(tasks_text, "Validation Gates"))
+        for value in _leading_bullet_values(_section_body(tasks_text, "Validation Gates"))
         if not value.startswith("[ ]")
     ]
-    if not validation_gates:
-        validation_gates = [f"pytest -q -k {task_id.lower()}"]
 
     handoff_requirements = _unique(
         [

@@ -3403,18 +3403,22 @@ def result_submit_command(
         session_slug=session_slug,
         lane_id=lane_id,
     )
-    path, normalized = write_normalized_result_handoff(
-        project_root,
-        command_name=command_name,
-        integration_key=integration_key,
-        raw_result=source_path.read_text(encoding="utf-8"),
-        request_id=context["request_id"],
-        feature_dir=context["feature_dir"],
-        task_id=context["task_id"],
-        quick_workspace=context["quick_workspace"],
-        debug_session_slug=context["debug_session_slug"],
-        lane_id=context["lane_id"],
-    )
+    try:
+        path, normalized = write_normalized_result_handoff(
+            project_root,
+            command_name=command_name,
+            integration_key=integration_key,
+            raw_result=source_path.read_text(encoding="utf-8"),
+            request_id=context["request_id"],
+            feature_dir=context["feature_dir"],
+            task_id=context["task_id"],
+            quick_workspace=context["quick_workspace"],
+            debug_session_slug=context["debug_session_slug"],
+            lane_id=context["lane_id"],
+        )
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
     print(
         json.dumps(
             {

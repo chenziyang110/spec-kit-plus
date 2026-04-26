@@ -19,6 +19,8 @@ def test_team_help_text_mentions_submit_result_surface() -> None:
     assert "structured worker results" in help_text
     assert "result-template" in help_text
     assert "print-schema" in help_text
+    assert "pending payloads" in help_text
+    assert "placeholder only" in help_text
 
 
 def test_team_help_text_mentions_watch_surface() -> None:

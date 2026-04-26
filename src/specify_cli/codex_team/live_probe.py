@@ -31,14 +31,26 @@ def _probe_packet(task_id: str) -> dict[str, Any]:
         "story_id": "PROBE",
         "objective": "Validate Codex team delegated executor round-trip",
         "scope": {"write_scope": ["docs/live-probe.txt"], "read_scope": ["docs/live-probe.txt"]},
+        "context_bundle": [
+            {
+                "path": "docs/live-probe.txt",
+                "kind": "task_reference",
+                "purpose": "probe-only synthetic boundary",
+                "required_for": ["validation"],
+                "read_order": 1,
+                "must_read": True,
+                "selection_reason": "probe-only synthetic boundary",
+            }
+        ],
         "required_references": [{"path": "docs/live-probe.txt", "reason": "probe-only synthetic boundary"}],
         "hard_rules": ["do not drift"],
         "forbidden_drift": ["do not skip structured worker result handoff"],
         "validation_gates": ["probe-pass"],
         "done_criteria": ["probe completed"],
         "handoff_requirements": ["return changed files"],
+        "platform_guardrails": ["supported_platforms: windows, linux"],
         "dispatch_policy": {"mode": "hard_fail", "must_acknowledge_rules": True},
-        "packet_version": 1,
+        "packet_version": 2,
     }
 
 
@@ -52,6 +64,9 @@ def _probe_result_payload(task_id: str) -> dict[str, Any]:
         rule_acknowledgement=RuleAcknowledgement(
             required_references_read=True,
             forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=["docs/live-probe.txt"],
+            critical_notes=["validated probe-pass gate before reporting success"],
         ),
     )
     return worker_task_result_payload(result)

@@ -92,7 +92,8 @@ def test_run_team_api_operation_supports_result_template(codex_team_project_root
     assert envelope["operation"] == "result-template"
     assert envelope["status"] == "ok"
     assert envelope["payload"]["task_id"] == "T880"
-    assert envelope["payload"]["rule_acknowledgement"]["context_bundle_read"] is True
+    assert envelope["payload"]["status"] == "pending"
+    assert envelope["payload"]["rule_acknowledgement"]["context_bundle_read"] is False
 
 
 def test_run_team_api_operation_rejects_non_codex_projects(tmp_path: Path) -> None:

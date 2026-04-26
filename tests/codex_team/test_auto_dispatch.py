@@ -62,6 +62,11 @@ def _write_feature_tasks(project_root: Path, content: str) -> Path:
         else:
             normalized_lines.append(line)
     normalized = "\n".join(normalized_lines)
+    if "## Validation Gates" not in normalized:
+        normalized = (
+            normalized.rstrip()
+            + "\n\n## Validation Gates\n\n- pytest tests/unit/test_auth_service.py -q\n"
+        )
     tasks_path = feature_dir / "tasks.md"
     tasks_path.write_text(normalized, encoding="utf-8")
     return feature_dir
@@ -87,6 +92,18 @@ def _write_fake_agent_teams_runtime_cli(path: Path) -> None:
                 "    end = description.index(marker_end)",
                 "    payload_text = description[start:end].strip()",
                 "    result_payload = json.loads(payload_text)",
+                "    result_payload['status'] = 'success'",
+                "    for item in result_payload.get('validation_results', []):",
+                "        item['status'] = 'passed'",
+                "        item['output'] = '1 passed'",
+                "    paths_read = [line[2:] for line in description.splitlines() if line.startswith('- src/')]",
+                "    result_payload['rule_acknowledgement'] = {",
+                "        'required_references_read': True,",
+                "        'forbidden_drift_respected': True,",
+                "        'context_bundle_read': True,",
+                "        'paths_read': paths_read,",
+                "        'critical_notes': ['validated fake runtime result for contract test'],",
+                "    }",
                 "    result_text = json.dumps(result_payload, ensure_ascii=False, indent=2)",
                 "    task_payload = {",
                 "        'id': str(index),",
@@ -364,6 +381,10 @@ retry_attempts: 0
         """# Tasks
 
 - [ ] T001 Old foundational task in src/t001.py
+
+## Validation Gates
+
+- pytest -q -k phase3_bll_aria2
 """,
         encoding="utf-8",
     )

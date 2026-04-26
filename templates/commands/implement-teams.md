@@ -44,7 +44,7 @@ Use this when:
 7. On Windows, require the same native shell to resolve `psmux`, `codex`, `node`, `npm`, `cargo`, and `git`.
 8. Route durable execution through `specify team` and its runtime/API surfaces.
 9. Preserve the shared `sp-implement` contract: tracker continuity, validated `WorkerTaskPacket`s, explicit join points, and structured result handoff discipline.
-10. Use `specify team result-template --request-id <id>` or `specify team submit-result --print-schema` for structured result handoff instead of ad hoc JSON guessing.
+10. Use `specify team result-template --request-id <id>` or `specify team submit-result --print-schema` for structured result handoff instead of ad hoc JSON guessing. Treat the generated template as a `pending` placeholder only; do not submit it unchanged.
 11. Materialize each delegated lane as an explicit execution packet: write set, required references, forbidden drift, validation command, completion-handoff protocol, and platform guardrails must stay visible to the leader and worker.
 12. Treat a blocked baseline build as a pre-dispatch runtime concern; do not mix existing repo compile debt into the current batch verdict.
 13. After worker execution, use `specify team sync-back` when leader-visible results need to be promoted from worker worktrees back into the active workspace.

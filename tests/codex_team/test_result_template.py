@@ -51,6 +51,10 @@ def test_build_request_result_template_uses_dispatched_packet(codex_team_project
     assert template["task_id"] == "T701"
     assert template["changed_files"] == ["src/t701.py"]
     assert template["validation_results"][0]["command"] == "pytest -q"
+    assert template["status"] == "pending"
+    assert template["validation_results"][0]["status"] == "skipped"
+    assert template["rule_acknowledgement"]["required_references_read"] is False
+    assert template["rule_acknowledgement"]["forbidden_drift_respected"] is False
 
 
 def test_normalize_result_submission_rejects_bom_prefixed_payload(codex_team_project_root: Path):
@@ -77,3 +81,41 @@ def test_normalize_result_submission_requires_task_id_and_status(codex_team_proj
             "req-missing",
             json.dumps({"summary": "not enough"}),
         )
+
+
+def test_normalize_result_submission_rejects_pending_template_payload(codex_team_project_root: Path):
+    from specify_cli.codex_team.result_template import normalize_result_submission
+
+    _seed_dispatch(codex_team_project_root, request_id="req-pending")
+
+    with pytest.raises(ValueError, match="Pending result templates cannot be submitted"):
+        normalize_result_submission(
+            codex_team_project_root,
+            "req-pending",
+            json.dumps(
+                {
+                    "task_id": "T701",
+                    "status": "pending",
+                    "validation_results": [
+                        {
+                            "command": "pytest -q",
+                            "status": "skipped",
+                            "output": "NOT RUN - replace with actual command output after execution",
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+        )
+
+
+def test_render_schema_help_describes_pending_template_defaults() -> None:
+    from specify_cli.codex_team.result_template import worker_result_schema_hint
+
+    hint = worker_result_schema_hint()
+
+    assert "pending" in hint["accepted_status_values"]
+    assert hint["canonical_template_defaults"]["status"] == "pending"
+    assert hint["canonical_template_defaults"]["validation_results"] == "skipped until real execution occurs"
+    assert any("Do not submit" in rule for rule in hint["submission_rules"])

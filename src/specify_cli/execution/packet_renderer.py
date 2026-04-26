@@ -26,6 +26,7 @@ def render_packet_summary(packet: WorkerTaskPacket) -> str:
         f"intent_outcome: {packet.intent.outcome}\n"
         f"write_scope: {', '.join(packet.scope.write_scope)}\n"
         f"intent_constraints: {', '.join(packet.intent.constraints)}\n"
+        f"hard_rules: {', '.join(packet.hard_rules)}\n"
         f"context_bundle: {render_context_bundle_summary(packet)}\n"
         f"required_references: {', '.join(ref.path for ref in packet.required_references)}\n"
         f"validation_gates: {', '.join(packet.validation_gates)}"

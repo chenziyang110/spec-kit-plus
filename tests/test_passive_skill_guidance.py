@@ -53,3 +53,11 @@ def test_project_learning_defines_explicit_start_and_capture_matrix_for_core_wor
     assert "learning-start trigger matrix" in content
     assert "learning-capture trigger matrix" in content
     assert "consume first" in content
+
+
+def test_subagent_implementer_prompt_requires_unconditional_tdd() -> None:
+    content = _read("templates/passive-skills/subagent-driven-development/implementer-prompt.md").lower()
+
+    assert "write the failing test first" in content
+    assert "verify the red state" in content
+    assert "do not edit production code until the red state is verified" in content

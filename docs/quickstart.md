@@ -113,7 +113,7 @@ For Codex team-mode execution, use the runtime surface deliberately:
 
 - Run `specify team doctor` before the first coordinated batch so backend readiness, executor availability, baseline build state, and the latest transcript are visible up front.
 - Run `specify team live-probe` when the runtime was just installed, recently repaired, or still looks suspect after `doctor`.
-- Use `specify team result-template --request-id <id>` and `specify team submit-result --print-schema` instead of inventing handoff JSON by guesswork.
+- Use `specify team result-template --request-id <id>` and `specify team submit-result --print-schema` instead of inventing handoff JSON by guesswork. The generated result template is a `pending placeholder` and must be replaced with a real success, blocked, or failed result before submission.
 - Use `specify team sync-back` after worker execution when the canonical code changes landed under `.specify/codex-team/worktrees/<session>/...` and need to be promoted back to the main workspace.
 - In execution-oriented workflows, treat `single-lane` as the delegated single-worker path. Legacy `single-agent` state should be read as a compatibility alias, not as permission for leader-local execution.
 - Interpret `DONE_WITH_CONCERNS` as lane-local completion with follow-up concerns, not silent success.

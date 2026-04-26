@@ -1024,6 +1024,10 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "completion-handoff protocol" in implementer.lower()
     assert "task_started" in implementer.lower()
     assert "must not enter `idle` before the required handoff is written or returned" in implementer.lower()
+    assert "write the failing test first" in implementer.lower()
+    assert "red state" in implementer.lower()
+    assert "green state" in implementer.lower()
+    assert "do not claim verification that was not run" in implementer.lower()
 
     assert "# Debug Investigator Worker Prompt" in debug_investigator
     assert "current hypothesis" in debug_investigator.lower()

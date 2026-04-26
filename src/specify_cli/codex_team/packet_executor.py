@@ -42,18 +42,25 @@ def load_packet(packet_path: Path) -> WorkerTaskPacket:
 def build_result_template(packet: WorkerTaskPacket) -> dict[str, object]:
     result = WorkerTaskResult(
         task_id=packet.task_id,
-        status="success",
+        status="pending",
         changed_files=list(packet.scope.write_scope),
         validation_results=[
-            ValidationResult(command=gate, status="passed", output="")
+            ValidationResult(
+                command=gate,
+                status="skipped",
+                output="NOT RUN - replace with actual command output after execution",
+            )
             for gate in packet.validation_gates
         ],
         summary=packet.objective,
         rule_acknowledgement=RuleAcknowledgement(
-            required_references_read=True,
-            forbidden_drift_respected=True,
-            context_bundle_read=bool(packet.context_bundle),
-            paths_read=[item.path for item in packet.context_bundle if item.must_read],
+            required_references_read=False,
+            forbidden_drift_respected=False,
+            context_bundle_read=False,
+            paths_read=[],
+            critical_notes=[
+                "Replace the pending placeholder with the real RED/GREEN or validation evidence before returning success.",
+            ],
         ),
     )
     return worker_task_result_payload(result)

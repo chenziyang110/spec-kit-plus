@@ -84,6 +84,11 @@ def write_normalized_result_handoff(
     """Normalize a worker result and persist it to the canonical handoff path."""
 
     normalized = normalize_worker_task_result_payload(raw_result)
+    if normalized.status == "pending":
+        raise ValueError(
+            "Pending result templates cannot be written to the canonical handoff path. "
+            "Replace the placeholder with a real success, blocked, or failed result first."
+        )
     target_path = build_result_handoff_path(
         project_root,
         command_name=command_name,

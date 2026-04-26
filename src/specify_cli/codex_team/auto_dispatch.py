@@ -132,13 +132,13 @@ def _agent_teams_team_name(batch_id: str) -> str:
 def _worker_result_template(packet: Any) -> dict[str, object]:
     return {
         "task_id": packet.task_id,
-        "status": "success",
+        "status": "pending",
         "changed_files": list(packet.scope.write_scope),
         "validation_results": [
             {
                 "command": gate,
-                "status": "passed",
-                "output": "",
+                "status": "skipped",
+                "output": "NOT RUN - replace with actual command output after execution",
             }
             for gate in packet.validation_gates
         ],
@@ -149,11 +149,13 @@ def _worker_result_template(packet: Any) -> dict[str, object]:
         "failed_assumptions": [],
         "suggested_recovery_actions": [],
         "rule_acknowledgement": {
-            "required_references_read": True,
-            "forbidden_drift_respected": True,
-            "context_bundle_read": True,
-            "paths_read": [item.path for item in packet.context_bundle if item.must_read],
-            "critical_notes": [],
+            "required_references_read": False,
+            "forbidden_drift_respected": False,
+            "context_bundle_read": False,
+            "paths_read": [],
+            "critical_notes": [
+                "Replace the pending placeholder with the real RED/GREEN or validation evidence before returning success."
+            ],
         },
     }
 
@@ -177,6 +179,9 @@ def _agent_teams_task_description(packet: Any, *, request_id: str) -> str:
         "Required implementation references:",
         *[f"- {reference.path}" for reference in packet.required_references],
         "",
+        "Hard rules:",
+        *[f"- {rule}" for rule in packet.hard_rules],
+        "",
         "Forbidden implementation drift:",
         *[f"- {rule}" for rule in packet.forbidden_drift],
         "",
@@ -190,6 +195,8 @@ def _agent_teams_task_description(packet: Any, *, request_id: str) -> str:
         template,
         RESULT_END_MARKER,
         "",
+        "Do not leave the placeholder JSON in a success state. Replace the pending/skipped/false placeholders with the real execution result.",
+        "If this lane changes behavior, write the failing test first, verify the RED state, then rerun the same gate after the fix and report the GREEN evidence.",
         "If you are blocked or failed, keep the same JSON shape but set status to blocked/failed and fill blockers, failed_assumptions, and suggested_recovery_actions truthfully.",
         "Set changed_files to the files you actually changed and preserve rule_acknowledgement truthfully.",
         "Acknowledge the execution context bundle in `rule_acknowledgement` before you claim or complete the task.",

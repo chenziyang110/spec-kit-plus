@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import pytest
+
 from specify_cli.execution.packet_compiler import compile_worker_task_packet
+from specify_cli.execution.packet_validator import PacketValidationError
 
 
 def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
@@ -139,6 +142,16 @@ def test_compile_worker_task_packet_accepts_materialized_task_input(
         ),
         encoding="utf-8",
     )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "## Validation Gates",
+                "",
+                "- pytest tests/unit/test_bll_manager.py -q",
+            ]
+        ),
+        encoding="utf-8",
+    )
 
     packet = compile_worker_task_packet(
         project_root=project_root,
@@ -151,3 +164,52 @@ def test_compile_worker_task_packet_accepts_materialized_task_input(
     assert packet.story_id == "US1"
     assert packet.scope.write_scope == ["src/bll_manager.py"]
     assert packet.context_bundle[0].path == "PROJECT-HANDBOOK.md"
+    assert packet.validation_gates == ["pytest tests/unit/test_bll_manager.py -q"]
+
+
+def test_compile_worker_task_packet_requires_explicit_validation_gates(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST add tests for public behavior\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Implementation Constitution",
+                "",
+                "### Required Implementation References",
+                "",
+                "- `src/contracts/auth.py`",
+                "",
+                "### Forbidden Implementation Drift",
+                "",
+                "- Do not create a parallel auth stack",
+                "",
+                "### Platform Guardrails",
+                "",
+                "- supported_platforms: windows, linux",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [ ] T017 [US1] Implement auth flow in src/services/auth_service.py\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T017",
+        )
+
+    assert exc.value.code == "DP1"
+    assert "validation_gates" in exc.value.message

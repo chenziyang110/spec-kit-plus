@@ -80,6 +80,7 @@ def test_validate_worker_task_result_accepts_acknowledged_result(
             ValidationResult(
                 command="pytest tests/unit/test_auth_service.py -q",
                 status="passed",
+                output="1 passed",
             )
         ],
         summary="Implemented auth flow",
@@ -204,3 +205,63 @@ def test_validate_worker_task_result_rejects_missing_context_bundle_receipts(
 
     assert exc.value.code == "DP3"
     assert "context bundle" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_success_without_truthful_validation_output(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "validation output" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_success_when_a_validation_gate_is_missing(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_different_target.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "validation gate" in exc.value.message

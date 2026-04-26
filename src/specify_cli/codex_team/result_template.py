@@ -46,7 +46,16 @@ def worker_result_schema_hint() -> dict[str, object]:
             "summary",
             "rule_acknowledgement",
         ],
-        "accepted_status_values": ["success", "blocked", "failed"],
+        "accepted_status_values": ["pending", "success", "blocked", "failed"],
+        "canonical_template_defaults": {
+            "status": "pending",
+            "validation_results": "skipped until real execution occurs",
+            "rule_acknowledgement": "all false until the worker has actually read and verified the packet context",
+        },
+        "submission_rules": [
+            "Do not submit the canonical pending template unchanged.",
+            "Replace pending/skipped placeholder values with the real success, blocked, or failed result before submit-result.",
+        ],
         "validation_result_item": {
             "command": "pytest -q",
             "status": "passed | failed | skipped",
@@ -121,6 +130,11 @@ def normalize_result_submission(
         raise ValueError(
             f"Result task_id {normalized.task_id!r} does not match dispatched packet task_id {packet.task_id!r}. "
             f"Use `specify team result-template --request-id {request_id}`."
+        )
+    if normalized.status == "pending":
+        raise ValueError(
+            "Pending result templates cannot be submitted. Replace the canonical placeholder "
+            "with a real success, blocked, or failed result first."
         )
 
     try:

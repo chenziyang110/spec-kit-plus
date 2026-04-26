@@ -30,8 +30,8 @@ Task tool (general-purpose):
 
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
-    3. Verify implementation works
+    2. Write the failing test first, verify the RED state, then implement the minimal fix
+    3. Rerun the same gate to prove the GREEN state and verify the implementation works
     4. Commit your work
     5. Self-review (see below)
     6. Report back
@@ -40,6 +40,7 @@ Task tool (general-purpose):
 
     **While you work:** If you encounter something unexpected or unclear, **ask questions**.
     It's always OK to pause and clarify. Don't guess or make assumptions.
+    Do not edit production code until the RED state is verified.
 
     ## Code Organization
 
@@ -92,7 +93,8 @@ Task tool (general-purpose):
 
     **Testing:**
     - Do tests actually verify behavior (not just mock behavior)?
-    - Did I follow TDD if required?
+    - Did I write the failing test first and verify the RED state before production edits?
+    - Did I rerun the same gate and capture the GREEN state after the fix?
     - Are tests comprehensive?
 
     If you find issues during self-review, fix them now before reporting.

@@ -100,10 +100,9 @@ def test_guidance_docs_explain_fast_quick_specify_routing():
 
 def test_guidance_docs_explain_failing_test_first_execution_rule():
     readme = _read("README.md").lower()
-    agents = _read("AGENTS.md").lower()
     quickstart = _read("docs/quickstart.md").lower()
 
-    for content in (readme, agents, quickstart):
+    for content in (readme, quickstart):
         assert "failing test first" in content
         assert "sp-fast" in content or "/speckit.fast" in content
         assert "sp-quick" in content or "/speckit.quick" in content
@@ -213,6 +212,8 @@ def test_guidance_docs_explain_delegated_result_handoff_contract():
     assert "worker-results" in quickstart
     assert "specify result submit" in quickstart
     assert "reported_status" in quickstart
+    assert "pending placeholder" in quickstart
+    assert "do not submit" in readme
 
 
 def test_guidance_docs_explain_task_shaping_and_fail_fast_rules():
@@ -287,19 +288,17 @@ def test_agents_declares_native_delegation_defaults():
     assert "for codex, that runtime surface is `specify team`" in agents
 
 
-def test_guidance_docs_explain_agent_marker_and_managed_agents_block() -> None:
+def test_guidance_docs_explain_agent_marker_and_current_agents_contract() -> None:
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
     agents = _read("AGENTS.md")
 
-    for content in (readme, quickstart, agents):
+    for content in (readme, quickstart):
         assert "[AGENT]" in content
         assert "independent from `[P]`" in content
 
-    assert "<!-- SPEC-KIT:BEGIN -->" in agents
-    assert "<!-- SPEC-KIT:END -->" in agents
-    assert "## Workflow Routing" in agents
-    assert "## Artifact Priority" in agents
-    assert "## Map Maintenance" in agents
-    assert "workflow-state.md" in agents
-    assert ".specify/project-map/status.json" in agents
+    assert "AUTONOMY DIRECTIVE" in agents
+    assert "native subagents or native delegation surface" in agents.lower()
+    assert "specify -> plan" in agents.lower()
+    assert "sp-test" in agents.lower()
+    assert "specify team" in agents.lower()
