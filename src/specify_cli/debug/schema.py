@@ -132,7 +132,11 @@ class ExecutionIntentState(BaseModel):
 class Resolution(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
     root_cause: Optional[RootCause] = None
+    alternative_hypotheses_considered: List[str] = Field(default_factory=list)
+    alternative_hypotheses_ruled_out: List[str] = Field(default_factory=list)
+    root_cause_confidence: Optional[str] = None
     fix: Optional[str] = None
+    fix_scope: Optional[str] = None
     verification: Optional[str] = None
     validation_results: List[ValidationCheck] = Field(default_factory=list)
     files_changed: List[str] = Field(default_factory=list)
@@ -140,6 +144,7 @@ class Resolution(BaseModel):
     report: Optional[str] = None
     decisive_signals: List[str] = Field(default_factory=list)
     rejected_surface_fixes: List[str] = Field(default_factory=list)
+    loop_restoration_proof: List[str] = Field(default_factory=list)
 
 class FeatureContext(BaseModel):
     feature_id: Optional[str] = None

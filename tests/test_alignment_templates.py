@@ -1038,6 +1038,8 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "status.md remains leader-owned" in quick_worker.lower()
     assert "smallest safe lane" in quick_worker.lower()
     assert "must not enter `idle` before the required handoff is written or returned" in quick_worker.lower()
+    assert "surface-only" in quick_worker.lower() or "symptom-only" in quick_worker.lower()
+    assert "/sp-debug" in quick_worker.lower()
 
     assert "# Spec Reviewer Worker Prompt" in spec_reviewer
     assert "do not trust implementer summaries" in spec_reviewer.lower()

@@ -84,6 +84,18 @@ def test_persistence_round_trips_full_state(tmp_path):
     state.resolution.report = "## Awaiting Human Review\n- Investigate parser boundary"
     state.resolution.decisive_signals = ["runningOrder_=[], waitingQueue_=[task-2], activeCount=1"]
     state.resolution.rejected_surface_fixes = ["normalized UI state without fixing scheduler admission"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Scheduler kept stale admitted ownership after slot release",
+        "Resource counters or slot accounting are stale",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Resource counters or slot accounting are stale",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
+    state.resolution.fix_scope = "truth-owner"
+    state.resolution.loop_restoration_proof = [
+        "Repro proves the slot is released, the next task is admitted, and the UI matches the running set.",
+    ]
     state.execution_intent.outcome = "Verify the current fix against the recorded reproduction"
     state.execution_intent.constraints = [
         "Do not mark resolved without verification evidence",
@@ -139,6 +151,18 @@ def test_persistence_round_trips_full_state(tmp_path):
     assert restored.resolution.decisive_signals == ["runningOrder_=[], waitingQueue_=[task-2], activeCount=1"]
     assert restored.resolution.rejected_surface_fixes == [
         "normalized UI state without fixing scheduler admission"
+    ]
+    assert restored.resolution.alternative_hypotheses_considered == [
+        "Scheduler kept stale admitted ownership after slot release",
+        "Resource counters or slot accounting are stale",
+    ]
+    assert restored.resolution.alternative_hypotheses_ruled_out == [
+        "Resource counters or slot accounting are stale",
+    ]
+    assert restored.resolution.root_cause_confidence == "confirmed"
+    assert restored.resolution.fix_scope == "truth-owner"
+    assert restored.resolution.loop_restoration_proof == [
+        "Repro proves the slot is released, the next task is admitted, and the UI matches the running set."
     ]
     assert restored.execution_intent.outcome == "Verify the current fix against the recorded reproduction"
     assert restored.execution_intent.success_signals == [

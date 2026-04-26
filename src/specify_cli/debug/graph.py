@@ -380,6 +380,7 @@ def _closed_loop_gaps(state: DebugGraphState) -> list[str]:
 
 
 def _root_cause_readiness_gaps(state: DebugGraphState) -> list[str]:
+    _sync_resolution_coverage(state)
     gaps: list[str] = []
     if not state.resolution.root_cause:
         gaps.append("confirmed root cause")
@@ -405,6 +406,15 @@ def _root_cause_readiness_gaps(state: DebugGraphState) -> list[str]:
     gaps.extend(_closed_loop_gaps(state))
     if not state.resolution.decisive_signals:
         gaps.append("decisive signals")
+    candidate_count = len(state.observer_framing.alternative_cause_candidates)
+    if candidate_count:
+        required_considered = min(2, candidate_count)
+        if len(state.resolution.alternative_hypotheses_considered) < required_considered:
+            gaps.append("alternative hypothesis coverage")
+        if candidate_count > 1 and not state.resolution.alternative_hypotheses_ruled_out:
+            gaps.append("ruled-out alternative causes")
+    if state.resolution.root_cause_confidence != "confirmed":
+        gaps.append("root cause confidence set to confirmed")
     return gaps
 
 
@@ -430,6 +440,42 @@ def _root_cause_checklist_message(state: DebugGraphState, *, stage: str) -> str:
         title,
         gaps,
         intro="Fill in the missing items below before advancing:",
+    )
+
+
+def _fix_scope_readiness_gaps(state: DebugGraphState) -> list[str]:
+    gaps = _root_cause_readiness_gaps(state)
+    if not state.resolution.fix_scope:
+        gaps.append("fix scope classification")
+    elif state.resolution.fix_scope == "surface-only":
+        gaps.append("replace the surface-only fix with an owning-layer or boundary fix")
+    return gaps
+
+
+def _fix_scope_checklist_message(state: DebugGraphState) -> str:
+    return _format_checklist(
+        "Fixing is blocked until the proposed change is classified as a root-cause fix rather than a surface-only patch. Surface-only fixes cannot satisfy the debug contract.",
+        _fix_scope_readiness_gaps(state),
+        intro="Fill in the missing items below before advancing:",
+    )
+
+
+def _post_verification_readiness_gaps(state: DebugGraphState) -> list[str]:
+    gaps: list[str] = []
+    if not state.resolution.fix_scope:
+        gaps.append("fix scope classification")
+    elif state.resolution.fix_scope == "surface-only":
+        gaps.append("surface-only fixes cannot satisfy the debug contract")
+    if not state.resolution.loop_restoration_proof:
+        gaps.append("loop restoration proof")
+    return gaps
+
+
+def _post_verification_checklist_message(state: DebugGraphState) -> str:
+    return _format_checklist(
+        "Verification passed, but the session cannot move to resolved until the full loop-restoration proof is recorded.",
+        _post_verification_readiness_gaps(state),
+        intro="Record the remaining closure evidence below before marking the issue resolved:",
     )
 
 
@@ -512,6 +558,35 @@ def _command_failed(output: str) -> bool:
         or "TRACEBACK" in normalized
         or "COMMAND EXITED WITH CODE" in normalized
     )
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        text = value.strip()
+        if text and text not in seen:
+            ordered.append(text)
+            seen.add(text)
+    return ordered
+
+
+def _sync_resolution_coverage(state: DebugGraphState) -> None:
+    considered = list(state.resolution.alternative_hypotheses_considered)
+    ruled_out = list(state.resolution.alternative_hypotheses_ruled_out)
+
+    if state.resolution.root_cause and state.resolution.root_cause.summary:
+        considered.append(state.resolution.root_cause.summary)
+
+    if state.current_focus.hypothesis:
+        considered.append(state.current_focus.hypothesis)
+
+    for entry in state.eliminated:
+        considered.append(entry.hypothesis)
+        ruled_out.append(entry.hypothesis)
+
+    state.resolution.alternative_hypotheses_considered = _unique_strings(considered)
+    state.resolution.alternative_hypotheses_ruled_out = _unique_strings(ruled_out)
 
 
 def _resolve_test_targets(state: DebugGraphState) -> list[str]:
@@ -678,20 +753,18 @@ class FixingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['VerifyingNode', End]:
         ctx.state.status = DebugStatus.FIXING
         ctx.state.current_node_id = "FixingNode"
-        readiness_gaps = _root_cause_readiness_gaps(ctx.state)
+        if not ctx.state.resolution.fix:
+            return _await_input(
+                ctx.state,
+                "Root cause identified. Please propose a fix and update resolution.fix.",
+            )
+        readiness_gaps = _fix_scope_readiness_gaps(ctx.state)
         if readiness_gaps:
             return _await_input(
                 ctx.state,
-                _root_cause_checklist_message(ctx.state, stage="fixing"),
+                _fix_scope_checklist_message(ctx.state),
             )
-        # If fix is applied, move to verifying
-        if ctx.state.resolution.fix:
-            return VerifyingNode()
-        
-        return _await_input(
-            ctx.state,
-            "Root cause identified. Please propose a fix and update resolution.fix.",
-        )
+        return VerifyingNode()
 
 class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     @persist
@@ -726,6 +799,14 @@ class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
             )
         if validation_results and not verification_passed(validation_results):
             return self._handle_failed_verification(ctx.state, ctx.deps)
+
+        completion_gaps = _post_verification_readiness_gaps(ctx.state)
+        if completion_gaps:
+            ctx.state.resolution.verification = "success"
+            return _await_input(
+                ctx.state,
+                _post_verification_checklist_message(ctx.state),
+            )
 
         # If verification passed, move to resolved.
         ctx.state.resolution.verification = "success"

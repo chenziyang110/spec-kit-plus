@@ -93,6 +93,44 @@ def _print_root_cause_summary(state: DebugGraphState) -> None:
         console.print(f"- Primary decisive signal: {root_cause.decisive_signal}")
 
 
+def _print_causal_coverage_summary(state: DebugGraphState) -> None:
+    resolution = state.resolution
+    if not any(
+        (
+            resolution.alternative_hypotheses_considered,
+            resolution.alternative_hypotheses_ruled_out,
+            resolution.root_cause_confidence,
+        )
+    ):
+        return
+
+    console.print("[bold]Causal Coverage[/bold]")
+    if resolution.alternative_hypotheses_considered:
+        console.print("- Alternative hypotheses considered:")
+        for item in resolution.alternative_hypotheses_considered:
+            console.print(f"  - {item}")
+    if resolution.alternative_hypotheses_ruled_out:
+        console.print("- Alternatives ruled out:")
+        for item in resolution.alternative_hypotheses_ruled_out:
+            console.print(f"  - {item}")
+    if resolution.root_cause_confidence:
+        console.print(f"- Root cause confidence: {resolution.root_cause_confidence}")
+
+
+def _print_fix_closure_summary(state: DebugGraphState) -> None:
+    resolution = state.resolution
+    if not any((resolution.fix_scope, resolution.loop_restoration_proof)):
+        return
+
+    console.print("[bold]Fix Closure[/bold]")
+    if resolution.fix_scope:
+        console.print(f"- Fix scope: {resolution.fix_scope}")
+    if resolution.loop_restoration_proof:
+        console.print("- Loop restoration proof:")
+        for item in resolution.loop_restoration_proof:
+            console.print(f"  - {item}")
+
+
 def _print_observer_framing_summary(state: DebugGraphState) -> None:
     observer = state.observer_framing
     if not any(
@@ -179,6 +217,22 @@ def _missing_root_cause_fields(state: DebugGraphState) -> list[str]:
     return missing
 
 
+def _missing_causal_gate_fields(state: DebugGraphState) -> list[str]:
+    missing: list[str] = []
+    if len(state.observer_framing.alternative_cause_candidates) > 1:
+        if len(state.resolution.alternative_hypotheses_considered) < 2:
+            missing.append("alternative hypothesis coverage")
+        if not state.resolution.alternative_hypotheses_ruled_out:
+            missing.append("ruled-out alternative causes")
+    if state.resolution.root_cause and state.resolution.root_cause_confidence != "confirmed":
+        missing.append("root cause confidence set to confirmed")
+    if state.resolution.fix and not state.resolution.fix_scope:
+        missing.append("fix scope classification")
+    if state.status in {DebugStatus.VERIFYING, DebugStatus.RESOLVED, DebugStatus.AWAITING_HUMAN} and not state.resolution.loop_restoration_proof:
+        missing.append("loop restoration proof")
+    return missing
+
+
 def _print_session_checkpoint(state: DebugGraphState, handler: MarkdownPersistenceHandler) -> None:
     session_path = handler.debug_dir / f"{state.slug}.md"
     console.print(f"[cyan]Current stage:[/cyan] {state.status.value}")
@@ -201,11 +255,19 @@ def _print_session_checkpoint(state: DebugGraphState, handler: MarkdownPersisten
     _print_observer_framing_summary(state)
     _print_transition_memo(state)
     _print_root_cause_summary(state)
+    _print_causal_coverage_summary(state)
+    _print_fix_closure_summary(state)
 
     missing_root_fields = _missing_root_cause_fields(state)
     if missing_root_fields and state.resolution.root_cause:
         console.print("[bold]Missing Root Cause Fields[/bold]")
         for field in missing_root_fields:
+            console.print(f"- {field}")
+
+    missing_causal_fields = _missing_causal_gate_fields(state)
+    if missing_causal_fields:
+        console.print("[bold]Missing Causal Gate Fields[/bold]")
+        for field in missing_causal_fields:
             console.print(f"- {field}")
 
     if state.current_focus.next_action:

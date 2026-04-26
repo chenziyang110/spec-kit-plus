@@ -178,6 +178,21 @@ def build_handoff_report(state: DebugGraphState) -> str:
     else:
         lines.append("- Not recorded")
 
+    lines.extend(["", "### Causal Coverage"])
+    if state.resolution.alternative_hypotheses_considered:
+        lines.append("- Alternative hypotheses considered:")
+        for item in state.resolution.alternative_hypotheses_considered:
+            lines.append(f"  - {item}")
+    else:
+        lines.append("- Alternative hypotheses considered: not recorded")
+    if state.resolution.alternative_hypotheses_ruled_out:
+        lines.append("- Alternatives ruled out:")
+        for item in state.resolution.alternative_hypotheses_ruled_out:
+            lines.append(f"  - {item}")
+    else:
+        lines.append("- Alternatives ruled out: not recorded")
+    lines.append(f"- Root cause confidence: {state.resolution.root_cause_confidence or 'Not recorded'}")
+
     lines.extend(["", "### Suggested Evidence Lanes"])
     if state.suggested_evidence_lanes:
         for lane in state.suggested_evidence_lanes:
@@ -222,6 +237,15 @@ def build_handoff_report(state: DebugGraphState) -> str:
             lines.append(f"- Primary decisive signal: {state.resolution.root_cause.decisive_signal}")
     else:
         lines.append("- Not recorded")
+
+    lines.extend(["", "### Fix Closure"])
+    lines.append(f"- Fix scope: {state.resolution.fix_scope or 'Not recorded'}")
+    if state.resolution.loop_restoration_proof:
+        lines.append("- Loop restoration proof:")
+        for item in state.resolution.loop_restoration_proof:
+            lines.append(f"  - {item}")
+    else:
+        lines.append("- Loop restoration proof: not recorded")
 
     lines.extend(
         [

@@ -239,6 +239,33 @@ def test_debug_prints_missing_root_cause_fields(clean_debug_dir, monkeypatch):
     assert "next action" in result.stdout.lower()
 
 
+def test_debug_prints_missing_causal_gate_fields(clean_debug_dir, monkeypatch):
+    import specify_cli.debug.cli as cli_module
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        state.status = DebugStatus.FIXING
+        state.resolution.root_cause = {
+            "summary": "Parser boundary issue",
+            "owning_layer": "parser",
+            "broken_control_state": "token boundary decisions",
+            "failure_mechanism": "upper bound truncates the final token",
+            "loop_break": "control decision -> state transition",
+            "decisive_signal": "caller loses the final token while source parse request is unchanged",
+        }
+        state.resolution.fix = "Normalize display status"
+        handler.save(state)
+
+    monkeypatch.setattr(cli_module, "generate_slug", lambda _: "causal-gates-test")
+    monkeypatch.setattr(cli_module, "run_debug_session", fake_run_debug_session)
+
+    result = runner.invoke(app, ["debug", "parser bug"])
+
+    assert result.exit_code == 0
+    lowered = result.stdout.lower()
+    assert "missing causal gate fields" in lowered
+    assert "fix scope classification" in lowered
+
+
 def test_debug_awaiting_human_status_prints_diagnostic_profile(clean_debug_dir, monkeypatch):
     import specify_cli.debug.cli as cli_module
 

@@ -203,6 +203,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Append the observed result to `Evidence`.
 - If the result disproves the hypothesis, append it to `Eliminated` and return to Stage 5.
 - If the result confirms the failure mechanism, record the root cause and continue to fixing.
+- Before leaving this stage, record which plausible causes were considered and which were ruled out so the session shows real causal spread instead of a single-path guess.
 - Record any **rejected surface fixes** that improved symptoms without restoring the control loop, so future resumes do not mistake symptom relief for root-cause resolution.
 
 ### Stage 8: Root Cause Confirmation
@@ -214,6 +215,11 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
   - which decisive signals ruled out the competing explanations,
   - whether the issue was in control state, observation state, or the boundary between them,
   - and what behavior change should resolve the full loop instead of only a local inconsistency.
+- Record explicit causal coverage before fixing:
+  - `alternative_hypotheses_considered`
+  - `alternative_hypotheses_ruled_out`
+  - `root_cause_confidence`
+- Use `root_cause_confidence: confirmed` only when the current explanation is stronger than the ruled-out alternatives and the decisive signals directly support it.
 - Record the root cause in structured form:
   - `summary`
   - `owning_layer`
@@ -286,6 +292,13 @@ The session file must always make it clear:
 - If no reliable automated test surface exists for the failing behavior, add the missing harness first or route through `/sp-test` before code changes.
 - Apply the minimum code change needed to address that root cause.
 - Fix the owning control-plane failure first. Do not treat a UI/status smoothing change as sufficient unless the closed loop is proven healthy end-to-end.
+- Classify the fix before verification:
+  - write the classification to `fix_scope`
+  - `truth-owner`
+  - `control-boundary`
+  - `observation-boundary`
+  - `surface-only`
+- `surface-only` means the change smooths or hides the symptom without repairing the owning truth or the broken handoff. A `surface-only` fix cannot satisfy the debug contract.
 - After changing code, rerun:
   - the reproduction path,
   - the most relevant tests,
@@ -297,6 +310,7 @@ The session file must always make it clear:
   - resource allocation,
   - resulting state transition,
   - and external observation.
+- Record `loop_restoration_proof` before moving to `resolved`. This loop restoration proof should show why the full loop is healthy now, not merely why one surface looks better.
 - If verification fails, return to `investigating` with updated evidence. Do not keep layering fixes without updating the hypothesis.
 - If automated verification or human verification fails repeatedly without producing a stronger causal explanation, stop the local fix loop and create or refresh `.planning/debug/[slug].research.md` before another code change.
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.

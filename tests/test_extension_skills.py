@@ -462,12 +462,17 @@ class TestBuiltInSkillGeneration:
         assert "write a failing targeted test or failing repro check before editing production code" in fast_body.lower()
         assert "do not use manual sanity checks as a substitute for red" in fast_body.lower()
         assert "/sp-test" in fast_body.lower()
+        assert "/sp-debug" in fast_body.lower()
+        assert "root cause is still unknown" in fast_body.lower() or "root cause is not yet known" in fast_body.lower()
 
         quick_body = _body_without_frontmatter(skills_dir / "sp-quick" / "SKILL.md")
         assert "first executable lane must produce a failing automated test or failing repro check before production edits begin" in quick_body.lower()
         assert "do not write production code until the red state is captured" in quick_body.lower()
         assert "bootstrap the smallest viable test surface first" in quick_body.lower()
         assert "/sp-test" in quick_body.lower()
+        assert "/sp-debug" in quick_body.lower()
+        assert "root cause is still unknown" in quick_body.lower() or "root cause is not yet known" in quick_body.lower()
+        assert "surface-only" in quick_body.lower() or "symptom-only" in quick_body.lower()
 
         debug_body = _body_without_frontmatter(skills_dir / "sp-debug" / "SKILL.md")
         debug_lower = debug_body.lower()
@@ -484,6 +489,12 @@ class TestBuiltInSkillGeneration:
         assert "write a failing automated repro test before changing production code" in debug_lower
         assert "do not modify production behavior until the red state is proven" in debug_lower
         assert "add the missing harness first or route through `/sp-test`" in debug_lower
+        assert "alternative_hypotheses_considered" in debug_lower
+        assert "alternative_hypotheses_ruled_out" in debug_lower
+        assert "root_cause_confidence" in debug_lower
+        assert "fix_scope" in debug_lower
+        assert "loop_restoration_proof" in debug_lower
+        assert "surface-only" in debug_lower
 
 
 class TestSkillDescriptions:

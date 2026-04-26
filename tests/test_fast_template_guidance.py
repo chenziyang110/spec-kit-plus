@@ -88,3 +88,12 @@ def test_fast_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert "docs-only" in content or "docs only" in content
     assert "if no reliable automated test surface exists" in content
     assert "/sp-test" in content
+
+
+def test_fast_template_routes_unknown_root_cause_bugfixes_to_debug() -> None:
+    content = read_template("templates/commands/fast.md").lower()
+
+    assert "bug fix" in content or "bugfix" in content
+    assert "/sp-debug" in content
+    assert "root cause is still unknown" in content or "root cause is not yet known" in content
+    assert "symptom-fix lane" in content or "symptom fix lane" in content

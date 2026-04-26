@@ -69,6 +69,14 @@ async def test_investigating_to_fixing():
     state.closed_loop.external_observation = "UI shows running"
     state.closed_loop.break_point = "promotion stage"
     state.resolution.decisive_signals = ["running_set empty while task_table still showed running"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Scheduler kept stale running ownership after slot release",
+        "Resource counters or slot accounting are stale",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Resource counters or slot accounting are stale",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
     ctx = GraphRunContext(state=state, deps=None)
     node = InvestigatingNode()
     
@@ -97,7 +105,16 @@ async def test_fixing_to_verifying():
     state.closed_loop.external_observation = "UI shows running"
     state.closed_loop.break_point = "promotion stage"
     state.resolution.decisive_signals = ["running_set empty while task_table still showed running"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Scheduler kept stale running ownership after slot release",
+        "Resource counters or slot accounting are stale",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Resource counters or slot accounting are stale",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
     state.resolution.fix = "Applied fix"
+    state.resolution.fix_scope = "truth-owner"
     ctx = GraphRunContext(state=state, deps=None)
     node = FixingNode()
     
@@ -121,6 +138,10 @@ async def test_verifying_to_resolved_on_success(monkeypatch):
     state = DebugGraphState(trigger="test bug", slug="test-slug")
     state.symptoms.reproduction_command = "python tests/repro.py"
     state.context.modified_files = ["tests/test_debug_graph.py"]
+    state.resolution.fix_scope = "truth-owner"
+    state.resolution.loop_restoration_proof = [
+        "Repro now shows the scheduler releases ownership and the UI reflects the promoted task.",
+    ]
     ctx = GraphRunContext(state=state, deps=None)
     node = VerifyingNode()
 
@@ -167,6 +188,42 @@ async def test_investigating_blocks_fixing_without_control_plane_framing():
     assert "fixing is blocked" in (state.current_focus.next_action or "").lower()
     assert "truth ownership map" in (state.current_focus.next_action or "").lower()
     assert "- [ ] truth ownership map" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_investigating_blocks_fixing_without_alternative_hypothesis_coverage():
+    state = DebugGraphState(trigger="test bug", slug="test-slug")
+    state.observer_framing.alternative_cause_candidates = [
+        {"candidate": "Scheduler kept stale running ownership after slot release"},
+        {"candidate": "Resource counters or slot accounting are stale"},
+    ]
+    state.resolution.root_cause = {
+        "summary": "Scheduler kept stale running ownership after slot release",
+        "owning_layer": "scheduler",
+        "broken_control_state": "running set",
+        "failure_mechanism": "released slot did not clear admitted ownership before promotion",
+        "loop_break": "resource allocation -> state transition",
+        "decisive_signal": "running set stayed non-empty while promotion should have occurred",
+    }
+    state.truth_ownership = [{"layer": "scheduler", "owns": "running set"}]
+    state.control_state = ["running_set"]
+    state.observation_state = ["task_table"]
+    state.closed_loop.input_event = "task completion"
+    state.closed_loop.control_decision = "promote next queued task"
+    state.closed_loop.resource_allocation = "release and reassign slot"
+    state.closed_loop.state_transition = "waiting task becomes admitted"
+    state.closed_loop.external_observation = "UI shows running"
+    state.closed_loop.break_point = "promotion stage"
+    state.resolution.decisive_signals = ["running_set empty while task_table still showed running"]
+    state.resolution.root_cause_confidence = "confirmed"
+    ctx = GraphRunContext(state=state, deps=None)
+    node = InvestigatingNode()
+
+    result = await node.run(ctx)
+
+    assert result.data == "Awaiting more debugging input"
+    assert "alternative hypothesis" in (state.current_focus.next_action or "").lower()
+    assert "ruled-out" in (state.current_focus.next_action or "").lower()
 
 
 @pytest.mark.asyncio

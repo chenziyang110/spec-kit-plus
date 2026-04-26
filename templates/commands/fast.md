@@ -30,6 +30,9 @@ If any of those checks fail:
 - Use `/sp-quick` for small but non-trivial work.
 - Use `/sp-specify` for work that needs full design and planning.
 
+If the task is a bug fix or regression but the root cause is still unknown:
+- Use `/sp-debug` instead of treating `sp-fast` as a symptom-fix lane.
+
 ## Upgrade Triggers
 
 Upgrade to `/sp-quick` immediately if:
@@ -38,6 +41,7 @@ Upgrade to `/sp-quick` immediately if:
 - The handbook says the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make direct execution unsafe.
 - The task stops being obvious and needs research or clarification to proceed safely.
 - The task needs delegated execution, resumable tracking, or a written quick-task summary artifact.
+- The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a truly local repair. In that case, route to `/sp-debug`.
 
 Upgrade to `/sp-specify` immediately if:
 - The request introduces a new workflow, role boundary, or user-visible behavior that needs explicit acceptance criteria.
@@ -72,6 +76,7 @@ Upgrade to `/sp-specify` immediately if:
    - If the task is behavior-changing rather than docs-only, write a failing targeted test or failing repro check before editing production code.
    - Do not use manual sanity checks as a substitute for red when behavior changes.
    - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-test` or `/sp-quick` instead of hand-waving the verification gap.
+   - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
    - Do the work directly in the current context.
    - Keep the change as small and local as possible.
 

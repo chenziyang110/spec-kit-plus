@@ -139,7 +139,13 @@ root_cause:
   failure_mechanism: [why that control state became wrong]
   loop_break: [where the end-to-end control loop broke]
   decisive_signal: [single strongest signal that ruled out competing theories]
+alternative_hypotheses_considered:
+  - [plausible cause that was actively considered]
+alternative_hypotheses_ruled_out:
+  - [alternative cause explicitly eliminated]
+root_cause_confidence: tentative | supported | confirmed
 fix: [empty until applied]
+fix_scope: truth-owner | control-boundary | observation-boundary | surface-only
 verification: [empty until verified]
 validation_results:
   - command: [verification command]
@@ -150,6 +156,8 @@ decisive_signals:
   - [signals that directly adjudicated the key hypothesis]
 rejected_surface_fixes:
   - [local fixes that improved symptoms but did not fix the control-plane truth]
+loop_restoration_proof:
+  - [evidence that the full loop is healthy end-to-end]
 ```
 
 ---
@@ -240,6 +248,12 @@ The session file must always make it clear:
 - OVERWRITE as understanding evolves
 - Final state shows confirmed root cause and verified fix
 - `root_cause` should be structured, not just a sentence
-- Fields: root_cause(summary, owning_layer, broken_control_state, failure_mechanism, loop_break, decisive_signal), fix, verification, files_changed, decisive_signals, rejected_surface_fixes
+- `alternative_hypotheses_considered` should show genuine causal spread before fixing begins.
+- `alternative_hypotheses_ruled_out` should show which plausible competitors were actively eliminated.
+- `root_cause_confidence` should reach `confirmed` before the session can move into fixing.
+- `fix_scope` should classify whether the change repairs the truth owner, a boundary, an observation boundary, or only the surface symptom.
+- `surface-only` fixes cannot satisfy the session on their own; they must either be replaced or explicitly reclassified when the real owning-layer failure is understood.
+- `loop_restoration_proof` must explain why the full closed loop is healthy after verification instead of only showing a local green test.
+- Fields: root_cause(summary, owning_layer, broken_control_state, failure_mechanism, loop_break, decisive_signal), alternative_hypotheses_considered, alternative_hypotheses_ruled_out, root_cause_confidence, fix, fix_scope, verification, files_changed, decisive_signals, rejected_surface_fixes, loop_restoration_proof
 
 </section_rules>

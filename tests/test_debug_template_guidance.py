@@ -75,6 +75,11 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "execution intent" in content
     assert "success evidence" in content
     assert "decisive signals" in content
+    assert "alternative_hypotheses_considered" in content
+    assert "alternative_hypotheses_ruled_out" in content
+    assert "root_cause_confidence" in content
+    assert "fix_scope" in content
+    assert "loop_restoration_proof" in content
     assert "owning_layer" in content
     assert "broken_control_state" in content
     assert "failure_mechanism" in content
@@ -95,6 +100,10 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "do not modify production behavior until the red state is proven" in content
     assert "if no reliable automated test surface exists for the failing behavior" in content
     assert "add the missing harness first or route through `/sp-test`" in content
+    assert "record which plausible causes were considered and which were ruled out" in content
+    assert "surface-only" in content
+    assert "cannot satisfy the debug contract" in content
+    assert "loop restoration proof" in content
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:
@@ -155,4 +164,9 @@ def test_debug_session_template_captures_control_plane_debugging_fields() -> Non
     assert "validation_results" in content
     assert "decisive_signals" in content
     assert "rejected_surface_fixes" in content
+    assert "alternative_hypotheses_considered" in content
+    assert "alternative_hypotheses_ruled_out" in content
+    assert "root_cause_confidence:" in content
+    assert "fix_scope:" in content
+    assert "loop_restoration_proof:" in content
     assert "no source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`" in lowered

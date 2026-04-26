@@ -96,6 +96,9 @@ def test_guidance_docs_explain_fast_quick_specify_routing():
         assert "multiple independent capabilities" in content
         assert "compatibility" in content
         assert "acceptance criteria" in content
+        assert "root cause" in content
+        assert "sp-debug" in content or "/speckit.debug" in content
+        assert "symptom" in content
 
 
 def test_guidance_docs_explain_failing_test_first_execution_rule():

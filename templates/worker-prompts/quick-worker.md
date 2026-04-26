@@ -13,6 +13,7 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 - Complete one smallest safe lane only.
 - Keep implementation and verification scoped to that lane.
 - Return enough detail for the leader to update `STATUS.md`.
+- If this lane is a bug fix, do not hide the symptom with a surface-only or symptom-only change when the root cause is still unknown. Return a blocker or a narrower diagnostic split and route the investigation toward `/sp-debug`.
 - `STATUS.md` remains leader-owned; the worker must not become the resume authority.
 - STATUS.md remains leader-owned; the worker must not become the resume authority.
 - In plain terms: `STATUS.md` remains leader-owned even when delegated execution succeeds.
@@ -34,4 +35,5 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 
 - Do not widen the quick task into full feature work.
 - Do not rewrite adjacent surfaces without explicit instruction.
+- Do not use a surface-only or symptom-only patch as a substitute for root-cause work on a bug fix.
 - If the lane is too large, stop and return a narrower proposed split.

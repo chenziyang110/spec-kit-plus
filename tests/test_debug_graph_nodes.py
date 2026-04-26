@@ -134,6 +134,14 @@ async def test_investigating_node_finds_root_cause():
     state.closed_loop.external_observation = "caller sees full token list"
     state.closed_loop.break_point = "upper bound truncates token"
     state.resolution.decisive_signals = ["upper bound excludes final token while UI only shows missing output"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Parser upper bound excludes final token",
+        "Projection layer drops the final token",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Projection layer drops the final token",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
     
     node = InvestigatingNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -163,6 +171,14 @@ async def test_fixing_node_no_fix():
     state.closed_loop.external_observation = "caller sees full token list"
     state.closed_loop.break_point = "upper bound truncates token"
     state.resolution.decisive_signals = ["upper bound excludes final token while UI only shows missing output"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Parser upper bound excludes final token",
+        "Projection layer drops the final token",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Projection layer drops the final token",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
     
     node = FixingNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -193,7 +209,16 @@ async def test_fixing_node_with_fix():
     state.closed_loop.external_observation = "caller sees full token list"
     state.closed_loop.break_point = "upper bound truncates token"
     state.resolution.decisive_signals = ["upper bound excludes final token while UI only shows missing output"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Parser upper bound excludes final token",
+        "Projection layer drops the final token",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Projection layer drops the final token",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
     state.resolution.fix = "Update line 42 to fix the typo"
+    state.resolution.fix_scope = "truth-owner"
     
     node = FixingNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -216,6 +241,10 @@ async def test_verifying_node_success(monkeypatch):
     state = DebugGraphState(slug="test", trigger="test")
     state.symptoms.reproduction_command = "python tests/repro.py"
     state.context.modified_files = ["tests/test_debug_graph_nodes.py"]
+    state.resolution.fix_scope = "truth-owner"
+    state.resolution.loop_restoration_proof = [
+        "Repro proves the final token survives parse and reaches the caller output.",
+    ]
     
     node = VerifyingNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -275,6 +304,11 @@ async def test_verifying_node_uses_changed_test_files(monkeypatch):
         "src/specify_cli/debug/graph.py",
         "tests/test_debug_cli.py",
     ]
+    state.resolution.fix = "Release stale parser ownership before projection"
+    state.resolution.fix_scope = "truth-owner"
+    state.resolution.loop_restoration_proof = [
+        "Targeted pytest and repro both prove the final token reaches the caller output.",
+    ]
 
     node = VerifyingNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -298,6 +332,11 @@ async def test_verifying_node_falls_back_to_project_tests(monkeypatch):
     state = DebugGraphState(slug="test", trigger="test")
     state.symptoms.reproduction_command = "python tests/repro.py"
     state.context.feature_id = "002-autonomous-execution"
+    state.resolution.fix = "Release stale scheduler ownership before promotion"
+    state.resolution.fix_scope = "truth-owner"
+    state.resolution.loop_restoration_proof = [
+        "Repro and project-level tests prove the next queued task is admitted and observed correctly.",
+    ]
 
     node = VerifyingNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -362,6 +401,71 @@ async def test_fixing_node_blocks_without_required_framing():
     assert "fixing is blocked" in (state.current_focus.next_action or "").lower()
     assert "confirmed root cause" in (state.current_focus.next_action or "").lower()
     assert "- [ ] confirmed root cause" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_fixing_node_blocks_surface_only_fix_scope():
+    state = DebugGraphState(slug="test", trigger="test")
+    state.resolution.root_cause = {
+        "summary": "Projection layer drops the final token",
+        "owning_layer": "projection boundary",
+        "broken_control_state": "published token view-model",
+        "failure_mechanism": "final token is stripped after publish",
+        "loop_break": "state transition -> external observation",
+        "decisive_signal": "source tokens are correct but projected output drops the last entry",
+    }
+    state.truth_ownership = [{"layer": "projection boundary", "owns": "published token view-model"}]
+    state.control_state = ["published token view-model"]
+    state.observation_state = ["rendered token stream"]
+    state.closed_loop.input_event = "parse request"
+    state.closed_loop.control_decision = "publish token list"
+    state.closed_loop.resource_allocation = "assign published token payload"
+    state.closed_loop.state_transition = "view-model receives final token"
+    state.closed_loop.external_observation = "caller sees full token list"
+    state.closed_loop.break_point = "projection strips final token"
+    state.resolution.decisive_signals = ["source tokens are correct but projection drops the last entry"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Projection layer drops the final token",
+        "Parser upper bound excludes final token",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Parser upper bound excludes final token",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
+    state.resolution.fix = "Normalize display status and hide the missing final token"
+    state.resolution.fix_scope = "surface-only"
+
+    node = FixingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await node.run(ctx)
+
+    assert result.data == "Awaiting more debugging input"
+    assert "surface-only" in (state.current_focus.next_action or "").lower()
+    assert "cannot satisfy the debug contract" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_verifying_node_success_requires_loop_restoration_proof(monkeypatch):
+    def mock_run(cmd):
+        return "PASS"
+
+    import specify_cli.debug.graph as graph_module
+    monkeypatch.setattr(graph_module, "run_command", mock_run)
+
+    state = DebugGraphState(slug="test", trigger="test")
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.context.modified_files = ["tests/test_debug_graph_nodes.py"]
+    state.resolution.fix_scope = "truth-owner"
+
+    node = VerifyingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await node.run(ctx)
+
+    assert result.data == "Awaiting more debugging input"
+    assert "loop restoration proof" in (state.current_focus.next_action or "").lower()
+    assert "resolved" in (state.current_focus.next_action or "").lower()
 
 
 @pytest.mark.asyncio

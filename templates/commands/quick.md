@@ -67,6 +67,9 @@ If the task is trivial and local:
 If the task changes architecture, introduces broad product decisions, or needs a durable feature specification:
 - Use `/sp-specify`.
 
+If the task is a bug fix or regression but the root cause is still unknown:
+- Use `/sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
+
 ## Escalation Triggers
 
 Upgrade to `/sp-specify` immediately if:
@@ -76,6 +79,7 @@ Upgrade to `/sp-specify` immediately if:
 - The work needs a new durable spec package, a long-lived feature boundary, or planning artifacts intended to survive beyond the quick task.
 - The change has rollout, migration, compatibility, or neighboring-workflow impact that must be locked before implementation.
 - The expected behavior cannot be stated with concrete acceptance criteria without first doing feature-level requirement alignment.
+- The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a bounded repair. In that case, route to `/sp-debug`.
 
 ## Execution Modes
 
@@ -336,10 +340,12 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Keep the work atomic and self-contained.
    - Keep local planning shallow until the first delegated worker lane or coordinated runtime batch has been launched.
    - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
-   - For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
-   - Do not write production code until the RED state is captured and recorded in `STATUS.md`.
-   - If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `/sp-test`.
-   - Name the affected surfaces for this quick-task pass and decide how each one will be checked.
+- For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
+- Do not write production code until the RED state is captured and recorded in `STATUS.md`.
+- If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `/sp-test`.
+- For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
+- A `surface-only` or symptom-only change cannot satisfy the quick-task contract for a bug fix unless the user explicitly scoped the work to temporary mitigation.
+- Name the affected surfaces for this quick-task pass and decide how each one will be checked.
    - If multiple safe lanes would materially improve throughput, plan the first fan-out as parallel worker lanes instead of defaulting to serial execution.
    - If the task includes a propagating change, write the minimal sweep plan first and list the affected surfaces that must be checked before completion.
 

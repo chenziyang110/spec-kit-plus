@@ -11,6 +11,7 @@ Use this template when the debug leader dispatches an evidence-gathering lane fo
 ## Worker Contract
 
 - Gather facts only for the current hypothesis.
+- Prefer evidence that can rule the current hypothesis in or out against the strongest nearby alternatives.
 - Return command results, observations, and file-level evidence.
 - Do not declare the root cause final.
 - Do not update the debug file.

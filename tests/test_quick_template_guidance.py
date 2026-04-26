@@ -253,3 +253,12 @@ def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert "if no reliable automated test surface exists for the touched behavior" in content
     assert "bootstrap the smallest viable test surface first" in content
     assert "/sp-test" in content
+
+
+def test_quick_template_routes_uncertain_bugfixes_into_debug() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "root cause is still unknown" in content or "root cause is not yet known" in content
+    assert "/sp-debug" in content
+    assert "surface-only" in content or "symptom-only" in content
+    assert "cannot satisfy the quick-task contract" in content or "cannot satisfy the quick contract" in content
