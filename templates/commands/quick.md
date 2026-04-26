@@ -335,6 +335,9 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Keep the work atomic and self-contained.
    - Keep local planning shallow until the first delegated worker lane or coordinated runtime batch has been launched.
    - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
+   - For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
+   - Do not write production code until the RED state is captured and recorded in `STATUS.md`.
+   - If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `/sp-test`.
    - Name the affected surfaces for this quick-task pass and decide how each one will be checked.
    - If multiple safe lanes would materially improve throughput, plan the first fan-out as parallel worker lanes instead of defaulting to serial execution.
    - If the task includes a propagating change, write the minimal sweep plan first and list the affected surfaces that must be checked before completion.

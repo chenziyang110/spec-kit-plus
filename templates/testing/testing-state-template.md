@@ -9,6 +9,8 @@ updated: [ISO timestamp]
 ## Current Focus
 
 - next_action:
+- next_command:
+- handoff_reason:
 - selected_modules:
 - selected_language_skills:
 - inventory_source: specify testing inventory --format json

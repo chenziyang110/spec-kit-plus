@@ -39,6 +39,40 @@ def test_test_template_bootstraps_testing_contract_assets():
     assert "before writing the consolidated `.specify/testing/*` artifacts" in lowered
 
 
+def test_test_template_uses_handbook_and_project_map_gates():
+    content = _read("templates/commands/test.md")
+
+    assert "[AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`." in content
+    assert "[AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] Read `PROJECT-HANDBOOK.md`." in content
+    assert "Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`" in content
+
+
+def test_test_template_emits_result_driven_handoff_recommendation():
+    content = _read("templates/commands/test.md")
+    lowered = content.lower()
+    state_template = _read("templates/testing/testing-state-template.md")
+
+    assert "classify the next workflow recommendation before the final report" in lowered
+    assert "recommend exactly one next command" in lowered
+    assert "persist the recommendation in `testing_state_file`" in lowered
+    assert "`next_command`" in content
+    assert "resume the previous workflow" in lowered
+    assert "recommend `/sp-quick`" in content
+    assert "recommend `/sp-specify`" in content
+    assert "recommend `/sp-debug`" in content
+    assert "resume `/sp-implement`" in content
+    assert "single bounded module or surface" in lowered
+    assert "multiple modules, multiple failure classes" in lowered
+    assert "coverage uplift program" in lowered
+    assert "execution-time regression inside an already active feature" in lowered
+    assert "include the recommended next command and one-line rationale in the final report" in lowered
+    assert "- next_command:" in state_template
+    assert "- handoff_reason:" in state_template
+
+
 def test_plan_template_consumes_testing_contract_when_present():
     content = _read("templates/commands/plan.md")
     lowered = content.lower()
@@ -59,8 +93,12 @@ def test_tasks_template_makes_tests_contract_driven():
     assert ".specify/testing/COVERAGE_BASELINE.json" in command_content
     assert "tests are contract-driven" in command_content.lower()
     assert "treat tests as default deliverables" in command_content.lower()
+    assert "whether or not `.specify/testing/testing_contract.md` exists" in command_content.lower()
+    assert "behavior changes, bug fixes, and refactors" in command_content.lower()
+    assert "add explicit bootstrap tasks to establish the smallest runnable test surface first" in command_content.lower()
     assert ".specify/testing/TESTING_CONTRACT.md" in template_content
     assert "tests are expected by default" in template_content.lower()
+    assert "ensure they fail before implementation" in template_content.lower()
 
 
 def test_implement_and_debug_templates_treat_testing_contract_as_binding():
@@ -71,6 +109,9 @@ def test_implement_and_debug_templates_treat_testing_contract_as_binding():
     assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in implement_content
     assert "testing contract is binding when present" in implement_content
     assert "add or update the required failing tests or regression tests" in implement_content
+    assert "write the failing test first for every behavior-changing task, bug fix, or refactor" in implement_content
+    assert "do not write production code for the batch until the red state is verified" in implement_content
     assert ".specify/testing/TESTING_CONTRACT.md".lower() in debug_content
     assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in debug_content
     assert "add or update a regression test" in debug_content
+    assert "write a failing automated repro test before changing production code" in debug_content

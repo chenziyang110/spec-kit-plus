@@ -219,6 +219,11 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
       - confirmed by direct evidence,
       - inferred as a low-risk default,
       - or unresolved and still requiring a decision.
+    - Run a short checkpoint for each high-risk capability before moving on:
+      - purpose / outcome
+      - boundary and non-goals
+      - acceptance proof
+    - If any checkpoint still depends on fuzzy language, reopen clarification for that capability instead of moving on to a sibling capability.
     - If capability boundaries remain unclear, continue clarifying until the decomposition is planning-ready or the user explicitly force proceeds.
 
 12. Run task-type mandatory clarity gates.
@@ -306,12 +311,17 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
      - compatibility, migration, or neighboring-workflow impact
      - acceptance proof: what evidence would show this decision was implemented correctly
    - Typical gray-area domains include workflow behavior, role/permission handling, data/state transitions, compatibility or migration behavior, failure handling, external integrations, and validation approach.
+   - When a high-impact gray area still has multiple viable requirement shapes, switch into decision-fork mode.
+   - In decision-fork mode, present 2-3 concrete options that differ in behavior, boundary, compatibility, or acceptance proof.
+   - Lead with the recommended option and one short rationale sentence.
+   - Use this mode only for a requirement-shaping decision, not as open-ended solution ideation.
+   - Do not use this mode for implementation architecture brainstorming, framework/tool selection, or low-risk defaults that do not materially change planning.
    - Use the gray-area list to decide what to ask next rather than falling back to generic catch-all questions.
-    - Record resolved gray-area outcomes under `Locked Decisions` when they are fixed enough for planning.
-    - Record user-approved flexibility under `Claude Discretion`.
-    - Record cited specs, ADRs, examples, or policies under `Canonical References`.
-    - Record out-of-scope ideas surfaced during clarification under `Deferred / Future Ideas`.
-    - Synthesize these decisions into `context.md` so downstream planning does not rely on reconstructing them from prose alone.
+     - Record resolved gray-area outcomes under `Locked Decisions` when they are fixed enough for planning.
+     - Record user-approved flexibility under `Claude Discretion`.
+     - Record cited specs, ADRs, examples, or policies under `Canonical References`.
+     - Record out-of-scope ideas surfaced during clarification under `Deferred / Future Ideas`.
+     - Synthesize these decisions into `context.md` so downstream planning does not rely on reconstructing them from prose alone.
 
 15. Run a high-impact ambiguity scan.
     Detect unresolved ambiguity affecting:
@@ -331,6 +341,11 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, continue clarification instead of releasing normal alignment.
 
 16. Clarification loop.
+    - **Question output hard gate**: before generating any clarification question, confirmation, or bounded selection, check whether a native structured question tool is available in the current runtime.
+    - If a native structured question tool is available, you MUST use it.
+    - Do not render the textual fallback block when the native tool is available.
+    - Do not self-authorize textual fallback because the question seems simple, short, or easy to express in plain text.
+    - Only fall back after the native tool is unavailable or the tool call fails. If a native tool call fails once, retry once before falling back.
     - Keep the interaction feeling like guided requirement discovery rather than a shallow questionnaire.
     - Ask only high-value questions.
     - Before asking a planning-critical question, check whether `PROJECT-HANDBOOK.md` or touched-area topical documents already answer it; do not ask the user for facts the codebase can supply.
@@ -380,9 +395,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Keep grouped recaps compact; omit sections that would be empty, repetitive, or low-value.
     - Keep progress tracking scoped to the current capability or bounded spec slice rather than to a fixed global question budget.
     - Do not present the clarification loop as a fixed total such as `2 / 5`.
-    - When the runtime exposes a native structured question tool, use that native tool for every interactive clarification, confirmation, or bounded selection in this workflow.
-    - Treat the shared open question block structure below as fallback-only text format guidance; render the textual block only when no suitable native structured question tool is available.
-    - When using a native structured question tool, map the same stage, topic, prompt, example, recommendation, options, and reply guidance into the native tool fields instead of rendering the textual block verbatim.
+    - When using a native structured question tool, map the same stage header plus topic label into the native header or title field, the prompt into the native question field, the options into the native option list, and the recommendation rationale into the recommended option description or equivalent metadata instead of rendering the textual block verbatim.
+    - Treat the shared open question block structure below as fallback-only text format guidance; render the textual block only when the native tool is unavailable or the tool call fails after retry.
     - Each textual fallback open question block must present, in order: a stage header, question header, prompt, example when useful, recommendation, options, and reply instruction.
     - Keep the stage header minimal: `SPECIFY SESSION` plus the current capability-scoped progress marker, for example `Capability 1 / 3 | Question 2`.
     - Use the question header for a short topic label only.
@@ -526,17 +540,22 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - confirmed facts
     - low-risk inferences
     - unresolved items
+    - capability checkpoints for high-risk capabilities
+    - high-impact decision-fork outcomes
     - clarification summary
     - release decision:
       - `Aligned: ready for plan`
       - or `Force proceed with known risks`
     - downstream planning impact
+    - artifact review gate outcome
     - reason for the release decision
 
 22. Write `context.md` to `CONTEXT_FILE`.
     It must include:
     - phase or feature boundary
     - locked decisions
+    - capability checkpoints
+    - decision fork outcomes
     - Claude discretion
     - canonical references
     - existing code insights when relevant
@@ -597,6 +616,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - [ ] Task classification is recorded
     - [ ] Release decision is recorded
     - [ ] Release decision is either `Aligned: ready for plan` or `Force proceed with known risks`
+    - [ ] High-risk capabilities have checkpoints for purpose, boundary, and acceptance proof
+    - [ ] High-impact decision forks are resolved or explicitly force-carried
     - [ ] Locked decisions are preserved in context.md
     - [ ] workflow-state.md records `sp-specify` with planning-only restrictions
     - [ ] Remaining risks are empty for normal completion
@@ -608,7 +629,24 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
 25. Re-run validation after edits. Normal completion must pass all required checks.
 
-26. Report completion with:
+26. Run an artifact review gate before handoff.
+    - Review the written artifact set before handoff, not just the conversational understanding.
+    - Run a self-review across `spec.md`, `alignment.md`, and `context.md` for:
+      - placeholders/TODOs
+      - contradictions or capability drift
+      - missing capability checkpoints
+      - weak acceptance proof
+      - requirement-vs-implementation drift
+    - If the selected strategy supports collaboration and the workload justified it, use one read-only reviewer lane to inspect the draft artifact set for the same failure modes.
+    - If the review finds planning-critical issues, revise current artifacts, re-run validation, and repeat the artifact review gate.
+    - Ask the user to review the written artifact set before handoff and make the next path explicit:
+      - proceed to `/sp.plan`
+      - revise current artifacts
+      - continue analysis with `/sp.spec-extend`
+    - If the user requests changes, update the artifact set, re-run validation, and repeat the artifact review gate.
+    - Do not present `/sp.plan` as ready until the written artifact set passes this gate.
+
+27. Report completion with:
     - branch name
     - spec file path
     - alignment report path
@@ -623,7 +661,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or a repeated recurrence that should become shared project memory
     - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 
-27. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
+28. **Check for extension hooks**: After reporting completion, check if `.specify/extensions.yml` exists in the project root.
     - If it exists, read it and look for entries under the `hooks.after_specify` key.
     - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally.
     - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.

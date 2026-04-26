@@ -50,6 +50,18 @@
 - **Dependencies / Preconditions**: [What planners must account for first]
 - **Downstream Planning Impact**: [How unresolved items, assumptions, or sequencing constraints affect `/sp.plan`]
 
+## Capability Checkpoints
+
+- **[Capability Name]**: Purpose / outcome -> [What this capability must achieve]
+- **Boundary and non-goals**: [What stays inside this capability versus adjacent capabilities]
+- **Acceptance proof**: [What evidence would show this capability is implemented correctly]
+
+## High-Impact Decision Forks
+
+- **[Decision Fork]**: [Requirement-shaping choice that changed behavior, boundary, compatibility, or acceptance proof]
+- **Options considered**: [2-3 concrete options that were on the table]
+- **Chosen direction**: [Which option was selected and why planners must preserve it]
+
 ## Confirmed Decisions
 
 - [Final decision or explicit commitment that planners must preserve]
@@ -79,6 +91,12 @@
 - [Proceed directly to `/sp.plan`]
 - [Run `/sp.spec-extend` first to close planning-critical gaps]
 - [Force proceed only if the user accepts the known risks]
+
+## Artifact Review Gate
+
+- **Self-review**: [passed | revised]
+- **Reviewer lane**: [not used | approved | issues found then revised]
+- **User artifact review**: [approved | changes requested | continue analysis with `/sp.spec-extend`]
 
 ## Release Decision
 

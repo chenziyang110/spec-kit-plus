@@ -183,3 +183,39 @@ After `sp-test` succeeds, future feature work should behave as follows:
 - `sp-debug` requires regression protection when the contract applies
 
 This preserves the current mainline while making testing first-class and durable.
+
+## Result-Driven Handoff
+
+`sp-test` should not end as a dead-end audit summary when the output already reveals
+actionable next work.
+
+The approved completion behavior is:
+
+- recommend exactly one next workflow command
+- persist that recommendation into the testing state
+- base the recommendation on the shape of the remaining gaps rather than on a generic
+  "testing complete" message
+
+### Routing Rules
+
+Use this routing order:
+
+1. If no actionable gaps remain, resume the previous workflow. If no prior workflow
+   context is recoverable, fall back to the default handoff surface.
+2. If the remaining work is one bounded module or surface, recommend `sp-quick`.
+3. If the remaining work spans multiple modules, multiple failure classes, or a
+   coverage-uplift program that needs explicit planning, recommend `sp-specify`.
+4. If the remaining work is an execution-time regression inside an already active
+   feature and diagnosis is still needed, recommend `sp-debug`.
+5. If the remaining work is an execution-time regression inside an already active
+   feature and the fix path is already bounded and understood, resume
+   `sp-implement`.
+
+### Intent
+
+This keeps `sp-test` as a support workflow, but makes it operationally useful when it
+discovers real follow-on work:
+
+- it still bootstraps and refreshes the testing system
+- it no longer strands the user at the end of a report
+- it points to the next best workflow based on the gap shape

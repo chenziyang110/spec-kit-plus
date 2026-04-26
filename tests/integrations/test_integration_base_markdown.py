@@ -191,6 +191,9 @@ class MarkdownIntegrationTests:
             assert f"## {agent_name} structured question preference" in content
             assert "native structured question tool" in content
             assert "fallback-only guidance" in content
+            assert "must use it" in content
+            assert "do not render the textual fallback block" in content
+            assert "do not self-authorize textual fallback" in content
             assert (
                 "template's existing textual question format" in content
                 or "existing plain-text" in content

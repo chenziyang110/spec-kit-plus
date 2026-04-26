@@ -156,8 +156,9 @@ scripts:
    - If research.md exists: Extract decisions for setup tasks
     - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
     - Generate tasks organized by user story (see Task Generation Rules below)
-    - If `.specify/testing/TESTING_CONTRACT.md` exists, treat tests as default deliverables for affected behavior changes instead of leaving them globally optional
+    - Whether or not `.specify/testing/TESTING_CONTRACT.md` exists, treat tests as default deliverables for behavior changes, bug fixes, and refactors instead of leaving them globally optional
     - If the testing contract names required regression or coverage work for an affected module, preserve that requirement explicitly in the task list
+    - If the touched area lacks a reliable automated test surface, add explicit bootstrap tasks to establish the smallest runnable test surface first before implementation tasks for that slice
     - Top-level tasks should usually fit one bounded implementation slice: roughly 10-20 minutes, one stable objective, one isolated write set, and one verification path.
     - A delegated worker can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks.
     - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence.

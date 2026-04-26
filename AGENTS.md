@@ -52,6 +52,7 @@ For AI CLI workflows in this repository:
 - Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.
 - Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
 - Use `sp-test` when the project-level testing contract or testing system coverage needs bootstrap, refresh, or audit work.
+- For `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`, use a failing test first for behavior changes, bug fixes, and refactors. If no viable automated test surface exists yet, route through `sp-test` before production edits continue.
 
 ## Artifact Priority
 

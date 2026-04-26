@@ -87,9 +87,13 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Default to concise clarification turns" in content
     assert "Do not restate the full current understanding after every answer" in content
     assert "Save the full synthesis for the alignment-ready turn" in content
-    assert "When the runtime exposes a native structured question tool" in content
     assert "Treat the shared open question block structure below as fallback-only text format guidance" in content
-    assert "When using a native structured question tool, map the same stage, topic, prompt, example, recommendation, options, and reply guidance into the native tool fields" in content
+    assert "before generating any clarification question, confirmation, or bounded selection, check whether a native structured question tool is available" in lowered
+    assert "when using a native structured question tool, map the same stage header plus topic label into the native header or title field" in lowered
+    assert "if a native structured question tool is available, you must use it" in lowered
+    assert "do not render the textual fallback block when the native tool is available" in lowered
+    assert "do not self-authorize textual fallback because the question seems simple" in lowered
+    assert "only fall back after the native tool is unavailable or the tool call fails" in lowered
     assert re.search(r"open (question )?blocks?", lowered)
     _assert_contains_any(lowered, "stage header", "stage title")
     _assert_contains_any(lowered, "question header", "question title")
@@ -155,6 +159,11 @@ def test_specify_template_uses_alignment_first_contract():
     assert 'Do not use generic labels like "UX", "behavior", or "data handling"' in content
     assert "Each gray area should be captured internally with:" in content
     assert "why the decision changes implementation or test shape" in content
+    assert "switch into decision-fork mode" in lowered
+    assert "present 2-3 concrete options" in lowered
+    assert "requirement-shaping decision" in lowered
+    assert "behavior, boundary, compatibility, or acceptance proof" in lowered
+    assert "do not use this mode for implementation architecture brainstorming" in lowered
     assert "desired happy-path behavior" in content
     assert "edge case or failure-path behavior" in content
     assert "compatibility, migration, or neighboring-workflow impact" in content
@@ -172,6 +181,17 @@ def test_specify_template_uses_alignment_first_contract():
     assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in content
     assert "Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`." in content
     assert "Read `templates/context-template.md`." in content
+    assert "run a short checkpoint for each high-risk capability" in lowered
+    assert "purpose / outcome" in lowered
+    assert "boundary and non-goals" in lowered
+    assert "acceptance proof" in lowered
+    assert "artifact review gate" in lowered
+    assert "review the written artifact set before handoff" in lowered
+    assert "use one read-only reviewer lane" in lowered
+    assert "placeholders/todos" in lowered
+    assert "requirement-vs-implementation drift" in lowered
+    assert "revise current artifacts" in lowered
+    assert "continue analysis with `/sp.spec-extend`" in content
     assert "primary codebase-scout input" in content
     assert "module ownership, reusable components/services/hooks, integration points" in content
     assert "truth-owning surfaces" in content
@@ -693,6 +713,8 @@ def test_context_template_exists_and_captures_planning_context():
     assert "# Feature Context:" in content
     assert "## Phase / Feature Boundary" in content
     assert "## Locked Decisions" in content
+    assert "## Capability Checkpoints" in content
+    assert "## Decision Fork Outcomes" in content
     assert "## Claude Discretion" in content
     assert "## Canonical References" in content
     assert "## Existing Code Insights" in content
@@ -965,6 +987,9 @@ def test_alignment_template_exists():
     assert "# Requirement Alignment Report:" in content
     assert "### Planning Summary" in content
     assert "## Locked Decisions For Planning" in content
+    assert "## Capability Checkpoints" in content
+    assert "## High-Impact Decision Forks" in content
+    assert "## Artifact Review Gate" in content
     assert "## Outstanding Questions" in content
     assert "## Planning Gate Recommendation" in content
     assert "## Release Decision" in content

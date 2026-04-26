@@ -14,6 +14,17 @@
 - [Decision planners, task generators, and implementers must preserve]
 - [Compatibility, rollout, validation, or workflow decision that cannot be silently dropped]
 
+## Capability Checkpoints
+
+- **[Capability Name]**: [Purpose / outcome that downstream work must preserve]
+- **Boundary and non-goals**: [What stays inside this capability versus adjacent ones]
+- **Acceptance proof**: [Evidence or validation signal that must stay true]
+
+## Decision Fork Outcomes
+
+- **[Decision Fork]**: [Chosen direction]
+- **Planning significance**: [Why this fork changes downstream planning, validation, or compatibility handling]
+
 ## Claude Discretion
 
 - [Area where the user explicitly allowed implementation choice]

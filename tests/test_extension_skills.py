@@ -298,6 +298,10 @@ class TestBuiltInSkillGeneration:
         assert "open question block" in specify_outline.lower()
         assert "native structured question tool" in specify_body.lower()
         assert "fallback-only text format guidance" in specify_body.lower()
+        assert "if a native structured question tool is available, you must use it" in specify_body.lower()
+        assert "do not render the textual fallback block when the native tool is available" in specify_body.lower()
+        assert "do not self-authorize textual fallback because the question seems simple" in specify_body.lower()
+        assert "only fall back after the native tool is unavailable or the tool call fails" in specify_body.lower()
         _assert_terms_in_order(
             specify_outline,
             "Stage header",
@@ -369,6 +373,9 @@ class TestBuiltInSkillGeneration:
         assert "workflow-state.md" in tasks_body
         assert "phase_mode: task-generation-only" in tasks_body
         assert "Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution." in tasks_body
+        assert "whether or not `.specify/testing/testing_contract.md` exists" in tasks_body.lower()
+        assert "behavior changes, bug fixes, and refactors" in tasks_body.lower()
+        assert "add explicit bootstrap tasks to establish the smallest runnable test surface first" in tasks_body.lower()
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body
@@ -379,6 +386,8 @@ class TestBuiltInSkillGeneration:
         assert "compile and validate the packet before any delegated work begins" in implement_body
         assert "validated `workertaskpacket`" in implement_body.lower()
         assert "must not dispatch from raw task text alone" in implement_body.lower()
+        assert "write the failing test first for every behavior-changing task, bug fix, or refactor" in implement_body.lower()
+        assert "do not write production code for the batch until the red state is verified" in implement_body.lower()
 
         analyze_body = _body_without_frontmatter(skills_dir / "sp-analyze" / "SKILL.md")
         assert "Boundary Guardrail Gaps" in analyze_body
@@ -431,6 +440,26 @@ class TestBuiltInSkillGeneration:
         assert "native-multi-agent" in test_body.lower()
         assert "sidecar-runtime" in test_body.lower()
         assert "before mutating shared repository test framework/config files" in test_body.lower()
+        assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing" in test_body.lower()
+        assert "if testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing" in test_body.lower()
+        assert "read `project-handbook.md`." in test_body.lower()
+        assert "classify the next workflow recommendation before the final report" in test_body.lower()
+        assert "recommend exactly one next command" in test_body.lower()
+        assert "recommend `/sp-quick`" in test_body.lower()
+        assert "recommend `/sp-specify`" in test_body.lower()
+        assert "recommend `/sp-debug`" in test_body.lower()
+        assert "resume `/sp-implement`" in test_body.lower()
+
+        fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md")
+        assert "write a failing targeted test or failing repro check before editing production code" in fast_body.lower()
+        assert "do not use manual sanity checks as a substitute for red" in fast_body.lower()
+        assert "/sp-test" in fast_body.lower()
+
+        quick_body = _body_without_frontmatter(skills_dir / "sp-quick" / "SKILL.md")
+        assert "first executable lane must produce a failing automated test or failing repro check before production edits begin" in quick_body.lower()
+        assert "do not write production code until the red state is captured" in quick_body.lower()
+        assert "bootstrap the smallest viable test surface first" in quick_body.lower()
+        assert "/sp-test" in quick_body.lower()
 
         debug_body = _body_without_frontmatter(skills_dir / "sp-debug" / "SKILL.md")
         debug_lower = debug_body.lower()
@@ -444,6 +473,9 @@ class TestBuiltInSkillGeneration:
         assert "alternative cause candidates" in debug_lower
         assert "transition memo" in debug_lower
         assert "automatically continue into evidence investigation" in debug_lower
+        assert "write a failing automated repro test before changing production code" in debug_lower
+        assert "do not modify production behavior until the red state is proven" in debug_lower
+        assert "add the missing harness first or route through `/sp-test`" in debug_lower
 
 
 class TestSkillDescriptions:

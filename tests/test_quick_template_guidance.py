@@ -239,3 +239,16 @@ def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent
     assert "[AGENT] Create or resume `STATUS.md`" in content
     assert "[AGENT] Use the shared policy function before execution begins and again at each join point" in content
     assert "[AGENT] Before the final summary, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning" in content
+
+
+def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+
+    assert "behavior-changing" in content or "behavior changing" in content
+    assert "bugfix" in content or "bug fix" in content
+    assert "refactor" in content
+    assert "first executable lane must produce a failing automated test or failing repro check before production edits begin" in content
+    assert "do not write production code until the red state is captured" in content
+    assert "if no reliable automated test surface exists for the touched behavior" in content
+    assert "bootstrap the smallest viable test surface first" in content
+    assert "/sp-test" in content

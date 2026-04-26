@@ -77,3 +77,14 @@ def test_fast_template_marks_learning_and_fail_closed_routing_gates_with_agent_m
     assert "[AGENT] If `PROJECT-HANDBOOK.md` or `.specify/project-map/` is missing, stop and redirect to `/sp-quick`" in content
     assert "[AGENT] If the requested change touches a shared surface, risky coordination point, propagation hotspot, non-trivial verification entry point, or known-unknown-heavy area, stop and redirect to `/sp-quick`." in content
     assert "[AGENT] Before the final report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning" in content
+
+
+def test_fast_template_requires_tdd_gate_for_behavior_changes() -> None:
+    content = read_template("templates/commands/fast.md").lower()
+
+    assert "behavior-changing" in content or "behavior changing" in content
+    assert "write a failing targeted test or failing repro check before editing production code" in content
+    assert "do not use manual sanity checks as a substitute for red" in content
+    assert "docs-only" in content or "docs only" in content
+    assert "if no reliable automated test surface exists" in content
+    assert "/sp-test" in content

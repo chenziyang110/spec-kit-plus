@@ -301,15 +301,15 @@ class IntegrationBase(ABC):
 
     def _question_tool_fallback_hint(self, command_name: str) -> str:
         fallback_hints = {
-            "specify": "If the native tool is unavailable or unsuitable, fall back to the shared open question block structure already defined in this template.",
-            "spec-extend": "If the native tool is unavailable or unsuitable, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
-            "checklist": "If the native tool is unavailable or unsuitable, keep the template's existing `Q1`/`Q2`/`Q3` (and optional `Q4`/`Q5`) textual question format.",
-            "quick": "If the native tool is unavailable or unsuitable, use the template's existing concise plain-text clarification or quick-task selection wording.",
-            "debug": "If the native tool is unavailable or unsuitable, ask one concise missing-information question in plain text during observer framing before entering reproduction work.",
+            "specify": "If the native tool is unavailable in the current runtime or the tool call fails, fall back to the shared open question block structure already defined in this template.",
+            "spec-extend": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
+            "checklist": "If the native tool is unavailable in the current runtime or the tool call fails, keep the template's existing `Q1`/`Q2`/`Q3` (and optional `Q4`/`Q5`) textual question format.",
+            "quick": "If the native tool is unavailable in the current runtime or the tool call fails, use the template's existing concise plain-text clarification or quick-task selection wording.",
+            "debug": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise missing-information question in plain text during observer framing before entering reproduction work.",
         }
         return fallback_hints.get(
             command_name,
-            "If the native tool is unavailable or unsuitable, fall back to the template's existing textual question format.",
+            "If the native tool is unavailable in the current runtime or the tool call fails, fall back to the template's existing textual question format.",
         )
 
     def _append_question_tool_preference(
@@ -340,8 +340,10 @@ class IntegrationBase(ABC):
             "",
             f"## {agent_name} Structured Question Preference",
             "",
-            "- Use the runtime's native structured question tool for interactive clarification, confirmation, or bounded user selections whenever that tool is available and suitable for the current turn.",
-            "- Treat the template's textual question format as fallback-only guidance in those turns; use it to shape the question content, but do not render the textual block unless the native tool is unavailable or unsuitable.",
+            "- If the runtime's native structured question tool is available for the current turn, you must use it.",
+            "- Do not render the textual fallback block when the native tool is available.",
+            "- Do not self-authorize textual fallback because the question seems simple, short, or easy to phrase manually.",
+            "- Treat the template's textual question format as fallback-only guidance; use it to shape the question content, but do not render the textual block unless the native tool is unavailable in the current runtime or the tool call fails.",
             "- Ask only the minimum number of questions required by this workflow's existing contract.",
             "- Keep the user-visible question text in the user's current language and keep option labels short.",
             "- Do not emit both a native tool question and the textual fallback block in the same turn. The user should see the active question exactly once.",

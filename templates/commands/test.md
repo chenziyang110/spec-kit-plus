@@ -62,6 +62,8 @@ workflow_contract:
   - `selected_modules`
   - `selected_language_skills`
   - `next_action`
+  - `next_command`
+  - `handoff_reason`
   - `open_gaps`
   - `adopted_frameworks`
   - `coverage_notes`
@@ -74,6 +76,13 @@ workflow_contract:
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If the testing surfaces are stale or weak, run `/sp-map-codebase` before continuing. Otherwise review the relevant topic files before trusting the current map.
+   - [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - Treat testing-surface coverage as insufficient when the current handbook/project-map set cannot yet tell you:
+     - which modules or packages own the main truth-bearing logic
+     - which test frameworks and conventions already govern those modules
+     - which workflows or integration seams are regression-sensitive
+     - which startup, CI, or operator commands are required to run tests safely
+   - [AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - [AGENT] Read `PROJECT-HANDBOOK.md`.
    - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.
@@ -167,6 +176,15 @@ workflow_contract:
      - the selected framework ownership is recorded for each touched module
    - If a module could not be safely updated, record it as an explicit `open_gap` with the next recommended action.
    - Only mark the state `complete` after the contract, playbook, baseline, and inventory are all written truthfully.
+   - Classify the next workflow recommendation before the final report.
+   - Recommend exactly one next command and persist the recommendation in `TESTING_STATE_FILE` as `next_command`, `next_action`, and `handoff_reason`.
+   - Route the recommendation using this order:
+     - If no actionable gaps remain and the repository now has a usable testing contract, resume the previous workflow. If no prior workflow context is recoverable, fall back to the metadata default handoff.
+     - If the remaining work is a single bounded module or surface, such as one failing test file, one config issue, one translation key, or one local fixture/helper repair, recommend `/sp-quick`.
+     - If the remaining work spans multiple modules, multiple failure classes, a coverage uplift program, or changes that need explicit scope and acceptance planning, recommend `/sp-specify`.
+     - If the remaining work is an execution-time regression inside an already active feature and the failure still needs diagnosis, recommend `/sp-debug`.
+     - If the remaining work is an execution-time regression inside an already active feature and the fix path is already understood and bounded, resume `/sp-implement`.
+   - Include the recommended next command and one-line rationale in the final report so the workflow does not end in a dead-end audit summary.
    - [AGENT] Before the final completion report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `specify learning capture --command test ...`.
 
 10. **Check for extension hooks**

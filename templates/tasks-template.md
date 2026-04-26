@@ -329,6 +329,8 @@ With multiple developers:
 - [P] tasks = isolated write set, stable inputs, no incomplete dependencies, independent verification
 - [Story] label maps task to specific user story for traceability
 - Each user story should be independently completable and testable
+- Tests are default deliverables for behavior changes, bug fixes, and refactors whether or not `.specify/testing/TESTING_CONTRACT.md` exists
+- If the touched area lacks a reliable automated test surface, add bootstrap tasks before implementation so RED can be proven honestly
 - Verify tests fail before implementing
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
