@@ -20,6 +20,7 @@ def test_build_worker_bootstrap_payload_includes_packet_metadata() -> None:
         additional_metadata={
             "packet_summary": "task_id: T002",
             "required_references": "src/contracts/auth.py",
+            "context_bundle": "1. PROJECT-HANDBOOK.md [handbook] - root navigation artifact",
             "forbidden_drift": "Do not create a parallel auth stack",
             "validation_gates": "pytest tests/unit/test_auth_service.py -q",
             "native_dispatch_hint": "Dispatch bounded lanes through `spawn_agent`.",
@@ -30,12 +31,17 @@ def test_build_worker_bootstrap_payload_includes_packet_metadata() -> None:
 
     assert "packet_summary: task_id: T002" in payload.instructions
     assert "required_references: src/contracts/auth.py" in payload.instructions
+    assert (
+        "context_bundle: 1. PROJECT-HANDBOOK.md [handbook] - root navigation artifact"
+        in payload.instructions
+    )
     assert "forbidden_drift: Do not create a parallel auth stack" in payload.instructions
     assert "validation_gates: pytest tests/unit/test_auth_service.py -q" in payload.instructions
     assert "native_dispatch_hint: Dispatch bounded lanes through `spawn_agent`." in payload.instructions
     assert "native_join_hint: Rejoin with `wait_agent`, integrate, then `close_agent`." in payload.instructions
     assert "result_contract_hint: WorkerTaskResult contract with validation evidence." in payload.instructions
     assert "hard rule: do not execute from raw task text alone" in payload.instructions
+    assert "acknowledge the execution context bundle before claiming work" in payload.instructions.lower()
 
 
 def test_build_worker_bootstrap_payload_can_carry_request_and_result_targets() -> None:

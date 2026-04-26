@@ -16,6 +16,9 @@ WorkerStatus = Literal["pending", "success", "blocked", "failed"]
 class RuleAcknowledgement:
     required_references_read: bool = False
     forbidden_drift_respected: bool = False
+    context_bundle_read: bool = False
+    paths_read: list[str] = field(default_factory=list)
+    critical_notes: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -53,12 +56,21 @@ def worker_task_result_from_json(text: str) -> WorkerTaskResult:
         for item in payload.get("validation_results", [])
         if isinstance(item, dict)
     ]
-    rule_acknowledgement = RuleAcknowledgement(
-        **_filter_dataclass_payload(
-            RuleAcknowledgement,
-            payload.get("rule_acknowledgement", {}),
-        )
+    raw_ack = _filter_dataclass_payload(
+        RuleAcknowledgement,
+        payload.get("rule_acknowledgement", {}),
     )
+    raw_ack["paths_read"] = [
+        str(item).strip()
+        for item in raw_ack.get("paths_read", [])
+        if str(item).strip()
+    ]
+    raw_ack["critical_notes"] = [
+        str(item).strip()
+        for item in raw_ack.get("critical_notes", [])
+        if str(item).strip()
+    ]
+    rule_acknowledgement = RuleAcknowledgement(**raw_ack)
     result_payload = _filter_dataclass_payload(WorkerTaskResult, payload)
     result_payload["validation_results"] = validation_results
     result_payload["rule_acknowledgement"] = rule_acknowledgement

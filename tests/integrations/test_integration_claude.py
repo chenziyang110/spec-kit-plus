@@ -683,6 +683,14 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "if the first `teamcreate` / agent teams call fails as though the feature is disabled" in lower
     assert "explicitly remind the user to enable agent teams in claude code settings or environment" in lower
     assert "hard prerequisite for `/sp-implement-teams`" in lower
+    assert "executioncontextbundle" in lower or "execution context bundle" in lower
+    assert "project-handbook.md" in lower
+    assert ".specify/project-map/workflows.md" in lower
+    assert ".specify/testing/TESTING_CONTRACT.md".lower() in lower
+    assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in lower
+    assert "read-order" in lower or "read order" in lower
+    assert "ack the context bundle before claiming work" in lower
+    assert "sendmessage" in lower and "context_ack" in lower
     assert "inherit claude code's configured subagent model behavior" in lower
     assert "`claude_code_subagent_model`" in lower
     assert "do not derive teammate model from `anthropic_model`" in lower

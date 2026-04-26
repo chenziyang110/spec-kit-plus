@@ -1,6 +1,7 @@
 import pytest
 
 from specify_cli.execution.packet_schema import (
+    ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
     PacketReference,
@@ -29,6 +30,17 @@ def sample_packet() -> WorkerTaskPacket:
             write_scope=["src/services/auth_service.py"],
             read_scope=["src/contracts/auth.py"],
         ),
+        context_bundle=[
+            ContextBundleItem(
+                path="PROJECT-HANDBOOK.md",
+                kind="handbook",
+                purpose="Route the worker to the canonical project navigation entrypoint",
+                required_for=["workflow_boundary"],
+                read_order=1,
+                must_read=True,
+                selection_reason="root navigation artifact",
+            )
+        ],
         required_references=[
             PacketReference(
                 path="src/contracts/auth.py",
@@ -83,3 +95,14 @@ def test_validate_worker_task_packet_rejects_missing_intent_contract(
         validate_worker_task_packet(sample_packet)
 
     assert exc.value.code == "DP1"
+
+
+def test_validate_worker_task_packet_rejects_missing_context_bundle(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.context_bundle = []
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP2"

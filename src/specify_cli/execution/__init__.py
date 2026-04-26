@@ -3,6 +3,7 @@
 from .packet_compiler import compile_worker_task_packet
 from .packet_renderer import render_packet_summary
 from .packet_schema import (
+    ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
     PacketReference,
@@ -32,6 +33,7 @@ from specify_cli.verification import (
 __all__ = [
     "DispatchPolicy",
     "ExecutionIntent",
+    "ContextBundleItem",
     "PacketReference",
     "PacketScope",
     "PacketValidationError",

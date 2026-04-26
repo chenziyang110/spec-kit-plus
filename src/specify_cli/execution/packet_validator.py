@@ -23,6 +23,8 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
         raise PacketValidationError("DP1", "execution intent contract must be present in the packet")
     if not packet.scope.write_scope:
         raise PacketValidationError("DP1", "write_scope is required for delegated execution")
+    if not packet.context_bundle:
+        raise PacketValidationError("DP2", "context_bundle must be compiled into the packet")
     if not packet.required_references:
         raise PacketValidationError("DP2", "required_references must be compiled into the packet")
     if not packet.hard_rules:

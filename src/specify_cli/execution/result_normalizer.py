@@ -87,6 +87,11 @@ def _normalize_rule_acknowledgement(payload: dict[str, Any]) -> RuleAcknowledgem
         forbidden_drift_respected=bool(
             _pick(raw, "forbidden_drift_respected", "forbiddenDriftRespected")
         ),
+        context_bundle_read=bool(
+            _pick(raw, "context_bundle_read", "contextBundleRead")
+        ),
+        paths_read=_as_str_list(_pick(raw, "paths_read", "pathsRead")),
+        critical_notes=_as_str_list(_pick(raw, "critical_notes", "criticalNotes")),
     )
 
 

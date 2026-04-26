@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from .packet_schema import (
+    ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
     PacketReference,
@@ -63,6 +64,108 @@ def _unique(values: list[str]) -> list[str]:
     return ordered
 
 
+def _context_bundle_from_project_docs(
+    project_root: Path,
+    *,
+    required_references: list[PacketReference],
+) -> list[ContextBundleItem]:
+    specs: list[tuple[str, str, str, list[str], str]] = [
+        (
+            "PROJECT-HANDBOOK.md",
+            "handbook",
+            "Root navigation artifact for the repository and task-relevant subsystem routing.",
+            ["workflow_boundary", "architecture_boundary"],
+            "root navigation artifact",
+        ),
+        (
+            ".specify/project-map/ARCHITECTURE.md",
+            "project_map",
+            "Top-level architecture boundaries and truth-owning layers for the touched area.",
+            ["architecture_boundary", "forbidden_drift"],
+            "architecture map constrains boundary changes",
+        ),
+        (
+            ".specify/project-map/WORKFLOWS.md",
+            "project_map",
+            "Execution flow, join-point, and lane handoff rules for the current implementation path.",
+            ["workflow_boundary", "runtime_constraints"],
+            "workflow map explains team coordination semantics",
+        ),
+        (
+            ".specify/project-map/OPERATIONS.md",
+            "project_map",
+            "Runtime constraints, operator notes, and recovery paths that can block delegated execution.",
+            ["runtime_constraints"],
+            "operations map captures build and runtime caveats",
+        ),
+        (
+            ".specify/project-map/TESTING.md",
+            "project_map",
+            "Smallest meaningful verification routes and regression-sensitive areas.",
+            ["validation"],
+            "testing map defines minimum trustworthy verification",
+        ),
+        (
+            ".specify/testing/TESTING_CONTRACT.md",
+            "testing_contract",
+            "Project-level testing obligations that are binding for behavior changes and bug fixes.",
+            ["validation", "forbidden_drift"],
+            "testing contract constrains what counts as complete",
+        ),
+        (
+            ".specify/testing/TESTING_PLAYBOOK.md",
+            "testing_playbook",
+            "Canonical commands for targeted and full verification during execution.",
+            ["validation"],
+            "testing playbook provides runnable verification commands",
+        ),
+    ]
+
+    items: list[ContextBundleItem] = []
+    seen: set[str] = set()
+    read_order = 1
+
+    for relative_path, kind, purpose, required_for, selection_reason in specs:
+        if not (project_root / relative_path).exists():
+            continue
+        normalized = relative_path.replace("\\", "/")
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        items.append(
+            ContextBundleItem(
+                path=normalized,
+                kind=kind,
+                purpose=purpose,
+                required_for=required_for,
+                read_order=read_order,
+                must_read=True,
+                selection_reason=selection_reason,
+            )
+        )
+        read_order += 1
+
+    for reference in required_references:
+        normalized = reference.path.replace("\\", "/")
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        items.append(
+            ContextBundleItem(
+                path=normalized,
+                kind="task_reference",
+                purpose=reference.reason,
+                required_for=["forbidden_drift"],
+                read_order=read_order,
+                must_read=True,
+                selection_reason="compiled from Required Implementation References",
+            )
+        )
+        read_order += 1
+
+    return items
+
+
 def compile_worker_task_packet(
     *,
     project_root: Path,
@@ -99,6 +202,12 @@ def compile_worker_task_packet(
     if not validation_gates:
         validation_gates = [f"pytest -q -k {task_id.lower()}"]
 
+    context_bundle = _context_bundle_from_project_docs(
+        project_root,
+        required_references=required_references,
+    )
+    read_scope = _unique([item.path for item in context_bundle] + [ref.path for ref in required_references])
+
     packet = WorkerTaskPacket(
         feature_id=feature_dir.name,
         task_id=task_id,
@@ -111,8 +220,9 @@ def compile_worker_task_packet(
         ),
         scope=PacketScope(
             write_scope=_paths_from_task_body(resolved_task_body),
-            read_scope=[ref.path for ref in required_references],
+            read_scope=read_scope,
         ),
+        context_bundle=context_bundle,
         required_references=required_references,
         hard_rules=hard_rules,
         forbidden_drift=forbidden_drift,

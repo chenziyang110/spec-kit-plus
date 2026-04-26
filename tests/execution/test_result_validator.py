@@ -1,6 +1,7 @@
 import pytest
 
 from specify_cli.execution.packet_schema import (
+    ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
     PacketReference,
@@ -32,6 +33,26 @@ def sample_packet() -> WorkerTaskPacket:
             write_scope=["src/services/auth_service.py"],
             read_scope=["src/contracts/auth.py"],
         ),
+        context_bundle=[
+            ContextBundleItem(
+                path="PROJECT-HANDBOOK.md",
+                kind="handbook",
+                purpose="Route the worker to the canonical project navigation entrypoint",
+                required_for=["workflow_boundary"],
+                read_order=1,
+                must_read=True,
+                selection_reason="root navigation artifact",
+            ),
+            ContextBundleItem(
+                path=".specify/project-map/WORKFLOWS.md",
+                kind="project_map",
+                purpose="Describe when to use teams and when to fall back to leader-local closure",
+                required_for=["workflow_boundary", "runtime_constraints"],
+                read_order=2,
+                must_read=True,
+                selection_reason="teams execution policy lives here",
+            ),
+        ],
         required_references=[
             PacketReference(
                 path="src/contracts/auth.py",
@@ -64,6 +85,8 @@ def test_validate_worker_task_result_accepts_acknowledged_result(
         rule_acknowledgement=RuleAcknowledgement(
             required_references_read=True,
             forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
         ),
     )
 
@@ -107,6 +130,8 @@ def test_validate_worker_task_result_accepts_blocked_result_with_fail_fast_conte
         rule_acknowledgement=RuleAcknowledgement(
             required_references_read=True,
             forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
         ),
     )
 
@@ -140,6 +165,8 @@ def test_validate_worker_task_result_rejects_blocked_result_without_recovery_con
         rule_acknowledgement=RuleAcknowledgement(
             required_references_read=True,
             forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
         ),
     )
 
@@ -147,3 +174,32 @@ def test_validate_worker_task_result_rejects_blocked_result_without_recovery_con
         validate_worker_task_result(result, sample_packet)
 
     assert exc.value.code == "DP3"
+
+
+def test_validate_worker_task_result_rejects_missing_context_bundle_receipts(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=["PROJECT-HANDBOOK.md"],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "context bundle" in exc.value.message

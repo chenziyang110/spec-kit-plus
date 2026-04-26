@@ -21,6 +21,22 @@ def validate_worker_task_result(
             raise PacketValidationError("DP3", "worker did not acknowledge required references")
         if not result.rule_acknowledgement.forbidden_drift_respected:
             raise PacketValidationError("DP3", "worker did not acknowledge forbidden drift")
+        required_context_paths = [
+            item.path
+            for item in packet.context_bundle
+            if item.must_read
+        ]
+        if required_context_paths:
+            if not result.rule_acknowledgement.context_bundle_read:
+                raise PacketValidationError("DP3", "worker did not acknowledge execution context bundle")
+            read_paths = set(result.rule_acknowledgement.paths_read)
+            missing_paths = [path for path in required_context_paths if path not in read_paths]
+            if missing_paths:
+                missing_text = ", ".join(missing_paths)
+                raise PacketValidationError(
+                    "DP3",
+                    f"worker did not acknowledge required context bundle paths: {missing_text}",
+                )
     if result.status == "blocked":
         if not result.blockers:
             raise PacketValidationError("DP3", "blocked worker result is missing blocker evidence")

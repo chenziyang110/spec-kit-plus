@@ -115,6 +115,8 @@ def _write_success_results(project: Path) -> None:
             rule_acknowledgement=RuleAcknowledgement(
                 required_references_read=True,
                 forbidden_drift_respected=True,
+                context_bundle_read=True,
+                paths_read=["src/contracts/example.py"],
             ),
         )
         path.write_text(json.dumps(worker_task_result_payload(result), ensure_ascii=False, indent=2), encoding="utf-8")

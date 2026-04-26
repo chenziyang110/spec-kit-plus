@@ -15,7 +15,6 @@ from specify_cli.codex_team import task_ops
 from specify_cli.codex_team.state_paths import (
     codex_team_state_root,
     dispatch_record_path,
-    result_record_path,
     runtime_session_path,
     task_record_path,
     worker_heartbeat_path,
@@ -152,15 +151,28 @@ def _worker_result_template(packet: Any) -> dict[str, object]:
         "rule_acknowledgement": {
             "required_references_read": True,
             "forbidden_drift_respected": True,
+            "context_bundle_read": True,
+            "paths_read": [item.path for item in packet.context_bundle if item.must_read],
+            "critical_notes": [],
         },
     }
 
 
 def _agent_teams_task_description(packet: Any, *, request_id: str) -> str:
     template = json.dumps(_worker_result_template(packet), ensure_ascii=False, indent=2)
+    ordered_context = sorted(packet.context_bundle, key=lambda item: (item.read_order, item.path))
     lines = [
         f"Delegated task {packet.task_id}",
         f"Objective: {packet.objective}",
+        "",
+        "Execution context bundle (read before claiming work):",
+        *[
+            (
+                f"{item.read_order}. {item.path} [{item.kind}] - {item.purpose}"
+                + (f" (why: {item.selection_reason})" if item.selection_reason else "")
+            )
+            for item in ordered_context
+        ],
         "",
         "Required implementation references:",
         *[f"- {reference.path}" for reference in packet.required_references],
@@ -180,6 +192,7 @@ def _agent_teams_task_description(packet: Any, *, request_id: str) -> str:
         "",
         "If you are blocked or failed, keep the same JSON shape but set status to blocked/failed and fill blockers, failed_assumptions, and suggested_recovery_actions truthfully.",
         "Set changed_files to the files you actually changed and preserve rule_acknowledgement truthfully.",
+        "Acknowledge the execution context bundle in `rule_acknowledgement` before you claim or complete the task.",
     ]
     return "\n".join(lines)
 

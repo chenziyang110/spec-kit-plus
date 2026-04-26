@@ -8,6 +8,13 @@ from typing import Literal
 
 
 PacketMode = Literal["hard_fail"]
+ContextKind = Literal[
+    "handbook",
+    "project_map",
+    "testing_contract",
+    "testing_playbook",
+    "task_reference",
+]
 
 
 @dataclass(slots=True)
@@ -20,6 +27,17 @@ class PacketReference:
 class PacketScope:
     write_scope: list[str] = field(default_factory=list)
     read_scope: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ContextBundleItem:
+    path: str
+    kind: ContextKind = "task_reference"
+    purpose: str = ""
+    required_for: list[str] = field(default_factory=list)
+    read_order: int = 0
+    must_read: bool = True
+    selection_reason: str = ""
 
 
 @dataclass(slots=True)
@@ -42,6 +60,7 @@ class WorkerTaskPacket:
     story_id: str
     objective: str
     scope: PacketScope
+    context_bundle: list[ContextBundleItem]
     required_references: list[PacketReference]
     hard_rules: list[str]
     forbidden_drift: list[str]
@@ -74,6 +93,11 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
         for item in payload.get("required_references", [])
         if isinstance(item, dict)
     ]
+    context_bundle = [
+        ContextBundleItem(**_filter_dataclass_payload(ContextBundleItem, item))
+        for item in payload.get("context_bundle", [])
+        if isinstance(item, dict)
+    ]
     intent = ExecutionIntent(
         **_filter_dataclass_payload(ExecutionIntent, payload.get("intent", {}))
     )
@@ -83,6 +107,7 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
     packet_payload = _filter_dataclass_payload(WorkerTaskPacket, payload)
     packet_payload["intent"] = intent
     packet_payload["scope"] = scope
+    packet_payload["context_bundle"] = context_bundle
     packet_payload["required_references"] = required_references
     packet_payload["dispatch_policy"] = dispatch_policy
     return WorkerTaskPacket(**packet_payload)

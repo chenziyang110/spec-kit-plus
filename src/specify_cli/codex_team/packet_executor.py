@@ -52,6 +52,8 @@ def build_result_template(packet: WorkerTaskPacket) -> dict[str, object]:
         rule_acknowledgement=RuleAcknowledgement(
             required_references_read=True,
             forbidden_drift_respected=True,
+            context_bundle_read=bool(packet.context_bundle),
+            paths_read=[item.path for item in packet.context_bundle if item.must_read],
         ),
     )
     return worker_task_result_payload(result)
@@ -77,6 +79,8 @@ def _blocked_result(packet: WorkerTaskPacket, *, reason: str) -> WorkerTaskResul
         rule_acknowledgement=RuleAcknowledgement(
             required_references_read=True,
             forbidden_drift_respected=True,
+            context_bundle_read=bool(packet.context_bundle),
+            paths_read=[item.path for item in packet.context_bundle if item.must_read],
         ),
     )
 

@@ -1,4 +1,5 @@
 from specify_cli.execution.packet_schema import (
+    ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
     PacketReference,
@@ -8,6 +9,7 @@ from specify_cli.execution.packet_schema import (
     worker_task_packet_payload,
 )
 from specify_cli.execution.result_schema import (
+    RuleAcknowledgement,
     ValidationResult,
     WorkerTaskResult,
     worker_task_result_from_json,
@@ -31,6 +33,17 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
             write_scope=["src/services/auth_service.py"],
             read_scope=["src/contracts/auth.py"],
         ),
+        context_bundle=[
+            ContextBundleItem(
+                path="PROJECT-HANDBOOK.md",
+                kind="handbook",
+                purpose="Route the worker to the canonical project navigation entrypoint",
+                required_for=["workflow_boundary"],
+                read_order=1,
+                must_read=True,
+                selection_reason="root navigation artifact",
+            )
+        ],
         required_references=[
             PacketReference(
                 path="src/contracts/auth.py",
@@ -84,6 +97,17 @@ def test_worker_task_packet_round_trips_through_json() -> None:
             write_scope=["src/services/auth_service.py"],
             read_scope=["src/contracts/auth.py"],
         ),
+        context_bundle=[
+            ContextBundleItem(
+                path="PROJECT-HANDBOOK.md",
+                kind="handbook",
+                purpose="Route the worker to the canonical project navigation entrypoint",
+                required_for=["workflow_boundary"],
+                read_order=1,
+                must_read=True,
+                selection_reason="root navigation artifact",
+            )
+        ],
         required_references=[
             PacketReference(
                 path="src/contracts/auth.py",
@@ -103,6 +127,7 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     assert restored.task_id == "T017"
     assert restored.intent.constraints == ["Do not create a parallel auth stack"]
     assert restored.scope.write_scope == ["src/services/auth_service.py"]
+    assert restored.context_bundle[0].path == "PROJECT-HANDBOOK.md"
     assert restored.required_references[0].path == "src/contracts/auth.py"
 
 
@@ -126,3 +151,36 @@ def test_worker_task_result_round_trips_through_json() -> None:
     assert restored.task_id == "T017"
     assert restored.summary == "Implemented auth flow"
     assert restored.validation_results[0].output == "1 passed"
+
+
+def test_worker_task_result_round_trips_context_read_receipts() -> None:
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
+            critical_notes=["validated the canonical worker verification route before execution"],
+        ),
+    )
+
+    restored = worker_task_result_from_json(json.dumps(worker_task_result_payload(result)))
+
+    assert restored.rule_acknowledgement.context_bundle_read is True
+    assert restored.rule_acknowledgement.paths_read == [
+        "PROJECT-HANDBOOK.md",
+        ".specify/project-map/WORKFLOWS.md",
+    ]
+    assert restored.rule_acknowledgement.critical_notes == [
+        "validated the canonical worker verification route before execution"
+    ]

@@ -10,7 +10,6 @@ from specify_cli.codex_team.auto_dispatch import (
     AutoDispatchUnavailableError,
     complete_dispatched_batch,
     find_next_ready_parallel_batch,
-    launch_dispatched_worker,
     parse_tasks_markdown,
     route_ready_parallel_batch,
 )
@@ -637,6 +636,9 @@ def test_route_ready_parallel_batch_uses_agent_teams_batch_executor_when_availab
     assert launched[0]["batch_id"] == "default-parallel-batch-1-1"
     assert launched[0]["runtime_cli_path"] == str(runtime_cli)
     assert [task["task_id"] for task in launched[0]["task_specs"]] == ["T002", "T003"]
+    assert "Execution context bundle (read before claiming work):" in launched[0]["task_specs"][0]["description"]
+    assert "src/contracts/auth.py [task_reference]" in launched[0]["task_specs"][0]["description"]
+    assert "Acknowledge the execution context bundle in `rule_acknowledgement`" in launched[0]["task_specs"][0]["description"]
 
 
 def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(
@@ -857,6 +859,8 @@ def test_terminal_task_completion_auto_completes_batch(monkeypatch, codex_team_p
             rule_acknowledgement=RuleAcknowledgement(
                 required_references_read=True,
                 forbidden_drift_respected=True,
+                context_bundle_read=True,
+                paths_read=["src/contracts/auth.py"],
             ),
         )
         result_path.write_text(
@@ -918,6 +922,8 @@ def test_complete_dispatched_batch_validates_structured_worker_results(monkeypat
             rule_acknowledgement=RuleAcknowledgement(
                 required_references_read=True,
                 forbidden_drift_respected=True,
+                context_bundle_read=True,
+                paths_read=["src/contracts/auth.py"],
             ),
         )
         result_path.write_text(
@@ -990,6 +996,8 @@ def test_complete_dispatched_batch_waits_for_review_when_review_gate_is_required
             rule_acknowledgement=RuleAcknowledgement(
                 required_references_read=True,
                 forbidden_drift_respected=True,
+                context_bundle_read=True,
+                paths_read=["src/contracts/auth.py"],
             ),
         )
         result_path.write_text(
