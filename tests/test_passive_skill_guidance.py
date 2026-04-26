@@ -36,6 +36,7 @@ def test_project_learning_defines_explicit_start_and_capture_matrix_for_core_wor
     workflow_commands = {
         "sp-specify": "specify",
         "sp-plan": "plan",
+        "sp-checklist": "checklist",
         "sp-tasks": "tasks",
         "sp-test": "test",
         "sp-implement": "implement",

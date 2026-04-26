@@ -50,6 +50,7 @@ Each `specify` workflow has a specific role in consuming and producing learnings
 
 - **`sp-specify`**: Primary producer of `workflow_gap`, `user_preference`, and `project_constraint`.
 - **`sp-plan`**: Primary producer of `workflow_gap` and `project_constraint`.
+- **`sp-checklist`**: Focused producer of requirement-quality `workflow_gap` and checklist-shaping `project_constraint`.
 - **`sp-tasks`**: Primary producer of reusable decomposition `workflow_gap` and execution-shaping `project_constraint`.
 - **`sp-test`**: Primary producer of reusable testing `workflow_gap`, testing-specific `project_constraint`, and reusable `pitfall` findings about the project test surface.
 - **`sp-implement`**: Primary producer of `pitfall`, `recovery_path`, and `project_constraint`.
@@ -72,6 +73,8 @@ Use the `specify learning` CLI to manage the learning state explicitly:
   before request shaping, discovery, or spec framing begins.
 - **`sp-plan`**: Run `specify learning start --command plan --format json` before
   decomposition, sequencing, or plan shaping begins.
+- **`sp-checklist`**: Run `specify learning start --command checklist --format json`
+  before checklist shaping, review-scope selection, or requirement-quality analysis begins.
 - **`sp-tasks`**: Run `specify learning start --command tasks --format json` before
   task-batch generation or task-shaping begins.
 - **`sp-test`**: Run `specify learning start --command test --format json` before
@@ -95,6 +98,9 @@ Use the `specify learning` CLI to manage the learning state explicitly:
 - **`sp-plan`**: Use `specify learning capture --command plan --type workflow_gap`
   when planning exposes reusable sequencing gaps, ownership gaps, or
   `project_constraint`.
+- **`sp-checklist`**: Use `specify learning capture --command checklist --type workflow_gap`
+  when checklist generation exposes reusable requirement-quality gaps, repeated ambiguity patterns, or
+  checklist-shaping `project_constraint`.
 - **`sp-tasks`**: Use `specify learning capture --command tasks --type workflow_gap`
   when task decomposition exposes reusable batching rules, dependency gaps, or
   execution-shaping `project_constraint`.

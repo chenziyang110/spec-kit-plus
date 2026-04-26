@@ -33,13 +33,30 @@ scripts:
 
 {{spec-kit-include: ../command-partials/checklist/shell.md}}
 
+## Passive Project Learning Layer
+
+- [AGENT] Run `specify learning start --command checklist --format json` when available so passive learning files exist and the current checklist run can consume reusable requirement-quality lessons before generating new review items.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader checklist shaping.
+- Review `.planning/learnings/candidates.md` only when it still contains checklist-relevant candidate learnings after the passive start step, especially repeated requirement gaps, review defaults, or project constraints that should shape the generated checklist.
+- [AGENT] Before the final report, capture any new `workflow_gap` or `project_constraint` learning through `specify learning capture --command checklist ...` when the checklist exposes a reusable requirement-quality gap that should influence future workflows.
+
 ## Execution Steps
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS list.
    - All file paths must be absolute.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
-2. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
+2. **Read brownfield navigation context before shaping the checklist**
+   - Check whether `.specify/project-map/status.json` exists.
+   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
+   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If checklist-relevant coverage is stale for the current feature area, run `/sp-map-codebase` before continuing.
+   - [AGENT] Read `PROJECT-HANDBOOK.md`.
+   - [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` when they shape the checklist focus, review audience, or scenario coverage.
+   - Treat this as a coverage-model check, not a file-presence check. If the current handbook/project-map set cannot tell you the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before continuing.
+
+3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
    - Be generated from the user's phrasing + extracted signals from spec/plan/tasks
    - Only ask about information that materially changes checklist content
    - Be skipped individually if already unambiguous in `$ARGUMENTS`
@@ -74,24 +91,27 @@ scripts:
 
    Output the questions (label Q1/Q2/Q3). After answers: if ≥2 scenario classes (Alternate / Exception / Recovery / Non-Functional domain) remain unclear, you MAY ask up to TWO more targeted follow‑ups (Q4/Q5) with a one-line justification each (e.g., "Unresolved recovery path risk"). Do not exceed five total questions. Skip escalation if user explicitly declines more.
 
-3. **Understand user request**: Combine `$ARGUMENTS` + clarifying answers:
+4. **Understand user request**: Combine `$ARGUMENTS` + clarifying answers:
    - Derive checklist theme (e.g., security, review, deploy, ux)
    - Consolidate explicit must-have items mentioned by user
    - Map focus selections to category scaffolding
-   - Infer any missing context from spec/plan/tasks (do NOT hallucinate)
+   - Infer any missing context from spec/plan/tasks plus handbook/project-map coverage (do NOT hallucinate)
 
-4. **Load feature context**: Read from FEATURE_DIR:
+5. **Load feature context**: Read from FEATURE_DIR:
    - spec.md: Feature requirements and scope
    - plan.md (if exists): Technical details, dependencies
    - tasks.md (if exists): Implementation tasks
+   - alignment.md or context.md when they materially change requirement interpretation
+   - `FEATURE_DIR/checklists/requirements.md` when it exists and the new checklist must complement rather than duplicate the requirement-quality baseline
 
    **Context Loading Strategy**:
    - Load only necessary portions relevant to active focus areas (avoid full-file dumping)
    - Prefer summarizing long sections into concise scenario/requirement bullets
    - Use progressive disclosure: add follow-on retrieval only if gaps detected
    - If source docs are large, generate interim summary items instead of embedding raw text
+   - Use handbook/project-map coverage to identify which requirement surfaces, interfaces, and scenario classes deserve review emphasis.
 
-5. **Generate checklist** - Create "Unit Tests for Requirements":
+6. **Generate checklist** - Create "Unit Tests for Requirements":
    - Create `FEATURE_DIR/checklists/` directory if it doesn't exist
    - Generate unique checklist filename:
      - Use short, descriptive name based on domain (e.g., `ux.md`, `api.md`, `security.md`)
@@ -209,13 +229,17 @@ scripts:
    - ✅ "Are [edge cases/scenarios] addressed in requirements?"
    - ✅ "Does the spec define [missing aspect]?"
 
-6. **Structure Reference**: Generate the checklist following the canonical template in `templates/checklist-template.md` for title, meta section, category headings, and ID formatting. If template is unavailable, use: H1 title, purpose/created meta lines, `##` category sections containing `- [ ] CHK### <requirement item>` lines with globally incrementing IDs starting at CHK001.
+7. **Structure Reference**: Generate the checklist following the canonical template in `templates/checklist-template.md` for title, meta section, category headings, and ID formatting. If template is unavailable, use: H1 title, purpose/created meta lines, `##` category sections containing `- [ ] CHK### <requirement item>` lines with globally incrementing IDs starting at CHK001.
 
-7. **Report**: Output full path to checklist file, item count, and summarize whether the run created a new file or appended to an existing one. Summarize:
+8. **Report**: Output full path to checklist file, item count, and summarize whether the run created a new file or appended to an existing one. Summarize:
    - Focus areas selected
    - Depth level
    - Actor/timing
    - Any explicit user-specified must-have items incorporated
+   - Recommended next workflow:
+     - If the checklist reveals planning-critical requirement gaps, contradictory behavior, or missing acceptance criteria, recommend `/sp-specify` (or `/sp-spec-extend` when the spec package already exists and only needs deeper analysis).
+     - If the checklist exposes plan-shaping technical or artifact completeness gaps, recommend `/sp-plan`.
+     - If the checklist is materially satisfied and execution preparation should continue through cross-artifact validation, recommend `/sp-analyze`.
 
 **Important**: Each `/sp.checklist` command invocation uses a short, descriptive checklist filename and either creates a new file or appends to an existing one. This allows:
 

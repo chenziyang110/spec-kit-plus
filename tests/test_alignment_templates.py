@@ -1064,6 +1064,19 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "Treat the textual Q1/Q2/Q3 and Q4/Q5 format as fallback-only guidance" in content
     assert "native tool fields" in lowered
     assert "Output the questions (label Q1/Q2/Q3)." in content
+    assert ".specify/memory/constitution.md" in content
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
+    assert "specify learning start --command checklist --format json" in lowered
+    assert "specify learning capture --command checklist" in lowered
+    assert "project-handbook.md" in lowered
+    assert ".specify/project-map/status.json" in lowered
+    assert "run `/sp-map-codebase` before continuing" in lowered
+    assert "if the checklist reveals planning-critical requirement gaps" in lowered
+    assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered
+    assert "recommend `/sp-plan`" in lowered
+    assert "recommend `/sp-analyze`" in lowered
 
 
 def test_alignment_template_exists():

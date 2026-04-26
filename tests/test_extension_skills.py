@@ -474,6 +474,21 @@ class TestBuiltInSkillGeneration:
         assert "root cause is still unknown" in quick_body.lower() or "root cause is not yet known" in quick_body.lower()
         assert "surface-only" in quick_body.lower() or "symptom-only" in quick_body.lower()
 
+        checklist_body = _body_without_frontmatter(skills_dir / "sp-checklist" / "SKILL.md")
+        checklist_lower = checklist_body.lower()
+        assert ".specify/memory/constitution.md" in checklist_lower
+        assert ".specify/memory/project-rules.md" in checklist_lower
+        assert ".specify/memory/project-learnings.md" in checklist_lower
+        assert ".planning/learnings/candidates.md" in checklist_lower
+        assert "specify learning start --command checklist --format json" in checklist_lower
+        assert "specify learning capture --command checklist" in checklist_lower
+        assert "project-handbook.md" in checklist_lower
+        assert ".specify/project-map/status.json" in checklist_lower
+        assert "run `/sp-map-codebase` before continuing" in checklist_lower
+        assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
+        assert "recommend `/sp-plan`" in checklist_lower
+        assert "recommend `/sp-analyze`" in checklist_lower
+
         debug_body = _body_without_frontmatter(skills_dir / "sp-debug" / "SKILL.md")
         debug_lower = debug_body.lower()
         assert "observer framing" in debug_lower
