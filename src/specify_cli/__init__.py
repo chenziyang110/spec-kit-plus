@@ -156,6 +156,15 @@ def _build_ai_assistant_help() -> str:
 AI_ASSISTANT_HELP = _build_ai_assistant_help()
 
 SCRIPT_TYPE_CHOICES = {"sh": "POSIX Shell (bash/zsh)", "ps": "PowerShell"}
+CONSTITUTION_PROFILE_CHOICES = {
+    "product": "Balanced default for application and product repositories",
+    "minimal": "Lean default for small repositories and low-ceremony teams",
+    "library": "Compatibility-focused default for reusable packages and CLIs",
+    "regulated": "Higher-control default for security, compliance, and auditability",
+}
+CONSTITUTION_PROFILE_ALIASES = {
+    "default": "product",
+}
 
 CLAUDE_LOCAL_PATH = Path.home() / ".claude" / "local" / "claude"
 CLAUDE_NPM_LOCAL_PATH = Path.home() / ".claude" / "local" / "node_modules" / ".bin" / "claude"
@@ -530,7 +539,15 @@ def run_command(cmd: list[str], check_return: bool = True, capture: bool = False
     """Run a shell command and optionally capture output."""
     try:
         if capture:
-            result = subprocess.run(cmd, check=check_return, capture_output=True, text=True, shell=shell)
+            result = subprocess.run(
+                cmd,
+                check=check_return,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                shell=shell,
+            )
             return result.stdout.strip()
         else:
             subprocess.run(cmd, check=check_return, shell=shell)
@@ -671,7 +688,14 @@ def _run_quick_helper(
         "true" if include_all else "false",
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
     if result.returncode != 0:
         error_output = (result.stderr or result.stdout or "").strip() or "quick helper failed"
         console.print(f"[red]Error:[/red] {error_output}")
@@ -753,7 +777,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.",
             "- If that refresh cannot happen in the current pass, mark `.specify/project-map/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-codebase`.",
-            "- Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the navigation system current.",
+            "- Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.",
             "",
             "- Preserve content outside this managed block.",
             SPEC_KIT_BLOCK_END,
@@ -1323,6 +1347,13 @@ def learning_capture_command(
     applies_to: list[str] | None = typer.Option(None, "--applies-to", help="Commands this learning should influence"),
     default_scope: str | None = typer.Option(None, "--scope", help="Default sharing scope label"),
     confirm: bool = typer.Option(False, "--confirm", help="Promote directly into project learnings instead of leaving as a candidate"),
+    pain_score: int | None = typer.Option(None, "--pain-score", help="Workflow friction score that triggered capture"),
+    false_starts: list[str] | None = typer.Option(None, "--false-start", help="Misleading first attempts or false leads"),
+    rejected_paths: list[str] | None = typer.Option(None, "--rejected-path", help="Rejected diagnosis or implementation paths"),
+    decisive_signal: str | None = typer.Option(None, "--decisive-signal", help="Evidence that made the learning clear"),
+    root_cause_family: str | None = typer.Option(None, "--root-cause-family", help="Stable root-cause family label"),
+    injection_targets: list[str] | None = typer.Option(None, "--injection-target", help="Workflow, document, or rule surface that should receive the learning"),
+    promotion_hint: str | None = typer.Option(None, "--promotion-hint", help="When or how this candidate should be promoted"),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
     """Capture a passive learning observation for the current workflow."""
@@ -1339,6 +1370,13 @@ def learning_capture_command(
         applies_to=applies_to,
         default_scope=default_scope,
         confirm=confirm,
+        pain_score=pain_score,
+        false_starts=false_starts,
+        rejected_paths=rejected_paths,
+        decisive_signal=decisive_signal,
+        root_cause_family=root_cause_family,
+        injection_targets=injection_targets,
+        promotion_hint=promotion_hint,
     )
     if output_format.lower() == "json":
         print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -1520,9 +1558,30 @@ def init_git_repo(project_path: Path, quiet: bool = False) -> Tuple[bool, Option
         os.chdir(project_path)
         if not quiet:
             console.print("[cyan]Initializing git repository...[/cyan]")
-        subprocess.run(["git", "init"], check=True, capture_output=True, text=True)
-        subprocess.run(["git", "add", "."], check=True, capture_output=True, text=True)
-        subprocess.run(["git", "commit", "-m", "Initial commit from Specify template"], check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["git", "init"],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        subprocess.run(
+            ["git", "add", "."],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit from Specify template"],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
         if not quiet:
             console.print("[green]✓[/green] Git repository initialized")
         return True, None
@@ -2124,9 +2183,6 @@ def _materialize_constitution_template(template_text: str, project_path: Path) -
     today = date.today().isoformat()
     replacements = {
         "[PROJECT_NAME]": project_path.resolve().name,
-        "[CONSTITUTION_VERSION]": "1.1.0",
-        "[RATIFICATION_DATE]": today,
-        "[LAST_AMENDED_DATE]": today,
     }
 
     for token, value in replacements.items():
@@ -2135,10 +2191,120 @@ def _materialize_constitution_template(template_text: str, project_path: Path) -
     return template_text
 
 
-def ensure_constitution_from_template(project_path: Path, tracker: StepTracker | None = None) -> None:
+def _normalize_constitution_profile(profile: str | None) -> str:
+    normalized = (profile or "product").strip().lower()
+    normalized = CONSTITUTION_PROFILE_ALIASES.get(normalized, normalized)
+    if normalized not in CONSTITUTION_PROFILE_CHOICES:
+        raise ValueError(
+            f"Invalid constitution profile '{profile}'. Expected one of: "
+            f"{', '.join(sorted(CONSTITUTION_PROFILE_CHOICES))}."
+        )
+    return normalized
+
+
+def _constitution_asset_root(project_path: Path | None = None) -> Path:
+    candidates: list[Path] = []
+    if project_path is not None:
+        candidates.append(project_path / ".specify" / "templates" / "constitution")
+
+    core = _locate_core_pack()
+    if core:
+        candidates.append(core / "templates" / "constitution")
+
+    repo_root = Path(__file__).parent.parent.parent
+    candidates.append(repo_root / "templates" / "constitution")
+
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+
+    raise FileNotFoundError("Built-in constitution assets are missing")
+
+
+def _load_constitution_profile_definition(
+    constitution_profile: str,
+    project_path: Path | None = None,
+) -> dict[str, Any]:
+    profile_id = _normalize_constitution_profile(constitution_profile)
+    assets_root = _constitution_asset_root(project_path)
+    profile_path = assets_root / "profiles" / f"{profile_id}.yml"
+    profile_data = yaml.safe_load(profile_path.read_text(encoding="utf-8")) or {}
+    if not isinstance(profile_data, dict):
+        raise ValueError(f"Invalid constitution profile data in {profile_path}")
+    return profile_data
+
+
+def build_constitution_template_for_profile(
+    constitution_profile: str,
+    project_path: Path | None = None,
+) -> tuple[str, dict[str, Any]]:
+    profile_id = _normalize_constitution_profile(constitution_profile)
+    assets_root = _constitution_asset_root(project_path)
+    base_template = (assets_root / "base.md").read_text(encoding="utf-8")
+    profile_data = _load_constitution_profile_definition(profile_id, project_path)
+
+    replacements = {
+        "{{CORE_PRINCIPLES}}": str(profile_data.get("core_principles", "")).strip(),
+        "{{CONDITIONAL_GUIDANCE}}": str(profile_data.get("conditional_guidance", "")).strip(),
+        "{{ENGINEERING_STANDARDS}}": str(profile_data.get("engineering_standards", "")).strip(),
+        "{{WORKFLOW_AND_QUALITY_GATES}}": str(profile_data.get("workflow_and_quality_gates", "")).strip(),
+    }
+
+    rendered = base_template
+    for token, value in replacements.items():
+        rendered = rendered.replace(token, value)
+
+    rendered = re.sub(r"\n{3,}", "\n\n", rendered).strip() + "\n"
+    return rendered, profile_data
+
+
+def _is_builtin_constitution_template(
+    template_text: str,
+    project_path: Path | None = None,
+) -> bool:
+    for profile_id in CONSTITUTION_PROFILE_CHOICES:
+        built_text, _ = build_constitution_template_for_profile(profile_id, project_path)
+        if template_text == built_text:
+            return True
+    return False
+
+
+def ensure_constitution_template_for_profile(
+    project_path: Path,
+    constitution_profile: str = "product",
+) -> dict[str, Any]:
+    target_template = project_path / ".specify" / "templates" / "constitution-template.md"
+    built_text, profile_data = build_constitution_template_for_profile(
+        constitution_profile,
+        project_path,
+    )
+
+    if target_template.exists():
+        existing_text = target_template.read_text(encoding="utf-8")
+        if existing_text == built_text:
+            return {"applied": False, "reason": "already_selected", "profile": profile_data}
+        if not _is_builtin_constitution_template(existing_text, project_path):
+            return {"applied": False, "reason": "custom_template_preserved", "profile": profile_data}
+
+    target_template.parent.mkdir(parents=True, exist_ok=True)
+    target_template.write_text(built_text, encoding="utf-8")
+    return {"applied": True, "reason": "profile_applied", "profile": profile_data}
+
+
+def ensure_constitution_from_template(
+    project_path: Path,
+    tracker: StepTracker | None = None,
+    constitution_profile: str = "product",
+) -> None:
     """Copy constitution template to memory if it doesn't exist (preserves existing constitution on reinitialization)."""
     memory_constitution = project_path / ".specify" / "memory" / "constitution.md"
     template_constitution = project_path / ".specify" / "templates" / "constitution-template.md"
+
+    profile_result = ensure_constitution_template_for_profile(
+        project_path,
+        constitution_profile=constitution_profile,
+    )
+    profile_data = profile_result["profile"]
 
     # If constitution already exists in memory, preserve it
     if memory_constitution.exists():
@@ -2158,6 +2324,13 @@ def ensure_constitution_from_template(project_path: Path, tracker: StepTracker |
     try:
         memory_constitution.parent.mkdir(parents=True, exist_ok=True)
         template_text = template_constitution.read_text(encoding="utf-8")
+        today = date.today().isoformat()
+        template_text = template_text.replace(
+            "[CONSTITUTION_VERSION]",
+            str(profile_data.get("version", "1.0.0")),
+        )
+        template_text = template_text.replace("[RATIFICATION_DATE]", today)
+        template_text = template_text.replace("[LAST_AMENDED_DATE]", today)
         memory_constitution.write_text(
             _materialize_constitution_template(template_text, project_path),
             encoding="utf-8",
@@ -2228,7 +2401,7 @@ NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "spec-extend": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
-    "explain": "Use when the user needs the current stage artifact explained in plain language without changing the underlying spec, plan, or tasks.",
+    "explain": "Use when the user needs the current stage artifact or handbook/project-map atlas artifact explained in plain language without changing the underlying files.",
     "fast": "Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.",
     "quick": "Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.",
     "plan": "Use when the current specification package is ready for implementation planning and you need design artifacts before task breakdown or coding.",
@@ -2238,7 +2411,7 @@ SKILL_DESCRIPTIONS = {
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
     "checklist": "Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.",
     "test": "Use when you need to bootstrap or refresh the project's unit testing system so later Spec Kit Plus workflows can keep tests current by default.",
-    "map-codebase": "Use when handbook/project-map coverage is missing, stale, or insufficient and you need to generate or refresh the codebase navigation system from live code.",
+    "map-codebase": "Use when handbook/project-map coverage is missing, stale, or insufficient and you need to generate or refresh the atlas-style codebase handbook system from live code.",
     "taskstoissues": "Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.",
 }
 
@@ -2264,6 +2437,7 @@ def init(
     ai_assistant: str = typer.Option(None, "--ai", help=AI_ASSISTANT_HELP),
     ai_commands_dir: str = typer.Option(None, "--ai-commands-dir", help="Directory for agent command files (required with --ai generic, e.g. .myagent/commands/)"),
     script_type: str = typer.Option(None, "--script", help="Script type to use: sh or ps"),
+    constitution_profile: str = typer.Option("product", "--constitution-profile", help="Built-in constitution profile: product, minimal, library, or regulated"),
     ignore_agent_tools: bool = typer.Option(False, "--ignore-agent-tools", help="Skip checks for AI agent tools like Claude Code"),
     no_git: bool = typer.Option(False, "--no-git", help="Skip git repository initialization"),
     here: bool = typer.Option(False, "--here", help="Initialize project in the current directory instead of creating a new one"),
@@ -2313,6 +2487,7 @@ def init(
         specify init --here
         specify init --here --force  # Skip confirmation when current directory not empty
         specify init my-project --ai claude   # Claude installs skills by default
+        specify init my-project --constitution-profile library
         specify init --here --ai gemini --ai-skills
         specify init my-project --ai generic --ai-commands-dir .myagent/commands/  # Unsupported agent
         specify init my-project --offline  # Use bundled assets (no network access)
@@ -2333,6 +2508,15 @@ def init(
         console.print(f"[red]Error:[/red] Invalid value for --ai-commands-dir: '{ai_commands_dir}'")
         console.print("[yellow]Hint:[/yellow] Did you forget to provide a value for --ai-commands-dir?")
         console.print("[yellow]Example:[/yellow] specify init --ai generic --ai-commands-dir .myagent/commands/")
+        raise typer.Exit(1)
+
+    try:
+        constitution_profile = _normalize_constitution_profile(constitution_profile)
+    except ValueError:
+        console.print(
+            f"[red]Error:[/red] Invalid --constitution-profile value '{constitution_profile}'. "
+            f"Choose from: {', '.join(sorted(CONSTITUTION_PROFILE_CHOICES))}"
+        )
         raise typer.Exit(1)
 
     if ai_assistant:
@@ -2468,6 +2652,7 @@ def init(
     setup_lines = [
         f"{'Project':<15} [green]{project_path.name}[/green]",
         f"{'Working Path':<15} [dim]{current_dir}[/dim]",
+        f"{'Constitution':<15} [cyan]{constitution_profile}[/cyan]",
     ]
 
     if not here:
@@ -2593,7 +2778,11 @@ def init(
 
             ensure_executable_scripts(project_path, tracker=tracker)
 
-            ensure_constitution_from_template(project_path, tracker=tracker)
+            ensure_constitution_from_template(
+                project_path,
+                tracker=tracker,
+                constitution_profile=constitution_profile,
+            )
             ensure_learning_memory_from_templates(project_path, tracker=tracker)
 
             if not no_git:
@@ -2623,6 +2812,7 @@ def init(
                 "preset": preset,
                 "script": selected_script,
                 "speckit_version": get_speckit_version(),
+                "constitution_profile": constitution_profile,
             }
             # Ensure ai_skills is set for SkillsIntegration so downstream
             # tools (extensions, presets) emit SKILL.md overrides correctly.
@@ -2792,21 +2982,24 @@ def init(
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
     steps_lines.append("   ")
     steps_lines.append("   Core workflow skills")
-    steps_lines.append(
-        f"   {step_num}.1 [cyan]{_display_cmd('constitution')}[/] - Review the seeded default constitution and apply project-specific changes when needed"
-    )
+    constitution_review_text = "Review the seeded default constitution and apply project-specific changes when needed"
+    if constitution_profile != "product":
+        constitution_review_text = (
+            f"Review the seeded {constitution_profile} constitution profile and apply project-specific changes when needed"
+        )
+    steps_lines.append(f"   {step_num}.1 [cyan]{_display_cmd('constitution')}[/] - {constitution_review_text}")
     steps_lines.append(f"   {step_num}.2 [cyan]{_display_cmd('specify')}[/] - Create the aligned requirement package")
     steps_lines.append(f"   {step_num}.3 [cyan]{_display_cmd('plan')}[/] - Generate the implementation design artifacts")
     steps_lines.append(f"   {step_num}.4 [cyan]{_display_cmd('tasks')}[/] - Generate actionable tasks")
     steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
-    steps_lines.append(f"   - [cyan]{_display_cmd('map-codebase')}[/] - Generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` for existing code before specification or planning")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-codebase')}[/] - Generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` as the atlas-style encyclopedia for existing code before specification or planning")
     steps_lines.append(f"   - [cyan]{_display_cmd('test')}[/] - Bootstrap or refresh the project-wide testing system and write a durable testing contract")
     steps_lines.append(f"   - [cyan]{_display_cmd('spec-extend')}[/] - Deepen an existing spec before planning when analysis or references still need work")
     steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
     steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/], including boundary guardrail gaps")
-    steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, or implement state in plain language")
+    steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, implement, or handbook/project-map atlas state in plain language")
     if codex_skill_mode:
         steps_lines.append("   ")
         steps_lines.append("   Codex-only runtime")
@@ -2833,10 +3026,10 @@ def init(
         )
     enhancement_lines.extend(
         [
-            f"○ [cyan]{_display_cmd('map-codebase')}[/] [bright_black](required for existing code)[/bright_black] - Generate or refresh the handbook/project-map navigation system before deeper brownfield specification, planning, task generation, or implementation resumes",
+            f"○ [cyan]{_display_cmd('map-codebase')}[/] [bright_black](required for existing code)[/bright_black] - Generate or refresh the handbook/project-map atlas-style encyclopedia before deeper brownfield specification, planning, task generation, or implementation resumes",
             f"○ [cyan]{_display_cmd('spec-extend')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](default gate before implement)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
-            f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, or task artifact in plain language before moving forward",
+            f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, task, implement, or handbook/project-map atlas artifact in plain language before moving forward",
             f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
         ]
     )
@@ -3823,6 +4016,132 @@ def hook_validate_commit_command(
         {
             "commit_message": commit_message,
             "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+        },
+    )
+
+
+@hook_app.command("signal-learning")
+def hook_signal_learning_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    retry_attempts: int = typer.Option(0, "--retry-attempts", help="Retry or recovery attempts observed"),
+    hypothesis_changes: int = typer.Option(0, "--hypothesis-changes", help="Major hypothesis changes observed"),
+    validation_failures: int = typer.Option(0, "--validation-failures", help="Validation failures observed"),
+    artifact_rewrites: int = typer.Option(0, "--artifact-rewrites", help="Artifact rewrites observed"),
+    command_failures: int = typer.Option(0, "--command-failures", help="Failed command attempts observed"),
+    user_corrections: int = typer.Option(0, "--user-corrections", help="User corrections observed"),
+    route_changes: int = typer.Option(0, "--route-changes", help="Workflow routing changes observed"),
+    scope_changes: int = typer.Option(0, "--scope-changes", help="Scope changes observed"),
+    false_starts: list[str] | None = typer.Option(None, "--false-start", help="Misleading first attempts or false leads"),
+    hidden_dependencies: list[str] | None = typer.Option(None, "--hidden-dependency", help="Hidden dependencies discovered"),
+):
+    """Detect workflow friction that should trigger a learning review."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.learning.signal",
+        {
+            "command_name": command_name,
+            "retry_attempts": retry_attempts,
+            "hypothesis_changes": hypothesis_changes,
+            "validation_failures": validation_failures,
+            "artifact_rewrites": artifact_rewrites,
+            "command_failures": command_failures,
+            "user_corrections": user_corrections,
+            "route_changes": route_changes,
+            "scope_changes": scope_changes,
+            "false_starts": false_starts or [],
+            "hidden_dependencies": hidden_dependencies or [],
+        },
+    )
+
+
+@hook_app.command("review-learning")
+def hook_review_learning_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    terminal_status: str = typer.Option(..., "--terminal-status", help="Terminal workflow status, for example resolved or blocked"),
+    decision: str | None = typer.Option(None, "--decision", help="Learning review decision: none, captured, deferred, auto-captured, or manual-capture-needed"),
+    rationale: str | None = typer.Option(None, "--rationale", help="Why no reusable learning exists or why capture was deferred"),
+):
+    """Enforce a learning review before terminal workflow closeout."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    learning_review = None
+    if decision is not None or rationale is not None:
+        learning_review = {"decision": decision or "", "rationale": rationale or ""}
+    _run_hook_and_print(
+        project_root,
+        "workflow.learning.review",
+        {
+            "command_name": command_name,
+            "terminal_status": terminal_status,
+            "learning_review": learning_review,
+        },
+    )
+
+
+@hook_app.command("capture-learning")
+def hook_capture_learning_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    learning_type: str = typer.Option(..., "--type", help="Learning type"),
+    summary: str = typer.Option(..., "--summary", help="One-line learning summary"),
+    evidence: str = typer.Option(..., "--evidence", help="Supporting evidence or context"),
+    recurrence_key: str | None = typer.Option(None, "--recurrence-key", help="Stable deduplication key"),
+    signal_strength: str = typer.Option("medium", "--signal", help="Signal strength: low, medium, or high"),
+    applies_to: list[str] | None = typer.Option(None, "--applies-to", help="Commands this learning should influence"),
+    default_scope: str | None = typer.Option(None, "--scope", help="Default sharing scope label"),
+    confirm: bool = typer.Option(False, "--confirm", help="Promote directly into project learnings instead of leaving as a candidate"),
+    pain_score: int | None = typer.Option(None, "--pain-score", help="Workflow friction score that triggered capture"),
+    false_starts: list[str] | None = typer.Option(None, "--false-start", help="Misleading first attempts or false leads"),
+    rejected_paths: list[str] | None = typer.Option(None, "--rejected-path", help="Rejected diagnosis or implementation paths"),
+    decisive_signal: str | None = typer.Option(None, "--decisive-signal", help="Evidence that made the learning clear"),
+    root_cause_family: str | None = typer.Option(None, "--root-cause-family", help="Stable root-cause family label"),
+    injection_targets: list[str] | None = typer.Option(None, "--injection-target", help="Workflow, document, or rule surface that should receive the learning"),
+    promotion_hint: str | None = typer.Option(None, "--promotion-hint", help="When or how this candidate should be promoted"),
+):
+    """Capture a structured learning candidate through the hook surface."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.learning.capture",
+        {
+            "command_name": command_name,
+            "learning_type": learning_type,
+            "summary": summary,
+            "evidence": evidence,
+            "recurrence_key": recurrence_key,
+            "signal_strength": signal_strength,
+            "applies_to": applies_to or [],
+            "default_scope": default_scope,
+            "confirm": confirm,
+            "pain_score": pain_score,
+            "false_starts": false_starts or [],
+            "rejected_paths": rejected_paths or [],
+            "decisive_signal": decisive_signal,
+            "root_cause_family": root_cause_family,
+            "injection_targets": injection_targets or [],
+            "promotion_hint": promotion_hint,
+        },
+    )
+
+
+@hook_app.command("inject-learning")
+def hook_inject_learning_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    learning_type: str = typer.Option(..., "--type", help="Learning type"),
+    summary: str = typer.Option("", "--summary", help="One-line learning summary"),
+):
+    """Derive prevention targets for a captured learning."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.learning.inject",
+        {
+            "command_name": command_name,
+            "learning_type": learning_type,
+            "summary": summary,
         },
     )
 

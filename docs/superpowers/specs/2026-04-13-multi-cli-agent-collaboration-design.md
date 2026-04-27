@@ -6,7 +6,7 @@
 
 ## Summary
 
-This design defines the target architecture and Milestone 1 rollout direction for expanding `spec-kit-plus` from a largely single-agent integration model with one Codex-specific durable runtime surface toward a multi-CLI collaboration system for analysis, planning, task generation, execution, explanation, and debugging across multiple agent integrations.
+This design defines the target architecture and Milestone 1 rollout direction for expanding `spec-kit-plus` from a largely leader-led, `single-lane`-first integration model with one Codex-specific durable runtime surface toward a multi-CLI collaboration system for analysis, planning, task generation, execution, explanation, and debugging across multiple agent integrations.
 
 The approved direction is not to force every integration through a single product surface. Users should continue entering through the native command or skill surface of their chosen CLI integration. Multi-agent collaboration should be selected automatically by workflow policy, prefer the integration's native delegation model when available, and fall back to a `spec-kit-plus` sidecar runtime when the native runtime cannot provide the required coordination.
 
@@ -24,7 +24,7 @@ The key structural decision is to refactor the existing `codex_team` implementat
 Milestone 1 deliverables now present in the codebase:
 
 - generic orchestration core under `src/specify_cli/orchestration/`
-- unified strategy language (`single-agent`, `native-multi-agent`, `sidecar-runtime`) routed first through `implement`
+- unified strategy language (`single-lane`, `native-multi-agent`, `sidecar-runtime`) routed first through `implement`
 - Codex compatibility surface preserved via `specify team`
 - first-release adapter skeletons for Claude, Gemini, and Copilot (plus Codex) in integration modules
 
@@ -87,7 +87,7 @@ The proposed architecture has three layers.
 
 ### 1. Workflow Policy Layer
 
-This layer decides whether a workflow invocation should stay single-agent, use native multi-agent delegation, or escalate to a sidecar runtime.
+This layer decides whether a workflow invocation should stay `single-lane`, use native multi-agent delegation, or escalate to a sidecar runtime.
 
 It is responsible for:
 
@@ -144,7 +144,7 @@ Each adapter is responsible for:
 
 Every collaboration-aware workflow should produce exactly one execution strategy decision:
 
-- `single-agent`
+- `single-lane`
 - `native-multi-agent`
 - `sidecar-runtime`
 
@@ -161,7 +161,7 @@ The decision order is fixed:
 1. Determine whether the work justifies multi-agent execution at all.
 2. If yes, attempt native multi-agent delegation first.
 3. If native delegation is unavailable or unsuitable, attempt sidecar/runtime execution.
-4. If that also fails, downgrade to `single-agent` and record the downgrade reason.
+4. If that also fails, downgrade to `single-lane` and record the downgrade reason.
 
 Every decision should be persisted as an inspectable record so later explanation, debugging, and auditing do not depend on prompt inference.
 
@@ -369,7 +369,7 @@ Required join points:
 
 - before rendering the final explanation
 
-Default behavior should remain conservative and often single-agent.
+Default behavior should remain conservative and often `single-lane`.
 
 ### `debug`
 
@@ -500,7 +500,7 @@ Minimum coverage should include:
 - backend registry tests, including Windows-native detection behavior
 - adapter capability-detection tests for Gemini, Claude, Copilot, and Codex
 - workflow policy tests for each collaboration-aware command
-- fallback tests from native delegation to sidecar/runtime to single-agent
+- fallback tests from native delegation to sidecar/runtime to `single-lane`
 - Codex compatibility tests for existing `specify team` behavior
 - non-Codex isolation tests proving `specify team` is still not advertised as the primary surface elsewhere
 

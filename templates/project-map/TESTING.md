@@ -7,6 +7,10 @@
 
 ## Test Layers
 
+## Test Pyramid and Quality Gates
+
+[Describe the test pyramid, quality gates, and the verification matrix for change-impact hotspots.]
+
 ## Key Test Directories
 
 ## Smallest Meaningful Checks
@@ -20,6 +24,10 @@
 ## Verification Entry Points
 
 ## Build, Runtime, and Recovery Verification
+
+## Change-Impact Verification Matrix
+
+[For each risky subsystem or propagation hotspot, state the smallest set of checks that proves a change is safe.]
 
 ## Regression-Sensitive Areas
 

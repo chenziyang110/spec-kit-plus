@@ -1,5 +1,5 @@
 import { execFileSync } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, statSync } from "fs";
 import { mkdir, readFile, readdir, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 import { pathToFileURL } from "url";
@@ -120,6 +120,26 @@ const SHORT_FOLLOWUP_PRIORITY_PATTERNS = [
   /(?:按照|按|基于)(?:这个|上述|当前)?(?:plan|计划|方案)/u,
   /\b(?:follow up|latest request|this turn|current turn|newest request)\b/i,
 ] as const;
+const ACTIVE_WORKFLOW_STATUSES = new Set(["active", "started", "starting", "in_progress", "executing", "execution"]);
+const TERMINAL_WORKFLOW_STATUSES = new Set(["resolved", "completed", "done", "cancelled", "closed", "blocked", "failed"]);
+const LEARNING_SIGNAL_FIELDS = {
+  retry_attempts: "--retry-attempts",
+  hypothesis_changes: "--hypothesis-changes",
+  validation_failures: "--validation-failures",
+  artifact_rewrites: "--artifact-rewrites",
+  command_failures: "--command-failures",
+  user_corrections: "--user-corrections",
+  route_changes: "--route-changes",
+  scope_changes: "--scope-changes",
+} as const;
+
+interface ActiveWorkflowContext {
+  commandName: string;
+  featureDir?: string;
+  workspace?: string;
+  sessionFile?: string;
+  stateFile?: string;
+}
 
 function safeString(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -149,6 +169,338 @@ function safeNonNegativeInteger(value: unknown): number | null {
 
 function normalizePromptSignalText(text: string): string {
   return text.trim().replace(/\s+/g, " ");
+}
+
+function stripWrappers(value: string): string {
+  const cleaned = value.trim();
+  if (
+    ((cleaned.startsWith("`") && cleaned.endsWith("`")) || (cleaned.startsWith('"') && cleaned.endsWith('"')))
+    && cleaned.length >= 2
+  ) {
+    return cleaned.slice(1, -1).trim();
+  }
+  return cleaned;
+}
+
+function normalizeWorkflowCommandName(value: unknown): string {
+  let normalized = safeString(value).trim().toLowerCase();
+  if (normalized.startsWith("sp-") || normalized.startsWith("sp.")) {
+    normalized = normalized.slice(3);
+  }
+  return normalized;
+}
+
+function parseFrontmatter(text: string): { frontmatter: Record<string, string>; body: string } {
+  if (!text.startsWith("---\n")) {
+    return { frontmatter: {}, body: text };
+  }
+  const lines = text.split(/\r?\n/);
+  let endIndex = -1;
+  for (let index = 1; index < lines.length; index += 1) {
+    if (lines[index]?.trim() === "---") {
+      endIndex = index;
+      break;
+    }
+  }
+  if (endIndex < 0) {
+    return { frontmatter: {}, body: text };
+  }
+
+  const frontmatter: Record<string, string> = {};
+  for (const rawLine of lines.slice(1, endIndex)) {
+    const line = rawLine.trim();
+    if (!line || !line.includes(":")) continue;
+    const separatorIndex = line.indexOf(":");
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+    frontmatter[key] = stripWrappers(value);
+  }
+  return {
+    frontmatter,
+    body: lines.slice(endIndex + 1).join("\n"),
+  };
+}
+
+function sectionBody(text: string, title: string): string {
+  const lines = text.split(/\r?\n/);
+  const target = title.trim().toLowerCase();
+  const collected: string[] = [];
+  let collecting = false;
+
+  for (const rawLine of lines) {
+    const headingMatch = rawLine.match(/^##+\s+(.+)$/);
+    if (headingMatch) {
+      const heading = headingMatch[1]?.trim().toLowerCase() || "";
+      if (collecting) break;
+      if (heading === target) {
+        collecting = true;
+      }
+      continue;
+    }
+    if (collecting) {
+      collected.push(rawLine);
+    }
+  }
+
+  return collected.join("\n").trim();
+}
+
+function extractField(text: string, fieldName: string): string {
+  const prefix = `${fieldName}:`.toLowerCase();
+  for (const rawLine of text.split(/\r?\n/)) {
+    let stripped = rawLine.trim();
+    if (stripped.startsWith("- ")) {
+      stripped = stripped.slice(2).trim();
+    }
+    if (stripped.toLowerCase().startsWith(prefix)) {
+      return stripWrappers(stripped.slice(prefix.length).trim());
+    }
+  }
+  return "";
+}
+
+function extractListField(text: string, fieldName: string): string[] {
+  const value = extractField(text, fieldName);
+  if (!value || value === "[]" || value === "-" || /^none$/i.test(value)) {
+    return [];
+  }
+  return value
+    .split(/[;,]/)
+    .map((item) => item.trim().replace(/^[-\s]+/, ""))
+    .map(stripWrappers)
+    .filter(Boolean);
+}
+
+function extractSectionItems(text: string, title: string): string[] {
+  return sectionBody(text, title)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- "))
+    .map((line) => stripWrappers(line.slice(2).trim()))
+    .filter(Boolean);
+}
+
+function dedupeOrderedStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    ordered.push(trimmed);
+  }
+  return ordered;
+}
+
+function extractIntField(text: string, frontmatter: Record<string, string>, fieldName: string): number {
+  const raw = extractField(text, fieldName) || safeString(frontmatter[fieldName]).trim();
+  if (!raw) return 0;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function readMtimeMs(path: string): number {
+  try {
+    return statSync(path).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+function buildStateFileFromContext(context: ActiveWorkflowContext): string | null {
+  if (context.stateFile) return context.stateFile;
+  if (context.sessionFile) return context.sessionFile;
+  if (context.workspace) return join(context.workspace, "STATUS.md");
+  if (context.featureDir) {
+    return context.commandName === "implement"
+      ? join(context.featureDir, "implement-tracker.md")
+      : join(context.featureDir, "workflow-state.md");
+  }
+  return null;
+}
+
+function explicitWorkflowContextFromPayload(cwd: string, payload: CodexHookPayload): ActiveWorkflowContext | null {
+  const commandName = normalizeWorkflowCommandName(
+    payload.command_name
+    ?? payload.commandName
+    ?? payload.command,
+  );
+  if (!commandName) return null;
+
+  const featureDirRaw = safeString(payload.feature_dir ?? payload.featureDir).trim();
+  const workspaceRaw = safeString(payload.workspace).trim();
+  const sessionFileRaw = safeString(payload.session_file ?? payload.sessionFile).trim();
+  const context: ActiveWorkflowContext = {
+    commandName,
+    featureDir: featureDirRaw ? resolve(cwd, featureDirRaw) : undefined,
+    workspace: workspaceRaw ? resolve(cwd, workspaceRaw) : undefined,
+    sessionFile: sessionFileRaw ? resolve(cwd, sessionFileRaw) : undefined,
+  };
+  context.stateFile = buildStateFileFromContext(context) ?? undefined;
+  return context;
+}
+
+async function inferActiveWorkflowContext(cwd: string): Promise<ActiveWorkflowContext | null> {
+  const specsDir = join(cwd, "specs");
+  const workflowCandidates: Array<ActiveWorkflowContext & { sortKey: number }> = [];
+  if (existsSync(specsDir)) {
+    const specEntries = await readdir(specsDir, { withFileTypes: true }).catch(() => []);
+    const implementCandidates: Array<ActiveWorkflowContext & { sortKey: number }> = [];
+
+    for (const entry of specEntries) {
+      if (!entry.isDirectory()) continue;
+      const featureDir = join(specsDir, entry.name);
+      const trackerPath = join(featureDir, "implement-tracker.md");
+      if (existsSync(trackerPath)) {
+        const trackerText = await readFile(trackerPath, "utf-8").catch(() => "");
+        if (trackerText) {
+          const { frontmatter } = parseFrontmatter(trackerText);
+          const status = safeString(frontmatter.status).trim().toLowerCase();
+          if (!status || !TERMINAL_WORKFLOW_STATUSES.has(status)) {
+            implementCandidates.push({
+              commandName: "implement",
+              featureDir,
+              stateFile: trackerPath,
+              sortKey: readMtimeMs(trackerPath),
+            });
+          }
+        }
+      }
+
+      const workflowPath = join(featureDir, "workflow-state.md");
+      if (!existsSync(workflowPath)) continue;
+      const workflowText = await readFile(workflowPath, "utf-8").catch(() => "");
+      if (!workflowText) continue;
+      const currentCommand = sectionBody(workflowText, "Current Command");
+      const commandName = normalizeWorkflowCommandName(extractField(currentCommand, "active_command"));
+      const status = extractField(currentCommand, "status").toLowerCase();
+      if (!commandName || (status && !ACTIVE_WORKFLOW_STATUSES.has(status))) continue;
+      workflowCandidates.push({
+        commandName,
+        featureDir,
+        stateFile: workflowPath,
+        sortKey: readMtimeMs(workflowPath),
+      });
+    }
+
+    if (implementCandidates.length > 0) {
+      implementCandidates.sort((left, right) => right.sortKey - left.sortKey);
+      return implementCandidates[0] ?? null;
+    }
+  }
+
+  const quickRoot = join(cwd, ".planning", "quick");
+  if (existsSync(quickRoot)) {
+    const quickEntries = await readdir(quickRoot, { withFileTypes: true }).catch(() => []);
+    const quickCandidates: Array<ActiveWorkflowContext & { sortKey: number }> = [];
+    for (const entry of quickEntries) {
+      if (!entry.isDirectory()) continue;
+      const workspace = join(quickRoot, entry.name);
+      const statusPath = join(workspace, "STATUS.md");
+      if (!existsSync(statusPath)) continue;
+      const statusText = await readFile(statusPath, "utf-8").catch(() => "");
+      if (!statusText) continue;
+      const { frontmatter } = parseFrontmatter(statusText);
+      const status = safeString(frontmatter.status).trim().toLowerCase();
+      if (!status || TERMINAL_WORKFLOW_STATUSES.has(status)) continue;
+      quickCandidates.push({
+        commandName: "quick",
+        workspace,
+        stateFile: statusPath,
+        sortKey: readMtimeMs(statusPath),
+      });
+    }
+    if (quickCandidates.length > 0) {
+      quickCandidates.sort((left, right) => right.sortKey - left.sortKey);
+      return quickCandidates[0] ?? null;
+    }
+  }
+
+  if (workflowCandidates.length > 0) {
+    workflowCandidates.sort((left, right) => right.sortKey - left.sortKey);
+    return workflowCandidates[0] ?? null;
+  }
+
+  return null;
+}
+
+async function resolveLearningSignalContext(
+  cwd: string,
+  payload: CodexHookPayload,
+): Promise<ActiveWorkflowContext | null> {
+  const explicit = explicitWorkflowContextFromPayload(cwd, payload);
+  if (explicit?.stateFile) {
+    return explicit;
+  }
+
+  const inferred = await inferActiveWorkflowContext(cwd);
+  if (explicit && inferred && inferred.commandName === explicit.commandName) {
+    return inferred;
+  }
+  return inferred ?? explicit;
+}
+
+async function buildSharedLearningSignalArgs(
+  cwd: string,
+  payload: CodexHookPayload,
+): Promise<string[] | null> {
+  const context = await resolveLearningSignalContext(cwd, payload);
+  if (!context?.commandName) return null;
+  const stateFile = buildStateFileFromContext(context);
+  if (!stateFile || !existsSync(stateFile)) return null;
+
+  const text = await readFile(stateFile, "utf-8").catch(() => "");
+  if (!text) return null;
+  const { frontmatter } = parseFrontmatter(text);
+  const args = ["signal-learning", "--command", context.commandName];
+  let hasSignal = false;
+
+  for (const [fieldName, optionName] of Object.entries(LEARNING_SIGNAL_FIELDS)) {
+    const value = extractIntField(text, frontmatter, fieldName);
+    if (value <= 0) continue;
+    args.push(optionName, String(value));
+    hasSignal = true;
+  }
+
+  const falseStarts = dedupeOrderedStrings([
+    ...extractListField(text, "false_start"),
+    ...extractListField(text, "false_starts"),
+    ...extractSectionItems(text, "False Starts"),
+    ...extractSectionItems(text, "False Leads"),
+  ]);
+  for (const item of falseStarts) {
+    args.push("--false-start", item);
+    hasSignal = true;
+  }
+
+  const hiddenDependencies = dedupeOrderedStrings([
+    ...extractListField(text, "hidden_dependency"),
+    ...extractListField(text, "hidden_dependencies"),
+    ...extractSectionItems(text, "Hidden Dependencies"),
+    ...extractSectionItems(text, "Hidden Dependency"),
+  ]);
+  for (const item of hiddenDependencies) {
+    args.push("--hidden-dependency", item);
+    hasSignal = true;
+  }
+
+  return hasSignal ? args : null;
+}
+
+function mergeSharedLearningSignalOutput(
+  currentOutput: Record<string, unknown> | null,
+  hookEventName: "PostToolUse" | "Stop",
+  sharedLearningPayload: SharedQualityHookPayload | null,
+): Record<string, unknown> | null {
+  if (!sharedLearningPayload) return currentOutput;
+  const mergedContext = appendSharedHookContext(
+    readHookSpecificAdditionalContext(currentOutput) || null,
+    sharedLearningPayload,
+  );
+  if (mergedContext) {
+    return withHookSpecificAdditionalContext(currentOutput, hookEventName, mergedContext);
+  }
+  return currentOutput;
 }
 
 function readHookSpecificAdditionalContext(outputJson: Record<string, unknown> | null): string {
@@ -1834,6 +2186,7 @@ export async function dispatchCodexNativeHook(
   let sharedPromptGuardOutput: Record<string, unknown> | null = null;
   let sharedPromptGuardPayload: SharedQualityHookPayload | null = null;
   let sharedStopMonitorPayload: SharedQualityHookPayload | null = null;
+  let sharedLearningSignalPayload: SharedQualityHookPayload | null = null;
 
   if (hookEventName === "UserPromptSubmit") {
     const prompt = readPromptText(payload);
@@ -1989,12 +2342,22 @@ export async function dispatchCodexNativeHook(
       await markTeamTransportFailure(cwd, payload);
     }
     outputJson = buildNativePostToolUseOutput(payload);
+    const sharedLearningSignalArgs = await buildSharedLearningSignalArgs(cwd, payload);
+    if (sharedLearningSignalArgs) {
+      sharedLearningSignalPayload = invokeSharedQualityHook(sharedLearningSignalArgs, { cwd });
+      outputJson = mergeSharedLearningSignalOutput(outputJson, "PostToolUse", sharedLearningSignalPayload);
+    }
   } else if (hookEventName === "Stop") {
     outputJson = await buildStopHookOutput(payload, cwd, stateDir);
     const sharedStopMonitorArgs = buildSharedStopMonitorArgs(payload);
     if (sharedStopMonitorArgs) {
       sharedStopMonitorPayload = invokeSharedQualityHook(sharedStopMonitorArgs, { cwd });
       outputJson = mergeSharedStopMonitorOutput(outputJson, sharedStopMonitorPayload);
+    }
+    const sharedLearningSignalArgs = await buildSharedLearningSignalArgs(cwd, payload);
+    if (sharedLearningSignalArgs) {
+      sharedLearningSignalPayload = invokeSharedQualityHook(sharedLearningSignalArgs, { cwd });
+      outputJson = mergeSharedLearningSignalOutput(outputJson, "Stop", sharedLearningSignalPayload);
     }
   }
 

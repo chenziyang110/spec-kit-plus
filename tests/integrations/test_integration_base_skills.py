@@ -221,7 +221,8 @@ class SkillsIntegrationTests:
         assert "you are the **leader**, not the concrete implementer" in lowered
         assert "autonomous blocker recovery" in lowered
         assert "missed_agent_dispatch" in lowered
-        assert "`single-lane` still means one delegated worker lane" in content
+        assert "`single-lane` names the topology for one safe execution lane" in content
+        assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
         assert "current runtime's native worker lanes" in lowered
         assert "current integration's coordinated runtime surface" in lowered
         assert "dispatch only from validated `workertaskpacket`" in lowered
@@ -262,7 +263,7 @@ class SkillsIntegrationTests:
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
         assert "single-lane" in quick_content
-        assert "dispatch exactly one delegated worker lane" in quick_content
+        assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content
         assert "sidecar-runtime" in quick_content
 
     def test_question_driven_skills_define_native_tool_preference_with_fallback(self, tmp_path):

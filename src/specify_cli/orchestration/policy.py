@@ -9,7 +9,6 @@ from .models import (
     CapabilitySnapshot,
     ExecutionDecision,
     ReviewGatePolicy,
-    prefers_single_lane_label,
     single_worker_delegation_default,
 )
 
@@ -104,9 +103,7 @@ def choose_execution_strategy(
 
     shape = workload_shape if isinstance(workload_shape, Mapping) else {}
     single_worker_delegates = single_worker_delegation_default(command_name)
-    single_worker_strategy = (
-        "single-lane" if prefers_single_lane_label(command_name) else "single-agent"
-    )
+    single_worker_strategy = "single-lane"
     parallel_batches = _get_shape_int(shape, _PARALLEL_BATCH_COUNT_KEYS)
     if parallel_batches is None:
         # Backward compatibility: derive batch count from older boolean surfaces.

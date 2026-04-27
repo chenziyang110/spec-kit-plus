@@ -9,7 +9,7 @@ requires:
 provides:
   - Codex skill addendum aligned with the shared leader-only contract
   - generated-skill regression coverage for milestone continuation wording
-  - integration post-processing that preserves delegated single-agent semantics
+  - integration post-processing that preserves delegated single-lane semantics
 affects: [codex-init, skill-generation, implement-runtime]
 tech-stack:
   added: []
@@ -47,7 +47,7 @@ completed: 2026-04-14
 
 ## Accomplishments
 
-- Updated the checked-in Codex skill mirror so it states the leader-only contract, delegated `single-agent` semantics, and milestone continuation loop explicitly.
+- Updated the checked-in Codex skill mirror so it states the leader-only contract, delegated `single-lane` semantics, and milestone continuation loop explicitly.
 - Updated Codex integration post-processing to inject the same contract phrases into generated `sp-implement` skills.
 - Added generated-skill regression assertions that fail if the Codex surface stops mirroring the shared template contract.
 

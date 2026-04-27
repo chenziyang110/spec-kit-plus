@@ -171,7 +171,8 @@ class TomlIntegrationTests:
         assert "you are the **leader**, not the concrete implementer" in lowered
         assert "autonomous blocker recovery" in lowered
         assert "missed_agent_dispatch" in lowered
-        assert "`single-lane` still means one delegated worker lane" in content
+        assert "`single-lane` names the topology for one safe execution lane" in content
+        assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
         assert "current runtime's native worker lanes" in lowered
         assert "current integration's coordinated runtime surface" in lowered
         assert "dispatch only from validated `workertaskpacket`" in lowered
@@ -212,7 +213,7 @@ class TomlIntegrationTests:
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
         assert "single-lane" in quick_content
-        assert "dispatch exactly one delegated worker lane" in quick_content
+        assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content
         assert "sidecar-runtime" in quick_content
 
     def test_question_driven_commands_define_native_tool_preference_with_fallback(self, tmp_path):
@@ -495,11 +496,11 @@ class TomlIntegrationTests:
 
         if script_variant == "sh":
             for name in ["check-prerequisites.sh", "common.sh", "create-new-feature.sh",
-                         "project-map-freshness.sh", "quick-state.sh", "setup-plan.sh", "update-agent-context.sh"]:
+                         "project-map-freshness.sh", "quick-state.sh", "setup-plan.sh", "sync-ecc-to-codex.sh", "update-agent-context.sh"]:
                 files.append(f".specify/scripts/bash/{name}")
         else:
             for name in ["check-prerequisites.ps1", "common.ps1", "create-new-feature.ps1",
-                         "project-map-freshness.ps1", "quick-state.ps1", "setup-plan.ps1", "update-agent-context.ps1"]:
+                         "project-map-freshness.ps1", "quick-state.ps1", "setup-plan.ps1", "sync-ecc-to-codex.ps1", "update-agent-context.ps1"]:
                 files.append(f".specify/scripts/powershell/{name}")
 
         for name in self._template_files():

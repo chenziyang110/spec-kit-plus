@@ -12,7 +12,7 @@
 
 - The leader handles scheduling, dispatch, reconciliation, and status updates only.
 - Concrete implementation, verification, and other task execution happens in worker agents.
-- Sequential tasks still use workers; "single-agent" should mean one worker lane, not leader self-execution.
+- Sequential tasks still use workers; `single-lane` should mean one worker lane, not leader self-execution.
 
 ### Batch Coordination
 

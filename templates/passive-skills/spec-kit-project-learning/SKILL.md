@@ -35,6 +35,14 @@ As an Agent executing a workflow, you should actively identify and capture opera
 - **`user_preference`**: User corrections or style preferences repeated across features.
 - **`project_constraint`**: Constraints repeated across features.
 - **`workflow_gap`**: Planning-critical details repeatedly missed during `sp-specify` or `sp-plan`.
+- **`routing_mistake`**: The run started in the wrong `sp-*` workflow or had to upgrade/downgrade route after friction.
+- **`verification_gap`**: The run lacked the minimum credible validation path or discovered a broken testing assumption.
+- **`state_surface_gap`**: Durable state failed to capture the information needed to resume, review, or auto-capture learning.
+- **`map_coverage_gap`**: The handbook/project-map atlas lacked the dependency, lifecycle, ownership, or change-impact facts needed for safe work.
+- **`tooling_trap`**: Toolchain, dev-server, watcher, environment, or observer behavior masqueraded as an application bug.
+- **`false_lead_pattern`**: The symptom strongly resembled one cause, but reusable evidence showed the root cause family was elsewhere.
+- **`near_miss`**: A risky path was avoided late enough that future workflows should learn from it.
+- **`decision_debt`**: A vague or deferred decision repeatedly caused downstream workflow cost.
 
 ## Complementary Passive Skills
 
@@ -68,6 +76,15 @@ Use the `specify learning` CLI to manage the learning state explicitly:
 - `specify learning capture-auto --command <command-name> ...`: Infer candidate learnings from workflow state files when the workflow has a durable state surface such as `implement-tracker.md`, quick `STATUS.md`, or debug session files.
 - `specify learning promote --recurrence-key <key> --target <learning|rule>`: Promote a learning into `project-learnings.md` or `project-rules.md`.
 
+**First-Party Learning Hooks:**
+Use the `specify hook` surface when a workflow needs product-level enforcement instead of prompt-only discipline:
+- `specify hook signal-learning --command <command-name> ...`: Compute a friction-based pain score during the run. It warns when retry attempts, hypothesis changes, validation failures, route changes, false starts, or hidden dependencies indicate reusable learning value.
+- `specify hook review-learning --command <command-name> --terminal-status <resolved|blocked> ...`: Required before terminal closeout. It may record `--decision none --rationale "..."`, but terminal workflows should not skip the review gate.
+- `specify hook capture-learning --command <command-name> --type <type> --summary "..." --evidence "..."`: Capture structured path learning with optional `--pain-score`, `--false-start`, `--rejected-path`, `--decisive-signal`, `--root-cause-family`, `--injection-target`, and `--promotion-hint`.
+- `specify hook inject-learning --command <command-name> --type <type> --summary "..."`: Derive the workflow, document, or rule surfaces where the learning should be injected so future runs are stopped earlier.
+
+`signal-learning` is a soft prompt. `review-learning` is the hard terminal gate. `capture-learning` is the structured candidate writer. `inject-learning` is the prevention-routing helper. Promotion still requires recurrence or explicit confirmation.
+
 ## Learning-Start Trigger Matrix
 
 - **`sp-specify`**: Run `specify learning start --command specify --format json`
@@ -92,6 +109,8 @@ Use the `specify learning` CLI to manage the learning state explicitly:
   before handbook/project-map refresh, coverage diagnosis, or brownfield map rebuild work begins.
 
 ## Learning-Capture Trigger Matrix
+
+All workflows should run the learning review gate before final `resolved`, `blocked`, closeout, handoff, or completion reporting. If no reusable learning exists, use `specify hook review-learning --command <command> --terminal-status <status> --decision none --rationale "..."`. If reusable friction exists, capture it first with `specify hook capture-learning ...`, then review with `--decision captured`.
 
 - **`sp-specify`**: Use `specify learning capture --command specify --type workflow_gap`
   when specification discovery exposes reusable missing requirements,
@@ -133,7 +152,7 @@ Use the `specify learning` CLI to manage the learning state explicitly:
 
 1. **Consume First:** Always read `constitution.md`, `project-rules.md`, and `project-learnings.md` (in that order) before executing tasks, planning, or debugging. Do not rely on generic framework instincts if a project rule exists.
 2. **Identify Candidates:** When you solve a difficult bug, receive a global preference correction from the user, or notice a gap in the provided plan, recognize it as a candidate learning.
-3. **Capture:** Do not silently adapt your local behavior without recording it for the future. Record the learning directly in `.planning/learnings/candidates.md` or use `specify learning capture` to record it.
+3. **Capture:** Do not silently adapt your local behavior without recording it for the future. Prefer `specify hook capture-learning` for structured path learning; use `specify learning capture` only as the lower-level fallback.
 4. **Promote:** Do not immediately write stable non-principle rules into `constitution.md`. 
    - New observations go to `candidates.md`.
    - Repeated/confirmed observations go to `project-learnings.md` (via `specify learning promote --target learning`).
@@ -143,4 +162,5 @@ Use the `specify learning` CLI to manage the learning state explicitly:
 
 - **Do NOT** automatically edit `constitution.md` for a single-task bug fix or minor user preference.
 - **Do NOT** trap valuable cross-stage learnings inside single-task memory (like `alignment.md` or chat history). Extract them to the candidate layer.
+- **Do NOT** close a terminal `sp-*` workflow without either a captured learning or an explicit `review-learning --decision none` rationale.
 - Keep `project-rules.md` stricter than `project-learnings.md`.

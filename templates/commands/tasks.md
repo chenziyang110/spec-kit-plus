@@ -62,6 +62,9 @@ scripts:
 - [AGENT] Run `specify learning start --command tasks --format json` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader task-generation context.
 - Review `.planning/learnings/candidates.md` only when it still contains task-generation-relevant candidate learnings after the passive start step, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
+- [AGENT] When task-shaping friction appears, run `specify hook signal-learning --command tasks ...` with artifact-rewrite, route-change, false-start, or hidden-dependency counts.
+- [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command tasks --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `routing_mistake`, `verification_gap`, `decision_debt`, or `project_constraint` exists.
+- [AGENT] Prefer `specify hook capture-learning --command tasks ...` when decomposition exposes reusable dependency, batching, verification, or ownership mistakes.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Workflow Phase Lock

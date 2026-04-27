@@ -534,6 +534,56 @@ def test_project_constraint_default_applies_to_includes_test_and_map_codebase(tm
     assert "sp-map-codebase" in applies_to
 
 
+def test_learning_capture_accepts_structured_path_learning_fields(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "debug",
+            "--type",
+            "tooling_trap",
+            "--summary",
+            "Watcher loops can masquerade as process-manager failures",
+            "--evidence",
+            "Repeated process fixes failed; excluding the log directory stopped restarts.",
+            "--pain-score",
+            "6",
+            "--false-start",
+            "job object cleanup",
+            "--rejected-path",
+            "process manager root cause",
+            "--decisive-signal",
+            "watcher ignore stopped restarts",
+            "--root-cause-family",
+            "dev-tooling-watch-loop",
+            "--injection-target",
+            "sp-debug",
+            "--promotion-hint",
+            "promote after another watcher-loop recurrence",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    entry = payload["entry"]
+    assert entry["learning_type"] == "tooling_trap"
+    assert entry["pain_score"] == 6
+    assert entry["false_starts"] == ["job object cleanup"]
+    assert entry["rejected_paths"] == ["process manager root cause"]
+    assert entry["decisive_signal"] == "watcher ignore stopped restarts"
+    assert entry["root_cause_family"] == "dev-tooling-watch-loop"
+    assert entry["injection_targets"] == ["sp-debug"]
+
+
 def test_learning_capture_auto_implement_writes_candidates_from_tracker_state(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)

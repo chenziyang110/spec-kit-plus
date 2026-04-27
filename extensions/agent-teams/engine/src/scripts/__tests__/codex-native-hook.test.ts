@@ -71,8 +71,16 @@ async function writeQuickStatus(workspace: string): Promise<void> {
   );
 }
 
-async function writeImplementTracker(featureDir: string): Promise<void> {
+async function writeImplementTracker(
+  featureDir: string,
+  options: {
+    retryAttempts?: number;
+    falseStarts?: string[];
+  } = {},
+): Promise<void> {
   await mkdir(featureDir, { recursive: true });
+  const retryAttempts = options.retryAttempts ?? 0;
+  const falseStarts = options.falseStarts ?? [];
   await writeFile(
     join(featureDir, "implement-tracker.md"),
     [
@@ -88,8 +96,15 @@ async function writeImplementTracker(featureDir: string): Promise<void> {
       "next_action: collect green evidence",
       "",
       "## Execution State",
-      "retry_attempts: 0",
+      `retry_attempts: ${retryAttempts}`,
       "",
+      ...(falseStarts.length > 0
+        ? [
+            "## False Starts",
+            ...falseStarts.map((item) => `- ${item}`),
+            "",
+          ]
+        : []),
     ].join("\n"),
     "utf-8",
   );
@@ -2603,6 +2618,45 @@ export async function onHookEvent(event) {
     }
   });
 
+  it("surfaces shared learning signal guidance on PostToolUse when active workflow state records reusable friction", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-posttool-learning-signal-"));
+    try {
+      await mkdir(join(cwd, ".specify"), { recursive: true });
+      const featureDir = join(cwd, "specs", "001-demo");
+      await writeImplementTracker(featureDir, {
+        retryAttempts: 3,
+        falseStarts: ["assumed the failure was tool-local before checking the workflow state"],
+      });
+
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "PostToolUse",
+          cwd,
+          tool_name: "Bash",
+          tool_use_id: "tool-learning",
+          tool_input: { command: "pwd" },
+          tool_response: "{\"exit_code\":0,\"stdout\":\"/repo\",\"stderr\":\"\"}",
+        },
+        { cwd },
+      );
+
+      const output = result.outputJson as {
+        hookSpecificOutput?: { additionalContext?: string };
+      } | null;
+      assert.equal(result.omxEventName, "post-tool-use");
+      assert.match(
+        String(output?.hookSpecificOutput?.additionalContext ?? ""),
+        /learning pain score/i,
+      );
+      assert.match(
+        String(output?.hookSpecificOutput?.additionalContext ?? ""),
+        /review-learning --command implement/i,
+      );
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("returns CLI fallback guidance and preserves failed team state on clear MCP transport death", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-posttool-mcp-transport-"));
     try {
@@ -2689,6 +2743,46 @@ export async function onHookEvent(event) {
       assert.match(
         String(output?.hookSpecificOutput?.additionalContext ?? ""),
         /next action: collect worker result/i,
+      );
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("surfaces shared learning signal guidance on Stop when explicit workflow state records reusable friction", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-learning-signal-"));
+    try {
+      await mkdir(join(cwd, ".specify"), { recursive: true });
+      const featureDir = join(cwd, "specs", "001-demo");
+      await writeImplementTracker(featureDir, {
+        retryAttempts: 3,
+        falseStarts: ["assumed the failure was tool-local before checking the workflow state"],
+      });
+
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "Stop",
+          cwd,
+          session_id: "sess-stop-learning-signal",
+          command_name: "implement",
+          feature_dir: featureDir,
+        },
+        { cwd },
+      );
+
+      const output = result.outputJson as {
+        decision?: string;
+        hookSpecificOutput?: { additionalContext?: string };
+      } | null;
+      assert.equal(result.omxEventName, "stop");
+      assert.equal(output?.decision, undefined);
+      assert.match(
+        String(output?.hookSpecificOutput?.additionalContext ?? ""),
+        /learning pain score/i,
+      );
+      assert.match(
+        String(output?.hookSpecificOutput?.additionalContext ?? ""),
+        /review-learning --command implement/i,
       );
     } finally {
       await rm(cwd, { recursive: true, force: true });

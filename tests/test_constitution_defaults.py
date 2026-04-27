@@ -1,7 +1,8 @@
 from datetime import date
 from pathlib import Path
+import shutil
 
-from specify_cli import ensure_constitution_from_template
+from specify_cli import build_constitution_template_for_profile, ensure_constitution_from_template
 from specify_cli.learnings import ensure_learning_memory_from_templates
 
 
@@ -10,6 +11,13 @@ def _seed_constitution_template(project_path: Path) -> None:
     target_template = project_path / ".specify" / "templates" / "constitution-template.md"
     target_template.parent.mkdir(parents=True, exist_ok=True)
     target_template.write_text(source_template.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def _seed_constitution_profile_assets(project_path: Path) -> None:
+    source_assets = Path(__file__).resolve().parents[1] / "templates" / "constitution"
+    target_assets = project_path / ".specify" / "templates" / "constitution"
+    target_assets.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_assets, target_assets, dirs_exist_ok=True)
 
 
 def _seed_learning_templates(project_path: Path) -> None:
@@ -26,6 +34,7 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     project_path = tmp_path / "demo-project"
     project_path.mkdir()
     _seed_constitution_template(project_path)
+    _seed_constitution_profile_assets(project_path)
 
     ensure_constitution_from_template(project_path)
 
@@ -52,18 +61,77 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert f"**Ratified**: {date.today().isoformat()}" in content
 
 
+def test_product_constitution_profile_matches_shipped_template():
+    template_path = Path(__file__).resolve().parents[1] / "templates" / "constitution-template.md"
+    expected = template_path.read_text(encoding="utf-8")
+    built, profile = build_constitution_template_for_profile("product")
+
+    assert profile["id"] == "product"
+    assert expected == built
+
+
+def test_ensure_constitution_from_template_materializes_library_profile(tmp_path):
+    project_path = tmp_path / "library-project"
+    project_path.mkdir()
+    _seed_constitution_template(project_path)
+    _seed_constitution_profile_assets(project_path)
+
+    ensure_constitution_from_template(project_path, constitution_profile="library")
+
+    template_path = project_path / ".specify" / "templates" / "constitution-template.md"
+    constitution_path = project_path / ".specify" / "memory" / "constitution.md"
+    template_content = template_path.read_text(encoding="utf-8")
+    content = constitution_path.read_text(encoding="utf-8")
+
+    assert "# library-project Constitution" in content
+    assert "### IV. Stable Public Surface" in content
+    assert "Public APIs, configuration keys, CLI flags, and file formats MUST" in content
+    assert "SemVer and Release Discipline" in content
+    assert "Examples and Upgrade Paths" in content
+    assert "PROJECT-HANDBOOK.md" not in content
+    assert "# [PROJECT_NAME] Constitution" in template_content
+    assert "Stable Public Surface" in template_content
+    assert "[PROJECT_NAME]" not in content
+    assert "**Version**: 1.0.0" in content
+    assert f"**Ratified**: {date.today().isoformat()}" in content
+
+
 def test_ensure_constitution_from_template_preserves_existing_constitution(tmp_path):
     project_path = tmp_path / "existing-project"
     project_path.mkdir()
     _seed_constitution_template(project_path)
+    _seed_constitution_profile_assets(project_path)
 
     constitution_path = project_path / ".specify" / "memory" / "constitution.md"
     constitution_path.parent.mkdir(parents=True, exist_ok=True)
     constitution_path.write_text("# Custom Constitution\n", encoding="utf-8")
 
-    ensure_constitution_from_template(project_path)
+    ensure_constitution_from_template(project_path, constitution_profile="regulated")
 
     assert constitution_path.read_text(encoding="utf-8") == "# Custom Constitution\n"
+
+
+def test_ensure_constitution_from_template_preserves_custom_template(tmp_path):
+    project_path = tmp_path / "custom-template-project"
+    project_path.mkdir()
+    _seed_constitution_profile_assets(project_path)
+
+    template_path = project_path / ".specify" / "templates" / "constitution-template.md"
+    template_path.parent.mkdir(parents=True, exist_ok=True)
+    template_path.write_text(
+        "# Custom Constitution Template\n\n- MUST keep this custom template\n",
+        encoding="utf-8",
+    )
+
+    ensure_constitution_from_template(project_path, constitution_profile="library")
+
+    constitution_path = project_path / ".specify" / "memory" / "constitution.md"
+    assert template_path.read_text(encoding="utf-8") == (
+        "# Custom Constitution Template\n\n- MUST keep this custom template\n"
+    )
+    assert constitution_path.read_text(encoding="utf-8") == (
+        "# Custom Constitution Template\n\n- MUST keep this custom template\n"
+    )
 
 
 def test_ensure_learning_memory_from_templates_materializes_defaults(tmp_path):

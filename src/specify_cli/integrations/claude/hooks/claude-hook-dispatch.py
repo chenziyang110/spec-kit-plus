@@ -20,13 +20,31 @@ from typing import Any
 
 WORKFLOW_COMMAND_MAP = {
     "sp-specify": "specify",
+    "sp-spec-extend": "spec-extend",
     "sp-plan": "plan",
     "sp-tasks": "tasks",
     "sp-analyze": "analyze",
+    "sp-test": "test",
     "sp-implement": "implement",
+    "sp-debug": "debug",
+    "sp-quick": "quick",
+    "sp-fast": "fast",
+    "sp-map-codebase": "map-codebase",
+    "sp-constitution": "constitution",
+    "sp-checklist": "checklist",
 }
 ACTIVE_STATE_STATUSES = {"active", "started", "starting", "in_progress", "executing", "execution"}
 TERMINAL_STATE_STATUSES = {"resolved", "completed", "done", "cancelled", "closed", "blocked", "failed"}
+LEARNING_SIGNAL_FIELDS = {
+    "retry_attempts": "--retry-attempts",
+    "hypothesis_changes": "--hypothesis-changes",
+    "validation_failures": "--validation-failures",
+    "artifact_rewrites": "--artifact-rewrites",
+    "command_failures": "--command-failures",
+    "user_corrections": "--user-corrections",
+    "route_changes": "--route-changes",
+    "scope_changes": "--scope-changes",
+}
 
 
 def _read_stdin_payload() -> dict[str, Any]:
@@ -71,6 +89,8 @@ def _run_shared_hook(project_root: Path, args: list[str]) -> dict[str, Any] | No
                 command,
                 cwd=project_root,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 capture_output=True,
                 check=False,
             )
@@ -178,6 +198,58 @@ def _extract_frontmatter_field(text: str, field_name: str) -> str:
     return ""
 
 
+def _extract_int_field(text: str, field_name: str) -> int:
+    value = _extract_field(text, field_name) or _extract_frontmatter_field(text, field_name)
+    if not value:
+        return 0
+    try:
+        return int(value.strip())
+    except ValueError:
+        return 0
+
+
+def _extract_list_field(text: str, field_name: str) -> list[str]:
+    value = _extract_field(text, field_name)
+    if not value:
+        return []
+    if value in {"[]", "-", "none", "None"}:
+        return []
+    return [
+        item.strip(" -`\"'")
+        for item in re.split(r"\s*[;,]\s*", value)
+        if item.strip(" -`\"'")
+    ]
+
+
+def _extract_section_items(text: str, section_name: str) -> list[str]:
+    heading = re.compile(rf"^##+\s+{re.escape(section_name)}\s*$", re.IGNORECASE | re.MULTILINE)
+    match = heading.search(text)
+    if not match:
+        return []
+    next_heading = re.search(r"^##+\s+", text[match.end():], re.MULTILINE)
+    section = text[match.end(): match.end() + next_heading.start()] if next_heading else text[match.end():]
+    items: list[str] = []
+    for raw_line in section.splitlines():
+        stripped = raw_line.strip()
+        if not stripped.startswith("- "):
+            continue
+        item = stripped[2:].strip(" `\"'")
+        if item:
+            items.append(item)
+    return items
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        deduped.append(value)
+    return deduped
+
+
 def _candidate_sort_key(path: Path) -> float:
     try:
         return path.stat().st_mtime
@@ -200,6 +272,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
                 {
                     "command_name": "implement",
                     "feature_dir": str(tracker_path.parent),
+                    "state_file": str(tracker_path),
                 },
             )
         )
@@ -220,6 +293,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
                 {
                     "command_name": "quick",
                     "workspace": str(status_path.parent),
+                    "state_file": str(status_path),
                 },
             )
         )
@@ -242,6 +316,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
                 {
                     "command_name": mapped,
                     "feature_dir": str(workflow_path.parent),
+                    "state_file": str(workflow_path),
                 },
             )
         )
@@ -295,6 +370,61 @@ def _extract_commit_message(command: str) -> str:
         if match:
             return match.group(1).strip()
     return ""
+
+
+def _learning_signal_args(context: dict[str, str]) -> list[str] | None:
+    state_file = context.get("state_file")
+    if not state_file:
+        return None
+    text = _read_text(Path(state_file))
+    if not text:
+        return None
+
+    args = ["signal-learning", "--command", context["command_name"]]
+    has_signal = False
+    for field_name, option_name in LEARNING_SIGNAL_FIELDS.items():
+        value = _extract_int_field(text, field_name)
+        if value <= 0:
+            continue
+        args.extend([option_name, str(value)])
+        has_signal = True
+
+    false_starts = _dedupe(
+        [
+            *_extract_list_field(text, "false_start"),
+            *_extract_list_field(text, "false_starts"),
+            *_extract_section_items(text, "False Starts"),
+            *_extract_section_items(text, "False Leads"),
+        ]
+    )
+    for item in false_starts:
+        args.extend(["--false-start", item])
+        has_signal = True
+
+    hidden_dependencies = _dedupe(
+        [
+            *_extract_list_field(text, "hidden_dependency"),
+            *_extract_list_field(text, "hidden_dependencies"),
+            *_extract_section_items(text, "Hidden Dependencies"),
+            *_extract_section_items(text, "Hidden Dependency"),
+        ]
+    )
+    for item in hidden_dependencies:
+        args.extend(["--hidden-dependency", item])
+        has_signal = True
+
+    return args if has_signal else None
+
+
+def _learning_signal_context(project_root: Path, context: dict[str, str], hook_event_name: str) -> str:
+    args = _learning_signal_args(context)
+    if not args:
+        return ""
+    shared = _run_shared_hook(project_root, args)
+    output = _shared_to_claude_output(hook_event_name=hook_event_name, shared_payload=shared)
+    if not output:
+        return ""
+    return str(output.get("hookSpecificOutput", {}).get("additionalContext") or "").strip()
 
 
 def _handle_user_prompt_submit(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -359,8 +489,19 @@ def _handle_post_tool_session_state(project_root: Path, _payload: dict[str, Any]
     context = _infer_active_context(project_root)
     if not context:
         return None
+    advisory_parts: list[str] = []
     if context["command_name"] not in {"implement", "quick", "debug"}:
-        return None
+        signal_context = _learning_signal_context(project_root, context, "PostToolUse")
+        if signal_context:
+            advisory_parts.append(signal_context)
+        if not advisory_parts:
+            return None
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": " ".join(advisory_parts),
+            }
+        }
 
     args = ["validate-session-state", "--command", context["command_name"]]
     if "feature_dir" in context:
@@ -371,18 +512,26 @@ def _handle_post_tool_session_state(project_root: Path, _payload: dict[str, Any]
         args.extend(["--session-file", context["session_file"]])
 
     shared = _run_shared_hook(project_root, args)
-    if not shared:
-        return None
-    shared_output = _shared_to_claude_output(
-        hook_event_name="PostToolUse",
-        shared_payload=shared,
-    )
+    shared_output = _shared_to_claude_output(hook_event_name="PostToolUse", shared_payload=shared)
     if shared_output:
         # PostToolUse should stay advisory; never emit a permission decision here.
         hook_specific = shared_output.get("hookSpecificOutput", {})
         hook_specific.pop("permissionDecision", None)
         hook_specific.pop("permissionDecisionReason", None)
-        return {"hookSpecificOutput": hook_specific} if hook_specific else None
+        additional_context = str(hook_specific.get("additionalContext") or "").strip()
+        if additional_context:
+            advisory_parts.append(additional_context)
+
+    signal_context = _learning_signal_context(project_root, context, "PostToolUse")
+    if signal_context:
+        advisory_parts.append(signal_context)
+    if advisory_parts:
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": " ".join(advisory_parts),
+            }
+        }
     return None
 
 
@@ -428,6 +577,9 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
             next_action = str(checkpoint.get("next_action") or "").strip()
             if next_action:
                 extra = f"{extra} Resume cue: {next_action}.".strip()
+        signal_context = _learning_signal_context(project_root, context, "Stop")
+        if signal_context:
+            extra = f"{extra} {signal_context}".strip()
         if extra:
             return {
                 "hookSpecificOutput": {
@@ -435,6 +587,15 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
                     "additionalContext": extra,
                 }
             }
+
+    signal_context = _learning_signal_context(project_root, context, "Stop")
+    if signal_context:
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "Stop",
+                "additionalContext": signal_context,
+            }
+        }
 
     return None
 

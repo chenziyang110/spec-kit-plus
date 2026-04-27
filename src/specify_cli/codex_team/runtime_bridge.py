@@ -316,6 +316,8 @@ def _git_probe(project_root: Path, *args: str) -> subprocess.CompletedProcess[st
         cwd=project_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 

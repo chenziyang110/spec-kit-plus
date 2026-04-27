@@ -536,6 +536,59 @@ class TestClaudeIntegration:
         assert hook_output["hookEventName"] == "PostToolUse"
         assert "next_command is /sp.plan" in hook_output["additionalContext"]
 
+    def test_claude_hook_dispatch_surfaces_learning_signal_on_post_tool_use(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-plan`",
+                    "- status: `active`",
+                    "- retry_attempts: `3`",
+                    "",
+                    "## False Starts",
+                    "",
+                    "- assumed it was an implementation issue before checking planning dependencies",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "post-tool-session-state"],
+            input=json.dumps({"tool_name": "Write"}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        hook_output = payload["hookSpecificOutput"]
+        assert hook_output["hookEventName"] == "PostToolUse"
+        assert "learning pain score" in hook_output["additionalContext"]
+        assert "review-learning --command plan" in hook_output["additionalContext"]
+
     def test_claude_hook_dispatch_blocks_stop_when_checkpoint_state_is_missing(self, tmp_path):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)
@@ -585,6 +638,59 @@ class TestClaudeIntegration:
         payload = json.loads(result.stdout.strip())
         assert payload["decision"] == "block"
         assert "implement-tracker.md is missing" in payload["reason"]
+
+    def test_claude_hook_dispatch_surfaces_learning_signal_on_stop(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-plan`",
+                    "- status: `active`",
+                    "- retry_attempts: `3`",
+                    "",
+                    "## Next Action",
+                    "",
+                    "- capture planning dependency learning",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "stop-monitor"],
+            input=json.dumps({}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        hook_output = payload["hookSpecificOutput"]
+        assert hook_output["hookEventName"] == "Stop"
+        assert "learning pain score" in hook_output["additionalContext"]
+        assert "review-learning --command plan" in hook_output["additionalContext"]
 
     def test_uninstall_preserves_user_settings_while_removing_managed_hooks(self, tmp_path):
         integration = get_integration("claude")
@@ -1248,7 +1354,7 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
 
     assert "## claude dispatch-first gate" in content
     assert "attempt delegated execution before leader-local implementation" in content
-    assert "treat `single-lane` as one delegated child-worker lane" in content
+    assert "treat `single-lane` as the topology for one safe execution lane" in content
     assert "if multiple safe worker lanes exist for the current batch, dispatch them in parallel" in content
     assert "do not begin concrete implementation on the leader path while an untried delegated path is available" in content
     assert "only fall back to leader-local execution after recording a concrete fallback reason" in content

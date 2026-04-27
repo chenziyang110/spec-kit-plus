@@ -79,7 +79,9 @@ class ContextLoader:
                 ["git", "log", f"-n{limit}", "--name-only", "--pretty=format:"],
                 cwd=self.root_dir,
                 stderr=subprocess.STDOUT,
-                text=True
+                text=True,
+                encoding="utf-8",
+                errors="replace",
             )
             files = []
             for line in output.splitlines():

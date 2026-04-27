@@ -468,3 +468,81 @@ def test_hook_validate_commit_outputs_parseable_json(tmp_path: Path):
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.commit.validate"
+
+
+def test_hook_review_learning_blocks_without_review_payload(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "review-learning",
+            "--command",
+            "implement",
+            "--terminal-status",
+            "resolved",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.learning.review"
+    assert payload["status"] == "blocked"
+
+
+def test_hook_signal_learning_outputs_parseable_json(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "signal-learning",
+            "--command",
+            "quick",
+            "--retry-attempts",
+            "2",
+            "--hypothesis-changes",
+            "1",
+            "--validation-failures",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.learning.signal"
+    assert payload["status"] == "warn"
+
+
+def test_hook_capture_learning_records_candidate(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "capture-learning",
+            "--command",
+            "debug",
+            "--type",
+            "tooling_trap",
+            "--summary",
+            "Watcher loops can masquerade as process-manager failures",
+            "--evidence",
+            "Repeated process fixes failed; excluding the log directory stopped restarts.",
+            "--pain-score",
+            "6",
+            "--false-start",
+            "job object cleanup",
+            "--injection-target",
+            "sp-debug",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.learning.capture"
+    assert payload["status"] == "repaired"
+    assert payload["data"]["capture"]["entry"]["learning_type"] == "tooling_trap"

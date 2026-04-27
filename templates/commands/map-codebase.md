@@ -2,7 +2,7 @@
 description: Use when handbook/project-map coverage is missing, stale, or insufficient and you need to generate or refresh the codebase navigation system from live code.
 workflow_contract:
   when_to_use: A workflow needs reliable handbook/project-map coverage and the current navigation artifacts are missing, stale, or too weak for the touched area.
-  primary_objective: Generate or refresh the canonical navigation artifact set directly from the live repository.
+  primary_objective: Generate or refresh the canonical atlas-style technical encyclopedia directly from the live repository.
   primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json`.'
   default_handoff: Return to the blocked workflow that required fresh navigation coverage.
 ---
@@ -18,7 +18,7 @@ scout and refresh emphasis, but still keep all canonical map outputs globally
 coherent.
 
 Treat this workflow as the repository's comprehensive technical-documentation
-generator. The resulting handbook/project-map system must serve as a durable
+generator. The resulting handbook/project-map system must serve as an atlas-style technical encyclopedia and durable
 technical asset for onboarding, architecture review, technical-debt assessment,
 and refactor planning. Analyze both macro architecture and micro
 implementation-level details; do not stop at repository shape or shallow
@@ -33,6 +33,9 @@ navigation summaries.
 ## Passive Project Learning Layer
 
 - [AGENT] Run `specify learning start --command map-codebase --format json` when available so passive learning files exist, the current mapping run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+- [AGENT] When mapping friction appears, run `specify hook signal-learning --command map-codebase ...` with route-change, artifact-rewrite, false-start, or hidden-dependency counts so atlas blind spots become explicit learning signals.
+- [AGENT] Before reporting completion or a blocked refresh, run `specify hook review-learning --command map-codebase --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `map_coverage_gap`, `workflow_gap`, `state_surface_gap`, or `project_constraint` exists.
+- [AGENT] Prefer `specify hook capture-learning --command map-codebase ...` for structured atlas learnings with `--injection-target PROJECT-HANDBOOK.md`, `.specify/project-map/`, or the affected `sp-*` workflow.
 
 ## Output Contract
 
@@ -81,6 +84,7 @@ Rules:
   vaguely, lacks ownership or placement guidance, or lacks workflow,
   constraint, integration, or regression-sensitive testing guidance.
 - Treat the map as a coverage system, not just a navigation summary.
+- Treat the combined handbook/project-map set as the repository's atlas-style technical encyclopedia, not as a folder tree with commentary.
 - The generated navigation system should collectively cover the equivalent of these seven technical-document chapters, distributed across the canonical outputs instead of recreated as one monolithic file:
   - project architecture overview
   - directory structure and responsibilities
@@ -108,6 +112,17 @@ Rules:
     scripts, operators, or tests
   - what minimum verification evidence proves the mapped surface still works
   - what important unknowns, assumptions, or stale coverage remain
+- The atlas must explicitly cover:
+  - component and module dependency graph
+  - runtime data and event flows
+  - state lifecycle
+  - deployment and runtime topology
+  - build and release pipeline dependencies
+  - configuration and feature-control surfaces
+  - observability design
+  - failure-mode and recovery model
+  - security boundaries and permission model
+  - decision history and architecture evolution context
 - Each touched area must include workflow, constraint, integration, or regression-sensitive testing guidance somewhere in the combined handbook/project-map output.
 - For each high-value capability, core module, or critical workflow, emit at least one capability card.
 - Capability cards must capture: Purpose, Owner, Truth lives, Entry points, Downstream consumers, Extend here, Do not extend here, Key contracts, Change propagation, Minimum verification, Failure modes, and Confidence.
@@ -130,6 +145,7 @@ Rules:
 - Scout the live repository deeply enough to refresh ownership, contracts, workflows, integrations, testing, and operations coverage.
 - Synthesize that evidence back into the canonical handbook/project-map outputs.
 - Update map freshness metadata before handing control back to the blocked workflow.
+- A maintainer should be able to answer what breaks, what blocks, what propagates, and what proves the change safe after reading the refreshed atlas.
 
 ## First-Party Workflow Quality Hooks
 
@@ -226,6 +242,8 @@ Rules:
         handoff identifiers
       - protocol, IPC, bridge, or native-host boundaries and their message or
         lifecycle semantics
+      - data lineage, event choreography, and runtime fan-out paths
+      - entity lifecycle, state-machine transitions, and persistence or cache checkpoints
       - build, packaging, toolchain, platform, architecture, and runtime
         invariants
       - API methods, endpoint families, request/response shapes, and notable
@@ -270,12 +288,16 @@ Rules:
      - `INTEGRATIONS.md`: External Services and Tools, Environment
        Configuration, CI/CD and Release Surfaces, Runtime Dependencies,
        Integration Risks
+     - `INTEGRATIONS.md` should also capture configuration and feature-control surfaces, compatibility rules, and security boundaries at usable depth
      - `WORKFLOWS.md`: Core User Flows, Core Maintainer Flows, Adjacent
        Workflow Risks, Entry Commands and Handoffs
+     - `WORKFLOWS.md` should also capture runtime data and event flows plus key business and entity lifecycles
      - `TESTING.md`: Test Layers, Key Test Directories, Smallest Meaningful
        Checks, Regression-Sensitive Areas, When To Expand Verification
+     - `TESTING.md` should also capture the test pyramid, quality gates, and change-impact verification matrix
      - `OPERATIONS.md`: Startup and Execution Paths, Runtime Constraints,
        Recovery and Resume, Troubleshooting Entry Points, Operator Notes
+     - `OPERATIONS.md` should also capture deployment and runtime topology, observability design, and failure modes and recovery playbooks
    - `ARCHITECTURE.md` must explain layers, abstractions, truth ownership, main
      flows, change propagation paths, and cross-cutting concerns.
    - `STRUCTURE.md` must answer where code lives, what each major directory
@@ -384,6 +406,7 @@ Rules:
 
 8. **Report completion**
    - [AGENT] Before reporting completion, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `specify learning capture --command map-codebase ...`.
+   - [AGENT] Before reporting completion, run `specify hook review-learning --command map-codebase --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"` so atlas-refresh learning cannot be skipped.
    - [AGENT] After the refresh succeeds, finalize the refresh through the project-map freshness helper using `complete-refresh` so downstream workflows know the new baseline commit and refresh reason. Use `record-refresh` only for low-level/manual recovery when the standard completion path is unavailable.
    - Summarize which canonical map files were created or refreshed.
    - Call out the highest-signal risky coordination points or stale areas that

@@ -6,8 +6,8 @@ Research how to implement Phase 11 so delegated execution becomes safe for seque
 
 ## Current Baseline
 
-- Phase 10 already established the leader-only contract, roadmap-aware next-phase selection, and delegated `single-agent` semantics in `templates/commands/implement.md`, `src/specify_cli/orchestration/models.py`, `src/specify_cli/orchestration/state_store.py`, and `src/specify_cli/orchestration/scheduler.py`.
-- `src/specify_cli/orchestration/policy.py` already provides the conservative strategy gate: no safe parallel batch or overlapping write sets means `single-agent`; otherwise prefer `native-multi-agent`, then `sidecar-runtime`.
+- Phase 10 already established the leader-only contract, roadmap-aware next-phase selection, and delegated `single-lane` semantics in `templates/commands/implement.md`, `src/specify_cli/orchestration/models.py`, `src/specify_cli/orchestration/state_store.py`, and `src/specify_cli/orchestration/scheduler.py`.
+- `src/specify_cli/orchestration/policy.py` already provides the conservative strategy gate: no safe parallel batch or overlapping write sets means `single-lane`; otherwise prefer `native-multi-agent`, then `sidecar-runtime`.
 - `src/specify_cli/codex_team/auto_dispatch.py` already parses explicit and inferred parallel batches from `tasks.md`, dispatches workers, writes batch records, and attaches pending join-point markers to task metadata.
 - `src/specify_cli/codex_team/task_ops.py` already owns claim validation, task state transitions, and join-point metadata updates. Terminal task transitions call `sync_batch_for_task(...)`.
 - `src/specify_cli/codex_team/batch_ops.py` currently applies a simple all-or-nothing batch rule: if any task in a batch fails, the batch becomes `failed`; if every task completes, the batch becomes `completed`.

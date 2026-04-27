@@ -178,7 +178,8 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
     assert "invoking runtime acts as the leader" in content
-    assert "`single-lane` still means one delegated worker lane" in content
+    assert "`single-lane` names the topology for one safe execution lane" in content
+    assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
     assert "selects the next executable phase and ready batch" in content
     assert "run `/sp-map-codebase` before final completion reporting" in content.lower()
     assert "verification is truthfully green and no explicit blocker prevents completion" in content.lower()
@@ -187,7 +188,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "join point" in content.lower()
     assert "retry-pending" in content.lower() or "retry pending" in content.lower()
     assert "blocker" in content.lower()
-    assert "do **not** ask the user whether the `single-lane` batch should switch to delegated execution" in content.lower()
+    assert "once a `single-lane` batch clears the delegation-readiness bar" in content.lower()
     assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
     assert "`research_gap`" in content
     assert "`plan_gap`" in content
@@ -557,8 +558,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
-    assert "`single-lane` still means one delegated worker lane" in content
-    assert "dispatch exactly one delegated worker lane" in content
+    assert "`single-lane` names the topology for one safe execution lane" in content
+    assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in content
     assert "read `.specify/memory/constitution.md` first if it exists" in content
     assert "crucial first step" in content
     assert "the next concrete action must be dispatch" in content or "once the first lane is chosen" in content

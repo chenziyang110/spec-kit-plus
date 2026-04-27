@@ -102,7 +102,6 @@ def test_session_batch_and_lane_have_utc_defaults():
 
 def test_execution_strategy_literal_values_are_canonical():
     assert get_args(ExecutionStrategy) == (
-        "single-agent",
         "single-lane",
         "native-multi-agent",
         "sidecar-runtime",
@@ -129,13 +128,14 @@ def test_execution_decision_derives_debug_single_lane_as_leader_local():
     assert decision.execution_surface == "leader-local"
 
 
-def test_execution_decision_keeps_legacy_single_agent_alias_for_debug() -> None:
+def test_execution_decision_normalizes_legacy_single_agent_alias_for_debug() -> None:
     decision = ExecutionDecision(
         command_name="debug",
         strategy="single-agent",
         reason="legacy-persisted-state",
     )
 
+    assert decision.strategy == "single-lane"
     assert decision.lane_topology == "single-lane"
     assert decision.execution_surface == "leader-local"
 

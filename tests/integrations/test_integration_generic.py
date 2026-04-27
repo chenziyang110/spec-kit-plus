@@ -53,6 +53,7 @@ class TestGenericIntegration:
                     ".specify/scripts/bash/project-map-freshness.sh",
                     ".specify/scripts/bash/quick-state.sh",
                     ".specify/scripts/bash/setup-plan.sh",
+                    ".specify/scripts/bash/sync-ecc-to-codex.sh",
                     ".specify/scripts/bash/update-agent-context.sh",
                 ]
             )
@@ -65,6 +66,7 @@ class TestGenericIntegration:
                     ".specify/scripts/powershell/project-map-freshness.ps1",
                     ".specify/scripts/powershell/quick-state.ps1",
                     ".specify/scripts/powershell/setup-plan.ps1",
+                    ".specify/scripts/powershell/sync-ecc-to-codex.ps1",
                     ".specify/scripts/powershell/update-agent-context.ps1",
                 ]
             )

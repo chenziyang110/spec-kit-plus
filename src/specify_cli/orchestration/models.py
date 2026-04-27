@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, cast
 
-ExecutionStrategy = Literal["single-agent", "single-lane", "native-multi-agent", "sidecar-runtime"]
+ExecutionStrategy = Literal["single-lane", "native-multi-agent", "sidecar-runtime"]
 LaneTopology = Literal["single-lane", "multi-lane"]
 ExecutionSurface = Literal["native-delegation", "sidecar-runtime", "leader-local"]
 # Backward-compatible alias for early Task 1 references.
 Strategy = ExecutionStrategy
 NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
 DelegationConfidence = Literal["low", "medium", "high"]
+_CANONICAL_EXECUTION_STRATEGIES = frozenset(
+    {"single-lane", "native-multi-agent", "sidecar-runtime"}
+)
 _SINGLE_LANE_LABEL_COMMANDS = frozenset(
     {
         "debug",
@@ -51,7 +54,12 @@ class CapabilitySnapshot:
 
 @dataclass(slots=True)
 class ExecutionDecision:
-    """Persisted decision that selects how a command should execute."""
+    """Persisted decision that selects how a command should execute.
+
+    `strategy` names the lane topology and routing class. It does not, by
+    itself, guarantee whether concrete work stays on the leader path or is
+    delegated; that is captured separately by `execution_surface`.
+    """
 
     command_name: str
     strategy: ExecutionStrategy
@@ -62,6 +70,17 @@ class ExecutionDecision:
     execution_surface: ExecutionSurface | None = None
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "strategy",
+            _normalize_execution_strategy(self.strategy),
+        )
+        if self.fallback_from is not None:
+            object.__setattr__(
+                self,
+                "fallback_from",
+                _normalize_execution_strategy(self.fallback_from),
+            )
         if self.lane_topology is None:
             object.__setattr__(
                 self,
@@ -174,6 +193,14 @@ def single_worker_delegation_default(command_name: str) -> bool:
     return command_name in {"implement", "quick"}
 
 
+def _normalize_execution_strategy(strategy: str) -> ExecutionStrategy:
+    if strategy == "single-agent":
+        return "single-lane"
+    if strategy in _CANONICAL_EXECUTION_STRATEGIES:
+        return cast(ExecutionStrategy, strategy)
+    raise ValueError(f"Unsupported execution strategy: {strategy}")
+
+
 def _derive_lane_topology(command_name: str, strategy: ExecutionStrategy) -> LaneTopology:
     if strategy == "native-multi-agent":
         return "multi-lane"
@@ -191,6 +218,4 @@ def _derive_execution_surface(command_name: str, strategy: ExecutionStrategy) ->
         if single_worker_delegation_default(command_name):
             return "native-delegation"
         return "leader-local"
-    if strategy == "single-agent" and single_worker_delegation_default(command_name):
-        return "native-delegation"
     return "leader-local"

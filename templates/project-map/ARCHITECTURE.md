@@ -40,6 +40,10 @@
 - Failure modes:
 - Confidence:
 
+## Dependency Graph and Coupling Hotspots
+
+[Capture dependency direction, shared abstractions, coupling hotspots, and blast radius for the most important architectural surfaces.]
+
 ## Main Flows
 
 ## Change Propagation Paths
@@ -49,6 +53,10 @@
 ## Ownership and Truth Map
 
 ## Truth Ownership and Boundaries
+
+## Decision and Evolution Links
+
+[Link important components or boundaries back to ADRs, compatibility promises, migration history, or other decision records when those facts explain why the architecture looks this way.]
 
 ## Cross-Cutting Concerns
 

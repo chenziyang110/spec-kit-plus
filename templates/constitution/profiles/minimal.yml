@@ -1,0 +1,82 @@
+id: minimal
+name: Minimal Delivery
+version: 1.0.0
+description: Lean default for small repositories and low-ceremony teams.
+core_principles: |
+  ## Core Principles
+
+  ### I. Scope Before Code
+
+  Non-trivial work MUST begin from a short written goal, acceptance criteria, or
+  task note before implementation starts.
+
+  - **Clarify the Change**: State what is changing and how success will be
+    checked.
+  - **Rationale**: Even small repos drift when changes start from assumptions.
+
+  ### II. Smallest Useful Change
+
+  The preferred solution is the smallest change that solves the current problem.
+
+  - **Reuse Before Adding**: Extend existing code before inventing new layers.
+  - **No Speculation**: Do not add flexibility for hypothetical future needs.
+  - **Rationale**: Lightweight repos benefit most from discipline against creep.
+
+  ### III. Test What Changed
+
+  Behavior changes and bug fixes MUST have proportionate verification.
+
+  - **Prefer Failing Tests First**: Add or update a test when the repo has a
+    suitable test surface.
+  - **Pragmatic Verification**: Documentation-only or local maintenance changes
+    MAY use lighter checks when full automation is not relevant.
+  - **Rationale**: Small codebases still need evidence.
+
+  ### IV. Reviewable Delivery
+
+  Changes MUST stay easy to review, explain, and revert.
+
+  - **Keep Diffs Focused**: Avoid mixing unrelated cleanup into one change.
+  - **Update Docs When Needed**: Sync behavior changes with the nearest useful
+    documentation.
+  - **Rationale**: Simple repos stay healthy by staying understandable.
+
+  ### V. Evidence Before Completion (NON-NEGOTIABLE)
+
+  Completion claims MUST be backed by the relevant command output or manual
+  proof.
+
+  - **Run the Check**: Use the smallest command or validation step that proves
+    the change.
+  - **Read the Output**: Do not assume success from the edit itself.
+  - **Rationale**: Evidence matters more than process weight.
+conditional_guidance: |
+  ## Conditional Guidance
+
+  Apply the following rules when the project or change type makes them relevant.
+
+  ### Operational Simplicity
+
+  Keep recurring workflow steps obvious and low-friction.
+
+  - **Prefer Fewer Moving Parts**: Avoid introducing new tools or services when
+    the existing stack already solves the problem.
+  - **Rationale**: Minimal repos lose speed when their tooling outgrows them.
+engineering_standards: |
+  ## Engineering Standards
+
+  - **Clear Naming**: Code, tasks, and docs SHOULD prefer descriptive names over
+    terse shortcuts.
+  - **Local Documentation Sync**: Update the nearest relevant README, inline
+    help, or example when behavior changes.
+  - **Encoding Preservation**: When modifying an existing file, changes MUST
+    preserve the file's existing character encoding and BOM behavior unless the
+    task explicitly requires an encoding conversion.
+workflow_and_quality_gates: |
+  ## Workflow and Quality Gates
+
+  - **Spec-Driven Flow**: Significant work SHOULD follow constitution -> specify
+    -> plan -> tasks -> implement, unless the change is truly small and
+    self-evident.
+  - **Keep the Workflow Proportionate**: Use the lightest workflow lane that
+    still protects correctness, clarity, and reversibility.

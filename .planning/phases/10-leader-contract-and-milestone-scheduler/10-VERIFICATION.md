@@ -28,7 +28,7 @@ Redefine `sp-implement` so the invoking runtime acts only as the leader while it
 Status: PASS
 
 Evidence:
-- `templates/commands/implement.md:156-165` states that the invoking runtime acts as the leader, treats `single-agent` as a delegated worker lane, and keeps the shared template as the primary source of truth.
+- `templates/commands/implement.md:156-165` states that the invoking runtime acts as the leader, treats `single-lane` as a delegated worker lane, and keeps the shared template as the primary source of truth.
 - `tests/codex_team/test_implement_runtime_routing.py:57-66` and `tests/test_alignment_templates.py:257-260` fail if that leader-only wording drifts.
 
 ### 2. The runtime can determine the next executable phase and ready batch from roadmap order, task dependencies, and current state
@@ -45,7 +45,7 @@ Evidence:
 Status: PASS
 
 Evidence:
-- `templates/commands/implement.md:165-174` explicitly says `single-agent` means one delegated worker lane and that the leader re-evaluates milestone state after each completed batch.
+- `templates/commands/implement.md:165-174` explicitly says `single-lane` means one delegated worker lane and that the leader re-evaluates milestone state after each completed batch.
 - `.agents/skills/sp-implement/SKILL.md:226-237` and `src/specify_cli/integrations/codex/__init__.py:82-93` mirror the same delegated sequential semantics in the shipped Codex surface.
 - `tests/integrations/test_integration_codex.py:82-85` verifies the generated Codex skill inherits those phrases.
 

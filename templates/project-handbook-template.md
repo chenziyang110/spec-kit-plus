@@ -11,6 +11,11 @@ in view.]
 
 [Cover the project type, primary technology stack, build/dependency tooling, and deployment shape. Name the major capability surfaces, runtime units, and architectural boundaries that downstream readers must understand first.]
 
+## System Boundaries
+
+[State what this repository deliberately owns, what it coordinates but does not own,
+and what sits clearly outside the system boundary.]
+
 ## High-Value Capabilities
 
 - [List the highest-value capabilities a newcomer should understand first.]
@@ -21,6 +26,7 @@ in view.]
 
 - Start here for orientation.
 - The handbook is the index-first entrypoint.
+- Treat the combined handbook/project-map set as the repository's atlas-style technical encyclopedia.
 - The topical project-map documents hold the full technical detail.
 - Use `Topic Map` to choose the next topical document.
 - Use `Where To Read Next` for task-oriented routing.
@@ -44,6 +50,12 @@ in view.]
 - [Where a change is likely to fan out across consumers, integrations, config,
   scripts, docs, operators, or tests]
 
+## Change Impact Guide
+
+- [Provide the fastest route from a proposed code change to the affected atlas views.]
+- [For each major hotspot, say which topical document explains the blast radius,
+  hidden dependencies, lifecycle risks, and minimum verification route.]
+
 ## Verification Entry Points
 
 - [Fastest trustworthy checks, scripts, suites, or manual proofs for the major
@@ -59,6 +71,11 @@ in view.]
 - [Call out current stale, inferred, or weakly evidenced areas so readers know
   where extra live-code verification is needed.]
 - [Tie low-confidence areas back to specific capabilities, workflows, or boundaries whenever possible.]
+
+## Atlas Views
+
+- [Summarize which topical documents answer structure, runtime flow, state lifecycle,
+  deployment topology, observability, security, release, and verification questions.]
 
 ## Where To Read Next
 

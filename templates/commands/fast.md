@@ -53,6 +53,9 @@ Upgrade to `/sp-specify` immediately if:
 - [AGENT] Run `specify learning start --command fast --format json` when available so passive learning files exist, the current fast-path run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains fast-path-relevant candidate learnings after the passive start step, especially repeated local pitfalls, routing constraints, or project defaults that affect whether the task should stay on `sp-fast`.
+- [AGENT] When fast-path friction appears, run `specify hook signal-learning --command fast ...` with retry, route-change, validation-failure, false-start, or hidden-dependency counts; high friction usually means the task should leave `sp-fast`.
+- [AGENT] Before final reporting, run `specify hook review-learning --command fast --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `routing_mistake`, `pitfall`, `near_miss`, or `project_constraint` exists.
+- [AGENT] Prefer `specify hook capture-learning --command fast ...` only for high-signal findings that should affect later workflows.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Process

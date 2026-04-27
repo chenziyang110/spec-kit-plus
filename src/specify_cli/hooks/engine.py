@@ -22,12 +22,22 @@ from .events import (
     WORKFLOW_PREFLIGHT,
     WORKFLOW_BOUNDARY_VALIDATE,
     WORKFLOW_COMMIT_VALIDATE,
+    WORKFLOW_LEARNING_CAPTURE,
+    WORKFLOW_LEARNING_INJECT,
+    WORKFLOW_LEARNING_REVIEW,
+    WORKFLOW_LEARNING_SIGNAL,
     WORKFLOW_PHASE_BOUNDARY_VALIDATE,
     WORKFLOW_PROMPT_GUARD_VALIDATE,
     WORKFLOW_READ_GUARD_VALIDATE,
     WORKFLOW_SESSION_STATE_VALIDATE,
     WORKFLOW_STATE_VALIDATE,
     WORKFLOW_STATUSLINE_RENDER,
+)
+from .learning import (
+    learning_capture_hook,
+    learning_inject_hook,
+    learning_review_hook,
+    learning_signal_hook,
 )
 from .prompt_guard import prompt_guard_hook
 from .preflight import workflow_preflight_hook
@@ -56,6 +66,10 @@ _HOOK_REGISTRY: dict[str, HookFn] = {
     WORKFLOW_BOUNDARY_VALIDATE: workflow_boundary_hook,
     WORKFLOW_PHASE_BOUNDARY_VALIDATE: phase_boundary_hook,
     WORKFLOW_COMMIT_VALIDATE: commit_validation_hook,
+    WORKFLOW_LEARNING_SIGNAL: learning_signal_hook,
+    WORKFLOW_LEARNING_REVIEW: learning_review_hook,
+    WORKFLOW_LEARNING_CAPTURE: learning_capture_hook,
+    WORKFLOW_LEARNING_INJECT: learning_inject_hook,
     DELEGATION_PACKET_VALIDATE: validate_packet_hook,
     DELEGATION_JOIN_VALIDATE: validate_join_hook,
     PROJECT_MAP_MARK_DIRTY: mark_dirty_hook,

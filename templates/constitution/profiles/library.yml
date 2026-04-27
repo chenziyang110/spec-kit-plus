@@ -1,0 +1,114 @@
+id: library
+name: Reusable Library
+version: 1.0.0
+description: Compatibility-focused default for packages, CLIs, SDKs, and shared libraries.
+core_principles: |
+  ## Core Principles
+
+  ### I. Specification-First Delivery (NON-NEGOTIABLE)
+
+  Changes to public behavior MUST start from explicit requirements, examples,
+  and acceptance criteria before implementation proceeds.
+
+  - **Contract First**: Define the consumer-visible contract before changing the
+    implementation.
+  - **Scope Before Abstraction**: Clarify the intended use case before adding
+    new flags, hooks, extension points, or overloads.
+  - **Rationale**: Shared libraries fail expensively when their contracts are
+    ambiguous.
+
+  ### II. Small Surface Area
+
+  New APIs, options, and files MUST be added only when they solve a current,
+  concrete problem.
+
+  - **Prefer Fewer Concepts**: Reuse existing types, commands, and conventions
+    before adding new ones.
+  - **Keep Defaults Predictable**: Favor obvious defaults over configurable but
+    surprising behavior.
+  - **Rationale**: Smaller public surfaces are easier to support and harder to
+    misuse.
+
+  ### III. Test-Backed Compatibility (NON-NEGOTIABLE)
+
+  Behavior changes MUST be protected by tests that encode both expected output
+  and compatibility boundaries.
+
+  - **Regression Coverage Required**: Every bug fix MUST add a reproducer or
+    compatibility assertion.
+  - **Consumer-Facing Tests First**: Favor tests that exercise the public API,
+    CLI, config file, or serialized output over private implementation details.
+  - **Rationale**: Compatibility is a product promise, not an implementation
+    accident.
+
+  ### IV. Stable Public Surface
+
+  Public APIs, configuration keys, CLI flags, and file formats MUST remain
+  intentional, documented, and versioned.
+
+  - **Explicit Breaking Changes**: Any incompatible change MUST be called out
+    with migration guidance.
+  - **Deprecate Before Removing**: Prefer staged removals when consumers may
+    rely on old behavior.
+  - **Rationale**: Reusable tooling earns trust through stability.
+
+  ### V. Reviewable Releases
+
+  Release-oriented work MUST be traceable from diff to changelog.
+
+  - **Document User Impact**: Release notes and docs updates MUST land with the
+    code when behavior changes.
+  - **Keep Diffs Narrow**: Avoid mixing unrelated cleanup with contract changes.
+  - **Rationale**: Consumers need to understand what changed and why.
+
+  ### VI. Evidence Before Completion (NON-NEGOTIABLE)
+
+  Completion claims MUST be backed by fresh verification evidence.
+
+  - **Run the Relevant Checks**: Execute the smallest proving tests first, then
+    broader package checks before closeout.
+  - **Read the Results**: Passing status MUST be confirmed from output, not
+    assumed from edits.
+  - **Rationale**: Libraries ship to many contexts; assumptions do not scale.
+conditional_guidance: |
+  ## Conditional Guidance
+
+  Apply the following rules when the project or change type makes them relevant.
+
+  ### Compatibility and Evolution
+
+  Consumer-facing change MUST be easy to evaluate and upgrade.
+
+  - **Semantic Versioning Discipline**: Breaking, additive, and fix-only changes
+    SHOULD align with the package's published versioning strategy.
+  - **Migration Notes**: When behavior changes, document the upgrade path and
+    fallback plan for downstream consumers.
+  - **Rationale**: A reusable package is judged by upgrade friction as much as
+    by feature quality.
+engineering_standards: |
+  ## Engineering Standards
+
+  - **Public API Inventory**: Keep the intended public entry points explicit in
+    code, docs, or generated references so changes can be reviewed against the
+    supported surface.
+  - **SemVer and Release Discipline**: Treat changelog, version bumps, and
+    deprecation windows as first-class engineering work when the published
+    contract changes.
+  - **Examples and Upgrade Paths**: Update usage examples, sample configs, and
+    migration notes when the public surface changes.
+  - **Encoding Preservation**: When modifying an existing file, changes MUST
+    preserve the file's existing character encoding and BOM behavior unless the
+    task explicitly requires an encoding conversion.
+  - **Performance and Footprint Awareness**: New runtime cost, startup work, and
+    dependency weight SHOULD be justified when they affect downstream consumers.
+workflow_and_quality_gates: |
+  ## Workflow and Quality Gates
+
+  - **Spec-Driven Flow**: Significant work SHOULD follow constitution -> specify
+    -> plan -> tasks -> implement, unless the change is truly small and
+    self-evident.
+  - **API Review Context**: Plans and implementation summaries MUST call out the
+    touched public surface, compatibility risk, and migration impact when they
+    exist.
+  - **Release Readiness**: Changes that affect published contracts SHOULD not be
+    considered complete until docs, examples, and release notes are aligned.

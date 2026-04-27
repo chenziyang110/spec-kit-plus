@@ -61,6 +61,9 @@ scripts:
 - [AGENT] Run `specify learning start --command specify --format json` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains candidate learnings relevant to specification after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
+- [AGENT] When specification friction appears, run `specify hook signal-learning --command specify ...` with user-correction, route-change, scope-change, false-start, or hidden-dependency counts.
+- [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command specify --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `user_preference`, `decision_debt`, or `project_constraint` exists.
+- [AGENT] Prefer `specify hook capture-learning --command specify ...` when the run exposes reusable ambiguity, decision debt, route mistakes, or project constraints.
 - Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
 
 ## Workflow Phase Lock

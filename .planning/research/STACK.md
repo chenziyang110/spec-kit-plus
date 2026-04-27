@@ -17,7 +17,7 @@
 ## What Not To Add
 
 - No external durable queue, broker, or service process for this milestone.
-- No new strategy vocabulary replacing `single-agent`, `native-multi-agent`, or `sidecar-runtime`.
+- No new strategy vocabulary replacing `single-lane`, `native-multi-agent`, or `sidecar-runtime`.
 - No integration-specific runtime abstraction that bypasses the shared orchestration core.
 
 ## Integration Notes

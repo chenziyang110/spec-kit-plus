@@ -57,7 +57,7 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 - `sp-specify` now feels more like guided requirement discovery while preserving one-question-at-a-time interaction in v1.2
 - The stronger `sp-specify` contract is now aligned across shared templates, the local Codex skill mirror, quickstart guidance, and focused regression suites in v1.2
 - `sp-implement` can now derive the next executable phase and ready batch from roadmap-aware scheduler primitives instead of relying on manual phase-by-phase restarts in Phase 10
-- `sp-implement` now ships a leader-only contract that keeps concrete execution in delegated worker lanes, including the sequential `single-agent` path, in Phase 10
+- `sp-implement` now ships a leader-only contract that keeps concrete execution in delegated worker lanes, including the sequential `single-lane` path, in Phase 10
 - `sp-implement` now coordinates safe parallel worker batches with explicit join-point policy and narrow safe-preparation rules in Phase 11
 - `sp-implement` now persists retry-pending, blocked, and critical failure taxonomy state for delegated worker execution in Phase 11
 - Planning/status surfaces now expose worker outcomes, join points, retry-pending work, and blockers in Phase 12
@@ -74,7 +74,7 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 - Additional integration rollout beyond the current Codex, Claude, Gemini, and Copilot slice - deferred until the expansion milestone
 - Extending the stronger questioning model into `spec-extend` or `clarify` in this milestone - execution runtime depth now has priority
 - Broader behavior-level evaluation for questioning quality across more task types - defer until the execution milestone stops moving
-- Replacing the current strategy vocabulary (`single-agent`, `native-multi-agent`, `sidecar-runtime`) with a brand-new policy system - this milestone should deepen execution behavior, not rename the orchestration surface
+- Replacing the current strategy vocabulary (`single-lane`, `native-multi-agent`, `sidecar-runtime`) with a brand-new policy system - this milestone should deepen execution behavior, not rename the orchestration surface
 
 ## Context
 
@@ -102,7 +102,7 @@ Keep Spec-Driven Development practical across local AI integrations by making th
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Extract collaboration state and policy into a generic orchestration core | Reuses the existing Codex runtime investment without locking future work to Codex-only naming | Good |
-| Prefer `native-multi-agent` before `sidecar-runtime`, then downgrade to `single-agent` when needed | Keeps native agent UX primary while still allowing durable fallback | Good |
+| Prefer `native-multi-agent` before `sidecar-runtime`, then downgrade to `single-lane` when needed | Keeps native agent UX primary while still allowing durable fallback | Good |
 | Expand collaboration workflow-by-workflow instead of claiming parity everywhere at once | Prevents documentation and product surfaces from overpromising runtime capability | Good |
 | Use Milestone 2 to migrate `specify`, `plan`, `tasks`, and `explain` before deepening `implement` and `debug` runtime behavior | Matches the approved sequence in the orchestration design and the current repository state | Good |
 | Keep the milestone focused on `sp-specify` instead of redesigning `spec-extend` or `clarify` at the same time | Keeps the milestone bounded enough to improve the mainline experience without diffusing the work | Good |

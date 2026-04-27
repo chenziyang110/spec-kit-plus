@@ -33,6 +33,20 @@ uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME
 
 `specify init` seeds a default constitution into `.specify/memory/constitution.md`. In your AI agent's chat interface, use the `/speckit.constitution` slash command when that default constitution needs project-specific changes or when you need to establish or revise project principles before downstream planning work continues.
 
+If the repository needs a different built-in baseline, pick a constitution
+profile during init:
+
+```bash
+uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME> --constitution-profile library
+```
+
+Built-in profiles:
+
+- `product` (default) for application and service repositories
+- `minimal` for lean, low-ceremony repositories
+- `library` for packages, SDKs, and CLIs with compatibility expectations
+- `regulated` for security, privacy, or audit-heavy repositories
+
 ```markdown
 /speckit.constitution This project follows a "Library-First" approach. All features must be implemented as standalone libraries first. We use TDD strictly. We prefer functional programming patterns.
 ```
@@ -116,7 +130,8 @@ For Codex team-mode execution, use the runtime surface deliberately:
 - If agent automation should use the optional MCP facade, install it with `pip install "specify-cli[mcp]"` and refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`.
 - Use `specify team result-template --request-id <id>` and `specify team submit-result --print-schema` instead of inventing handoff JSON by guesswork. The generated result template is a `pending placeholder` and must be replaced with a real success, blocked, or failed result before submission.
 - Use `specify team sync-back` after worker execution when the canonical code changes landed under `.specify/codex-team/worktrees/<session>/...` and need to be promoted back to the main workspace.
-- In execution-oriented workflows, treat `single-lane` as the delegated single-worker compatibility alias, not as permission for leader-local execution.
+- In execution-oriented workflows, treat `single-lane` as the topology label for one safe execution lane, not as permission for leader-local execution.
+- Prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.
 - Interpret `DONE_WITH_CONCERNS` as lane-local completion with follow-up concerns, not silent success.
 - Treat lane-local completion and repo-global verification separately: a batch can be complete while `doctor` still reports repo verification blocked by baseline debt.
 - Keep join point validation explicit in team-mode runs, and do not accept `idle` without the promised result handoff as completed work.
@@ -125,6 +140,7 @@ Generated project navigation now follows the handbook system:
 
 - Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
 - Deep project knowledge lives under `.specify/project-map/`.
+- Treat the combined handbook/project-map surface as an atlas-style technical encyclopedia for dependency graph, runtime flows, state lifecycle, and change-impact view.
 - `.specify/project-map/status.json` records the current handbook freshness baseline and dirty state.
 - After a successful `map-codebase` run, use `project-map complete-refresh` as the standard completion hook to record the fresh baseline.
 - Any code change that alters navigation meaning must update the handbook system.
@@ -132,6 +148,7 @@ Generated project navigation now follows the handbook system:
 Use support skills when they solve a specific gap:
 
 - `/speckit.map-codebase` as the required brownfield gate when you are working in an existing codebase; generate or refresh the handbook/project-map navigation system before deeper workflow steps
+- Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
 - `/speckit.spec-extend` when an existing spec still needs deeper analysis before planning
 - `/speckit.checklist` when you want to audit requirement quality after planning
 - `/speckit.analyze` as the required gate before implementation once `tasks.md` exists
@@ -139,7 +156,7 @@ Use support skills when they solve a specific gap:
 - When you run `/speckit.analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `/speckit.analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
 - `/speckit.analyze` should also flag delegated packet failures through `DP1`, `DP2`, and `DP3` when worker packets or worker results lose required rule-carrying evidence
-- `/speckit.explain` when you want the current spec, plan, or tasks state restated in plain language
+- `/speckit.explain` when you want the current spec, plan, task, implement, or handbook/project-map atlas artifact restated in plain language
 
 If you're starting from an existing codebase, `/speckit.map-codebase` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use `.specify/project-map/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
 
@@ -176,8 +193,12 @@ Passive project learning layer:
   - `specify implement closeout --feature-dir <feature-dir> --format json`
   - `specify learning aggregate --format json`
   - `specify learning promote --recurrence-key <key> --target learning|rule`
+  - `specify hook signal-learning --command <workflow> ...`
+  - `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> ...`
+  - `specify hook capture-learning --command <workflow> --type <type> --summary "..." --evidence "..."`
+  - `specify hook inject-learning --command <workflow> --type <type> --summary "..."`
 - `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
-- Treat this as an internal/runtime helper surface, not as a separate daily slash workflow.
+- Treat this as an internal/runtime helper surface, not as a separate daily slash workflow. `review-learning` is the terminal learning gate, and `capture-learning` preserves structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
 
 First-party workflow quality hooks:
 
@@ -189,6 +210,7 @@ First-party workflow quality hooks:
 - Use `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` for delegated worker integrity.
 - Use `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` when path safety or workflow-bypass language is in doubt.
 - Use `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` to enforce workflow transitions and commit-time integrity.
+- Use `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` to turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
 
 Claude Code project-local integration:
 
@@ -197,9 +219,34 @@ Claude Code project-local integration:
   - `SessionStart` into `specify hook render-statusline`
   - `UserPromptSubmit` into `specify hook validate-prompt`
   - `PreToolUse` into `specify hook validate-read-path` / `specify hook validate-commit`
-  - `PostToolUse` into `specify hook validate-session-state` for active resumable workflows
-  - `Stop` into `specify hook monitor-context --trigger before_stop`
+  - `PostToolUse` into `specify hook validate-session-state` for active resumable workflows and soft `specify hook signal-learning` warnings when workflow state records reusable friction
+  - `Stop` into `specify hook monitor-context --trigger before_stop` and soft `specify hook signal-learning` warnings when active workflow state crosses the pain threshold
 - If an existing `.claude/settings.json` cannot be parsed, it is preserved and hook registration is skipped rather than overwritten.
+
+Codex/OMX native integration:
+
+- OMX manages Codex native hooks through `.codex/hooks.json` and `codex-native-hook.js`.
+- The managed Codex native hooks cover `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop`.
+- `PostToolUse` and `Stop` also surface soft `specify hook signal-learning` warnings when active workflow state records reusable friction.
+- Learning capture and terminal learning review remain shared `specify hook capture-learning` / `review-learning` responsibilities rather than native-hook decisions.
+
+Gemini native integration:
+
+- `specify init --ai gemini` installs `.gemini/hooks/gemini-hook-dispatch.py` and merges project-local `.gemini/settings.json` when it is valid JSON.
+- The managed Gemini native hooks bridge:
+  - `SessionStart` into `specify hook render-statusline`
+  - `BeforeAgent` into `specify hook validate-prompt` and soft `specify hook signal-learning` warnings when active workflow state records reusable friction
+  - `BeforeTool` into `specify hook validate-read-path` / `specify hook validate-commit`
+- Learning capture and terminal learning review remain shared `specify hook capture-learning` / `review-learning` responsibilities rather than native-hook decisions.
+
+Native hook coverage matrix:
+
+| Surface | Shared `specify hook ...` | Native adapter/runtime | Learning signal bridge | Native terminal review gate |
+| --- | --- | --- | --- | --- |
+| Claude | Yes | Yes | Yes | No |
+| Codex/OMX | Yes | Yes | Yes | No |
+| Gemini | Yes | Yes | Yes | No |
+| Other integrations | Yes | No | No | No |
 
 ## Detailed Example: Building Taskify
 

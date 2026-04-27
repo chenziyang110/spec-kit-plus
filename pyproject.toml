@@ -34,6 +34,7 @@ packages = ["src/specify_cli"]
 "templates/agent-file-template.md" = "specify_cli/core_pack/templates/agent-file-template.md"
 "templates/alignment-template.md" = "specify_cli/core_pack/templates/alignment-template.md"
 "templates/checklist-template.md" = "specify_cli/core_pack/templates/checklist-template.md"
+"templates/constitution" = "specify_cli/core_pack/templates/constitution"
 "templates/constitution-template.md" = "specify_cli/core_pack/templates/constitution-template.md"
 "templates/context-template.md" = "specify_cli/core_pack/templates/context-template.md"
 "templates/debug.md" = "specify_cli/core_pack/templates/debug.md"

@@ -6,11 +6,11 @@ Research how to plan Phase 10 so `sp-implement` becomes a leader-only milestone 
 
 ## Current Baseline
 
-- `templates/commands/implement.md` already defines strategy selection using `single-agent`, `native-multi-agent`, and `sidecar-runtime`, but the outline still frames the invoking agent as the direct executor.
+- `templates/commands/implement.md` already defines strategy selection using `single-lane`, `native-multi-agent`, and `sidecar-runtime`, but the outline still frames the invoking agent as the direct executor.
 - `.agents/skills/sp-implement/SKILL.md` mirrors that shared contract and adds Codex-only escalation guidance for `specify team`.
 - `src/specify_cli/orchestration/policy.py` chooses a strategy from a workload shape and `CapabilitySnapshot`, but it does not decide milestone-wide next steps.
 - `src/specify_cli/orchestration/models.py` and `src/specify_cli/orchestration/state_store.py` already define session, batch, lane, and event primitives that can anchor a scheduler design.
-- Current tests cover strategy selection and template wording, but there is no explicit regression that `single-agent` still means a delegated worker lane rather than leader self-execution.
+- Current tests cover strategy selection and template wording, but there is no explicit regression that `single-lane` still means a delegated worker lane rather than leader self-execution.
 
 ## Planning Implications
 
@@ -18,7 +18,7 @@ Research how to plan Phase 10 so `sp-implement` becomes a leader-only milestone 
 
 - Phase 10 should update the shared implement contract first, because non-Codex integrations inherit it.
 - The contract needs explicit language that the leader schedules and dispatches work, while all concrete execution routes through delegated worker lanes.
-- `single-agent` should be renamed in behavior, not vocabulary: one worker lane, still delegated.
+- `single-lane` should preserve the same behavior: one worker lane, still delegated.
 
 ### Runtime Shape
 

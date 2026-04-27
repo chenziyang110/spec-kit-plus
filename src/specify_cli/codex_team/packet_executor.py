@@ -147,6 +147,8 @@ def execute_packet(
         cwd=str(project_root),
         input=json.dumps(payload, ensure_ascii=False),
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
     )

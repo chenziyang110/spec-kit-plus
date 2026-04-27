@@ -608,6 +608,8 @@ def git_head_commit(project_root: Path) -> str:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
         return ""
@@ -621,6 +623,8 @@ def git_branch_name(project_root: Path) -> str:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
         return ""
@@ -634,6 +638,8 @@ def has_git_repo(project_root: Path) -> bool:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
         return False
@@ -660,6 +666,8 @@ def collect_changed_files(project_root: Path, *, last_mapped_commit: str, head_c
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
         except (FileNotFoundError, subprocess.CalledProcessError):
             continue

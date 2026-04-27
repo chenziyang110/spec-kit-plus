@@ -16,7 +16,9 @@ scripts:
 
 - You are the quick-task leader. You own scope control, `STATUS.md`, lane selection, join points, validation, and the final summary artifact.
 - You are not the default worker for the quick task. Once scope is locked and a delegated path is available, dispatch the lane instead of continuing leader-local implementation work.
-- Treat `single-lane` as one delegated worker lane, not as permission to personally do the task.
+- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a delegated worker executes that lane.
+- Prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.
+- If that delegation-readiness bar is not met, keep the lane on the leader path until the missing context, constraints, validation target, or handoff expectations are explicit.
 - Use leader-local execution only through the documented exception path and record the fallback reason in `STATUS.md`.
 
 ## Required Context Inputs
@@ -25,6 +27,9 @@ scripts:
 - [AGENT] Run `specify learning start --command quick --format json` when available so passive learning files exist, the current quick-task run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` after the constitution gate and before broader quick-task context.
 - If `.planning/learnings/candidates.md` still contains relevant entries after the passive start step, inspect only the entries relevant to the touched area so repeated pitfalls, workflow gaps, and project constraints are not rediscovered from scratch.
+- [AGENT] When quick-task friction appears, run `specify hook signal-learning --command quick ...` with retry, validation-failure, route-change, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
+- [AGENT] Before terminal `resolved` or `blocked` reporting, run `specify hook review-learning --command quick --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `pitfall`, `recovery_path`, `routing_mistake`, `verification_gap`, or `project_constraint` exists.
+- [AGENT] Prefer `specify hook capture-learning --command quick ...` for structured path learning when the run exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
 - Check whether `.specify/project-map/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
@@ -112,11 +117,10 @@ The following flags are available and composable:
   - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
   - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
   - Else -> `single-lane` (`fallback` or `fallback-low-confidence`)
-- `single-lane` still means one delegated worker lane, not leader self-execution.
-- In plain terms: single-lane still means one delegated worker lane.
+- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a delegated worker executes that lane.
 - `native-multi-agent` means the leader dispatches independent bounded lanes through the integration's native delegation surface and rejoins at an explicit join point.
 - `sidecar-runtime` means the leader escalates the execution batch through the integration's coordinated runtime surface when native delegation is unavailable.
-- Default execution for both `single-lane` and `native-multi-agent` stays on delegated worker lanes. The leader coordinates; it does not become the worker just because the task is small.
+- Prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that delegation-readiness bar is not met, keep the lane on the leader path until the missing contract is compiled.
 - If two or more independent delegated lanes can safely run in parallel and that fan-out materially improves throughput, prefer launching multiple worker lanes over serial single-lane execution.
 - Leader-local execution is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through native delegation and cannot proceed through the coordinated runtime surface either.
 - If leader-local execution is used, record the concrete reason in `STATUS.md`, including which delegation path was unavailable or blocked for the current batch.
@@ -235,7 +239,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 - The leader must continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
 - Do not stop after a single edit, single command, or single failed attempt when the next recovery step is obvious and low-risk.
 - Prefer the integration's native delegation surface when `snapshot.native_multi_agent` is true and the workload has two or more safe lanes; if there is only one safe lane, `single-lane` remains valid.
-- Treat `single-lane` as a delegated single-worker path by default. Do not reinterpret it as leader self-execution just because only one lane is safe.
+- Prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that delegation-readiness bar is not met, keep the lane on the leader path and finish compiling the missing contract first.
 - After `STATUS.md` is initialized and the first lane is defined, dispatch that worker path before doing any further local repository deep dive.
 - If multiple safe delegated lanes exist and they can improve throughput without creating write-surface conflicts, dispatch them in parallel instead of artificially serializing the work.
 - Use leader-local execution only as a constrained fallback after delegated execution is concretely unavailable for the current batch and the coordinated runtime surface is also unavailable or unsuitable.
@@ -358,7 +362,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 
 5. **Execution**
    - Execute the current quick-task lane or ready batch through the selected strategy.
-   - For `single-lane`, dispatch one delegated worker lane rather than executing locally.
+   - For `single-lane`, dispatch one delegated worker lane once the delegation-readiness bar is satisfied; otherwise finish compiling the missing contract on the leader path before dispatch.
    - The first concrete execution action should normally be dispatching that delegated lane or coordinated runtime batch, not continuing leader-local repository analysis.
    - If multiple delegated lanes are safe and useful, dispatch them in parallel as the current ready batch instead of holding back fan-out without a concrete coordination reason.
    - Keep changes tightly scoped to the quick-task goal.
@@ -382,6 +386,7 @@ resume_decision: [resume here | blocked waiting | resolved]
    - [AGENT] Closing the quick task through `specify quick close` should auto-capture retry-heavy quick-task learnings from `STATUS.md`.
    - [AGENT] If you are finalizing outside the normal quick close path, run `specify learning capture-auto --command quick --workspace ".planning/quick/<id>-<slug>" --format json`.
    - [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `specify learning capture --command quick ...`.
+   - [AGENT] Before the final summary, run `specify hook review-learning --command quick --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"` so the learning closeout gate cannot be skipped.
    - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 

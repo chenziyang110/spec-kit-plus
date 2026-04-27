@@ -84,7 +84,7 @@ This phase makes delegated execution safe once `sp-implement` is already acting 
 - `src/specify_cli/orchestration/policy.py`: already models conservative strategy choice from parallel-batch count and write-set overlap.
 
 ### Established Patterns
-- The repo prefers conservative orchestration defaults: no safe batch means downgrade to `single-agent`, overlapping write sets block passive parallelism, and sidecar escalation is explicit.
+- The repo prefers conservative orchestration defaults: no safe batch means downgrade to `single-lane`, overlapping write sets block passive parallelism, and sidecar escalation is explicit.
 - Codex-specific runtime behavior lives under `src/specify_cli/codex_team/` and integration glue under `src/specify_cli/integrations/codex/`, while shared orchestration policy stays runtime-neutral.
 - Phrase-level regression tests are preferred over snapshots for workflow-contract behavior.
 - File-backed JSON state with explicit schema/version fields is the current persistence model; Phase 11 should extend it rather than inventing a separate coordination substrate.

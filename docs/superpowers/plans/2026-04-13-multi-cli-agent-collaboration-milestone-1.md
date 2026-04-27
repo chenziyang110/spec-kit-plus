@@ -4,7 +4,7 @@
 
 **Goal:** Introduce a generic orchestration core for multi-agent collaboration, refactor the existing Codex runtime primitives onto that core, add adapter skeletons for Codex, Claude, Gemini, and Copilot, and make `implement` the first workflow that uses unified strategy selection.
 
-**Architecture:** Extract the current `codex_team` state, backend, and lifecycle concepts into a generic `src/specify_cli/orchestration/` package built around sessions, batches, lanes, events, and backends. Preserve the existing Codex-facing `specify team` surface as a compatibility layer that delegates to the new core. Add native-first adapter skeletons for the first four integrations and a shared policy engine that can choose `single-agent`, `native-multi-agent`, or `sidecar-runtime`, then wire that decision into `templates/commands/implement.md` plus Codex-specific guidance.
+**Architecture:** Extract the current `codex_team` state, backend, and lifecycle concepts into a generic `src/specify_cli/orchestration/` package built around sessions, batches, lanes, events, and backends. Preserve the existing Codex-facing `specify team` surface as a compatibility layer that delegates to the new core. Add native-first adapter skeletons for the first four integrations and a shared policy engine that can choose `single-lane`, `native-multi-agent`, or `sidecar-runtime`, then wire that decision into `templates/commands/implement.md` plus Codex-specific guidance.
 
 **Status update (2026-04-13):** Milestone 1 release-slice deliverables are now implemented in-repo: the generic orchestration core exists under `src/specify_cli/orchestration/`, `implement` is the first workflow on unified strategy selection, `specify team` remains the Codex compatibility surface, and Claude/Gemini/Copilot adapter skeletons are present for first-release routing. This remains a Milestone 1 artifact; full workflow migration is not claimed here.
 
@@ -76,10 +76,10 @@ def test_capability_snapshot_defaults_are_explicit() -> None:
 def test_execution_decision_records_strategy_and_reason() -> None:
     decision = ExecutionDecision(
         command_name="implement",
-        strategy="single-agent",
+        strategy="single-lane",
         reason="default",
     )
-    assert decision.strategy == "single-agent"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "default"
 ```
 
@@ -102,7 +102,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-ExecutionStrategy = Literal["single-agent", "native-multi-agent", "sidecar-runtime"]
+ExecutionStrategy = Literal["single-lane", "native-multi-agent", "sidecar-runtime"]
 
 
 def utc_now() -> str:
@@ -501,7 +501,7 @@ git commit -m "refactor: move codex team onto orchestration core"
 - Modify: `tests/codex_team/test_implement_runtime_routing.py`
 - Modify: `tests/test_alignment_templates.py`
 
-- [ ] **Step 1: Write failing tests for `single-agent`, `native-multi-agent`, and `sidecar-runtime` selection**
+- [ ] **Step 1: Write failing tests for `single-lane`, `native-multi-agent`, and `sidecar-runtime` selection**
 
 Add policy tests like:
 
@@ -562,12 +562,12 @@ def choose_execution_strategy(*, command_name: str, snapshot, workload_shape: di
     parallel_batches = int(workload_shape.get("parallel_batches", 0))
     overlapping = bool(workload_shape.get("overlapping_write_sets", False))
     if parallel_batches <= 0 or overlapping:
-        return ExecutionDecision(command_name=command_name, strategy="single-agent", reason="no-safe-batch")
+        return ExecutionDecision(command_name=command_name, strategy="single-lane", reason="no-safe-batch")
     if snapshot.native_multi_agent:
         return ExecutionDecision(command_name=command_name, strategy="native-multi-agent", reason="native-supported")
     if snapshot.sidecar_runtime_supported:
         return ExecutionDecision(command_name=command_name, strategy="sidecar-runtime", reason="native-missing")
-    return ExecutionDecision(command_name=command_name, strategy="single-agent", reason="fallback")
+    return ExecutionDecision(command_name=command_name, strategy="single-lane", reason="fallback")
 ```
 
 Update `templates/commands/implement.md` so it refers to the canonical strategy names and decision order rather than only the Codex runtime wording. Keep the Codex-specific addendum in the Codex integration layer.
@@ -662,7 +662,7 @@ def test_codex_implement_skill_mentions_single_native_sidecar_order(tmp_path):
         os.chdir(old_cwd)
     assert result.exit_code == 0
     content = (project / ".agents" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
-    assert "single-agent" in content
+    assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
 ```
@@ -722,4 +722,4 @@ git commit -m "docs: describe milestone 1 multi-agent orchestration rollout"
   - every task has exact file paths, test commands, and commit commands
 - Type consistency:
   - the plan consistently uses `CapabilitySnapshot`, `ExecutionDecision`, `Session`, `Batch`, `Lane`, and `ProcessBackend`
-  - the strategy names remain `single-agent`, `native-multi-agent`, and `sidecar-runtime` throughout
+  - the strategy names remain `single-lane`, `native-multi-agent`, and `sidecar-runtime` throughout

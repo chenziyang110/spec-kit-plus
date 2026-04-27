@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 import hashlib
 import json
@@ -22,6 +22,14 @@ LEARNING_TYPES = {
     "user_preference",
     "workflow_gap",
     "project_constraint",
+    "routing_mistake",
+    "verification_gap",
+    "state_surface_gap",
+    "map_coverage_gap",
+    "tooling_trap",
+    "false_lead_pattern",
+    "near_miss",
+    "decision_debt",
 }
 LEARNING_STATUSES = {
     "candidate",
@@ -32,10 +40,13 @@ LEARNING_STATUSES = {
 SIGNAL_STRENGTHS = {"low", "medium", "high"}
 PROMOTION_TARGETS = {"learning", "rule"}
 KNOWN_COMMANDS = (
+    "sp-constitution",
     "sp-specify",
+    "sp-spec-extend",
     "sp-plan",
     "sp-checklist",
     "sp-tasks",
+    "sp-analyze",
     "sp-test",
     "sp-implement",
     "sp-debug",
@@ -111,6 +122,13 @@ class LearningEntry:
     first_seen: str
     last_seen: str
     occurrence_count: int = 1
+    pain_score: int = 0
+    false_starts: list[str] = field(default_factory=list)
+    rejected_paths: list[str] = field(default_factory=list)
+    decisive_signal: str = ""
+    root_cause_family: str = ""
+    injection_targets: list[str] = field(default_factory=list)
+    promotion_hint: str = ""
 
     def to_payload(self) -> dict[str, Any]:
         return asdict(self)
@@ -134,6 +152,13 @@ class LearningEntry:
             first_seen=str(payload["first_seen"]),
             last_seen=str(payload["last_seen"]),
             occurrence_count=int(payload.get("occurrence_count", 1)),
+            pain_score=_coerce_int(payload.get("pain_score")),
+            false_starts=_coerce_str_list(payload.get("false_starts")),
+            rejected_paths=_coerce_str_list(payload.get("rejected_paths")),
+            decisive_signal=str(payload.get("decisive_signal") or ""),
+            root_cause_family=str(payload.get("root_cause_family") or ""),
+            injection_targets=_coerce_str_list(payload.get("injection_targets")),
+            promotion_hint=str(payload.get("promotion_hint") or ""),
         )
 
 
@@ -185,10 +210,12 @@ def default_scope_for_type(learning_type: str) -> str:
     normalized = learning_type.strip().lower()
     if normalized in {"user_preference", "project_constraint"}:
         return "global"
-    if normalized == "workflow_gap":
+    if normalized in {"workflow_gap", "routing_mistake", "state_surface_gap", "decision_debt"}:
         return "planning-heavy"
-    if normalized == "recovery_path":
+    if normalized in {"recovery_path", "verification_gap", "false_lead_pattern"}:
         return "execution-heavy"
+    if normalized in {"map_coverage_gap", "tooling_trap", "near_miss"}:
+        return "cross-workflow"
     return "implementation-heavy"
 
 
@@ -199,6 +226,22 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
         return list(KNOWN_COMMANDS)
     if normalized_type == "workflow_gap":
         return ["sp-specify", "sp-plan", "sp-tasks", "sp-quick"]
+    if normalized_type == "routing_mistake":
+        return ["sp-fast", "sp-quick", "sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
+    if normalized_type == "verification_gap":
+        return ["sp-test", "sp-implement", "sp-debug", "sp-quick"]
+    if normalized_type == "state_surface_gap":
+        return ["sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug", "sp-quick", "sp-map-codebase"]
+    if normalized_type == "map_coverage_gap":
+        return ["sp-map-codebase", "sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
+    if normalized_type == "tooling_trap":
+        return ["sp-implement", "sp-debug", "sp-quick", "sp-map-codebase"]
+    if normalized_type == "false_lead_pattern":
+        return ["sp-debug", "sp-implement", "sp-quick"]
+    if normalized_type == "near_miss":
+        return sorted({normalized_source, "sp-implement", "sp-debug", "sp-quick"})
+    if normalized_type == "decision_debt":
+        return ["sp-specify", "sp-plan", "sp-tasks", "sp-map-codebase"]
     if normalized_type == "recovery_path":
         return ["sp-implement", "sp-debug", "sp-quick"]
     if normalized_type == "pitfall":
@@ -246,6 +289,13 @@ def build_learning_entry(
     applies_to: Iterable[str] | None = None,
     default_scope: str | None = None,
     status: str = "candidate",
+    pain_score: int | None = None,
+    false_starts: Iterable[str] | None = None,
+    rejected_paths: Iterable[str] | None = None,
+    decisive_signal: str | None = None,
+    root_cause_family: str | None = None,
+    injection_targets: Iterable[str] | None = None,
+    promotion_hint: str | None = None,
 ) -> LearningEntry:
     normalized_command = normalize_command_name(command_name)
     normalized_type = normalize_learning_type(learning_type)
@@ -271,6 +321,13 @@ def build_learning_entry(
         first_seen=timestamp,
         last_seen=timestamp,
         occurrence_count=1,
+        pain_score=max(0, _coerce_int(pain_score)),
+        false_starts=sorted(dict.fromkeys(str(item).strip() for item in (false_starts or []) if str(item).strip())),
+        rejected_paths=sorted(dict.fromkeys(str(item).strip() for item in (rejected_paths or []) if str(item).strip())),
+        decisive_signal=str(decisive_signal or "").strip(),
+        root_cause_family=str(root_cause_family or "").strip(),
+        injection_targets=sorted(dict.fromkeys(str(item).strip() for item in (injection_targets or []) if str(item).strip())),
+        promotion_hint=str(promotion_hint or "").strip(),
     )
 
 
@@ -422,7 +479,7 @@ def _extract_payload_block(content: str) -> tuple[str, list[dict[str, Any]]]:
 
 def _render_entry_summary(entry: LearningEntry) -> str:
     applies = ", ".join(entry.applies_to)
-    return (
+    base = (
         f"### {entry.id} - {entry.summary}\n\n"
         f"- Status: `{entry.status}`\n"
         f"- Type: `{entry.learning_type}`\n"
@@ -436,6 +493,24 @@ def _render_entry_summary(entry: LearningEntry) -> str:
         f"- Last Seen: `{entry.last_seen}`\n\n"
         f"#### Evidence\n\n{entry.evidence}\n"
     )
+    structured_lines: list[str] = []
+    if entry.pain_score:
+        structured_lines.append(f"- Pain Score: `{entry.pain_score}`")
+    if entry.false_starts:
+        structured_lines.append(f"- False Starts: {', '.join(entry.false_starts)}")
+    if entry.rejected_paths:
+        structured_lines.append(f"- Rejected Paths: {', '.join(entry.rejected_paths)}")
+    if entry.decisive_signal:
+        structured_lines.append(f"- Decisive Signal: {entry.decisive_signal}")
+    if entry.root_cause_family:
+        structured_lines.append(f"- Root Cause Family: `{entry.root_cause_family}`")
+    if entry.injection_targets:
+        structured_lines.append(f"- Injection Targets: {', '.join(entry.injection_targets)}")
+    if entry.promotion_hint:
+        structured_lines.append(f"- Promotion Hint: {entry.promotion_hint}")
+    if not structured_lines:
+        return base
+    return f"{base}\n#### Structured Learning\n\n" + "\n".join(structured_lines) + "\n"
 
 
 def _render_learning_file(preamble: str, entries: list[LearningEntry]) -> str:
@@ -537,6 +612,9 @@ def ensure_learning_files(
 
 def _merge_entry(existing: LearningEntry, new_entry: LearningEntry, *, status: str | None = None) -> LearningEntry:
     merged_applies = sorted(dict.fromkeys([*existing.applies_to, *new_entry.applies_to]))
+    merged_false_starts = sorted(dict.fromkeys([*existing.false_starts, *new_entry.false_starts]))
+    merged_rejected_paths = sorted(dict.fromkeys([*existing.rejected_paths, *new_entry.rejected_paths]))
+    merged_injection_targets = sorted(dict.fromkeys([*existing.injection_targets, *new_entry.injection_targets]))
     merged_status = status or existing.status
     merged_signal = (
         "high"
@@ -559,6 +637,13 @@ def _merge_entry(existing: LearningEntry, new_entry: LearningEntry, *, status: s
         first_seen=existing.first_seen,
         last_seen=new_entry.last_seen,
         occurrence_count=existing.occurrence_count + 1,
+        pain_score=max(existing.pain_score, new_entry.pain_score),
+        false_starts=merged_false_starts,
+        rejected_paths=merged_rejected_paths,
+        decisive_signal=new_entry.decisive_signal or existing.decisive_signal,
+        root_cause_family=new_entry.root_cause_family or existing.root_cause_family,
+        injection_targets=merged_injection_targets,
+        promotion_hint=new_entry.promotion_hint or existing.promotion_hint,
     )
 
 
@@ -991,6 +1076,13 @@ def capture_learning(
     applies_to: Iterable[str] | None = None,
     default_scope: str | None = None,
     confirm: bool = False,
+    pain_score: int | None = None,
+    false_starts: Iterable[str] | None = None,
+    rejected_paths: Iterable[str] | None = None,
+    decisive_signal: str | None = None,
+    root_cause_family: str | None = None,
+    injection_targets: Iterable[str] | None = None,
+    promotion_hint: str | None = None,
 ) -> dict[str, Any]:
     paths = ensure_learning_files(project_root)
     entry = build_learning_entry(
@@ -1003,6 +1095,13 @@ def capture_learning(
         applies_to=applies_to,
         default_scope=default_scope,
         status="confirmed" if confirm else "candidate",
+        pain_score=pain_score,
+        false_starts=false_starts,
+        rejected_paths=rejected_paths,
+        decisive_signal=decisive_signal,
+        root_cause_family=root_cause_family,
+        injection_targets=injection_targets,
+        promotion_hint=promotion_hint,
     )
 
     if confirm:

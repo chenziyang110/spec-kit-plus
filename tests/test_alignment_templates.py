@@ -32,6 +32,40 @@ def _assert_contains_any(text: str, *needles: str) -> None:
     assert any(needle in text for needle in needles), f"Expected one of: {needles}"
 
 
+def test_core_sp_templates_use_learning_review_hooks():
+    command_templates = {
+        "specify": "templates/commands/specify.md",
+        "spec-extend": "templates/commands/spec-extend.md",
+        "plan": "templates/commands/plan.md",
+        "tasks": "templates/commands/tasks.md",
+        "analyze": "templates/commands/analyze.md",
+        "test": "templates/commands/test.md",
+        "implement": "templates/commands/implement.md",
+        "debug": "templates/commands/debug.md",
+        "quick": "templates/commands/quick.md",
+        "fast": "templates/commands/fast.md",
+        "map-codebase": "templates/commands/map-codebase.md",
+    }
+
+    for command_name, template_path in command_templates.items():
+        content = _read(template_path)
+        assert f"specify hook signal-learning --command {command_name}" in content
+        assert f"specify hook review-learning --command {command_name}" in content
+
+
+def test_project_learning_skill_documents_product_level_hooks():
+    content = _read("templates/passive-skills/spec-kit-project-learning/SKILL.md")
+
+    assert "First-Party Learning Hooks" in content
+    assert "specify hook signal-learning" in content
+    assert "specify hook review-learning" in content
+    assert "specify hook capture-learning" in content
+    assert "specify hook inject-learning" in content
+    assert "tooling_trap" in content
+    assert "map_coverage_gap" in content
+    assert "Do NOT" in content
+
+
 def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
@@ -462,6 +496,9 @@ def test_explain_template_documents_conservative_routing_contract():
     assert "primary artifact reading" in lowered
     assert "supporting artifact cross-check" in lowered
     assert "before rendering the final explanation" in lowered
+    assert "handbook, `project-handbook.md`, `project-map`, `architecture`, `structure`, `conventions`, `integrations`, `workflows`, `testing`, or `operations`" in lowered
+    assert "explain the architecture or atlas artifact directly instead of forcing a planning-stage fallback" in lowered
+    assert "verified facts, inferred relationships, important unknowns, and the next relevant atlas view" in lowered
     assert "specify team" not in lowered
 
 
@@ -590,6 +627,7 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     assert "sidecar-runtime" in lowered
     assert "support skills" not in lowered
     assert "refresh the handbook/project-map navigation system" in lowered
+    assert "atlas-style technical encyclopedia" in lowered
     assert "complete-refresh" in content
     assert "do not create `.planning/codebase/`" in content
     assert "Treat the map as a coverage system, not just a navigation summary." in content
@@ -627,6 +665,16 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     assert "last_mapped_commit" in content
     assert "last_refresh_topics" in content
     assert "dirty_reasons" in content
+    assert "component and module dependency graph" in lowered
+    assert "runtime data and event flows" in lowered
+    assert "state lifecycle" in lowered
+    assert "deployment and runtime topology" in lowered
+    assert "build and release pipeline dependencies" in lowered
+    assert "configuration and feature-control surfaces" in lowered
+    assert "observability design" in lowered
+    assert "failure-mode and recovery model" in lowered
+    assert "security boundaries and permission model" in lowered
+    assert "decision history and architecture evolution context" in lowered
 
 
 def test_map_codebase_template_preserves_full_detail_through_layering() -> None:
@@ -661,6 +709,8 @@ def test_map_codebase_template_preserves_full_detail_through_layering() -> None:
     assert "import/require relationships, core modules, utility modules, and strong-coupling hotspots" in lowered
     assert "core classes, abstract classes, interfaces, enums, and major functions" in lowered
     assert "key business flows from entry to exit" in lowered
+    assert "data lineage, event choreography, and runtime fan-out paths" in lowered
+    assert "entity lifecycle, state-machine transitions, and persistence or cache checkpoints" in lowered
     assert "route definitions, controllers, exported endpoints, or command surfaces" in lowered
     assert "design patterns, naming rules, directory customs, configuration management, and utility locations" in lowered
     assert "the generated navigation system should collectively cover the equivalent of these seven technical-document chapters" in lowered
@@ -673,6 +723,7 @@ def test_map_codebase_template_preserves_full_detail_through_layering() -> None:
     assert "common patterns and conventions" in lowered
     assert "capability-card prioritization does not waive area coverage" in lowered
     assert "when an area does not receive a full capability card" in lowered
+    assert "a maintainer should be able to answer what breaks, what blocks, what propagates, and what proves the change safe" in lowered
 
 
 def test_map_codebase_template_requires_fixed_topic_structure_and_handbook_routing() -> None:
@@ -691,6 +742,9 @@ def test_map_codebase_template_requires_fixed_topic_structure_and_handbook_routi
     assert "core user flows" in lowered
     assert "smallest meaningful checks" in lowered
     assert "startup and execution paths" in lowered
+    assert "deployment and runtime topology" in lowered
+    assert "observability design" in lowered
+    assert "failure modes and recovery playbooks" in lowered
     assert "do not put code blocks, api inventories, or the only precise explanation in `project-handbook.md`" in lowered
     assert "each subsystem or topic-map item in the handbook should stay to one short paragraph" in lowered
     assert "end with an explicit route to the relevant topical file" in lowered
@@ -944,10 +998,12 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "## Leader Role" in content
     assert "you are the implementation leader for this run" in lowered
     assert "you are not the default implementer for the current batch" in lowered
-    assert "`single-lane` as one delegated worker lane" in content or "`single-lane` still means one delegated worker lane" in content
+    assert "`single-lane` names the topology for one safe execution lane" in content
+    assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
+    assert "prefer delegated worker execution only when the lane already has a validated `workertaskpacket` and trustworthy delegation surface" in lowered
     assert "fallback reason is recorded in `implement-tracker.md`" in lowered
     assert "invoking runtime acts as the leader" in lowered
-    assert "delegated worker lane" in lowered
+    assert "delegated worker execution" in lowered
     assert "next executable phase" in lowered
     assert "shared implement template is the primary source of truth" in lowered
     assert "join point" in lowered

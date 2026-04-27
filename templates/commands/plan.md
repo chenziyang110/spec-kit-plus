@@ -68,6 +68,9 @@ agent_scripts:
 - [AGENT] Run `specify learning start --command plan --format json` when available so passive learning files exist, the current planning run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader planning context.
 - Review `.planning/learnings/candidates.md` only when it still contains planning-relevant candidate learnings after the passive start step, especially repeated workflow gaps or project constraints that would otherwise be rediscovered during planning.
+- [AGENT] When planning friction appears, run `specify hook signal-learning --command plan ...` with route-change, artifact-rewrite, user-correction, false-start, or hidden-dependency counts.
+- [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command plan --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `routing_mistake`, `state_surface_gap`, `decision_debt`, or `project_constraint` exists.
+- [AGENT] Prefer `specify hook capture-learning --command plan ...` when planning exposes reusable sequencing gaps, ownership gaps, false starts, or injection targets.
 - Treat this as passive shared memory, not as a separate user-visible planning command.
 
 ## Workflow Phase Lock

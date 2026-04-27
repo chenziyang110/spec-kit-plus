@@ -69,6 +69,20 @@ def test_guidance_docs_position_constitution_as_seeded_defaults_plus_refinement(
         assert "revise project principles" in content or "establish or revise project principles" in content
 
 
+def test_guidance_docs_explain_constitution_profiles():
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+    profile_doc = _read("docs/constitution-profiles.md")
+
+    assert "--constitution-profile" in readme
+    assert "--constitution-profile" in quickstart
+    for content in (readme, quickstart, profile_doc):
+        assert "product" in content
+        assert "minimal" in content
+        assert "library" in content
+        assert "regulated" in content
+
+
 def test_guidance_docs_explain_handbook_navigation_system():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
@@ -76,6 +90,7 @@ def test_guidance_docs_explain_handbook_navigation_system():
     for content in (readme, quickstart):
         assert "Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact." in content
         assert "Deep project knowledge lives under `.specify/project-map/`." in content
+        assert "atlas-style technical encyclopedia" in content.lower()
         assert ".specify/project-map/status.json" in content
         assert "project-map complete-refresh" in content
         assert "Any code change that alters navigation meaning must update the handbook system." in content
@@ -92,6 +107,16 @@ def test_guidance_docs_position_map_codebase_for_existing_projects():
     assert "required brownfield gate" in readme.lower()
     assert "required brownfield gate" in quickstart.lower()
     assert "task generation" in quickstart.lower()
+    assert "dependency graph, runtime flows, state lifecycle, and change-impact view" in readme.lower()
+    assert "dependency graph, runtime flows, state lifecycle, and change-impact view" in quickstart.lower()
+
+
+def test_guidance_docs_expand_explain_to_handbook_and_project_map_views():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    assert "spec, plan, task, implement, or handbook/project-map atlas artifact" in readme
+    assert "spec, plan, task, implement, or handbook/project-map atlas artifact" in quickstart
 
 
 def test_guidance_docs_frame_analyze_as_pre_implement_gate():
@@ -149,6 +174,20 @@ def test_guidance_docs_explain_passive_project_learning_layer():
 
     assert "specify learning ensure --format json" in local_dev
     assert "specify learning status --format json" in local_dev
+
+
+def test_guidance_docs_publish_native_hook_coverage_matrix():
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    for content in (readme, quickstart):
+        assert "Native hook coverage matrix" in content
+        assert "Claude" in content
+        assert "Codex/OMX" in content
+        assert "Gemini" in content
+        assert "Other integrations" in content
+        assert "Learning signal bridge" in content
+        assert "Native terminal review gate" in content
 
 
 def test_guidance_docs_include_learning_aggregate_surface():
@@ -264,9 +303,11 @@ def test_guidance_docs_explain_single_lane_compatibility_for_execution_workflows
     quickstart = _read("docs/quickstart.md").lower()
 
     assert "single-lane" in readme
-    assert "compatibility alias" in readme
+    assert "topology label for one safe execution lane" in readme
+    assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in readme
     assert "single-lane" in quickstart
-    assert "compatibility alias" in quickstart
+    assert "topology label for one safe execution lane" in quickstart
+    assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quickstart
 
 
 def test_guidance_docs_explain_team_runtime_join_point_and_stale_lane_rules():

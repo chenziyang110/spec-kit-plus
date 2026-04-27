@@ -23,7 +23,9 @@ constitution and propagate any amendments across dependent artifacts.
 
 **Note**: If `.specify/memory/constitution.md` does not exist yet, it should
 have been initialized from `.specify/templates/constitution-template.md`
-during project setup. If it is missing, copy the template first.
+during project setup. That project-local template may be the default product
+constitution or a built-in profile selected during `specify init`. If it is
+missing, copy the template first.
 
 ## Passive Project Learning Layer
 
@@ -37,6 +39,15 @@ during project setup. If it is missing, copy the template first.
   constitution-relevant candidate learnings after the passive start step,
   especially repeated workflow gaps, stable user defaults, or lower-order
   rules that may need promotion or retirement.
+- When constitution work exposes repeated decision debt, rule conflict, or
+  promotion friction, run `specify hook signal-learning --command constitution ...`
+  so the workflow records reusable learning pressure instead of treating it as
+  chat-only discussion.
+- Before final reporting, run
+  `specify hook review-learning --command constitution --terminal-status <resolved|blocked> ...`;
+  use `--decision none --rationale "..."` only when no reusable
+  `decision_debt`, `workflow_gap`, `user_preference`, or `project_constraint`
+  exists.
 - Treat project rules or learnings that conflict with the amended constitution
   as mandatory follow-up work: either realign them in this run or flag them
   explicitly in the Sync Impact Report.

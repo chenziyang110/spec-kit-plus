@@ -18,7 +18,9 @@ Treat non-empty `$ARGUMENTS` as first-class implementation context for the curre
 
 - You are the implementation leader for this run. Your job is to recover context, choose the current ready batch, dispatch delegated work, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation.
 - You are not the default implementer for the current batch. When a delegated execution path is available for the selected batch, do not personally execute that batch just because it looks easy.
-- Treat `single-lane` as one delegated worker lane, not as permission to collapse back into leader-local execution.
+- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a delegated worker executes that lane.
+- Prefer delegated worker execution only when the lane already has a validated `WorkerTaskPacket` and trustworthy delegation surface, so the delegated path can preserve or improve on leader-local quality.
+- If that delegation-readiness bar is not met, keep the lane on the leader path until the missing context, hard rules, validation gates, or handoff requirements are compiled.
 - Use leader-local execution only when the workflow's explicit fallback conditions are met and the fallback reason is recorded in `implement-tracker.md`.
 
 ## Pre-Execution Checks
@@ -69,6 +71,9 @@ Treat non-empty `$ARGUMENTS` as first-class implementation context for the curre
 - [AGENT] Run `specify learning start --command implement --format json` when available so passive learning files exist, the current implementation run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader execution context.
 - Review `.planning/learnings/candidates.md` only when it still contains implementation-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
+- [AGENT] When implementation friction appears, run `specify hook signal-learning --command implement ...` with retry, validation-failure, route-change, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
+- [AGENT] Before terminal `resolved` or `blocked` reporting, run `specify hook review-learning --command implement --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `pitfall`, `recovery_path`, `verification_gap`, `state_surface_gap`, or `project_constraint` exists.
+- [AGENT] Prefer `specify hook capture-learning --command implement ...` for structured path learning when the run exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
 - Treat this as passive shared memory, not as a separate user-visible execution command.
 
 ## Implement Tracker Protocol
@@ -307,7 +312,9 @@ human_needed_checks:
       - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
       - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
       - Else -> `single-lane` (`fallback` or `fallback-low-confidence`)
-   - `single-lane` still means one delegated worker lane, not leader self-execution.
+   - `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a delegated worker executes that lane.
+   - For implementation work, prefer delegated worker execution only when the lane already has a validated `WorkerTaskPacket` and trustworthy delegation surface, so the delegated path can preserve or improve on leader-local quality.
+   - If that delegation-readiness bar is not met, do not dispatch a low-context lane just to satisfy a routing preference; compile the missing packet contract first or keep the lane on the leader path until the contract is complete.
    - Re-evaluate the execution strategy at every new parallel batch or join point instead of choosing once for the whole feature
    - Refine only the current executable window after each join point. Do not pre-expand later batches when their exact shape depends on current batch evidence.
    - Grouped parallelism is the default when multiple ready tasks have isolated write sets and stable upstream inputs.
@@ -331,8 +338,8 @@ human_needed_checks:
    - **Phase-by-phase execution**: Complete each phase before moving to the next
    - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
-   - **Capability-aware execution**: After selecting the strategy, execute the current ready batch through `native-multi-agent` or `sidecar-runtime` when selected by policy; otherwise execute via `single-lane` while preserving join-point semantics through the delegated worker lane.
-   - Do not stop to ask the user whether the `single-lane` batch should switch to delegated execution; dispatch the delegated lane by default and only discuss a fallback after the delegation surfaces have concretely failed.
+   - **Capability-aware execution**: After selecting the strategy, execute the current ready batch through `native-multi-agent` or `sidecar-runtime` when selected by policy; otherwise execute via `single-lane` while preserving join-point semantics through the current lane owner.
+   - Once a `single-lane` batch clears the delegation-readiness bar, do not stop to ask the user whether the `single-lane` batch should switch to delegated execution; dispatch the delegated lane by default and only discuss a fallback after the delegation surfaces have concretely failed.
    - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
    - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
@@ -393,6 +400,7 @@ human_needed_checks:
    - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
    - [AGENT] Before the final completion report, run `specify implement closeout --feature-dir "$FEATURE_DIR" --format json` so implementation session state is validated and retry-heavy patterns are auto-captured from `implement-tracker.md`.
    - [AGENT] If the closeout auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `specify learning capture --command implement ...`.
+   - [AGENT] Before the final completion report, run `specify hook review-learning --command implement --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"` so the learning closeout gate cannot be skipped.
    - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
    - Report final status with summary of completed work, remaining human-needed checks, and any unresolved gaps

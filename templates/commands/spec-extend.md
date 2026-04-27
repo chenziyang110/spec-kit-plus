@@ -21,6 +21,12 @@ scripts:
 
 Goal: Strengthen an existing spec package after `/sp.specify` by closing planning-critical gaps, correcting misunderstandings, absorbing reference material better, and writing the improved results back into `spec.md`, `alignment.md`, and `references.md`.
 
+## Passive Project Learning Layer
+
+- Run `specify learning start --command spec-extend --format json` when available so this enhancement pass can consume existing project rules and learnings.
+- When spec-extension friction appears, run `specify hook signal-learning --command spec-extend ...` with user-correction, scope-change, route-change, false-start, or hidden-dependency counts.
+- Before final completion or blocked reporting, run `specify hook review-learning --command spec-extend --terminal-status <resolved|blocked> ...`; capture reusable `workflow_gap`, `decision_debt`, `map_coverage_gap`, `user_preference`, or `project_constraint` findings with `specify hook capture-learning --command spec-extend ...`.
+
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
    - `FEATURE_DIR`
    - `FEATURE_SPEC`

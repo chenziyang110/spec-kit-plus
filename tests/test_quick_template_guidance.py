@@ -75,8 +75,10 @@ def test_quick_template_defines_capability_aware_execution_strategy() -> None:
     assert "sidecar-runtime" in content
     assert "leader" in content
     assert "join point" in content
-    assert "`single-lane` still means one delegated worker lane" in content
-    assert "not as permission to personally do the task" in content
+    assert "`single-lane` names the topology" in content
+    assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
+    assert "prefer delegated worker execution only when a validated `workertaskpacket` or equivalent execution contract preserves quality" in content
+    assert "if that delegation-readiness bar is not met, keep the lane on the leader path" in content
     assert "leader-local execution is an exception path" in content
     assert "only when the current quick-task batch cannot proceed through native delegation" in content
     assert "the first actionable execution step after scope lock is to dispatch the first delegated worker lane" in content
@@ -139,7 +141,7 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
     assert "constitution first" in content
     assert "before `status.md` initialization or touched-area analysis proceeds" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
-    assert "treat `single-lane` as a delegated single-worker path by default" in content
+    assert "prefer delegated worker execution only when a validated `workertaskpacket` or equivalent execution contract preserves quality" in content
     assert "dispatch that worker path before doing any further local repository deep dive" in content
     assert "resolved" in content
     assert "blocked" in content

@@ -16,6 +16,8 @@ def workspace_has_uncommitted_changes(project_root: Path) -> bool:
         cwd=project_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if repo_probe.returncode != 0 or repo_probe.stdout.strip().lower() != "true":
@@ -25,6 +27,8 @@ def workspace_has_uncommitted_changes(project_root: Path) -> bool:
         cwd=project_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     return bool(status_probe.stdout.strip())

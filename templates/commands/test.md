@@ -48,6 +48,9 @@ workflow_contract:
 - [AGENT] Run `specify learning start --command test --format json` when available so passive learning files exist, the current testing-system run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader testing-system analysis.
 - Review `.planning/learnings/candidates.md` only when it still contains testing-relevant candidate learnings after the passive start step, especially repeated flaky areas, framework constraints, or project defaults that should influence the generated testing contract.
+- [AGENT] When testing-system friction appears, run `specify hook signal-learning --command test ...` with validation-failure, artifact-rewrite, false-start, or hidden-dependency counts.
+- [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command test --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `verification_gap`, `state_surface_gap`, `pitfall`, `workflow_gap`, or `project_constraint` exists.
+- [AGENT] Prefer `specify hook capture-learning --command test ...` when testing work exposes reusable framework traps, missing verification paths, flaky surfaces, or injection targets.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Testing State Protocol

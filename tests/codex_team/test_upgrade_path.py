@@ -11,6 +11,7 @@ def test_upgrade_existing_codex_project_installs_runtime_assets(codex_team_proje
         integration_key="codex",
     )
 
-    assert len(created) == 3
+    assert len(created) == 4
     assert (codex_team_project_root / ".specify" / "codex-team" / "runtime.json").exists()
+    assert (codex_team_project_root / ".codex" / "config.toml").exists()
     assert (codex_team_project_root / ".specify" / "config.json").exists()

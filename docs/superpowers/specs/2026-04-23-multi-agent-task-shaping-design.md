@@ -18,7 +18,7 @@ The goal is to reduce two recurring failure modes:
 
 Current workflow templates and runtime helpers already preserve:
 
-- shared execution strategy vocabulary: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+- shared execution strategy vocabulary: `single-lane`, `native-multi-agent`, `sidecar-runtime`
 - join-point-aware execution
 - rule-carrying `WorkerTaskPacket` compilation and validation
 - blocker, retry, and recovery state during implementation
@@ -40,7 +40,7 @@ But task shaping is still under-specified in four important ways:
 
 ## Non-Goals
 
-- Do not introduce a new execution strategy name beyond `single-agent`, `native-multi-agent`, and `sidecar-runtime`.
+- Do not introduce a new execution strategy name beyond `single-lane`, `native-multi-agent`, and `sidecar-runtime`.
 - Do not replace join-point execution with free-running autonomous worker swarms.
 - Do not force all top-level `tasks.md` items down to 2-5 minute units; that granularity belongs inside a delegated worker task, not always in the public task list.
 - Do not add mandatory peer-review lanes to every batch.

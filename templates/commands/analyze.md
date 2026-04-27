@@ -42,6 +42,8 @@ Identify inconsistencies, duplications, ambiguities, and underspecified items ac
 - After `WORKFLOW_STATE_FILE` is created or resumed, use `specify hook validate-state --command analyze --feature-dir "$FEATURE_DIR"` so the shared validator confirms `workflow-state.md` matches the `sp-analyze` contract.
 - Before final gate reporting, use `specify hook validate-artifacts --command analyze --feature-dir "$FEATURE_DIR"` so the required analyze-side artifact set is checked by the shared hook surface.
 - Before compaction-risk transitions or after large findings synthesis, use `specify hook checkpoint --command analyze --feature-dir "$FEATURE_DIR"` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+- Run `specify learning start --command analyze --format json` when available, then use `specify hook signal-learning --command analyze ...` if the analysis exposes repeated artifact rewrites, route changes, false starts, or hidden dependencies.
+- Before final cleared or blocked gate reporting, run `specify hook review-learning --command analyze --terminal-status <resolved|blocked> ...`; capture reusable `workflow_gap`, `routing_mistake`, `state_surface_gap`, `verification_gap`, or `project_constraint` findings with `specify hook capture-learning --command analyze ...`.
 
 ## Execution Steps
 

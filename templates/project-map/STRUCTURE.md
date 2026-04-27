@@ -23,6 +23,10 @@
 
 ## Common Extension Paths
 
+## Change Surface Matrix
+
+[For each critical file family or directory, record what breaks, what must be reviewed, and which shared surfaces are affected when a file family changes.]
+
 ## Where To Add New Code
 
 [Explain what belongs there and what should not be added there when future work touches this repository.]

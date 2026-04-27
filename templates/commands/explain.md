@@ -1,9 +1,9 @@
 ---
-description: Use when the user needs the current stage artifact explained in plain language without changing the underlying spec, plan, or tasks.
+description: Use when the user needs the current stage artifact or handbook/project-map atlas artifact explained in plain language without changing the underlying files.
 workflow_contract:
-  when_to_use: The user needs to understand the current planning-stage artifact before deciding whether to continue, revise, or proceed.
-  primary_objective: Translate the current stage artifact into plain language while staying faithful to what is actually on disk.
-  primary_outputs: A structured explanation only; do not rewrite stage artifacts unless another command explicitly requests it.
+  when_to_use: The user needs to understand the current planning-stage artifact or handbook/project-map atlas view before deciding whether to continue, revise, or proceed.
+  primary_objective: Translate the current artifact into plain language while staying faithful to what is actually on disk.
+  primary_outputs: A structured explanation only; do not rewrite stage artifacts or atlas documents unless another command explicitly requests it.
   default_handoff: /sp-plan or /sp-tasks only after the user is satisfied with the current understanding and wants to advance.
 handoffs:
   - label: Build Technical Plan
@@ -21,12 +21,14 @@ scripts:
 
 ## Outline
 
-Goal: Read the current stage artifact and explain it in plain language so the user can understand what the system currently believes, what is decided, what is still open, and what the next phase will do.
+Goal: Read the current stage artifact or atlas artifact and explain it in plain language so the user can understand what the system currently believes, what is decided, what is still open, and what the next phase or next relevant atlas view will do.
 
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`) and parse the available feature paths.
 
 2. Resolve the stage artifact deterministically:
    - If the user explicitly names a stage, honor it.
+   - If the user explicitly asks about handbook, `PROJECT-HANDBOOK.md`, `project-map`, `architecture`, `structure`, `conventions`, `integrations`, `workflows`, `testing`, or `operations`, resolve that artifact directly.
+   - Explain the architecture or atlas artifact directly instead of forcing a planning-stage fallback.
    - Otherwise prefer the most advanced available artifact in this order:
      - `tasks` -> `FEATURE_DIR/tasks.md`
      - `plan` -> `FEATURE_DIR/plan.md`
@@ -37,6 +39,7 @@ Goal: Read the current stage artifact and explain it in plain language so the us
      - `plan`: also read `FEATURE_DIR/research.md`, `FEATURE_DIR/data-model.md`, `FEATURE_DIR/contracts/`, and `FEATURE_DIR/quickstart.md` when present
      - `tasks`: also read `FEATURE_DIR/plan.md` and `FEATURE_DIR/spec.md` when needed for explanation
      - `implement`: if there is no canonical implementation status artifact, explain that implementation status is unavailable from the current file set and fall back to the most recent planning artifact instead of guessing
+     - `handbook/project-map`: read the resolved atlas artifact plus the smallest supporting handbook/project-map files needed to explain ownership, dependencies, lifecycle, change impact, or verification routes accurately
 
 3. Read the resolved artifact and any immediately supporting artifact needed to explain it accurately.
    - If present, also read `.specify/memory/constitution.md` so the explanation honors the project constitution and its constraints on the current stage artifact.
@@ -56,6 +59,7 @@ Goal: Read the current stage artifact and explain it in plain language so the us
    - what has already been decided
    - what remains open or risky
    - what the next stage will do with this information
+   - for handbook/project-map atlas views: explain verified facts, inferred relationships, important unknowns, and the next relevant atlas view
 
 6. Present the explanation as a structured terminal UI built from open blocks, not a raw dump.
 
@@ -75,6 +79,7 @@ The explanation must remain stage-aware:
 - `plan`: explain the implementation approach in plain language
 - `tasks`: explain what concrete work is about to happen
 - `implement`: explain progress, current scope, and active risks
+- `handbook/project-map`: explain ownership, dependencies, lifecycle, change impact, confidence, and the next relevant atlas view in plain language
 
 ## Rules
 

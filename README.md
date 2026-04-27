@@ -60,6 +60,13 @@ Create a new project:
 specify init my-project --ai codex
 ```
 
+Use a non-default built-in constitution profile when the repo needs a different
+governance default:
+
+```bash
+specify init my-project --ai claude --constitution-profile library
+```
+
 Initialize the current directory:
 
 ```bash
@@ -133,6 +140,15 @@ After `specify init`, use the generated workflow commands in your agent:
 4. `tasks` to break work into executable tasks
 5. `implement` to execute the task plan (supports autonomous loop via `/sp-autonomous`)
 
+Built-in constitution profiles:
+
+- `product` (default) for application and service repos
+- `minimal` for lean, low-ceremony repos
+- `library` for packages, SDKs, and CLIs with compatibility concerns
+- `regulated` for security, privacy, or audit-heavy repos
+
+Profile details and selection guidance live in [docs/constitution-profiles.md](docs/constitution-profiles.md).
+
 Mainline pre-planning flow:
 
 ```text
@@ -148,18 +164,19 @@ Skill map after `specify init`:
 Conditional gates and follow-up commands:
 
 - `map-codebase` is the required brownfield gate for an existing codebase; generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before specification, planning, task generation, or implementation continues
+- Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
 - `test` to bootstrap or refresh a durable project-wide unit testing system, testing contract, and standard test/coverage playbook
 - `spec-extend` to deepen an existing spec before planning when analysis, references, or gaps need more work
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
 - `analyze` is the default pre-implementation gate once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` before implementation starts
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
-- `explain` to describe the current spec, plan, task, or implement artifact in plain language
+- `explain` to describe the current spec, plan, task, implement, or handbook/project-map atlas artifact in plain language
 - when you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing worker validation evidence)
 
 Already have code? Run `map-codebase` first and treat it as the required brownfield gate before deeper specification, planning, task generation, or implementation work.
-Generated projects also track handbook freshness in `.specify/project-map/status.json`, so brownfield workflows can decide whether the current navigation baseline is fresh, possibly stale, or stale before proceeding.
+Generated projects also track handbook freshness in `.specify/project-map/status.json`, so brownfield workflows can decide whether the current atlas baseline is fresh, possibly stale, or stale before proceeding.
 
 Routing guide for lightweight work:
 
@@ -195,8 +212,12 @@ Passive project learning layer:
 - `specify implement closeout --feature-dir <feature-dir> --format json`
 - `specify learning aggregate --format json`
 - `specify learning promote --recurrence-key <key> --target learning|rule`
+- `specify hook signal-learning --command <workflow> ...`
+- `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> ...`
+- `specify hook capture-learning --command <workflow> --type <type> --summary "..." --evidence "..."`
+- `specify hook inject-learning --command <workflow> --type <type> --summary "..."`
 - Use `specify learning aggregate` when you want a grouped, promotion-oriented summary of candidate, confirmed, and promoted learning patterns before deciding what should become a shared learning or rule.
-- This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across `sp-specify`, `sp-plan`, `sp-tasks`, `sp-implement`, `sp-debug`, `sp-fast`, and `sp-quick`.
+- This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across every `sp-*` workflow, with `review-learning` acting as the terminal learning gate and `capture-learning` preserving structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
 
 First-party workflow quality hooks:
 
@@ -210,6 +231,7 @@ First-party workflow quality hooks:
 - `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` enforce the shared delegated execution contract.
 - `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` provide shared read-boundary and prompt-bypass guards.
 - `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` cover workflow transitions and last-mile commit integrity.
+- `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
 - `specify hook mark-dirty --reason "<reason>"` and `specify hook complete-refresh` are the shared product paths for project-map freshness updates.
 
 Claude Code integration note:
@@ -219,9 +241,33 @@ Claude Code integration note:
   - `SessionStart` statusline/orientation context derived from active workflow state
   - `UserPromptSubmit` prompt-guard checks
   - `PreToolUse` read-boundary and inline commit-message validation
-  - `PostToolUse` session-state drift warnings for active implement/quick/debug flows
-  - `Stop` context-monitor checkpoint blocking or advisory output before stop
+  - `PostToolUse` session-state drift warnings for active implement/quick/debug flows, plus soft `signal-learning` warnings when workflow state records reusable friction
+  - `Stop` context-monitor checkpoint blocking or advisory output before stop, plus soft `signal-learning` warnings when active workflow state crosses the pain threshold
 - These adapters are intentionally thin: they call back into the shared `specify hook ...` command surface instead of re-implementing workflow truth inside standalone Claude scripts.
+
+Codex/OMX integration note:
+
+- The OMX runtime manages Codex native hooks through `.codex/hooks.json` and `codex-native-hook.js`.
+- The managed Codex native hook set covers `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop`.
+- `PostToolUse` and `Stop` bridge shared `specify hook signal-learning` warnings when active workflow state records reusable friction.
+- Learning capture and terminal learning review still stay in the shared `specify hook capture-learning` / `review-learning` surfaces; native Codex hooks only surface the signal.
+
+Gemini integration note:
+
+- `specify init --ai gemini` installs thin native adapters in `.gemini/hooks/` and merges project-local `.gemini/settings.json`.
+- The managed Gemini native hook set covers `SessionStart`, `BeforeAgent`, and `BeforeTool`.
+- `BeforeAgent` applies shared prompt guards and soft `signal-learning` warnings when active workflow state records reusable friction.
+- `BeforeTool` applies shared read-boundary and inline commit-message validation.
+- As with Claude and Codex, learning capture and terminal review remain shared `specify hook capture-learning` / `review-learning` responsibilities.
+
+Native hook coverage matrix:
+
+| Surface | Shared `specify hook ...` | Native adapter/runtime | Learning signal bridge | Native terminal review gate |
+| --- | --- | --- | --- | --- |
+| Claude | Yes | Yes | Yes | No |
+| Codex/OMX | Yes | Yes | Yes | No |
+| Gemini | Yes | Yes | Yes | No |
+| Other integrations | Yes | No | No | No |
 
 After planning, continue with:
 
@@ -295,7 +341,8 @@ Current orchestration status in this fork:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
 - `specify`, `plan`, `tasks`, `test`, `map-codebase`, `explain`, `debug`, `implement`, and `quick` now surface `single-lane`, `native-multi-agent`, and `sidecar-runtime` in user-facing workflow guidance
-- execution-oriented workflows and task-facing ready-batch reporting surface `single-lane` as the delegated single-worker compatibility alias
+- `single-lane` is the topology label for one safe execution lane, not a synonym for either worker-only or leader-only execution
+- in execution-oriented workflows, prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
 - `specify team` remains the Codex compatibility surface for runtime-heavy execution
 - Claude, Gemini, and Copilot ship first-release adapter skeletons (alongside Codex) for native-first capability reporting
@@ -451,6 +498,7 @@ Navigation and technical truth are now handbook-first:
 
 - Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
 - Deep project knowledge lives under `.specify/project-map/`.
+- Treat the combined handbook/project-map surface as an atlas-style technical encyclopedia for dependency graph, runtime flows, state lifecycle, and change-impact view.
 - `.specify/project-map/status.json` records the last successful map refresh and dirty state for freshness checks.
 - After a successful `map-codebase` refresh, use `project-map complete-refresh` as the standard completion hook to record the new fresh baseline.
 - Any code change that alters navigation meaning must update the handbook system.

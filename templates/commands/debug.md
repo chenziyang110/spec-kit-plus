@@ -41,6 +41,9 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - [AGENT] Run `specify learning start --command debug --format json` when available so passive learning files exist, the current debug run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains debug-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
+- [AGENT] When investigation friction appears, run `specify hook signal-learning --command debug ...` with retry, hypothesis-change, validation-failure, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
+- [AGENT] Before terminal `resolved`, `blocked`, or `awaiting_human_verify` reporting, run `specify hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> ...`; use `--decision none --rationale "..."` only when no reusable `pitfall`, `recovery_path`, `tooling_trap`, `false_lead_pattern`, or `project_constraint` exists.
+- [AGENT] Prefer `specify hook capture-learning --command debug ...` for structured path learning when the session exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
 - Treat this as passive shared memory, not as a separate user-visible debug workflow.
 
 ## First-Party Workflow Quality Hooks
@@ -247,7 +250,10 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
   - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
   - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
   - Else -> `single-lane` (`fallback` or `fallback-low-confidence`)
-- `single-lane` means the leader continues investigating alone.
+- `single-lane` means only one investigation lane is currently safe.
+- `single-lane` does not, by itself, require leader-local work.
+- Delegate that single lane only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality.
+- If that delegation-readiness bar is not met, keep the lane on the leader path.
 - `native-multi-agent` means the leader delegates bounded evidence-gathering lanes through the integration's native delegation surface.
 - `sidecar-runtime` means the leader escalates the evidence-gathering lanes through the integration's coordinated runtime surface when native delegation is unavailable.
 - Suitable delegated tasks include:
@@ -327,6 +333,7 @@ The session file must always make it clear:
 - [AGENT] Resolved debug sessions should auto-capture learning candidates from the persisted debug session state.
 - [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `specify learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json`.
 - [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `specify learning capture --command debug ...`.
+- [AGENT] Before leaving the debug session in a terminal state, run `specify hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> --decision <captured|none|deferred> --rationale "<why>"` so the learning closeout gate cannot be skipped.
 - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
 - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 

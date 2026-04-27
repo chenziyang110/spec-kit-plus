@@ -6,7 +6,7 @@
  *
  * Lanes:
  *   PASS  — trivial acknowledgements, explicit opt-out phrases, or ambiguous short prompts
- *   LIGHT — single-agent destination: explore | executor | designer
+ *   LIGHT — single-lane destination: explore | executor | designer
  *   HEAVY — autopilot; longer goal-shaped imperative prompts
  */
 

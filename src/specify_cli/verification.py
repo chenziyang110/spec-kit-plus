@@ -37,6 +37,8 @@ def default_verification_runner(command: str) -> tuple[int, str]:
         shell=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     parts: list[str] = []

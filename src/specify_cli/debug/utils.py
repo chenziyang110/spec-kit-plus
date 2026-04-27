@@ -22,7 +22,15 @@ def run_command(cmd: str) -> str:
     Executes a shell command and returns the combined stdout and stderr.
     """
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
         parts = []
         if result.stdout:
             parts.append(result.stdout.strip())

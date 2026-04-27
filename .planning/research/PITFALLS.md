@@ -2,7 +2,7 @@
 
 ## High-Risk Failure Modes
 
-- Leaving "single-agent" ambiguous so the leader still acts as the executor for serial tasks.
+- Leaving `single-lane` ambiguous so the leader still acts as the executor for serial tasks.
 - Dispatching workers without explicit write-set or shared-surface conflict rules, which breaks artifact consistency.
 - Advancing phases based on optimistic task completion instead of verified convergence.
 - Letting cross-phase preparation mutate later-phase state before prerequisite work is complete.

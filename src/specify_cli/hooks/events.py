@@ -16,6 +16,10 @@ WORKFLOW_PROMPT_GUARD_VALIDATE = "workflow.prompt_guard.validate"
 WORKFLOW_BOUNDARY_VALIDATE = "workflow.boundary.validate"
 WORKFLOW_PHASE_BOUNDARY_VALIDATE = "workflow.phase_boundary.validate"
 WORKFLOW_COMMIT_VALIDATE = "workflow.commit.validate"
+WORKFLOW_LEARNING_SIGNAL = "workflow.learning.signal"
+WORKFLOW_LEARNING_REVIEW = "workflow.learning.review"
+WORKFLOW_LEARNING_CAPTURE = "workflow.learning.capture"
+WORKFLOW_LEARNING_INJECT = "workflow.learning.inject"
 DELEGATION_PACKET_VALIDATE = "delegation.packet.validate"
 DELEGATION_JOIN_VALIDATE = "delegation.join.validate"
 PROJECT_MAP_MARK_DIRTY = "project_map.mark_dirty"
@@ -37,6 +41,10 @@ CANONICAL_HOOK_EVENTS = frozenset(
         WORKFLOW_BOUNDARY_VALIDATE,
         WORKFLOW_PHASE_BOUNDARY_VALIDATE,
         WORKFLOW_COMMIT_VALIDATE,
+        WORKFLOW_LEARNING_SIGNAL,
+        WORKFLOW_LEARNING_REVIEW,
+        WORKFLOW_LEARNING_CAPTURE,
+        WORKFLOW_LEARNING_INJECT,
         DELEGATION_PACKET_VALIDATE,
         DELEGATION_JOIN_VALIDATE,
         PROJECT_MAP_MARK_DIRTY,

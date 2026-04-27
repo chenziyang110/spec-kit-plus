@@ -229,6 +229,8 @@ def run_manifest(project_root: Path, manifest_path: Path) -> int:
         cwd=str(project_root),
         input=json.dumps(runtime_payload),
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
         env=env,

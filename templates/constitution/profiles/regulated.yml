@@ -1,0 +1,106 @@
+id: regulated
+name: Regulated Delivery
+version: 1.0.0
+description: Higher-control default for security, compliance, privacy, and auditability.
+core_principles: |
+  ## Core Principles
+
+  ### I. Controlled Scope and Traceability (NON-NEGOTIABLE)
+
+  Non-trivial work MUST begin from explicit requirements, constraints, and
+  acceptance criteria that can be reviewed later.
+
+  - **Trace the Decision**: Capture why the change is needed, what risk it
+    addresses, and how success will be proven.
+  - **No Silent Expansion**: If implementation reveals new regulated impact, the
+    governing artifact MUST be updated before scope expands.
+  - **Rationale**: Regulated work needs a durable record of intent.
+
+  ### II. Security and Privacy by Default (NON-NEGOTIABLE)
+
+  Data handling, access control, and trust boundaries MUST default to the safest
+  viable posture.
+
+  - **Validate at the Boundary**: External data, files, configs, and API payloads
+    MUST be validated before use.
+  - **Least Privilege**: New permissions and data access MUST be narrowly scoped.
+  - **No Secret or Sensitive Data Leakage**: Secrets, credentials, tokens, and
+    regulated data MUST not appear in source control, logs, fixtures, or casual
+    diagnostics.
+  - **Rationale**: Security failures in regulated systems are costly and often
+    irreversible.
+
+  ### III. Test-Backed Risk Reduction (NON-NEGOTIABLE)
+
+  Behavior changes, fixes, and control updates MUST be protected by automated
+  checks where practical.
+
+  - **Regression Evidence Required**: Every defect fix MUST add or update a test
+    or executable proving step that would have caught the issue.
+  - **Control-Oriented Verification**: Tests SHOULD exercise permissions, data
+    handling, and failure modes when those are part of the risk.
+  - **Rationale**: Verification is part of the control system, not just the
+    delivery system.
+
+  ### IV. Stable and Reviewable Change Control
+
+  Changes MUST be small enough to review, explain, and, if necessary, revert
+  without ambiguity.
+
+  - **Single-Purpose Diffs**: Avoid bundling unrelated cleanup with high-trust
+    changes.
+  - **Document User and Operator Impact**: Update procedures, runbooks, or
+    operator notes when workflows change.
+  - **Rationale**: Review quality drops quickly when risk is mixed with noise.
+
+  ### V. Auditability and Evidence Before Completion (NON-NEGOTIABLE)
+
+  Completion claims MUST be backed by fresh verification evidence and a clear
+  record of what changed.
+
+  - **Run the Required Checks**: Execute the relevant lint, typecheck, tests,
+    scans, or validation scripts before closeout.
+  - **Read the Output**: Do not treat a command as verified until the result has
+    been reviewed.
+  - **Rationale**: An audit trail is only useful if it reflects what actually ran.
+conditional_guidance: |
+  ## Conditional Guidance
+
+  Apply the following rules when the project or change type makes them relevant.
+
+  ### Incident and Exception Handling
+
+  Failure modes and operational exceptions MUST stay visible and actionable.
+
+  - **Actionable Diagnostics**: Errors and logs SHOULD identify what failed,
+    where it failed, and what safe recovery path exists.
+  - **Redaction by Default**: Logs and support artifacts MUST omit or redact
+    sensitive content.
+  - **Rationale**: Fast recovery matters, but not at the expense of privacy or
+    control integrity.
+engineering_standards: |
+  ## Engineering Standards
+
+  - **Control Documentation Sync**: When a change affects access, data handling,
+    workflows, or operational controls, update the related runbooks, policies, or
+    supporting docs in the same change.
+  - **Audit-Friendly Records**: Plans, implementation notes, and summaries
+    SHOULD identify the changed control surface, verification steps, and known
+    residual risk.
+  - **Encoding Preservation**: When modifying an existing file, changes MUST
+    preserve the file's existing character encoding and BOM behavior unless the
+    task explicitly requires an encoding conversion.
+  - **Operational Readiness**: New services, jobs, or automation SHOULD expose
+    the configuration, health checks, and rollback steps needed for safe
+    operation.
+workflow_and_quality_gates: |
+  ## Workflow and Quality Gates
+
+  - **Spec-Driven Flow**: Significant work SHOULD follow constitution -> specify
+    -> plan -> tasks -> implement, unless the change is truly small and
+    self-evident.
+  - **Risk Review Context**: Plans and implementation summaries MUST call out
+    changed trust boundaries, sensitive data paths, and verification evidence when
+    they exist.
+  - **No Silent Downgrade Paths**: Fallbacks, weakened controls, or bypasses MUST
+    be explicit and justified before they ship.
