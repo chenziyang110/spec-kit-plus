@@ -44,6 +44,14 @@
 - [Decision planners must preserve from clarification or repository evidence]
 - [Compatibility, workflow, rollout, or validation decision that cannot be silently dropped]
 
+## Engineering Closure For Planning
+
+- **Trigger / event source**: [What signal, actor, or upstream action starts the behavior]
+- **Contract / boundary notes**: [Which identifiers, payload, or acknowledgement semantics must stay intact across module/service/process boundaries]
+- **State lifecycle / retention**: [What states exist, how they transition, and when they are archived, cleaned up, or removed]
+- **Failure / retry semantics**: [How failures surface, whether retries/replays happen, and what remains user-visible when the happy path breaks]
+- **Configuration / effective scope**: [Which settings shape this behavior and when changes take effect]
+
 ## Capability and Planning Impact
 
 - **Capability Shape**: [How the feature decomposes into planning-relevant capabilities]

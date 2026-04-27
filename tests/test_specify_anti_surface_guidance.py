@@ -40,3 +40,21 @@ def test_specify_template_blocks_surface_only_release_patterns() -> None:
     assert '"valid", "clean", "normalized", or "properly formatted"' in content
     assert '"normal permissions", "admin behavior", or "authorized users"' in content
     assert '"keep compatibility" or "don\'t break clients"' in content
+
+
+def test_specify_template_requires_engineering_completeness_for_boundary_sensitive_features() -> None:
+    content = _read("templates/commands/specify.md")
+
+    assert "trigger/event source when behavior depends on a cross-component signal" in content
+    assert "retry/dedup/idempotency expectations for async or event-driven behavior" in content
+    assert "13b. Run an engineering-completeness gate for boundary-sensitive work." in content
+    assert "trigger or event source" in content
+    assert "payload, identifiers, ordering, or delivery contract" in content
+    assert "state lifecycle, retention, archival, or cleanup expectations" in content
+    assert "retry, deduplication, idempotency, or replay expectations" in content
+    assert "user-visible failure, stale-state, or recovery behavior" in content
+    assert "configuration surface and when changes take effect" in content
+    assert "observability or support evidence needed to diagnose failures" in content
+    assert "If the user already described the desired UX in natural language" in content
+    assert "forcing a transport or browser-API choice" in content
+    assert "Do not release `Aligned: ready for plan` for a cross-boundary or event-driven feature" in content

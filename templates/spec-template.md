@@ -113,7 +113,27 @@
 ### Data, State, and Entity Considerations
 
 - [Relevant entity, state transition, or data responsibility]
-- [Compatibility, migration, or persistence concern]
+- [Compatibility, migration, persistence, or retention, archival, or cleanup concern]
+
+### Event / Trigger Model
+
+- [What event, user action, schedule, or external signal triggers the behavior]
+- [Whether delivery is synchronous or asynchronous, plus any ordering, deduplication, or idempotency expectations]
+
+### Protocol / Contract Notes
+
+- [Boundary contract between components, including the identifiers, payload shape, or acknowledgement semantics planners must preserve]
+- [Compatibility, versioning, authentication, or trust-boundary constraint when this feature crosses services, processes, runtimes, or storage seams]
+
+### Failure, Retry, and Visibility Semantics
+
+- [Expected failure handling, retry/replay behavior, or degraded-mode rule]
+- [What users, operators, or support surfaces can observe when the happy path does not complete]
+
+### Configuration and Rollout Notes
+
+- [Relevant settings, toggles, or preference surfaces that change behavior]
+- [When configuration takes effect, plus any rollout, backfill, migration, or cleanup expectation]
 
 ### Planning-Sensitive Notes
 

@@ -801,6 +801,11 @@ def test_spec_template_defines_scope_boundaries_without_open_clarification_examp
     assert "`Implementation Constitution`" in content
     assert "Established boundary pattern or framework-owned surface" in content
     assert "Boundary-sensitive area that `plan` should turn into `Implementation Constitution`" in content
+    assert "### Event / Trigger Model" in content
+    assert "### Protocol / Contract Notes" in content
+    assert "### Failure, Retry, and Visibility Semantics" in content
+    assert "### Configuration and Rollout Notes" in content
+    assert "retention, archival, or cleanup concern" in content
     assert "[NEEDS CLARIFICATION:" not in content
     assert "coherent first release" in content.lower()
     assert "viable mvp" not in content.lower()
@@ -817,6 +822,8 @@ def test_context_template_exists_and_captures_planning_context():
     assert "## Claude Discretion" in content
     assert "## Canonical References" in content
     assert "## Existing Code Insights" in content
+    assert "## Boundary Contracts and Lifecycle Notes" in content
+    assert "## Configuration Surface" in content
     assert "## Specific User Signals" in content
     assert "## Outstanding Questions" in content
     assert "## Deferred / Future Ideas" in content
@@ -1173,6 +1180,7 @@ def test_alignment_template_exists():
     assert "# Requirement Alignment Report:" in content
     assert "### Planning Summary" in content
     assert "## Locked Decisions For Planning" in content
+    assert "## Engineering Closure For Planning" in content
     assert "## Capability Checkpoints" in content
     assert "## High-Impact Decision Forks" in content
     assert "## Artifact Review Gate" in content

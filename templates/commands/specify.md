@@ -254,6 +254,9 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - relationship to existing behavior
     - compatibility expectations
     - data/state impact
+    - trigger/event source when behavior depends on a cross-component signal
+    - contract/protocol boundary when the feature crosses services, processes, runtimes, or stored event seams
+    - retry/dedup/idempotency expectations for async or event-driven behavior
     - acceptance criteria
 
     Bug fix:
@@ -302,6 +305,20 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - known unknowns or stale evidence boundaries that could change planning safety
     - acceptance-test shaping details
     - planning-sensitive risks and gaps
+
+13b. Run an engineering-completeness gate for boundary-sensitive work.
+    - Trigger this gate when the feature crosses a service/process/runtime boundary, depends on async or event delivery, creates user-visible persisted state, or adds configuration that changes delivery behavior.
+    - Confirm or explicitly defer, with reason, at minimum:
+      - trigger or event source
+      - payload, identifiers, ordering, or delivery contract
+      - state lifecycle, retention, archival, or cleanup expectations
+      - retry, deduplication, idempotency, or replay expectations
+      - user-visible failure, stale-state, or recovery behavior
+      - configuration surface and when changes take effect
+      - observability or support evidence needed to diagnose failures
+    - If repository evidence can answer one of these, use the scout summary or targeted live-file reads instead of asking the user to restate codebase facts.
+    - If the user gives a broad answer such as "we can make the internals detailed later", either turn it into a concrete checklist for confirmation or mark it as an explicit deferred risk.
+    - Do not treat this gate as implementation brainstorming; stay at the level of requirement-shaping contracts, lifecycle expectations, and planning safety.
 
 14. Identify gray areas before concluding alignment.
    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
@@ -366,6 +383,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Make the next question build directly on the user's most recent answer rather than resetting to generic prompts.
     - Use the previous answer to choose the next narrowing move, not a recycled generic checklist question.
     - Use code-aware follow-ups when possible: reference the current module, workflow, entity, command, or reusable pattern named in the handbook/project-map navigation system or repository evidence so the question is about the real decision fork, not an abstract category.
+    - If the user already described the desired UX in natural language, translate it into behavior and confirm the boundary instead of forcing a transport or browser-API choice.
+    - When the active gray area crosses a service, process, runtime, or storage boundary, stay on the engineering contract until trigger, identifiers, lifecycle, failure behavior, and configuration semantics are specific enough for planning.
     - If the user's answer is vague, shallow, or contradictory, respond with a targeted narrowing question, example, or recommendation tied to the planning-critical ambiguity.
     - Do not accept long but still ambiguous answers as sufficient.
     - Challenge contradictions or vague answers when important ambiguity remains.
@@ -388,12 +407,17 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
       - "just validate the data properly"
       - "admins can handle the special cases"
       - "don't break existing clients"
+      - "the internal data structure can be detailed later"
+      - "just send the event to the next service"
+      - "follow the existing hook pattern"
     - For answers like those, the next question must convert the vague intent into concrete behavior, edge handling, compatibility scope, or acceptance evidence rather than acknowledging and moving on.
     - Treat these as category-specific anti-surface gaps unless they are made concrete:
       - vague success standard: words like "fast", "smooth", "easy", "clear", or "works well" without observable success criteria
       - vague data rule: words like "valid", "clean", "normalized", or "properly formatted" without explicit field rules, transitions, or rejection behavior
       - vague permission boundary: words like "normal permissions", "admin behavior", or "authorized users" without role/action matrix or downgrade/override behavior
       - vague compatibility claim: phrases like "keep compatibility" or "don't break clients" without naming the preserved interface, version boundary, migration expectation, or failure mode
+      - vague event contract: phrases like "emit a hook", "send the event", or "forward it to relay" without naming the trigger source, identifiers, payload boundary, or retry behavior
+      - vague lifecycle claim: phrases like "keep it until the user sees it" or "store it for later" without read/unread states, retention, or cleanup behavior
     - Use recommendation and example scaffolding when they help the user answer more clearly without forcing a rigid response path.
     - Use the user's current language for all user-visible clarification content, including questions, summaries, status updates, and the current-understanding restatement.
     - Default to concise clarification turns: after the user answers, ask the next question directly unless a recap is necessary.
@@ -440,6 +464,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Only use `Force proceed with known risks` when the user accepts that unresolved planning risk will be carried into downstream work.
     - Make the closeout explicit: if ambiguity remains, ask whether the user wants to continue exploring or move to the next step with the documented risks.
     - Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions in place of concrete behavior, boundary handling, compatibility impact, or acceptance proof.
+    - Do not release `Aligned: ready for plan` for a cross-boundary or event-driven feature when the trigger source, contract identifiers, lifecycle/retention, failure path, or configuration semantics are still fuzzy.
 
     Use this open question block structure in the user's current language when rendering the textual fallback block:
 
@@ -536,6 +561,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - include scenarios and usage paths
     - include capability decomposition
     - include implementation-oriented analysis suitable for planning
+    - include trigger / contract / lifecycle / failure / configuration semantics when the feature is boundary-sensitive
     - include alignment state showing confirmed vs inferred vs unresolved
     - include risks and gaps that could affect planning
     - requirements must be testable
@@ -549,6 +575,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - confirmed facts
     - low-risk inferences
     - unresolved items
+    - engineering closure for boundary-sensitive features: trigger source, contract boundary, lifecycle/retention, failure/retry semantics, configuration surface
     - capability checkpoints for high-risk capabilities
     - high-impact decision-fork outcomes
     - clarification summary
@@ -563,6 +590,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     It must include:
     - phase or feature boundary
     - locked decisions
+    - contract and lifecycle notes for boundary-sensitive behavior
+    - configuration surface and effective timing when settings shape behavior
     - capability checkpoints
     - decision fork outcomes
     - Claude discretion
@@ -616,6 +645,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - [ ] Dependencies and assumptions identified
     - [ ] Capability decomposition is planning-ready
     - [ ] Confirmed vs inferred vs unresolved states are recorded
+    - [ ] Boundary-sensitive features record trigger source, contract boundary, lifecycle/retention, failure semantics, and configuration surface
 
     ## Alignment Readiness
 

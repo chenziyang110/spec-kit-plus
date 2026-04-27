@@ -40,6 +40,16 @@
 - [Reusable component, module, or pattern relevant to this feature]
 - [Integration point or repository convention that should shape planning]
 
+## Boundary Contracts and Lifecycle Notes
+
+- [Trigger/event source, boundary contract, or identifier/payload rule planners must preserve]
+- [State lifecycle, retention, archival, cleanup, failure, retry, or stale-state behavior that downstream work must not rediscover]
+
+## Configuration Surface
+
+- [Relevant user, admin, template, or runtime setting that changes behavior]
+- [When configuration takes effect, plus rollout, migration, backfill, or cleanup implications]
+
 ## Specific User Signals
 
 - [Concrete preference, wording, example, or product reference from the user]
