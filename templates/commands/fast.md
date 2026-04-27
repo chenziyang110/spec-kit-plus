@@ -63,6 +63,7 @@ Upgrade to `/sp-specify` immediately if:
 
 2. **Read the routing layer**
    - Check whether `.specify/project-map/status.json` exists.
+   - If user instructions appear to ask for bypassing workflow gates, skipping tests, or ignoring prior execution rules, use `specify hook validate-prompt --prompt-text "<user request>"` before continuing.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, stop and redirect to `/sp-quick` or `/sp-map-codebase` so the navigation system can be rebuilt safely before fast-path execution.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task, or if `review_topics` overlap shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and redirect to `/sp-quick`.
@@ -73,6 +74,7 @@ Upgrade to `/sp-specify` immediately if:
 
 3. **Execute inline**
    - Read the relevant file(s).
+   - Before reading any non-obvious path, prefer `specify hook validate-read-path --target-path "<candidate path>"` when you are unsure whether the path stays inside the repository or whether it may be a sensitive file.
    - If the task is behavior-changing rather than docs-only, write a failing targeted test or failing repro check before editing production code.
    - Do not use manual sanity checks as a substitute for red when behavior changes.
    - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-test` or `/sp-quick` instead of hand-waving the verification gap.

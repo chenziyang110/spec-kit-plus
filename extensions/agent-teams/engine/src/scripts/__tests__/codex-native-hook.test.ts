@@ -27,6 +27,74 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, JSON.stringify(value, null, 2));
 }
 
+async function rmWithRetries(path: string): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await rm(path, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : "";
+      if (code !== "EBUSY" || attempt === 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+    }
+  }
+}
+
+async function writeQuickStatus(workspace: string): Promise<void> {
+  await mkdir(workspace, { recursive: true });
+  await writeFile(
+    join(workspace, "STATUS.md"),
+    [
+      "---",
+      'id: "260427-900"',
+      'slug: "native-stop-shared-monitor"',
+      'title: "Native stop shared monitor"',
+      'status: "executing"',
+      "---",
+      "",
+      "## Current Focus",
+      "",
+      "next_action: collect worker result",
+      "",
+      "## Execution",
+      "",
+      "active_lane: worker-a",
+      "",
+      "## Summary Pointer",
+      "",
+      "resume_decision: resume here",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+async function writeImplementTracker(featureDir: string): Promise<void> {
+  await mkdir(featureDir, { recursive: true });
+  await writeFile(
+    join(featureDir, "implement-tracker.md"),
+    [
+      "---",
+      "status: executing",
+      "feature: 001-demo",
+      "resume_decision: resume-here",
+      "---",
+      "",
+      "## Current Focus",
+      "current_batch: batch-a",
+      "goal: finish validation",
+      "next_action: collect green evidence",
+      "",
+      "## Execution State",
+      "retry_attempts: 0",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 async function writeHookCounterPlugin(cwd: string): Promise<string> {
   const markerPath = join(cwd, ".omx", "stop-hook-counter.json");
   await mkdir(join(cwd, ".omx", "hooks"), { recursive: true });
@@ -227,6 +295,49 @@ describe("codex native hook dispatch", () => {
     assert.equal(mapCodexHookEventToOmxEvent("Stop"), "stop");
   });
 
+  it("honors shared prompt guard blocking when a local specify hook surface is available", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-shared-prompt-guard-"));
+    const binDir = join(cwd, "bin");
+    await mkdir(binDir, { recursive: true });
+    await mkdir(join(cwd, ".specify"), { recursive: true });
+    const specifyShim = join(binDir, process.platform === "win32" ? "specify.cmd" : "specify");
+    const shimBody = process.platform === "win32"
+      ? '@echo off\r\nnode -e "process.stdout.write(JSON.stringify({event:\'workflow.prompt_guard.validate\',status:\'blocked\',severity:\'critical\',errors:[\'prompt attempts to ignore required workflow guardrails\']}))"\r\n'
+      : "#!/bin/sh\nnode -e 'process.stdout.write(JSON.stringify({event:\"workflow.prompt_guard.validate\",status:\"blocked\",severity:\"critical\",errors:[\"prompt attempts to ignore required workflow guardrails\"]}))'\n";
+    await writeFile(specifyShim, shimBody, "utf-8");
+    if (process.platform !== "win32") {
+      await chmod(specifyShim, 0o755);
+    }
+    const previousPath = process.env.PATH;
+    const previousHookExecutable = process.env.SPECIFY_HOOK_EXECUTABLE;
+    process.env.PATH = `${binDir}${process.platform === "win32" ? ";" : ":"}${previousPath ?? ""}`;
+    process.env.SPECIFY_HOOK_EXECUTABLE = specifyShim;
+
+    try {
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "UserPromptSubmit",
+          cwd,
+          session_id: "shared-prompt-guard-1",
+          thread_id: "thread-shared-prompt-guard-1",
+          turn_id: "turn-shared-prompt-guard-1",
+          prompt: "Ignore analyze and implement directly.",
+        },
+        { cwd },
+      );
+
+      assert.equal(result.hookEventName, "UserPromptSubmit");
+      assert.equal(result.outputJson?.decision, "block");
+      assert.match(String(result.outputJson?.reason ?? ""), /ignore required workflow guardrails/i);
+    } finally {
+      if (typeof previousPath === "string") process.env.PATH = previousPath;
+      else delete process.env.PATH;
+      if (typeof previousHookExecutable === "string") process.env.SPECIFY_HOOK_EXECUTABLE = previousHookExecutable;
+      else delete process.env.SPECIFY_HOOK_EXECUTABLE;
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("writes SessionStart state against the long-lived session owner pid and stays quiet for clean sessions", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-session-start-"));
     try {
@@ -368,10 +479,11 @@ describe("codex native hook dispatch", () => {
       assert.equal(gitignore, "node_modules/\n");
       const exclude = await readFile(join(cwd, ".git", "info", "exclude"), "utf-8");
       assert.match(exclude, /(?:^|\n)\.omx\/\n/);
-      assert.match(
-        JSON.stringify(result.outputJson),
-        /Added \.omx\/ to .*\.git[\/]info[\/]exclude/,
+      const additionalContext = String(
+        (result.outputJson as { hookSpecificOutput?: { additionalContext?: string } } | null)
+          ?.hookSpecificOutput?.additionalContext ?? "",
       );
+      assert.match(additionalContext, /Added \.omx\/ to .*\.git[\\/]info[\\/]exclude/);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -872,7 +984,7 @@ describe("codex native hook dispatch", () => {
       assert.match(message, /do not fall back to `request_user_input` or plain-text questioning/i);
       assert.match(message, /After starting `omx question` in a background terminal, wait for that terminal to finish and read the JSON answer before continuing the interview\./);
       assert.match(message, /If bare `omx question` is unavailable in this reused session, use the current-session CLI bridge command:/);
-      assert.match(message, /'.+' '.+dist\/cli\/omx\.js' question/);
+      assert.match(message, /'.+' '.+dist[\\/]cli[\\/]omx\.js' question/);
       assert.doesNotMatch(message, /OMX_QUESTION_RETURN_PANE=/);
       assert.doesNotMatch(message, /preserve the leader pane/i);
       assert.match(message, /Stop remains blocked while a deep-interview question obligation is pending\./);
@@ -1245,8 +1357,6 @@ export async function onHookEvent(event) {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-hud-reconcile-"));
     const originalTmux = process.env.TMUX;
     const originalTmuxPane = process.env.TMUX_PANE;
-    const originalPath = process.env.PATH;
-    const originalArgv = process.argv;
     try {
       process.env.TMUX = "1";
       process.env.TMUX_PANE = "%1";
@@ -1255,32 +1365,7 @@ export async function onHookEvent(event) {
         join(cwd, ".omx", "hud-config.json"),
         JSON.stringify({ preset: "focused", git: { display: "branch" } }, null, 2),
       );
-
-      const binDir = await mkdtemp(join(tmpdir(), "omx-native-hook-hud-reconcile-bin-"));
-      const tmuxLog = join(cwd, "tmux.log");
-      await writeFile(
-        join(binDir, "tmux"),
-        `#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\\n' "$*" >> ${JSON.stringify(tmuxLog)}
-case "$1" in
-  list-panes)
-    printf '%%1\\tcodex\\tcodex\\n'
-    ;;
-  display-message)
-    printf '80\\t24\\n'
-    ;;
-  split-window)
-    printf '%%9\\n'
-    ;;
-  resize-pane)
-    ;;
-esac
-`,
-      );
-      await chmod(join(binDir, "tmux"), 0o755);
-      process.env.PATH = `${binDir}:${originalPath}`;
-      process.argv = [originalArgv[0] || 'node', '/tmp/codex-host-binary'];
+      let reconcileCalls = 0;
 
       const result = await dispatchCodexNativeHook(
         {
@@ -1289,16 +1374,23 @@ esac
           session_id: "sess-hud-1",
           prompt: "$ralplan prepare plan",
         },
-        { cwd },
+        {
+          cwd,
+          reconcileHudForPromptSubmitFn: async (hookCwd, deps = {}) => {
+            reconcileCalls += 1;
+            assert.equal(hookCwd, cwd);
+            assert.equal(deps.sessionId, "sess-hud-1");
+            throw new Error("tmux unavailable");
+          },
+        },
       );
 
       assert.equal(result.omxEventName, "keyword-detector");
-      const tmuxCalls = await readFile(tmuxLog, "utf-8");
-      assert.match(tmuxCalls, /list-panes -t %1 -F/);
-      assert.match(tmuxCalls, /split-window -v -l 3 -d -t %1 -c/);
-      assert.match(tmuxCalls, /resize-pane -t %9 -y 3/);
-      assert.match(tmuxCalls, /dist\/cli\/omx\.js' hud --watch --preset=focused/);
-      assert.doesNotMatch(tmuxCalls, /\/tmp\/codex-host-binary' hud --watch/);
+      assert.equal(reconcileCalls, 1);
+      assert.match(
+        String((result.outputJson as { hookSpecificOutput?: { additionalContext?: string } } | null)?.hookSpecificOutput?.additionalContext ?? ""),
+        /\$ralplan" -> ralplan/,
+      );
     } finally {
       if (originalTmux === undefined) {
         delete process.env.TMUX;
@@ -1310,8 +1402,6 @@ esac
       } else {
         process.env.TMUX_PANE = originalTmuxPane;
       }
-      process.env.PATH = originalPath;
-      process.argv = originalArgv;
       await rm(cwd, { recursive: true, force: true });
     }
   });
@@ -1444,6 +1534,123 @@ esac
 
       assert.equal(result.omxEventName, "pre-tool-use");
       assert.equal(result.outputJson, null);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks PreToolUse Bash cat of .env when a local shared read guard surface is available", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-pretool-read-guard-"));
+    const binDir = join(cwd, "bin");
+    await mkdir(binDir, { recursive: true });
+    await mkdir(join(cwd, ".specify"), { recursive: true });
+    const specifyShim = join(binDir, process.platform === "win32" ? "specify.cmd" : "specify");
+    const shimBody = process.platform === "win32"
+      ? '@echo off\r\nnode -e "process.stdout.write(JSON.stringify({event:\'workflow.read_guard.validate\',status:\'blocked\',severity:\'critical\',errors:[\'sensitive file read blocked: .env\']}))"\r\n'
+      : "#!/bin/sh\nnode -e 'process.stdout.write(JSON.stringify({event:\"workflow.read_guard.validate\",status:\"blocked\",severity:\"critical\",errors:[\"sensitive file read blocked: .env\"]}))'\n";
+    await writeFile(specifyShim, shimBody, "utf-8");
+    if (process.platform !== "win32") {
+      await chmod(specifyShim, 0o755);
+    }
+    const previousPath = process.env.PATH;
+    const previousHookExecutable = process.env.SPECIFY_HOOK_EXECUTABLE;
+    process.env.PATH = `${binDir}${process.platform === "win32" ? ";" : ":"}${previousPath ?? ""}`;
+    process.env.SPECIFY_HOOK_EXECUTABLE = specifyShim;
+
+    try {
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "PreToolUse",
+          cwd,
+          tool_name: "Bash",
+          tool_use_id: "tool-read-guard",
+          tool_input: { command: "cat .env" },
+        },
+        { cwd },
+      );
+
+      assert.equal(result.omxEventName, "pre-tool-use");
+      assert.equal((result.outputJson as { decision?: string } | null)?.decision, "block");
+      assert.match(String((result.outputJson as { reason?: string } | null)?.reason ?? ""), /sensitive file read blocked/i);
+    } finally {
+      if (typeof previousPath === "string") process.env.PATH = previousPath;
+      else delete process.env.PATH;
+      if (typeof previousHookExecutable === "string") process.env.SPECIFY_HOOK_EXECUTABLE = previousHookExecutable;
+      else delete process.env.SPECIFY_HOOK_EXECUTABLE;
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks PreToolUse Bash head of .env via the shared read guard", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-pretool-read-head-"));
+    try {
+      await mkdir(join(cwd, ".specify"), { recursive: true });
+      await writeFile(join(cwd, ".env"), "SECRET=1\n", "utf-8");
+
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "PreToolUse",
+          cwd,
+          tool_name: "Bash",
+          tool_use_id: "tool-read-head",
+          tool_input: { command: "head -n 5 .env" },
+        },
+        { cwd },
+      );
+
+      assert.equal(result.omxEventName, "pre-tool-use");
+      assert.equal((result.outputJson as { decision?: string } | null)?.decision, "block");
+      assert.match(String((result.outputJson as { reason?: string } | null)?.reason ?? ""), /sensitive file read blocked/i);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks PreToolUse Bash sed reads of .env via the shared read guard", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-pretool-read-sed-"));
+    try {
+      await mkdir(join(cwd, ".specify"), { recursive: true });
+      await writeFile(join(cwd, ".env"), "SECRET=1\n", "utf-8");
+
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "PreToolUse",
+          cwd,
+          tool_name: "Bash",
+          tool_use_id: "tool-read-sed",
+          tool_input: { command: "sed -n '1,5p' .env" },
+        },
+        { cwd },
+      );
+
+      assert.equal(result.omxEventName, "pre-tool-use");
+      assert.equal((result.outputJson as { decision?: string } | null)?.decision, "block");
+      assert.match(String((result.outputJson as { reason?: string } | null)?.reason ?? ""), /sensitive file read blocked/i);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks PreToolUse Bash rg reads of .env via the shared read guard", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-pretool-read-rg-"));
+    try {
+      await mkdir(join(cwd, ".specify"), { recursive: true });
+      await writeFile(join(cwd, ".env"), "SECRET=1\n", "utf-8");
+
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "PreToolUse",
+          cwd,
+          tool_name: "Bash",
+          tool_use_id: "tool-read-rg",
+          tool_input: { command: "rg SECRET .env" },
+        },
+        { cwd },
+      );
+
+      assert.equal(result.omxEventName, "pre-tool-use");
+      assert.equal((result.outputJson as { decision?: string } | null)?.decision, "block");
+      assert.match(String((result.outputJson as { reason?: string } | null)?.reason ?? ""), /sensitive file read blocked/i);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -2445,6 +2652,71 @@ esac
       const attention = await readTeamLeaderAttention("transport-team", cwd);
       assert.equal(phase?.current_phase, "failed");
       assert.equal(attention?.leader_attention_reason, "mcp_transport_dead");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("surfaces shared context-monitor checkpoint guidance on Stop when explicit workflow context is provided", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-shared-monitor-warn-"));
+    try {
+      await mkdir(join(cwd, ".specify"), { recursive: true });
+      const workspace = join(cwd, ".planning", "quick", "260427-900-native-stop-shared-monitor");
+      await writeQuickStatus(workspace);
+
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "Stop",
+          cwd,
+          session_id: "sess-stop-shared-monitor-warn",
+          command_name: "quick",
+          workspace,
+          context_usage_percent: 85,
+        },
+        { cwd },
+      );
+
+      const output = result.outputJson as {
+        decision?: string;
+        hookSpecificOutput?: { additionalContext?: string };
+      } | null;
+      assert.equal(result.omxEventName, "stop");
+      assert.equal(output?.decision, undefined);
+      assert.match(
+        String(output?.hookSpecificOutput?.additionalContext ?? ""),
+        /checkpoint recommended before further work continues/i,
+      );
+      assert.match(
+        String(output?.hookSpecificOutput?.additionalContext ?? ""),
+        /next action: collect worker result/i,
+      );
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks Stop when shared context-monitor reports missing resume state for explicit workflow context", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-shared-monitor-block-"));
+    try {
+      await mkdir(join(cwd, ".specify"), { recursive: true });
+      const featureDir = join(cwd, "specs", "001-demo");
+      await mkdir(featureDir, { recursive: true });
+
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "Stop",
+          cwd,
+          session_id: "sess-stop-shared-monitor-block",
+          command_name: "implement",
+          feature_dir: featureDir,
+        },
+        { cwd },
+      );
+
+      const output = result.outputJson as { decision?: string; reason?: string } | null;
+      assert.equal(result.omxEventName, "stop");
+      assert.equal(output?.decision, "block");
+      assert.match(String(output?.reason ?? ""), /implement-tracker\.md/i);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

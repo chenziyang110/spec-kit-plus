@@ -5,6 +5,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli.learnings import read_learning_entries
 
 
 runner = CliRunner()
@@ -190,3 +191,44 @@ def test_quick_archive_command_rejects_active_tasks(tmp_path: Path):
 
     assert result.exit_code == 1
     assert "only resolved or blocked quick tasks can be archived" in result.stdout.lower()
+
+
+def test_quick_close_auto_captures_learning_from_retry_and_validation_state(tmp_path: Path):
+    project, quick_root = _setup_project(tmp_path)
+    _write_status(
+        quick_root / "260417-001-fix-quick-index-sync",
+        {"id": "260417-001", "title": "Fix quick index sync", "status": "executing"},
+        """
+## Current Focus
+goal: keep the quick index consistent
+current_focus: validate the recovery result
+next_action: close after validation
+
+## Execution
+active_lane: single-lane
+join_point:
+files_or_surfaces: scripts/powershell/quick-state.ps1
+execution_fallback: none
+blockers: []
+recovery_action: rerun index rebuild once state is refreshed
+retry_attempts: 1
+blocker_reason: stale quick index snapshot
+
+## Validation
+planned_checks:
+  - pytest tests/test_quick_cli.py -q
+completed_checks:
+  - pytest tests/test_quick_cli.py -q
+
+## Summary Pointer
+summary_path: .planning/quick/260417-001-fix-quick-index-sync/SUMMARY.md
+resume_decision: resolved
+""",
+    )
+
+    result = _invoke_in_project(project, ["quick", "close", "260417-001", "--status", "resolved"])
+
+    assert result.exit_code == 0, result.stdout
+    _, entries = read_learning_entries(project / ".planning" / "learnings" / "candidates.md")
+    summaries = [entry.summary for entry in entries]
+    assert "Retry the smallest recorded recovery step and rerun scoped checks before resolving a quick task" in summaries

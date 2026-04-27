@@ -1,0 +1,82 @@
+"""Project-map related first-party workflow hooks."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from specify_cli.project_map_status import (
+    complete_project_map_refresh,
+    git_head_commit,
+    has_git_repo,
+    inspect_project_map_freshness,
+    mark_project_map_dirty,
+)
+
+from .events import PROJECT_MAP_COMPLETE_REFRESH, PROJECT_MAP_MARK_DIRTY
+from .types import HookResult, QualityHookError
+
+
+HIGH_RISK_COMMANDS = {"implement", "quick", "fast"}
+
+
+def project_map_freshness_result(project_root: Path, *, command_name: str) -> HookResult:
+    normalized = command_name.strip().lower()
+    freshness = inspect_project_map_freshness(project_root)
+    state = str(freshness.get("freshness", "")).strip().lower()
+    reasons = [str(item) for item in freshness.get("reasons", []) if str(item).strip()]
+
+    if state == "fresh":
+        return HookResult(
+            event="project_map.refresh.validate",
+            status="ok",
+            severity="info",
+            data={"freshness": freshness},
+        )
+    if state == "stale" and normalized in HIGH_RISK_COMMANDS:
+        return HookResult(
+            event="project_map.refresh.validate",
+            status="blocked",
+            severity="critical",
+            errors=reasons or ["project-map freshness is stale"],
+            data={"freshness": freshness},
+        )
+    return HookResult(
+        event="project_map.refresh.validate",
+        status="warn",
+        severity="warning",
+        warnings=reasons or [f"project-map freshness is {state or 'unknown'}"],
+        data={"freshness": freshness},
+    )
+
+
+def mark_dirty_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
+    reason = str(payload.get("reason") or "").strip()
+    if not reason:
+        raise QualityHookError("reason is required for project_map.mark_dirty")
+    status = mark_project_map_dirty(project_root, reason)
+    return HookResult(
+        event=PROJECT_MAP_MARK_DIRTY,
+        status="ok",
+        severity="info",
+        writes={"status_path": str(project_root / ".specify" / "project-map" / "status.json")},
+        data={"project_map_status": status.to_dict()},
+    )
+
+
+def complete_refresh_hook(project_root: Path, _payload: dict[str, object]) -> HookResult:
+    if not has_git_repo(project_root) or not git_head_commit(project_root):
+        return HookResult(
+            event=PROJECT_MAP_COMPLETE_REFRESH,
+            status="blocked",
+            severity="critical",
+            errors=["git baseline unavailable for project-map complete-refresh"],
+        )
+    status = complete_project_map_refresh(project_root)
+    return HookResult(
+        event=PROJECT_MAP_COMPLETE_REFRESH,
+        status="ok",
+        severity="info",
+        writes={"status_path": str(project_root / ".specify" / "project-map" / "status.json")},
+        data={"project_map_status": status.to_dict()},
+    )
+

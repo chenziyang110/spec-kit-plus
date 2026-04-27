@@ -171,10 +171,23 @@ Passive project learning layer:
   - `specify learning status --format json`
   - `specify learning start --command <workflow> --format json`
   - `specify learning capture --command <workflow> ...`
+  - `specify learning capture-auto --command <workflow> ...`
+  - `specify implement closeout --feature-dir <feature-dir> --format json`
   - `specify learning aggregate --format json`
   - `specify learning promote --recurrence-key <key> --target learning|rule`
 - `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
 - Treat this as an internal/runtime helper surface, not as a separate daily slash workflow.
+
+First-party workflow quality hooks:
+
+- Use `specify hook preflight --command <workflow> ...` when you want the product-level gate result rather than relying only on prompt wording.
+- Use `specify hook validate-state --command <workflow> ...` and `specify hook validate-session-state --command <workflow> ...` to inspect or enforce the current source-of-truth workflow state.
+- Use `specify hook validate-artifacts --command <workflow> --feature-dir <dir>` to check that the promised artifact set really exists.
+- Use `specify hook checkpoint --command <workflow> ...` to build a resume-safe checkpoint from the active workflow state file.
+- Use `specify hook monitor-context --command <workflow> ...` to trigger proactive checkpointing before compaction or a risky transition.
+- Use `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` for delegated worker integrity.
+- Use `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` when path safety or workflow-bypass language is in doubt.
+- Use `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` to enforce workflow transitions and commit-time integrity.
 
 ## Detailed Example: Building Taskify
 

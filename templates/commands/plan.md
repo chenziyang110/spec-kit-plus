@@ -57,6 +57,12 @@ agent_scripts:
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
 
+**Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
+- Use `specify hook preflight --command plan --feature-dir "$FEATURE_DIR"` before deeper planning execution so stale brownfield routing or invalid workflow entry is caught by the shared product guardrail layer.
+- After `WORKFLOW_STATE_FILE` is created or resumed, use `specify hook validate-state --command plan --feature-dir "$FEATURE_DIR"` so the shared validator confirms `workflow-state.md` matches the `sp-plan` contract.
+- Before final handoff, use `specify hook validate-artifacts --command plan --feature-dir "$FEATURE_DIR"` so the minimum plan artifact set is checked by the shared hook surface.
+- Before compaction-risk transitions or after large planning artifact synthesis, use `specify hook checkpoint --command plan --feature-dir "$FEATURE_DIR"` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+
 ## Passive Project Learning Layer
 
 - [AGENT] Run `specify learning start --command plan --format json` when available so passive learning files exist, the current planning run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.

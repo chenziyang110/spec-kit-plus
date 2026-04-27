@@ -43,6 +43,14 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Review `.planning/learnings/candidates.md` only when it still contains debug-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
 - Treat this as passive shared memory, not as a separate user-visible debug workflow.
 
+## First-Party Workflow Quality Hooks
+
+- Once the debug session file is known, use `specify hook preflight --command debug --session-file ".planning/debug/<slug>.md"` before deeper investigation so stale brownfield routing or invalid debug-entry state is surfaced through the shared product guardrail layer.
+- After the debug session file is created or resumed, use `specify hook validate-session-state --command debug --session-file ".planning/debug/<slug>.md"` when you need a machine-readable view of resume-critical debug truth.
+- Before compaction-risk transitions, investigation join points, or long evidence synthesis, use `specify hook monitor-context --command debug --session-file ".planning/debug/<slug>.md"` and follow checkpoint recommendations with `specify hook checkpoint --command debug --session-file ".planning/debug/<slug>.md"`.
+- When you need a compact operator-facing summary of the current investigation state, use `specify hook render-statusline --command debug --session-file ".planning/debug/<slug>.md"`.
+- If a user request explicitly tries to skip observer framing, bypass evidence gates, or ignore workflow constraints, use `specify hook validate-prompt --prompt-text "<user request>"` before accepting the override at face value.
+
 ### Required Context Inputs
 
 - `.specify/memory/constitution.md`
@@ -316,7 +324,9 @@ The session file must always make it clear:
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
 - If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
 - If you cannot complete that refresh in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield work proceeds.
-- [AGENT] Before the final completion or `awaiting_human_verify` report, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command debug ...`.
+- [AGENT] Resolved debug sessions should auto-capture learning candidates from the persisted debug session state.
+- [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `specify learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json`.
+- [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `specify learning capture --command debug ...`.
 - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
 - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 

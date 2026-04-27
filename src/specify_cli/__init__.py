@@ -91,6 +91,7 @@ from specify_cli.learning_aggregate import (
     write_learning_aggregate_report,
 )
 from specify_cli.learnings import (
+    capture_auto_learning,
     capture_learning,
     ensure_learning_files,
     ensure_learning_memory_from_templates,
@@ -434,6 +435,13 @@ quick_app = typer.Typer(
 )
 app.add_typer(quick_app, name="quick")
 
+implement_app = typer.Typer(
+    name="implement",
+    help="Inspect and finalize tracked implementation execution state",
+    add_completion=False,
+)
+app.add_typer(implement_app, name="implement")
+
 testing_app = typer.Typer(
     name="testing",
     help="Inspect repository testing inventory and test-system surfaces",
@@ -454,6 +462,13 @@ result_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(result_app, name="result")
+
+hook_app = typer.Typer(
+    name="hook",
+    help="Run first-party workflow quality hooks",
+    add_completion=False,
+)
+app.add_typer(hook_app, name="hook")
 
 learning_app = typer.Typer(
     name="learning",
@@ -951,9 +966,19 @@ def quick_close(
         console.print("[red]Error:[/red] --status must be 'resolved' or 'blocked'")
         raise typer.Exit(1)
 
-    _require_spec_kit_plus_project(Path.cwd())
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
     payload = _run_quick_helper("close", quick_id=quick_id, status=status_value)
     task = payload.get("task", {})
+    workspace_path = str(task.get("workspace_path", "")).strip()
+    if workspace_path:
+        auto_payload = capture_auto_learning(
+            project_root,
+            command_name="quick",
+            workspace=Path(workspace_path),
+        )
+        if auto_payload["status"] == "captured":
+            console.print(f"Auto-captured {len(auto_payload['captured'])} quick-task learning candidate(s).")
     console.print(f"Closed quick task {task.get('id')} with status {task.get('status')}.")
 
 
@@ -966,6 +991,61 @@ def quick_archive(
     payload = _run_quick_helper("archive", quick_id=quick_id)
     task = payload.get("task", {})
     console.print(f"Archived quick task {task.get('id')} to {task.get('workspace_path')}.")
+
+
+@implement_app.command("closeout")
+def implement_closeout(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory containing workflow-state.md and implement-tracker.md"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Validate implementation closeout state and auto-capture learnings."""
+    from .hooks.engine import run_quality_hook
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = Path(feature_dir)
+    if not resolved_feature_dir.is_absolute():
+        resolved_feature_dir = (project_root / resolved_feature_dir).resolve()
+
+    hook_result = run_quality_hook(
+        project_root,
+        "workflow.session_state.validate",
+        {"command_name": "implement", "feature_dir": str(resolved_feature_dir)},
+    )
+    if hook_result.status == "blocked":
+        payload = {"status": "blocked", "hook_result": hook_result.to_dict(), "feature_dir": str(resolved_feature_dir)}
+        if output_format.lower() == "json":
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            console.print("[red]Error:[/red] Implement closeout blocked by invalid session state.")
+            for error in hook_result.errors:
+                console.print(f"- {error}")
+        raise typer.Exit(1)
+
+    auto_payload = capture_auto_learning(
+        project_root,
+        command_name="implement",
+        feature_dir=resolved_feature_dir,
+    )
+    payload = {
+        "status": "ok",
+        "feature_dir": str(resolved_feature_dir),
+        "hook_result": hook_result.to_dict(),
+        "auto_capture": auto_payload,
+    }
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    rows = [
+        ("Feature Dir", str(resolved_feature_dir)),
+        ("Session State", hook_result.status),
+        ("Auto-Capture", auto_payload["status"]),
+        ("Captured", str(len(auto_payload.get("captured", [])))),
+    ]
+    if auto_payload.get("reason"):
+        rows.append(("Reason", str(auto_payload["reason"])))
+    console.print(_cli_panel(_labeled_grid(rows), title="Implement Closeout", border_style="cyan"))
 
 
 @testing_app.command("inventory")
@@ -1273,6 +1353,39 @@ def learning_capture_command(
         ("Needs Confirmation", "true" if payload["needs_confirmation"] else "false"),
     ]
     console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Capture", border_style="cyan"))
+
+
+@learning_app.command("capture-auto")
+def learning_capture_auto_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name, for example implement, quick, or debug"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory containing implement-tracker.md"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace containing STATUS.md"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session markdown file"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Auto-capture learning candidates from workflow state files."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = capture_auto_learning(
+        project_root,
+        command_name=command_name,
+        feature_dir=Path(feature_dir) if feature_dir else None,
+        workspace=Path(workspace) if workspace else None,
+        session_file=Path(session_file) if session_file else None,
+    )
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    rows = [
+        ("Status", payload["status"]),
+        ("Command", payload["command"]),
+        ("Captured", str(len(payload.get("captured", [])))),
+        ("Source", str(payload.get("source_path", ""))),
+    ]
+    if payload.get("reason"):
+        rows.append(("Reason", str(payload["reason"])))
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Auto-Capture", border_style="cyan"))
 
 
 @learning_app.command("promote")
@@ -2750,6 +2863,22 @@ def _require_result_project(project_root: Path) -> str:
     return integration_key
 
 
+def _run_hook_and_print(project_root: Path, event_name: str, payload: dict[str, Any]) -> None:
+    from .hooks.engine import run_quality_hook
+
+    result = run_quality_hook(project_root, event_name, payload)
+    print(json.dumps(result.to_dict(), ensure_ascii=False))
+
+
+def _normalize_optional_repo_path(project_root: Path, raw_value: str | None) -> str | None:
+    if not raw_value:
+        return None
+    path = Path(raw_value)
+    if not path.is_absolute():
+        path = (project_root / path).resolve()
+    return str(path)
+
+
 def _resolve_result_context(
     project_root: Path,
     *,
@@ -3431,6 +3560,294 @@ def result_submit_command(
             },
             ensure_ascii=False,
         )
+    )
+
+
+@hook_app.command("preflight")
+def hook_preflight_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+):
+    """Run the shared workflow preflight hook and return JSON."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.preflight",
+        {
+            "command_name": command_name,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "workspace": _normalize_optional_repo_path(project_root, workspace),
+            "session_file": _normalize_optional_repo_path(project_root, session_file),
+        },
+    )
+
+
+@hook_app.command("validate-state")
+def hook_validate_state_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+):
+    """Validate the current workflow source-of-truth state and return JSON."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.state.validate",
+        {
+            "command_name": command_name,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "workspace": _normalize_optional_repo_path(project_root, workspace),
+            "session_file": _normalize_optional_repo_path(project_root, session_file),
+        },
+    )
+
+
+@hook_app.command("validate-artifacts")
+def hook_validate_artifacts_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory path"),
+):
+    """Validate required workflow artifacts and return JSON."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.artifacts.validate",
+        {
+            "command_name": command_name,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+        },
+    )
+
+
+@hook_app.command("checkpoint")
+def hook_checkpoint_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+):
+    """Build a recovery checkpoint payload from the workflow source of truth."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.checkpoint",
+        {
+            "command_name": command_name,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "workspace": _normalize_optional_repo_path(project_root, workspace),
+            "session_file": _normalize_optional_repo_path(project_root, session_file),
+        },
+    )
+
+
+@hook_app.command("validate-packet")
+def hook_validate_packet_command(
+    packet_file: str = typer.Option(..., "--packet-file", help="Path to worker packet JSON"),
+):
+    """Validate a delegated worker packet and return JSON."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "delegation.packet.validate",
+        {"packet_file": _normalize_optional_repo_path(project_root, packet_file)},
+    )
+
+
+@hook_app.command("validate-result")
+def hook_validate_result_command(
+    packet_file: str = typer.Option(..., "--packet-file", help="Path to worker packet JSON"),
+    result_file: str = typer.Option(..., "--result-file", help="Path to worker result JSON"),
+):
+    """Validate a delegated worker result against its packet and return JSON."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "delegation.join.validate",
+        {
+            "packet_file": _normalize_optional_repo_path(project_root, packet_file),
+            "result_file": _normalize_optional_repo_path(project_root, result_file),
+        },
+    )
+
+
+@hook_app.command("monitor-context")
+def hook_monitor_context_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    trigger: str = typer.Option("turn-progress", "--trigger", help="Structural context-monitor trigger"),
+    context_usage: int | None = typer.Option(None, "--context-usage", help="Optional context usage percentage"),
+):
+    """Monitor context pressure and emit checkpoint recommendations as JSON."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.context.monitor",
+        {
+            "command_name": command_name,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "workspace": _normalize_optional_repo_path(project_root, workspace),
+            "session_file": _normalize_optional_repo_path(project_root, session_file),
+            "trigger": trigger,
+            "context_usage_percent": context_usage,
+        },
+    )
+
+
+@hook_app.command("validate-session-state")
+def hook_validate_session_state_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+):
+    """Validate cross-file session state consistency and return JSON."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.session_state.validate",
+        {
+            "command_name": command_name,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "workspace": _normalize_optional_repo_path(project_root, workspace),
+            "session_file": _normalize_optional_repo_path(project_root, session_file),
+        },
+    )
+
+
+@hook_app.command("render-statusline")
+def hook_render_statusline_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+):
+    """Render a compact workflow statusline summary and return JSON."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.statusline.render",
+        {
+            "command_name": command_name,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "workspace": _normalize_optional_repo_path(project_root, workspace),
+            "session_file": _normalize_optional_repo_path(project_root, session_file),
+        },
+    )
+
+
+@hook_app.command("validate-read-path")
+def hook_validate_read_path_command(
+    target_path: str = typer.Option(..., "--target-path", help="Path the workflow wants to read"),
+):
+    """Validate whether a read target stays inside workflow-safe path boundaries."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.read_guard.validate",
+        {"target_path": _normalize_optional_repo_path(project_root, target_path)},
+    )
+
+
+@hook_app.command("validate-prompt")
+def hook_validate_prompt_command(
+    prompt_text: str = typer.Option(..., "--prompt-text", help="Prompt text to validate"),
+):
+    """Validate prompt text for explicit workflow-bypass or override language."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.prompt_guard.validate",
+        {"prompt_text": prompt_text},
+    )
+
+
+@hook_app.command("validate-boundary")
+def hook_validate_boundary_command(
+    from_command: str = typer.Option(..., "--from-command", help="Current workflow command"),
+    to_command: str = typer.Option(..., "--to-command", help="Requested next workflow command"),
+):
+    """Validate whether a workflow command transition is allowed."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.boundary.validate",
+        {"from_command": from_command, "to_command": to_command},
+    )
+
+
+@hook_app.command("validate-phase-boundary")
+def hook_validate_phase_boundary_command(
+    from_phase_mode: str = typer.Option(..., "--from-phase-mode", help="Current phase mode"),
+    to_phase_mode: str = typer.Option(..., "--to-phase-mode", help="Requested next phase mode"),
+):
+    """Validate whether a workflow phase transition is allowed."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.phase_boundary.validate",
+        {"from_phase_mode": from_phase_mode, "to_phase_mode": to_phase_mode},
+    )
+
+
+@hook_app.command("validate-commit")
+def hook_validate_commit_command(
+    commit_message: str = typer.Option(..., "--commit-message", help="Commit message to validate"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Optional feature directory for tracker validation"),
+):
+    """Validate commit message and workflow terminal state before commit finalization."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.commit.validate",
+        {
+            "commit_message": commit_message,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+        },
+    )
+
+
+@hook_app.command("mark-dirty")
+def hook_mark_dirty_command(
+    reason: str = typer.Option(..., "--reason", help="Why the current work invalidated the project map"),
+):
+    """Mark the project map dirty through the shared hook surface."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "project_map.mark_dirty",
+        {"reason": reason},
+    )
+
+
+@hook_app.command("complete-refresh")
+def hook_complete_refresh_command():
+    """Finalize a project-map refresh through the shared hook surface."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "project_map.complete_refresh",
+        {},
     )
 
 

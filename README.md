@@ -181,14 +181,30 @@ Passive project learning layer:
 - The major workflow templates now read the passive project learning layer before deeper command-local context so recurring pitfalls, constraints, and user defaults can influence later runs.
 - The passive start step can auto-promote repeated non-high-signal candidates into shared learnings before the command does deeper local analysis.
 - Low-level helper commands exist for the passive learning lifecycle:
-  - `specify learning ensure --format json`
-  - `specify learning status --format json`
-  - `specify learning start --command <workflow> --format json`
-  - `specify learning capture --command <workflow> ...`
-  - `specify learning aggregate --format json`
-  - `specify learning promote --recurrence-key <key> --target learning|rule`
+- `specify learning ensure --format json`
+- `specify learning status --format json`
+- `specify learning start --command <workflow> --format json`
+- `specify learning capture --command <workflow> ...`
+- `specify learning capture-auto --command <workflow> ...`
+- `specify implement closeout --feature-dir <feature-dir> --format json`
+- `specify learning aggregate --format json`
+- `specify learning promote --recurrence-key <key> --target learning|rule`
 - Use `specify learning aggregate` when you want a grouped, promotion-oriented summary of candidate, confirmed, and promoted learning patterns before deciding what should become a shared learning or rule.
 - This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across `sp-specify`, `sp-plan`, `sp-tasks`, `sp-implement`, `sp-debug`, `sp-fast`, and `sp-quick`.
+
+First-party workflow quality hooks:
+
+- `specify hook preflight --command <workflow> ...` runs the shared product gate before a workflow continues.
+- `specify hook validate-state --command <workflow> ...` checks workflow state truth such as `workflow-state.md`, `implement-tracker.md`, or quick-task `STATUS.md`.
+- `specify hook validate-artifacts --command <workflow> --feature-dir <dir>` machine-checks the minimum artifact set instead of trusting chat progress.
+- `specify hook checkpoint --command <workflow> ...` emits a resume-safe checkpoint payload from the active source-of-truth state file.
+- `specify hook monitor-context --command <workflow> ...` recommends proactive checkpointing when context pressure or a risky structural transition appears.
+- `specify hook validate-session-state --command <workflow> ...` reconciles resume-critical state across the active workflow surfaces.
+- `specify hook render-statusline --command <workflow> ...` returns a compact operator-facing status summary.
+- `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` enforce the shared delegated execution contract.
+- `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` provide shared read-boundary and prompt-bypass guards.
+- `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` cover workflow transitions and last-mile commit integrity.
+- `specify hook mark-dirty --reason "<reason>"` and `specify hook complete-refresh` are the shared product paths for project-map freshness updates.
 
 After planning, continue with:
 

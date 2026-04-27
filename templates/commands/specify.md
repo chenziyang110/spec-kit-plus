@@ -50,6 +50,12 @@ scripts:
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently.
 
+**Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
+- Use `specify hook preflight --command specify --feature-dir "$FEATURE_DIR"` before deeper workflow execution so the shared product guardrail layer can block stale or invalid entry conditions.
+- After `WORKFLOW_STATE_FILE` is created or resumed, use `specify hook validate-state --command specify --feature-dir "$FEATURE_DIR"` so the shared state validator confirms `workflow-state.md` matches the `sp-specify` contract.
+- Before final handoff, use `specify hook validate-artifacts --command specify --feature-dir "$FEATURE_DIR"` so the required `spec.md`, `alignment.md`, `context.md`, and `workflow-state.md` set is machine-checked rather than trusted from chat narration.
+- Before any compaction-risk transition or after major artifact synthesis, use `specify hook checkpoint --command specify --feature-dir "$FEATURE_DIR"` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+
 ## Passive Project Learning Layer
 
 - [AGENT] Run `specify learning start --command specify --format json` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.

@@ -65,6 +65,7 @@ Use the `specify learning` CLI to manage the learning state explicitly:
 - `specify learning start --command <command-name>`: Prepare learning context. Use the
   workflow name without the `sp-` prefix.
 - `specify learning capture --command <command-name> --type <type> --summary "<summary>" --evidence "<evidence>"`: Capture a candidate learning for the active workflow.
+- `specify learning capture-auto --command <command-name> ...`: Infer candidate learnings from workflow state files when the workflow has a durable state surface such as `implement-tracker.md`, quick `STATUS.md`, or debug session files.
 - `specify learning promote --recurrence-key <key> --target <learning|rule>`: Promote a learning into `project-learnings.md` or `project-rules.md`.
 
 ## Learning-Start Trigger Matrix
@@ -107,18 +108,23 @@ Use the `specify learning` CLI to manage the learning state explicitly:
 - **`sp-test`**: Use `specify learning capture --command test --type project_constraint`
   when testing bootstrap or refresh exposes reusable framework rules, project-wide
   testing pitfalls, or contract-shaping `workflow_gap` findings.
-- **`sp-implement`**: Use `specify learning capture --command implement --type pitfall`
-  when implementation or verification reveals a repeatable `pitfall`,
-  `recovery_path`, or `project_constraint`.
-- **`sp-debug`**: Use `specify learning capture --command debug --type pitfall` when
-  debugging reveals a repeatable failure mode, `recovery_path`, or debugging-side
-  `project_constraint`.
+- **`sp-implement`**: Prefer `specify implement closeout --feature-dir FEATURE_DIR`
+  so implementation session state is validated and retry-heavy implementation
+  patterns can be inferred from `implement-tracker.md` automatically. Fall back to
+  `specify learning capture --command implement --type pitfall` when the durable
+  state files do not capture the reusable insight.
+- **`sp-debug`**: Prefer `specify learning capture-auto --command debug --session-file .planning/debug/[slug].md`
+  so resolved debug sessions can infer repeatable failure and recovery patterns from
+  the persisted session file. Fall back to `specify learning capture --command debug --type pitfall`
+  when the durable state files do not capture the reusable insight.
 - **`sp-fast`**: Use `specify learning capture --command fast --type pitfall` only for
   highest-signal `pitfall`, `workflow_gap`, or `project_constraint` findings that
   should survive beyond the fast-path session.
-- **`sp-quick`**: Use `specify learning capture --command quick --type pitfall` for
-  reusable `pitfall`, `recovery_path`, `workflow_gap`, or `project_constraint`
-  findings discovered during the quick-task loop.
+- **`sp-quick`**: Prefer `specify learning capture-auto --command quick --workspace .planning/quick/<id>-<slug>`
+  so resolved quick tasks can infer retry-heavy patterns from `STATUS.md`.
+  Fall back to `specify learning capture --command quick --type pitfall` for reusable
+  `pitfall`, `recovery_path`, `workflow_gap`, or `project_constraint` findings that
+  the quick-task state file does not capture on its own.
 - **`sp-map-codebase`**: Use `specify learning capture --command map-codebase --type project_constraint`
   when mapping exposes reusable ownership rules, stale-handbook blind spots, or
   brownfield `workflow_gap` findings that other workflows must consume.

@@ -2,10 +2,18 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+import hashlib
 import json
 import re
 from pathlib import Path
 from typing import Any, Iterable
+import yaml
+
+from specify_cli.debug.persistence import MarkdownPersistenceHandler
+from specify_cli.hooks.checkpoint_serializers import (
+    parse_frontmatter,
+)
+from specify_cli.verification import summarize_validation_results
 
 
 LEARNING_TYPES = {
@@ -28,10 +36,12 @@ KNOWN_COMMANDS = (
     "sp-plan",
     "sp-checklist",
     "sp-tasks",
+    "sp-test",
     "sp-implement",
     "sp-debug",
     "sp-fast",
     "sp-quick",
+    "sp-map-codebase",
 )
 
 MACHINE_BEGIN = "<!-- SPECKIT_LEARNING_DATA_BEGIN -->"
@@ -125,6 +135,16 @@ class LearningEntry:
             last_seen=str(payload["last_seen"]),
             occurrence_count=int(payload.get("occurrence_count", 1)),
         )
+
+
+@dataclass(frozen=True)
+class AutoCaptureSuggestion:
+    learning_type: str
+    summary: str
+    evidence: str
+    recurrence_key: str
+    signal_strength: str = "medium"
+    applies_to: tuple[str, ...] | None = None
 
 
 def build_learning_paths(project_root: Path) -> LearningPaths:
@@ -252,6 +272,138 @@ def build_learning_entry(
         last_seen=timestamp,
         occurrence_count=1,
     )
+
+
+def _coerce_int(value: Any) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return 0
+        try:
+            return int(stripped)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _coerce_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+    if not isinstance(value, list):
+        return []
+    values: list[str] = []
+    for item in value:
+        if item is None:
+            continue
+        if isinstance(item, str):
+            stripped = item.strip()
+            if stripped:
+                values.append(stripped)
+            continue
+        if isinstance(item, dict):
+            dumped = yaml.safe_dump(item, sort_keys=False).strip()
+            if dumped:
+                values.append(dumped)
+            continue
+        dumped = str(item).strip()
+        if dumped:
+            values.append(dumped)
+    return values
+
+
+def _coerce_dict_list(value: Any) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        return [value]
+    if not isinstance(value, list):
+        return []
+    values: list[dict[str, Any]] = []
+    for item in value:
+        if isinstance(item, dict):
+            values.append(item)
+    return values
+
+
+def _load_sectioned_markdown(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    text = path.read_text(encoding="utf-8")
+    frontmatter: dict[str, Any] = {}
+    body = text
+    parsed_frontmatter, parsed_body = parse_frontmatter(text)
+    if parsed_frontmatter:
+        frontmatter = dict(parsed_frontmatter)
+        body = parsed_body
+
+    sections: dict[str, Any] = {}
+    current_section: str | None = None
+    current_lines: list[str] = []
+    for raw_line in body.splitlines():
+        match = re.match(r"^##\s+(?P<title>.+?)\s*$", raw_line)
+        if match:
+            if current_section is not None:
+                section_text = "\n".join(current_lines).strip()
+                sections[current_section] = yaml.safe_load(section_text) if section_text else None
+            current_section = match.group("title").strip()
+            current_lines = []
+            continue
+        if current_section is not None:
+            current_lines.append(raw_line)
+    if current_section is not None:
+        section_text = "\n".join(current_lines).strip()
+        sections[current_section] = yaml.safe_load(section_text) if section_text else None
+    return frontmatter, sections
+
+
+def _auto_capture_registry_path(project_root: Path) -> Path:
+    return build_learning_paths(project_root).review.parent / "auto-capture.json"
+
+
+def _load_auto_capture_registry(project_root: Path) -> dict[str, Any]:
+    path = _auto_capture_registry_path(project_root)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _write_auto_capture_registry(project_root: Path, payload: dict[str, Any]) -> None:
+    path = _auto_capture_registry_path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _snapshot_fingerprint(
+    command_name: str,
+    source_path: Path,
+    suggestions: list[AutoCaptureSuggestion],
+) -> str:
+    normalized_payload = {
+        "command": normalize_command_name(command_name),
+        "source_path": str(source_path.resolve()),
+        "suggestions": [
+            {
+                "learning_type": item.learning_type,
+                "summary": item.summary,
+                "evidence": item.evidence,
+                "recurrence_key": item.recurrence_key,
+                "signal_strength": item.signal_strength,
+                "applies_to": list(item.applies_to or ()),
+            }
+            for item in suggestions
+        ],
+    }
+    payload = json.dumps(normalized_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _extract_payload_block(content: str) -> tuple[str, list[dict[str, Any]]]:
@@ -437,6 +589,270 @@ def _append_review_note(path: Path, note: str) -> None:
     path.write_text(content + "\n", encoding="utf-8")
 
 
+def _format_evidence(title: str, items: list[tuple[str, Any]]) -> str:
+    lines = [title]
+    for key, value in items:
+        if value is None:
+            continue
+        if isinstance(value, list):
+            if not value:
+                continue
+            joined = ", ".join(str(item) for item in value if str(item).strip())
+            if not joined:
+                continue
+            lines.append(f"- {key}: {joined}")
+            continue
+        dumped = str(value).strip()
+        if dumped:
+            lines.append(f"- {key}: {dumped}")
+    return "\n".join(lines)
+
+
+def _suggest_implement_auto_capture(feature_dir: Path) -> tuple[Path, list[AutoCaptureSuggestion]]:
+    tracker_path = feature_dir / "implement-tracker.md"
+    if not tracker_path.exists():
+        return tracker_path, []
+
+    frontmatter, sections = _load_sectioned_markdown(tracker_path)
+    status = str(frontmatter.get("status", "")).strip().lower()
+    current_focus = sections.get("Current Focus") or {}
+    execution_state = sections.get("Execution State") or {}
+    validation = sections.get("Validation") or {}
+    blockers = _coerce_dict_list(sections.get("Blockers"))
+    open_gaps = _coerce_dict_list(sections.get("Open Gaps"))
+    retry_attempts = _coerce_int(execution_state.get("retry_attempts"))
+    failed_tasks = _coerce_str_list(execution_state.get("failed_tasks"))
+    completed_checks = _coerce_str_list(validation.get("completed_checks"))
+    planned_checks = _coerce_str_list(validation.get("planned_checks"))
+    current_batch = str(current_focus.get("current_batch", "")).strip()
+    goal = str(current_focus.get("goal", "")).strip()
+
+    suggestions: list[AutoCaptureSuggestion] = []
+    if status == "resolved" and retry_attempts >= 1 and completed_checks:
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="recovery_path",
+                summary="Rerun planned validation after implementation recovery before resolving the feature",
+                recurrence_key="implement.rerun-validation-after-recovery-before-resolve",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from implement-tracker.md",
+                    [
+                        ("feature_dir", feature_dir),
+                        ("tracker_status", status),
+                        ("retry_attempts", retry_attempts),
+                        ("current_batch", current_batch),
+                        ("goal", goal),
+                        ("failed_tasks", failed_tasks),
+                        ("completed_checks", completed_checks),
+                    ],
+                ),
+            )
+        )
+    if retry_attempts >= 1 and failed_tasks and (completed_checks or planned_checks or blockers):
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="pitfall",
+                summary="Failed implementation tasks should keep execution in recovery until validation turns green",
+                recurrence_key="implement.failed-tasks-keep-recovery-active-until-validation",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from implement-tracker.md",
+                    [
+                        ("feature_dir", feature_dir),
+                        ("tracker_status", status),
+                        ("retry_attempts", retry_attempts),
+                        ("current_batch", current_batch),
+                        ("failed_tasks", failed_tasks),
+                        ("planned_checks", planned_checks),
+                        ("completed_checks", completed_checks),
+                        ("blockers", [item.get("recovery_action", "") for item in blockers if item.get("recovery_action")]),
+                    ],
+                ),
+            )
+        )
+    gap_types = [str(item.get("type", "")).strip() for item in open_gaps if str(item.get("type", "")).strip()]
+    planning_gap_types = [value for value in gap_types if value in {"plan_gap", "research_gap", "spec_gap"}]
+    if planning_gap_types:
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="workflow_gap",
+                summary="Execution blockers that change task shape must feed back into planning artifacts before implementation resumes",
+                recurrence_key="implement.execution-blockers-feed-back-into-planning",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from implement-tracker.md",
+                    [
+                        ("feature_dir", feature_dir),
+                        ("tracker_status", status),
+                        ("current_batch", current_batch),
+                        ("open_gap_types", planning_gap_types),
+                        (
+                            "open_gap_summaries",
+                            [str(item.get("summary", "")).strip() for item in open_gaps if str(item.get("summary", "")).strip()],
+                        ),
+                        (
+                            "open_gap_next_actions",
+                            [str(item.get("next_action", "")).strip() for item in open_gaps if str(item.get("next_action", "")).strip()],
+                        ),
+                    ],
+                ),
+            )
+        )
+    blocker_types = [str(item.get("type", "")).strip() for item in blockers if str(item.get("type", "")).strip()]
+    if any(value in {"external", "human-action"} for value in blocker_types):
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="project_constraint",
+                summary="External or human-action blockers should be treated as explicit implementation constraints instead of repeated technical retries",
+                recurrence_key="implement.external-or-human-blockers-are-project-constraints",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from implement-tracker.md",
+                    [
+                        ("feature_dir", feature_dir),
+                        ("tracker_status", status),
+                        ("blocker_types", blocker_types),
+                        (
+                            "blocker_evidence",
+                            [str(item.get("evidence", "")).strip() for item in blockers if str(item.get("evidence", "")).strip()],
+                        ),
+                        (
+                            "recovery_actions",
+                            [str(item.get("recovery_action", "")).strip() for item in blockers if str(item.get("recovery_action", "")).strip()],
+                        ),
+                    ],
+                ),
+            )
+        )
+    return tracker_path, suggestions
+
+
+def _suggest_quick_auto_capture(workspace: Path) -> tuple[Path, list[AutoCaptureSuggestion]]:
+    status_path = workspace / "STATUS.md"
+    if not status_path.exists():
+        return status_path, []
+
+    frontmatter, sections = _load_sectioned_markdown(status_path)
+    status = str(frontmatter.get("status", "")).strip().lower()
+    current_focus = sections.get("Current Focus") or {}
+    execution = sections.get("Execution") or {}
+    validation = sections.get("Validation") or {}
+    retry_attempts = _coerce_int(execution.get("retry_attempts"))
+    blocker_reason = str(execution.get("blocker_reason", "")).strip()
+    recovery_action = str(execution.get("recovery_action", "")).strip()
+    execution_fallback = str(execution.get("execution_fallback", "")).strip()
+    completed_checks = _coerce_str_list(validation.get("completed_checks"))
+    goal = str(current_focus.get("goal", "")).strip()
+    next_action = str(current_focus.get("next_action", "")).strip()
+
+    suggestions: list[AutoCaptureSuggestion] = []
+    if status == "resolved" and retry_attempts >= 1 and (completed_checks or blocker_reason or recovery_action):
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="recovery_path",
+                summary="Retry the smallest recorded recovery step and rerun scoped checks before resolving a quick task",
+                recurrence_key="quick.retry-recovery-step-before-resolve",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from quick STATUS.md",
+                    [
+                        ("workspace", workspace),
+                        ("status", status),
+                        ("retry_attempts", retry_attempts),
+                        ("goal", goal),
+                        ("next_action", next_action),
+                        ("blocker_reason", blocker_reason),
+                        ("recovery_action", recovery_action),
+                        ("completed_checks", completed_checks),
+                    ],
+                ),
+            )
+        )
+    if execution_fallback and execution_fallback.lower() != "none":
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="project_constraint",
+                summary="Leader-local quick-task fallback should preserve the runtime unavailability reason as a reusable execution constraint",
+                recurrence_key="quick.leader-local-fallback-preserves-runtime-unavailability-reason",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from quick STATUS.md",
+                    [
+                        ("workspace", workspace),
+                        ("status", status),
+                        ("goal", goal),
+                        ("execution_fallback", execution_fallback),
+                        ("blocker_reason", blocker_reason),
+                        ("recovery_action", recovery_action),
+                    ],
+                ),
+            )
+        )
+    return status_path, suggestions
+
+
+def _suggest_debug_auto_capture(session_file: Path) -> tuple[Path, list[AutoCaptureSuggestion]]:
+    if not session_file.exists():
+        return session_file, []
+
+    state = MarkdownPersistenceHandler(session_file.parent).load(session_file)
+    validation_summary = summarize_validation_results(state.resolution.validation_results)
+    validation_commands = [item.command for item in state.resolution.validation_results]
+    suggestions: list[AutoCaptureSuggestion] = []
+
+    if state.status.value == "resolved" and state.resolution.fail_count >= 1 and validation_summary.failed == 0 and validation_summary.passed >= 1:
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="recovery_path",
+                summary="Return to investigation with new evidence after failed verification instead of stacking debug fixes",
+                recurrence_key="debug.return-to-investigation-after-failed-verification",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from resolved debug session",
+                    [
+                        ("session_file", session_file),
+                        ("trigger", state.trigger),
+                        ("fail_count", state.resolution.fail_count),
+                        ("fix", state.resolution.fix or ""),
+                        ("failure_mechanism", state.resolution.root_cause.failure_mechanism if state.resolution.root_cause else ""),
+                        ("validation_commands", validation_commands),
+                        ("loop_restoration_proof", state.resolution.loop_restoration_proof),
+                    ],
+                ),
+            )
+        )
+    if state.resolution.fail_count >= 2:
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="workflow_gap",
+                summary="Repeated failed verification should trigger a research checkpoint before another debug fix loop",
+                recurrence_key="debug.research-checkpoint-after-repeated-verification-failure",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from resolved debug session",
+                    [
+                        ("session_file", session_file),
+                        ("trigger", state.trigger),
+                        ("fail_count", state.resolution.fail_count),
+                        ("validation_commands", validation_commands),
+                        ("root_cause_summary", state.resolution.root_cause.summary if state.resolution.root_cause else ""),
+                    ],
+                ),
+            )
+        )
+    if state.status.value == "resolved" and state.resolution.fix_scope == "surface-only" and state.resolution.rejected_surface_fixes:
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="pitfall",
+                summary="Surface-only debug fixes are insufficient without loop-restoration proof",
+                recurrence_key="debug.surface-only-fixes-need-loop-restoration-proof",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from resolved debug session",
+                    [
+                        ("session_file", session_file),
+                        ("trigger", state.trigger),
+                        ("rejected_surface_fixes", state.resolution.rejected_surface_fixes),
+                        ("loop_restoration_proof", state.resolution.loop_restoration_proof),
+                    ],
+                ),
+            )
+        )
+    return session_file, suggestions
+
+
 def is_relevant_to_command(entry: LearningEntry, command_name: str) -> bool:
     return normalize_command_name(command_name) in entry.applies_to
 
@@ -611,6 +1027,86 @@ def capture_learning(
         "status": "candidate",
         "entry": stored.to_payload(),
         "needs_confirmation": is_highest_signal(stored),
+    }
+
+
+def capture_auto_learning(
+    project_root: Path,
+    *,
+    command_name: str,
+    feature_dir: Path | None = None,
+    workspace: Path | None = None,
+    session_file: Path | None = None,
+) -> dict[str, Any]:
+    normalized_command = normalize_command_name(command_name)
+    if normalized_command == "sp-implement":
+        if feature_dir is None:
+            raise ValueError("feature_dir is required for implement auto-capture")
+        source_path, suggestions = _suggest_implement_auto_capture(feature_dir)
+    elif normalized_command == "sp-quick":
+        if workspace is None:
+            raise ValueError("workspace is required for quick auto-capture")
+        source_path, suggestions = _suggest_quick_auto_capture(workspace)
+    elif normalized_command == "sp-debug":
+        if session_file is None:
+            raise ValueError("session_file is required for debug auto-capture")
+        source_path, suggestions = _suggest_debug_auto_capture(session_file)
+    else:
+        raise ValueError(f"auto-capture is unsupported for '{command_name}'")
+
+    if not suggestions:
+        return {
+            "status": "no-op",
+            "command": normalized_command,
+            "source_path": str(source_path),
+            "captured": [],
+            "reason": "no high-signal auto-capture patterns matched the current state",
+        }
+
+    fingerprint = _snapshot_fingerprint(normalized_command, source_path, suggestions)
+    registry = _load_auto_capture_registry(project_root)
+    if fingerprint in registry:
+        return {
+            "status": "duplicate-snapshot",
+            "command": normalized_command,
+            "source_path": str(source_path),
+            "captured": [],
+            "reason": "this workflow state snapshot was already auto-captured",
+            "fingerprint": fingerprint,
+        }
+
+    captured: list[dict[str, Any]] = []
+    for suggestion in suggestions:
+        payload = capture_learning(
+            project_root,
+            command_name=normalized_command,
+            learning_type=suggestion.learning_type,
+            summary=suggestion.summary,
+            evidence=suggestion.evidence,
+            recurrence_key=suggestion.recurrence_key,
+            signal_strength=suggestion.signal_strength,
+            applies_to=suggestion.applies_to,
+            confirm=False,
+        )
+        captured.append(payload["entry"])
+
+    registry[fingerprint] = {
+        "command": normalized_command,
+        "source_path": str(source_path),
+        "recurrence_keys": [entry["recurrence_key"] for entry in captured],
+        "captured_at": now_iso(),
+    }
+    _write_auto_capture_registry(project_root, registry)
+    _append_review_note(
+        build_learning_paths(project_root).review,
+        f"auto-captured {len(captured)} learning candidate(s) from `{normalized_command}` using `{source_path}`",
+    )
+    return {
+        "status": "captured",
+        "command": normalized_command,
+        "source_path": str(source_path),
+        "captured": captured,
+        "fingerprint": fingerprint,
     }
 
 

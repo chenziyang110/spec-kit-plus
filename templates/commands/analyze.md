@@ -36,6 +36,13 @@ Identify inconsistencies, duplications, ambiguities, and underspecified items ac
   - `forbidden_actions: edit source code, edit tests, edit planning artifacts, start implementation before the gate is cleared`
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before continuing.
 
+## First-Party Workflow Quality Hooks
+
+- Once `FEATURE_DIR` is known, use `specify hook preflight --command analyze --feature-dir "$FEATURE_DIR"` before deeper analysis so stale brownfield routing or invalid workflow entry is surfaced through the shared product guardrail layer.
+- After `WORKFLOW_STATE_FILE` is created or resumed, use `specify hook validate-state --command analyze --feature-dir "$FEATURE_DIR"` so the shared validator confirms `workflow-state.md` matches the `sp-analyze` contract.
+- Before final gate reporting, use `specify hook validate-artifacts --command analyze --feature-dir "$FEATURE_DIR"` so the required analyze-side artifact set is checked by the shared hook surface.
+- Before compaction-risk transitions or after large findings synthesis, use `specify hook checkpoint --command analyze --feature-dir "$FEATURE_DIR"` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+
 ## Execution Steps
 
 ### 1. Initialize Analysis Context

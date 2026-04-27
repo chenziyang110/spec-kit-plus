@@ -15,6 +15,7 @@ from .dispatch import (
 )
 from .utils import generate_slug, get_debug_dir
 from .graph import run_debug_session
+from ..learnings import capture_auto_learning
 from ..project_map_status import inspect_project_map_freshness
 
 console = Console()
@@ -327,6 +328,17 @@ async def _run_debug(description: Optional[str]):
             
     try:
         await run_debug_session(state, handler, resumed=resumed)
+        if state.status == DebugStatus.RESOLVED and (Path.cwd() / ".specify").exists():
+            session_path = handler.debug_dir / f"{state.slug}.md"
+            auto_payload = capture_auto_learning(
+                Path.cwd(),
+                command_name="debug",
+                session_file=session_path,
+            )
+            if auto_payload["status"] == "captured":
+                console.print(
+                    f"[cyan]Auto-captured {len(auto_payload['captured'])} debug learning candidate(s).[/cyan]"
+                )
         if state.status == DebugStatus.AWAITING_HUMAN:
             session_path = handler.debug_dir / f"{state.slug}.md"
             report = state.resolution.report or "No session summary was generated."

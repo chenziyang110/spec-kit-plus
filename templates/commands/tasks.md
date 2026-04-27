@@ -51,6 +51,12 @@ scripts:
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
 
+**Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
+- Use `specify hook preflight --command tasks --feature-dir "$FEATURE_DIR"` before decomposition continues so stale project-map or invalid workflow-entry state is blocked by the shared product guardrail layer.
+- After `WORKFLOW_STATE_FILE` is created or resumed, use `specify hook validate-state --command tasks --feature-dir "$FEATURE_DIR"` so the shared validator confirms `workflow-state.md` matches the `sp-tasks` contract.
+- Before final handoff, use `specify hook validate-artifacts --command tasks --feature-dir "$FEATURE_DIR"` so the required `tasks.md` and `workflow-state.md` outputs are machine-checked instead of inferred from chat progress.
+- Before compaction-risk transitions or after major task-batch synthesis, use `specify hook checkpoint --command tasks --feature-dir "$FEATURE_DIR"` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+
 ## Passive Project Learning Layer
 
 - [AGENT] Run `specify learning start --command tasks --format json` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.

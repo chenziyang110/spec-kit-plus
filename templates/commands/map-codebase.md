@@ -131,6 +131,12 @@ Rules:
 - Synthesize that evidence back into the canonical handbook/project-map outputs.
 - Update map freshness metadata before handing control back to the blocked workflow.
 
+## First-Party Workflow Quality Hooks
+
+- Before broad mapping work begins, use `specify hook preflight --command map-codebase --feature-dir "$REPO_ROOT/specs"` only when the local workflow needs a machine-readable guard result for map refresh entry; treat failures as a signal that the repository state must be repaired before continuing.
+- Before compaction-risk transitions or after major map synthesis, use `specify hook checkpoint --command map-codebase --feature-dir "$REPO_ROOT/specs"` only if a workflow-state-backed wrapper has created the corresponding state artifact for this mapping run.
+- After a successful full refresh, prefer `specify hook complete-refresh` as the shared product path that finalizes project-map freshness state.
+
 ## Guardrails
 
 - Do not create alternate mapping outputs or a second source of truth.

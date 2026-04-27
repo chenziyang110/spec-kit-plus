@@ -1,3 +1,5 @@
+import { invokeSharedQualityHook, sharedHookBlockOutput } from "../hooks/specify-quality-adapter.js";
+
 type CodexHookPayload = Record<string, unknown>;
 
 export interface NormalizedPreToolUsePayload {
@@ -586,6 +588,90 @@ function commandHasQuestionReturnPane(command: string): boolean {
   return (tokenizeShellCommand(command) ?? []).some(isQuestionReturnPaneAssignment);
 }
 
+function normalizedCommandToken(token: string): string {
+  return token.replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? "";
+}
+
+function isShellControlToken(token: string): boolean {
+  return token === "|" || token === "||" || token === "&&" || token === ";" || token === "&";
+}
+
+function isReadablePathToken(token: string): boolean {
+  return token !== "" && token !== "-" && !token.startsWith("-") && !isShellControlToken(token);
+}
+
+function splitCommandTokens(command: string): { commandToken: string; args: string[] } | null {
+  const tokens = tokenizeShellCommand(command) ?? [];
+  let index = 0;
+  while (index < tokens.length && isInlineShellEnvAssignment(tokens[index] ?? "")) {
+    index += 1;
+  }
+  const commandToken = normalizedCommandToken(tokens[index] ?? "");
+  if (!commandToken) return null;
+  return { commandToken, args: tokens.slice(index + 1) };
+}
+
+function collectSimpleReadTargets(
+  args: string[],
+  optionsWithValue: Set<string>,
+): string[] {
+  const targets: string[] = [];
+  let consumeNextValue = false;
+  let afterDoubleDash = false;
+
+  for (const token of args) {
+    if (consumeNextValue) {
+      consumeNextValue = false;
+      continue;
+    }
+    if (token === "--") {
+      afterDoubleDash = true;
+      continue;
+    }
+    if (!afterDoubleDash && optionsWithValue.has(token)) {
+      consumeNextValue = true;
+      continue;
+    }
+    if (!afterDoubleDash && token.startsWith("--")) {
+      continue;
+    }
+    if (!afterDoubleDash && token.startsWith("-")) {
+      continue;
+    }
+    if (isReadablePathToken(token)) targets.push(token);
+  }
+
+  return targets;
+}
+
+function extractBashReadTargets(command: string): string[] {
+  const parsed = splitCommandTokens(command);
+  if (!parsed) return [];
+
+  const { commandToken, args } = parsed;
+  if (commandToken === "cat") {
+    return args.filter(isReadablePathToken);
+  }
+  if (commandToken === "head" || commandToken === "tail") {
+    return collectSimpleReadTargets(args, new Set(["-n", "-c", "--lines", "--bytes"]));
+  }
+  if (commandToken === "less" || commandToken === "more") {
+    return collectSimpleReadTargets(args, new Set());
+  }
+  if (commandToken === "sed") {
+    const positionals = collectSimpleReadTargets(args, new Set(["-e", "-f"]));
+    return positionals.slice(1);
+  }
+  if (commandToken === "grep" || commandToken === "rg") {
+    const positionals = collectSimpleReadTargets(
+      args,
+      new Set(["-e", "-f", "-g", "--regexp", "--file", "--glob"]),
+    );
+    return positionals.slice(1);
+  }
+  return [];
+}
+
 function buildOmxQuestionPreToolUseEnforcementOutput(command: string): Record<string, unknown> | null {
   if (!commandInvokesOmxQuestion(command)) return null;
   if (commandHasQuestionReturnPane(command)) return null;
@@ -614,6 +700,20 @@ export function buildNativePreToolUseOutput(
   if (gitCommitEnforcement) return gitCommitEnforcement;
   const questionEnforcement = buildOmxQuestionPreToolUseEnforcementOutput(normalized.normalizedCommand);
   if (questionEnforcement) return questionEnforcement;
+  const readTargets = extractBashReadTargets(normalized.normalizedCommand);
+  if (readTargets.length > 0) {
+    const hookCwd = safeString(payload.cwd).trim() || process.cwd();
+    for (const readTarget of readTargets) {
+      const sharedReadGuard = invokeSharedQualityHook(
+        ["validate-read-path", "--target-path", readTarget],
+        { cwd: hookCwd },
+      );
+      const readGuardOutput = sharedReadGuard
+        ? sharedHookBlockOutput("PreToolUse", sharedReadGuard)
+        : null;
+      if (readGuardOutput) return readGuardOutput;
+    }
+  }
   if (!matchesDestructiveFixture(normalized.normalizedCommand)) return null;
 
   return {

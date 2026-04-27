@@ -67,6 +67,12 @@ import {
   reconcileDeepInterviewQuestionEnforcementFromAnsweredRecords,
 } from "../question/deep-interview.js";
 import { resolveOmxCliEntryPath } from "../utils/paths.js";
+import {
+  appendSharedHookContext,
+  invokeSharedQualityHook,
+  sharedHookBlockOutput,
+  type SharedQualityHookPayload,
+} from "../hooks/specify-quality-adapter.js";
 
 type CodexHookEventName =
   | "SessionStart"
@@ -132,8 +138,114 @@ function safePositiveInteger(value: unknown): number | null {
   return null;
 }
 
+function safeNonNegativeInteger(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number.parseInt(value.trim(), 10);
+    if (Number.isInteger(parsed) && parsed >= 0) return parsed;
+  }
+  return null;
+}
+
 function normalizePromptSignalText(text: string): string {
   return text.trim().replace(/\s+/g, " ");
+}
+
+function readHookSpecificAdditionalContext(outputJson: Record<string, unknown> | null): string {
+  const hookSpecificOutput = outputJson?.hookSpecificOutput;
+  if (!hookSpecificOutput || typeof hookSpecificOutput !== "object") return "";
+  return typeof (hookSpecificOutput as Record<string, unknown>).additionalContext === "string"
+    ? String((hookSpecificOutput as Record<string, unknown>).additionalContext)
+    : "";
+}
+
+function withHookSpecificAdditionalContext(
+  outputJson: Record<string, unknown> | null,
+  hookEventName: string,
+  additionalContext: string,
+): Record<string, unknown> {
+  return {
+    ...(outputJson ?? {}),
+    hookSpecificOutput: {
+      ...(outputJson?.hookSpecificOutput as Record<string, unknown> | undefined ?? {}),
+      hookEventName,
+      additionalContext,
+    },
+  };
+}
+
+function buildSharedStopMonitorArgs(payload: CodexHookPayload): string[] | null {
+  const commandName = safeString(
+    payload.command_name
+    ?? payload.commandName
+    ?? payload.command,
+  ).trim();
+  if (!commandName) return null;
+
+  const args = [
+    "monitor-context",
+    "--command",
+    commandName,
+    "--trigger",
+    safeString(payload.trigger).trim() || "before_stop",
+  ];
+  const featureDir = safeString(payload.feature_dir ?? payload.featureDir).trim();
+  if (featureDir) args.push("--feature-dir", featureDir);
+  const workspace = safeString(payload.workspace).trim();
+  if (workspace) args.push("--workspace", workspace);
+  const sessionFile = safeString(payload.session_file ?? payload.sessionFile).trim();
+  if (sessionFile) args.push("--session-file", sessionFile);
+  const contextUsage = safeNonNegativeInteger(
+    payload.context_usage_percent
+    ?? payload.contextUsagePercent
+    ?? payload.context_usage
+    ?? payload.contextUsage,
+  );
+  if (contextUsage !== null) args.push("--context-usage", String(contextUsage));
+  return args;
+}
+
+function mergeSharedStopMonitorOutput(
+  currentOutput: Record<string, unknown> | null,
+  sharedMonitorPayload: SharedQualityHookPayload | null,
+): Record<string, unknown> | null {
+  if (!sharedMonitorPayload) return currentOutput;
+
+  let nextOutput = currentOutput;
+  const sharedBlockedOutput = sharedHookBlockOutput("Stop", sharedMonitorPayload);
+  if (sharedBlockedOutput) {
+    if (!nextOutput) {
+      nextOutput = sharedBlockedOutput;
+    } else {
+      nextOutput = {
+        ...nextOutput,
+        decision: typeof nextOutput.decision === "string"
+          ? nextOutput.decision
+          : sharedBlockedOutput.decision,
+        reason: typeof nextOutput.reason === "string"
+          ? nextOutput.reason
+          : sharedBlockedOutput.reason,
+      };
+      const combinedBlockedContext = [
+        readHookSpecificAdditionalContext(nextOutput),
+        readHookSpecificAdditionalContext(sharedBlockedOutput),
+      ]
+        .filter(Boolean)
+        .join(" ");
+      if (combinedBlockedContext) {
+        nextOutput = withHookSpecificAdditionalContext(nextOutput, "Stop", combinedBlockedContext);
+      }
+    }
+  }
+
+  const mergedContext = appendSharedHookContext(
+    readHookSpecificAdditionalContext(nextOutput) || null,
+    sharedMonitorPayload,
+  );
+  if (mergedContext) {
+    return withHookSpecificAdditionalContext(nextOutput, "Stop", mergedContext);
+  }
+  return nextOutput;
 }
 
 function looksLikeExecutionHandoffPrompt(prompt: string): boolean {
@@ -1719,9 +1831,21 @@ export async function dispatchCodexNativeHook(
   const eventSessionId = canonicalSessionId || nativeSessionId || undefined;
   const sessionIdForState = canonicalSessionId || nativeSessionId;
   let outputJson: Record<string, unknown> | null = null;
+  let sharedPromptGuardOutput: Record<string, unknown> | null = null;
+  let sharedPromptGuardPayload: SharedQualityHookPayload | null = null;
+  let sharedStopMonitorPayload: SharedQualityHookPayload | null = null;
 
   if (hookEventName === "UserPromptSubmit") {
     const prompt = readPromptText(payload);
+    if (prompt) {
+      sharedPromptGuardPayload = invokeSharedQualityHook(
+        ["validate-prompt", "--prompt-text", prompt],
+        { cwd },
+      );
+      if (sharedPromptGuardPayload) {
+        sharedPromptGuardOutput = sharedHookBlockOutput("UserPromptSubmit", sharedPromptGuardPayload);
+      }
+    }
     if (prompt) {
       skillState = await recordSkillActivation({
         stateDir,
@@ -1825,10 +1949,32 @@ export async function dispatchCodexNativeHook(
   }
 
   if (hookEventName === "SessionStart" || hookEventName === "UserPromptSubmit") {
-    const additionalContext = hookEventName === "SessionStart"
+    const additionalContextBase = hookEventName === "SessionStart"
       ? await buildSessionStartContext(cwd, canonicalSessionId || nativeSessionId)
       : (buildAdditionalContextMessage(readPromptText(payload), skillState, cwd, payload) ?? triageAdditionalContext);
-    if (additionalContext) {
+    const additionalContext = hookEventName === "UserPromptSubmit"
+      ? appendSharedHookContext(additionalContextBase, sharedPromptGuardPayload)
+      : additionalContextBase;
+    if (hookEventName === "UserPromptSubmit" && sharedPromptGuardOutput) {
+      outputJson = sharedPromptGuardOutput;
+      if (additionalContext) {
+        const currentAdditionalContext = (() => {
+          const current = outputJson?.hookSpecificOutput;
+          if (!current || typeof current !== "object") return "";
+          return typeof (current as Record<string, unknown>).additionalContext === "string"
+            ? String((current as Record<string, unknown>).additionalContext)
+            : "";
+        })();
+        outputJson = {
+          ...outputJson,
+          hookSpecificOutput: {
+            ...(outputJson.hookSpecificOutput as Record<string, unknown> | undefined ?? {}),
+            hookEventName,
+            additionalContext: [currentAdditionalContext, additionalContext].filter(Boolean).join(" "),
+          },
+        };
+      } 
+    } else if (additionalContext) {
       outputJson = {
         hookSpecificOutput: {
           hookEventName,
@@ -1845,6 +1991,11 @@ export async function dispatchCodexNativeHook(
     outputJson = buildNativePostToolUseOutput(payload);
   } else if (hookEventName === "Stop") {
     outputJson = await buildStopHookOutput(payload, cwd, stateDir);
+    const sharedStopMonitorArgs = buildSharedStopMonitorArgs(payload);
+    if (sharedStopMonitorArgs) {
+      sharedStopMonitorPayload = invokeSharedQualityHook(sharedStopMonitorArgs, { cwd });
+      outputJson = mergeSharedStopMonitorOutput(outputJson, sharedStopMonitorPayload);
+    }
   }
 
   return {

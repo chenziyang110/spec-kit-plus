@@ -305,3 +305,12 @@ def test_guidance_docs_explain_agent_marker_and_current_agents_contract() -> Non
     assert "specify -> plan" in agents.lower()
     assert "sp-test" in agents.lower()
     assert "specify team" in agents.lower()
+
+
+def test_guidance_docs_list_auto_learning_and_implement_closeout_helpers() -> None:
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    for content in (readme, quickstart):
+        assert "specify learning capture-auto" in content
+        assert "specify implement closeout" in content

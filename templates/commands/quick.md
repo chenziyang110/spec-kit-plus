@@ -52,6 +52,14 @@ scripts:
 - Empty `sp-quick` checks for unfinished quick tasks first. If exactly one unfinished task exists, resume it automatically. If multiple unfinished tasks exist, ask the user which quick task to continue and show `id`, title, current status, and `next_action`.
 - Treat `blocked` quick tasks as resumable unfinished work for recovery routing.
 
+## First-Party Workflow Quality Hooks
+
+- Once the quick workspace exists, use `specify hook preflight --command quick --workspace ".planning/quick/<id>-<slug>"` before deeper execution so the shared product guardrail layer can block stale brownfield routing or invalid quick-task entry.
+- After `STATUS.md` is created or resumed, use `specify hook validate-state --command quick --workspace ".planning/quick/<id>-<slug>"` so the shared validator confirms the quick-task source of truth is resumable.
+- Use `specify hook validate-session-state --command quick --workspace ".planning/quick/<id>-<slug>"` when you need a machine-readable summary of quick-task resume truth rather than trusting chat narration.
+- Before compaction-risk transitions, join points, or delegated fan-out, use `specify hook monitor-context --command quick --workspace ".planning/quick/<id>-<slug>"` and follow checkpoint recommendations with `specify hook checkpoint --command quick --workspace ".planning/quick/<id>-<slug>"`.
+- When you want a compact operator-facing summary instead of re-reading the whole file, use `specify hook render-statusline --command quick --workspace ".planning/quick/<id>-<slug>"`.
+
 ## Scope Gate
 
 Use `sp-quick` when all of these are true:
@@ -371,7 +379,10 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Separate `verified` coverage from `not checked` coverage so readers can tell what was actually proven versus what is only expected to be safe.
    - For each declared surface, give the terminal status conclusion: `confirmed correct`, `fixed in this quick task`, or `not checked in this pass (with reason)`.
    - Make sure the final `STATUS.md` points to the summary, records the terminal state, and makes a future resume decision obvious.
-   - [AGENT] Before the final summary, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command quick ...`.
+   - [AGENT] Before the final summary, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning from the quick-task closeout state.
+   - [AGENT] Closing the quick task through `specify quick close` should auto-capture retry-heavy quick-task learnings from `STATUS.md`.
+   - [AGENT] If you are finalizing outside the normal quick close path, run `specify learning capture-auto --command quick --workspace ".planning/quick/<id>-<slug>" --format json`.
+   - [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `specify learning capture --command quick ...`.
    - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 

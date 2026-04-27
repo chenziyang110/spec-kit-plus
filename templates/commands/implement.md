@@ -56,6 +56,15 @@ Treat non-empty `$ARGUMENTS` as first-class implementation context for the curre
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
 
+**Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
+- Use `specify hook preflight --command implement --feature-dir "$FEATURE_DIR"` before execution so the shared product guardrail layer can block stale brownfield routing, analyze-gate drift, or invalid execution entry.
+- After `implement-tracker.md` is created or resumed, use `specify hook validate-state --command implement --feature-dir "$FEATURE_DIR"` so the shared validator confirms execution state exists and is resumable.
+- Use `specify hook validate-session-state --command implement --feature-dir "$FEATURE_DIR"` before choosing the next batch so `workflow-state.md` and `implement-tracker.md` do not silently disagree about whether implementation may continue.
+- Before delegated dispatch, use `specify hook validate-packet --packet-file <packet-json>` so `WorkerTaskPacket` integrity is enforced through the shared hook surface instead of only by runtime convention.
+- Before accepting a delegated handoff at a join point, use `specify hook validate-result --packet-file <packet-json> --result-file <result-json>` so the shared `DP1`/`DP2`/`DP3` contract blocks incomplete worker completion.
+- Before compaction-risk transitions, long validation phases, join points, or delegation fan-out, use `specify hook monitor-context --command implement --feature-dir "$FEATURE_DIR"` and, when it recommends checkpointing, follow it with `specify hook checkpoint --command implement --feature-dir "$FEATURE_DIR"`.
+- When execution changes map-level truth surfaces, prefer `specify hook mark-dirty --reason "<reason>"` as the shared dirty-mark path before recommending `/sp-map-codebase`.
+
 ## Passive Project Learning Layer
 
 - [AGENT] Run `specify learning start --command implement --format json` when available so passive learning files exist, the current implementation run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
@@ -383,7 +392,8 @@ human_needed_checks:
    - If the completed implementation changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`, run `/sp-map-codebase` before final completion reporting so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
    - If you cannot complete that refresh in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before the next brownfield workflow proceeds.
    - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
-   - [AGENT] Before the final completion report, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command implement ...`.
+   - [AGENT] Before the final completion report, run `specify implement closeout --feature-dir "$FEATURE_DIR" --format json` so implementation session state is validated and retry-heavy patterns are auto-captured from `implement-tracker.md`.
+   - [AGENT] If the closeout auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `specify learning capture --command implement ...`.
    - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
    - Report final status with summary of completed work, remaining human-needed checks, and any unresolved gaps
