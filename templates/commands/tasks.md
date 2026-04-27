@@ -206,18 +206,19 @@ scripts:
     - Implementation strategy section (phased delivery, priority-ordered delivery, capability-aware parallel execution)
 
 6. **Report**: Output path to generated tasks.md and summary:
-   - Total task count
-   - Task count per user story
-   - Feature delivery shape (whole task graph)
-   - Current ready batch strategy (scoped to the next executable batch only)
+    - Total task count
+    - Task count per user story
+    - Feature delivery shape (whole task graph)
+    - Current ready batch strategy (scoped to the next executable batch only)
    - Current ready batch strategy reason code
    - Parallel opportunities identified
    - Parallel batch count and the join points that gate downstream work
    - Independent test criteria for each story
    - Suggested first release scope (based on the smallest coherent release slice, not automatically limited to just User Story 1)
-   - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
-   - workflow-state path
-   - If the current ready batch strategy is `single-lane` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
+    - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
+    - workflow-state path
+    - Recommended next command: `/sp.analyze`
+    - If the current ready batch strategy is `single-lane` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`

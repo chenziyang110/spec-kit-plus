@@ -213,6 +213,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Do not present the clarification loop as a fixed total such as `2 / 5`." in content
     assert "Treat this as an explicit pre-release check" in content
     assert "recommend `/sp.clarify` as the next command instead of `/sp.plan`" in content
+    assert "recommended review follow-up: `/sp.clarify`" in content
     assert "Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`." in content
     assert "Read `templates/context-template.md`." in content
     assert "run a short checkpoint for each high-risk capability" in lowered
@@ -373,6 +374,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "Prefer prescriptive recommendations over broad option dumps" in content
     assert "What does the planner need to know to produce a high-quality implementation plan" in content
     assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
+    assert "recommended follow-up quality check: `/sp.checklist`" in content
     assert "specify team" not in lowered
     assert "specify -> clarify -> plan" not in lowered
 
@@ -1069,6 +1071,7 @@ def test_tasks_template_fail_closes_into_analyze_before_implement():
 
     assert "default_handoff: /sp-analyze" in content
     assert "Implement Project" not in content
+    assert "recommended next command: `/sp.analyze`" in lowered
     assert "`next_command: /sp.analyze`" in content
     assert "implementation remains blocked until `/sp-analyze`" in lowered
     assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in lowered

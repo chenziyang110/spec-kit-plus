@@ -363,6 +363,7 @@ class TestBuiltInSkillGeneration:
         assert "Write `context.md` to `CONTEXT_FILE`." in specify_body
         assert "Locked decisions are preserved in context.md" in specify_body
         assert "recommend `/sp.clarify` as the next command instead of `/sp.plan`" in specify_body
+        assert "recommended review follow-up: `/sp.clarify`" in specify_body
         assert "without needing `/sp.clarify`" in specify_body
 
         plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
@@ -375,6 +376,7 @@ class TestBuiltInSkillGeneration:
         assert "workflow-state.md" in plan_body
         assert "phase_mode: design-only" in plan_body
         assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in plan_body
+        assert "recommended follow-up quality check: `/sp.checklist`" in plan_body
 
         tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
         assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
@@ -388,6 +390,7 @@ class TestBuiltInSkillGeneration:
         assert "whether or not `.specify/testing/testing_contract.md` exists" in tasks_body.lower()
         assert "behavior changes, bug fixes, and refactors" in tasks_body.lower()
         assert "add explicit bootstrap tasks to establish the smallest runnable test surface first" in tasks_body.lower()
+        assert "recommended next command: `/sp.analyze`" in tasks_body.lower()
         assert "implementation remains blocked until `/sp-analyze`" in tasks_body.lower()
         assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in tasks_body.lower()
 

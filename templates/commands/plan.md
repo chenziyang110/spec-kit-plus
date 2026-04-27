@@ -202,10 +202,11 @@ agent_scripts:
     - alignment status
     - generated artifacts
     - workflow-state path
-   - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
-     - `active_command: sp-plan`
-     - `phase_mode: design-only`
-     - current authoritative files
+    - recommended follow-up quality check: `/sp.checklist` for a requirements/plan package audit before moving on to decomposition
+    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
+      - `active_command: sp-plan`
+      - `phase_mode: design-only`
+      - current authoritative files
      - exit criteria for planning completion
      - the next action required before handoff
      - `next_command: /sp.tasks`

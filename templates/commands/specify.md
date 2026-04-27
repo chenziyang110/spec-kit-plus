@@ -695,6 +695,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - checklist results
     - release decision
     - readiness for the next phase (`/sp.plan` for the mainline, or `/sp.clarify` when deeper analysis is still needed)
+    - recommended review follow-up: `/sp.clarify` when the user wants one more targeted repair pass over the written spec package before planning
     - [AGENT] before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `specify learning capture --command specify ...`
     - keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence
     - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or a repeated recurrence that should become shared project memory
