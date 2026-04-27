@@ -16,12 +16,12 @@ def test_quickstart_teaches_specify_to_plan_mainline():
     assert "`specify -> plan` as the default path" in quickstart
 
 
-def test_quickstart_positions_spec_extend_correctly():
+def test_quickstart_positions_clarify_correctly():
     quickstart = _read("docs/quickstart.md")
     lowered = quickstart.lower()
 
-    assert "/speckit.spec-extend" in quickstart
-    assert "optional enhancement path" in lowered or "needs deeper analysis before planning" in lowered
+    assert "/speckit.clarify" in quickstart
+    assert "repair lane" in lowered or "needs deeper analysis before planning" in lowered
 
 
 def test_guidance_docs_explain_skill_groups():
@@ -31,7 +31,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "Core workflow skills" in readme
     assert "Support skills" in readme
     assert "Codex-only runtime" in readme
-    assert "`spec-extend`" in readme
+    assert "`clarify`" in readme
     assert "`checklist`" in readme
     assert "`analyze`" in readme
     assert "`debug`" in readme
@@ -42,7 +42,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "Core workflow skills" in quickstart
     assert "Support skills" in quickstart
     assert "Codex-only runtime" in quickstart
-    assert "/speckit.spec-extend" in quickstart
+    assert "/speckit.clarify" in quickstart
     assert "/speckit.checklist" in quickstart
     assert "/speckit.analyze" in quickstart
     assert "/speckit.debug" in quickstart

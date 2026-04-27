@@ -34,7 +34,7 @@ _FALLBACK_CORE_COMMAND_NAMES = frozenset({
     "implement",
     "map-codebase",
     "plan",
-    "spec-extend",
+    "clarify",
     "specify",
     "team",
     "tasks",

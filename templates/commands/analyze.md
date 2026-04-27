@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: '`tasks.md` is available and you need a read-only analysis pass before, during, or after implementation revalidation.'
   primary_objective: 'Identify inconsistencies, ambiguities, drift, and boundary-guardrail gaps across `spec.md`, `context.md`, `plan.md`, and `tasks.md`.'
   primary_outputs: A structured analysis report plus workflow-state gate updates. This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`.
-  default_handoff: Route into `/sp-spec-extend`, `/sp-plan`, `/sp-tasks`, `/sp-debug`, or `/sp-implement` based on the findings; if analysis runs after implementation has started or finished, reopen the highest invalid stage and regenerate downstream artifacts before continuing.
+  default_handoff: Route into `/sp-clarify`, `/sp-plan`, `/sp-tasks`, `/sp-debug`, or `/sp-implement` based on the findings; if analysis runs after implementation has started or finished, reopen the highest invalid stage and regenerate downstream artifacts before continuing.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
@@ -274,7 +274,7 @@ At end of report, output a concise Next Actions block:
 
 After `Next Actions`, output a short `Recommended Re-entry` block that names the highest workflow stage that must be reopened and the minimum downstream regeneration path. Use this routing table:
 
-- If the highest-impact issue lives in `spec.md` or `context.md`: route to `/sp-spec-extend` (or a targeted manual spec/context edit), then `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
+- If the highest-impact issue lives in `spec.md` or `context.md`: route to `/sp-clarify` (or a targeted manual spec/context edit), then `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
 - If the highest-impact issue lives in `plan.md`: route to `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
 - If the highest-impact issue lives only in `tasks.md`: route to `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
 - If the issues are limited to execution evidence, worker packets, runtime handoff state, or implementation-only verification gaps with no upstream artifact drift: route to `/sp-implement` or `/sp-debug` as appropriate
@@ -293,7 +293,7 @@ Before the final completion text, write or update `WORKFLOW_STATE_FILE` so it re
   - `next_command: /sp.implement`
 - If the highest invalid stage is `spec.md` or `context.md`:
   - `next_action: reopen specification alignment and regenerate downstream artifacts`
-  - `next_command: /sp.spec-extend`
+  - `next_command: /sp.clarify`
 - If the constitution itself must change:
   - `next_action: amend project principles first, then reopen the highest affected downstream stage and regenerate downstream artifacts`
   - `next_command: /sp.constitution`

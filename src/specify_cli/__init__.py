@@ -741,7 +741,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "## Workflow Mainline",
             "",
             "- Treat `specify -> plan` as the default path.",
-            "- Use `spec-extend` only when an existing spec needs deeper analysis before planning.",
+            "- Use `clarify` only when an existing spec needs deeper analysis before planning.",
             "",
             "## Brownfield Context Gate",
             "",
@@ -2400,7 +2400,7 @@ DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
-    "spec-extend": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
+    "clarify": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
     "explain": "Use when the user needs the current stage artifact or handbook/project-map atlas artifact explained in plain language without changing the underlying files.",
     "fast": "Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.",
     "quick": "Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.",
@@ -2996,7 +2996,7 @@ def init(
     steps_lines.append("   Support skills")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-codebase')}[/] - Generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` as the atlas-style encyclopedia for existing code before specification or planning")
     steps_lines.append(f"   - [cyan]{_display_cmd('test')}[/] - Bootstrap or refresh the project-wide testing system and write a durable testing contract")
-    steps_lines.append(f"   - [cyan]{_display_cmd('spec-extend')}[/] - Deepen an existing spec before planning when analysis or references still need work")
+    steps_lines.append(f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work")
     steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
     steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/], including boundary guardrail gaps")
     steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, implement, or handbook/project-map atlas state in plain language")
@@ -3027,7 +3027,7 @@ def init(
     enhancement_lines.extend(
         [
             f"○ [cyan]{_display_cmd('map-codebase')}[/] [bright_black](required for existing code)[/bright_black] - Generate or refresh the handbook/project-map atlas-style encyclopedia before deeper brownfield specification, planning, task generation, or implementation resumes",
-            f"○ [cyan]{_display_cmd('spec-extend')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
+            f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](default gate before implement)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
             f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, task, implement, or handbook/project-map atlas artifact in plain language before moving forward",
             f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"

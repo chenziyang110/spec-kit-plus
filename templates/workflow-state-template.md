@@ -38,4 +38,4 @@
 
 ## Next Command
 
-- `/sp.constitution | /sp.plan | /sp.tasks | /sp.analyze | /sp.implement | /sp.spec-extend`
+- `/sp.constitution | /sp.plan | /sp.tasks | /sp.analyze | /sp.implement | /sp.clarify`

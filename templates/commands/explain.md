@@ -35,7 +35,7 @@ Goal: Read the current stage artifact or atlas artifact and explain it in plain 
      - `specify` -> `FEATURE_DIR/spec.md`
    - Supporting files:
      - `specify`: also read `FEATURE_DIR/alignment.md` and `FEATURE_DIR/references.md` if present
-     - `spec-extend`: read `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, and `FEATURE_DIR/references.md` together, then explain the enhancement state as an extension of the current spec package
+     - `clarify`: read `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, and `FEATURE_DIR/references.md` together, then explain the enhancement state as an extension of the current spec package
      - `plan`: also read `FEATURE_DIR/research.md`, `FEATURE_DIR/data-model.md`, `FEATURE_DIR/contracts/`, and `FEATURE_DIR/quickstart.md` when present
      - `tasks`: also read `FEATURE_DIR/plan.md` and `FEATURE_DIR/spec.md` when needed for explanation
      - `implement`: if there is no canonical implementation status artifact, explain that implementation status is unavailable from the current file set and fall back to the most recent planning artifact instead of guessing

@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
   primary_objective: 'Produce the specification artifact set grounded in repository reality: `spec.md`, `alignment.md`, `context.md`, and supporting references when needed.'
   primary_outputs: '`FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
-  default_handoff: /sp-plan once planning-critical ambiguity is reduced far enough; otherwise stay in clarification or recommend /sp-spec-extend.
+  default_handoff: /sp-plan once planning-critical ambiguity is reduced far enough; otherwise stay in clarification or recommend /sp-clarify.
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -459,8 +459,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
 18. Apply a release readiness gate.
     - If the requirement package has enough clarity to plan safely inside `sp-specify`, release `Aligned: ready for plan`.
-    - If common docs/config/process-change flows or bounded feature work can reach planning-ready alignment inside `sp-specify`, do so without needing `/sp.spec-extend`.
-    - If planning-critical gaps remain but the spec package is still salvageable, recommend `/sp.spec-extend` as the next command instead of `/sp.plan`.
+    - If common docs/config/process-change flows or bounded feature work can reach planning-ready alignment inside `sp-specify`, do so without needing `/sp.clarify`.
+    - If planning-critical gaps remain but the spec package is still salvageable, recommend `/sp.clarify` as the next command instead of `/sp.plan`.
     - Only use `Force proceed with known risks` when the user accepts that unresolved planning risk will be carried into downstream work.
     - Make the closeout explicit: if ambiguity remains, ask whether the user wants to continue exploring or move to the next step with the documented risks.
     - Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions in place of concrete behavior, boundary handling, compatibility impact, or acceptance proof.
@@ -546,7 +546,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Present the grouped current understanding as an explicit pre-release check.
     - Ask the user to confirm or correct the current understanding before `Aligned: ready for plan`.
     - common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify` when this gate passes and no planning-critical ambiguity remains.
-    - keep this path inside `sp-specify`, without needing `/sp.spec-extend`.
+    - keep this path inside `sp-specify`, without needing `/sp.clarify`.
 
     If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, keep the workflow in clarification until it is resolved or the user explicitly chooses `Force proceed with known risks`.
 
@@ -615,7 +615,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
       - current authoritative files
       - exit criteria for planning readiness
       - the next action required before handoff
-      - `next_command` as either `/sp.plan` or `/sp.spec-extend`
+      - `next_command` as either `/sp.plan` or `/sp.clarify`
 
 24. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
 
@@ -681,7 +681,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Ask the user to review the written artifact set before handoff and make the next path explicit:
       - proceed to `/sp.plan`
       - revise current artifacts
-      - continue analysis with `/sp.spec-extend`
+      - continue analysis with `/sp.clarify`
     - If the user requests changes, update the artifact set, re-run validation, and repeat the artifact review gate.
     - Do not present `/sp.plan` as ready until the written artifact set passes this gate.
 
@@ -694,7 +694,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - references file path when created
     - checklist results
     - release decision
-    - readiness for the next phase (`/sp.plan` for the mainline, or `/sp.spec-extend` when deeper analysis is still needed)
+    - readiness for the next phase (`/sp.plan` for the mainline, or `/sp.clarify` when deeper analysis is still needed)
     - [AGENT] before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `specify learning capture --command specify ...`
     - keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence
     - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or a repeated recurrence that should become shared project memory

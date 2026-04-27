@@ -67,7 +67,7 @@ Built-in profiles:
 /speckit.plan The application uses Vite with minimal number of libraries. Use vanilla HTML, CSS, and JavaScript as much as possible. Images are not uploaded anywhere and metadata is stored in a local SQLite database.
 ```
 
-Use `/speckit.spec-extend` only when an existing spec needs deeper analysis before planning.
+Use `/speckit.clarify` only when an existing spec needs deeper analysis before planning.
 
 ### Step 5: Break Down and Implement
 
@@ -120,7 +120,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `/speckit.constitution`, `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`
-- **Support skills**: `/speckit.map-codebase`, `/speckit.spec-extend`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.debug`, `/speckit.explain`
+- **Support skills**: `/speckit.map-codebase`, `/speckit.clarify`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.debug`, `/speckit.explain`
 - **Codex-only runtime**: `specify team` and `sp-team` when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -149,7 +149,7 @@ Use support skills when they solve a specific gap:
 
 - `/speckit.map-codebase` as the required brownfield gate when you are working in an existing codebase; generate or refresh the handbook/project-map navigation system before deeper workflow steps
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
-- `/speckit.spec-extend` when an existing spec still needs deeper analysis before planning
+- `/speckit.clarify` when an existing spec still needs deeper analysis before planning
 - `/speckit.checklist` when you want to audit requirement quality after planning
 - `/speckit.analyze` as the required gate before implementation once `tasks.md` exists
 - `/speckit.debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
@@ -280,10 +280,10 @@ Once `/speckit.specify` reaches planning-ready alignment, move directly to `/spe
 /speckit.plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
 ```
 
-If an existing spec needs deeper analysis first, use `/speckit.spec-extend`.
+If an existing spec needs deeper analysis first, use `/speckit.clarify`.
 
 ```bash
-/speckit.spec-extend Add sharper reporting requirements and cross-team notification expectations before planning.
+/speckit.clarify Add sharper reporting requirements and cross-team notification expectations before planning.
 ```
 
 ### Step 4: Validate the Spec
@@ -312,7 +312,7 @@ Have your AI agent audit the implementation plan using `/speckit.analyze`:
 
 If `/speckit.analyze` finds issues, do not treat the report as informational only:
 
-- If the problem is in `spec.md` or `context.md`, return to `/speckit.spec-extend`, then rerun `/speckit.plan`, `/speckit.tasks`, and `/speckit.analyze`.
+- If the problem is in `spec.md` or `context.md`, return to `/speckit.clarify`, then rerun `/speckit.plan`, `/speckit.tasks`, and `/speckit.analyze`.
 - If the problem is in `plan.md`, return to `/speckit.plan`, then rerun `/speckit.tasks` and `/speckit.analyze`.
 - If the problem is only in `tasks.md`, rerun `/speckit.tasks`, then `/speckit.analyze`.
 - If the problem is execution-only with no upstream artifact drift, continue in `/speckit.implement` or route into `/speckit.debug`.
@@ -332,7 +332,7 @@ Finally, implement the solution:
 - **Be explicit** about what you're building and why
 - **Don't focus on tech stack** during specification phase
 - **Use `specify -> plan` as the default path**
-- **Use `spec-extend` only when an existing spec needs deeper analysis before planning**
+- **Use `clarify` only when an existing spec needs deeper analysis before planning**
 - **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, run `sp-test` first
 - **Validate** the plan before coding begins
 - **Let the AI agent handle** the implementation details

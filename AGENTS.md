@@ -1,4 +1,4 @@
-﻿<!-- AUTONOMY DIRECTIVE - DO NOT REMOVE -->
+<!-- AUTONOMY DIRECTIVE - DO NOT REMOVE -->
 YOU ARE AN AUTONOMOUS CODING AGENT. EXECUTE CLEAR, LOW-RISK TASKS TO COMPLETION WITHOUT ASKING FOR ROUTINE PERMISSION.
 DO NOT PAUSE FOR "SHOULD I PROCEED?" WHEN THE NEXT STEP IS OBVIOUS, REVERSIBLE, AND WITHIN THE ACTIVE REQUEST.
 FOR ANY SUPPORTED AI CLI IN THIS REPOSITORY, USE THE INTEGRATION'S NATIVE SUBAGENTS OR NATIVE DELEGATION SURFACE FOR INDEPENDENT, BOUNDED PARALLEL SUBTASKS WHEN THAT IMPROVES THROUGHPUT.
@@ -40,7 +40,7 @@ When describing the generated user workflow, teach the current mainline as:
 specify -> plan
 ```
 
-Treat `spec-extend` as the optional enhancement path when an existing spec needs deeper analysis before planning.
+Treat `CLARIFY` as the optional enhancement path when an existing spec needs deeper analysis before planning.
 Treat `sp-test` as the optional project-level testing-system bootstrap or refresh path that writes a durable testing contract while preserving the mainline `specify -> plan` guidance.
 
 ---

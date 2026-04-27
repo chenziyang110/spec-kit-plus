@@ -1529,7 +1529,7 @@ def test_claude_question_driven_skills_prefer_ask_user_question_with_fallback(tm
 
     assert result.exit_code == 0, f"init --ai claude failed: {result.output}"
 
-    for skill_name in ("sp-specify", "sp-spec-extend", "sp-checklist", "sp-quick"):
+    for skill_name in ("sp-specify", "sp-clarify", "sp-checklist", "sp-quick"):
         content = (target / ".claude" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
         lower = content.lower()
         assert "AskUserQuestion" in content

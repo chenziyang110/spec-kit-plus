@@ -20,7 +20,7 @@ from typing import Any
 
 WORKFLOW_COMMAND_MAP = {
     "sp-specify": "specify",
-    "sp-spec-extend": "spec-extend",
+    "sp-clarify": "clarify",
     "sp-plan": "plan",
     "sp-tasks": "tasks",
     "sp-analyze": "analyze",

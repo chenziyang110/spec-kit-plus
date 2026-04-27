@@ -240,7 +240,7 @@ scripts:
    - Actor/timing
    - Any explicit user-specified must-have items incorporated
    - Recommended next workflow:
-     - If the checklist reveals planning-critical requirement gaps, contradictory behavior, or missing acceptance criteria, recommend `/sp-specify` (or `/sp-spec-extend` when the spec package already exists and only needs deeper analysis).
+     - If the checklist reveals planning-critical requirement gaps, contradictory behavior, or missing acceptance criteria, recommend `/sp-specify` (or `/sp-clarify` when the spec package already exists and only needs deeper analysis).
      - If the checklist exposes plan-shaping technical or artifact completeness gaps, recommend `/sp-plan`.
      - If the checklist is materially satisfied and execution preparation should continue through cross-artifact validation, recommend `/sp-analyze`.
 

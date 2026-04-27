@@ -97,14 +97,14 @@
 ## Planning Gate Recommendation
 
 - [Proceed directly to `/sp.plan`]
-- [Run `/sp.spec-extend` first to close planning-critical gaps]
+- [Run `/sp.clarify` first to close planning-critical gaps]
 - [Force proceed only if the user accepts the known risks]
 
 ## Artifact Review Gate
 
 - **Self-review**: [passed | revised]
 - **Reviewer lane**: [not used | approved | issues found then revised]
-- **User artifact review**: [approved | changes requested | continue analysis with `/sp.spec-extend`]
+- **User artifact review**: [approved | changes requested | continue analysis with `/sp.clarify`]
 
 ## Release Decision
 

@@ -413,7 +413,7 @@ def test_gemini_question_driven_commands_prefer_ask_user_with_fallback(tmp_path)
 
     for rel in (
         ".gemini/commands/sp.specify.toml",
-        ".gemini/commands/sp.spec-extend.toml",
+        ".gemini/commands/sp.clarify.toml",
         ".gemini/commands/sp.checklist.toml",
         ".gemini/commands/sp.quick.toml",
     ):

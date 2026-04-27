@@ -19,7 +19,7 @@ from .multi_agent import ClaudeMultiAgentAdapter
 # when a user invokes the slash command in Claude Code.
 ARGUMENT_HINTS: dict[str, str] = {
     "specify": "Describe the feature you want to specify",
-    "spec-extend": "Describe what in the current spec package needs deeper analysis or correction",
+    "clarify": "Describe what in the current spec package needs deeper analysis or correction",
     "explain": "Optionally name the stage or artifact you want explained",
     "debug": "Describe the bug to investigate, or leave blank to resume the most recent session",
     "fast": "Describe the trivial local fix, or leave blank to use the current fast-path context",

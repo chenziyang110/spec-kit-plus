@@ -7,7 +7,7 @@ from .template_utils import read_template
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PRIMARY_TUI_TEMPLATE_PATHS = (
     "templates/commands/specify.md",
-    "templates/commands/spec-extend.md",
+    "templates/commands/clarify.md",
     "templates/commands/explain.md",
 )
 ASCII_CARD_HEADER_RE = re.compile(r"(?m)^\s*\+--")
@@ -35,7 +35,7 @@ def _assert_contains_any(text: str, *needles: str) -> None:
 def test_core_sp_templates_use_learning_review_hooks():
     command_templates = {
         "specify": "templates/commands/specify.md",
-        "spec-extend": "templates/commands/spec-extend.md",
+        "clarify": "templates/commands/clarify.md",
         "plan": "templates/commands/plan.md",
         "tasks": "templates/commands/tasks.md",
         "analyze": "templates/commands/analyze.md",
@@ -212,7 +212,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Keep progress tracking scoped to the current capability or bounded spec slice rather than to a fixed global question budget." in content
     assert "Do not present the clarification loop as a fixed total such as `2 / 5`." in content
     assert "Treat this as an explicit pre-release check" in content
-    assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in content
+    assert "recommend `/sp.clarify` as the next command instead of `/sp.plan`" in content
     assert "Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`." in content
     assert "Read `templates/context-template.md`." in content
     assert "run a short checkpoint for each high-risk capability" in lowered
@@ -225,7 +225,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "placeholders/todos" in lowered
     assert "requirement-vs-implementation drift" in lowered
     assert "revise current artifacts" in lowered
-    assert "continue analysis with `/sp.spec-extend`" in content
+    assert "continue analysis with `/sp.clarify`" in content
     assert "primary codebase-scout input" in content
     assert "module ownership, reusable components/services/hooks, integration points" in content
     assert "truth-owning surfaces" in content
@@ -254,7 +254,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "- context file path" in content
     assert "common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify`" in content
     assert "explicit pre-release check" in lowered
-    assert "without needing `/sp.spec-extend`" in content
+    assert "without needing `/sp.clarify`" in content
     assert "`Capability 1 / 3 | Question 2`" in content
     assert "SPECIFY SESSION - Capability 1 / 3 | Question 2" in content
     assert "SPECIFY SESSION - 2 / 5" not in content
@@ -604,9 +604,9 @@ def test_new_analysis_workflow_command_templates_exist():
     template_stems = {path.stem for path in command_dir.glob("*.md")}
 
     assert "map-codebase" in template_stems
-    assert "spec-extend" in template_stems
+    assert "clarify" in template_stems
     assert "explain" in template_stems
-    assert "clarify" not in template_stems
+    assert "spec-extend" not in template_stems
 
 
 def test_map_codebase_template_generates_handbook_navigation_system() -> None:
@@ -769,7 +769,7 @@ def test_map_codebase_template_requires_detail_acceptance_checklist() -> None:
 
 
 def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
-    content = _read("templates/commands/spec-extend.md")
+    content = _read("templates/commands/clarify.md")
     lowered = content.lower()
 
     assert "closing planning-critical gaps" in lowered
@@ -779,7 +779,7 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
     assert "unresolved gray areas that still change plan structure" in lowered
     assert "missing locked decisions, canonical references, or deferred-scope notes" in lowered
     assert "whether the spec package is now ready for `/sp.plan` or still needs more clarification" in content
-    assert "whether another `/sp.specify` or `/sp.spec-extend` pass is still justified before planning" in content
+    assert "whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning" in content
     assert "avoid implying an automatic handoff to `/sp.plan`" in lowered
     assert "default rescue lane" in lowered
     assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
@@ -1026,7 +1026,7 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "`research_gap`" in content
     assert "`plan_gap`" in content
     assert "`spec_gap`" in content
-    assert "/sp.spec-extend" in content
+    assert "/sp.clarify" in content
 
 
 def test_shared_implement_teams_contract_preserves_explicit_execution_packet_fields():

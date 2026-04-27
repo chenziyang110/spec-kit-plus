@@ -158,7 +158,7 @@ specify -> plan
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- Support skills: `map-codebase`, `test`, `spec-extend`, `checklist`, `analyze`, `debug`, `explain`
+- Support skills: `map-codebase`, `test`, `clarify`, `checklist`, `analyze`, `debug`, `explain`
 - Codex-only runtime: `specify team` and `sp-team`
 
 Conditional gates and follow-up commands:
@@ -166,7 +166,7 @@ Conditional gates and follow-up commands:
 - `map-codebase` is the required brownfield gate for an existing codebase; generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before specification, planning, task generation, or implementation continues
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
 - `test` to bootstrap or refresh a durable project-wide unit testing system, testing contract, and standard test/coverage playbook
-- `spec-extend` to deepen an existing spec before planning when analysis, references, or gaps need more work
+- `clarify` to deepen an existing spec before planning when analysis, references, or gaps need more work
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
 - `analyze` is the default pre-implementation gate once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` before implementation starts
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
@@ -277,7 +277,7 @@ tasks -> analyze -> implement
 
 Closed-loop remediation after `analyze`:
 
-- If the defect is in `spec.md` or `context.md`, go back to `spec-extend`, then rerun `plan`, `tasks`, and `analyze` before resuming `implement`.
+- If the defect is in `spec.md` or `context.md`, go back to `clarify`, then rerun `plan`, `tasks`, and `analyze` before resuming `implement`.
 - If the defect is in `plan.md`, go back to `plan`, then rerun `tasks` and `analyze` before resuming `implement`.
 - If the defect is only in `tasks.md`, rerun `tasks`, then `analyze`, then resume `implement`.
 - If the defect is execution-only with no upstream artifact drift, continue in `implement` or route into `debug`.

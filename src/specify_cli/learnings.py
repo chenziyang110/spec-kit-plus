@@ -42,7 +42,7 @@ PROMOTION_TARGETS = {"learning", "rule"}
 KNOWN_COMMANDS = (
     "sp-constitution",
     "sp-specify",
-    "sp-spec-extend",
+    "sp-clarify",
     "sp-plan",
     "sp-checklist",
     "sp-tasks",

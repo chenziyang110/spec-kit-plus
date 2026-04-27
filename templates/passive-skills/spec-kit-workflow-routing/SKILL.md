@@ -31,7 +31,7 @@ before any complementary gate or learning layer runs.
   refresh, or testing-contract pass instead of an ordinary feature workflow.
 - Use `sp-specify` for new capability, behavior, or requirement changes that need an
   aligned spec package before implementation.
-- Use `sp-spec-extend` when an existing spec package needs deeper analysis before
+- Use `sp-clarify` when an existing spec package needs deeper analysis before
   planning can safely proceed.
 - Use `sp-plan` only after a valid spec package exists.
 - Use `sp-tasks` only after planning artifacts are ready.

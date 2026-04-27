@@ -252,7 +252,7 @@ class TestBuiltInSkillGeneration:
         assert result.exit_code == 0, result.output
 
         skills_dir = project_dir / ".claude" / "skills"
-        assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
+        assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (skills_dir / "sp-test" / "SKILL.md").exists()
@@ -285,7 +285,7 @@ class TestBuiltInSkillGeneration:
         assert "/sp-tasks" in constitution_body
         assert "/sp-analyze" in constitution_body
         assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
-        assert "spec-extend" in result.output.lower()
+        assert "clarify" in result.output.lower()
 
         explain_body = _body_without_frontmatter(skills_dir / "sp-explain" / "SKILL.md")
         explain_tui = _extract_section(explain_body, "TUI Requirements").lower()
@@ -362,8 +362,8 @@ class TestBuiltInSkillGeneration:
         assert "context.md" in specify_body
         assert "Write `context.md` to `CONTEXT_FILE`." in specify_body
         assert "Locked decisions are preserved in context.md" in specify_body
-        assert "recommend `/sp.spec-extend` as the next command instead of `/sp.plan`" in specify_body
-        assert "without needing `/sp.spec-extend`" in specify_body
+        assert "recommend `/sp.clarify` as the next command instead of `/sp.plan`" in specify_body
+        assert "without needing `/sp.clarify`" in specify_body
 
         plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         assert "Add `Implementation Constitution`" in plan_body
@@ -533,7 +533,7 @@ class TestSkillDescriptions:
 
         assert "guided requirement discovery" in SKILL_DESCRIPTIONS["specify"].lower()
         assert "planning-ready specification package" in SKILL_DESCRIPTIONS["specify"].lower()
-        assert "planning-critical gaps" in SKILL_DESCRIPTIONS["spec-extend"].lower()
+        assert "planning-critical gaps" in SKILL_DESCRIPTIONS["clarify"].lower()
         assert "plain language" in SKILL_DESCRIPTIONS["explain"].lower()
         assert "implementation planning" in SKILL_DESCRIPTIONS["plan"].lower()
         assert "dependency-aware tasks" in SKILL_DESCRIPTIONS["tasks"].lower()

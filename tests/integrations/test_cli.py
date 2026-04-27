@@ -234,7 +234,7 @@ class TestInitIntegrationFlag:
             os.chdir(old_cwd)
         assert result.exit_code == 0, f"init failed: {result.output}"
         assert (project / ".github" / "agents" / "sp.plan.agent.md").exists()
-        assert (project / ".github" / "agents" / "sp.spec-extend.agent.md").exists()
+        assert (project / ".github" / "agents" / "sp.clarify.agent.md").exists()
         assert (project / ".github" / "agents" / "sp.explain.agent.md").exists()
         assert (project / ".github" / "prompts" / "sp.plan.prompt.md").exists()
         assert (project / ".specify" / "scripts" / "bash" / "common.sh").exists()
@@ -405,15 +405,15 @@ class TestInitIntegrationFlag:
         assert "$sp-analyze" in result.output
         assert "$sp-explain" in result.output
         assert "$sp-map-codebase" in result.output
-        assert "$sp-spec-extend" in result.output
+        assert "$sp-clarify" in result.output
         assert "$sp-team" in result.output
         assert "seeded default constitution" in result.output.lower()
         assert "project-specific changes" in result.output.lower()
         assert "required for existing code" in result.output
         assert "default gate before" in result.output
         assert "The Codex team skill is available as" not in result.output
-        assert "spec-extend" in result.output
-        assert "spec-extend" in result.output.lower()
+        assert "clarify" in result.output
+        assert "clarify" in result.output.lower()
         assert "explain" in result.output
         assert "$sp-learnings" not in result.output
 
@@ -469,7 +469,7 @@ class TestInitIntegrationFlag:
         assert "project-specific changes" in result.output.lower()
         assert "/sp-explain" in result.output
         assert "/sp-map-codebase" in result.output
-        assert "/sp-spec-extend" in result.output
+        assert "/sp-clarify" in result.output
         assert "required for existing code" in result.output
         assert "default gate before" in result.output
         assert "/sp-learnings" not in result.output
@@ -526,13 +526,13 @@ class TestInitIntegrationFlag:
 
         skills_dir = project / ".codex" / "skills"
 
-        assert (skills_dir / "sp-spec-extend" / "SKILL.md").exists()
+        assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
 
         specify_fm = self._frontmatter(skills_dir / "sp-specify" / "SKILL.md")
-        spec_extend_fm = self._frontmatter(skills_dir / "sp-spec-extend" / "SKILL.md")
+        spec_extend_fm = self._frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
         plan_fm = self._frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         explain_fm = self._frontmatter(skills_dir / "sp-explain" / "SKILL.md")
         map_codebase_fm = self._frontmatter(skills_dir / "sp-map-codebase" / "SKILL.md")
@@ -554,8 +554,8 @@ class TestInitIntegrationFlag:
         assert "implementation planning" in plan_fm["description"].lower()
         assert "plain language" in explain_fm["description"].lower()
         assert "handbook/project-map coverage" in map_codebase_fm["description"].lower()
-        assert "spec-extend" in result.output.lower()
-        assert "spec-extend" in result.output
+        assert "clarify" in result.output.lower()
+        assert "clarify" in result.output
         assert "explain" in result.output
 
     def test_quick_help_exposes_management_commands(self):

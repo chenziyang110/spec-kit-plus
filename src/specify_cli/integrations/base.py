@@ -280,7 +280,7 @@ class IntegrationBase(ABC):
                 "capability split confirmation",
                 "current-understanding confirmation before `Aligned: ready for plan`",
             ],
-            "spec-extend": [
+            "clarify": [
                 "high-impact gap confirmation",
                 "scope or constraint confirmation when enhancement changes planning readiness",
             ],
@@ -302,7 +302,7 @@ class IntegrationBase(ABC):
     def _question_tool_fallback_hint(self, command_name: str) -> str:
         fallback_hints = {
             "specify": "If the native tool is unavailable in the current runtime or the tool call fails, fall back to the shared open question block structure already defined in this template.",
-            "spec-extend": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
+            "clarify": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
             "checklist": "If the native tool is unavailable in the current runtime or the tool call fails, keep the template's existing `Q1`/`Q2`/`Q3` (and optional `Q4`/`Q5`) textual question format.",
             "quick": "If the native tool is unavailable in the current runtime or the tool call fails, use the template's existing concise plain-text clarification or quick-task selection wording.",
             "debug": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise missing-information question in plain text during observer framing before entering reproduction work.",
@@ -319,7 +319,7 @@ class IntegrationBase(ABC):
         agent_name: str,
         command_name: str,
     ) -> str:
-        question_driven_commands = {"specify", "spec-extend", "checklist", "quick", "debug"}
+        question_driven_commands = {"specify", "clarify", "checklist", "quick", "debug"}
         if command_name not in question_driven_commands:
             return content
 

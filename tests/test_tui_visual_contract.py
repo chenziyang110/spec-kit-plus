@@ -4,7 +4,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = PROJECT_ROOT / "templates" / "commands"
-PRIMARY_TUI_SURFACES = ("specify", "spec-extend", "explain")
+PRIMARY_TUI_SURFACES = ("specify", "clarify", "explain")
 ASCII_CARD_HEADER_RE = re.compile(r"(?m)^\s*\+--")
 ASCII_CARD_LINE_RE = re.compile(r"(?m)^\s*\| .+\|\s*$")
 ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")

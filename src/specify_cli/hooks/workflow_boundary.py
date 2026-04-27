@@ -9,8 +9,8 @@ from .types import HookResult, QualityHookError
 
 ALLOWED_WORKFLOW_TRANSITIONS = {
     ("specify", "plan"),
-    ("specify", "spec-extend"),
-    ("spec-extend", "plan"),
+    ("specify", "clarify"),
+    ("clarify", "plan"),
     ("plan", "tasks"),
     ("plan", "checklist"),
     ("tasks", "analyze"),
