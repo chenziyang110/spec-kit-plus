@@ -124,6 +124,11 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "status flip alone" in lower
     assert "validation target" in lower
     assert "stale lane" in lower
+    assert "if the current feature already has an active runtime session, resume or reuse it" in lower
+    assert "do not create a second runtime team for the same feature" in lower
+    assert "after each completed join point or ready batch, re-read the tracker and task state" in lower
+    assert "select the next ready batch and continue automatically" in lower
+    assert "stop only when no ready work remains, a real blocker stops progress, or an explicit human gate is reached" in lower
 
 
 def test_codex_implement_teams_template_keeps_only_backend_specific_guidance():
@@ -242,6 +247,10 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert "specify team" not in test_content
     assert "testing-state.md" in test_content
     assert "testing_state_file" in test_content or "testing-state-file" in test_content
+    assert "manually execute the canonical test commands" in test_content
+    assert "most recent manual validation run" in test_content
+    assert "run coverage after the first meaningful test pass" in test_content
+    assert "iterate on uncovered critical paths" in test_content
 
     constitution_content = (skills_dir / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert ".specify/memory/project-rules.md" in constitution_content

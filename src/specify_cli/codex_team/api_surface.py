@@ -153,6 +153,9 @@ def run_team_api_operation(
                 "status": result.status,
                 "join_point_name": result.join_point_name,
                 "task_ids": result.task_ids,
+                "next_batch_id": result.next_batch_id,
+                "next_batch_name": result.next_batch_name,
+                "next_dispatched_task_ids": result.next_dispatched_task_ids or [],
             }
         return envelope
 

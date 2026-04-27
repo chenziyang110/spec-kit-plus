@@ -82,6 +82,22 @@ def bootstrap_session(project_root: Path, *, session_id: str) -> RuntimeSession:
     return session
 
 
+def resume_session(project_root: Path, *, session_id: str) -> tuple[RuntimeSession, bool]:
+    """Return an existing active session when possible, otherwise bootstrap a new one.
+
+    Returns `(session, resumed_existing)` where `resumed_existing` is `True` when
+    an already-active session was reused.
+    """
+    path = runtime_session_path(project_root, session_id)
+    if path.exists():
+        existing = runtime_session_from_json(path.read_text(encoding="utf-8"))
+        if existing.status not in TERMINAL_SESSION_STATUSES:
+            monitor_summary(project_root, session_id=existing.session_id)
+            return existing, True
+
+    return bootstrap_session(project_root, session_id=session_id), False
+
+
 def monitor_summary(project_root: Path, *, session_id: str) -> MonitorSnapshot:
     tasks = list_tasks(project_root)
     snapshot = worker_status_snapshot(

@@ -3432,8 +3432,15 @@ def team_resume(
 ):
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
-    session = session_ops.bootstrap_session(project_root, session_id=session_id)
-    console.print(f"Bootstrapped session [cyan]{session.session_id}[/cyan] with status [green]{session.status}[/green].")
+    session, resumed_existing = session_ops.resume_session(project_root, session_id=session_id)
+    if resumed_existing:
+        console.print(
+            f"Resumed existing session [cyan]{session.session_id}[/cyan] with status [green]{session.status}[/green]."
+        )
+    else:
+        console.print(
+            f"Bootstrapped session [cyan]{session.session_id}[/cyan] with status [green]{session.status}[/green]."
+        )
 
 
 @team_app.command("shutdown")
@@ -3538,6 +3545,11 @@ def team_complete_batch(
         f"Completed batch [cyan]{result.batch_name}[/cyan] ({result.batch_id}) with status "
         f"[green]{result.status}[/green]."
     )
+    if result.next_batch_id:
+        console.print(
+            f"Auto-dispatched next batch [cyan]{result.next_batch_name}[/cyan] ({result.next_batch_id}): "
+            f"{', '.join(result.next_dispatched_task_ids or [])}"
+        )
 
 
 @team_app.command("submit-result")

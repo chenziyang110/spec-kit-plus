@@ -335,13 +335,14 @@ human_needed_checks:
     - If those answers are not grounded in the current repository files, stop guesswork, read the missing references, and update `implement-tracker.md` before continuing.
 
 7. Execute implementation following the task plan:
-   - **Phase-by-phase execution**: Complete each phase before moving to the next
-   - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
+    - **Phase-by-phase execution**: Complete each phase before moving to the next
+    - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
    - **Capability-aware execution**: After selecting the strategy, execute the current ready batch through `native-multi-agent` or `sidecar-runtime` when selected by policy; otherwise execute via `single-lane` while preserving join-point semantics through the current lane owner.
    - Once a `single-lane` batch clears the delegation-readiness bar, do not stop to ask the user whether the `single-lane` batch should switch to delegated execution; dispatch the delegated lane by default and only discuss a fallback after the delegation surfaces have concretely failed.
-   - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
-   - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
+    - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
+    - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
+    - Do not stop after a single completed batch just because one worker, assignee, or delegated lane has gone idle; if ready work still exists for the milestone, keep selecting the next batch and continue.
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
    - **Hard TDD gate**: Write the failing test first for every behavior-changing task, bug fix, or refactor.
    - **Hard TDD gate**: Do not write production code for the batch until the RED state is verified.

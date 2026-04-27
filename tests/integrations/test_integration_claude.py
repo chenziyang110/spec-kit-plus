@@ -1472,6 +1472,12 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "polish" in lower
     assert "shutdown_response" in lower
     assert "accepted shutdown, not that it already left the team" in lower
+    assert "if a team for the same feature slug is already active, reuse or resume it" in lower
+    assert "do not create a second parallel team for the same feature" in lower
+    assert "after each completed join point or ready batch, immediately re-read the shared task ledger" in lower
+    assert "select the next ready batch and continue automatically" in lower
+    assert "stop only when no ready work remains, a real blocker stops progress, or an explicit human approval gate is reached" in lower
+    assert "do not stop after a single completed batch just because the current assignee went idle" in lower
     assert "specify team" not in lower
     assert "sp.agent-teams.run" not in lower
     assert "specify extension add agent-teams" not in lower
@@ -1492,6 +1498,8 @@ def test_claude_implement_teams_template_keeps_only_backend_specific_guidance():
     assert "hard prerequisite" in lower
     assert "idle" in lower
     assert "shared completion contract is fully satisfied" in lower
+    assert "reuse or resume" in lower
+    assert "continue automatically" in lower
     assert "task_started" in lower
     assert "task_completed" in lower
     assert "shutdown_response" in lower

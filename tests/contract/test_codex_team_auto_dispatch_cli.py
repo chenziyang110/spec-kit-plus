@@ -62,6 +62,9 @@ def _create_codex_project(tmp_path: Path) -> Path:
 - [X] T001 Shared setup
 - [ ] T002 [P] Worker A in src/workers/worker_a.py
 - [ ] T003 [P] Worker B in src/workers/worker_b.py
+- [X] T004 Sequential follow-up in src/follow_up.py
+- [ ] T005 [P] Worker C in src/workers/worker_c.py
+- [ ] T006 [P] Worker D in src/workers/worker_d.py
 
 ## Validation Gates
 
@@ -73,6 +76,13 @@ def _create_codex_project(tmp_path: Path) -> Path:
 - `T003`
 
 **Join Point 1.1**: merge before next phase
+
+**Parallel Batch 2.1**
+
+- `T005`
+- `T006`
+
+**Join Point 2.1**: final merge
 """,
         encoding="utf-8",
     )
@@ -104,6 +114,28 @@ def _invoke_in_project(project: Path, args: list[str], env: dict[str, str] | Non
 def _write_success_results(project: Path) -> None:
     for task_id in ("T002", "T003"):
         request_id = f"default-parallel-batch-1-1-{task_id.lower()}"
+        path = result_record_path(project, request_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        result = WorkerTaskResult(
+            task_id=task_id,
+            status="success",
+            changed_files=[f"src/{task_id.lower()}.py"],
+            validation_results=[ValidationResult(command="pytest -q -k auto_dispatch", status="passed", output="1 passed")],
+            summary=f"{task_id} completed",
+            rule_acknowledgement=RuleAcknowledgement(
+                required_references_read=True,
+                forbidden_drift_respected=True,
+                context_bundle_read=True,
+                paths_read=["src/contracts/example.py"],
+            ),
+        )
+        path.write_text(json.dumps(worker_task_result_payload(result), ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _write_success_results_for(project: Path, batch_name: str, task_ids: tuple[str, ...]) -> None:
+    slug = batch_name.lower().replace(" ", "-")
+    for task_id in task_ids:
+        request_id = f"default-{slug}-{task_id.lower()}"
         path = result_record_path(project, request_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         result = WorkerTaskResult(
@@ -183,6 +215,32 @@ def test_team_complete_batch_marks_join_point_complete(tmp_path: Path):
     assert task_payload["metadata"]["join_points"]["Join Point 1.1"]["status"] == "complete"
 
 
+def test_team_complete_batch_auto_dispatches_next_ready_batch(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    env = _fake_tmux_env(tmp_path)
+
+    dispatched = _invoke_in_project(
+        project,
+        ["team", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        env=env,
+    )
+    assert dispatched.exit_code == 0, dispatched.output
+    _write_success_results(project)
+
+    result = _invoke_in_project(
+        project,
+        ["team", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
+        env=env,
+    )
+
+    assert result.exit_code == 0, result.output
+    lowered = result.output.lower()
+    assert "auto-dispatched next batch" in lowered
+    assert "parallel batch 2.1" in lowered
+    assert dispatch_record_path(project, "default-parallel-batch-2-1-t005").exists()
+    assert dispatch_record_path(project, "default-parallel-batch-2-1-t006").exists()
+
+
 def test_team_api_complete_batch_returns_json_payload(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
@@ -207,6 +265,31 @@ def test_team_api_complete_batch_returns_json_payload(tmp_path: Path):
     assert envelope["status"] == "ok"
     assert envelope["payload"]["batch_id"] == "default-parallel-batch-1-1"
     assert envelope["payload"]["status"] == "completed"
+
+
+def test_team_api_complete_batch_reports_auto_dispatched_next_batch(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    env = _fake_tmux_env(tmp_path)
+
+    dispatched = _invoke_in_project(
+        project,
+        ["team", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        env=env,
+    )
+    assert dispatched.exit_code == 0, dispatched.output
+    _write_success_results(project)
+
+    result = _invoke_in_project(
+        project,
+        ["team", "api", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
+        env=env,
+    )
+
+    assert result.exit_code == 0, result.output
+    envelope = json.loads(result.output.strip())
+    assert envelope["payload"]["next_batch_id"] == "default-parallel-batch-2-1"
+    assert envelope["payload"]["next_batch_name"] == "Parallel Batch 2.1"
+    assert envelope["payload"]["next_dispatched_task_ids"] == ["T005", "T006"]
 
 
 def test_team_submit_result_updates_task_and_batch_state(tmp_path: Path):

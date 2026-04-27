@@ -69,6 +69,8 @@ def test_sp_implement_documents_milestone_next_step_selection() -> None:
     content = _read_template().lower()
 
     assert "selects the next executable phase and ready batch" in content
+    assert "continues automatically until the milestone is complete or blocked" in content
+    assert "do not stop after a single completed batch" in content
     assert "shared implement template is the primary source of truth" in content
     assert "tasks.md` being fully checked off is not sufficient for completion by itself" in _read_template()
     assert "`plan_gap`" in _read_template()

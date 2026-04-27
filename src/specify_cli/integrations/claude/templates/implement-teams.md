@@ -34,6 +34,10 @@ Use this when:
    - if the Agent Teams surface is unavailable, or if the first `TeamCreate` / Agent Teams call fails as though the feature is disabled, stop and explicitly remind the user to enable Agent Teams in Claude Code settings or environment instead of continuing with a broken team setup
    - treat this as a hard prerequisite for `/sp-implement-teams`, not as an optional hint
 3. Create or resume a Claude Agent Team for the feature:
+   - if a team for the same feature slug is already active, reuse or resume it instead of creating a second parallel team for the same feature
+   - if the first `TeamCreate` call fails because you are already leading the team, treat that as a recoverable resume signal rather than a terminal failure
+   - inspect the existing team ledger, shared task list, and pending work first, then continue from the recorded ready batch
+   - do not create a second parallel team for the same feature just to get unstuck
 
 ```text
 TeamCreate({
@@ -131,6 +135,9 @@ Join Point:
    - when complete, require a `task_completed` message that includes task id, summary, verification run, files changed, and any residual concern even if the task status is already marked `completed`
    - when a result handoff path was promised, the teammate must write that result before entering `idle`; a completion message without the promised handoff is incomplete
 14. Keep the same completion discipline as `/sp-implement`: do not cross the join point or declare completion until structured handoffs are consumed, the tracker/result state is updated, and every teammate has confirmed the required context bundle for its lane.
+    - after each completed join point or ready batch, immediately re-read the shared task ledger, select the next ready batch and continue automatically
+    - stop only when no ready work remains, a real blocker stops progress, or an explicit human approval gate is reached
+    - do not stop after a single completed batch just because the current assignee went idle
 15. Only after the shared completion contract is fully satisfied may you request shutdown for each teammate, then clean up the team with `TeamDelete()`.
    - if the team has only finished core implementation or is merely ready for integration testing while required E2E, Polish, documentation, or validation tasks remain, report partial progress and keep the remaining work explicit instead of declaring overall feature completion
    - a `shutdown_response` or other approval signal means the teammate accepted shutdown, not that it already left the team; confirm active membership before treating cleanup as complete

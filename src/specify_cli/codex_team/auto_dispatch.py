@@ -23,10 +23,11 @@ from specify_cli.codex_team.runtime_bridge import (
     dispatch_runtime_task,
     ensure_codex_team_executor_available,
     ensure_codex_team_runtime_prerequisites,
+    submit_runtime_result,
 )
 from specify_cli.codex_team.baseline_check import classify_baseline_build_status
 from specify_cli.codex_team.runtime_state import batch_record_payload
-from specify_cli.codex_team.session_ops import bootstrap_session, monitor_summary
+from specify_cli.codex_team.session_ops import monitor_summary, resume_session
 from specify_cli.codex_team.worktree_ops import worker_worktree_path
 from specify_cli.codex_team.state_paths import batch_record_path
 from specify_cli.orchestration import CapabilitySnapshot, describe_delegation_surface
@@ -122,6 +123,12 @@ class BatchCompletionResult:
     status: str
     join_point_name: str
     task_ids: list[str]
+    next_batch_id: str = ""
+    next_batch_name: str = ""
+    next_dispatched_task_ids: list[str] | None = None
+    next_batch_id: str = ""
+    next_batch_name: str = ""
+    next_dispatched_task_ids: list[str] | None = None
 
 
 def _agent_teams_team_name(batch_id: str) -> str:
@@ -432,6 +439,30 @@ def parse_tasks_markdown(tasks_path: Path) -> ParsedTasksDocument:
     return ParsedTasksDocument(tasks=tasks, parallel_batches=parallel_batches)
 
 
+def _overlay_task_record_statuses(project_root: Path, parsed: ParsedTasksDocument) -> ParsedTasksDocument:
+    """Overlay persisted task-record terminal status onto parsed tasks.md state."""
+    updated_tasks: list[ParsedTask] = []
+    for task in parsed.tasks:
+        try:
+            record = task_ops.get_task(project_root, task.task_id)
+        except task_ops.TaskOpsError:
+            updated_tasks.append(task)
+            continue
+
+        updated_tasks.append(
+            ParsedTask(
+                task_id=task.task_id,
+                completed=record.status == task_ops.TASK_STATUS_COMPLETED,
+                parallel=task.parallel,
+                agent_required=task.agent_required,
+                summary=task.summary,
+                order_index=task.order_index,
+            )
+        )
+
+    return ParsedTasksDocument(tasks=updated_tasks, parallel_batches=parsed.parallel_batches)
+
+
 def _extract_tracker_scalar(text: str, key: str) -> str:
     pattern = TRACKER_CURRENT_BATCH_RE if key == "current_batch" else re.compile(
         rf"(?m)^{re.escape(key)}:\s*(?P<value>.+?)\s*$"
@@ -502,7 +533,7 @@ def materialize_runtime_batch(feature_dir: Path) -> MaterializedBatch:
     if not tasks_path.exists():
         raise AutoDispatchError(f"tasks.md not found in {feature_dir}")
 
-    parsed = parse_tasks_markdown(tasks_path)
+    parsed = _overlay_task_record_statuses(feature_dir.parents[1], parse_tasks_markdown(tasks_path))
     batch = find_next_ready_parallel_batch(parsed)
     if batch is None:
         raise AutoDispatchError("no ready parallel batch found")
@@ -834,16 +865,12 @@ def route_ready_parallel_batch(
     batch = materialize_runtime_batch(feature_dir)
 
     try:
-        bootstrap_session(project_root, session_id=session_id)
+        _, _ = resume_session(project_root, session_id=session_id)
         original_session_payload = json.loads(
             runtime_session_path(project_root, session_id).read_text(encoding="utf-8")
         )
-    except Exception as exc:
-        if "already active" not in str(exc):
-            raise
-        original_session_payload = json.loads(
-            runtime_session_path(project_root, session_id).read_text(encoding="utf-8")
-        )
+    except Exception:
+        raise
 
     request_ids: list[str] = []
     dispatched_task_ids: list[str] = []
@@ -1114,6 +1141,7 @@ def complete_dispatched_batch(
         request_ids=request_ids,
     )
 
+    feature_dir = Path(str(payload.get("feature_dir") or "")).resolve() if payload.get("feature_dir") else None
     for task_id in task_ids:
         dispatch_payload = dispatch_by_task_id.get(task_id, {})
         packet_path = str(dispatch_payload.get("packet_path", "")).strip()
@@ -1137,6 +1165,7 @@ def complete_dispatched_batch(
             if not result_file.exists():
                 raise AutoDispatchError(f"dispatch result for {task_id} is missing structured worker result")
 
+        request_id = str(dispatch_payload.get("request_id") or "").strip()
         if result_path:
             result_file = Path(result_path)
             if result_file.exists():
@@ -1149,25 +1178,18 @@ def complete_dispatched_batch(
                     raise AutoDispatchError(
                         f"dispatch result for {task_id} is not complete: {validated_result.status}"
                     )
-                task_ops.update_task_metadata(
-                    project_root,
-                    task_id,
-                    metadata={
-                        "worker_result": {
-                            "status": validated_result.status,
-                            "summary": validated_result.summary,
-                            "changed_files": validated_result.changed_files,
-                            "validation_results": [
-                                {
-                                    "command": item.command,
-                                    "status": item.status,
-                                    "output": item.output,
-                                }
-                                for item in validated_result.validation_results
-                            ],
-                        }
-                    },
-                )
+                existing_task = task_ops.get_task(project_root, task_id)
+                if (
+                    request_id
+                    and dispatch_status not in {"completed", "failed", "blocked"}
+                    and existing_task.status not in task_ops.TERMINAL_STATUSES
+                ):
+                    submit_runtime_result(
+                        project_root,
+                        session_id=session_id,
+                        request_id=request_id,
+                        result=result_file.read_text(encoding="utf-8"),
+                    )
 
         record = task_ops.get_task(project_root, task_id)
         if join_point_name:
@@ -1189,11 +1211,44 @@ def complete_dispatched_batch(
     if payload.get("review_required"):
         payload["status"] = "awaiting_review"
         payload["review_status"] = "awaiting_review"
+        if join_point_name:
+            for task_id in task_ids:
+                task_record = task_ops.get_task(project_root, task_id)
+                task_ops.mark_join_point(
+                    project_root,
+                    task_id=task_id,
+                    join_point_name=join_point_name,
+                    expected_version=task_record.version,
+                    status="review_pending",
+                    details={
+                        "batch_id": batch_id,
+                        "batch_name": payload.get("batch_name", ""),
+                        "feature_dir": payload.get("feature_dir", ""),
+                        "review_status": "awaiting_review",
+                    },
+                )
     else:
         payload["status"] = "completed"
     path = batch_record_path(project_root, batch_id)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     monitor_summary(project_root, session_id=session_id)
+
+    next_batch_id = ""
+    next_batch_name = ""
+    next_dispatched_task_ids: list[str] | None = None
+    if not payload.get("review_required") and feature_dir is not None:
+        try:
+            next_batch = route_ready_parallel_batch(
+                project_root,
+                feature_dir=feature_dir,
+                session_id=session_id,
+            )
+        except (AutoDispatchError, AutoDispatchUnavailableError):
+            next_batch = None
+        if next_batch is not None:
+            next_batch_id = next_batch.batch_id
+            next_batch_name = next_batch.batch_name
+            next_dispatched_task_ids = next_batch.dispatched_task_ids
 
     return BatchCompletionResult(
         batch_id=batch_id,
@@ -1201,4 +1256,7 @@ def complete_dispatched_batch(
         status=str(payload.get("status", "completed")),
         join_point_name=join_point_name,
         task_ids=task_ids,
+        next_batch_id=next_batch_id,
+        next_batch_name=next_batch_name,
+        next_dispatched_task_ids=next_dispatched_task_ids,
     )

@@ -150,6 +150,19 @@ def test_team_resume_subcommand_bootstraps_session(tmp_path: Path):
     assert session_file.exists()
 
 
+def test_team_resume_subcommand_reuses_existing_active_session(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    env = _fake_tmux_env(tmp_path)
+
+    first = _invoke_in_project(project, ["team", "resume"], env=env)
+    assert first.exit_code == 0, first.output
+
+    second = _invoke_in_project(project, ["team", "resume"], env=env)
+    assert second.exit_code == 0, second.output
+    lowered = second.output.lower()
+    assert "resumed existing session" in lowered or "reused existing session" in lowered
+
+
 def test_team_shutdown_subcommand_requests_and_acknowledges(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)

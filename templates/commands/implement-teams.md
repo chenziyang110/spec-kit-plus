@@ -44,15 +44,19 @@ Use this when:
 7. On Windows, require the same native shell to resolve `psmux`, `codex`, `node`, `npm`, `cargo`, and `git`.
 8. Route durable execution through `specify team` and its runtime/API surfaces.
 9. Preserve the shared `sp-implement` contract: tracker continuity, validated `WorkerTaskPacket`s, explicit join points, and structured result handoff discipline.
-10. Use `specify team result-template --request-id <id>` or `specify team submit-result --print-schema` for structured result handoff instead of ad hoc JSON guessing. Treat the generated template as a `pending` placeholder only; do not submit it unchanged.
-11. Materialize each delegated lane as an explicit execution packet: write set, required references, forbidden drift, validation command, completion-handoff protocol, and platform guardrails must stay visible to the leader and worker.
-12. Treat a blocked baseline build as a pre-dispatch runtime concern; do not mix existing repo compile debt into the current batch verdict.
-13. After worker execution, use `specify team sync-back` when leader-visible results need to be promoted from worker worktrees back into the active workspace.
-14. Distinguish lane-local completion from repo-global verification: `DONE_WITH_CONCERNS` means the lane finished with follow-up concerns, while repo-wide failure may still be caused by baseline debt.
-15. Every join point that gates downstream work must have an explicit validation target, validation command or check, and pass condition before the runtime crosses it.
-16. If a lane flips to `completed` or drifts into `idle` before the promised result handoff or completion evidence arrives, treat it as a stale lane and recover explicitly instead of counting it as finished work.
-17. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
-18. If the user only wants to inspect the Codex runtime surface before implementing, redirect them to `specify team` or `$sp-team`.
+10. If the current feature already has an active runtime session, resume or reuse it. Do not create a second runtime team for the same feature.
+11. If a create/start call fails because the feature already has an active runtime leader, treat that as a resume signal: inspect the existing session, reconcile tracker/task state, and continue from the recorded ready batch.
+12. Use `specify team result-template --request-id <id>` or `specify team submit-result --print-schema` for structured result handoff instead of ad hoc JSON guessing. Treat the generated template as a `pending` placeholder only; do not submit it unchanged.
+13. Materialize each delegated lane as an explicit execution packet: write set, required references, forbidden drift, validation command, completion-handoff protocol, and platform guardrails must stay visible to the leader and worker.
+14. Treat a blocked baseline build as a pre-dispatch runtime concern; do not mix existing repo compile debt into the current batch verdict.
+15. After worker execution, use `specify team sync-back` when leader-visible results need to be promoted from worker worktrees back into the active workspace.
+16. Distinguish lane-local completion from repo-global verification: `DONE_WITH_CONCERNS` means the lane finished with follow-up concerns, while repo-wide failure may still be caused by baseline debt.
+17. Every join point that gates downstream work must have an explicit validation target, validation command or check, and pass condition before the runtime crosses it.
+18. After each completed join point or ready batch, re-read the tracker and task state, select the next ready batch and continue automatically. Stop only when no ready work remains, a real blocker stops progress, or an explicit human gate is reached.
+19. Do not stop after a single completed batch just because the current assignee, worker, or runtime lane has gone idle; idle without remaining-work analysis is not a terminal condition.
+20. If a lane flips to `completed` or drifts into `idle` before the promised result handoff or completion evidence arrives, treat it as a stale lane and recover explicitly instead of counting it as finished work.
+21. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
+22. If the user only wants to inspect the Codex runtime surface before implementing, redirect them to `specify team` or `$sp-team`.
 
 ## Output Expectations
 
