@@ -118,11 +118,22 @@ def test_lane_topology_and_execution_surface_literals_are_canonical():
     )
 
 
-def test_execution_decision_derives_debug_single_agent_as_leader_local():
+def test_execution_decision_derives_debug_single_lane_as_leader_local():
+    decision = ExecutionDecision(
+        command_name="debug",
+        strategy="single-lane",
+        reason="no-safe-batch",
+    )
+
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "leader-local"
+
+
+def test_execution_decision_keeps_legacy_single_agent_alias_for_debug() -> None:
     decision = ExecutionDecision(
         command_name="debug",
         strategy="single-agent",
-        reason="no-safe-batch",
+        reason="legacy-persisted-state",
     )
 
     assert decision.lane_topology == "single-lane"
@@ -132,7 +143,9 @@ def test_execution_decision_derives_debug_single_agent_as_leader_local():
 def test_single_lane_label_preference_is_command_specific():
     assert prefers_single_lane_label("implement") is True
     assert prefers_single_lane_label("quick") is True
-    assert prefers_single_lane_label("debug") is False
+    assert prefers_single_lane_label("debug") is True
+    assert prefers_single_lane_label("tasks") is True
+    assert prefers_single_lane_label("specify") is True
     assert single_worker_delegation_default("implement") is True
     assert single_worker_delegation_default("quick") is True
     assert single_worker_delegation_default("debug") is False

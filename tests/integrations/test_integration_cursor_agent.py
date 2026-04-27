@@ -29,7 +29,7 @@ def test_cursor_generated_sp_quick_prefers_delegated_worker_execution(tmp_path):
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert ".specify/memory/constitution.md" in content
-    assert "single-agent" in content
+    assert "single-lane" in content
     assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content

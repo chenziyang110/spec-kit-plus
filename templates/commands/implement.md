@@ -19,7 +19,6 @@ Treat non-empty `$ARGUMENTS` as first-class implementation context for the curre
 - You are the implementation leader for this run. Your job is to recover context, choose the current ready batch, dispatch delegated work, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation.
 - You are not the default implementer for the current batch. When a delegated execution path is available for the selected batch, do not personally execute that batch just because it looks easy.
 - Treat `single-lane` as one delegated worker lane, not as permission to collapse back into leader-local execution.
-- Treat legacy `single-agent` tracker or state values as compatibility aliases for the same delegated single-lane path.
 - Use leader-local execution only when the workflow's explicit fallback conditions are met and the fallback reason is recorded in `implement-tracker.md`.
 
 ## Pre-Execution Checks
@@ -301,7 +300,7 @@ human_needed_checks:
    - The shared implement template is the primary source of truth for this leader-only milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
    - Use the shared policy function before each batch with the current agent capability snapshot: `choose_execution_strategy(command_name="implement", snapshot, workload_shape)`
    - Also classify whether the current batch needs a review gate before the join point: `classify_review_gate_policy(workload_shape)`
-   - For `sp-implement`, strategy names are `single-lane`, `native-multi-agent`, `sidecar-runtime`. Treat legacy `single-agent` values as compatibility aliases for `single-lane`.
+   - For `sp-implement`, strategy names are `single-lane`, `native-multi-agent`, `sidecar-runtime`.
    - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for native delegation. If confidence is `low`, do not force native worker fan-out just because the integration can theoretically support it.
    - Decision order (must match policy):
       - If `parallel_batches <= 0` or overlapping write sets -> `single-lane` (`no-safe-batch`)

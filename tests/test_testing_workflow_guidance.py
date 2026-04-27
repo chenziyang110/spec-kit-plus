@@ -32,7 +32,7 @@ def test_test_template_bootstraps_testing_contract_assets():
     assert "testing-playbook-template.md" in lowered
     assert "coverage-baseline-template.json" in lowered
     assert 'choose_execution_strategy(command_name="test"' in lowered
-    assert "single-agent" in lowered
+    assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
     assert "before mutating shared repository test framework/config files" in lowered

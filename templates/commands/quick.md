@@ -17,7 +17,6 @@ scripts:
 - You are the quick-task leader. You own scope control, `STATUS.md`, lane selection, join points, validation, and the final summary artifact.
 - You are not the default worker for the quick task. Once scope is locked and a delegated path is available, dispatch the lane instead of continuing leader-local implementation work.
 - Treat `single-lane` as one delegated worker lane, not as permission to personally do the task.
-- Treat legacy `single-agent` state values as compatibility aliases for the same delegated single-lane path.
 - Use leader-local execution only through the documented exception path and record the fallback reason in `STATUS.md`.
 
 ## Required Context Inputs
@@ -106,7 +105,7 @@ The following flags are available and composable:
 - Before the first delegated lane is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first worker path.
 - Before implementation work starts, identify whether the quick task is best handled as one bounded worker lane or as two or more independent lanes that can safely proceed in parallel.
 - [AGENT] Use the shared policy function before execution begins and again at each join point: `choose_execution_strategy(command_name="quick", snapshot, workload_shape)`.
-- For `sp-quick`, strategy names are `single-lane`, `native-multi-agent`, `sidecar-runtime`. Treat legacy `single-agent` values as compatibility aliases for `single-lane`.
+- For `sp-quick`, strategy names are `single-lane`, `native-multi-agent`, `sidecar-runtime`.
 - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for the current native worker path. If confidence is `low`, prefer sidecar or explicit fallback over fragile native dispatch.
 - Decision order:
   - If the quick task has only one safe lane, or the lanes share mutable state or write surfaces -> `single-lane` (`no-safe-batch`)

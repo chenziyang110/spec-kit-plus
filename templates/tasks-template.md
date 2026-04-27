@@ -292,7 +292,7 @@ Task: "Create [Entity2] model in src/models/[entity2].py"
 ### Current Ready Batch Strategy
 
 - Record the strategy for the **next executable batch only**:
-  - `single-agent`
+  - `single-lane`
   - `native-multi-agent`
   - `sidecar-runtime`
 - Also record the policy reason code, for example:

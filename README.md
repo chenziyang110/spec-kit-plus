@@ -237,7 +237,7 @@ Boundary-sensitive implementation rule:
 Current `sp-implement` runtime model in this fork:
 
 - `sp-implement` acts as a milestone-level orchestration leader rather than the direct executor
-- concrete implementation runs through delegated execution paths (`single-lane`, `native-multi-agent`, or `sidecar-runtime`), with legacy `single-agent` state preserved only as a compatibility alias for the same delegated single-worker path
+- concrete implementation runs through delegated execution paths (`single-lane`, `native-multi-agent`, or `sidecar-runtime`)
 - delegated workers should execute from compiled `WorkerTaskPacket` contracts rather than rediscovering rules from background context
 - delegated result handoff should use the runtime-managed result channel when one exists; otherwise workers should write normalized result envelopes to the declared filesystem handoff path for the current workflow
 - implementation lanes without a runtime-managed channel should use `FEATURE_DIR/worker-results/<task-id>.json`
@@ -277,8 +277,8 @@ Skills-based projects now install two layers into the same skills directory:
 Current orchestration status in this fork:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
-- `specify`, `plan`, `tasks`, `explain`, and debug-oriented workflows still use the generic strategy vocabulary `single-agent`, `native-multi-agent`, and `sidecar-runtime`
-- execution-oriented workflows surface `single-lane` as the delegated single-worker label for implement/quick while keeping legacy `single-agent` state compatible under the hood
+- `specify`, `plan`, `tasks`, `test`, `map-codebase`, `explain`, `debug`, `implement`, and `quick` now surface `single-lane`, `native-multi-agent`, and `sidecar-runtime` in user-facing workflow guidance
+- execution-oriented workflows and task-facing ready-batch reporting surface `single-lane` as the delegated single-worker label
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
 - `specify team` remains the Codex compatibility surface for runtime-heavy execution
 - Claude, Gemini, and Copilot ship first-release adapter skeletons (alongside Codex) for native-first capability reporting

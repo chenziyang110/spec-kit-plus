@@ -120,12 +120,12 @@ workflow_contract:
 
 5. **Choose an execution strategy before broad test-system work begins**
    - [AGENT] Before repository fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="test", snapshot, workload_shape)`.
-   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
+   - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`.
    - Decision order is fixed:
-     - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
+     - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
      - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
      - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-     - Else -> `single-agent` (`fallback`)
+     - Else -> `single-lane` (`fallback`)
    - If collaboration is justified, keep `sp-test` lanes limited to:
      - repository and module test-surface inventory
      - framework/config adoption decisions

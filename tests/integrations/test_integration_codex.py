@@ -104,7 +104,6 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "workertaskpacket" in lower
     assert "specify team doctor" in lower
     assert "specify team live-probe" in lower
-    assert "single-agent" in lower
     assert "single-lane" in lower
     assert "native-multi-agent" in lower
     assert "sidecar-runtime" in lower
@@ -175,7 +174,6 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "wait_agent" in content
     assert "close_agent" in content
     assert "specify team" in content
-    assert "single-agent" in content
     assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
@@ -219,7 +217,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     skills_dir = target / ".codex" / "skills"
     for skill_name in ("sp-specify", "sp-plan", "sp-test", "sp-tasks", "sp-implement"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "single-agent" in content
+        assert "single-lane" in content
         assert "native-multi-agent" in content
         assert "sidecar-runtime" in content
         assert "spawn_agent" in content
@@ -542,7 +540,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "wait_agent" in content
     assert "close_agent" in content
     assert "specify team" in content
-    assert "single-agent" in content
+    assert "single-lane" in content
     assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
@@ -553,7 +551,6 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "the next concrete action must be dispatch" in content or "once the first lane is chosen" in content
     assert "materially improve throughput" in content
     assert "local execution is the last fallback" in content
-    assert "compatibility alias for the same delegated single-lane path" in content
     assert "execution_fallback" in content
     assert "join point" in content
     assert "leader" in content

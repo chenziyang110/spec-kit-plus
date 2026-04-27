@@ -289,7 +289,7 @@ class TestBuiltInSkillGeneration:
         assert re.search(r"`plan`: explain .*implementation approach", explain_tui)
         assert re.search(r"`tasks`: explain .*concrete work", explain_tui)
         assert re.search(r"`implement`: explain .*progress.*current scope.*active risks", explain_tui)
-        assert "single-agent" in explain_body.lower()
+        assert "single-lane" in explain_body.lower()
         assert "supporting artifact cross-check" in explain_body.lower()
         assert "before rendering the final explanation" in explain_body.lower()
 
@@ -444,7 +444,7 @@ class TestBuiltInSkillGeneration:
         assert "refresh" in test_body.lower()
         assert ".specify/templates/passive-skills/*-testing/" in test_body.lower()
         assert 'choose_execution_strategy(command_name="test"' in test_body.lower()
-        assert "single-agent" in test_body.lower()
+        assert "single-lane" in test_body.lower()
         assert "native-multi-agent" in test_body.lower()
         assert "sidecar-runtime" in test_body.lower()
         assert "before mutating shared repository test framework/config files" in test_body.lower()

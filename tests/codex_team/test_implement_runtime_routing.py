@@ -48,7 +48,7 @@ def test_sp_implement_preserves_join_point_semantics() -> None:
 def test_sp_implement_distinguishes_execution_modes() -> None:
     content = _step_6_block()
 
-    assert "single-agent" in content
+    assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
     assert "decision order" in content

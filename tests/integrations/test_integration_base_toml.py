@@ -204,7 +204,7 @@ class TomlIntegrationTests:
         assert f"## {agent_name} Leader Gate".lower() in debug_content
         assert "you are the **leader**, not a freeform debugger" in debug_content
         assert "investigation routing contract" in debug_content
-        assert "single-agent" in debug_content
+        assert "single-lane" in debug_content
         assert "native-multi-agent" in debug_content
         assert "sidecar-runtime" in debug_content
 

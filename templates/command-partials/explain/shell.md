@@ -27,4 +27,4 @@ Explain the current stage artifact in plain language so the user can understand 
 
 - Do not invent missing state.
 - Do not rewrite stage artifacts from inside `/sp-explain`.
-- Default to `single-agent` unless a supporting cross-check lane is justified.
+- Default to `single-lane` unless a supporting cross-check lane is justified.

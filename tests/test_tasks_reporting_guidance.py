@@ -16,8 +16,8 @@ def test_tasks_command_scopes_strategy_to_current_ready_batch():
     assert "reason code" in lowered
     assert "future or later-phase batch is parallelizable" in lowered
     assert "current ready batch" in lowered
-    assert "instead of collapsing the entire feature into a blanket `single-agent` label" in lowered
-    assert "if the current ready batch strategy is `single-agent` but later batches are parallelizable" in lowered
+    assert "instead of collapsing the entire feature into a blanket `single-lane` label" in lowered
+    assert "if the current ready batch strategy is `single-lane` but later batches are parallelizable" in lowered
 
 
 def test_tasks_template_distinguishes_feature_shape_from_batch_strategy():
@@ -28,7 +28,7 @@ def test_tasks_template_distinguishes_feature_shape_from_batch_strategy():
     assert "serial phases with intra-phase parallel batches" in lowered
     assert "### Current Ready Batch Strategy" in content
     assert "next executable batch only" in lowered
-    assert "`single-agent`" in content
+    assert "`single-lane`" in content
     assert "`native-multi-agent`" in content
     assert "`sidecar-runtime`" in content
     assert "`no-safe-batch`" in content

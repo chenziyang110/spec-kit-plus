@@ -123,7 +123,7 @@ def test_choose_execution_strategy_prefers_sidecar_when_native_confidence_is_low
     assert decision.execution_surface == "sidecar-runtime"
 
 
-def test_choose_execution_strategy_uses_single_agent_when_native_confidence_is_low_and_no_sidecar() -> None:
+def test_choose_execution_strategy_uses_single_lane_when_native_confidence_is_low_and_no_sidecar() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="claude",
         native_multi_agent=True,
@@ -345,7 +345,7 @@ def test_choose_execution_strategy_supports_explain_command_name() -> None:
     )
 
     assert decision.command_name == "explain"
-    assert decision.strategy == "single-agent"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "no-safe-batch"
     assert decision.lane_topology == "single-lane"
     assert decision.execution_surface == "leader-local"

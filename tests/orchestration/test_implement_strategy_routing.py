@@ -4,7 +4,7 @@ from specify_cli.orchestration.models import CapabilitySnapshot
 from specify_cli.orchestration.policy import choose_execution_strategy
 
 
-def test_implement_routes_to_single_agent_when_workload_is_unsafe() -> None:
+def test_implement_routes_to_single_lane_when_workload_is_unsafe() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="gemini",
         native_multi_agent=True,
@@ -87,7 +87,7 @@ def test_implement_routes_to_sidecar_runtime_when_native_is_missing() -> None:
     assert decision.fallback_from is None
 
 
-def test_implement_routes_to_single_agent_when_parallel_batch_count_is_zero() -> None:
+def test_implement_routes_to_single_lane_when_parallel_batch_count_is_zero() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="gemini",
         native_multi_agent=True,

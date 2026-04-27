@@ -159,15 +159,15 @@ Rules:
 2. **Select the execution strategy**
    - [AGENT] Before broad scouting begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="map-codebase", snapshot, workload_shape)`.
    - Strategy names are canonical and must be used exactly:
-     `single-agent`, `native-multi-agent`, `sidecar-runtime`.
+     `single-lane`, `native-multi-agent`, `sidecar-runtime`.
    - Decision order is fixed:
-     - If the work does not justify safe fan-out -> `single-agent`
+     - If the work does not justify safe fan-out -> `single-lane`
        (`no-safe-batch`)
      - Else if `snapshot.native_multi_agent` -> `native-multi-agent`
        (`native-supported`)
      - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime`
        (`native-missing`)
-     - Else -> `single-agent` (`fallback`)
+     - Else -> `single-lane` (`fallback`)
    - If collaboration is justified, keep `map-codebase` lanes limited to:
      - architecture and structure mapping
      - conventions and testing mapping

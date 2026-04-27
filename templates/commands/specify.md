@@ -189,12 +189,12 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Lightweight mode for local, context-rich changes.
    - Deep mode for greenfield, multi-capability, or materially ambiguous work.
    - [AGENT] Before decomposition begins, assess the current workload shape and agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="specify", snapshot, workload_shape)`.
-   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
+   - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`.
    - Decision order is fixed:
-     - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
+     - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
      - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
      - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-     - Else -> `single-agent` (`fallback`)
+     - Else -> `single-lane` (`fallback`)
    - If collaboration is justified, keep `specify` lanes limited to:
      - repository and local context analysis
      - external references and supporting material analysis

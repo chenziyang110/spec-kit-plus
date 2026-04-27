@@ -29,7 +29,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "compressed framing still requires the full observer framing section" in content
     assert "you are not the default evidence worker for every lane" in content
     assert "route, integrate, and decide rather than manually performing every lane sequentially" in content
-    assert "stay on the leader path unless the current strategy truly remains `single-agent`" in content
+    assert "stay on the leader path unless the current strategy truly remains `single-lane`" in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
@@ -58,7 +58,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "control state is not observation state" in content
     assert "debug the loop, not just the point" in content
     assert "escalate diagnostics when the loop is still ambiguous" in content
-    assert "single-agent" in content
+    assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
     assert 'choose_execution_strategy(command_name="debug"' in content

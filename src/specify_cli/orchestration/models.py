@@ -13,6 +13,19 @@ ExecutionSurface = Literal["native-delegation", "sidecar-runtime", "leader-local
 Strategy = ExecutionStrategy
 NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
 DelegationConfidence = Literal["low", "medium", "high"]
+_SINGLE_LANE_LABEL_COMMANDS = frozenset(
+    {
+        "debug",
+        "explain",
+        "implement",
+        "map-codebase",
+        "plan",
+        "quick",
+        "specify",
+        "tasks",
+        "test",
+    }
+)
 
 
 def utc_now() -> str:
@@ -152,7 +165,7 @@ utc_now_iso = utc_now
 def prefers_single_lane_label(command_name: str) -> bool:
     """Return whether the command should prefer the user-visible `single-lane` label."""
 
-    return command_name in {"implement", "quick"}
+    return command_name in _SINGLE_LANE_LABEL_COMMANDS
 
 
 def single_worker_delegation_default(command_name: str) -> bool:
@@ -174,6 +187,10 @@ def _derive_execution_surface(command_name: str, strategy: ExecutionStrategy) ->
         return "sidecar-runtime"
     if strategy == "native-multi-agent":
         return "native-delegation"
-    if strategy == "single-lane" or (strategy == "single-agent" and single_worker_delegation_default(command_name)):
+    if strategy == "single-lane":
+        if single_worker_delegation_default(command_name):
+            return "native-delegation"
+        return "leader-local"
+    if strategy == "single-agent" and single_worker_delegation_default(command_name):
         return "native-delegation"
     return "leader-local"

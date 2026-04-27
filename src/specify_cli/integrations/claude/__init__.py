@@ -153,7 +153,6 @@ class ClaudeIntegration(SkillsIntegration):
             "- For `sp-implement`, attempt delegated execution before leader-local implementation.\n"
             "- Use Claude's native delegated child-worker path as the default first attempt for the current ready batch whenever the batch is safe to delegate.\n"
             "- Treat `single-lane` as one delegated child-worker lane, not as permission for the leader to implement directly.\n"
-            "- Treat legacy `single-agent` state as a compatibility alias for the same delegated single-lane path.\n"
             "- If multiple safe worker lanes exist for the current batch, dispatch them in parallel instead of defaulting to serial leader-local work.\n"
             "- Prefer delegated child-worker fan-out over local deep-dive execution when the ready tasks have isolated write sets and stable upstream inputs.\n"
             "- Do not begin concrete implementation on the leader path while an untried delegated path is available for the current batch.\n"

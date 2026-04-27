@@ -125,7 +125,7 @@ class TestInitIntegrationFlag:
         implement_skill = project / ".claude" / "skills" / "sp-implement" / "SKILL.md"
         assert implement_skill.exists()
         content = implement_skill.read_text(encoding="utf-8")
-        assert "single-agent" in content
+        assert "single-lane" in content
         assert "single-lane" in content
         assert "native-multi-agent" in content
         assert "sidecar-runtime" in content
@@ -167,7 +167,7 @@ class TestInitIntegrationFlag:
         skills_dir = project / ".claude" / "skills"
         for skill_name in ("sp-specify", "sp-plan", "sp-test", "sp-tasks", "sp-explain", "sp-debug"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
-            assert "single-agent" in content
+            assert "single-lane" in content
             assert "native-multi-agent" in content
             assert "sidecar-runtime" in content
             assert "specify team" not in content

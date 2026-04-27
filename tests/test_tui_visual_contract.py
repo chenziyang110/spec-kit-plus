@@ -79,7 +79,7 @@ def test_explain_requires_stage_status_risk_and_next_step_blocks():
     assert re.search(r"`plan`: explain .*implementation approach", tui_requirements)
     assert re.search(r"`tasks`: explain .*concrete work", tui_requirements)
     assert re.search(r"`implement`: explain .*progress.*current scope.*active risks", tui_requirements)
-    assert "single-agent" in lowered
+    assert "single-lane" in lowered
     assert "supporting artifact cross-check" in outline
     assert "before rendering the final explanation" in outline
     assert "open or risky" in outline

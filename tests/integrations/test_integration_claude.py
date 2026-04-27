@@ -617,7 +617,6 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
     assert "if multiple safe worker lanes exist for the current batch, dispatch them in parallel" in content
     assert "do not begin concrete implementation on the leader path while an untried delegated path is available" in content
     assert "only fall back to leader-local execution after recording a concrete fallback reason" in content
-    assert "compatibility alias for the same delegated single-lane path" in content
     assert "/sp-implement-teams" in content
     assert "## claude code leader gate".lower() in content
     assert "you are the **leader**, not the concrete implementer" in content
@@ -716,7 +715,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "canonical implementation workflow" in lower
     assert "implement-tracker.md" in lower
     assert "workertaskpacket" in lower
-    assert "single-agent" in lower
+    assert "single-lane" in lower
     assert "single-lane" in lower
     assert "native-multi-agent" in lower
     assert "sidecar-runtime" in lower

@@ -27,7 +27,7 @@ def test_repo_quick_skill_mirror_has_codex_delegation_contract(tmp_path: Path) -
     assert ".planning/quick/index.json" in body
     assert 'choose_execution_strategy(command_name="quick"' in body
     assert "read `.specify/memory/constitution.md` first" in body
-    assert "single-agent" in body
+    assert "single-lane" in body
     assert "native-multi-agent" in body
     assert "sidecar-runtime" in body
     assert "`single-lane` still means one delegated worker lane" in body

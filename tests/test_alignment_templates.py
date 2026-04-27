@@ -124,7 +124,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "first-release scope" in lowered
     assert "mvp scope" not in lowered
     assert "choose_execution_strategy(command_name=\"specify\"" in content
-    assert "single-agent" in lowered
+    assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
     assert "repository and local context analysis" in lowered
@@ -289,7 +289,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "generic implementation instinct would likely drift away" in content
     assert "canonical boundary files or examples" in content
     assert "choose_execution_strategy(command_name=\"plan\"" in content
-    assert "single-agent" in lowered
+    assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
     assert "research" in lowered
@@ -391,7 +391,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
 
     assert ".specify/memory/constitution.md" in content
     assert "choose_execution_strategy(command_name=\"tasks\"" in content
-    assert "single-agent" in lowered
+    assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
     assert "story and phase decomposition" in lowered
@@ -427,10 +427,10 @@ def test_explain_template_documents_conservative_routing_contract():
 
     assert ".specify/memory/constitution.md" in content
     assert "choose_execution_strategy(command_name=\"explain\"" in content
-    assert "single-agent" in lowered
+    assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
-    assert "default to `single-agent`" in lowered
+    assert "default to `single-lane`" in lowered
     assert "primary artifact reading" in lowered
     assert "supporting artifact cross-check" in lowered
     assert "before rendering the final explanation" in lowered
@@ -554,7 +554,7 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     assert ".specify/project-map/TESTING.md" in content
     assert ".specify/project-map/OPERATIONS.md" in content
     assert 'choose_execution_strategy(command_name="map-codebase"' in content
-    assert "single-agent" in lowered
+    assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
     assert "support skills" not in lowered
@@ -874,7 +874,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "failed assumption" in lowered
     assert "smallest safe recovery step" in lowered
     assert "execution strategy" in lowered
-    assert "single-agent" in lowered
+    assert "single-lane" in lowered
     assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered

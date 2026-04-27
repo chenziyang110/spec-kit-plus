@@ -69,7 +69,7 @@ def test_quick_template_defines_capability_aware_execution_strategy() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
     assert "choose_execution_strategy" in content
-    assert "single-agent" in content
+    assert "single-lane" in content
     assert "single-lane" in content
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content

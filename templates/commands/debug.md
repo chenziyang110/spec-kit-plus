@@ -19,7 +19,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - The leader owns the session file, the current hypothesis, all state transitions, the final fix, and the verification checkpoint.
 - Any delegated helpers are evidence collectors. They do not own the investigation and must not decide that the bug is resolved.
 - You are not the default evidence worker for every lane. When the investigation splits into safe bounded lanes, your job is to route, integrate, and decide rather than manually performing every lane sequentially.
-- Stay on the leader path unless the current strategy truly remains `single-agent`; do not collapse a multi-lane investigation back into leader-local thrash.
+- Stay on the leader path unless the current strategy truly remains `single-lane`; do not collapse a multi-lane investigation back into leader-local thrash.
 
 ## Operating Principles
 
@@ -238,16 +238,16 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ## Capability-Aware Investigation
 
-- During `investigating`, decide whether the current investigation should stay `single-agent` or switch to delegated evidence collection before running multiple independent evidence-gathering actions sequentially.
+- During `investigating`, decide whether the current investigation should stay `single-lane` or switch to delegated evidence collection before running multiple independent evidence-gathering actions sequentially.
 - [AGENT] Use the shared policy function with the current capability snapshot: `choose_execution_strategy(command_name="debug", snapshot, workload_shape)`.
-- Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`.
+- Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`.
 - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal. If confidence is `low`, prefer sidecar or leader-led investigation over brittle native fan-out.
 - Debug routing decision order:
-  - If there are fewer than 2 independent evidence-gathering lanes, or the planned evidence work would share mutable state -> `single-agent` (`no-safe-batch`)
+  - If there are fewer than 2 independent evidence-gathering lanes, or the planned evidence work would share mutable state -> `single-lane` (`no-safe-batch`)
   - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
   - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
-  - Else -> `single-agent` (`fallback` or `fallback-low-confidence`)
-- `single-agent` means the leader continues investigating alone.
+  - Else -> `single-lane` (`fallback` or `fallback-low-confidence`)
+- `single-lane` means the leader continues investigating alone.
 - `native-multi-agent` means the leader delegates bounded evidence-gathering lanes through the integration's native delegation surface.
 - `sidecar-runtime` means the leader escalates the evidence-gathering lanes through the integration's coordinated runtime surface when native delegation is unavailable.
 - Suitable delegated tasks include:

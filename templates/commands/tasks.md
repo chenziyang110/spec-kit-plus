@@ -128,12 +128,12 @@ scripts:
    - [AGENT] Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="tasks", snapshot, workload_shape)`
    - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
    - The chosen execution strategy applies to the **current ready batch**, not automatically to the entire feature or task graph.
-   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`
    - Decision order is fixed:
-     - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
+     - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
      - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
      - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-     - Else -> `single-agent` (`fallback`)
+     - Else -> `single-lane` (`fallback`)
    - If collaboration is justified, keep `tasks` lanes limited to:
      - story and phase decomposition
      - dependency graph analysis
@@ -147,7 +147,7 @@ scripts:
      - `mostly sequential`
      - `pipeline-heavy`
      - `parallel-ready after foundational work`
-   - If any future or later-phase batch is parallelizable but the **current ready batch** is not, state that explicitly instead of collapsing the entire feature into a blanket `single-agent` label.
+   - If any future or later-phase batch is parallelizable but the **current ready batch** is not, state that explicitly instead of collapsing the entire feature into a blanket `single-lane` label.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
    - Load plan.md and extract tech stack, libraries, project structure
    - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
@@ -214,7 +214,7 @@ scripts:
    - Suggested first release scope (based on the smallest coherent release slice, not automatically limited to just User Story 1)
    - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
    - workflow-state path
-   - If the current ready batch strategy is `single-agent` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
+   - If the current ready batch strategy is `single-lane` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`

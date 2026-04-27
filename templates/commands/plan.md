@@ -154,12 +154,12 @@ agent_scripts:
    - Treat `context.md` as the primary implementation-context artifact that captures downstream planning decisions explicitly
    - Do not introduce a separate clarification command as the normal next step for routine planning readiness
    - [AGENT] Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="plan", snapshot, workload_shape)`
-   - Strategy names are canonical and must be used exactly: `single-agent`, `native-multi-agent`, `sidecar-runtime`
+   - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`
    - Decision order is fixed:
-     - If the work does not justify safe fan-out -> `single-agent` (`no-safe-batch`)
+     - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
      - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
      - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-     - Else -> `single-agent` (`fallback`)
+     - Else -> `single-lane` (`fallback`)
    - If collaboration is justified, keep `plan` lanes limited to:
      - research
      - data model
