@@ -272,6 +272,18 @@ class TestBuiltInSkillGeneration:
             assert ".planning/learnings/candidates.md" in body
             assert "workflow contract summary" in body
             assert "routing metadata only" in body
+        constitution_body = _body_without_frontmatter(skills_dir / "sp-constitution" / "SKILL.md").lower()
+        assert ".specify/memory/project-rules.md" in constitution_body
+        assert ".specify/memory/project-learnings.md" in constitution_body
+        assert ".planning/learnings/candidates.md" in constitution_body
+        assert "specify learning start --command constitution --format json" in constitution_body
+        assert "project-handbook.md" in constitution_body
+        assert ".specify/project-map/status.json" in constitution_body
+        assert "/sp-map-codebase" in constitution_body
+        assert "workflow-state.md" in constitution_body
+        assert "/sp-plan" in constitution_body
+        assert "/sp-tasks" in constitution_body
+        assert "/sp-analyze" in constitution_body
         assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
         assert "spec-extend" in result.output.lower()
 

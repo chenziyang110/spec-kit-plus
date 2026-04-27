@@ -86,6 +86,48 @@ def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
     assert payload["status"] == "ok"
 
 
+def test_hook_validate_state_supports_constitution_command(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-constitution`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: constitution amendment",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-state",
+            "--command",
+            "constitution",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.state.validate"
+    assert payload["status"] == "ok"
+
+
 def test_hook_preflight_blocks_implement_and_returns_json(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -181,6 +223,84 @@ def test_hook_checkpoint_outputs_resume_payload_json(tmp_path: Path):
     assert payload["event"] == "workflow.checkpoint"
     assert payload["status"] == "ok"
     assert payload["data"]["checkpoint"]["active_lane"] == "worker-a"
+
+
+def test_hook_checkpoint_supports_constitution_command(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-constitution`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: constitution amendment",
+                "",
+                "## Next Action",
+                "",
+                "- revise constitution and reopen planning",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "checkpoint",
+            "--command",
+            "constitution",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.checkpoint"
+    assert payload["status"] == "ok"
+    assert payload["data"]["checkpoint"]["active_command"] == "sp-constitution"
+
+
+def test_hook_validate_artifacts_supports_constitution_command(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    memory_dir = project / ".specify" / "memory"
+    memory_dir.mkdir(parents=True, exist_ok=True)
+    (memory_dir / "constitution.md").write_text("# Demo Constitution\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "constitution",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "ok"
 
 
 def test_hook_validate_packet_outputs_parseable_json(tmp_path: Path):

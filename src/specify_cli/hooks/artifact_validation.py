@@ -10,6 +10,7 @@ from .types import HookResult, QualityHookError
 
 
 REQUIRED_ARTIFACTS = {
+    "constitution": ("workflow-state.md",),
     "specify": ("spec.md", "alignment.md", "context.md", "workflow-state.md"),
     "plan": ("plan.md", "workflow-state.md"),
     "tasks": ("tasks.md", "workflow-state.md"),
@@ -30,6 +31,10 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         feature_dir = (project_root / feature_dir).resolve()
 
     missing = [name for name in REQUIRED_ARTIFACTS[command_name] if not (feature_dir / name).exists()]
+    if command_name == "constitution":
+        constitution_path = project_root / ".specify" / "memory" / "constitution.md"
+        if not constitution_path.exists():
+            missing.append(".specify/memory/constitution.md")
     if missing:
         return HookResult(
             event=WORKFLOW_ARTIFACTS_VALIDATE,
@@ -44,4 +49,3 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         severity="info",
         data={"feature_dir": str(feature_dir)},
     )
-

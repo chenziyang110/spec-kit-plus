@@ -16,6 +16,7 @@ from .types import HookResult, QualityHookError
 
 
 EXPECTED_WORKFLOW_STATE = {
+    "constitution": ("sp-constitution", "planning-only"),
     "specify": ("sp-specify", "planning-only"),
     "plan": ("sp-plan", "design-only"),
     "tasks": ("sp-tasks", "task-generation-only"),
@@ -152,4 +153,3 @@ def _required_path(project_root: Path, payload: dict[str, object], key: str) -> 
     if not path.is_absolute():
         path = (project_root / path).resolve()
     return path
-

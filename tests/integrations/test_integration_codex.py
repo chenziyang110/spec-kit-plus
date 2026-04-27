@@ -242,6 +242,19 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert "testing-state.md" in test_content
     assert "testing_state_file" in test_content or "testing-state-file" in test_content
 
+    constitution_content = (skills_dir / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert ".specify/memory/project-rules.md" in constitution_content
+    assert ".specify/memory/project-learnings.md" in constitution_content
+    assert ".planning/learnings/candidates.md" in constitution_content
+    assert "specify learning start --command constitution --format json" in constitution_content
+    assert "project-handbook.md" in constitution_content
+    assert ".specify/project-map/status.json" in constitution_content
+    assert "/sp-map-codebase" in constitution_content
+    assert "workflow-state.md" in constitution_content
+    assert "/sp-plan" in constitution_content
+    assert "/sp-tasks" in constitution_content
+    assert "/sp-analyze" in constitution_content
+
 
 def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tmp_path):
     from typer.testing import CliRunner

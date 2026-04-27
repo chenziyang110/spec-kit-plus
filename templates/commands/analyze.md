@@ -292,6 +292,9 @@ Before the final completion text, write or update `WORKFLOW_STATE_FILE` so it re
 - If the highest invalid stage is `spec.md` or `context.md`:
   - `next_action: reopen specification alignment and regenerate downstream artifacts`
   - `next_command: /sp.spec-extend`
+- If the constitution itself must change:
+  - `next_action: amend project principles first, then reopen the highest affected downstream stage and regenerate downstream artifacts`
+  - `next_command: /sp.constitution`
 - If the highest invalid stage is `plan.md`:
   - `next_action: reopen planning and regenerate downstream artifacts`
   - `next_command: /sp.plan`

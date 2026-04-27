@@ -11,6 +11,7 @@ from typing import Any
 
 from ..base import IntegrationOption, SkillsIntegration
 from ...orchestration import CapabilitySnapshot
+from ...codex_team.installer import restore_codex_team_project_configs
 from .multi_agent import CodexMultiAgentAdapter
 
 
@@ -84,6 +85,16 @@ class CodexIntegration(SkillsIntegration):
             parsed_options=parsed_options,
             **opts,
         )
+
+    def teardown(
+        self,
+        project_root: Path,
+        manifest,
+        *,
+        force: bool = False,
+    ) -> tuple[list[Path], list[Path]]:
+        restore_codex_team_project_configs(project_root)
+        return super().teardown(project_root, manifest, force=force)
 
     def augment_generated_skills(
         self,

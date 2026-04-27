@@ -2792,7 +2792,9 @@ def init(
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
     steps_lines.append("   ")
     steps_lines.append("   Core workflow skills")
-    steps_lines.append(f"   {step_num}.1 [cyan]{_display_cmd('constitution')}[/] - Establish project principles")
+    steps_lines.append(
+        f"   {step_num}.1 [cyan]{_display_cmd('constitution')}[/] - Review the seeded default constitution and apply project-specific changes when needed"
+    )
     steps_lines.append(f"   {step_num}.2 [cyan]{_display_cmd('specify')}[/] - Create the aligned requirement package")
     steps_lines.append(f"   {step_num}.3 [cyan]{_display_cmd('plan')}[/] - Generate the implementation design artifacts")
     steps_lines.append(f"   {step_num}.4 [cyan]{_display_cmd('tasks')}[/] - Generate actionable tasks")

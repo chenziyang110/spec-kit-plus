@@ -226,6 +226,34 @@ def test_specify_template_uses_alignment_first_contract():
     assert "SPECIFY SESSION - 2 / 5" not in content
 
 
+def test_constitution_template_uses_current_shared_context_and_reentry_contract() -> None:
+    content = _read("templates/commands/constitution.md")
+    lowered = content.lower()
+
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/project-learnings.md" in content
+    assert ".planning/learnings/candidates.md" in content
+    assert "specify learning start --command constitution --format json" in content
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/status.json" in content
+    assert "/sp-map-codebase" in content
+    assert "workflow-state.md" in content
+    assert "/sp-plan" in content
+    assert "/sp-tasks" in content
+    assert "/sp-analyze" in content
+    assert "active_command: sp-constitution" in lowered
+    assert "phase_mode: planning-only" in lowered
+    assert "specify hook validate-state --command constitution --feature-dir \"$feature_dir\"" in lowered
+    assert "specify hook validate-artifacts --command constitution --feature-dir \"$feature_dir\"" in lowered
+    assert "specify hook checkpoint --command constitution --feature-dir \"$feature_dir\"" in lowered
+    assert "highest affected downstream stage" in lowered
+    assert "do not always hand off directly to `/sp-specify`" in lowered
+    assert "active `spec.md`, `plan.md`, `tasks.md`, or `workflow-state.md`" in content
+    assert "project rules or learnings that conflict with the amended constitution" in lowered
+    assert "mark the related handbook/project-map surface for refresh" in lowered
+    assert "if the navigation system is missing or stale for an existing codebase" in lowered
+
+
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
     for template_path in PRIMARY_TUI_TEMPLATE_PATHS:
         content = _read(template_path)
@@ -506,6 +534,8 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "If the highest-impact issue lives in `spec.md` or `context.md`" in content
     assert "If the highest-impact issue lives in `plan.md`" in content
     assert "If the highest-impact issue lives only in `tasks.md`" in content
+    assert "If the constitution itself must change" in content
+    assert "`next_command: /sp.constitution`" in content
     assert "If analysis runs after `/sp-implement` has already started or finished" in content
     assert "exact workflow re-entry path" in content
 
@@ -516,6 +546,7 @@ def test_workflow_state_template_supports_analyze_gate_phase():
 
     assert "analysis-only" in lowered
     assert "/sp.analyze" in content
+    assert "/sp.constitution" in content
 
 
 def test_debug_template_reads_constitution_and_feature_context_before_fixing() -> None:
@@ -753,6 +784,7 @@ def test_workflow_state_template_exists_and_captures_phase_lock_contract():
     assert "planning-only" in content
     assert "design-only" in content
     assert "task-generation-only" in content
+    assert "/sp.constitution" in content
 
 
 def test_tasks_templates_default_to_phased_delivery_not_mvp():

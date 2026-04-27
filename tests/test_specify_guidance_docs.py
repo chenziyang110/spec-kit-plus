@@ -49,6 +49,26 @@ def test_guidance_docs_explain_skill_groups():
     assert "/speckit.map-codebase" in quickstart
 
 
+def test_guidance_docs_explain_optional_codex_teams_mcp_refresh():
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    for content in (readme, quickstart):
+        assert 'pip install "specify-cli[mcp]"' in content
+        assert "scripts/sync-ecc-to-codex.sh" in content
+        assert "scripts/powershell/sync-ecc-to-codex.ps1" in content
+
+
+def test_guidance_docs_position_constitution_as_seeded_defaults_plus_refinement():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    for content in (readme, quickstart):
+        assert "default constitution" in content
+        assert "project-specific changes" in content
+        assert "revise project principles" in content or "establish or revise project principles" in content
+
+
 def test_guidance_docs_explain_handbook_navigation_system():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")

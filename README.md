@@ -127,7 +127,7 @@ specify init my-project --ai codex --ignore-agent-tools
 
 After `specify init`, use the generated workflow commands in your agent:
 
-1. `constitution` to define project principles
+1. `constitution` to establish or revise project principles when the seeded default constitution needs project-specific changes
 2. `specify` to produce a planning-ready, analysis-first feature spec
 3. `plan` to define implementation design
 4. `tasks` to break work into executable tasks
@@ -295,7 +295,7 @@ Current orchestration status in this fork:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
 - `specify`, `plan`, `tasks`, `test`, `map-codebase`, `explain`, `debug`, `implement`, and `quick` now surface `single-lane`, `native-multi-agent`, and `sidecar-runtime` in user-facing workflow guidance
-- execution-oriented workflows and task-facing ready-batch reporting surface `single-lane` as the delegated single-worker label
+- execution-oriented workflows and task-facing ready-batch reporting surface `single-lane` as the delegated single-worker compatibility alias
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
 - `specify team` remains the Codex compatibility surface for runtime-heavy execution
 - Claude, Gemini, and Copilot ship first-release adapter skeletons (alongside Codex) for native-first capability reporting
@@ -327,6 +327,8 @@ specify team
 For agents and automation, prefer the optional MCP supplement instead of having the model compose CLI invocations directly:
 
 - `specify-teams-mcp` exposes an agent-facing MCP facade for the structured control plane
+- install the optional facade with `pip install "specify-cli[mcp]"`; Codex config can register it only when that extra is available
+- if you install the MCP extra after project init, refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`
 - the MCP layer is intended for agent/tool consumers
 - `specify team` remains the human/operator CLI and parity fallback surface
 

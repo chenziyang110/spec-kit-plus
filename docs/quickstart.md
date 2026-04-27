@@ -31,7 +31,7 @@ uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME
 
 ### Step 2: Define Your Constitution
 
-**In your AI Agent's chat interface**, use the `/speckit.constitution` slash command to establish the core rules and principles for your project. You should provide your project's specific principles as arguments.
+`specify init` seeds a default constitution into `.specify/memory/constitution.md`. In your AI agent's chat interface, use the `/speckit.constitution` slash command when that default constitution needs project-specific changes or when you need to establish or revise project principles before downstream planning work continues.
 
 ```markdown
 /speckit.constitution This project follows a "Library-First" approach. All features must be implemented as standalone libraries first. We use TDD strictly. We prefer functional programming patterns.
@@ -113,9 +113,10 @@ For Codex team-mode execution, use the runtime surface deliberately:
 
 - Run `specify team doctor` before the first coordinated batch so backend readiness, executor availability, baseline build state, and the latest transcript are visible up front.
 - Run `specify team live-probe` when the runtime was just installed, recently repaired, or still looks suspect after `doctor`.
+- If agent automation should use the optional MCP facade, install it with `pip install "specify-cli[mcp]"` and refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`.
 - Use `specify team result-template --request-id <id>` and `specify team submit-result --print-schema` instead of inventing handoff JSON by guesswork. The generated result template is a `pending placeholder` and must be replaced with a real success, blocked, or failed result before submission.
 - Use `specify team sync-back` after worker execution when the canonical code changes landed under `.specify/codex-team/worktrees/<session>/...` and need to be promoted back to the main workspace.
-- In execution-oriented workflows, treat `single-lane` as the delegated single-worker path, not as permission for leader-local execution.
+- In execution-oriented workflows, treat `single-lane` as the delegated single-worker compatibility alias, not as permission for leader-local execution.
 - Interpret `DONE_WITH_CONCERNS` as lane-local completion with follow-up concerns, not silent success.
 - Treat lane-local completion and repo-global verification separately: a batch can be complete while `doctor` still reports repo verification blocked by baseline debt.
 - Keep join point validation explicit in team-mode runs, and do not accept `idle` without the promised result handoff as completed work.

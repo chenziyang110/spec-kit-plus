@@ -407,6 +407,8 @@ class TestInitIntegrationFlag:
         assert "$sp-map-codebase" in result.output
         assert "$sp-spec-extend" in result.output
         assert "$sp-team" in result.output
+        assert "seeded default constitution" in result.output.lower()
+        assert "project-specific changes" in result.output.lower()
         assert "required for existing code" in result.output
         assert "default gate before" in result.output
         assert "The Codex team skill is available as" not in result.output
@@ -463,6 +465,8 @@ class TestInitIntegrationFlag:
         assert "/sp-checklist" in result.output
         assert "/sp-test" in result.output
         assert "/sp-analyze" in result.output
+        assert "seeded default constitution" in result.output.lower()
+        assert "project-specific changes" in result.output.lower()
         assert "/sp-explain" in result.output
         assert "/sp-map-codebase" in result.output
         assert "/sp-spec-extend" in result.output
