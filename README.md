@@ -93,6 +93,12 @@ Claude:
 specify init my-project --ai claude
 ```
 
+Claude project-local installs now write `.claude/skills/` as before and also
+install thin native hook adapters under `.claude/hooks/`. When
+`.claude/settings.json` is absent, it is created; when it already exists and is
+valid JSON, managed hook registrations are merged without overwriting unrelated
+user settings.
+
 Gemini:
 
 ```bash
@@ -205,6 +211,17 @@ First-party workflow quality hooks:
 - `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` provide shared read-boundary and prompt-bypass guards.
 - `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` cover workflow transitions and last-mile commit integrity.
 - `specify hook mark-dirty --reason "<reason>"` and `specify hook complete-refresh` are the shared product paths for project-map freshness updates.
+
+Claude Code integration note:
+
+- `specify init --ai claude` installs thin native adapters in `.claude/hooks/` and merges project-local `.claude/settings.json`.
+- The current managed Claude native hook set covers:
+  - `SessionStart` statusline/orientation context derived from active workflow state
+  - `UserPromptSubmit` prompt-guard checks
+  - `PreToolUse` read-boundary and inline commit-message validation
+  - `PostToolUse` session-state drift warnings for active implement/quick/debug flows
+  - `Stop` context-monitor checkpoint blocking or advisory output before stop
+- These adapters are intentionally thin: they call back into the shared `specify hook ...` command surface instead of re-implementing workflow truth inside standalone Claude scripts.
 
 After planning, continue with:
 

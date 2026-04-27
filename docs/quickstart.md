@@ -189,6 +189,17 @@ First-party workflow quality hooks:
 - Use `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` when path safety or workflow-bypass language is in doubt.
 - Use `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` to enforce workflow transitions and commit-time integrity.
 
+Claude Code project-local integration:
+
+- `specify init --ai claude` installs `.claude/hooks/claude-hook-dispatch.py` and merges project-local `.claude/settings.json` when it is valid JSON.
+- The current managed Claude native hooks bridge:
+  - `SessionStart` into `specify hook render-statusline`
+  - `UserPromptSubmit` into `specify hook validate-prompt`
+  - `PreToolUse` into `specify hook validate-read-path` / `specify hook validate-commit`
+  - `PostToolUse` into `specify hook validate-session-state` for active resumable workflows
+  - `Stop` into `specify hook monitor-context --trigger before_stop`
+- If an existing `.claude/settings.json` cannot be parsed, it is preserved and hook registration is skipped rather than overwritten.
+
 ## Detailed Example: Building Taskify
 
 Here's a complete example of building a team productivity platform:

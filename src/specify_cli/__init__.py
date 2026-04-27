@@ -4362,7 +4362,10 @@ def integration_uninstall(
         console.print(f"[dim]Details:[/dim] {exc}")
         raise typer.Exit(1)
 
-    removed, skipped = manifest.uninstall(project_root, force=force)
+    if integration is not None:
+        removed, skipped = integration.uninstall(project_root, manifest, force=force)
+    else:
+        removed, skipped = manifest.uninstall(project_root, force=force)
 
     _remove_integration_json(project_root)
 
@@ -4433,7 +4436,7 @@ def integration_switch(
                     f"run [cyan]specify integration uninstall {installed_key}[/cyan], then retry."
                 )
                 raise typer.Exit(1)
-            removed, skipped = old_manifest.uninstall(project_root, force=force)
+            removed, skipped = current_integration.uninstall(project_root, old_manifest, force=force)
             if removed:
                 console.print(f"  Removed {len(removed)} file(s)")
             if skipped:

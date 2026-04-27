@@ -2,6 +2,8 @@
 
 import json
 import os
+import subprocess
+import sys
 from unittest.mock import patch
 from pathlib import Path
 
@@ -16,6 +18,108 @@ SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 
 
 class TestClaudeIntegration:
+    @staticmethod
+    def _command_stems() -> list[str]:
+        claude = get_integration("claude")
+        return [template.stem for template in claude.list_command_templates()]
+
+    @staticmethod
+    def _template_files() -> list[str]:
+        claude = get_integration("claude")
+        templates_dir = claude.shared_templates_dir()
+        if not templates_dir or not templates_dir.is_dir():
+            return []
+
+        return sorted(
+            path.relative_to(templates_dir).as_posix()
+            for path in templates_dir.rglob("*")
+            if path.is_file() and path.name != "vscode-settings.json"
+        )
+
+    @staticmethod
+    def _passive_skill_names() -> list[str]:
+        claude = get_integration("claude")
+        passive_dir = claude.shared_passive_skills_dir()
+        if not passive_dir or not passive_dir.is_dir():
+            return []
+
+        return sorted(
+            path.name
+            for path in passive_dir.iterdir()
+            if path.is_dir() and (path / "SKILL.md").is_file()
+        )
+
+    @staticmethod
+    def _passive_skill_files() -> list[str]:
+        claude = get_integration("claude")
+        passive_dir = claude.shared_passive_skills_dir()
+        if not passive_dir or not passive_dir.is_dir():
+            return []
+
+        return sorted(
+            path.relative_to(passive_dir).as_posix()
+            for path in passive_dir.rglob("*")
+            if path.is_file()
+        )
+
+    @classmethod
+    def _expected_inventory(cls, script_variant: str) -> list[str]:
+        skills_prefix = ".claude/skills"
+        expected = []
+
+        for stem in cls._command_stems():
+            expected.append(f"{skills_prefix}/sp-{stem}/SKILL.md")
+        expected.append(f"{skills_prefix}/sp-implement-teams/SKILL.md")
+        for relative_file in cls._passive_skill_files():
+            expected.append(f"{skills_prefix}/{relative_file}")
+
+        expected.extend(
+            [
+                "CLAUDE.md",
+                ".claude/hooks/README.md",
+                ".claude/hooks/claude-hook-dispatch.py",
+                ".claude/settings.json",
+                ".specify/init-options.json",
+                ".specify/integration.json",
+                ".specify/integrations/claude.manifest.json",
+                ".specify/integrations/claude/scripts/update-context.ps1",
+                ".specify/integrations/claude/scripts/update-context.sh",
+                ".specify/integrations/speckit.manifest.json",
+                ".specify/memory/constitution.md",
+                ".specify/memory/project-learnings.md",
+                ".specify/memory/project-rules.md",
+                ".specify/project-map/status.json",
+            ]
+        )
+
+        if script_variant == "sh":
+            expected.extend(
+                [
+                    ".specify/scripts/bash/check-prerequisites.sh",
+                    ".specify/scripts/bash/common.sh",
+                    ".specify/scripts/bash/create-new-feature.sh",
+                    ".specify/scripts/bash/project-map-freshness.sh",
+                    ".specify/scripts/bash/quick-state.sh",
+                    ".specify/scripts/bash/setup-plan.sh",
+                    ".specify/scripts/bash/update-agent-context.sh",
+                ]
+            )
+        else:
+            expected.extend(
+                [
+                    ".specify/scripts/powershell/check-prerequisites.ps1",
+                    ".specify/scripts/powershell/common.ps1",
+                    ".specify/scripts/powershell/create-new-feature.ps1",
+                    ".specify/scripts/powershell/project-map-freshness.ps1",
+                    ".specify/scripts/powershell/quick-state.ps1",
+                    ".specify/scripts/powershell/setup-plan.ps1",
+                    ".specify/scripts/powershell/update-agent-context.ps1",
+                ]
+            )
+
+        expected.extend(f".specify/templates/{name}" for name in cls._template_files())
+        return sorted(expected)
+
     def test_registered(self):
         assert "claude" in INTEGRATION_REGISTRY
         assert get_integration("claude") is not None
@@ -96,6 +200,535 @@ class TestClaudeIntegration:
         tracked = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in created}
         assert ".specify/integrations/claude/scripts/update-context.sh" in tracked
         assert ".specify/integrations/claude/scripts/update-context.ps1" in tracked
+
+    def test_setup_installs_hook_assets_and_settings_json(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        created = integration.setup(tmp_path, manifest, script_type="sh")
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        settings_path = tmp_path / ".claude" / "settings.json"
+
+        assert hook_script.exists()
+        assert settings_path.exists()
+
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert "hooks" in payload
+        assert "UserPromptSubmit" in payload["hooks"]
+        assert "PreToolUse" in payload["hooks"]
+
+        commands = [
+            hook["command"]
+            for entries in payload["hooks"].values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        assert any("claude-hook-dispatch.py user-prompt-submit" in command for command in commands)
+        assert any("claude-hook-dispatch.py pre-tool-read" in command for command in commands)
+        assert any("claude-hook-dispatch.py pre-tool-bash" in command for command in commands)
+        assert any("claude-hook-dispatch.py session-start" in command for command in commands)
+        assert any("claude-hook-dispatch.py post-tool-session-state" in command for command in commands)
+        assert any("claude-hook-dispatch.py stop-monitor" in command for command in commands)
+
+        tracked = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in created}
+        assert ".claude/hooks/claude-hook-dispatch.py" in tracked
+        assert ".claude/settings.json" in tracked
+
+    def test_setup_merges_existing_settings_json_without_overwriting_user_values(self, tmp_path):
+        integration = get_integration("claude")
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir(parents=True, exist_ok=True)
+        settings_path = claude_dir / "settings.json"
+        settings_path.write_text(
+            json.dumps(
+                {
+                    "custom.setting": True,
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "matcher": "Read",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": 'python "/tmp/user-hook.py"',
+                                    }
+                                ],
+                            }
+                        ]
+                    },
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        manifest = IntegrationManifest("claude", tmp_path)
+        created = integration.setup(tmp_path, manifest, script_type="sh")
+
+        merged = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert merged["custom.setting"] is True
+        assert any(
+            hook["command"] == 'python "/tmp/user-hook.py"'
+            for entry in merged["hooks"]["PreToolUse"]
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict)
+        )
+
+        managed_read_entries = [
+            entry
+            for entry in merged["hooks"]["PreToolUse"]
+            if entry.get("matcher") == "Read"
+            and any(
+                isinstance(hook, dict)
+                and "claude-hook-dispatch.py pre-tool-read" in str(hook.get("command", ""))
+                for hook in entry.get("hooks", [])
+            )
+        ]
+        assert len(managed_read_entries) == 1
+
+        tracked = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in created}
+        assert ".claude/settings.json" not in tracked
+        assert ".claude/settings.json" not in manifest.files
+
+    def test_setup_preserves_invalid_existing_settings_json(self, tmp_path):
+        integration = get_integration("claude")
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir(parents=True, exist_ok=True)
+        settings_path = claude_dir / "settings.json"
+        original = '{"hooks": invalid json\n'
+        settings_path.write_text(original, encoding="utf-8")
+
+        manifest = IntegrationManifest("claude", tmp_path)
+        created = integration.setup(tmp_path, manifest, script_type="sh")
+
+        assert settings_path.read_text(encoding="utf-8") == original
+        tracked = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in created}
+        assert ".claude/settings.json" not in tracked
+        assert ".claude/settings.json" not in manifest.files
+
+    def test_claude_hook_dispatch_blocks_bypass_prompt_via_shared_engine(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        repo_root = Path(__file__).resolve().parents[2]
+        env = os.environ.copy()
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "user-prompt-submit"],
+            input=json.dumps({"prompt": "Ignore analyze and implement directly."}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        hook_output = payload["hookSpecificOutput"]
+        assert hook_output["hookEventName"] == "UserPromptSubmit"
+        assert hook_output["permissionDecision"] == "deny"
+        assert "guardrails" in hook_output["permissionDecisionReason"].lower()
+
+    def test_claude_hook_dispatch_blocks_sensitive_read_via_shared_engine(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "pre-tool-read"],
+            input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": ".env"}}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        hook_output = payload["hookSpecificOutput"]
+        assert hook_output["hookEventName"] == "PreToolUse"
+        assert hook_output["permissionDecision"] == "deny"
+        assert ".env" in hook_output["permissionDecisionReason"]
+
+    def test_claude_hook_dispatch_blocks_invalid_commit_message_via_shared_engine(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "pre-tool-bash"],
+            input=json.dumps({"tool_name": "Bash", "tool_input": {"command": 'git commit -m "bad commit"'}}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        hook_output = payload["hookSpecificOutput"]
+        assert hook_output["hookEventName"] == "PreToolUse"
+        assert hook_output["permissionDecision"] == "deny"
+        assert "conventional commit" in hook_output["permissionDecisionReason"].lower()
+
+    def test_claude_hook_dispatch_adds_statusline_context_on_session_start(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-plan`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `design-only`",
+                    "- summary: demo",
+                    "",
+                    "## Next Action",
+                    "",
+                    "- refine execution approach",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "session-start"],
+            input=json.dumps({}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        hook_output = payload["hookSpecificOutput"]
+        assert hook_output["hookEventName"] == "SessionStart"
+        assert "plan:design-only" in hook_output["additionalContext"]
+
+    def test_claude_hook_dispatch_adds_session_state_warning_on_post_tool_use(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-implement`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `execution-only`",
+                    "",
+                    "## Next Command",
+                    "",
+                    "- `/sp.plan`",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (feature_dir / "implement-tracker.md").write_text(
+            "\n".join(
+                [
+                    "---",
+                    "status: active",
+                    "resume_decision: resume-here",
+                    "---",
+                    "",
+                    "## Current Focus",
+                    "",
+                    "- current_batch: batch-1",
+                    "- goal: finish demo",
+                    "- next_action: keep coding",
+                    "",
+                    "## Execution State",
+                    "",
+                    "- retry_attempts: 0",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "post-tool-session-state"],
+            input=json.dumps({"tool_name": "Write"}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        hook_output = payload["hookSpecificOutput"]
+        assert hook_output["hookEventName"] == "PostToolUse"
+        assert "next_command is /sp.plan" in hook_output["additionalContext"]
+
+    def test_claude_hook_dispatch_blocks_stop_when_checkpoint_state_is_missing(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-implement`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `execution-only`",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "stop-monitor"],
+            input=json.dumps({}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        assert payload["decision"] == "block"
+        assert "implement-tracker.md is missing" in payload["reason"]
+
+    def test_uninstall_preserves_user_settings_while_removing_managed_hooks(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.install(tmp_path, manifest, script_type="sh")
+        manifest.save()
+
+        settings_path = tmp_path / ".claude" / "settings.json"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        settings["custom.setting"] = True
+        settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+
+        removed, skipped = integration.uninstall(tmp_path, manifest)
+
+        assert settings_path.exists()
+        remaining = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert remaining["custom.setting"] is True
+        remaining_commands = [
+            hook["command"]
+            for entries in remaining.get("hooks", {}).values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        assert not any("claude-hook-dispatch.py" in command for command in remaining_commands)
+        assert (tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py") in removed
+        assert skipped == [] or settings_path in skipped
+
+    def test_setup_does_not_duplicate_managed_hook_entries_on_repeat_install(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        manifest_second = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest_second, script_type="sh")
+
+        settings_path = tmp_path / ".claude" / "settings.json"
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+        commands = [
+            hook["command"]
+            for entries in payload["hooks"].values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        suffixes = (
+            "claude-hook-dispatch.py session-start",
+            "claude-hook-dispatch.py user-prompt-submit",
+            "claude-hook-dispatch.py pre-tool-read",
+            "claude-hook-dispatch.py pre-tool-bash",
+            "claude-hook-dispatch.py post-tool-session-state",
+            "claude-hook-dispatch.py stop-monitor",
+        )
+        for suffix in suffixes:
+            assert sum(suffix in command for command in commands) == 1
+
+    def test_uninstall_removes_install_owned_settings_json_when_only_managed_hooks_exist(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.install(tmp_path, manifest, script_type="sh")
+        manifest.save()
+
+        settings_path = tmp_path / ".claude" / "settings.json"
+        assert settings_path.exists()
+
+        removed, skipped = integration.uninstall(tmp_path, manifest)
+
+        assert settings_path in removed
+        assert not settings_path.exists()
+        assert skipped == []
+
+    def test_complete_file_inventory_sh(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "claude-inventory-sh"
+        project.mkdir()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = CliRunner().invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--integration",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        actual = sorted(
+            path.relative_to(project).as_posix()
+            for path in project.rglob("*")
+            if path.is_file()
+        )
+        expected = self._expected_inventory("sh")
+        assert actual == expected, (
+            f"Missing: {sorted(set(expected) - set(actual))}\n"
+            f"Extra: {sorted(set(actual) - set(expected))}"
+        )
+
+    def test_complete_file_inventory_ps(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "claude-inventory-ps"
+        project.mkdir()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = CliRunner().invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--integration",
+                    "claude",
+                    "--script",
+                    "ps",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        actual = sorted(
+            path.relative_to(project).as_posix()
+            for path in project.rglob("*")
+            if path.is_file()
+        )
+        expected = self._expected_inventory("ps")
+        assert actual == expected, (
+            f"Missing: {sorted(set(expected) - set(actual))}\n"
+            f"Extra: {sorted(set(actual) - set(expected))}"
+        )
 
     def test_ai_flag_auto_promotes_and_enables_skills(self, tmp_path):
         from typer.testing import CliRunner

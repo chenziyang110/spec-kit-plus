@@ -1,0 +1,466 @@
+#!/usr/bin/env python
+"""Thin Claude Code native hook adapter for spec-kit-plus.
+
+This script is installed into ``.claude/hooks/`` for project-local Claude
+integrations. It translates Claude hook payloads into the shared
+``specify hook ...`` command surface so workflow truth stays in the canonical
+Python hook engine instead of being duplicated inside standalone scripts.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+
+WORKFLOW_COMMAND_MAP = {
+    "sp-specify": "specify",
+    "sp-plan": "plan",
+    "sp-tasks": "tasks",
+    "sp-analyze": "analyze",
+    "sp-implement": "implement",
+}
+ACTIVE_STATE_STATUSES = {"active", "started", "starting", "in_progress", "executing", "execution"}
+TERMINAL_STATE_STATUSES = {"resolved", "completed", "done", "cancelled", "closed", "blocked", "failed"}
+
+
+def _read_stdin_payload() -> dict[str, Any]:
+    raw = sys.stdin.read().strip()
+    if not raw:
+        return {}
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _project_root(payload: dict[str, Any]) -> Path:
+    env_root = str(__import__("os").environ.get("CLAUDE_PROJECT_DIR") or "").strip()
+    if env_root:
+        return Path(env_root).resolve()
+
+    raw_cwd = str(payload.get("cwd") or "").strip()
+    if raw_cwd:
+        return Path(raw_cwd).resolve()
+
+    return Path(__file__).resolve().parents[2]
+
+
+def _run_shared_hook(project_root: Path, args: list[str]) -> dict[str, Any] | None:
+    commands: list[list[str]] = []
+    if shutil.which("specify"):
+        commands.append(["specify", "hook", *args])
+    commands.append([sys.executable, "-m", "specify_cli", "hook", *args])
+    if shutil.which("py"):
+        commands.append(["py", "-m", "specify_cli", "hook", *args])
+
+    seen: set[tuple[str, ...]] = set()
+    for command in commands:
+        key = tuple(command)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            result = subprocess.run(
+                command,
+                cwd=project_root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        except OSError:
+            continue
+        if result.returncode != 0:
+            continue
+        stdout = (result.stdout or "").strip()
+        if not stdout:
+            continue
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return None
+
+
+def _shared_to_claude_output(
+    *,
+    hook_event_name: str,
+    shared_payload: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not shared_payload:
+        return None
+
+    status = str(shared_payload.get("status") or "").strip().lower()
+    errors = [str(item) for item in shared_payload.get("errors", []) if str(item).strip()]
+    warnings = [str(item) for item in shared_payload.get("warnings", []) if str(item).strip()]
+    actions = [str(item) for item in shared_payload.get("actions", []) if str(item).strip()]
+
+    if status == "blocked":
+        reason = errors[0] if errors else (warnings[0] if warnings else "shared quality hook blocked the action")
+        output = {
+            "hookSpecificOutput": {
+                "hookEventName": hook_event_name,
+                "permissionDecision": "deny",
+                "permissionDecisionReason": reason,
+            }
+        }
+        extra = " ".join([*warnings, *actions]).strip()
+        if extra:
+            output["hookSpecificOutput"]["additionalContext"] = extra
+        return output
+
+    advisory = " ".join([*warnings, *actions]).strip()
+    if status == "warn" and advisory:
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": hook_event_name,
+                "additionalContext": advisory,
+            }
+        }
+
+    return None
+
+
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def _extract_field(text: str, field_name: str) -> str:
+    pattern = re.compile(
+        rf"^\s*-\s*{re.escape(field_name)}:\s*(.+?)\s*$",
+        re.MULTILINE,
+    )
+    match = pattern.search(text)
+    if not match:
+        return ""
+    value = match.group(1).strip()
+    if value.startswith("`") and value.endswith("`") and len(value) >= 2:
+        value = value[1:-1].strip()
+    if value.startswith('"') and value.endswith('"') and len(value) >= 2:
+        value = value[1:-1].strip()
+    return value
+
+
+def _extract_frontmatter_field(text: str, field_name: str) -> str:
+    if not text.startswith("---\n"):
+        return ""
+    lines = text.splitlines()
+    end_idx = None
+    for index in range(1, len(lines)):
+        if lines[index].strip() == "---":
+            end_idx = index
+            break
+    if end_idx is None:
+        return ""
+    for raw_line in lines[1:end_idx]:
+        if ":" not in raw_line:
+            continue
+        key, value = raw_line.split(":", 1)
+        if key.strip() != field_name:
+            continue
+        cleaned = value.strip()
+        if cleaned.startswith("`") and cleaned.endswith("`") and len(cleaned) >= 2:
+            cleaned = cleaned[1:-1].strip()
+        if cleaned.startswith('"') and cleaned.endswith('"') and len(cleaned) >= 2:
+            cleaned = cleaned[1:-1].strip()
+        return cleaned
+    return ""
+
+
+def _candidate_sort_key(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def _infer_active_context(project_root: Path) -> dict[str, str] | None:
+    implement_candidates: list[tuple[float, dict[str, str]]] = []
+    for tracker_path in project_root.glob("specs/*/implement-tracker.md"):
+        text = _read_text(tracker_path)
+        if not text:
+            continue
+        status = _extract_frontmatter_field(text, "status").lower()
+        if not status or status in TERMINAL_STATE_STATUSES:
+            continue
+        implement_candidates.append(
+            (
+                _candidate_sort_key(tracker_path),
+                {
+                    "command_name": "implement",
+                    "feature_dir": str(tracker_path.parent),
+                },
+            )
+        )
+    if implement_candidates:
+        return max(implement_candidates, key=lambda item: item[0])[1]
+
+    quick_candidates: list[tuple[float, dict[str, str]]] = []
+    for status_path in project_root.glob(".planning/quick/*/STATUS.md"):
+        text = _read_text(status_path)
+        if not text:
+            continue
+        status = _extract_frontmatter_field(text, "status").lower()
+        if not status or status in TERMINAL_STATE_STATUSES:
+            continue
+        quick_candidates.append(
+            (
+                _candidate_sort_key(status_path),
+                {
+                    "command_name": "quick",
+                    "workspace": str(status_path.parent),
+                },
+            )
+        )
+    if quick_candidates:
+        return max(quick_candidates, key=lambda item: item[0])[1]
+
+    workflow_candidates: list[tuple[float, dict[str, str]]] = []
+    for workflow_path in project_root.glob("specs/*/workflow-state.md"):
+        text = _read_text(workflow_path)
+        if not text:
+            continue
+        active_command = _extract_field(text, "active_command").lower()
+        status = _extract_field(text, "status").lower()
+        mapped = WORKFLOW_COMMAND_MAP.get(active_command)
+        if not mapped or (status and status not in ACTIVE_STATE_STATUSES):
+            continue
+        workflow_candidates.append(
+            (
+                _candidate_sort_key(workflow_path),
+                {
+                    "command_name": mapped,
+                    "feature_dir": str(workflow_path.parent),
+                },
+            )
+        )
+    if workflow_candidates:
+        return max(workflow_candidates, key=lambda item: item[0])[1]
+
+    return None
+
+
+def _extract_prompt_text(payload: dict[str, Any]) -> str:
+    candidates = (
+        payload.get("prompt"),
+        payload.get("prompt_text"),
+        payload.get("user_prompt"),
+        payload.get("text"),
+    )
+    for candidate in candidates:
+        value = str(candidate or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _extract_tool_name(payload: dict[str, Any]) -> str:
+    return str(payload.get("tool_name") or payload.get("toolName") or "").strip()
+
+
+def _extract_tool_input(payload: dict[str, Any]) -> dict[str, Any]:
+    tool_input = payload.get("tool_input") or payload.get("toolInput") or {}
+    return tool_input if isinstance(tool_input, dict) else {}
+
+
+def _extract_read_path(tool_input: dict[str, Any]) -> str:
+    for key in ("file_path", "path"):
+        value = str(tool_input.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _extract_commit_message(command: str) -> str:
+    if not re.search(r"(^|\s)git(\.exe)?\s+commit(\s|$)", command):
+        return ""
+
+    patterns = (
+        r'-m\s+"([^"]+)"',
+        r"-m\s+'([^']+)'",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, command)
+        if match:
+            return match.group(1).strip()
+    return ""
+
+
+def _handle_user_prompt_submit(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
+    prompt = _extract_prompt_text(payload)
+    if not prompt:
+        return None
+    shared = _run_shared_hook(project_root, ["validate-prompt", "--prompt-text", prompt])
+    return _shared_to_claude_output(hook_event_name="UserPromptSubmit", shared_payload=shared)
+
+
+def _handle_pre_tool_read(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
+    if _extract_tool_name(payload) != "Read":
+        return None
+    target_path = _extract_read_path(_extract_tool_input(payload))
+    if not target_path:
+        return None
+    shared = _run_shared_hook(project_root, ["validate-read-path", "--target-path", target_path])
+    return _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=shared)
+
+
+def _handle_pre_tool_bash(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
+    if _extract_tool_name(payload) != "Bash":
+        return None
+    command = str(_extract_tool_input(payload).get("command") or "").strip()
+    if not command:
+        return None
+    commit_message = _extract_commit_message(command)
+    if not commit_message:
+        return None
+    shared = _run_shared_hook(project_root, ["validate-commit", "--commit-message", commit_message])
+    return _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=shared)
+
+
+def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[str, Any] | None:
+    context = _infer_active_context(project_root)
+    if not context:
+        return None
+
+    args = ["render-statusline", "--command", context["command_name"]]
+    if "feature_dir" in context:
+        args.extend(["--feature-dir", context["feature_dir"]])
+    if "workspace" in context:
+        args.extend(["--workspace", context["workspace"]])
+    if "session_file" in context:
+        args.extend(["--session-file", context["session_file"]])
+
+    shared = _run_shared_hook(project_root, args)
+    if not shared:
+        return None
+    statusline = str(shared.get("data", {}).get("statusline") or "").strip()
+    if not statusline:
+        return None
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": statusline,
+        }
+    }
+
+
+def _handle_post_tool_session_state(project_root: Path, _payload: dict[str, Any]) -> dict[str, Any] | None:
+    context = _infer_active_context(project_root)
+    if not context:
+        return None
+    if context["command_name"] not in {"implement", "quick", "debug"}:
+        return None
+
+    args = ["validate-session-state", "--command", context["command_name"]]
+    if "feature_dir" in context:
+        args.extend(["--feature-dir", context["feature_dir"]])
+    if "workspace" in context:
+        args.extend(["--workspace", context["workspace"]])
+    if "session_file" in context:
+        args.extend(["--session-file", context["session_file"]])
+
+    shared = _run_shared_hook(project_root, args)
+    if not shared:
+        return None
+    shared_output = _shared_to_claude_output(
+        hook_event_name="PostToolUse",
+        shared_payload=shared,
+    )
+    if shared_output:
+        # PostToolUse should stay advisory; never emit a permission decision here.
+        hook_specific = shared_output.get("hookSpecificOutput", {})
+        hook_specific.pop("permissionDecision", None)
+        hook_specific.pop("permissionDecisionReason", None)
+        return {"hookSpecificOutput": hook_specific} if hook_specific else None
+    return None
+
+
+def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[str, Any] | None:
+    context = _infer_active_context(project_root)
+    if not context:
+        return None
+
+    args = ["monitor-context", "--command", context["command_name"], "--trigger", "before_stop"]
+    if "feature_dir" in context:
+        args.extend(["--feature-dir", context["feature_dir"]])
+    if "workspace" in context:
+        args.extend(["--workspace", context["workspace"]])
+    if "session_file" in context:
+        args.extend(["--session-file", context["session_file"]])
+
+    shared = _run_shared_hook(project_root, args)
+    if not shared:
+        return None
+
+    status = str(shared.get("status") or "").strip().lower()
+    errors = [str(item) for item in shared.get("errors", []) if str(item).strip()]
+    warnings = [str(item) for item in shared.get("warnings", []) if str(item).strip()]
+    actions = [str(item) for item in shared.get("actions", []) if str(item).strip()]
+
+    if status == "blocked":
+        output = {
+            "decision": "block",
+            "reason": errors[0] if errors else "shared context monitor blocked stop until resume state is repaired",
+        }
+        extra = " ".join([*warnings, *actions]).strip()
+        if extra:
+            output["hookSpecificOutput"] = {
+                "hookEventName": "Stop",
+                "additionalContext": extra,
+            }
+        return output
+
+    if status == "warn":
+        extra = " ".join([*warnings, *actions]).strip()
+        checkpoint = shared.get("data", {}).get("checkpoint", {})
+        if isinstance(checkpoint, dict):
+            next_action = str(checkpoint.get("next_action") or "").strip()
+            if next_action:
+                extra = f"{extra} Resume cue: {next_action}.".strip()
+        if extra:
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "Stop",
+                    "additionalContext": extra,
+                }
+            }
+
+    return None
+
+
+def main() -> int:
+    route = sys.argv[1] if len(sys.argv) > 1 else ""
+    payload = _read_stdin_payload()
+    project_root = _project_root(payload)
+
+    handlers = {
+        "session-start": _handle_session_start,
+        "user-prompt-submit": _handle_user_prompt_submit,
+        "post-tool-session-state": _handle_post_tool_session_state,
+        "stop-monitor": _handle_stop_monitor,
+        "pre-tool-read": _handle_pre_tool_read,
+        "pre-tool-bash": _handle_pre_tool_bash,
+    }
+    handler = handlers.get(route)
+    if not handler:
+        return 0
+
+    output = handler(project_root, payload)
+    if output:
+        sys.stdout.write(json.dumps(output))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

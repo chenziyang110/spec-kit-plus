@@ -291,6 +291,52 @@ class TestIntegrationUninstall:
         assert shared_script.exists()
         assert (project / ".specify" / "templates").is_dir()
 
+    def test_uninstall_claude_removes_install_owned_settings_and_hook_assets(self, tmp_path):
+        project = _init_project(tmp_path, "claude")
+        settings_path = project / ".claude" / "settings.json"
+        hook_script = project / ".claude" / "hooks" / "claude-hook-dispatch.py"
+
+        assert settings_path.exists()
+        assert hook_script.exists()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(app, ["integration", "uninstall"], catch_exceptions=False)
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert not settings_path.exists()
+        assert not hook_script.exists()
+
+    def test_uninstall_claude_preserves_user_settings_and_strips_managed_hooks(self, tmp_path):
+        project = _init_project(tmp_path, "claude")
+        settings_path = project / ".claude" / "settings.json"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        settings["custom.setting"] = True
+        settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(app, ["integration", "uninstall"], catch_exceptions=False)
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert settings_path.exists()
+        remaining = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert remaining["custom.setting"] is True
+        remaining_commands = [
+            hook["command"]
+            for entries in remaining.get("hooks", {}).values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        assert not any("claude-hook-dispatch.py" in command for command in remaining_commands)
+
 
 # ── switch ───────────────────────────────────────────────────────────
 
@@ -377,6 +423,38 @@ class TestIntegrationSwitch:
         # Shared infra untouched
         assert shared_script.exists()
         assert shared_script.read_text(encoding="utf-8") == shared_content
+
+    def test_switch_from_claude_preserves_user_settings_while_removing_managed_hooks(self, tmp_path):
+        project = _init_project(tmp_path, "claude")
+        settings_path = project / ".claude" / "settings.json"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        settings["custom.setting"] = True
+        settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                ["integration", "switch", "copilot", "--script", "sh"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert settings_path.exists()
+        remaining = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert remaining["custom.setting"] is True
+        remaining_commands = [
+            hook["command"]
+            for entries in remaining.get("hooks", {}).values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        assert not any("claude-hook-dispatch.py" in command for command in remaining_commands)
+        assert (project / ".github" / "agents" / "sp.plan.agent.md").exists()
 
     def test_switch_from_nothing(self, tmp_path):
         """Switch when no integration is installed should just install the target."""
