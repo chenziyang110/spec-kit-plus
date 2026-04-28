@@ -111,6 +111,15 @@ def test_guidance_docs_position_map_codebase_for_existing_projects():
     assert "dependency graph, runtime flows, state lifecycle, and change-impact view" in quickstart.lower()
 
 
+def test_guidance_docs_explain_that_spec_workflows_do_not_refresh_map_content_directly():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    for content in (readme, quickstart):
+        assert "mark `.specify/project-map/status.json` dirty" in content or "mark `.specify/project-map/status.json` dirty" in _read("AGENTS.md").lower()
+        assert "run `map-codebase` first" in content or "run `/speckit.map-codebase`" in content
+
+
 def test_guidance_docs_expand_explain_to_handbook_and_project_map_views():
     readme = _read("README.md").lower()
     quickstart = _read("docs/quickstart.md").lower()

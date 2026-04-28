@@ -365,6 +365,8 @@ class TestBuiltInSkillGeneration:
         assert "recommend `/sp.clarify` as the next command instead of `/sp.plan`" in specify_body
         assert "recommended review follow-up: `/sp.clarify`" in specify_body
         assert "without needing `/sp.clarify`" in specify_body
+        assert "mark `.specify/project-map/status.json` dirty" in specify_body.lower()
+        assert "recommend `/sp-map-codebase`" in specify_body
 
         plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         assert "Add `Implementation Constitution`" in plan_body
@@ -377,6 +379,8 @@ class TestBuiltInSkillGeneration:
         assert "phase_mode: design-only" in plan_body
         assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in plan_body
         assert "recommended follow-up quality check: `/sp.checklist`" in plan_body
+        assert "mark `.specify/project-map/status.json` dirty" in plan_body.lower()
+        assert "recommend `/sp-map-codebase`" in plan_body
 
         tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
         assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
@@ -393,6 +397,8 @@ class TestBuiltInSkillGeneration:
         assert "recommended next command: `/sp.analyze`" in tasks_body.lower()
         assert "implementation remains blocked until `/sp-analyze`" in tasks_body.lower()
         assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in tasks_body.lower()
+        assert "mark `.specify/project-map/status.json` dirty" in tasks_body.lower()
+        assert "recommend `/sp-map-codebase`" in tasks_body
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body

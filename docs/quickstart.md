@@ -149,6 +149,7 @@ Use support skills when they solve a specific gap:
 
 - `/speckit.map-codebase` as the required brownfield gate when you are working in an existing codebase; generate or refresh the handbook/project-map navigation system before deeper workflow steps
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
+- `/speckit.specify`, `/speckit.clarify`, `/speckit.plan`, and `/speckit.tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/status.json` dirty and run `/speckit.map-codebase` as the follow-up refresh workflow
 - `/speckit.clarify` when an existing spec still needs deeper analysis before planning
 - `/speckit.checklist` when you want to audit requirement quality after planning
 - `/speckit.analyze` as the required gate before implementation once `tasks.md` exists

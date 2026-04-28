@@ -256,6 +256,8 @@ def test_specify_template_uses_alignment_first_contract():
     assert "common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify`" in content
     assert "explicit pre-release check" in lowered
     assert "without needing `/sp.clarify`" in content
+    assert "mark `.specify/project-map/status.json` dirty" in lowered
+    assert "recommend `/sp-map-codebase`" in content
     assert "`Capability 1 / 3 | Question 2`" in content
     assert "SPECIFY SESSION - Capability 1 / 3 | Question 2" in content
     assert "SPECIFY SESSION - 2 / 5" not in content
@@ -375,6 +377,8 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "What does the planner need to know to produce a high-quality implementation plan" in content
     assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
     assert "recommended follow-up quality check: `/sp.checklist`" in content
+    assert "mark `.specify/project-map/status.json` dirty" in lowered
+    assert "recommend `/sp-map-codebase`" in content
     assert "specify team" not in lowered
     assert "specify -> clarify -> plan" not in lowered
 
@@ -482,6 +486,8 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "Planning inputs section" in content
     assert "before writing `tasks.md`" in content
     assert "before emitting canonical parallel batches and join points" in lowered
+    assert "mark `.specify/project-map/status.json` dirty" in lowered
+    assert "recommend `/sp-map-codebase`" in content
     assert "specify team" not in lowered
 
 
@@ -785,6 +791,8 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
     assert "avoid implying an automatic handoff to `/sp.plan`" in lowered
     assert "default rescue lane" in lowered
     assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
+    assert "mark `.specify/project-map/status.json` dirty" in lowered
+    assert "recommend `/sp-map-codebase`" in content
 
 
 def test_spec_template_defines_scope_boundaries_without_open_clarification_examples():

@@ -145,6 +145,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - whether the spec package is now ready for `/sp.plan` or still needs more clarification
    - whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning
    - updated `workflow-state.md` path
+   - if this repair pass proves the current handbook/project-map no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield implementation proceeds
 
 ## Presentation Contract
 

@@ -165,6 +165,7 @@ Conditional gates and follow-up commands:
 
 - `map-codebase` is the required brownfield gate for an existing codebase; generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before specification, planning, task generation, or implementation continues
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
+- `specify`, `clarify`, `plan`, and `tasks` do not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/status.json` dirty and run `map-codebase` as the follow-up refresh workflow
 - `test` to bootstrap or refresh a durable project-wide unit testing system using bundled language testing skills, establish a coverage baseline, capture manual validation evidence, and write a durable testing contract plus standard test/coverage playbook
 - `clarify` to deepen an existing spec before planning when analysis, references, or gaps need more work
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation

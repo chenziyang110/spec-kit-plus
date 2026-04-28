@@ -203,6 +203,7 @@ agent_scripts:
     - generated artifacts
     - workflow-state path
     - recommended follow-up quality check: `/sp.checklist` for a requirements/plan package audit before moving on to decomposition
+    - if the planning pass introduces or sharpens new architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current handbook/project-map does not yet encode, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield implementation proceeds
     - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
       - `active_command: sp-plan`
       - `phase_mode: design-only`

@@ -218,6 +218,7 @@ scripts:
     - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
     - workflow-state path
     - Recommended next command: `/sp.analyze`
+    - if the decomposition exposes new shared surfaces, new workflow joins, new validation entry points, or other atlas facts that the current handbook/project-map does not yet capture well enough for downstream execution, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield implementation proceeds
     - If the current ready batch strategy is `single-lane` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
