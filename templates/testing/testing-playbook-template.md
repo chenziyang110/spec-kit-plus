@@ -22,6 +22,14 @@ This playbook defines the canonical local and CI testing workflow for this repos
 - Run one file:
 - Run one test name/filter:
 
+## Add New Tests
+
+- Where new tests belong:
+- Naming conventions for new test files:
+- Shared fixtures, mocks, or factories to reuse:
+- Smallest RED-first command to run before implementation:
+- Full validation command after adding tests:
+
 ## Coverage
 
 - Generate coverage:

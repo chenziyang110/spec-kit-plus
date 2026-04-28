@@ -375,3 +375,13 @@ def test_guidance_docs_list_auto_learning_and_implement_closeout_helpers() -> No
     for content in (readme, quickstart):
         assert "specify learning capture-auto" in content
         assert "specify implement closeout" in content
+
+
+def test_guidance_docs_describe_sp_test_as_execution_backed_testing_bootstrap() -> None:
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    for content in (readme, quickstart):
+        assert "manual validation" in content
+        assert "coverage baseline" in content
+        assert "bundled language testing skills" in content

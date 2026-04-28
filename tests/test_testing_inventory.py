@@ -157,3 +157,89 @@ def test_build_testing_inventory_marks_bare_python_repo_as_missing(tmp_path):
     assert module["canonical_test_command"] is None
     assert module["coverage_command"] is None
     assert module["state"] == "missing"
+
+
+def test_build_testing_inventory_ignores_worktrees_manifests(tmp_path):
+    project = tmp_path / "workspace-project"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        "[project]\nname='demo'\nversion='0.1.0'\n"
+        "[tool.pytest.ini_options]\naddopts=['-q']\n",
+        encoding="utf-8",
+    )
+    (project / "tests").mkdir()
+    (project / "tests" / "test_sample.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+    nested = project / ".worktrees" / "feature-a"
+    nested.mkdir(parents=True)
+    (nested / "pyproject.toml").write_text(
+        "[project]\nname='shadow'\nversion='0.1.0'\n"
+        "[tool.pytest.ini_options]\naddopts=['-q']\n",
+        encoding="utf-8",
+    )
+    (nested / "tests").mkdir()
+
+    payload = build_testing_inventory(project)
+
+    assert payload["module_count"] == 1
+    assert payload["modules"][0]["module_root"] == "."
+
+
+def test_build_testing_inventory_treats_rust_inline_tests_as_healthy(tmp_path):
+    project = tmp_path / "rust-inline-tests"
+    project.mkdir()
+    (project / "Cargo.toml").write_text(
+        "[package]\nname='inline-tests'\nversion='0.1.0'\nedition='2021'\n",
+        encoding="utf-8",
+    )
+    src = project / "src"
+    src.mkdir()
+    (src / "lib.rs").write_text(
+        "pub fn answer() -> i32 { 42 }\n\n"
+        "#[cfg(test)]\n"
+        "mod tests {\n"
+        "    use super::*;\n\n"
+        "    #[test]\n"
+        "    fn returns_answer() {\n"
+        "        assert_eq!(answer(), 42);\n"
+        "    }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+
+    payload = build_testing_inventory(project)
+
+    module = payload["modules"][0]
+    assert module["framework"] == "cargo-test"
+    assert module["canonical_test_path"] == "src"
+    assert module["state"] == "healthy"
+
+
+def test_build_testing_inventory_ignores_node_modules_test_file_fallback(tmp_path):
+    project = tmp_path / "js-fallback-project"
+    project.mkdir()
+    (project / "package.json").write_text(json.dumps({"name": "demo"}), encoding="utf-8")
+    ignored = project / "node_modules" / "leftpad"
+    ignored.mkdir(parents=True)
+    (ignored / "fake.test.js").write_text("test('x', () => {})\n", encoding="utf-8")
+
+    payload = build_testing_inventory(project)
+
+    module = payload["modules"][0]
+    assert module["canonical_test_path"] is None
+    assert module["state"] == "partial"
+
+
+def test_build_testing_inventory_uses_maven_test_for_plain_pom_projects(tmp_path):
+    project = tmp_path / "maven-project"
+    project.mkdir()
+    (project / "pom.xml").write_text(
+        "<project><modelVersion>4.0.0</modelVersion></project>",
+        encoding="utf-8",
+    )
+
+    payload = build_testing_inventory(project)
+
+    module = payload["modules"][0]
+    assert module["language"] == "java"
+    assert module["framework"] == "maven-test"
+    assert module["canonical_test_command"] == "mvn test"

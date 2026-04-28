@@ -39,6 +39,46 @@ def test_test_template_bootstraps_testing_contract_assets():
     assert "before writing the consolidated `.specify/testing/*` artifacts" in lowered
 
 
+def test_test_template_explains_bundled_language_testing_skills():
+    content = _read("templates/commands/test.md")
+    lowered = content.lower()
+    state_template = _read("templates/testing/testing-state-template.md").lower()
+
+    assert "built-in `sp-test` language testing lane" in content
+    assert "templates/passive-skills/*-testing/" in lowered
+    assert ".specify/templates/passive-skills/*-testing/" in lowered
+    assert "not an unrelated optional addon" in lowered
+    assert "explicitly tell the user" in lowered
+    assert "selected bundled language testing skills" in lowered
+    assert "bundled `sp-test` language skills" in state_template
+
+
+def test_test_template_requires_manual_execution_evidence_and_add_test_guidance():
+    content = _read("templates/commands/test.md")
+    lowered = content.lower()
+    contract_template = _read("templates/testing/testing-contract-template.md").lower()
+    playbook_template = _read("templates/testing/testing-playbook-template.md").lower()
+    state_template = _read("templates/testing/testing-state-template.md").lower()
+
+    assert "manually execute the canonical test commands" in lowered
+    assert "most recent manual validation run" in lowered
+    assert "add new tests" in playbook_template
+    assert "where new tests belong" in playbook_template
+    assert "critical public/module-facing behavior" in contract_template
+    assert "last_manual_validation" in state_template
+
+
+def test_test_template_requires_coverage_uplift_iteration():
+    content = _read("templates/commands/test.md").lower()
+    contract_template = _read("templates/testing/testing-contract-template.md").lower()
+
+    assert "run coverage after the first meaningful test pass" in content
+    assert "iterate on uncovered critical paths" in content
+    assert "until thresholds are met or an explicit blocker is recorded" in content
+    assert "minimum enforcement policy" in contract_template
+    assert "coverage objective" in contract_template
+
+
 def test_test_template_uses_handbook_and_project_map_gates():
     content = _read("templates/commands/test.md")
 

@@ -12,7 +12,7 @@ updated: [ISO timestamp]
 - next_command:
 - handoff_reason:
 - selected_modules:
-- selected_language_skills:
+- selected_language_skills: bundled `sp-test` language skills (for example `python-testing`, `js-testing`, `rust-testing`)
 - inventory_source: specify testing inventory --format json
 
 ## Module Inventory
@@ -46,6 +46,15 @@ updated: [ISO timestamp]
   - baseline:
   - threshold:
   - exceptions:
+  - uncovered_hotspots:
+
+## Validation Evidence
+
+- last_manual_validation:
+  - commands:
+  - run_at:
+  - exit_status:
+  - summary:
 
 ## Open Gaps
 

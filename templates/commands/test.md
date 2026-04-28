@@ -117,8 +117,10 @@ workflow_contract:
 4. **Select bundled language testing skills**
    - Start from `selected_skill` in the `specify testing inventory --format json` payload.
    - Use the inventory result as the default skill choice unless newer repository evidence proves it wrong.
+   - Treat each selected `*-testing` skill as part of the built-in `sp-test` language testing lane, not as a separate plugin hunt or an unrelated optional addon.
    - If a module already has a stable framework, keep the inventory-selected skill and extend that framework rather than rebuilding from scratch.
    - If the inventory identifies a language but no stable framework, use the selected language testing skill to choose the recommended default.
+   - When reporting the selection, explicitly tell the user which bundled skill was selected for each module and that the mapping comes from the bundled passive `*-testing` skills shipped with Spec Kit Plus.
    - Record the final module -> skill mapping in `TESTING_STATE_FILE`, including any override reason when the runtime selection differs from the inventory payload.
 
 5. **Choose an execution strategy before broad test-system work begins**
@@ -145,6 +147,9 @@ workflow_contract:
      - define the canonical test commands and coverage commands
      - define the minimum baseline test categories needed for safe TDD in that module
      - add or refresh foundational tests, fixtures, and helpers as justified by repository evidence
+   - Push beyond happy-path-only scaffolding: critical public/module-facing behavior, truth-owning branches, boundary conditions, and known regression-prone error paths should receive meaningful automated coverage unless an explicit gap is recorded.
+   - Run coverage after the first meaningful test pass, compare the result to the intended module thresholds, then iterate on uncovered critical paths instead of stopping at the first green run.
+   - Keep iterating until thresholds are met or an explicit blocker is recorded with the uncovered hotspot, why it remains open, and the next recommended action.
    - Prefer foundational unit-test coverage for truth-owning surfaces, shared coordination surfaces, validation logic, adapters, and bug-prone seams before broad low-signal test volume.
    - Do not delete or silently rewrite existing user-owned tests unless the user explicitly asks for cleanup.
 
@@ -165,6 +170,7 @@ workflow_contract:
      - coverage commands
      - CI commands
      - TDD loop guidance for this repository
+     - where new tests belong, how they should be named, and which helper/fixture layers they should reuse
    - Write `.specify/testing/COVERAGE_BASELINE.json` with current per-module baseline data and explicit unknowns where measurement is not yet reliable.
 
 8. **Push the contract back into the main workflow**
@@ -177,9 +183,13 @@ workflow_contract:
      - the module inventory is complete enough for later workflows
      - canonical test and coverage commands are explicit
      - the selected framework ownership is recorded for each touched module
+   - Manually execute the canonical test commands and relevant coverage command at least once for each touched module when the environment supports it; if execution is blocked, record the exact blocker instead of pretending validation happened.
+   - Record the most recent manual validation run in `TESTING_STATE_FILE`, including the command(s), timestamp, exit status, and a short result summary.
    - If a module could not be safely updated, record it as an explicit `open_gap` with the next recommended action.
-   - Only mark the state `complete` after the contract, playbook, baseline, and inventory are all written truthfully.
+   - Only mark the state `complete` after the contract, playbook, baseline, inventory, and successful manual validation evidence are all written truthfully; otherwise leave the run `blocked` or keep explicit open gaps.
    - Classify the next workflow recommendation before the final report.
+   - Include the selected bundled language testing skills in the final report and note that they are part of `sp-test`'s built-in testing workflow surface.
+   - Include the most recent manual validation run in the final report so later workflows can see what was actually executed, not just what was documented.
    - Recommend exactly one next command and persist the recommendation in `TESTING_STATE_FILE` as `next_command`, `next_action`, and `handoff_reason`.
    - Route the recommendation using this order:
      - If no actionable gaps remain and the repository now has a usable testing contract, resume the previous workflow. If no prior workflow context is recoverable, fall back to the metadata default handoff.

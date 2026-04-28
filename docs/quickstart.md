@@ -333,7 +333,7 @@ Finally, implement the solution:
 - **Don't focus on tech stack** during specification phase
 - **Use `specify -> plan` as the default path**
 - **Use `clarify` only when an existing spec needs deeper analysis before planning**
-- **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, run `sp-test` first
+- **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, run `sp-test` first so it can bootstrap the bundled language testing skills, establish a coverage baseline, and leave manual validation evidence behind
 - **Validate** the plan before coding begins
 - **Let the AI agent handle** the implementation details
 

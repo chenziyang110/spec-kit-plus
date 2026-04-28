@@ -35,9 +35,17 @@
 ## Coverage Policy
 
 - Coverage baseline file: `.specify/testing/COVERAGE_BASELINE.json`
+- Coverage objective: critical public/module-facing behavior, validation logic, adapter seams, and bug-fix regressions should not remain uncovered without an explicit exception.
 - Minimum enforcement policy:
 - Allowed temporary exceptions:
 - How to record new exceptions:
+
+## Most Recent Manual Validation Run
+
+- Commands executed:
+- Exit status:
+- Summary:
+- Follow-up needed:
 
 ## Task & Implementation Rules
 

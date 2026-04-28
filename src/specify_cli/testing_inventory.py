@@ -14,6 +14,7 @@ IGNORE_DIRS = {
     ".git",
     ".hg",
     ".svn",
+    ".worktrees",
     ".specify",
     ".planning",
     ".venv",
@@ -77,19 +78,23 @@ COMMON_TEST_DIRS = (
 )
 
 
-def _iter_manifest_paths(project_root: Path) -> list[Path]:
-    manifests: list[Path] = []
+def _iter_files(project_root: Path):
     for root, dirs, files in os.walk(project_root):
         dirs[:] = [name for name in dirs if name not in IGNORE_DIRS]
         root_path = Path(root)
         for file_name in files:
-            if file_name in MANIFEST_FILES or file_name in SPECIAL_MANIFEST_NAMES:
-                manifests.append(root_path / file_name)
-                continue
-            if file_name.endswith(".csproj"):
-                manifests.append(root_path / file_name)
-            elif file_name == "build.zig":
-                manifests.append(root_path / file_name)
+            yield root_path / file_name
+
+
+def _iter_manifest_paths(project_root: Path) -> list[Path]:
+    manifests: list[Path] = []
+    for path in _iter_files(project_root):
+        file_name = path.name
+        if file_name in MANIFEST_FILES or file_name in SPECIAL_MANIFEST_NAMES:
+            manifests.append(path)
+            continue
+        if file_name.endswith(".csproj") or file_name == "build.zig":
+            manifests.append(path)
     return sorted(set(manifests))
 
 
@@ -183,10 +188,41 @@ def _detect_test_path(module_root: Path, language: str) -> str | None:
             return candidate.relative_to(module_root).as_posix()
 
     if language == "javascript":
-        matches = list(module_root.rglob("*.test.*")) + list(module_root.rglob("*.spec.*"))
-        if matches:
-            return matches[0].parent.relative_to(module_root).as_posix() or "."
+        return _find_test_file_parent(
+            module_root,
+            lambda file_name: ".test." in file_name.lower() or ".spec." in file_name.lower(),
+        )
+    if language == "python":
+        return _find_test_file_parent(
+            module_root,
+            lambda file_name: file_name.endswith(".py")
+            and (file_name.startswith("test_") or file_name.endswith("_test.py")),
+        )
+    if language == "go":
+        return _find_test_file_parent(module_root, lambda file_name: file_name.lower().endswith("_test.go"))
+    if language == "rust" and _has_rust_inline_tests(module_root):
+        return "src"
     return None
+
+
+def _find_test_file_parent(module_root: Path, matcher) -> str | None:
+    for path in _iter_files(module_root):
+        if matcher(path.name):
+            return path.parent.relative_to(module_root).as_posix() or "."
+    return None
+
+
+def _has_rust_inline_tests(module_root: Path) -> bool:
+    src_dir = module_root / "src"
+    if not src_dir.exists():
+        return False
+    for path in _iter_files(src_dir):
+        if path.suffix.lower() != ".rs":
+            continue
+        text = _read_text(path)
+        if "#[cfg(test)]" in text or "#[test]" in text:
+            return True
+    return False
 
 
 def _package_scripts(package_json: dict[str, Any]) -> dict[str, str]:
@@ -265,7 +301,11 @@ def _detect_framework(module_root: Path, manifest_path: Path, language: str) -> 
 
     if language == "java":
         text = _read_text(manifest_path)
-        return ("junit", "high") if "junit" in text.lower() else ("gradle-test", "low")
+        if "junit" in text.lower():
+            return "junit", "high"
+        if manifest_path.name == "pom.xml":
+            return "maven-test", "low"
+        return "gradle-test", "low"
 
     if language == "kotlin":
         text = _read_text(manifest_path)

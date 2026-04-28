@@ -472,6 +472,10 @@ class TestBuiltInSkillGeneration:
         assert "recommend `/sp-specify`" in test_body.lower()
         assert "recommend `/sp-debug`" in test_body.lower()
         assert "resume `/sp-implement`" in test_body.lower()
+        assert "manually execute the canonical test commands" in test_body.lower()
+        assert "most recent manual validation run" in test_body.lower()
+        assert "run coverage after the first meaningful test pass" in test_body.lower()
+        assert "iterate on uncovered critical paths" in test_body.lower()
 
         fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md")
         assert "write a failing targeted test or failing repro check before editing production code" in fast_body.lower()

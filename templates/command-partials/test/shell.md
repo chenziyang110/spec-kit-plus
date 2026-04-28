@@ -9,7 +9,8 @@ Bootstrap or refresh a durable project-wide unit testing system that future Spec
 - This command is project-level, not feature-level. It operates on the repository's testing surface rather than on a single `FEATURE_DIR`.
 - Primary inputs are the live repository, manifest/config files, existing tests, `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and any project memory files.
 - Durable outputs live under `.specify/testing/`, especially `TESTING_CONTRACT.md`, `TESTING_PLAYBOOK.md`, `COVERAGE_BASELINE.json`, and `testing-state.md`.
-- Use the bundled language testing skills under `.specify/templates/passive-skills/*-testing/` as the framework-specific source of truth instead of improvising per-language test guidance.
+- Treat the bundled `*-testing` skills as the built-in `sp-test` language testing lane. In the Spec Kit Plus source repo they live under `templates/passive-skills/*-testing/`; in generated projects they live under `.specify/templates/passive-skills/*-testing/`.
+- When a language skill is selected, explain that it is a bundled internal skill chosen by `sp-test`, not an unrelated optional addon or an ad-hoc external recommendation.
 
 ## Process
 
