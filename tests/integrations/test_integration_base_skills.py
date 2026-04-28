@@ -433,6 +433,8 @@ class SkillsIntegrationTests:
         assert "PROJECT-HANDBOOK.md" in content
         assert ".specify/project-map/" in content
         assert ".specify/memory/project-rules.md" in content
+        assert "Shared project memory is always available" in content
+        assert "not just when a `sp-*` workflow is active" in content
         assert "## Workflow Routing" in content
         assert "sp-fast" in content
         assert "sp-quick" in content

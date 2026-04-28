@@ -181,6 +181,7 @@ Required action markers:
 Passive project learning layer:
 
 - Generated projects now include `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` as stable shared project memory below the constitution.
+- This shared project memory is available across later work in the repository, not just when a `sp-*` workflow is active.
 - Runtime candidate learnings live under `.planning/learnings/candidates.md`, with `.planning/learnings/review.md` tracking passive promotion notes.
 - The major workflow templates read this passive project learning layer before deeper command-local context so recurring pitfalls, constraints, and user defaults can influence later runs.
 - The passive start step can auto-promote repeated non-high-signal candidates into shared learnings before the command does deeper local analysis.

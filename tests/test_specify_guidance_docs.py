@@ -176,6 +176,16 @@ def test_guidance_docs_explain_passive_project_learning_layer():
     assert "specify learning status --format json" in local_dev
 
 
+def test_guidance_docs_explain_project_memory_as_global_shared_context():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+    agents = _read("AGENTS.md").lower()
+
+    for content in (readme, quickstart, agents):
+        assert "shared project memory" in content
+        assert "not just when a `sp-*` workflow is active" in content or "not limited to spec workflows" in content
+
+
 def test_guidance_docs_publish_native_hook_coverage_matrix():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")

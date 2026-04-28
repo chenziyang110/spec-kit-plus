@@ -14,6 +14,11 @@ For AI CLI workflows in this repository:
 - Use the integration's coordinated runtime when execution needs durable coordination, explicit runtime state, join-point tracking, or worker lifecycle control beyond one in-session delegation burst. For Codex, that runtime surface is `specify team`.
 - Treat native delegation and coordinated runtimes as complementary execution surfaces; choose the lighter path that preserves correctness.
 
+## Project Memory
+
+- Passive project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`.
+- Shared project memory is always available to later work in this repository, not just when a `sp-*` workflow is active.
+
 ## Cross-CLI Improvement Policy
 
 - Treat workflow and product improvements as cross-CLI changes by default, not single-integration tweaks.

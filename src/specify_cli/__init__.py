@@ -753,6 +753,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "## Project Memory",
             "",
             "- Passive project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`.",
+            "- Shared project memory is always available to later work in this repository, not just when a `sp-*` workflow is active.",
             "- Prefer generated project-local Spec Kit workflows, skills, and commands over ad-hoc execution when they fit the task.",
             "",
             "## Workflow Routing",
