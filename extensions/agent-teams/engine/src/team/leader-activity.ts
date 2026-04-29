@@ -5,7 +5,7 @@ const execFileAsync = promisify(execFile);
 import { existsSync, statSync } from 'node:fs';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, posix, resolve, sep, win32 } from 'node:path';
-import { omxStateDir } from '../utils/paths.js';
+import { specifyRuntimeStateDir } from '../utils/paths.js';
 import { findGitLayout, readGitLayoutFile } from '../utils/git-layout.js';
 
 const MIN_GIT_ACTIVITY_CACHE_TTL_MS = 1000;
@@ -190,7 +190,7 @@ async function readLeaderBranchGitActivityMsCached(
 }
 
 export function leaderRuntimeActivityPath(cwd: string): string {
-  return join(omxStateDir(cwd), 'leader-runtime-activity.json');
+  return join(specifyRuntimeStateDir(cwd), 'leader-runtime-activity.json');
 }
 
 export async function recordLeaderRuntimeActivity(
@@ -199,7 +199,7 @@ export async function recordLeaderRuntimeActivity(
   teamName?: string,
   nowIso = new Date().toISOString(),
 ): Promise<void> {
-  const stateDir = omxStateDir(cwd);
+  const stateDir = specifyRuntimeStateDir(cwd);
   await mkdir(stateDir, { recursive: true });
   const path = leaderRuntimeActivityPath(cwd);
   const existingRaw = await readJsonIfExists(path);

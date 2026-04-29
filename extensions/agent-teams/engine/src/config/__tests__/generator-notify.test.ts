@@ -389,19 +389,19 @@ describe('config generator', () => {
 
       assert.match(
         toml,
-        /args = \["C:\\\\Users\\\\alice\\\\oh-my-codex\/dist\/mcp\/state-server\.js"\]/,
+        /args = \["C:\\\\Users\\\\alice(?:\\\\|\/)oh-my-codex(?:\\\\|\/)dist(?:\\\\|\/)mcp(?:\\\\|\/)state-server\.js"\]/,
       );
       assert.match(
         toml,
-        /args = \["C:\\\\Users\\\\alice\\\\oh-my-codex\/dist\/mcp\/memory-server\.js"\]/,
+        /args = \["C:\\\\Users\\\\alice(?:\\\\|\/)oh-my-codex(?:\\\\|\/)dist(?:\\\\|\/)mcp(?:\\\\|\/)memory-server\.js"\]/,
       );
       assert.match(
         toml,
-        /args = \["C:\\\\Users\\\\alice\\\\oh-my-codex\/dist\/mcp\/code-intel-server\.js"\]/,
+        /args = \["C:\\\\Users\\\\alice(?:\\\\|\/)oh-my-codex(?:\\\\|\/)dist(?:\\\\|\/)mcp(?:\\\\|\/)code-intel-server\.js"\]/,
       );
       assert.match(
         toml,
-        /args = \["C:\\\\Users\\\\alice\\\\oh-my-codex\/dist\/mcp\/trace-server\.js"\]/,
+        /args = \["C:\\\\Users\\\\alice(?:\\\\|\/)oh-my-codex(?:\\\\|\/)dist(?:\\\\|\/)mcp(?:\\\\|\/)trace-server\.js"\]/,
       );
     } finally {
       await rm(wd, { recursive: true, force: true });

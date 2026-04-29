@@ -3,7 +3,7 @@
  * Reads JSON config from stdin, runs startTeam/monitorTeam/shutdownTeam,
  * writes structured JSON result to stdout.
  *
- * Spawned by OMX team orchestration entrypoints when a background team run starts.
+ * Spawned by Specify team orchestration entrypoints when a background team run starts.
  */
 
 import { createInterface } from 'readline';
@@ -77,10 +77,10 @@ async function writePanesFile(
   paneIds: string[],
   leaderPaneId: string,
 ): Promise<void> {
-  const omxJobsDir = process.env.OMX_JOBS_DIR || process.env.SP_TEAMS_JOBS_DIR;
-  if (!jobId || !omxJobsDir) return;
+  const jobsDir = process.env.SPECIFY_TEAM_JOBS_DIR;
+  if (!jobId || !jobsDir) return;
 
-  const panesPath = join(omxJobsDir, `${jobId}-panes.json`);
+  const panesPath = join(jobsDir, `${jobId}-panes.json`);
   await writeFile(
     panesPath + '.tmp',
     JSON.stringify({ paneIds: [...paneIds], leaderPaneId }),
@@ -181,8 +181,8 @@ export function buildTerminalCliResult(
     exitCode: status === 'completed' ? 0 : 1,
     notice:
       `[runtime-cli] phase=${phase} reached terminal state; preserving team state for inspection. `
-      + `Inspect with "sp-team status ${teamName} --json" or "sp-team read-stall-state --input '{\"team_name\":\"${teamName}\"}' --json". `
-      + `Run "sp-team shutdown ${teamName}" (or --force after state capture) when explicit cleanup is desired.\n`,
+      + `Inspect with "sp-teams status ${teamName} --json" or "sp-teams api read-stall-state --input '{\"team_name\":\"${teamName}\"}' --json". `
+      + `Run "sp-teams shutdown ${teamName}" (or --force after state capture) when explicit cleanup is desired.\n`,
   };
 }
 
@@ -300,15 +300,13 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => handleShutdown('SIGINT'));
   process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 
-  // Start the team 鈥?OMX's startTeam takes individual parameters
+  // Start the team; startTeam takes individual parameters.
   const agentType = 'executor';
   try {
     const providers = normalizeAgentTypes(agentTypes, workerCount);
-    const previousCliMap = process.env.SP_TEAMS_WORKER_CLI_MAP;
-    const previousLegacyCliMap = process.env.OMX_TEAM_WORKER_CLI_MAP;
+    const previousCliMap = process.env.SPECIFY_TEAM_WORKER_CLI_MAP;
     try {
-      process.env.SP_TEAMS_WORKER_CLI_MAP = providers.join(',');
-      process.env.OMX_TEAM_WORKER_CLI_MAP = providers.join(',');
+      process.env.SPECIFY_TEAM_WORKER_CLI_MAP = providers.join(',');
       runtime = await startTeam(
         teamName,
         tasks.map(t => t.subject).join('; '),
@@ -319,18 +317,16 @@ async function main(): Promise<void> {
         { confirmStaleCleanup: promptStaleCleanup },
       );
     } finally {
-      if (typeof previousCliMap === 'string') process.env.SP_TEAMS_WORKER_CLI_MAP = previousCliMap;
-      else delete process.env.SP_TEAMS_WORKER_CLI_MAP;
-      if (typeof previousLegacyCliMap === 'string') process.env.OMX_TEAM_WORKER_CLI_MAP = previousLegacyCliMap;
-      else delete process.env.OMX_TEAM_WORKER_CLI_MAP;
+      if (typeof previousCliMap === 'string') process.env.SPECIFY_TEAM_WORKER_CLI_MAP = previousCliMap;
+      else delete process.env.SPECIFY_TEAM_WORKER_CLI_MAP;
     }
   } catch (err) {
     process.stderr.write(`[runtime-cli] startTeam failed: ${err}\n`);
     process.exit(1);
   }
 
-  // Persist pane IDs when a background launcher provides an OMX job ID.
-  const jobId = process.env.OMX_JOB_ID || process.env.SP_TEAMS_JOB_ID;
+  // Persist pane IDs when a background launcher provides a Specify job ID.
+  const jobId = process.env.SPECIFY_TEAM_JOB_ID;
   try {
     const livePanes = await loadLivePaneState(teamName, cwd);
     if (livePanes) {
@@ -410,7 +406,7 @@ async function main(): Promise<void> {
   }
 }
 
-const shouldAutoStart = process.env.OMX_RUNTIME_CLI_DISABLE_AUTO_START !== '1';
+const shouldAutoStart = process.env.SPECIFY_RUNTIME_CLI_DISABLE_AUTO_START !== '1';
 
 if (shouldAutoStart) {
   main().catch(err => {

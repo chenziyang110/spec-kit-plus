@@ -21,6 +21,7 @@
 import { writeFile, appendFile, mkdir, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { dirname, join } from 'path';
+import { specifyRuntimeLogsDir, specifyRuntimeRoot, specifyRuntimeStateDir } from '../utils/paths.js';
 
 import { safeString, asNumber } from './notify-hook/utils.js';
 import {
@@ -179,15 +180,15 @@ async function main() {
   const isTurnComplete = isTurnCompletePayload(payload);
 
   // Team worker detection via environment variable
-  const teamWorkerEnv = process.env.OMX_TEAM_WORKER; // e.g., "fix-ts/worker-1"
+  const teamWorkerEnv = process.env.SPECIFY_TEAM_WORKER; // e.g., "fix-ts/worker-1"
   const parsedTeamWorker = parseTeamWorkerEnv(teamWorkerEnv);
   const isTeamWorker = !!parsedTeamWorker;
 
   const stateDir = (isTeamWorker && parsedTeamWorker)
     ? await resolveTeamStateDirForWorker(cwd, parsedTeamWorker)
-    : join(cwd, '.omx', 'state');
-  const logsDir = join(cwd, '.omx', 'logs');
-  const omxDir = join(cwd, '.omx');
+    : specifyRuntimeStateDir(cwd);
+  const logsDir = specifyRuntimeLogsDir(cwd);
+  const runtimeDir = specifyRuntimeRoot(cwd);
   let currentOmxSessionId = '';
   const getEffectiveSessionId = () => currentOmxSessionId || payloadSessionId;
 
@@ -363,7 +364,7 @@ async function main() {
 
   // 3. Track subagent metrics (lead session only)
   if (!isTeamWorker) {
-    const metricsPath = join(omxDir, 'metrics.json');
+    const metricsPath = join(runtimeDir, 'metrics.json');
     try {
       let metrics = {
         total_turns: 0,

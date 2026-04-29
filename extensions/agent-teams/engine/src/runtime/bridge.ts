@@ -6,11 +6,11 @@
  * Set OMX_RUNTIME_BRIDGE=0 to disable bridge (fallback to TS-direct).
  */
 
-import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveCanonicalTeamStateRoot } from '../team/state-root.js';
+import { spawnPlatformCommandSync } from '../utils/platform-command.js';
 
 const __bridge_dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -254,13 +254,16 @@ export class RuntimeBridge {
 
   private run(args: string[]): string {
     try {
-      const result = execFileSync(this.binaryPath, args, {
+      const { result } = spawnPlatformCommandSync(this.binaryPath, args, {
         encoding: 'utf-8',
         timeout: 10_000,
         maxBuffer: 1024 * 1024,
-      windowsHide: true,
-    });
-      return result;
+      });
+      if (result.error || result.status !== 0) {
+        const stderr = (result.stderr || result.error?.message || 'unknown error').trim();
+        throw new Error(stderr);
+      }
+      return result.stdout || '';
     } catch (err: unknown) {
       const execErr = err as { stderr?: string; message?: string };
       const stderr = execErr.stderr?.trim() ?? execErr.message ?? 'unknown error';

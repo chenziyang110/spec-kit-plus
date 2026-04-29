@@ -88,11 +88,11 @@ describe('state paths', () => {
     assert.throws(() => resolveWorkingDirectoryForState('bad\0path'), /NUL byte/);
   });
 
-  it('enforces OMX_MCP_WORKDIR_ROOTS allowlist when configured', async () => {
+  it('enforces SPECIFY_MCP_WORKDIR_ROOTS allowlist when configured', async () => {
     const allowedRoot = await mkdtemp(join(tmpdir(), 'omx-allowed-root-'));
     const disallowedRoot = await mkdtemp(join(tmpdir(), 'omx-disallowed-root-'));
-    const prev = process.env.OMX_MCP_WORKDIR_ROOTS;
-    process.env.OMX_MCP_WORKDIR_ROOTS = allowedRoot;
+    const prev = process.env.SPECIFY_MCP_WORKDIR_ROOTS;
+    process.env.SPECIFY_MCP_WORKDIR_ROOTS = allowedRoot;
     try {
       assert.equal(
         resolveWorkingDirectoryForState(join(allowedRoot, 'nested')),
@@ -100,32 +100,34 @@ describe('state paths', () => {
       );
       assert.throws(
         () => resolveWorkingDirectoryForState(disallowedRoot),
-        /outside allowed roots \(OMX_MCP_WORKDIR_ROOTS\)/,
+        /outside allowed roots \(SPECIFY_MCP_WORKDIR_ROOTS\)/,
       );
     } finally {
-      if (typeof prev === 'string') process.env.OMX_MCP_WORKDIR_ROOTS = prev;
-      else delete process.env.OMX_MCP_WORKDIR_ROOTS;
+      if (typeof prev === 'string') process.env.SPECIFY_MCP_WORKDIR_ROOTS = prev;
+      else delete process.env.SPECIFY_MCP_WORKDIR_ROOTS;
       await rm(allowedRoot, { recursive: true, force: true });
       await rm(disallowedRoot, { recursive: true, force: true });
     }
   });
 
   it('builds global state paths', () => {
+    const repoRoot = resolvePath('/repo');
     const base = getBaseStateDir('/repo');
-    assert.equal(base, '/repo/.omx/state');
-    assert.equal(getStateDir('/repo'), '/repo/.omx/state');
-    assert.equal(getStatePath('team', '/repo'), '/repo/.omx/state/team-state.json');
+    assert.equal(base, join(repoRoot, '.specify', 'runtime', 'state'));
+    assert.equal(getStateDir('/repo'), join(repoRoot, '.specify', 'runtime', 'state'));
+    assert.equal(getStatePath('team', '/repo'), join(repoRoot, '.specify', 'runtime', 'state', 'team-state.json'));
   });
 
   it('builds session state paths', () => {
-    assert.equal(getStateDir('/repo', 'sess1'), '/repo/.omx/state/sessions/sess1');
+    const repoRoot = resolvePath('/repo');
+    assert.equal(getStateDir('/repo', 'sess1'), join(repoRoot, '.specify', 'runtime', 'state', 'sessions', 'sess1'));
     assert.equal(
       getStatePath('ralph', '/repo', 'sess1'),
-      '/repo/.omx/state/sessions/sess1/ralph-state.json'
+      join(repoRoot, '.specify', 'runtime', 'state', 'sessions', 'sess1', 'ralph-state.json')
     );
     assert.equal(
       getStateFilePath('hud-state.json', '/repo', 'sess1'),
-      '/repo/.omx/state/sessions/sess1/hud-state.json'
+      join(repoRoot, '.specify', 'runtime', 'state', 'sessions', 'sess1', 'hud-state.json')
     );
   });
 
@@ -227,9 +229,9 @@ describe('state paths', () => {
     }
   });
 
-  it('prefers OMX_SESSION_ID over stale session.json when resolving current session id', async () => {
+  it('prefers SPECIFY_SESSION_ID over stale session.json when resolving current session id', async () => {
     const wd = await mkdtemp(join(tmpdir(), 'omx-state-paths-'));
-    const previousSessionId = process.env.OMX_SESSION_ID;
+    const previousSessionId = process.env.SPECIFY_SESSION_ID;
     try {
       const stateDir = getBaseStateDir(wd);
       await mkdir(stateDir, { recursive: true });
@@ -238,12 +240,12 @@ describe('state paths', () => {
         session_id: 'sess-stale',
         cwd: join(wd, '..', 'other-worktree'),
       }));
-      process.env.OMX_SESSION_ID = 'sess-env';
+      process.env.SPECIFY_SESSION_ID = 'sess-env';
 
       assert.equal(await readCurrentSessionId(wd), 'sess-env');
     } finally {
-      if (typeof previousSessionId === 'string') process.env.OMX_SESSION_ID = previousSessionId;
-      else delete process.env.OMX_SESSION_ID;
+      if (typeof previousSessionId === 'string') process.env.SPECIFY_SESSION_ID = previousSessionId;
+      else delete process.env.SPECIFY_SESSION_ID;
       await rm(wd, { recursive: true, force: true });
     }
   });

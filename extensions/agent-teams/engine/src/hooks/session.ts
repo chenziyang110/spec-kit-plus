@@ -8,7 +8,7 @@
 import { readFile, writeFile, mkdir, unlink, appendFile, rm } from 'fs/promises';
 import { dirname, join } from 'path';
 import { existsSync, readFileSync } from 'fs';
-import { omxStateDir, omxLogsDir, sameFilePath } from '../utils/paths.js';
+import { specifyRuntimeStateDir, omxLogsDir, sameFilePath } from '../utils/paths.js';
 import { getStateFilePath } from '../mcp/state-paths.js';
 
 export interface SessionState {
@@ -29,7 +29,7 @@ const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 // Long-running sessions (>2h) are legitimate and should not be reaped.
 
 function sessionPath(cwd: string): string {
-  return join(omxStateDir(cwd), SESSION_FILE);
+  return join(specifyRuntimeStateDir(cwd), SESSION_FILE);
 }
 
 function historyPath(cwd: string): string {
@@ -66,7 +66,7 @@ async function removeDeadSessionHudState(
  */
 export async function resetSessionMetrics(cwd: string, sessionId?: string): Promise<void> {
   const omxDir = join(cwd, '.omx');
-  const stateDir = omxStateDir(cwd);
+  const stateDir = specifyRuntimeStateDir(cwd);
   await mkdir(omxDir, { recursive: true });
   await mkdir(stateDir, { recursive: true });
 
@@ -282,7 +282,7 @@ export async function writeSessionStart(
   sessionId: string,
   options: SessionStartOptions = {},
 ): Promise<SessionState> {
-  const stateDir = omxStateDir(cwd);
+  const stateDir = specifyRuntimeStateDir(cwd);
   await mkdir(stateDir, { recursive: true });
   const pid = Number.isInteger(options.pid) && options.pid && options.pid > 0
     ? options.pid

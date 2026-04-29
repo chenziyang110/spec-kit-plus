@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import { mkdir, readFile, readdir, unlink, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
-import { omxStateDir } from '../utils/paths.js';
+import { specifyRuntimeStateDir } from '../utils/paths.js';
 import {
   assertWorkflowTransitionAllowed,
   isTrackedWorkflowMode,
@@ -172,12 +172,12 @@ export function getSkillActiveStatePaths(cwd: string, sessionId?: string): {
   rootPath: string;
   sessionPath?: string;
 } {
-  const rootPath = join(omxStateDir(cwd), SKILL_ACTIVE_STATE_FILE);
+  const rootPath = join(specifyRuntimeStateDir(cwd), SKILL_ACTIVE_STATE_FILE);
   const normalizedSession = safeString(sessionId).trim();
   if (!normalizedSession) return { rootPath };
   return {
     rootPath,
-    sessionPath: join(omxStateDir(cwd), 'sessions', normalizedSession, SKILL_ACTIVE_STATE_FILE),
+    sessionPath: join(specifyRuntimeStateDir(cwd), 'sessions', normalizedSession, SKILL_ACTIVE_STATE_FILE),
   };
 }
 
@@ -352,7 +352,7 @@ export async function syncCanonicalSkillStateForMode(options: SyncCanonicalSkill
   const nextRootState = applyEntriesToState(existingRoot, nextRootEntries, mode);
   await writeSkillActiveStateCopies(cwd, nextRootState, undefined, nextRootState);
 
-  const sessionsDir = join(omxStateDir(cwd), 'sessions');
+  const sessionsDir = join(specifyRuntimeStateDir(cwd), 'sessions');
   if (!existsSync(sessionsDir)) return;
 
   const sessionIds = await readdir(sessionsDir).catch(() => []);

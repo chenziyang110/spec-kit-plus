@@ -299,7 +299,7 @@ function buildIdleState(
 }
 
 function readLatestLeaderRuntimeActivityMs(cwd: string): number {
-  const path = join(cwd, '.omx', 'state', 'leader-runtime-activity.json');
+  const path = join(resolveCanonicalTeamStateRoot(cwd), 'leader-runtime-activity.json');
   if (!existsSync(path)) return Number.NaN;
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as { last_activity_at?: string };
@@ -445,7 +445,7 @@ function parseValidatedTaskIdArray(value: unknown, fieldName: string): string[] 
 
 function teamStateExists(teamName: string, candidateCwd: string): boolean {
   if (!TEAM_NAME_SAFE_PATTERN.test(teamName)) return false;
-  const teamRoot = join(candidateCwd, '.omx', 'state', 'team', teamName);
+  const teamRoot = join(resolveCanonicalTeamStateRoot(candidateCwd), 'team', teamName);
   return existsSync(join(teamRoot, 'config.json')) || existsSync(join(teamRoot, 'tasks')) || existsSync(teamRoot);
 }
 
@@ -463,11 +463,11 @@ function readTeamStateRootFromManifest(path: string): string | null {
 
 function stateRootToWorkingDirectory(stateRoot: string): string {
   const absolute = resolvePath(stateRoot);
-  return dirname(dirname(absolute));
+  return dirname(dirname(dirname(absolute)));
 }
 
 function resolveTeamWorkingDirectoryFromMetadata(teamName: string, candidateCwd: string): string | null {
-  const teamRoot = join(candidateCwd, '.omx', 'state', 'team', teamName);
+  const teamRoot = join(resolveCanonicalTeamStateRoot(candidateCwd), 'team', teamName);
   if (!existsSync(teamRoot)) return null;
 
   const fromManifest = readTeamStateRootFromManifest(join(teamRoot, 'manifest.v2.json'));
@@ -479,7 +479,7 @@ function resolveTeamWorkingDirectoryFromMetadata(teamName: string, candidateCwd:
 function resolveTeamWorkingDirectory(teamName: string, preferredCwd: string): string {
   const normalizedTeamName = String(teamName || '').trim();
   if (!normalizedTeamName) return preferredCwd;
-  const envTeamStateRoot = process.env.SP_TEAMS_STATE_ROOT || process.env.OMX_TEAM_STATE_ROOT;
+  const envTeamStateRoot = process.env.SPECIFY_TEAM_STATE_ROOT;
   if (typeof envTeamStateRoot === 'string' && envTeamStateRoot.trim() !== '') {
     return stateRootToWorkingDirectory(envTeamStateRoot.trim());
   }
@@ -544,9 +544,9 @@ export function buildLegacyTeamDeprecationHint(legacyName: string, originalArgs?
   const operation = resolveTeamApiOperation(legacyName);
   const payload = JSON.stringify(originalArgs ?? {});
   if (!operation) {
-    return `Use CLI interop: sp-team <operation> --input '${payload}' --json`;
+    return `Use CLI interop: sp-teams api <operation> --input '${payload}' --json`;
   }
-  return `Use CLI interop: sp-team ${operation} --input '${payload}' --json`;
+  return `Use CLI interop: sp-teams api ${operation} --input '${payload}' --json`;
 }
 
 function validateCommonFields(args: Record<string, unknown>): void {

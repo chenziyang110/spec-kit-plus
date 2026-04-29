@@ -1,20 +1,20 @@
 ﻿import type { TeamTask } from "./state.js";
 import { existsSync } from "fs";
 import { mkdir, readFile, rm, stat, writeFile } from "fs/promises";
-import { dirname, join } from "path";
+import { dirname, join, resolve } from "path";
 import { execFileSync } from "child_process";
 import {
   getFixLoopInstructions,
   getVerificationInstructions,
 } from "../verification/verifier.js";
-import { codexHome, listInstalledSkillDirectories } from "../utils/paths.js";
+import { codexHome, listInstalledSkillDirectories, specifyRuntimeStateDir } from "../utils/paths.js";
 import { sleep } from "../utils/sleep.js";
 import type { TeamReminderDirective } from "./reminder-intents.js";
 
 const TEAM_OVERLAY_START = "<!-- OMX:TEAM:WORKER:START -->";
 const TEAM_OVERLAY_END = "<!-- OMX:TEAM:WORKER:END -->";
 const SKILL_REFERENCE_PATTERN = /\/skills\/([^/\s`]+)\/SKILL\.md\b/g;
-const AGENTS_LOCK_PATH = [".omx", "state", "agents-md.lock"];
+const AGENTS_LOCK_PATH = [".specify", "runtime", "state", "agents-md.lock"];
 const LOCK_OWNER_FILE = "owner.json";
 const LOCK_TIMEOUT_MS = 5000;
 const LOCK_POLL_INTERVAL_MS = 100;
@@ -43,13 +43,19 @@ function buildWorkerRootAgentsBackupPath(
   workerName: string,
   worktreePath: string,
 ): string {
-  const gitPath = tryReadGitValue(worktreePath, [
+  const repoRoot = tryReadGitValue(worktreePath, [
     "rev-parse",
-    "--git-path",
-    "omx/root-agents-backup.json",
+    "--show-toplevel",
   ]);
+  const gitPath = repoRoot && resolve(repoRoot) === resolve(worktreePath)
+    ? tryReadGitValue(worktreePath, [
+        "rev-parse",
+        "--git-path",
+        "omx/root-agents-backup.json",
+      ])
+    : null;
   return gitPath
-    ? gitPath
+    ? resolve(worktreePath, gitPath)
     : join(
         teamStateRoot,
         "team",
@@ -65,7 +71,7 @@ export function generateWorkerRootAgentsContent(
 ): string {
   return `# Team Worker Runtime Instructions
 
-This file is generated for a live OMX team worker run and is disposable.
+This file is generated for a live Specify team worker run and is disposable.
 
 ## Worker Identity
 - Team: ${options.teamName}
@@ -89,19 +95,19 @@ This file is generated for a live OMX team worker run and is disposable.
    - \`${options.leaderCwd}/skills/worker/SKILL.md\`
 3. Send startup ACK before task work:
 
-   \`sp-team send-message --input "{\"team_name\":\"${options.teamName}\",\"from_worker\":\"${options.workerName}\",\"to_worker\":\"leader-fixed\",\"body\":\"ACK: ${options.workerName} initialized\"}" --json\`
+   \`sp-teams api send-message --input "{\"team_name\":\"${options.teamName}\",\"from_worker\":\"${options.workerName}\",\"to_worker\":\"leader-fixed\",\"body\":\"ACK: ${options.workerName} initialized\"}" --json\`
 
-4. Resolve canonical team state root in this order: \`SP_TEAMS_STATE_ROOT\` env -> worker identity \`team_state_root\` -> config/manifest \`team_state_root\` -> local cwd fallback.
+4. Resolve canonical team state root in this order: \`SPECIFY_TEAM_STATE_ROOT\` env -> worker identity \`team_state_root\` -> config/manifest \`team_state_root\` -> local cwd fallback.
 5. Read task files from \`${options.teamStateRoot}/team/${options.teamName}/tasks/task-<id>.json\` using bare \`task_id\` values in APIs.
 6. Use claim-safe lifecycle APIs only:
-   - \`sp-team claim-task --json\`
-   - \`sp-team transition-task-status --json\`
-   - \`sp-team release-task-claim --json\` only for rollback to pending
+   - \`sp-teams api claim-task --json\`
+   - \`sp-teams api transition-task-status --json\`
+   - \`sp-teams api release-task-claim --json\` only for rollback to pending
 7. Use mailbox delivery flow:
-   - \`sp-team mailbox-list --input "{\"team_name\":\"${options.teamName}\",\"worker\":\"${options.workerName}\"}" --json\`
-   - \`sp-team mailbox-mark-delivered --input "{\"team_name\":\"${options.teamName}\",\"worker\":\"${options.workerName}\",\"message_id\":\"<MESSAGE_ID>\"}" --json\`
+   - \`sp-teams api mailbox-list --input "{\"team_name\":\"${options.teamName}\",\"worker\":\"${options.workerName}\"}" --json\`
+   - \`sp-teams api mailbox-mark-delivered --input "{\"team_name\":\"${options.teamName}\",\"worker\":\"${options.workerName}\",\"message_id\":\"<MESSAGE_ID>\"}" --json\`
 8. Preserve leader steering via inbox/mailbox nudges; task payload stays in inbox/task JSON, not this file.
-9. Do not pass \`workingDirectory\` to legacy team_* MCP tools; use \`sp-team\` CLI interop.
+9. Do not pass \`workingDirectory\` to legacy team_* MCP tools; use \`sp-teams api\` CLI interop.
 
 ## Message Protocol
 - Always include \`from_worker: "${options.workerName}"\`
@@ -302,31 +308,31 @@ You are a team worker in team "${teamName}". Your identity and assigned tasks ar
    - \`${"${CODEX_HOME:-~/.codex}"}/skills/worker/SKILL.md\`
    - \`<leader_cwd>/.codex/skills/worker/SKILL.md\`
    - \`<leader_cwd>/skills/worker/SKILL.md\` (repo fallback)
-3. Send an ACK to the lead using CLI interop \`sp-team send-message --json\` (to_worker="leader-fixed") once initialized
+3. Send an ACK to the lead using CLI interop \`sp-teams api send-message --json\` (to_worker="leader-fixed") once initialized
 4. Resolve canonical team state root in this order:
-   - SP_TEAMS_STATE_ROOT env
+   - SPECIFY_TEAM_STATE_ROOT env
    - worker identity team_state_root
    - team config/manifest team_state_root
-   - local cwd fallback (.specify/agent-teams/state)
+   - local cwd fallback (.specify/runtime/state)
 5. Read your task from <team_state_root>/team/${teamName}/tasks/task-<id>.json (example: task-1.json)
 6. Task id format:
    - State/MCP APIs use task_id: "<id>" (example: "1"), never "task-1"
-7. Request a claim via CLI interop (\`sp-team claim-task --json\`); do not directly set lifecycle fields in the task file
+7. Request a claim via CLI interop (\`sp-teams api claim-task --json\`); do not directly set lifecycle fields in the task file
 8. Do the work using your tools
 9. After completing work, commit your changes before reporting completion:
    \`git add -A && git commit -m "task: <task-subject>"\`
    This ensures your changes are available for incremental integration into the leader branch.
 10. On completion/failure, use lifecycle transition APIs:
-   - \`sp-team transition-task-status --json\` with from \`"in_progress"\` to \`"completed"\` or \`"failed"\`
+   - \`sp-teams api transition-task-status --json\` with from \`"in_progress"\` to \`"completed"\` or \`"failed"\`
    - Include \`result\` (for completed) or \`error\` (for failed) in the transition patch
-11. Use \`sp-team release-task-claim --json\` only for rollback/requeue to \`pending\` (not for completion)
+11. Use \`sp-teams api release-task-claim --json\` only for rollback/requeue to \`pending\` (not for completion)
 12. Update your status: write {"state": "idle", "updated_at": "<current ISO timestamp>"} to <team_state_root>/team/${teamName}/workers/{your-name}/status.json
 13. Wait for new instructions (the lead will send them via your terminal)
 14. Check your mailbox for messages at <team_state_root>/team/${teamName}/mailbox/{your-name}.json
-15. For legacy team_* MCP tools (hard-deprecated), switch to \`sp-team\` CLI interop; do not pass workingDirectory unless the lead explicitly tells you to
+15. For legacy team_* MCP tools (hard-deprecated), switch to \`sp-teams api\` CLI interop; do not pass workingDirectory unless the lead explicitly tells you to
 
 ## Message Protocol
-When calling \`sp-team send-message\`, you MUST always include:
+When calling \`sp-teams api send-message\`, you MUST always include:
 - from_worker: "<your-worker-name>" (your identity 鈥?check your inbox file for your worker name, never omit this)
 - to_worker: "leader-fixed" (to message the leader) or "worker-N" (for peers)
 
@@ -335,13 +341,13 @@ Before doing any task work, send exactly one startup ACK to the leader.
 Keep the body short and deterministic so all worker CLIs (Codex/Claude) behave consistently.
 
 Example:
-sp-team send-message --input "{\"team_name\":\"${teamName}\",\"from_worker\":\"<your-worker-name>\",\"to_worker\":\"leader-fixed\",\"body\":\"ACK: <your-worker-name> initialized\"}" --json
+sp-teams api send-message --input "{\"team_name\":\"${teamName}\",\"from_worker\":\"<your-worker-name>\",\"to_worker\":\"leader-fixed\",\"body\":\"ACK: <your-worker-name> initialized\"}" --json
 
 CRITICAL: Never omit from_worker. The MCP server cannot auto-detect your identity.
 
 When your mailbox receives a message, process delivery explicitly:
-1. Read: \`sp-team mailbox-list --input "{\"team_name\":\"${teamName}\",\"worker\":\"<your-worker-name>\"}" --json\`
-2. Mark delivered: \`sp-team mailbox-mark-delivered --input "{\"team_name\":\"${teamName}\",\"worker\":\"<your-worker-name>\",\"message_id\":\"<MESSAGE_ID>\"}" --json\`
+1. Read: \`sp-teams api mailbox-list --input "{\"team_name\":\"${teamName}\",\"worker\":\"<your-worker-name>\"}" --json\`
+2. Mark delivered: \`sp-teams api mailbox-mark-delivered --input "{\"team_name\":\"${teamName}\",\"worker\":\"<your-worker-name>\",\"message_id\":\"<MESSAGE_ID>\"}" --json\`
 3. If you reply, include concrete progress and keep executing your assigned work or the next feasible task after replying.
 
 ## Rules
@@ -478,14 +484,7 @@ export async function writeTeamWorkerInstructionsFile(
   const composed =
     base.trim().length > 0 ? `${base}\n\n${overlay}\n` : `${overlay}\n`;
 
-  const outPath = join(
-    cwd,
-    ".omx",
-    "state",
-    "team",
-    teamName,
-    "worker-agents.md",
-  );
+  const outPath = join(specifyRuntimeStateDir(cwd), "team", teamName, "worker-agents.md");
   await mkdir(dirname(outPath), { recursive: true });
   await writeFile(outPath, composed);
   return outPath;
@@ -519,16 +518,7 @@ ${rolePromptContent.trim()}
 
 ${roleOverlay}`
       : roleOverlay.trimStart();
-  const outPath = join(
-    cwd,
-    ".omx",
-    "state",
-    "team",
-    teamName,
-    "workers",
-    workerName,
-    "AGENTS.md",
-  );
+  const outPath = join(specifyRuntimeStateDir(cwd), "team", teamName, "workers", workerName, "AGENTS.md");
   await mkdir(dirname(outPath), { recursive: true });
   await writeFile(outPath, composed);
   return outPath;
@@ -541,14 +531,7 @@ export async function removeTeamWorkerInstructionsFile(
   teamName: string,
   cwd: string,
 ): Promise<void> {
-  const outPath = join(
-    cwd,
-    ".omx",
-    "state",
-    "team",
-    teamName,
-    "worker-agents.md",
-  );
+  const outPath = join(specifyRuntimeStateDir(cwd), "team", teamName, "worker-agents.md");
   await rm(outPath, { force: true }).catch(() => {});
 }
 
@@ -634,7 +617,7 @@ async function withAgentsMdLock<T>(
 
 /**
  * Generate initial inbox file content for worker bootstrap.
- * This is written to .specify/agent-teams/state/team/{team}/workers/{worker}/inbox.md by the lead.
+ * This is written to .specify/runtime/state/team/{team}/workers/{worker}/inbox.md by the lead.
  */
 export function generateInitialInbox(
   workerName: string,
@@ -690,41 +673,41 @@ ${taskList}
    - \`${leaderCwd}/skills/worker/SKILL.md\` (repo fallback)
 2. Send startup ACK to the lead mailbox BEFORE any task work (run this exact command):
 
-   \`sp-team send-message --input "{\"team_name\":\"${teamName}\",\"from_worker\":\"${workerName}\",\"to_worker\":\"leader-fixed\",\"body\":\"ACK: ${workerName} initialized\"}" --json\`
+   \`sp-teams api send-message --input "{\"team_name\":\"${teamName}\",\"from_worker\":\"${workerName}\",\"to_worker\":\"leader-fixed\",\"body\":\"ACK: ${workerName} initialized\"}" --json\`
 
 3. Start with the first non-blocked task
-4. Resolve canonical team state root in this order: \`SP_TEAMS_STATE_ROOT\` env -> worker identity \`team_state_root\` -> config/manifest \`team_state_root\` -> local cwd fallback.
+4. Resolve canonical team state root in this order: \`SPECIFY_TEAM_STATE_ROOT\` env -> worker identity \`team_state_root\` -> config/manifest \`team_state_root\` -> local cwd fallback.
 5. Read the task file for your selected task id at \`${teamStateRoot}/team/${teamName}/tasks/task-<id>.json\` (example: \`task-1.json\`)
 6. Task id format:
    - State/MCP APIs use \`task_id: "<id>"\` (example: \`"1"\`), not \`"task-1"\`.
-7. Request a claim via CLI interop (\`sp-team claim-task --json\`) to claim it
+7. Request a claim via CLI interop (\`sp-teams api claim-task --json\`) to claim it
 8. Complete the work described in the task
 9. After completing work, commit your changes before reporting completion:
    \`git add -A && git commit -m "task: <task-subject>"\`
    This ensures your changes are available for incremental integration into the leader branch.
-10. Complete/fail it via lifecycle transition API (\`sp-team transition-task-status --json\`) from \`"in_progress"\` to \`"completed"\` or \`"failed"\` (include \`result\`/\`error\`)
-11. Use \`sp-team release-task-claim --json\` only for rollback to \`pending\`
+10. Complete/fail it via lifecycle transition API (\`sp-teams api transition-task-status --json\`) from \`"in_progress"\` to \`"completed"\` or \`"failed"\` (include \`result\`/\`error\`)
+11. Use \`sp-teams api release-task-claim --json\` only for rollback to \`pending\`
 12. Write \`{"state": "idle", "updated_at": "<current ISO timestamp>"}\` to \`${teamStateRoot}/team/${teamName}/workers/${workerName}/status.json\`
 13. Wait for the next instruction from the lead
-14. For legacy team_* MCP tools (hard-deprecated), use \`sp-team\`; do not pass \`workingDirectory\` unless the lead explicitly asks (if resolution fails, use leader cwd: \`${leaderCwd}\`)
+14. For legacy team_* MCP tools (hard-deprecated), use \`sp-teams api\`; do not pass \`workingDirectory\` unless the lead explicitly asks (if resolution fails, use leader cwd: \`${leaderCwd}\`)
 
 ## Mailbox Delivery Protocol (Required)
 When you are notified about mailbox messages, always follow this exact flow:
 
 1. List mailbox:
-   \`sp-team mailbox-list --input "{\"team_name\":\"${teamName}\",\"worker\":\"${workerName}\"}" --json\`
+   \`sp-teams api mailbox-list --input "{\"team_name\":\"${teamName}\",\"worker\":\"${workerName}\"}" --json\`
 2. For each undelivered message, mark delivery:
-   \`sp-team mailbox-mark-delivered --input "{\"team_name\":\"${teamName}\",\"worker\":\"${workerName}\",\"message_id\":\"<MESSAGE_ID>\"}" --json\`
+   \`sp-teams api mailbox-mark-delivered --input "{\"team_name\":\"${teamName}\",\"worker\":\"${workerName}\",\"message_id\":\"<MESSAGE_ID>\"}" --json\`
 
 Use terse ACK bodies (single line) for consistent parsing across Codex and Claude workers.
 After any mailbox reply, continue executing your assigned work or the next feasible task; do not stop after sending the reply.
 
 ## Message Protocol
-When using \`sp-team send-message\`, ALWAYS include from_worker with YOUR worker name:
+When using \`sp-teams api send-message\`, ALWAYS include from_worker with YOUR worker name:
 - from_worker: "${workerName}"
 - to_worker: "leader-fixed" (for leader) or "worker-N" (for peers)
 
-Example: sp-team send-message --input "{\"team_name\":\"${teamName}\",\"from_worker\":\"${workerName}\",\"to_worker\":\"leader-fixed\",\"body\":\"ACK: initialized\"}" --json
+Example: sp-teams api send-message --input "{\"team_name\":\"${teamName}\",\"from_worker\":\"${workerName}\",\"to_worker\":\"leader-fixed\",\"body\":\"ACK: initialized\"}" --json
 
 ${buildVerificationSection("each assigned task")}
 
@@ -760,13 +743,13 @@ ${taskDescription}
 1. Resolve canonical team state root and read the task file at \`<team_state_root>/team/${teamName}/tasks/task-${taskId}.json\`
 2. Task id format:
    - State/MCP APIs use \`task_id: "${taskId}"\` (not \`"task-${taskId}"\`).
-3. Request a claim via CLI interop (\`sp-team claim-task --json\`)
+3. Request a claim via CLI interop (\`sp-teams api claim-task --json\`)
 4. Complete the work
 5. After completing work, commit your changes before reporting completion:
    \`git add -A && git commit -m "task: <task-subject>"\`
    This ensures your changes are available for incremental integration into the leader branch.
-6. Complete/fail via lifecycle transition API (\`sp-team transition-task-status --json\`) from \`"in_progress"\` to \`"completed"\` or \`"failed"\` (include \`result\`/\`error\`)
-7. Use \`sp-team release-task-claim --json\` only for rollback to \`pending\`
+6. Complete/fail via lifecycle transition API (\`sp-teams api transition-task-status --json\`) from \`"in_progress"\` to \`"completed"\` or \`"failed"\` (include \`result\`/\`error\`)
+7. Use \`sp-teams api release-task-claim --json\` only for rollback to \`pending\`
 8. Write \`{"state": "idle", "updated_at": "<current ISO timestamp>"}\` to your status file
 
 ${buildVerificationSection(taskDescription)}
@@ -809,7 +792,7 @@ function buildInstructionPath(...parts: string[]): string {
 export function generateTriggerMessage(
   workerName: string,
   teamName: string,
-  teamStateRoot: string = ".specify/agent-teams/state",
+  teamStateRoot: string = DEFAULT_TEAM_STATE_ROOT_REFERENCE,
 ): string {
   return buildTriggerDirective(workerName, teamName, teamStateRoot).text;
 }
@@ -817,7 +800,7 @@ export function generateTriggerMessage(
 export function buildTriggerDirective(
   workerName: string,
   teamName: string,
-  teamStateRoot: string = ".specify/agent-teams/state",
+  teamStateRoot: string = DEFAULT_TEAM_STATE_ROOT_REFERENCE,
 ): TeamReminderDirective {
   const inboxPath = buildInstructionPath(
     teamStateRoot,
@@ -827,7 +810,7 @@ export function buildTriggerDirective(
     workerName,
     "inbox.md",
   );
-  if (teamStateRoot !== ".specify/agent-teams/state") {
+  if (teamStateRoot !== DEFAULT_TEAM_STATE_ROOT_REFERENCE) {
     return {
       intent: "followup-relaunch",
       text: `Read ${inboxPath}, work now, report progress, continue assigned work or next feasible task.`,
@@ -847,7 +830,7 @@ export function generateMailboxTriggerMessage(
   workerName: string,
   teamName: string,
   count: number,
-  teamStateRoot: string = ".specify/agent-teams/state",
+  teamStateRoot: string = DEFAULT_TEAM_STATE_ROOT_REFERENCE,
 ): string {
   return buildMailboxTriggerDirective(workerName, teamName, count, teamStateRoot).text;
 }
@@ -856,7 +839,7 @@ export function buildMailboxTriggerDirective(
   workerName: string,
   teamName: string,
   count: number,
-  teamStateRoot: string = ".specify/agent-teams/state",
+  teamStateRoot: string = DEFAULT_TEAM_STATE_ROOT_REFERENCE,
 ): TeamReminderDirective {
   const n = Number.isFinite(count) ? Math.max(1, Math.floor(count)) : 1;
   const mailboxPath = buildInstructionPath(
@@ -866,7 +849,7 @@ export function buildMailboxTriggerDirective(
     "mailbox",
     workerName + ".json",
   );
-  if (teamStateRoot !== ".specify/agent-teams/state") {
+  if (teamStateRoot !== DEFAULT_TEAM_STATE_ROOT_REFERENCE) {
     return {
       intent: "pending-mailbox-review",
       text: `${n} new msg(s): read ${mailboxPath}, act, report progress, continue assigned work or next feasible task.`,
@@ -874,14 +857,14 @@ export function buildMailboxTriggerDirective(
   }
   return {
     intent: "pending-mailbox-review",
-    text: `You have ${n} new message(s). Read ${mailboxPath}, act now, reply with concrete progress, then continue assigned work or next feasible task.`,
+    text: `You have ${n} new message(s). Read ${mailboxPath}, act now, reply with progress, then continue assigned work or next feasible task.`,
   };
 }
 
 export function generateLeaderMailboxTriggerMessage(
   teamName: string,
   fromWorker: string,
-  teamStateRoot: string = ".specify/agent-teams/state",
+  teamStateRoot: string = DEFAULT_TEAM_STATE_ROOT_REFERENCE,
 ): string {
   return buildLeaderMailboxTriggerDirective(teamName, fromWorker, teamStateRoot).text;
 }
@@ -889,7 +872,7 @@ export function generateLeaderMailboxTriggerMessage(
 export function buildLeaderMailboxTriggerDirective(
   teamName: string,
   fromWorker: string,
-  teamStateRoot: string = ".specify/agent-teams/state",
+  teamStateRoot: string = DEFAULT_TEAM_STATE_ROOT_REFERENCE,
 ): TeamReminderDirective {
   const mailboxPath = buildInstructionPath(
     teamStateRoot,
@@ -898,7 +881,7 @@ export function buildLeaderMailboxTriggerDirective(
     "mailbox",
     "leader-fixed.json",
   );
-  if (teamStateRoot !== ".specify/agent-teams/state") {
+  if (teamStateRoot !== DEFAULT_TEAM_STATE_ROOT_REFERENCE) {
     return {
       intent: "pending-mailbox-review",
       text: `Read ${mailboxPath}; new msg from ${fromWorker}. Review it; decide next step.`,
@@ -910,3 +893,4 @@ export function buildLeaderMailboxTriggerDirective(
   };
 }
 
+const DEFAULT_TEAM_STATE_ROOT_REFERENCE = ".specify/runtime/state";

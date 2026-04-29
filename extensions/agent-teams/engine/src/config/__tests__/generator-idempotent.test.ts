@@ -28,29 +28,29 @@ function assertSingleOmxBlock(toml: string): void {
     "End marker should appear once",
   );
   assert.equal(
-    count(toml, /^\[mcp_servers\.omx_state\]$/gm),
+    count(toml, /^\[mcp_servers\.specify_state\]$/gm),
     1,
-    "[mcp_servers.omx_state] should appear once",
+    "[mcp_servers.specify_state] should appear once",
   );
   assert.equal(
-    count(toml, /^\[mcp_servers\.omx_memory\]$/gm),
+    count(toml, /^\[mcp_servers\.specify_memory\]$/gm),
     1,
-    "[mcp_servers.omx_memory] should appear once",
+    "[mcp_servers.specify_memory] should appear once",
   );
   assert.equal(
-    count(toml, /^\[mcp_servers\.omx_code_intel\]$/gm),
+    count(toml, /^\[mcp_servers\.specify_code_intel\]$/gm),
     1,
-    "[mcp_servers.omx_code_intel] should appear once",
+    "[mcp_servers.specify_code_intel] should appear once",
   );
   assert.equal(
-    count(toml, /^\[mcp_servers\.omx_trace\]$/gm),
+    count(toml, /^\[mcp_servers\.specify_trace\]$/gm),
     1,
-    "[mcp_servers.omx_trace] should appear once",
+    "[mcp_servers.specify_trace] should appear once",
   );
   assert.equal(
-    count(toml, /^\[mcp_servers\.omx_wiki\]$/gm),
+    count(toml, /^\[mcp_servers\.specify_wiki\]$/gm),
     1,
-    "[mcp_servers.omx_wiki] should appear once",
+    "[mcp_servers.specify_wiki] should appear once",
   );
   assert.equal(
     count(toml, /^\[mcp_servers\.omx_team_run\]$/gm),
@@ -391,7 +391,7 @@ describe("config generator idempotency (#384)", () => {
     });
 
     assert.doesNotMatch(toml, /^\[tui\]$/m);
-    assert.match(toml, /^\[mcp_servers\.omx_state\]$/m);
+    assert.match(toml, /^\[mcp_servers\.specify_state\]$/m);
     assert.match(toml, /^\[env\]$/m);
     assert.match(toml, /^USE_OMX_EXPLORE_CMD = "1"$/m);
   });
@@ -641,7 +641,7 @@ describe("config generator idempotency (#384)", () => {
         '# Managed by omx setup - manual edits preserved on next setup',
         '# ============================================================',
         '',
-        '[mcp_servers.omx_state]',
+        '[mcp_servers.specify_state]',
         'command = "node"',
         `args = ["${join(wd, "dist/mcp/state-server.js")}"]`,
         'enabled = true',

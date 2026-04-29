@@ -7,7 +7,7 @@ import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import {
   codexHome, codexConfigPath, codexPromptsDir,
-  userSkillsDir, projectSkillsDir, omxStateDir, detectLegacySkillRootOverlap,
+  userSkillsDir, projectSkillsDir, specifyRuntimeStateDir, detectLegacySkillRootOverlap,
 } from '../utils/paths.js';
 import { classifySpawnError, spawnPlatformCommandSync } from '../utils/platform-command.js';
 import { getCatalogExpectations } from './catalog-contract.js';
@@ -93,7 +93,7 @@ function resolveDoctorPaths(cwd: string, scope: DoctorSetupScope): DoctorPaths {
       hooksPath: join(codexHomeDir, 'hooks.json'),
       promptsDir: join(codexHomeDir, 'prompts'),
       skillsDir: projectSkillsDir(cwd),
-      stateDir: omxStateDir(cwd),
+      stateDir: specifyRuntimeStateDir(cwd),
     };
   }
 
@@ -103,7 +103,7 @@ function resolveDoctorPaths(cwd: string, scope: DoctorSetupScope): DoctorPaths {
     hooksPath: join(codexHome(), 'hooks.json'),
     promptsDir: codexPromptsDir(),
     skillsDir: userSkillsDir(),
-    stateDir: omxStateDir(cwd),
+    stateDir: specifyRuntimeStateDir(cwd),
   };
 }
 
@@ -226,7 +226,7 @@ async function doctorTeam(): Promise<void> {
 
 async function collectTeamDoctorIssues(cwd: string): Promise<TeamDoctorIssue[]> {
   const issues: TeamDoctorIssue[] = [];
-  const stateDir = omxStateDir(cwd);
+  const stateDir = specifyRuntimeStateDir(cwd);
   const teamsRoot = join(stateDir, 'team');
   const nowMs = Date.now();
   const lagThresholdMs = 60_000;

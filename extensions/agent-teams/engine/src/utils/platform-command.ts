@@ -161,15 +161,10 @@ function resolvePosixCommandPath(
   return null;
 }
 
-function quoteForCmd(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
 function buildCmdLaunch(commandPath: string, args: string[], env: NodeJS.ProcessEnv): PlatformCommandSpec {
-  const commandLine = [commandPath, ...args].map(quoteForCmd).join(' ');
   return {
     command: env.ComSpec || 'cmd.exe',
-    args: ['/d', '/s', '/c', `"${commandLine}"`],
+    args: ['/d', '/s', '/c', commandPath, ...args],
     resolvedPath: commandPath,
   };
 }
@@ -179,11 +174,9 @@ function resolvePowerShellExecutable(env: NodeJS.ProcessEnv, existsImpl: ExistsS
 }
 
 function shouldUseWindowsVerbatimArguments(platform: NodeJS.Platform, spec: PlatformCommandSpec): boolean {
-  return (
-    platform === 'win32' &&
-    typeof spec.resolvedPath === 'string' &&
-    classifyWindowsCommandPath(spec.resolvedPath) === 'cmd'
-  );
+  void platform;
+  void spec;
+  return false;
 }
 
 export function classifySpawnError(error: NodeJS.ErrnoException | undefined | null): SpawnErrorKind | null {

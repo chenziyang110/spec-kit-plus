@@ -10,22 +10,22 @@ import {
   installNativeAgentConfigs,
 } from "../native-config.js";
 
-const originalStandardModel = process.env.OMX_DEFAULT_STANDARD_MODEL;
+const originalStandardModel = process.env.SPECIFY_DEFAULT_STANDARD_MODEL;
 
 beforeEach(() => {
-  process.env.OMX_DEFAULT_STANDARD_MODEL = "gpt-5.4-mini";
+  process.env.SPECIFY_DEFAULT_STANDARD_MODEL = "gpt-5.4-mini";
 });
 
 afterEach(() => {
   if (typeof originalStandardModel === "string") {
-    process.env.OMX_DEFAULT_STANDARD_MODEL = originalStandardModel;
+    process.env.SPECIFY_DEFAULT_STANDARD_MODEL = originalStandardModel;
   } else {
-    delete process.env.OMX_DEFAULT_STANDARD_MODEL;
+    delete process.env.SPECIFY_DEFAULT_STANDARD_MODEL;
   }
 });
 
 describe("agents/native-config", () => {
-  it("generates TOML with stripped frontmatter and escaped triple quotes", () => {
+  it("generates TOML with stripped frontmatter and escaped triple quotes", async () => {
     const agent: AgentDefinition = {
       name: "executor",
       description: "Code implementation",
@@ -38,7 +38,8 @@ describe("agents/native-config", () => {
     };
 
     const prompt = `---\ntitle: demo\n---\n\nInstruction line\n\"\"\"danger\"\"\"`;
-    const toml = generateAgentToml(agent, prompt);
+    const isolatedCodexHome = await mkdtemp(join(tmpdir(), "specify-native-config-isolated-"));
+    const toml = generateAgentToml(agent, prompt, { codexHomeOverride: isolatedCodexHome, configTomlContent: "" });
 
     assert.match(toml, /# oh-my-codex agent: executor/);
     assert.match(toml, /model = "gpt-5\.5"/);
@@ -54,6 +55,7 @@ describe("agents/native-config", () => {
       2,
       "only TOML delimiters should remain as raw triple quotes",
     );
+    await rm(isolatedCodexHome, { recursive: true, force: true });
   });
 
   it("applies exact-model mini guidance only for resolved gpt-5.4-mini standard roles", () => {
@@ -70,13 +72,16 @@ describe("agents/native-config", () => {
 
     const prompt = "Instruction line";
     const exactMiniToml = generateAgentToml(agent, prompt, {
-      env: { OMX_DEFAULT_STANDARD_MODEL: "gpt-5.4-mini" } as NodeJS.ProcessEnv,
+      env: { SPECIFY_DEFAULT_STANDARD_MODEL: "gpt-5.4-mini" } as NodeJS.ProcessEnv,
+      configTomlContent: "",
     });
     const frontierToml = generateAgentToml(agent, prompt, {
-      env: { OMX_DEFAULT_STANDARD_MODEL: "gpt-5.5" } as NodeJS.ProcessEnv,
+      env: { SPECIFY_DEFAULT_STANDARD_MODEL: "gpt-5.5" } as NodeJS.ProcessEnv,
+      configTomlContent: "",
     });
     const tunedToml = generateAgentToml(agent, prompt, {
-      env: { OMX_DEFAULT_STANDARD_MODEL: "gpt-5.4-mini-tuned" } as NodeJS.ProcessEnv,
+      env: { SPECIFY_DEFAULT_STANDARD_MODEL: "gpt-5.4-mini-tuned" } as NodeJS.ProcessEnv,
+      configTomlContent: "",
     });
 
     assert.match(exactMiniToml, /exact gpt-5\.4-mini model/);
@@ -127,7 +132,7 @@ describe("agents/native-config", () => {
     const previousCodexHome = process.env.CODEX_HOME;
 
     try {
-      delete process.env.OMX_DEFAULT_STANDARD_MODEL;
+      delete process.env.SPECIFY_DEFAULT_STANDARD_MODEL;
       process.env.CODEX_HOME = codexHome;
       await mkdir(promptsDir, { recursive: true });
       await mkdir(codexHome, { recursive: true });
@@ -141,7 +146,7 @@ describe("agents/native-config", () => {
     } finally {
       if (typeof previousCodexHome === "string") process.env.CODEX_HOME = previousCodexHome;
       else delete process.env.CODEX_HOME;
-      process.env.OMX_DEFAULT_STANDARD_MODEL = "gpt-5.4-mini";
+      process.env.SPECIFY_DEFAULT_STANDARD_MODEL = "gpt-5.4-mini";
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -154,7 +159,7 @@ describe("agents/native-config", () => {
     const previousCodexHome = process.env.CODEX_HOME;
 
     try {
-      delete process.env.OMX_DEFAULT_STANDARD_MODEL;
+      delete process.env.SPECIFY_DEFAULT_STANDARD_MODEL;
       process.env.CODEX_HOME = codexHome;
       await mkdir(promptsDir, { recursive: true });
       await mkdir(codexHome, { recursive: true });
@@ -167,7 +172,7 @@ describe("agents/native-config", () => {
     } finally {
       if (typeof previousCodexHome === "string") process.env.CODEX_HOME = previousCodexHome;
       else delete process.env.CODEX_HOME;
-      process.env.OMX_DEFAULT_STANDARD_MODEL = "gpt-5.4-mini";
+      process.env.SPECIFY_DEFAULT_STANDARD_MODEL = "gpt-5.4-mini";
       await rm(root, { recursive: true, force: true });
     }
   });

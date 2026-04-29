@@ -8,46 +8,46 @@ import {
   upsertAgentsModelTable,
 } from '../agents-model-table.js';
 
-const originalFrontierEnv = process.env.OMX_DEFAULT_FRONTIER_MODEL;
-const originalStandardEnv = process.env.OMX_DEFAULT_STANDARD_MODEL;
-const originalSparkEnv = process.env.OMX_DEFAULT_SPARK_MODEL;
-const originalLegacySparkEnv = process.env.OMX_SPARK_MODEL;
+const originalFrontierEnv = process.env.SPECIFY_DEFAULT_FRONTIER_MODEL;
+const originalStandardEnv = process.env.SPECIFY_DEFAULT_STANDARD_MODEL;
+const originalSparkEnv = process.env.SPECIFY_DEFAULT_SPARK_MODEL;
+const originalLegacySparkEnv = process.env.SPECIFY_SPARK_MODEL;
 
 beforeEach(() => {
-  delete process.env.OMX_DEFAULT_FRONTIER_MODEL;
-  delete process.env.OMX_DEFAULT_STANDARD_MODEL;
-  delete process.env.OMX_DEFAULT_SPARK_MODEL;
-  delete process.env.OMX_SPARK_MODEL;
+  delete process.env.SPECIFY_DEFAULT_FRONTIER_MODEL;
+  delete process.env.SPECIFY_DEFAULT_STANDARD_MODEL;
+  delete process.env.SPECIFY_DEFAULT_SPARK_MODEL;
+  delete process.env.SPECIFY_SPARK_MODEL;
 });
 
 afterEach(() => {
   if (typeof originalFrontierEnv === 'string') {
-    process.env.OMX_DEFAULT_FRONTIER_MODEL = originalFrontierEnv;
+    process.env.SPECIFY_DEFAULT_FRONTIER_MODEL = originalFrontierEnv;
   } else {
-    delete process.env.OMX_DEFAULT_FRONTIER_MODEL;
+    delete process.env.SPECIFY_DEFAULT_FRONTIER_MODEL;
   }
   if (typeof originalStandardEnv === 'string') {
-    process.env.OMX_DEFAULT_STANDARD_MODEL = originalStandardEnv;
+    process.env.SPECIFY_DEFAULT_STANDARD_MODEL = originalStandardEnv;
   } else {
-    delete process.env.OMX_DEFAULT_STANDARD_MODEL;
+    delete process.env.SPECIFY_DEFAULT_STANDARD_MODEL;
   }
   if (typeof originalSparkEnv === 'string') {
-    process.env.OMX_DEFAULT_SPARK_MODEL = originalSparkEnv;
+    process.env.SPECIFY_DEFAULT_SPARK_MODEL = originalSparkEnv;
   } else {
-    delete process.env.OMX_DEFAULT_SPARK_MODEL;
+    delete process.env.SPECIFY_DEFAULT_SPARK_MODEL;
   }
   if (typeof originalLegacySparkEnv === 'string') {
-    process.env.OMX_SPARK_MODEL = originalLegacySparkEnv;
+    process.env.SPECIFY_SPARK_MODEL = originalLegacySparkEnv;
   } else {
-    delete process.env.OMX_SPARK_MODEL;
+    delete process.env.SPECIFY_SPARK_MODEL;
   }
 });
 
 describe('agents model table', () => {
   it('resolves frontier from config.toml, standard from environment, and spark from environment', () => {
-    process.env.OMX_DEFAULT_FRONTIER_MODEL = 'frontier-env';
-    process.env.OMX_DEFAULT_STANDARD_MODEL = 'standard-env';
-    process.env.OMX_DEFAULT_SPARK_MODEL = 'spark-env';
+    process.env.SPECIFY_DEFAULT_FRONTIER_MODEL = 'frontier-env';
+    process.env.SPECIFY_DEFAULT_STANDARD_MODEL = 'standard-env';
+    process.env.SPECIFY_DEFAULT_SPARK_MODEL = 'spark-env';
 
     const context = resolveAgentsModelTableContext('model = "frontier-config"\n');
 

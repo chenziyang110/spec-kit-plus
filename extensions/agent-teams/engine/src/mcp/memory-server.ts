@@ -1,7 +1,7 @@
 /**
- * OMX Project Memory & Notepad MCP Server
+ * Specify Project Memory & Notepad MCP Server
  * Provides persistent project memory and session notepad tools
- * Storage: .omx/project-memory.json, .omx/notepad.md
+ * Storage: .specify/runtime/project-memory.json, .specify/runtime/notepad.md
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -17,11 +17,11 @@ import { autoStartStdioMcpServer } from './bootstrap.js';
 import { resolveWorkingDirectoryForState } from './state-paths.js';
 
 function getMemoryPath(wd: string): string {
-  return join(wd, '.omx', 'project-memory.json');
+  return join(wd, '.specify', 'runtime', 'project-memory.json');
 }
 
 function getNotepadPath(wd: string): string {
-  return join(wd, '.omx', 'notepad.md');
+  return join(wd, '.specify', 'runtime', 'notepad.md');
 }
 
 interface ProjectMemory {
@@ -34,7 +34,7 @@ interface ProjectMemory {
 }
 
 const server = new Server(
-  { name: 'omx-memory', version: '0.1.0' },
+  { name: 'specify-memory', version: '0.1.0' },
   { capabilities: { tools: {} } }
 );
 

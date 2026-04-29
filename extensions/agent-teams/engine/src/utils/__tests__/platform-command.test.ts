@@ -30,10 +30,32 @@ describe('buildPlatformCommandSpec', () => {
 
       assert.equal(spec.command, 'C:\\Windows\\System32\\cmd.exe');
       assert.deepEqual(spec.args.slice(0, 3), ['/d', '/s', '/c']);
-      assert.match(spec.args[3] || '', /^""/);
-      assert.match(spec.args[3] || '', /codex\.cmd/i);
-      assert.match(spec.args[3] || '', /--version/i);
-      assert.match(spec.args[3] || '', /""$/);
+      assert.equal(spec.args[3], cmdPath);
+      assert.equal(spec.args[4], '--version');
+      assert.equal(spec.resolvedPath, cmdPath);
+    } finally {
+      await rm(fakeBin, { recursive: true, force: true });
+    }
+  });
+
+  it('preserves space-containing arguments for .cmd shims on Windows', async () => {
+    const fakeBin = await mkdtemp(join(tmpdir(), 'omx-platform-cmd-space-'));
+    try {
+      const cmdPath = join(fakeBin, 'gemini.cmd');
+      await writeFile(cmdPath, '@echo off\r\n');
+      const spec = buildPlatformCommandSpec(
+        'gemini',
+        ['-i', 'hello world'],
+        'win32',
+        {
+          PATH: fakeBin,
+          PATHEXT: '.EXE;.CMD;.PS1',
+          ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        },
+      );
+
+      assert.equal(spec.command, 'C:\\Windows\\System32\\cmd.exe');
+      assert.deepEqual(spec.args, ['/d', '/s', '/c', cmdPath, '-i', 'hello world']);
       assert.equal(spec.resolvedPath, cmdPath);
     } finally {
       await rm(fakeBin, { recursive: true, force: true });
@@ -137,7 +159,8 @@ describe('buildPlatformCommandSpec', () => {
 
       assert.equal(spec.command, 'C:\\Windows\\System32\\cmd.exe');
       assert.deepEqual(spec.args.slice(0, 3), ['/d', '/s', '/c']);
-      assert.match(spec.args[3] || '', /codex\.cmd/i);
+      assert.equal(spec.args[3], cmdPath);
+      assert.equal(spec.args[4], '--version');
       assert.equal(spec.resolvedPath, cmdPath);
     } finally {
       await rm(fakeBin, { recursive: true, force: true });
@@ -163,7 +186,8 @@ describe('buildPlatformCommandSpec', () => {
 
       assert.match(spec.command, /cmd(?:\.exe)?$/i);
       assert.deepEqual(spec.args.slice(0, 3), ['/d', '/s', '/c']);
-      assert.match(spec.args[3] || '', /codex\.cmd/i);
+      assert.equal(spec.args[3], cmdPath);
+      assert.equal(spec.args[4], '--version');
       assert.equal(spec.resolvedPath, cmdPath);
       assert.notEqual(spec.resolvedPath, ps1Path);
     } finally {
@@ -367,8 +391,9 @@ describe('spawnPlatformCommandSync', () => {
       assert.equal(probed.spec.command, 'C:\\Windows\\System32\\cmd.exe');
       assert.equal(calls.length, 1);
       assert.equal(calls[0]?.command, 'C:\\Windows\\System32\\cmd.exe');
-      assert.match((calls[0]?.args[3] || ''), /codex\.cmd/i);
-      assert.equal(calls[0]?.options?.windowsVerbatimArguments, true);
+      assert.equal(calls[0]?.args[3], cmdPath);
+      assert.equal(calls[0]?.args[4], '--version');
+      assert.equal(calls[0]?.options?.windowsVerbatimArguments, undefined);
     } finally {
       await rm(fakeBin, { recursive: true, force: true });
     }

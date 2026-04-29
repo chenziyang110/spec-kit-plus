@@ -24,7 +24,7 @@ import {
   codexPromptsDir,
   codexAgentsDir,
   userSkillsDir,
-  omxStateDir,
+  specifyRuntimeStateDir,
   detectLegacySkillRootOverlap,
   omxPlansDir,
   omxLogsDir,
@@ -732,7 +732,7 @@ export async function setup(options: SetupOptions = {}): Promise<void> {
     scopeDirs.promptsDir,
     scopeDirs.skillsDir,
     scopeDirs.nativeAgentsDir,
-    omxStateDir(projectRoot),
+    specifyRuntimeStateDir(projectRoot),
     omxPlansDir(projectRoot),
     omxLogsDir(projectRoot),
   ];

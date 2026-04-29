@@ -28,7 +28,7 @@ describe('reconcileHudForPromptSubmit', () => {
         resized.push({ paneId, heightLines });
         return true;
       },
-      resolveOmxCliEntryPath: () => '/repo/dist/cli/omx.js',
+      resolveSpecifyCliEntryPath: () => '/repo/dist/cli/omx.js',
     });
 
     assert.equal(result.status, 'recreated');
@@ -44,7 +44,7 @@ describe('reconcileHudForPromptSubmit', () => {
     const created: Array<{ cmd: string }> = [];
 
     const result = await reconcileHudForPromptSubmit('/repo', {
-      env: { TMUX: '1', TMUX_PANE: '%1', OMX_SESSION_ID: 'sess-stale' },
+      env: { TMUX: '1', TMUX_PANE: '%1', SPECIFY_SESSION_ID: 'sess-stale' },
       sessionId: 'sess-canonical',
       listCurrentWindowPanes: () => [
         { paneId: '%1', currentCommand: 'codex', startCommand: 'codex' },
@@ -54,12 +54,12 @@ describe('reconcileHudForPromptSubmit', () => {
         return '%9';
       },
       resizeTmuxPane: () => true,
-      resolveOmxCliEntryPath: () => '/repo/dist/cli/omx.js',
+      resolveSpecifyCliEntryPath: () => '/repo/dist/cli/omx.js',
     });
 
     assert.equal(result.status, 'recreated');
     assert.equal(created.length, 1);
-    assert.match(created[0]?.cmd || '', /^OMX_SESSION_ID='sess-canonical' node '.*omx\.js' hud --watch/);
+    assert.match(created[0]?.cmd || '', /^SPECIFY_SESSION_ID='sess-canonical' node '.*omx\.js' hud --watch/);
     assert.doesNotMatch(created[0]?.cmd || '', /sess-stale/);
   });
 
@@ -80,7 +80,7 @@ describe('reconcileHudForPromptSubmit', () => {
         return '%hud';
       },
       resizeTmuxPane: () => true,
-      resolveOmxCliEntryPath: () => '/repo/dist/cli/omx.js',
+      resolveSpecifyCliEntryPath: () => '/repo/dist/cli/omx.js',
     });
 
     assert.equal(result.status, 'recreated');
@@ -109,7 +109,7 @@ describe('reconcileHudForPromptSubmit', () => {
         return '%9';
       },
       resizeTmuxPane: () => true,
-      resolveOmxCliEntryPath: () => '/repo/dist/cli/omx.js',
+      resolveSpecifyCliEntryPath: () => '/repo/dist/cli/omx.js',
     });
 
     assert.equal(result.status, 'replaced_duplicates');
@@ -128,7 +128,7 @@ describe('reconcileHudForPromptSubmit', () => {
         resized.push({ paneId, heightLines });
         return true;
       },
-      resolveOmxCliEntryPath: () => '/repo/dist/cli/omx.js',
+      resolveSpecifyCliEntryPath: () => '/repo/dist/cli/omx.js',
     });
 
     assert.equal(result.status, 'resized');

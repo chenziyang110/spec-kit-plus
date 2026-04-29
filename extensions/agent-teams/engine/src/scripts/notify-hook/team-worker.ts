@@ -6,6 +6,7 @@
 import { readFile, writeFile, mkdir, appendFile, rename, stat, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, resolve as resolvePath } from 'path';
+import { specifyRuntimeStateDir } from '../../utils/paths.js';
 import { asNumber, safeString, isTerminalPhase } from './utils.js';
 import { readJsonIfExists } from './state-io.js';
 import { logTmuxHookEvent } from './log.js';
@@ -33,20 +34,20 @@ async function readTeamStateRootFromJson(path) {
 }
 
 export async function resolveTeamStateDirForWorker(cwd, parsedTeamWorker) {
-  const explicitStateRoot = safeString(process.env.OMX_TEAM_STATE_ROOT || '').trim();
+  const explicitStateRoot = safeString(process.env.SPECIFY_TEAM_STATE_ROOT || '').trim();
   if (explicitStateRoot) {
     return resolvePath(cwd, explicitStateRoot);
   }
 
   const teamName = parsedTeamWorker.teamName;
   const workerName = parsedTeamWorker.workerName;
-  const leaderCwd = safeString(process.env.OMX_TEAM_LEADER_CWD || '').trim();
+  const leaderCwd = safeString(process.env.SPECIFY_TEAM_LEADER_CWD || '').trim();
 
   const candidateStateDirs = [];
   if (leaderCwd) {
-    candidateStateDirs.push(join(resolvePath(leaderCwd), '.omx', 'state'));
+    candidateStateDirs.push(specifyRuntimeStateDir(resolvePath(leaderCwd)));
   }
-  candidateStateDirs.push(join(cwd, '.omx', 'state'));
+  candidateStateDirs.push(specifyRuntimeStateDir(cwd));
 
   for (const candidateStateDir of candidateStateDirs) {
     const teamRoot = join(candidateStateDir, 'team', teamName);
@@ -66,7 +67,7 @@ export async function resolveTeamStateDirForWorker(cwd, parsedTeamWorker) {
     return candidateStateDir;
   }
 
-  return join(cwd, '.omx', 'state');
+  return specifyRuntimeStateDir(cwd);
 }
 
 export function parseTeamWorkerEnv(rawValue) {
@@ -77,14 +78,14 @@ export function parseTeamWorkerEnv(rawValue) {
 }
 
 export function resolveWorkerIdleNotifyEnabled() {
-  const raw = safeString(process.env.OMX_TEAM_WORKER_IDLE_NOTIFY || '').trim().toLowerCase();
+  const raw = safeString(process.env.SPECIFY_TEAM_WORKER_IDLE_NOTIFY || '').trim().toLowerCase();
   // Default: enabled. Disable with "false", "0", or "off".
   if (raw === 'false' || raw === '0' || raw === 'off') return false;
   return true;
 }
 
 export function resolveWorkerIdleCooldownMs() {
-  const raw = safeString(process.env.OMX_TEAM_WORKER_IDLE_COOLDOWN_MS || '');
+  const raw = safeString(process.env.SPECIFY_TEAM_WORKER_IDLE_COOLDOWN_MS || '');
   const parsed = asNumber(raw);
   // Default: 30 seconds. Guard against unreasonable values.
   if (parsed !== null && parsed >= 5_000 && parsed <= 10 * 60_000) return parsed;
@@ -92,7 +93,7 @@ export function resolveWorkerIdleCooldownMs() {
 }
 
 export function resolveAllWorkersIdleCooldownMs() {
-  const raw = safeString(process.env.OMX_TEAM_ALL_IDLE_COOLDOWN_MS || '');
+  const raw = safeString(process.env.SPECIFY_TEAM_ALL_IDLE_COOLDOWN_MS || '');
   const parsed = asNumber(raw);
   // Default: 60 seconds. Guard against unreasonable values.
   if (parsed !== null && parsed >= 5_000 && parsed <= 10 * 60_000) return parsed;
@@ -100,14 +101,14 @@ export function resolveAllWorkersIdleCooldownMs() {
 }
 
 export function resolveStatusStaleMs() {
-  const raw = safeString(process.env.OMX_TEAM_STATUS_STALE_MS || '');
+  const raw = safeString(process.env.SPECIFY_TEAM_STATUS_STALE_MS || '');
   const parsed = asNumber(raw);
   if (parsed !== null && parsed >= 5_000 && parsed <= 60 * 60_000) return parsed;
   return 120_000;
 }
 
 export function resolveHeartbeatStaleMs() {
-  const raw = safeString(process.env.OMX_TEAM_HEARTBEAT_STALE_MS || '');
+  const raw = safeString(process.env.SPECIFY_TEAM_HEARTBEAT_STALE_MS || '');
   const parsed = asNumber(raw);
   if (parsed !== null && parsed >= 5_000 && parsed <= 60 * 60_000) return parsed;
   return 180_000;
@@ -458,7 +459,7 @@ export async function maybeNotifyLeaderAllWorkersIdle({ cwd, stateDir, logsDir, 
   }
 
   const N = workers.length;
-  const nextAction = `Run \`omx team status ${teamName}\` now, read unread worker messages, then assign the next concrete task, reconcile results, or shut the team down.`;
+  const nextAction = `Run \`sp-teams status ${teamName}\` now, read unread worker messages, then assign the next concrete task, reconcile results, or shut the team down.`;
   const message = `[OMX] All ${N} worker${N === 1 ? '' : 's'} idle. ${nextAction} ${DEFAULT_MARKER}`;
   const tmuxTarget = canonicalLeaderPaneId;
   const paneGuard = await checkLeaderPaneReadyForWorkerStateReminder(tmuxTarget);

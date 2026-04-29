@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, rm, readFile, writeFile, mkdir, chmod } from 'fs/promises';
-import { join } from 'path';
+import { delimiter, join } from 'path';
 import { tmpdir } from 'os';
 import { existsSync, readFileSync } from 'fs';
 import {
@@ -18,7 +18,7 @@ import {
 } from '../state.js';
 import { isScalingEnabled, scaleUp, scaleDown } from '../scaling.js';
 
-delete process.env.OMX_TEAM_STATE_ROOT;
+delete process.env.SPECIFY_TEAM_STATE_ROOT;
 
 async function initCommittedGitRepo(cwd: string): Promise<void> {
   execFileSync('git', ['init'], { cwd, stdio: 'pipe' });
@@ -39,6 +39,99 @@ async function initRepo(): Promise<string> {
   return cwd;
 }
 
+function toStubLines(output?: string | string[]): string[] {
+  if (Array.isArray(output)) return output;
+  if (typeof output !== 'string') return [];
+  return output.split(/\r?\n/);
+}
+
+function escapeBatchLiteral(value: string): string {
+  return value.replaceAll('%', '%%');
+}
+
+function buildTmuxStubScript(options: {
+  logPath: string;
+  splitWindowOutput?: string | string[];
+  listPanesOutput?: string | string[];
+  capturePaneOutput?: string | string[];
+  sendKeysExitCode?: number;
+}): string {
+  const splitLines = toStubLines(options.splitWindowOutput);
+  const listPanesLines = toStubLines(options.listPanesOutput);
+  const captureLines = toStubLines(options.capturePaneOutput);
+  const sendKeysExitCode = options.sendKeysExitCode ?? 0;
+
+  if (process.platform === 'win32') {
+    const lines = [
+      '@echo off',
+      'setlocal EnableExtensions DisableDelayedExpansion',
+      `echo %*>> "${options.logPath}"`,
+      'if "%~1"=="-V" (',
+      '  echo tmux 3.2a',
+      '  exit /b 0',
+      ')',
+      'if "%~1"=="split-window" (',
+      ...splitLines.map((line) => `  echo ${escapeBatchLiteral(line)}`),
+      '  exit /b 0',
+      ')',
+      'if "%~1"=="list-panes" (',
+      ...listPanesLines.map((line) => `  echo ${escapeBatchLiteral(line)}`),
+      '  exit /b 0',
+      ')',
+      'if "%~1"=="capture-pane" (',
+      ...captureLines.map((line) => `  echo ${escapeBatchLiteral(line)}`),
+      '  exit /b 0',
+      ')',
+      'if "%~1"=="send-keys" (',
+      `  exit /b ${sendKeysExitCode}`,
+      ')',
+      'exit /b 0',
+      '',
+    ];
+    return lines.join('\r\n');
+  }
+
+  const lines = [
+    '#!/bin/sh',
+    'set -eu',
+    `printf '%s\\n' "$*" >> "${options.logPath}"`,
+    'case "${1:-}" in',
+    '  -V)',
+    '    echo "tmux 3.2a"',
+    '    ;;',
+    '  split-window)',
+    ...splitLines.map((line) => `    echo "${line}"`),
+    '    ;;',
+    '  list-panes)',
+    ...listPanesLines.map((line) => `    echo "${line}"`),
+    '    ;;',
+    '  capture-pane)',
+    ...captureLines.map((line) => `    echo "${line}"`),
+    '    ;;',
+    '  send-keys)',
+    `    exit ${sendKeysExitCode}`,
+    '    ;;',
+    'esac',
+    'exit 0',
+    '',
+  ];
+  return lines.join('\n');
+}
+
+async function writeMockTmuxBinary(
+  fakeBinDir: string,
+  options: Parameters<typeof buildTmuxStubScript>[0],
+): Promise<string> {
+  const stubPath = join(fakeBinDir, process.platform === 'win32' ? 'tmux.cmd' : 'tmux');
+  await writeFile(stubPath, buildTmuxStubScript(options));
+  await chmod(stubPath, 0o755);
+  return stubPath;
+}
+
+function normalizeTmuxLog(log: string): string {
+  return log.replaceAll('"', '').replace(/\r\n/g, '\n');
+}
+
 // ── isScalingEnabled ──────────────────────────────────────────────────────────
 
 describe('isScalingEnabled', () => {
@@ -47,50 +140,50 @@ describe('isScalingEnabled', () => {
   });
 
   it('returns false when env var is empty string', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: '' }), false);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: '' }), false);
   });
 
   it('returns false when env var is "0"', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: '0' }), false);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: '0' }), false);
   });
 
   it('returns false when env var is "false"', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: 'false' }), false);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: 'false' }), false);
   });
 
   it('returns false when env var is "no"', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: 'no' }), false);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: 'no' }), false);
   });
 
   it('returns true when env var is "1"', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: '1' }), true);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: '1' }), true);
   });
 
   it('returns true when env var is "true"', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: 'true' }), true);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: 'true' }), true);
   });
 
   it('returns true when env var is "yes"', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: 'yes' }), true);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: 'yes' }), true);
   });
 
   it('returns true when env var is "on"', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: 'on' }), true);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: 'on' }), true);
   });
 
   it('returns true when env var is "enabled"', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: 'enabled' }), true);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: 'enabled' }), true);
   });
 
   it('returns true case-insensitively', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: 'TRUE' }), true);
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: 'Yes' }), true);
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: 'ON' }), true);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: 'TRUE' }), true);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: 'Yes' }), true);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: 'ON' }), true);
   });
 
   it('returns true with leading/trailing whitespace', () => {
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: '  1  ' }), true);
-    assert.equal(isScalingEnabled({ OMX_TEAM_SCALING_ENABLED: ' true ' }), true);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: '  1  ' }), true);
+    assert.equal(isScalingEnabled({ SPECIFY_TEAM_SCALING_ENABLED: ' true ' }), true);
   });
 });
 
@@ -138,7 +231,7 @@ describe('Monotonic worker index counter', () => {
 
       // Verify on disk
       const diskCfg = JSON.parse(
-        readFileSync(join(cwd, '.omx', 'state', 'team', 'idx-test', 'config.json'), 'utf8'),
+        readFileSync(join(cwd, '.specify', 'runtime', 'state', 'team', 'idx-test', 'config.json'), 'utf8'),
       ) as { next_worker_index?: number };
       assert.equal(diskCfg.next_worker_index, 4);
     } finally {
@@ -151,7 +244,7 @@ describe('Monotonic worker index counter', () => {
     try {
       await initTeamState('manif-test', 'task', 'executor', 2, cwd);
       const manifest = JSON.parse(
-        readFileSync(join(cwd, '.omx', 'state', 'team', 'manif-test', 'manifest.v2.json'), 'utf8'),
+        readFileSync(join(cwd, '.specify', 'runtime', 'state', 'team', 'manif-test', 'manifest.v2.json'), 'utf8'),
       ) as { next_worker_index?: number };
       assert.equal(manifest.next_worker_index, 3);
     } finally {
@@ -179,7 +272,7 @@ describe('withScalingLock', () => {
     const cwd = await mkdtemp(join(tmpdir(), 'omx-scale-lock-'));
     try {
       await initTeamState('lock-test', 'task', 'executor', 1, cwd);
-      const lockDir = join(cwd, '.omx', 'state', 'team', 'lock-test', '.lock.scaling');
+      const lockDir = join(cwd, '.specify', 'runtime', 'state', 'team', 'lock-test', '.lock.scaling');
 
       const result = await withScalingLock('lock-test', cwd, async () => {
         // Lock should exist during execution
@@ -199,7 +292,7 @@ describe('withScalingLock', () => {
     const cwd = await mkdtemp(join(tmpdir(), 'omx-scale-lock-err-'));
     try {
       await initTeamState('lock-err', 'task', 'executor', 1, cwd);
-      const lockDir = join(cwd, '.omx', 'state', 'team', 'lock-err', '.lock.scaling');
+      const lockDir = join(cwd, '.specify', 'runtime', 'state', 'team', 'lock-err', '.lock.scaling');
 
       await assert.rejects(
         withScalingLock('lock-err', cwd, async () => {
@@ -261,7 +354,7 @@ describe('scaleUp', () => {
   it('returns error for invalid count', async () => {
     const result = await scaleUp(
       'test', 0, 'executor', [], '/tmp',
-      { OMX_TEAM_SCALING_ENABLED: '1' },
+      { SPECIFY_TEAM_SCALING_ENABLED: '1' },
     );
     assert.equal(result.ok, false);
     if (!result.ok) {
@@ -272,7 +365,7 @@ describe('scaleUp', () => {
   it('returns error for negative count', async () => {
     const result = await scaleUp(
       'test', -1, 'executor', [], '/tmp',
-      { OMX_TEAM_SCALING_ENABLED: '1' },
+      { SPECIFY_TEAM_SCALING_ENABLED: '1' },
     );
     assert.equal(result.ok, false);
     if (!result.ok) {
@@ -287,7 +380,7 @@ describe('scaleUp', () => {
     try {
       const result = await scaleUp(
         'test', 1, 'executor', [], '/tmp',
-        { OMX_TEAM_SCALING_ENABLED: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1' },
       );
       assert.equal(result.ok, false);
       if (!result.ok) {
@@ -304,44 +397,23 @@ describe('scaleUp', () => {
     const cwd = await mkdtemp(join(tmpdir(), 'omx-scale-up-role-'));
     const fakeBinDir = await mkdtemp(join(tmpdir(), 'omx-scale-up-role-bin-'));
     const tmuxLogPath = join(fakeBinDir, 'tmux.log');
-    const tmuxStubPath = join(fakeBinDir, 'tmux');
+    const tmuxStubPath = join(fakeBinDir, process.platform === 'win32' ? 'tmux.cmd' : 'tmux');
     const previousPath = process.env.PATH;
 
     try {
-      await writeFile(
-        tmuxStubPath,
-        [
-          '#!/bin/sh',
-          'set -eu',
-          `printf '\%s\n' "$*" >> "${tmuxLogPath}"`,
-          'case "${1:-}" in',
-          '  -V)',
-          '    echo "tmux 3.2a"',
-          '    ;;',
-          '  split-window)',
-          '    echo "%31"',
-          '    ;;',
-          '  list-panes)',
-          '    echo "42424"',
-          '    ;;',
-          '  send-keys)',
-          '    ;;',
-          '  capture-pane)',
-          '    echo ""',
-          '    ;;',
-          'esac',
-          'exit 0',
-          '',
-        ].join('\n'),
-      );
-      await chmod(tmuxStubPath, 0o755);
+      await writeMockTmuxBinary(fakeBinDir, {
+        logPath: tmuxLogPath,
+        splitWindowOutput: '%31',
+        listPanesOutput: '42424',
+        capturePaneOutput: '',
+      });
       await writeFile(tmuxLogPath, '');
-      process.env.PATH = `${fakeBinDir}:${previousPath ?? ''}`;
+      process.env.PATH = `${fakeBinDir}${delimiter}${previousPath ?? ''}`;
 
       await mkdir(join(cwd, '.codex', 'prompts'), { recursive: true });
       await writeFile(join(cwd, '.codex', 'prompts', 'writer.md'), '<identity>You are Writer.</identity>');
-      await mkdir(join(cwd, '.omx', 'state', 'team', 'scale-up-role'), { recursive: true });
-      await writeFile(join(cwd, '.omx', 'state', 'team', 'scale-up-role', 'worker-agents.md'), '# Base worker instructions\n');
+      await mkdir(join(cwd, '.specify', 'runtime', 'state', 'team', 'scale-up-role'), { recursive: true });
+      await writeFile(join(cwd, '.specify', 'runtime', 'state', 'team', 'scale-up-role', 'worker-agents.md'), '# Base worker instructions\n');
 
       await initTeamState('scale-up-role', 'task', 'executor', 1, cwd);
       await createTask('scale-up-role', {
@@ -354,12 +426,12 @@ describe('scaleUp', () => {
       const config = await readTeamConfig('scale-up-role', cwd);
       assert.ok(config);
       if (!config) return;
-      config.tmux_session = 'omx-team-scale-up-role';
+      config.tmux_session = 'specify-team-scale-up-role';
       config.leader_pane_id = '%11';
       config.workers[0]!.pane_id = '%21';
       await saveTeamConfig(config, cwd);
 
-      const manifestPath = join(cwd, '.omx', 'state', 'team', 'scale-up-role', 'manifest.v2.json');
+      const manifestPath = join(cwd, '.specify', 'runtime', 'state', 'team', 'scale-up-role', 'manifest.v2.json');
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as { policy?: Record<string, unknown> };
       manifest.policy = {
         ...(manifest.policy ?? {}),
@@ -373,7 +445,7 @@ describe('scaleUp', () => {
         'executor',
         [{ subject: 'document routing report only', description: 'document routing report only', owner: 'worker-2', role: 'writer' }],
         cwd,
-        { OMX_TEAM_SCALING_ENABLED: '1', OMX_TEAM_SKIP_READY_WAIT: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1', SPECIFY_TEAM_SKIP_READY_WAIT: '1' },
       );
       assert.equal(result.ok, true);
       if (!result.ok) return;
@@ -382,10 +454,10 @@ describe('scaleUp', () => {
       assert.equal(createdTask?.role, 'writer');
       assert.equal(createdTask?.owner, 'worker-2');
 
-      const workerIdentity = JSON.parse(await readFile(join(cwd, '.omx', 'state', 'team', 'scale-up-role', 'workers', 'worker-2', 'identity.json'), 'utf-8')) as { role?: string };
+      const workerIdentity = JSON.parse(await readFile(join(cwd, '.specify', 'runtime', 'state', 'team', 'scale-up-role', 'workers', 'worker-2', 'identity.json'), 'utf-8')) as { role?: string };
       assert.equal(workerIdentity.role, 'writer');
 
-      const inbox = await readFile(join(cwd, '.omx', 'state', 'team', 'scale-up-role', 'workers', 'worker-2', 'inbox.md'), 'utf-8');
+      const inbox = await readFile(join(cwd, '.specify', 'runtime', 'state', 'team', 'scale-up-role', 'workers', 'worker-2', 'inbox.md'), 'utf-8');
       assert.match(inbox, /Task 2/);
       assert.match(inbox, /Role: writer/);
     } finally {
@@ -400,36 +472,18 @@ describe('scaleUp', () => {
   it('removes generated worktree-root AGENTS when scale-up rolls back', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'omx-scale-up-rollback-worktree-'));
     const fakeBinDir = await mkdtemp(join(tmpdir(), 'omx-scale-up-rollback-worktree-bin-'));
-    const tmuxStubPath = join(fakeBinDir, 'tmux');
+    const tmuxStubPath = join(fakeBinDir, process.platform === 'win32' ? 'tmux.cmd' : 'tmux');
     const previousPath = process.env.PATH;
 
     try {
-      await writeFile(
-        tmuxStubPath,
-        `#!/bin/sh
-set -eu
-	case "\${1:-}" in
-  -V)
-    echo "tmux 3.2a"
-    ;;
-  split-window)
-    echo "%31"
-    ;;
-  list-panes)
-    echo "42424"
-    ;;
-  send-keys)
-    exit 1
-    ;;
-  capture-pane)
-    echo ""
-    ;;
-esac
-exit 0
-`,
-      );
-      await chmod(tmuxStubPath, 0o755);
-      process.env.PATH = `${fakeBinDir}:${previousPath ?? ''}`;
+      await writeMockTmuxBinary(fakeBinDir, {
+        logPath: join(fakeBinDir, 'tmux.log'),
+        splitWindowOutput: '%31',
+        listPanesOutput: '42424',
+        capturePaneOutput: '',
+        sendKeysExitCode: 1,
+      });
+      process.env.PATH = `${fakeBinDir}${delimiter}${previousPath ?? ''}`;
 
       await mkdir(join(cwd, '.codex', 'prompts'), { recursive: true });
       await writeFile(join(cwd, '.codex', 'prompts', 'writer.md'), '<identity>You are Writer.</identity>');
@@ -438,18 +492,18 @@ exit 0
       await initTeamState('rollback-worktree', 'task', 'executor', 1, cwd, undefined, process.env, {
         workspace_mode: 'worktree',
         leader_cwd: cwd,
-        team_state_root: join(cwd, '.omx', 'state'),
+        team_state_root: join(cwd, '.specify', 'runtime', 'state'),
       });
 
       const config = await readTeamConfig('rollback-worktree', cwd);
       assert.ok(config);
       if (!config) return;
-      config.tmux_session = 'omx-team-rollback-worktree';
+      config.tmux_session = 'specify-team-rollback-worktree';
       config.leader_pane_id = '%11';
       config.workers[0]!.pane_id = '%21';
       await saveTeamConfig(config, cwd);
 
-      const manifestPath = join(cwd, '.omx', 'state', 'team', 'rollback-worktree', 'manifest.v2.json');
+      const manifestPath = join(cwd, '.specify', 'runtime', 'state', 'team', 'rollback-worktree', 'manifest.v2.json');
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as { policy?: Record<string, unknown> };
       manifest.policy = {
         ...(manifest.policy ?? {}),
@@ -463,14 +517,14 @@ exit 0
         'executor',
         [{ subject: 'write docs', description: 'write docs', owner: 'worker-2', role: 'writer' }],
         cwd,
-        { OMX_TEAM_SCALING_ENABLED: '1', OMX_TEAM_SKIP_READY_WAIT: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1', SPECIFY_TEAM_SKIP_READY_WAIT: '1' },
       );
       assert.equal(result.ok, false);
       if (result.ok) return;
       assert.match(result.error, /scale_up_dispatch_failed:worker-2/);
 
-      const workerRootAgents = join(cwd, '.omx', 'team', 'rollback-worktree', 'worktrees', 'worker-2', 'AGENTS.md');
-      assert.equal(await readFile(workerRootAgents, 'utf-8'), '# Root project instructions\n');
+      const workerRootAgents = join(cwd, '.specify', 'agent-teams', 'worktrees', 'rollback-worktree', 'worker-2', 'AGENTS.md');
+      assert.equal((await readFile(workerRootAgents, 'utf-8')).replace(/\r\n/g, '\n'), '# Root project instructions\n');
       const backupPath = join(cwd, '.git', 'worktrees', 'worker-2', 'omx', 'root-agents-backup.json');
       assert.equal(existsSync(backupPath), false);
     } finally {
@@ -484,33 +538,17 @@ exit 0
   it('uses canonical root AGENTS bootstrap for scaled worktree workers', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'omx-scale-up-canonical-root-'));
     const fakeBinDir = await mkdtemp(join(tmpdir(), 'omx-scale-up-canonical-root-bin-'));
-    const tmuxStubPath = join(fakeBinDir, 'tmux');
+    const tmuxStubPath = join(fakeBinDir, process.platform === 'win32' ? 'tmux.cmd' : 'tmux');
     const previousPath = process.env.PATH;
 
     try {
-      await writeFile(
-        tmuxStubPath,
-        `#!/bin/sh
-set -eu
-	case "\${1:-}" in
-  -V)
-    echo "tmux 3.2a"
-    ;;
-  split-window)
-    echo "%31"
-    ;;
-  list-panes)
-    echo "42424"
-    ;;
-  capture-pane)
-    echo ""
-    ;;
-esac
-exit 0
-`,
-      );
-      await chmod(tmuxStubPath, 0o755);
-      process.env.PATH = `${fakeBinDir}:${previousPath ?? ''}`;
+      await writeMockTmuxBinary(fakeBinDir, {
+        logPath: join(fakeBinDir, 'tmux.log'),
+        splitWindowOutput: '%31',
+        listPanesOutput: '42424',
+        capturePaneOutput: '',
+      });
+      process.env.PATH = `${fakeBinDir}${delimiter}${previousPath ?? ''}`;
 
       await mkdir(join(cwd, '.codex', 'prompts'), { recursive: true });
       await writeFile(join(cwd, '.codex', 'prompts', 'writer.md'), '<identity>You are Writer.</identity>');
@@ -519,18 +557,18 @@ exit 0
       await initTeamState('canonical-root', 'task', 'executor', 1, cwd, undefined, process.env, {
         workspace_mode: 'worktree',
         leader_cwd: cwd,
-        team_state_root: join(cwd, '.omx', 'state'),
+        team_state_root: join(cwd, '.specify', 'runtime', 'state'),
       });
 
       const config = await readTeamConfig('canonical-root', cwd);
       assert.ok(config);
       if (!config) return;
-      config.tmux_session = 'omx-team-canonical-root';
+      config.tmux_session = 'specify-team-canonical-root';
       config.leader_pane_id = '%11';
       config.workers[0]!.pane_id = '%21';
       await saveTeamConfig(config, cwd);
 
-      const manifestPath = join(cwd, '.omx', 'state', 'team', 'canonical-root', 'manifest.v2.json');
+      const manifestPath = join(cwd, '.specify', 'runtime', 'state', 'team', 'canonical-root', 'manifest.v2.json');
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as { policy?: Record<string, unknown> };
       manifest.policy = {
         ...(manifest.policy ?? {}),
@@ -545,19 +583,19 @@ exit 0
         [{ subject: 'write docs', description: 'write docs', owner: 'worker-2', role: 'writer' }],
         cwd,
         {
-          OMX_TEAM_SCALING_ENABLED: '1',
-          OMX_TEAM_SKIP_READY_WAIT: '1',
-          OMX_TEAM_WORKER_LAUNCH_ARGS: '--model gpt-5.4-mini',
+          SPECIFY_TEAM_SCALING_ENABLED: '1',
+          SPECIFY_TEAM_SKIP_READY_WAIT: '1',
+          SPECIFY_TEAM_WORKER_LAUNCH_ARGS: '--model gpt-5.4-mini',
         },
       );
       assert.equal(result.ok, true);
       if (!result.ok) return;
 
-      const inbox = await readFile(join(cwd, '.omx', 'state', 'team', 'canonical-root', 'workers', 'worker-2', 'inbox.md'), 'utf-8');
+      const inbox = await readFile(join(cwd, '.specify', 'runtime', 'state', 'team', 'canonical-root', 'workers', 'worker-2', 'inbox.md'), 'utf-8');
       assert.doesNotMatch(inbox, /## Your Specialization/);
       assert.match(inbox, /\*\*Role:\*\* writer/);
 
-      const rootAgents = await readFile(join(cwd, '.omx', 'team', 'canonical-root', 'worktrees', 'worker-2', 'AGENTS.md'), 'utf-8');
+      const rootAgents = await readFile(join(cwd, '.specify', 'agent-teams', 'worktrees', 'canonical-root', 'worker-2', 'AGENTS.md'), 'utf-8');
       assert.match(rootAgents, /You are operating as the \*\*writer\*\* role/);
       assert.match(rootAgents, /<identity>You are Writer\.<\/identity>/);
       assert.match(rootAgents, /exact gpt-5\.4-mini model/);
@@ -573,38 +611,22 @@ exit 0
   it('does not apply mini guidance during scale-up when the final worker model is gpt-5.5', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'omx-scale-up-frontier-role-'));
     const fakeBinDir = await mkdtemp(join(tmpdir(), 'omx-scale-up-frontier-role-bin-'));
-    const tmuxStubPath = join(fakeBinDir, 'tmux');
+    const tmuxStubPath = join(fakeBinDir, process.platform === 'win32' ? 'tmux.cmd' : 'tmux');
     const previousPath = process.env.PATH;
 
     try {
-      await writeFile(
-        tmuxStubPath,
-        `#!/bin/sh
-set -eu
-case "\${1:-}" in
-  -V)
-    echo "tmux 3.2a"
-    ;;
-  split-window)
-    echo "%31"
-    ;;
-  list-panes)
-    echo "42424"
-    ;;
-  capture-pane)
-    echo ""
-    ;;
-esac
-exit 0
-`,
-      );
-      await chmod(tmuxStubPath, 0o755);
-      process.env.PATH = `${fakeBinDir}:${previousPath ?? ''}`;
+      await writeMockTmuxBinary(fakeBinDir, {
+        logPath: join(fakeBinDir, 'tmux.log'),
+        splitWindowOutput: '%31',
+        listPanesOutput: '42424',
+        capturePaneOutput: '',
+      });
+      process.env.PATH = `${fakeBinDir}${delimiter}${previousPath ?? ''}`;
 
       await mkdir(join(cwd, '.codex', 'prompts'), { recursive: true });
       await writeFile(join(cwd, '.codex', 'prompts', 'test-engineer.md'), '<identity>Test Engineer</identity>');
-      await mkdir(join(cwd, '.omx', 'state', 'team', 'frontier-role'), { recursive: true });
-      await writeFile(join(cwd, '.omx', 'state', 'team', 'frontier-role', 'worker-agents.md'), '# Base worker instructions\n');
+      await mkdir(join(cwd, '.specify', 'runtime', 'state', 'team', 'frontier-role'), { recursive: true });
+      await writeFile(join(cwd, '.specify', 'runtime', 'state', 'team', 'frontier-role', 'worker-agents.md'), '# Base worker instructions\n');
 
       await initTeamState('frontier-role', 'task', 'executor', 1, cwd);
       await createTask('frontier-role', {
@@ -617,12 +639,12 @@ exit 0
       const config = await readTeamConfig('frontier-role', cwd);
       assert.ok(config);
       if (!config) return;
-      config.tmux_session = 'omx-team-frontier-role';
+      config.tmux_session = 'specify-team-frontier-role';
       config.leader_pane_id = '%11';
       config.workers[0]!.pane_id = '%21';
       await saveTeamConfig(config, cwd);
 
-      const manifestPath = join(cwd, '.omx', 'state', 'team', 'frontier-role', 'manifest.v2.json');
+      const manifestPath = join(cwd, '.specify', 'runtime', 'state', 'team', 'frontier-role', 'manifest.v2.json');
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as { policy?: Record<string, unknown> };
       manifest.policy = {
         ...(manifest.policy ?? {}),
@@ -636,12 +658,12 @@ exit 0
         'executor',
         [{ subject: 'test routing report only', description: 'test routing report only', owner: 'worker-2', role: 'test-engineer' }],
         cwd,
-        { OMX_TEAM_SCALING_ENABLED: '1', OMX_TEAM_SKIP_READY_WAIT: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1', SPECIFY_TEAM_SKIP_READY_WAIT: '1' },
       );
       assert.equal(result.ok, true);
       if (!result.ok) return;
 
-      const workerAgents = await readFile(join(cwd, '.omx', 'state', 'team', 'frontier-role', 'workers', 'worker-2', 'AGENTS.md'), 'utf-8');
+      const workerAgents = await readFile(join(cwd, '.specify', 'runtime', 'state', 'team', 'frontier-role', 'workers', 'worker-2', 'AGENTS.md'), 'utf-8');
       assert.match(workerAgents, /You are operating as the \*\*test-engineer\*\* role/);
       assert.match(workerAgents, /<identity>Test Engineer<\/identity>/);
       assert.doesNotMatch(workerAgents, /exact gpt-5\.4-mini model/);
@@ -656,33 +678,17 @@ exit 0
   it('does not apply mini guidance during scale-up for gpt-5.4-mini-tuned overrides', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'omx-scale-up-mini-tuned-'));
     const fakeBinDir = await mkdtemp(join(tmpdir(), 'omx-scale-up-mini-tuned-bin-'));
-    const tmuxStubPath = join(fakeBinDir, 'tmux');
+    const tmuxStubPath = join(fakeBinDir, process.platform === 'win32' ? 'tmux.cmd' : 'tmux');
     const previousPath = process.env.PATH;
 
     try {
-      await writeFile(
-        tmuxStubPath,
-        `#!/bin/sh
-set -eu
-case "\${1:-}" in
-  -V)
-    echo "tmux 3.2a"
-    ;;
-  split-window)
-    echo "%31"
-    ;;
-  list-panes)
-    echo "42424"
-    ;;
-  capture-pane)
-    echo ""
-    ;;
-esac
-exit 0
-`,
-      );
-      await chmod(tmuxStubPath, 0o755);
-      process.env.PATH = `${fakeBinDir}:${previousPath ?? ''}`;
+      await writeMockTmuxBinary(fakeBinDir, {
+        logPath: join(fakeBinDir, 'tmux.log'),
+        splitWindowOutput: '%31',
+        listPanesOutput: '42424',
+        capturePaneOutput: '',
+      });
+      process.env.PATH = `${fakeBinDir}${delimiter}${previousPath ?? ''}`;
 
       await mkdir(join(cwd, '.codex', 'prompts'), { recursive: true });
       await writeFile(join(cwd, '.codex', 'prompts', 'writer.md'), '<identity>You are Writer.</identity>');
@@ -691,18 +697,18 @@ exit 0
       await initTeamState('mini-tuned-root', 'task', 'executor', 1, cwd, undefined, process.env, {
         workspace_mode: 'worktree',
         leader_cwd: cwd,
-        team_state_root: join(cwd, '.omx', 'state'),
+        team_state_root: join(cwd, '.specify', 'runtime', 'state'),
       });
 
       const config = await readTeamConfig('mini-tuned-root', cwd);
       assert.ok(config);
       if (!config) return;
-      config.tmux_session = 'omx-team-mini-tuned-root';
+      config.tmux_session = 'specify-team-mini-tuned-root';
       config.leader_pane_id = '%11';
       config.workers[0]!.pane_id = '%21';
       await saveTeamConfig(config, cwd);
 
-      const manifestPath = join(cwd, '.omx', 'state', 'team', 'mini-tuned-root', 'manifest.v2.json');
+      const manifestPath = join(cwd, '.specify', 'runtime', 'state', 'team', 'mini-tuned-root', 'manifest.v2.json');
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as { policy?: Record<string, unknown> };
       manifest.policy = {
         ...(manifest.policy ?? {}),
@@ -717,15 +723,15 @@ exit 0
         [{ subject: 'write docs', description: 'write docs', owner: 'worker-2', role: 'writer' }],
         cwd,
         {
-          OMX_TEAM_SCALING_ENABLED: '1',
-          OMX_TEAM_SKIP_READY_WAIT: '1',
-          OMX_TEAM_WORKER_LAUNCH_ARGS: '--model gpt-5.4-mini-tuned',
+          SPECIFY_TEAM_SCALING_ENABLED: '1',
+          SPECIFY_TEAM_SKIP_READY_WAIT: '1',
+          SPECIFY_TEAM_WORKER_LAUNCH_ARGS: '--model gpt-5.4-mini-tuned',
         },
       );
       assert.equal(result.ok, true);
       if (!result.ok) return;
 
-      const rootAgents = await readFile(join(cwd, '.omx', 'team', 'mini-tuned-root', 'worktrees', 'worker-2', 'AGENTS.md'), 'utf-8');
+      const rootAgents = await readFile(join(cwd, '.specify', 'agent-teams', 'worktrees', 'mini-tuned-root', 'worker-2', 'AGENTS.md'), 'utf-8');
       assert.match(rootAgents, /You are operating as the \*\*writer\*\* role/);
       assert.match(rootAgents, /<identity>You are Writer\.<\/identity>/);
       assert.doesNotMatch(rootAgents, /exact gpt-5\.4-mini model/);
@@ -741,47 +747,30 @@ exit 0
     const cwd = await mkdtemp(join(tmpdir(), 'omx-scale-up-layout-'));
     const fakeBinDir = await mkdtemp(join(tmpdir(), 'omx-scale-up-layout-bin-'));
     const tmuxLogPath = join(fakeBinDir, 'tmux.log');
-    const tmuxStubPath = join(fakeBinDir, 'tmux');
+    const tmuxStubPath = join(fakeBinDir, process.platform === 'win32' ? 'tmux.cmd' : 'tmux');
     const previousPath = process.env.PATH;
 
     try {
-      await writeFile(
-        tmuxStubPath,
-        `#!/bin/sh
-set -eu
-printf '%s\\n' "$*" >> "${tmuxLogPath}"
-case "\${1:-}" in
-  -V)
-    echo "tmux 3.2a"
-    ;;
-  split-window)
-    echo "%31"
-    ;;
-  list-panes)
-    echo "42424"
-    ;;
-  capture-pane)
-    echo ""
-    ;;
-esac
-exit 0
-`,
-      );
-      await chmod(tmuxStubPath, 0o755);
+      await writeMockTmuxBinary(fakeBinDir, {
+        logPath: tmuxLogPath,
+        splitWindowOutput: '%31',
+        listPanesOutput: '42424',
+        capturePaneOutput: '',
+      });
       await writeFile(tmuxLogPath, '');
-      process.env.PATH = `${fakeBinDir}:${previousPath ?? ''}`;
+      process.env.PATH = `${fakeBinDir}${delimiter}${previousPath ?? ''}`;
 
       await initTeamState('scale-up-layout', 'task', 'executor', 1, cwd);
 
       const config = await readTeamConfig('scale-up-layout', cwd);
       assert.ok(config);
       if (!config) return;
-      config.tmux_session = 'omx-team-scale-up-layout';
+      config.tmux_session = 'specify-team-scale-up-layout';
       config.leader_pane_id = '%11';
       config.workers[0]!.pane_id = '%21';
       await saveTeamConfig(config, cwd);
 
-      const manifestPath = join(cwd, '.omx', 'state', 'team', 'scale-up-layout', 'manifest.v2.json');
+      const manifestPath = join(cwd, '.specify', 'runtime', 'state', 'team', 'scale-up-layout', 'manifest.v2.json');
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as { policy?: Record<string, unknown> };
       manifest.policy = {
         ...(manifest.policy ?? {}),
@@ -795,12 +784,12 @@ exit 0
         'executor',
         [],
         cwd,
-        { OMX_TEAM_SCALING_ENABLED: '1', OMX_TEAM_SKIP_READY_WAIT: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1', SPECIFY_TEAM_SKIP_READY_WAIT: '1' },
       );
       assert.equal(result.ok, true);
       if (!result.ok) return;
 
-      const tmuxLog = await readFile(tmuxLogPath, 'utf-8');
+      const tmuxLog = normalizeTmuxLog(await readFile(tmuxLogPath, 'utf-8'));
       assert.match(tmuxLog, /split-window -v -t %21/);
       assert.doesNotMatch(tmuxLog, /select-layout .*tiled/);
     } finally {
@@ -815,41 +804,22 @@ exit 0
     const repo = await initRepo();
     const fakeBinDir = await mkdtemp(join(tmpdir(), 'omx-scale-up-detached-bin-'));
     const tmuxLogPath = join(fakeBinDir, 'tmux.log');
-    const tmuxStubPath = join(fakeBinDir, 'tmux');
+    const tmuxStubPath = join(fakeBinDir, process.platform === 'win32' ? 'tmux.cmd' : 'tmux');
     const previousPath = process.env.PATH;
 
     try {
-      await writeFile(
-        tmuxStubPath,
-        [
-          '#!/bin/sh',
-          'set -eu',
-          `printf '%s\n' "$*" >> "${tmuxLogPath}"`,
-          'case "${1:-}" in',
-          '  -V)',
-          '    echo "tmux 3.2a"',
-          '    ;;',
-          '  split-window)',
-          '    echo "%41"',
-          '    ;;',
-          '  list-panes)',
-          '    echo "45454"',
-          '    ;;',
-          '  capture-pane)',
-          '    echo ""',
-          '    ;;',
-          'esac',
-          'exit 0',
-          '',
-        ].join('\n'),
-      );
-      await chmod(tmuxStubPath, 0o755);
+      await writeMockTmuxBinary(fakeBinDir, {
+        logPath: tmuxLogPath,
+        splitWindowOutput: '%41',
+        listPanesOutput: '45454',
+        capturePaneOutput: '',
+      });
       await writeFile(tmuxLogPath, '');
-      process.env.PATH = `${fakeBinDir}:${previousPath ?? ''}`;
+      process.env.PATH = `${fakeBinDir}${delimiter}${previousPath ?? ''}`;
 
       const teamName = 'scale-up-detached-worktree';
-      await mkdir(join(repo, '.omx', 'state', 'team', teamName), { recursive: true });
-      await writeFile(join(repo, '.omx', 'state', 'team', teamName, 'worker-agents.md'), '# Base worker instructions\n');
+      await mkdir(join(repo, '.specify', 'runtime', 'state', 'team', teamName), { recursive: true });
+      await writeFile(join(repo, '.specify', 'runtime', 'state', 'team', teamName, 'worker-agents.md'), '# Base worker instructions\n');
       await initTeamState(
         teamName,
         'task',
@@ -860,7 +830,7 @@ exit 0
         process.env,
         {
           leader_cwd: repo,
-          team_state_root: join(repo, '.omx', 'state'),
+          team_state_root: join(repo, '.specify', 'runtime', 'state'),
           workspace_mode: 'worktree',
           worktree_mode: { enabled: true, detached: true, name: null },
         },
@@ -869,12 +839,12 @@ exit 0
       const config = await readTeamConfig(teamName, repo);
       assert.ok(config);
       if (!config) return;
-      config.tmux_session = `omx-team-${teamName}`;
+      config.tmux_session = `specify-team-${teamName}`;
       config.leader_pane_id = '%11';
       config.workers[0]!.pane_id = '%21';
       await saveTeamConfig(config, repo);
 
-      const manifestPath = join(repo, '.omx', 'state', 'team', teamName, 'manifest.v2.json');
+      const manifestPath = join(repo, '.specify', 'runtime', 'state', 'team', teamName, 'manifest.v2.json');
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as { policy?: Record<string, unknown> };
       manifest.policy = {
         ...(manifest.policy ?? {}),
@@ -888,7 +858,7 @@ exit 0
         'executor',
         [],
         repo,
-        { OMX_TEAM_SCALING_ENABLED: '1', OMX_TEAM_SKIP_READY_WAIT: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1', SPECIFY_TEAM_SKIP_READY_WAIT: '1' },
       );
       assert.equal(result.ok, true);
       if (!result.ok) return;
@@ -916,42 +886,23 @@ exit 0
     const repo = await initRepo();
     const fakeBinDir = await mkdtemp(join(tmpdir(), 'omx-scale-up-named-bin-'));
     const tmuxLogPath = join(fakeBinDir, 'tmux.log');
-    const tmuxStubPath = join(fakeBinDir, 'tmux');
+    const tmuxStubPath = join(fakeBinDir, process.platform === 'win32' ? 'tmux.cmd' : 'tmux');
     const previousPath = process.env.PATH;
 
     try {
-      await writeFile(
-        tmuxStubPath,
-        [
-          '#!/bin/sh',
-          'set -eu',
-          `printf '%s\n' "$*" >> "${tmuxLogPath}"`,
-          'case "${1:-}" in',
-          '  -V)',
-          '    echo "tmux 3.2a"',
-          '    ;;',
-          '  split-window)',
-          '    echo "%42"',
-          '    ;;',
-          '  list-panes)',
-          '    echo "46464"',
-          '    ;;',
-          '  capture-pane)',
-          '    echo ""',
-          '    ;;',
-          'esac',
-          'exit 0',
-          '',
-        ].join('\n'),
-      );
-      await chmod(tmuxStubPath, 0o755);
+      await writeMockTmuxBinary(fakeBinDir, {
+        logPath: tmuxLogPath,
+        splitWindowOutput: '%42',
+        listPanesOutput: '46464',
+        capturePaneOutput: '',
+      });
       await writeFile(tmuxLogPath, '');
-      process.env.PATH = `${fakeBinDir}:${previousPath ?? ''}`;
+      process.env.PATH = `${fakeBinDir}${delimiter}${previousPath ?? ''}`;
 
       const teamName = 'scale-up-named-worktree';
       const branchBase = 'feature/team-scale';
-      await mkdir(join(repo, '.omx', 'state', 'team', teamName), { recursive: true });
-      await writeFile(join(repo, '.omx', 'state', 'team', teamName, 'worker-agents.md'), '# Base worker instructions\n');
+      await mkdir(join(repo, '.specify', 'runtime', 'state', 'team', teamName), { recursive: true });
+      await writeFile(join(repo, '.specify', 'runtime', 'state', 'team', teamName, 'worker-agents.md'), '# Base worker instructions\n');
       await initTeamState(
         teamName,
         'task',
@@ -962,7 +913,7 @@ exit 0
         process.env,
         {
           leader_cwd: repo,
-          team_state_root: join(repo, '.omx', 'state'),
+          team_state_root: join(repo, '.specify', 'runtime', 'state'),
           workspace_mode: 'worktree',
           worktree_mode: { enabled: true, detached: false, name: branchBase },
         },
@@ -971,12 +922,12 @@ exit 0
       const config = await readTeamConfig(teamName, repo);
       assert.ok(config);
       if (!config) return;
-      config.tmux_session = `omx-team-${teamName}`;
+      config.tmux_session = `specify-team-${teamName}`;
       config.leader_pane_id = '%11';
       config.workers[0]!.pane_id = '%21';
       await saveTeamConfig(config, repo);
 
-      const manifestPath = join(repo, '.omx', 'state', 'team', teamName, 'manifest.v2.json');
+      const manifestPath = join(repo, '.specify', 'runtime', 'state', 'team', teamName, 'manifest.v2.json');
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as { policy?: Record<string, unknown> };
       manifest.policy = {
         ...(manifest.policy ?? {}),
@@ -990,7 +941,7 @@ exit 0
         'executor',
         [],
         repo,
-        { OMX_TEAM_SCALING_ENABLED: '1', OMX_TEAM_SKIP_READY_WAIT: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1', SPECIFY_TEAM_SKIP_READY_WAIT: '1' },
       );
       assert.equal(result.ok, true);
       if (!result.ok) return;
@@ -1029,7 +980,7 @@ describe('scaleDown', () => {
     try {
       const result = await scaleDown(
         'nonexistent', cwd, {},
-        { OMX_TEAM_SCALING_ENABLED: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1' },
       );
       assert.equal(result.ok, false);
       if (!result.ok) {
@@ -1047,7 +998,7 @@ describe('scaleDown', () => {
       const result = await scaleDown(
         'all-test', cwd,
         { workerNames: ['worker-1'] },
-        { OMX_TEAM_SCALING_ENABLED: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1' },
       );
       assert.equal(result.ok, false);
       if (!result.ok) {
@@ -1065,7 +1016,7 @@ describe('scaleDown', () => {
       const result = await scaleDown(
         'miss-test', cwd,
         { workerNames: ['worker-99'] },
-        { OMX_TEAM_SCALING_ENABLED: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1' },
       );
       assert.equal(result.ok, false);
       if (!result.ok) {
@@ -1094,7 +1045,7 @@ describe('scaleDown', () => {
       const result = await scaleDown(
         'busy-test', cwd,
         { count: 1 },
-        { OMX_TEAM_SCALING_ENABLED: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1' },
       );
       assert.equal(result.ok, false);
       if (!result.ok) {
@@ -1114,15 +1065,15 @@ describe('scaleDown worktree AGENTS cleanup', () => {
       await initTeamState('scale-down-worktree', 'task', 'executor', 2, cwd, undefined, process.env, {
         workspace_mode: 'worktree',
         leader_cwd: cwd,
-        team_state_root: join(cwd, '.omx', 'state'),
+        team_state_root: join(cwd, '.specify', 'runtime', 'state'),
       });
 
-      const worktree = join(cwd, '.omx', 'team', 'scale-down-worktree', 'worktrees', 'worker-2');
+      const worktree = join(cwd, '.specify', 'agent-teams', 'worktrees', 'scale-down-worktree', 'worker-2');
       await mkdir(worktree, { recursive: true });
       await writeFile(join(worktree, 'AGENTS.md'), '# Tracked root instructions\n', 'utf8');
-      await mkdir(join(cwd, '.omx', 'state', 'team', 'scale-down-worktree', 'workers', 'worker-2'), { recursive: true });
+      await mkdir(join(cwd, '.specify', 'runtime', 'state', 'team', 'scale-down-worktree', 'workers', 'worker-2'), { recursive: true });
       await writeFile(
-        join(cwd, '.omx', 'state', 'team', 'scale-down-worktree', 'workers', 'worker-2', 'root-agents-backup.json'),
+        join(cwd, '.specify', 'runtime', 'state', 'team', 'scale-down-worktree', 'workers', 'worker-2', 'root-agents-backup.json'),
         JSON.stringify({ existed: true, tracked: false, previousContent: '# Tracked root instructions\n' }, null, 2),
         'utf8',
       );
@@ -1138,13 +1089,13 @@ describe('scaleDown worktree AGENTS cleanup', () => {
         'scale-down-worktree',
         cwd,
         { workerNames: ['worker-2'], force: true },
-        { OMX_TEAM_SCALING_ENABLED: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1' },
       );
       assert.equal(result.ok, true);
       if (!result.ok) return;
 
-      assert.equal(await readFile(join(worktree, 'AGENTS.md'), 'utf-8'), '# Tracked root instructions\n');
-      assert.equal(existsSync(join(cwd, '.omx', 'state', 'team', 'scale-down-worktree', 'workers', 'worker-2', 'root-agents-backup.json')), false);
+      assert.equal((await readFile(join(worktree, 'AGENTS.md'), 'utf-8')).replace(/\r\n/g, '\n'), '# Tracked root instructions\n');
+      assert.equal(existsSync(join(cwd, '.specify', 'runtime', 'state', 'team', 'scale-down-worktree', 'workers', 'worker-2', 'root-agents-backup.json')), false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -1167,7 +1118,7 @@ describe('scaleDown teardown hardening', () => {
         'dead-pane',
         cwd,
         { workerNames: ['worker-2'], force: true },
-        { OMX_TEAM_SCALING_ENABLED: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1' },
       );
       assert.equal(result.ok, true);
       if (!result.ok) return;
@@ -1185,20 +1136,14 @@ describe('scaleDown teardown hardening', () => {
     const cwd = await mkdtemp(join(tmpdir(), 'omx-scale-down-exclusions-'));
     const fakeBinDir = await mkdtemp(join(tmpdir(), 'omx-scale-down-fake-tmux-'));
     const tmuxLogPath = join(fakeBinDir, 'tmux.log');
-    const tmuxStubPath = join(fakeBinDir, 'tmux');
+    const tmuxStubPath = join(fakeBinDir, process.platform === 'win32' ? 'tmux.cmd' : 'tmux');
     const previousPath = process.env.PATH;
     try {
-      await writeFile(
-        tmuxStubPath,
-        `#!/bin/sh
-set -eu
-printf '%s\\n' "$*" >> "${tmuxLogPath}"
-exit 0
-`,
-      );
+      await writeMockTmuxBinary(fakeBinDir, {
+        logPath: tmuxLogPath,
+      });
       await writeFile(tmuxLogPath, '');
-      await chmod(tmuxStubPath, 0o755);
-      process.env.PATH = `${fakeBinDir}:${previousPath ?? ''}`;
+      process.env.PATH = `${fakeBinDir}${delimiter}${previousPath ?? ''}`;
 
       await initTeamState('exclusions', 'task', 'executor', 4, cwd);
       const config = await readTeamConfig('exclusions', cwd);
@@ -1216,11 +1161,11 @@ exit 0
         'exclusions',
         cwd,
         { workerNames: ['worker-1', 'worker-2', 'worker-3'], force: true },
-        { OMX_TEAM_SCALING_ENABLED: '1' },
+        { SPECIFY_TEAM_SCALING_ENABLED: '1' },
       );
       assert.equal(result.ok, true);
 
-      const tmuxLog = await readFile(tmuxLogPath, 'utf-8');
+      const tmuxLog = normalizeTmuxLog(await readFile(tmuxLogPath, 'utf-8'));
       assert.doesNotMatch(tmuxLog, /kill-pane -t %11/);
       assert.doesNotMatch(tmuxLog, /kill-pane -t %12/);
       assert.match(tmuxLog, /kill-pane -t %13/);

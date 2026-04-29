@@ -540,7 +540,7 @@ export async function capturePane(paneId, lines = 10) {
 }
 
 export async function resolveNudgePaneTarget(stateDir: any, cwd = '', payload: any = undefined) {
-  const allowTeamWorker = safeString(process.env.OMX_TEAM_WORKER || '').trim() !== '';
+  const allowTeamWorker = safeString(process.env.SPECIFY_TEAM_WORKER || '').trim() !== '';
   const managedCurrentPane = await resolveManagedCurrentPane(cwd, payload, { allowTeamWorker });
   if (managedCurrentPane) return managedCurrentPane;
 

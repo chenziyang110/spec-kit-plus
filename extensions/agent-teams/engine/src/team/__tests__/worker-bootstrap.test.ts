@@ -38,17 +38,14 @@ function setMockCodexHome(codexHomePath: string): () => void {
 describe("worker bootstrap", () => {
   it("worker skill lifecycle instructions are claim-safe (issue #448)", async () => {
     const workerSkill = await readFile(
-      join(process.cwd(), "skills", "worker", "SKILL.md"),
+      join(process.cwd(), "extensions", "agent-teams", "engine", "src", "team", "worker-bootstrap.ts"),
       "utf8",
     );
 
-    assert.match(workerSkill, /omx team api claim-task/);
-    assert.match(workerSkill, /omx team api transition-task-status/);
-    assert.match(workerSkill, /omx team api release-task-claim/);
-    assert.match(
-      workerSkill,
-      /\$\{CODEX_HOME:-~\/\.codex\}\/skills\/worker\/SKILL\.md/,
-    );
+    assert.match(workerSkill, /sp-teams api claim-task/);
+    assert.match(workerSkill, /sp-teams api transition-task-status/);
+    assert.match(workerSkill, /sp-teams api release-task-claim/);
+    assert.match(workerSkill, /skills\/worker\/SKILL\.md/);
     assert.doesNotMatch(workerSkill, /Write completion to the task file/i);
     assert.doesNotMatch(
       workerSkill,
@@ -76,12 +73,14 @@ describe("worker bootstrap", () => {
     );
     assert.match(overlay, /<leader_cwd>\/\.codex\/skills\/worker\/SKILL\.md/);
     assert.match(overlay, /Resolve canonical team state root/i);
+    assert.match(overlay, /SPECIFY_TEAM_STATE_ROOT env/);
+    assert.match(overlay, /\.specify\/runtime\/state/);
     assert.match(overlay, /<team_state_root>\/team\/my-team\/tasks/);
     assert.match(overlay, /tasks\/task-<id>\.json/);
     assert.match(overlay, /task_id: "<id>"/);
-    assert.match(overlay, /omx team api claim-task/);
-    assert.match(overlay, /omx team api transition-task-status/);
-    assert.match(overlay, /omx team api release-task-claim/);
+    assert.match(overlay, /sp-teams api claim-task/);
+    assert.match(overlay, /sp-teams api transition-task-status/);
+    assert.match(overlay, /sp-teams api release-task-claim/);
     assert.doesNotMatch(
       overlay,
       /On completion: write \{"status": "completed"/,
@@ -200,7 +199,7 @@ describe("worker bootstrap", () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-worker-bootstrap-"));
     try {
       const agentsMdPath = join(cwd, "AGENTS.md");
-      const lockPath = join(cwd, ".omx", "state", "agents-md.lock");
+      const lockPath = join(cwd, ".specify", "runtime", "state", "agents-md.lock");
       await mkdir(lockPath, { recursive: true });
       await writeFile(
         join(lockPath, "owner.json"),
@@ -255,9 +254,9 @@ describe("worker bootstrap", () => {
       inbox,
       /<team_state_root>\/team\/team-inbox\/tasks\/task-<id>\.json/,
     );
-    assert.match(inbox, /omx team api claim-task/);
-    assert.match(inbox, /omx team api transition-task-status/);
-    assert.match(inbox, /omx team api release-task-claim/);
+    assert.match(inbox, /sp-teams api claim-task/);
+    assert.match(inbox, /sp-teams api transition-task-status/);
+    assert.match(inbox, /sp-teams api release-task-claim/);
     assert.match(
       inbox,
       /\$\{CODEX_HOME:-~\/\.codex\}\/skills\/worker\/SKILL\.md/,
@@ -402,9 +401,9 @@ describe("worker bootstrap", () => {
     assert.match(inbox, /Implement parser update/);
     assert.match(inbox, /team_state_root/);
     assert.match(inbox, /team\/team-followup\/tasks\/task-42\.json/);
-    assert.match(inbox, /omx team api claim-task/);
-    assert.match(inbox, /omx team api transition-task-status/);
-    assert.match(inbox, /omx team api release-task-claim/);
+    assert.match(inbox, /sp-teams api claim-task/);
+    assert.match(inbox, /sp-teams api transition-task-status/);
+    assert.match(inbox, /sp-teams api release-task-claim/);
     assert.doesNotMatch(
       inbox,
       /Write `\{"status": "completed", "result": "brief summary"\}` when done/,
@@ -439,7 +438,7 @@ describe("worker bootstrap", () => {
     const message = generateTriggerMessage("worker-9", "team-path");
     assert.match(
       message,
-      /\.omx\/state\/team\/team-path\/workers\/worker-9\/inbox\.md/,
+      /\.specify\/runtime\/state\/team\/team-path\/workers\/worker-9\/inbox\.md/,
     );
     assert.match(message, /start work now/i);
     assert.match(message, /concrete progress/i);
@@ -450,7 +449,7 @@ describe("worker bootstrap", () => {
   it("buildTriggerDirective keeps human text separate from orchestration intent", () => {
     const directive = buildTriggerDirective("worker-9", "team-path");
     assert.equal(directive.intent, "followup-relaunch");
-    assert.match(directive.text, /\.omx\/state\/team\/team-path\/workers\/worker-9\/inbox\.md/);
+    assert.match(directive.text, /\.specify\/runtime\/state\/team\/team-path\/workers\/worker-9\/inbox\.md/);
     assert.doesNotMatch(directive.text, /OMX_INTENT/);
   });
 
@@ -458,11 +457,11 @@ describe("worker bootstrap", () => {
     const message = generateTriggerMessage(
       "worker-9",
       "team-path",
-      "$OMX_TEAM_STATE_ROOT",
+      "$SPECIFY_TEAM_STATE_ROOT",
     );
     assert.match(
       message,
-      /\$OMX_TEAM_STATE_ROOT\/team\/team-path\/workers\/worker-9\/inbox\.md/,
+      /\$SPECIFY_TEAM_STATE_ROOT\/team\/team-path\/workers\/worker-9\/inbox\.md/,
     );
     assert.match(message, /work now/i);
     assert.match(message, /report progress/i);
@@ -485,10 +484,10 @@ describe("worker bootstrap", () => {
     assert.match(message, /3 new message/);
     assert.match(
       message,
-      /Read .*\.omx\/state\/team\/team-mail\/mailbox\/worker-2\.json/,
+      /Read .*\.specify\/runtime\/state\/team\/team-mail\/mailbox\/worker-2\.json/,
     );
     assert.match(message, /act now/i);
-    assert.match(message, /concrete progress/i);
+    assert.match(message, /reply with progress/i);
     assert.match(message, /continue assigned work/i);
     assert.match(message, /next feasible task/i);
   });
@@ -505,12 +504,12 @@ describe("worker bootstrap", () => {
       "worker-2",
       "team-mail",
       3,
-      "$OMX_TEAM_STATE_ROOT",
+      "$SPECIFY_TEAM_STATE_ROOT",
     );
     assert.match(message, /3 new msg/);
     assert.match(
       message,
-      /read .*\$OMX_TEAM_STATE_ROOT\/team\/team-mail\/mailbox\/worker-2\.json/i,
+      /read .*\$SPECIFY_TEAM_STATE_ROOT\/team\/team-mail\/mailbox\/worker-2\.json/i,
     );
     assert.match(message, /act/i);
     assert.match(message, /report progress/i);
@@ -534,7 +533,7 @@ describe("worker bootstrap", () => {
     );
     assert.match(
       message,
-      /Read .*\.omx\/state\/team\/team-mail\/mailbox\/leader-fixed\.json/,
+      /Read .*\.specify\/runtime\/state\/team\/team-mail\/mailbox\/leader-fixed\.json/,
     );
     assert.match(message, /worker-2 sent a new message/);
     assert.match(message, /Review it and decide the next concrete step/);
@@ -552,11 +551,11 @@ describe("worker bootstrap", () => {
     const message = generateLeaderMailboxTriggerMessage(
       "team-mail",
       "worker-2",
-      "$OMX_TEAM_STATE_ROOT",
+      "$SPECIFY_TEAM_STATE_ROOT",
     );
     assert.match(
       message,
-      /read .*\$OMX_TEAM_STATE_ROOT\/team\/team-mail\/mailbox\/leader-fixed\.json/i,
+      /read .*\$SPECIFY_TEAM_STATE_ROOT\/team\/team-mail\/mailbox\/leader-fixed\.json/i,
     );
     assert.match(message, /new msg from worker-2/i);
     assert.match(message, /review it; decide next step/i);
@@ -662,7 +661,7 @@ describe("worker bootstrap", () => {
       rolePromptContent: "<identity>You are Writer.</identity>",
       teamStateRoot: "/tmp/state",
       leaderCwd: "/repo",
-      worktreePath: "/repo/.omx/team/root-team/worktrees/worker-3",
+      worktreePath: "/repo/.specify/runtime/team/root-team/worktrees/worker-3",
     });
 
     assert.match(content, /Worker: worker-3/);
@@ -742,15 +741,15 @@ describe("worker bootstrap", () => {
       workerName: "worker-2",
       workerRole: "writer",
       rolePromptContent: "<identity>You are Writer.</identity>",
-      teamStateRoot: "/tmp/project/.omx/state",
+      teamStateRoot: "/tmp/project/.specify/runtime/state",
       leaderCwd: "/tmp/project",
-      worktreePath: "/tmp/project/.omx/team/root-team/worktrees/worker-2",
+      worktreePath: "/tmp/project/.specify/runtime/team/root-team/worktrees/worker-2",
     });
 
     assert.match(content, /# Team Worker Runtime Instructions/);
-    assert.match(content, /Inbox path: \/tmp\/project\/.omx\/state\/team\/root-team\/workers\/worker-2\/inbox\.md/);
-    assert.match(content, /Mailbox path: \/tmp\/project\/.omx\/state\/team\/root-team\/mailbox\/worker-2\.json/);
-    assert.match(content, /Leader mailbox path: \/tmp\/project\/.omx\/state\/team\/root-team\/mailbox\/leader-fixed\.json/);
+    assert.match(content, /Inbox path: \/tmp\/project\/.specify\/runtime\/state\/team\/root-team\/workers\/worker-2\/inbox\.md/);
+    assert.match(content, /Mailbox path: \/tmp\/project\/.specify\/runtime\/state\/team\/root-team\/mailbox\/worker-2\.json/);
+    assert.match(content, /Leader mailbox path: \/tmp\/project\/.specify\/runtime\/state\/team\/root-team\/mailbox\/leader-fixed\.json/);
     assert.match(content, /You are operating as the \*\*writer\*\* role/);
     assert.match(content, /<identity>You are Writer\.<\/identity>/);
     assert.doesNotMatch(content, /# Project Instructions/);
@@ -761,7 +760,7 @@ describe("worker bootstrap", () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-worker-root-agents-"));
     const worktree = join(cwd, "worktree");
     try {
-      await mkdir(join(cwd, ".omx", "state", "team", "restore-team", "workers", "worker-1"), { recursive: true });
+      await mkdir(join(cwd, ".specify", "runtime", "state", "team", "restore-team", "workers", "worker-1"), { recursive: true });
       await mkdir(worktree, { recursive: true });
       await writeFile(join(worktree, "AGENTS.md"), "# Base tracked AGENTS\n", "utf8");
 
@@ -770,7 +769,7 @@ describe("worker bootstrap", () => {
         workerName: "worker-1",
         workerRole: "writer",
         rolePromptContent: "<identity>Writer role prompt</identity>",
-        teamStateRoot: join(cwd, ".omx", "state"),
+        teamStateRoot: join(cwd, ".specify", "runtime", "state"),
         leaderCwd: cwd,
         worktreePath: worktree,
       });
@@ -779,7 +778,7 @@ describe("worker bootstrap", () => {
       assert.match(generated, /Team Worker Runtime Instructions/);
       assert.match(generated, /Writer role prompt/);
 
-      await removeWorkerWorktreeRootAgentsFile("restore-team", "worker-1", join(cwd, ".omx", "state"), worktree);
+      await removeWorkerWorktreeRootAgentsFile("restore-team", "worker-1", join(cwd, ".specify", "runtime", "state"), worktree);
       const restored = await readFile(join(worktree, "AGENTS.md"), "utf8");
       assert.equal(restored, "# Base tracked AGENTS\n");
     } finally {
@@ -840,7 +839,8 @@ describe("worker bootstrap", () => {
       const { existsSync } = await import("fs");
       const outPath = join(
         cwd,
-        ".omx",
+        ".specify",
+        "runtime",
         "state",
         "team",
         "cleanup-team",

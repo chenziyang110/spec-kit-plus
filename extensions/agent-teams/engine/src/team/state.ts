@@ -3,7 +3,7 @@ import { join, dirname, resolve, sep } from 'path';
 import { existsSync } from 'fs';
 import { randomUUID } from 'crypto';
 import { readUsableSessionState } from '../hooks/session.js';
-import { omxStateDir } from '../utils/paths.js';
+import { specifyRuntimeStateDir } from '../utils/paths.js';
 import { isTerminalPhase, type TeamPhase, type TerminalPhase } from './orchestrator.js';
 import {
   computeTaskReadiness as computeTaskReadinessImpl,
@@ -80,7 +80,7 @@ export interface TeamConfig {
   max_workers: number; // default 20, configurable up to 20
   workers: WorkerInfo[];
   created_at: string;
-  tmux_session: string; // "omx-team-{name}"
+  tmux_session: string; // "specify-team-{name}"
   next_task_id: number;
   leader_cwd?: string;
   team_state_root?: string;
@@ -493,7 +493,7 @@ function parseOptionalBoolean(raw: string | null): boolean | null {
 }
 
 function resolveDisplayModeFromEnv(env: NodeJS.ProcessEnv): TeamPolicy['display_mode'] {
-  const raw = readEnvValue(env, ['OMX_TEAM_DISPLAY_MODE', 'OMX_TEAM_MODE']);
+  const raw = readEnvValue(env, ['SPECIFY_TEAM_DISPLAY_MODE', 'SPECIFY_TEAM_MODE']);
   if (!raw) return 'auto';
   if (raw === 'in_process' || raw === 'in-process') return 'split_pane';
   if (raw === 'split_pane' || raw === 'tmux') return 'split_pane';
@@ -502,10 +502,10 @@ function resolveDisplayModeFromEnv(env: NodeJS.ProcessEnv): TeamPolicy['display_
 }
 
 function resolveWorkerLaunchModeFromEnv(env: NodeJS.ProcessEnv): TeamPolicy['worker_launch_mode'] {
-  const raw = readEnvValue(env, ['OMX_TEAM_WORKER_LAUNCH_MODE']);
+  const raw = readEnvValue(env, ['SPECIFY_TEAM_WORKER_LAUNCH_MODE']);
   if (!raw || raw === 'interactive') return 'interactive';
   if (raw === 'prompt') return 'prompt';
-  throw new Error(`Invalid OMX_TEAM_WORKER_LAUNCH_MODE value "${raw}". Expected: interactive, prompt`);
+  throw new Error(`Invalid SPECIFY_TEAM_WORKER_LAUNCH_MODE value "${raw}". Expected: interactive, prompt`);
 }
 
 function resolvePermissionsSnapshot(env: NodeJS.ProcessEnv): PermissionsSnapshot {
@@ -530,7 +530,7 @@ function resolvePermissionsSnapshot(env: NodeJS.ProcessEnv): PermissionsSnapshot
 }
 
 async function resolveLeaderSessionId(cwd: string, env: NodeJS.ProcessEnv): Promise<string> {
-  const fromEnv = readEnvValue(env, ['OMX_SESSION_ID', 'CODEX_SESSION_ID', 'SESSION_ID']);
+  const fromEnv = readEnvValue(env, ['SPECIFY_SESSION_ID', 'CODEX_SESSION_ID', 'SESSION_ID']);
   if (fromEnv) return fromEnv;
   return (await readUsableSessionState(cwd))?.session_id ?? '';
 }
@@ -543,13 +543,13 @@ function normalizeTask(task: TeamTask): TeamTaskV2 {
   };
 }
 
-// Team state directory: .omx/state/team/{teamName}/
+// Team state directory: .specify/runtime/state/team/{teamName}/
 function resolveTeamStateRoot(cwd: string, env: NodeJS.ProcessEnv = process.env): string {
-  const explicit = env.OMX_TEAM_STATE_ROOT;
+  const explicit = env.SPECIFY_TEAM_STATE_ROOT;
   if (typeof explicit === 'string' && explicit.trim() !== '') {
     return resolve(cwd, explicit.trim());
   }
-  return omxStateDir(cwd);
+  return specifyRuntimeStateDir(cwd);
 }
 
 function teamDir(teamName: string, cwd: string): string {
@@ -682,7 +682,25 @@ export async function writeAtomic(filePath: string, data: string): Promise<void>
   await writeFile(tmpPath, data, 'utf8');
 
   try {
-    await renameForAtomicWrite(tmpPath, filePath);
+    let renamed = false;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        await renameForAtomicWrite(tmpPath, filePath);
+        renamed = true;
+        break;
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        const retryableConcurrencyRace = (err.code === 'EPERM' || err.code === 'EACCES') && existsSync(filePath);
+        if (!retryableConcurrencyRace || attempt === 4) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10 * (attempt + 1)));
+      }
+    }
+    if (!renamed) {
+      await rm(tmpPath, { force: true }).catch(() => {});
+      return;
+    }
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     if (err.code === 'ENOENT' && existsSync(filePath)) {
@@ -748,7 +766,7 @@ export async function initTeamState(
   }
 
   const leaderSessionId = await resolveLeaderSessionId(cwd, env);
-  const leaderWorkerId = readEnvValue(env, ['OMX_TEAM_WORKER']) ?? 'leader-fixed';
+  const leaderWorkerId = readEnvValue(env, ['SPECIFY_TEAM_WORKER']) ?? 'leader-fixed';
   const displayMode = resolveDisplayModeFromEnv(env);
   const permissionsSnapshot = resolvePermissionsSnapshot(env);
   const workerLaunchMode = resolveWorkerLaunchModeFromEnv(env);
@@ -763,7 +781,7 @@ export async function initTeamState(
     max_workers: maxWorkers,
     workers,
     created_at: new Date().toISOString(),
-    tmux_session: `omx-team-${teamName}`,
+    tmux_session: `specify-team-${teamName}`,
     next_task_id: 1,
     leader_cwd: workspace.leader_cwd,
     team_state_root: workspace.team_state_root,
@@ -2067,7 +2085,7 @@ export async function markOwnedTeamsLeaderStopObserved(
   source: TeamLeaderAttentionState['source'] = 'native_stop',
 ): Promise<string[]> {
   if (!leaderSessionId.trim()) return [];
-  const teamsRoot = join(omxStateDir(cwd), 'team');
+  const teamsRoot = join(specifyRuntimeStateDir(cwd), 'team');
   if (!existsSync(teamsRoot)) return [];
   const entries = await readdir(teamsRoot, { withFileTypes: true }).catch(() => []);
   const updatedTeams: string[] = [];

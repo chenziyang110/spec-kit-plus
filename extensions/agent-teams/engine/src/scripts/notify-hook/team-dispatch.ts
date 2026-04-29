@@ -25,10 +25,10 @@ import {
  * Non-fatal: if the binary is missing or fails, the legacy JSON fallback lane
  * remains available when the caller is already operating outside the bridge-
  * owned path.
- * Disable entirely with OMX_RUNTIME_BRIDGE=0.
+ * Disable entirely with SPECIFY_RUNTIME_BRIDGE=0.
  */
 function runtimeExec(command, stateDir) {
-  if (process.env.OMX_RUNTIME_BRIDGE === '0') return;
+  if (process.env.SPECIFY_RUNTIME_BRIDGE === '0') return;
   try {
     const binaryPath = resolveRuntimeBinaryPath();
     execFileSync(binaryPath, ['exec', JSON.stringify(command), `--state-dir=${stateDir}`], {
@@ -99,9 +99,9 @@ async function writeJsonAtomic(path, value) {
 const DISPATCH_LOCK_STALE_MS = 5 * 60 * 1000;
 const DISPATCH_REQUEST_LEASE_STALE_MS = 30 * 1000;
 const DEFAULT_ISSUE_DISPATCH_COOLDOWN_MS = 15 * 60 * 1000;
-const ISSUE_DISPATCH_COOLDOWN_ENV = 'OMX_TEAM_DISPATCH_ISSUE_COOLDOWN_MS';
+const ISSUE_DISPATCH_COOLDOWN_ENV = 'SPECIFY_TEAM_DISPATCH_ISSUE_COOLDOWN_MS';
 const DEFAULT_DISPATCH_TRIGGER_COOLDOWN_MS = 30 * 1000;
-const DISPATCH_TRIGGER_COOLDOWN_ENV = 'OMX_TEAM_DISPATCH_TRIGGER_COOLDOWN_MS';
+const DISPATCH_TRIGGER_COOLDOWN_ENV = 'SPECIFY_TEAM_DISPATCH_TRIGGER_COOLDOWN_MS';
 const LEADER_PANE_MISSING_DEFERRED_REASON = 'leader_pane_missing_deferred';
 const LEADER_NOTIFICATION_DEFERRED_TYPE = 'leader_notification_deferred';
 
@@ -867,7 +867,7 @@ export async function drainPendingTeamDispatch({
   maxPerTick?: number;
   injector?: typeof injectDispatchRequest;
 } = {}) {
-  if (safeString(process.env.OMX_TEAM_WORKER)) {
+  if (safeString(process.env.SPECIFY_TEAM_WORKER)) {
     return { processed: 0, skipped: 0, failed: 0, reason: 'worker_context' };
   }
   const teamRoot = join(stateDir, 'team');

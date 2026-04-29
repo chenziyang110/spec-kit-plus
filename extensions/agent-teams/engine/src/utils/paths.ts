@@ -1,6 +1,6 @@
 /**
- * Path utilities for oh-my-codex
- * Resolves Codex CLI config, skills, prompts, and state directories
+ * Path utilities for the Specify runtime
+ * Resolves Codex CLI config, skills, prompts, and runtime directories.
  */
 
 import { createHash } from "crypto";
@@ -15,8 +15,8 @@ export function codexHome(): string {
   return process.env.CODEX_HOME || join(homedir(), ".codex");
 }
 
-export const OMX_ENTRY_PATH_ENV = "OMX_ENTRY_PATH";
-export const OMX_STARTUP_CWD_ENV = "OMX_STARTUP_CWD";
+export const SPECIFY_ENTRY_PATH_ENV = "SPECIFY_ENTRY_PATH";
+export const SPECIFY_STARTUP_CWD_ENV = "SPECIFY_STARTUP_CWD";
 
 function resolveLauncherPath(rawPath: string, baseCwd: string): string {
   const absolutePath = isAbsolute(rawPath) ? rawPath : resolve(baseCwd, rawPath);
@@ -46,7 +46,7 @@ export function sameFilePath(leftPath: string, rightPath: string): boolean {
   return canonicalizeComparablePath(leftPath) === canonicalizeComparablePath(rightPath);
 }
 
-export function resolveOmxEntryPath(
+export function resolveSpecifyEntryPath(
   options: {
     argv1?: string | null;
     cwd?: string;
@@ -58,26 +58,26 @@ export function resolveOmxEntryPath(
   const argv1 = hasExplicitArgv1 ? options.argv1 : process.argv[1];
   const rawPath = typeof argv1 === "string" ? argv1.trim() : "";
   if (hasExplicitArgv1 && rawPath !== "") {
-    const startupCwd = String(env[OMX_STARTUP_CWD_ENV] ?? "").trim() || cwd;
+    const startupCwd = String(env[SPECIFY_STARTUP_CWD_ENV] ?? "").trim() || cwd;
     return resolveLauncherPath(rawPath, startupCwd);
   }
 
-  const fromEnv = String(env[OMX_ENTRY_PATH_ENV] ?? "").trim();
+  const fromEnv = String(env[SPECIFY_ENTRY_PATH_ENV] ?? "").trim();
   if (fromEnv !== "") return fromEnv;
 
   if (rawPath === "") return null;
 
-  const startupCwd = String(env[OMX_STARTUP_CWD_ENV] ?? "").trim() || cwd;
+  const startupCwd = String(env[SPECIFY_STARTUP_CWD_ENV] ?? "").trim() || cwd;
   return resolveLauncherPath(rawPath, startupCwd);
 }
 
-function isOmxCliEntryPath(value: string | null | undefined): boolean {
+function isSpecifyCliEntryPath(value: string | null | undefined): boolean {
   if (typeof value !== "string") return false;
   const normalized = value.trim().replace(/\\/g, "/");
   return normalized.endsWith('/dist/cli/omx.js') || normalized.endsWith('/omx.js')
 }
 
-export function resolveOmxCliEntryPath(
+export function resolveSpecifyCliEntryPath(
   options: {
     argv1?: string | null;
     cwd?: string;
@@ -85,15 +85,15 @@ export function resolveOmxCliEntryPath(
     packageRootDir?: string;
   } = {},
 ): string | null {
-  const entry = resolveOmxEntryPath(options);
-  if (isOmxCliEntryPath(entry)) return entry;
+  const entry = resolveSpecifyEntryPath(options);
+  if (isSpecifyCliEntryPath(entry)) return entry;
 
   const packageRootDir = options.packageRootDir || packageRoot();
   const fallback = resolveLauncherPath(join(packageRootDir, 'dist', 'cli', 'omx.js'), options.cwd || process.cwd());
   return existsSync(fallback) ? fallback : entry;
 }
 
-export function rememberOmxLaunchContext(
+export function rememberSpecifyLaunchContext(
   options: {
     argv1?: string | null;
     cwd?: string;
@@ -101,23 +101,23 @@ export function rememberOmxLaunchContext(
   } = {},
 ): void {
   const { cwd = process.cwd(), env = process.env } = options;
-  if (String(env[OMX_STARTUP_CWD_ENV] ?? "").trim() === "") {
-    env[OMX_STARTUP_CWD_ENV] = cwd;
+  if (String(env[SPECIFY_STARTUP_CWD_ENV] ?? "").trim() === "") {
+    env[SPECIFY_STARTUP_CWD_ENV] = cwd;
   }
-  if (String(env[OMX_ENTRY_PATH_ENV] ?? "").trim() !== "") return;
+  if (String(env[SPECIFY_ENTRY_PATH_ENV] ?? "").trim() !== "") return;
 
   const resolved = Object.prototype.hasOwnProperty.call(options, "argv1")
-    ? resolveOmxEntryPath({
+    ? resolveSpecifyEntryPath({
       argv1: options.argv1,
       cwd,
       env,
     })
-    : resolveOmxEntryPath({
+    : resolveSpecifyEntryPath({
       cwd,
       env,
     });
   if (resolved) {
-    env[OMX_ENTRY_PATH_ENV] = resolved;
+    env[SPECIFY_ENTRY_PATH_ENV] = resolved;
   }
 }
 
@@ -283,45 +283,66 @@ async function hashSkillDirectory(
   return hashes;
 }
 
-/** oh-my-codex state directory (.omx/state/) */
-export function omxStateDir(projectRoot?: string): string {
-  return join(projectRoot || process.cwd(), ".omx", "state");
+/** Specify runtime root directory (.specify/runtime/) */
+export function specifyRuntimeRoot(projectRoot?: string): string {
+  return join(projectRoot || process.cwd(), ".specify", "runtime");
 }
 
-/** oh-my-codex project memory file (.omx/project-memory.json) */
-export function omxProjectMemoryPath(projectRoot?: string): string {
-  return join(projectRoot || process.cwd(), ".omx", "project-memory.json");
+/** Specify runtime state directory (.specify/runtime/state/) */
+export function specifyRuntimeStateDir(projectRoot?: string): string {
+  return join(specifyRuntimeRoot(projectRoot), "state");
 }
 
-/** oh-my-codex notepad file (.omx/notepad.md) */
-export function omxNotepadPath(projectRoot?: string): string {
-  return join(projectRoot || process.cwd(), ".omx", "notepad.md");
+/** Specify project memory file (.specify/runtime/project-memory.json) */
+export function specifyProjectMemoryPath(projectRoot?: string): string {
+  return join(specifyRuntimeRoot(projectRoot), "project-memory.json");
 }
 
-/** oh-my-codex wiki directory (.omx/wiki/) */
-export function omxWikiDir(projectRoot?: string): string {
-  return join(projectRoot || process.cwd(), ".omx", "wiki");
+/** Specify notepad file (.specify/runtime/notepad.md) */
+export function specifyNotepadPath(projectRoot?: string): string {
+  return join(specifyRuntimeRoot(projectRoot), "notepad.md");
 }
 
-/** oh-my-codex plans directory (.omx/plans/) */
-export function omxPlansDir(projectRoot?: string): string {
-  return join(projectRoot || process.cwd(), ".omx", "plans");
+/** Specify wiki directory (.specify/runtime/wiki/) */
+export function specifyWikiDir(projectRoot?: string): string {
+  return join(specifyRuntimeRoot(projectRoot), "wiki");
 }
 
-/** oh-my-codex adapters directory (.omx/adapters/) */
-export function omxAdaptersDir(projectRoot?: string): string {
-  return join(projectRoot || process.cwd(), ".omx", "adapters");
+/** Specify runtime plans directory (.specify/runtime/plans/) */
+export function specifyRuntimePlansDir(projectRoot?: string): string {
+  return join(specifyRuntimeRoot(projectRoot), "plans");
 }
 
-/** oh-my-codex logs directory (.omx/logs/) */
-export function omxLogsDir(projectRoot?: string): string {
-  return join(projectRoot || process.cwd(), ".omx", "logs");
+/** Specify runtime adapters directory (.specify/runtime/adapters/) */
+export function specifyRuntimeAdaptersDir(projectRoot?: string): string {
+  return join(specifyRuntimeRoot(projectRoot), "adapters");
 }
 
-/** User-scope install/update stamp path ($CODEX_HOME/.omx/install-state.json) */
-export function omxUserInstallStampPath(codexHomeDir?: string): string {
-  return join(codexHomeDir || codexHome(), ".omx", "install-state.json");
+/** Specify runtime logs directory (.specify/runtime/logs/) */
+export function specifyRuntimeLogsDir(projectRoot?: string): string {
+  return join(specifyRuntimeRoot(projectRoot), "logs");
 }
+
+/** User-scope install/update stamp path ($CODEX_HOME/.specify/runtime/install-state.json) */
+export function specifyUserInstallStampPath(codexHomeDir?: string): string {
+  return join(codexHomeDir || codexHome(), ".specify", "runtime", "install-state.json");
+}
+
+// Transitional aliases inside the bundled engine so the wider runtime can stay
+// buildable while the rest of the internal call graph is migrated.
+export const OMX_ENTRY_PATH_ENV = SPECIFY_ENTRY_PATH_ENV;
+export const OMX_STARTUP_CWD_ENV = SPECIFY_STARTUP_CWD_ENV;
+export const resolveOmxEntryPath = resolveSpecifyEntryPath;
+export const resolveOmxCliEntryPath = resolveSpecifyCliEntryPath;
+export const rememberOmxLaunchContext = rememberSpecifyLaunchContext;
+export const omxStateDir = specifyRuntimeStateDir;
+export const omxProjectMemoryPath = specifyProjectMemoryPath;
+export const omxNotepadPath = specifyNotepadPath;
+export const omxWikiDir = specifyWikiDir;
+export const omxPlansDir = specifyRuntimePlansDir;
+export const omxAdaptersDir = specifyRuntimeAdaptersDir;
+export const omxLogsDir = specifyRuntimeLogsDir;
+export const omxUserInstallStampPath = specifyUserInstallStampPath;
 
 /** Get the package root directory (where agents/, skills/, prompts/ live) */
 export function packageRoot(): string {

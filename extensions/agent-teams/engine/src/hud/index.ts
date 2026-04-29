@@ -16,7 +16,7 @@ import type { HudFlags, HudPreset, HudRenderContext, ResolvedHudConfig } from '.
 import { HUD_TMUX_HEIGHT_LINES, HUD_TMUX_MAX_HEIGHT_LINES } from './constants.js';
 import { sleep } from '../utils/sleep.js';
 import { runHudAuthorityTick } from './authority.js';
-import { resolveOmxCliEntryPath } from '../utils/paths.js';
+import { resolveSpecifyCliEntryPath } from '../utils/paths.js';
 
 export const HUD_USAGE = [
   'Usage:',
@@ -261,7 +261,7 @@ export function buildTmuxSplitArgs(
   const safePreset = parseHudPreset(preset);
   const presetArg = safePreset ? ` --preset=${safePreset}` : '';
   const safeSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
-  const sessionPrefix = safeSessionId ? `OMX_SESSION_ID=${shellEscape(safeSessionId)} ` : '';
+  const sessionPrefix = safeSessionId ? `SPECIFY_SESSION_ID=${shellEscape(safeSessionId)} ` : '';
   const cmd = `${sessionPrefix}node ${shellEscape(omxBin)} hud --watch${presetArg}`;
   return ['split-window', '-v', '-l', String(HUD_TMUX_HEIGHT_LINES), '-c', cwd, cmd];
 }
@@ -273,12 +273,12 @@ async function launchTmuxPane(cwd: string, flags: HudFlags): Promise<void> {
     process.exit(1);
   }
 
-  const omxBin = resolveOmxCliEntryPath();
+  const omxBin = resolveSpecifyCliEntryPath();
   if (!omxBin) {
     console.error('Failed to resolve OMX launcher path for tmux HUD startup.');
     process.exit(1);
   }
-  const args = buildTmuxSplitArgs(cwd, omxBin, flags.preset, process.env.OMX_SESSION_ID);
+  const args = buildTmuxSplitArgs(cwd, omxBin, flags.preset, process.env.SPECIFY_SESSION_ID);
 
   try {
     // Split bottom pane, 4 lines tall, running omx hud --watch.
