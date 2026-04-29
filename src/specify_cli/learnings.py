@@ -40,6 +40,7 @@ LEARNING_STATUSES = {
 }
 SIGNAL_STRENGTHS = {"low", "medium", "high"}
 PROMOTION_TARGETS = {"learning", "rule"}
+MAP_WORKFLOW_COMMANDS = ("sp-map-scan", "sp-map-build")
 KNOWN_COMMANDS = (
     "sp-constitution",
     "sp-specify",
@@ -54,7 +55,7 @@ KNOWN_COMMANDS = (
     "sp-debug",
     "sp-fast",
     "sp-quick",
-    "sp-map-codebase",
+    *MAP_WORKFLOW_COMMANDS,
 )
 
 MACHINE_BEGIN = "<!-- SPECKIT_LEARNING_DATA_BEGIN -->"
@@ -233,17 +234,26 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
     if normalized_type == "verification_gap":
         return ["sp-test", "sp-implement", "sp-debug", "sp-quick"]
     if normalized_type == "state_surface_gap":
-        return ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-implement", "sp-debug", "sp-quick", "sp-map-codebase"]
+        return [
+            "sp-specify",
+            "sp-deep-research",
+            "sp-plan",
+            "sp-tasks",
+            "sp-implement",
+            "sp-debug",
+            "sp-quick",
+            *MAP_WORKFLOW_COMMANDS,
+        ]
     if normalized_type == "map_coverage_gap":
-        return ["sp-map-codebase", "sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
+        return [*MAP_WORKFLOW_COMMANDS, "sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
     if normalized_type == "tooling_trap":
-        return ["sp-implement", "sp-debug", "sp-quick", "sp-map-codebase"]
+        return ["sp-implement", "sp-debug", "sp-quick", *MAP_WORKFLOW_COMMANDS]
     if normalized_type == "false_lead_pattern":
         return ["sp-debug", "sp-implement", "sp-quick"]
     if normalized_type == "near_miss":
         return sorted({normalized_source, "sp-implement", "sp-debug", "sp-quick"})
     if normalized_type == "decision_debt":
-        return ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-map-codebase"]
+        return ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", *MAP_WORKFLOW_COMMANDS]
     if normalized_type == "recovery_path":
         return ["sp-implement", "sp-debug", "sp-quick"]
     if normalized_type == "pitfall":
@@ -1015,7 +1025,7 @@ WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS = {
     "sp-checklist",
     "sp-tasks",
     "sp-analyze",
-    "sp-map-codebase",
+    *MAP_WORKFLOW_COMMANDS,
 }
 
 

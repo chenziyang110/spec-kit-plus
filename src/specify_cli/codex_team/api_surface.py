@@ -109,7 +109,7 @@ def run_team_api_operation(
         if freshness["freshness"] in {"missing", "stale"}:
             envelope["status"] = "error"
             envelope["payload"] = {
-                "message": f"Project-map freshness is {freshness['freshness']}. Refresh map-codebase before auto-dispatch.",
+                "message": f"Project-map freshness is {freshness['freshness']}. Run map-scan then map-build before auto-dispatch.",
                 "freshness": freshness["freshness"],
                 "reasons": freshness.get("reasons", []),
             }

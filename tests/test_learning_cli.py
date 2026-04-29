@@ -508,7 +508,8 @@ def test_learning_start_exposes_confirmed_project_constraint_warning_for_all_wor
         "debug",
         "fast",
         "quick",
-        "map-codebase",
+        "map-scan",
+        "map-build",
     )
 
     for command_name in workflow_commands:
@@ -821,7 +822,8 @@ def test_project_constraint_default_applies_to_includes_test_and_map_codebase(tm
     payload = json.loads(result.stdout)
     applies_to = payload["entry"]["applies_to"]
     assert "sp-test" in applies_to
-    assert "sp-map-codebase" in applies_to
+    assert "sp-map-scan" in applies_to
+    assert "sp-map-build" in applies_to
 
 
 def test_learning_capture_accepts_structured_path_learning_fields(tmp_path: Path) -> None:

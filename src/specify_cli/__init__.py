@@ -615,7 +615,7 @@ def _project_map_preflight(
             f"[red]Error:[/red] Project-map freshness is {freshness} for [cyan]{command_name}[/cyan]."
         )
         console.print(
-            "Run [cyan]map-codebase[/cyan] to refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/`, then retry."
+            "Run [cyan]map-scan[/cyan], then [cyan]map-build[/cyan] to refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/`, then retry."
         )
         raise typer.Exit(1)
 
@@ -648,7 +648,7 @@ def _ensure_project_map_artifacts_exist(project_root: Path) -> list[Path]:
     for path in missing:
         console.print(f"- {path}")
     console.print(
-        "Run [cyan]map-codebase[/cyan] first so `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` exist, then retry [cyan]project-map complete-refresh[/cyan]. Use [cyan]project-map record-refresh[/cyan] only for low-level/manual recovery."
+        "Run [cyan]map-scan[/cyan], then [cyan]map-build[/cyan] first so `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` exist, then retry [cyan]project-map complete-refresh[/cyan]. Use [cyan]project-map record-refresh[/cyan] only for low-level/manual recovery."
     )
     raise typer.Exit(1)
 
@@ -753,7 +753,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- `PROJECT-HANDBOOK.md` is the root navigation artifact.",
             "- Deep project knowledge lives under `.specify/project-map/`.",
             "- Before planning, debugging, or implementing against existing code, read `PROJECT-HANDBOOK.md` and the smallest relevant `.specify/project-map/*.md` files.",
-            "- If handbook/project-map coverage is missing, stale, or too broad, run the runtime's `map-codebase` workflow entrypoint before continuing.",
+            "- If handbook/project-map coverage is missing, stale, or too broad, run the runtime's `map-scan` workflow entrypoint followed by `map-build` before continuing.",
             "",
             "## Project Memory",
             "",
@@ -785,7 +785,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "## Map Maintenance",
             "",
             "- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.",
-            "- If that refresh cannot happen in the current pass, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-codebase`.",
+            "- If that refresh cannot happen in the current pass, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.",
             "- Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.",
             "",
             "- Preserve content outside this managed block.",
@@ -1191,7 +1191,7 @@ def project_map_record_refresh(
 def project_map_complete_refresh(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Finalize a successful map-codebase run by recording a fresh baseline."""
+    """Finalize a successful map-build run by recording a fresh baseline."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _ensure_project_map_artifacts_exist(project_root)
@@ -2433,7 +2433,8 @@ SKILL_DESCRIPTIONS = {
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
     "checklist": "Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.",
     "test": "Use when you need to bootstrap or refresh the project's unit testing system so later Spec Kit Plus workflows can keep tests current by default.",
-    "map-codebase": "Use when handbook/project-map coverage is missing, stale, or insufficient and you need to generate or refresh the atlas-style codebase handbook system from live code.",
+    "map-scan": "Use when handbook/project-map coverage is missing, stale, or insufficient and you need a complete project scan package before atlas construction.",
+    "map-build": "Use when map-scan has produced complete coverage ledgers and scan packets, and you need to generate or refresh the atlas-style codebase handbook system from live code evidence.",
     "taskstoissues": "Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.",
 }
 
@@ -3016,7 +3017,8 @@ def init(
     steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
-    steps_lines.append(f"   - [cyan]{_display_cmd('map-codebase')}[/] - Generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` as the atlas-style encyclopedia for existing code before specification or planning")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-scan')}[/] - Scan the complete project tree and produce the coverage ledger plus scan packets for existing-code mapping")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-build')}[/] - Build or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` from a complete map-scan package before specification or planning")
     steps_lines.append(f"   - [cyan]{_display_cmd('test')}[/] - Bootstrap or refresh the project-wide testing system, write a durable testing contract, and emit a brownfield unit-test system request when follow-on coverage work needs routing")
     steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
     steps_lines.append(f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work")
@@ -3050,7 +3052,8 @@ def init(
         )
     enhancement_lines.extend(
         [
-            f"○ [cyan]{_display_cmd('map-codebase')}[/] [bright_black](required for existing code)[/bright_black] - Generate or refresh the handbook/project-map atlas-style encyclopedia before deeper brownfield specification, planning, task generation, or implementation resumes",
+            f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Produce a complete scan package before deeper brownfield specification, planning, task generation, or implementation resumes",
+            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Generate or refresh the handbook/project-map atlas-style encyclopedia from the complete scan package",
             f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",
             f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
             f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility and research gate)[/bright_black] - Prove whether a clear requirement can be implemented and hand [cyan]{_display_cmd('plan')}[/] the research findings, demo evidence, constraints, and recommended approach",

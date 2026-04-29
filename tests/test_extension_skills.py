@@ -255,7 +255,9 @@ class TestBuiltInSkillGeneration:
         assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
         assert (skills_dir / "sp-deep-research" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
-        assert (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
+        assert (skills_dir / "sp-map-scan" / "SKILL.md").exists()
+        assert (skills_dir / "sp-map-build" / "SKILL.md").exists()
+        assert not (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (skills_dir / "sp-test" / "SKILL.md").exists()
         assert (skills_dir / "sp-fast" / "SKILL.md").exists()
         assert (skills_dir / "sp-quick" / "SKILL.md").exists()
@@ -280,7 +282,8 @@ class TestBuiltInSkillGeneration:
         assert "specify learning start --command constitution --format json" in constitution_body
         assert "project-handbook.md" in constitution_body
         assert ".specify/project-map/index/status.json" in constitution_body
-        assert "/sp-map-codebase" in constitution_body
+        assert "/sp-map-scan" in constitution_body
+        assert "/sp-map-build" in constitution_body
         assert "workflow-state.md" in constitution_body
         assert "/sp-plan" in constitution_body
         assert "/sp-tasks" in constitution_body
@@ -367,7 +370,7 @@ class TestBuiltInSkillGeneration:
         assert "recommended review follow-up: `/sp.clarify`" in specify_body
         assert "without needing `/sp.clarify`" in specify_body
         assert "mark `.specify/project-map/index/status.json` dirty" in specify_body.lower()
-        assert "recommend `/sp-map-codebase`" in specify_body
+        assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in specify_body
 
         plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         assert "Add `Implementation Constitution`" in plan_body
@@ -381,7 +384,7 @@ class TestBuiltInSkillGeneration:
         assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in plan_body
         assert "recommended follow-up quality check: `/sp.checklist`" in plan_body
         assert "mark `.specify/project-map/index/status.json` dirty" in plan_body.lower()
-        assert "recommend `/sp-map-codebase`" in plan_body
+        assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in plan_body
 
         tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
         assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
@@ -399,7 +402,7 @@ class TestBuiltInSkillGeneration:
         assert "implementation remains blocked until `/sp-analyze`" in tasks_body.lower()
         assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in tasks_body.lower()
         assert "mark `.specify/project-map/index/status.json` dirty" in tasks_body.lower()
-        assert "recommend `/sp-map-codebase`" in tasks_body
+        assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body
@@ -436,29 +439,28 @@ class TestBuiltInSkillGeneration:
         assert "If analysis runs after `/sp-implement` has already started or finished" in analyze_body
         assert "exact workflow re-entry path" in analyze_body
 
-        map_body = _body_without_frontmatter(skills_dir / "sp-map-codebase" / "SKILL.md")
-        assert "PROJECT-HANDBOOK.md" in map_body
-        assert ".specify/project-map/index/atlas-index.json" in map_body
-        assert ".specify/project-map/root/ARCHITECTURE.md" in map_body
-        assert ".specify/project-map/modules/<module-id>/OVERVIEW.md" in map_body
-        assert 'choose_execution_strategy(command_name="map-codebase"' in map_body
-        assert "run `/sp-map-codebase`" in map_body
-        assert "complete-refresh" in map_body
-        assert "do not create `.planning/codebase/`" in map_body
-        assert "Layering exists so map consumers can read detail on demand" in map_body
-        assert "Do not treat layering as permission to discard technical detail." in map_body
-        assert "deep_stale" in map_body
-        assert "external or exported API contracts" in map_body
-        assert "core data models, state semantics, and handoff fields" in map_body
-        assert "IPC, bridge, native-host, message, pipe, or protocol seams" in map_body
-        assert "`PROJECT-HANDBOOK.md` must stay concise and index-first" in map_body
-        assert "macro scan and architecture identification" in map_body.lower()
-        assert "directory structure deep analysis" in map_body.lower()
-        assert "dependency relationships and module analysis" in map_body.lower()
-        assert "core code element review" in map_body.lower()
-        assert "data flow and api surface mapping" in map_body.lower()
-        assert "patterns and conventions synthesis" in map_body.lower()
-        assert "the generated navigation system should collectively cover the equivalent of these seven technical-document chapters" in map_body.lower()
+        scan_body = _body_without_frontmatter(skills_dir / "sp-map-scan" / "SKILL.md")
+        assert ".specify/project-map/map-scan.md" in scan_body
+        assert ".specify/project-map/coverage-ledger.md" in scan_body
+        assert ".specify/project-map/coverage-ledger.json" in scan_body
+        assert ".specify/project-map/scan-packets/<lane-id>.md" in scan_body
+        assert 'choose_execution_strategy(command_name="map-scan"' in scan_body
+        assert "rg --files" in scan_body
+        assert "Git-tracked files" in scan_body
+        assert "coverage reverse index" in scan_body.lower()
+
+        build_body = _body_without_frontmatter(skills_dir / "sp-map-build" / "SKILL.md")
+        assert "PROJECT-HANDBOOK.md" in build_body
+        assert ".specify/project-map/index/atlas-index.json" in build_body
+        assert ".specify/project-map/root/ARCHITECTURE.md" in build_body
+        assert ".specify/project-map/modules/<module-id>/OVERVIEW.md" in build_body
+        assert 'choose_execution_strategy(command_name="map-build"' in build_body
+        assert "route back to `/sp-map-scan`" in build_body
+        assert "complete-refresh" in build_body
+        assert "Root and Module Document Detail Rules" in build_body
+        assert "Root docs carry cross-module truth; module docs carry module-local truth." in build_body
+        assert "deep_stale" in build_body
+        assert "`PROJECT-HANDBOOK.md` must stay concise and index-first" in build_body
 
         test_body = _body_without_frontmatter(skills_dir / "sp-test" / "SKILL.md")
         assert ".specify/testing/TESTING_CONTRACT.md" in test_body
@@ -473,8 +475,8 @@ class TestBuiltInSkillGeneration:
         assert "native-multi-agent" in test_body.lower()
         assert "sidecar-runtime" in test_body.lower()
         assert "before mutating shared repository test framework/config files" in test_body.lower()
-        assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing" in test_body.lower()
-        assert "if testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing" in test_body.lower()
+        assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing" in test_body.lower()
+        assert "if testing-surface coverage is insufficient for the current repository, run `/sp-map-scan` followed by `/sp-map-build` before continuing" in test_body.lower()
         assert "read `project-handbook.md`." in test_body.lower()
         assert "classify the next workflow recommendation before the final report" in test_body.lower()
         assert "recommend exactly one next command" in test_body.lower()
@@ -513,7 +515,7 @@ class TestBuiltInSkillGeneration:
         assert "specify learning capture --command checklist" in checklist_lower
         assert "project-handbook.md" in checklist_lower
         assert ".specify/project-map/index/status.json" in checklist_lower
-        assert "run `/sp-map-codebase` before continuing" in checklist_lower
+        assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in checklist_lower
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
         assert "recommend `/sp-plan`" in checklist_lower
         assert "recommend `/sp-analyze`" in checklist_lower
@@ -563,7 +565,8 @@ class TestSkillDescriptions:
         assert "testing system" in SKILL_DESCRIPTIONS["test"].lower()
         assert "truly trivial" in SKILL_DESCRIPTIONS["fast"].lower()
         assert "lightweight tracked planning" in SKILL_DESCRIPTIONS["quick"].lower()
-        assert "handbook/project-map coverage" in SKILL_DESCRIPTIONS["map-codebase"].lower()
+        assert "handbook/project-map coverage" in SKILL_DESCRIPTIONS["map-scan"].lower()
+        assert "map-scan" in SKILL_DESCRIPTIONS["map-build"].lower()
         assert "github issues" in SKILL_DESCRIPTIONS["taskstoissues"].lower()
 
     def test_returns_none_when_no_init_options(self, project_dir):

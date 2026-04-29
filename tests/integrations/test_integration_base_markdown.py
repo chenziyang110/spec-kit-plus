@@ -121,7 +121,8 @@ class MarkdownIntegrationTests:
             assert "crucial first step" in content
             assert "project-handbook.md" in content
             assert ".specify/project-map/*.md" in content
-            assert "/sp-map-codebase" in content
+            assert "/sp-map-scan" in content
+            assert "/sp-map-build" in content
 
     def test_implement_command_has_shared_leader_gate(self, tmp_path):
         i = get_integration(self.KEY)

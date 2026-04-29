@@ -31,7 +31,8 @@ WORKFLOW_COMMAND_MAP = {
     "sp-debug": "debug",
     "sp-quick": "quick",
     "sp-fast": "fast",
-    "sp-map-codebase": "map-codebase",
+    "sp-map-scan": "map-scan",
+    "sp-map-build": "map-build",
     "sp-constitution": "constitution",
     "sp-checklist": "checklist",
 }

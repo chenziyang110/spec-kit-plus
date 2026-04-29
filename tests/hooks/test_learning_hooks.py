@@ -145,14 +145,15 @@ def test_learning_inject_derives_targets_from_learning_type(tmp_path: Path):
         project,
         "workflow.learning.inject",
         {
-            "command_name": "map-codebase",
+            "command_name": "map-build",
             "learning_type": "map_coverage_gap",
             "summary": "Atlas omitted runtime watcher dependencies",
         },
     )
 
     assert result.status == "ok"
-    assert "sp-map-codebase" in result.data["injection_targets"]
+    assert "sp-map-scan" in result.data["injection_targets"]
+    assert "sp-map-build" in result.data["injection_targets"]
     assert "PROJECT-HANDBOOK.md" in result.data["injection_targets"]
 
 
@@ -172,7 +173,7 @@ def test_learning_capture_hook_records_structured_candidate(tmp_path: Path):
             "rejected_paths": ["process manager root cause"],
             "decisive_signal": "restart stopped when watcher ignored generated logs",
             "root_cause_family": "dev-tooling-watch-loop",
-            "injection_targets": ["sp-debug", "sp-map-codebase"],
+            "injection_targets": ["sp-debug", "sp-map-scan", "sp-map-build"],
             "promotion_hint": "promote after another watcher-loop recurrence",
         },
     )

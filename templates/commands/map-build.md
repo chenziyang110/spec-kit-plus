@@ -1,5 +1,5 @@
 ---
-description: Use after `sp-map-scan` has produced a complete scan package and you need to build or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/**`.
+description: Use when `sp-map-scan` has produced a complete scan package and you need to build or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/**`.
 workflow_contract:
   when_to_use: A completed scan package exists and the canonical handbook/project-map atlas must be built or refreshed from it.
   primary_objective: Validate the scan package, dispatch read-only explorer packets, write the canonical atlas, and prove reverse coverage closure.

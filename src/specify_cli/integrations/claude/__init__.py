@@ -34,7 +34,8 @@ ARGUMENT_HINTS: dict[str, str] = {
     "constitution": "Principles or values for the project constitution",
     "checklist": "Domain or focus area for the checklist",
     "test": "Optional testing-system scope, module focus, or audit-only guidance",
-    "map-codebase": "Optional subsystem or workflow area to emphasize while mapping",
+    "map-scan": "Optional subsystem, directory, or workflow area to emphasize while scanning",
+    "map-build": "Optional scan package or atlas area to emphasize while building the project map",
     "taskstoissues": "Optional filter or label for GitHub issues",
 }
 

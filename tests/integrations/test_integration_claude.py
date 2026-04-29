@@ -1528,7 +1528,7 @@ def test_claude_generated_skills_preserve_agent_required_marker_lines(tmp_path):
 
     assert result.exit_code == 0, result.output
 
-    for skill_name in ("sp-fast", "sp-quick", "sp-map-codebase", "sp-implement", "sp-specify", "sp-plan", "sp-tasks", "sp-debug"):
+    for skill_name in ("sp-fast", "sp-quick", "sp-map-scan", "sp-map-build", "sp-implement", "sp-specify", "sp-plan", "sp-tasks", "sp-debug"):
         content = (target / ".claude" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
         assert "[AGENT]" in content
 

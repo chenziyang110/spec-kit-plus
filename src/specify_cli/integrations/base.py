@@ -446,7 +446,7 @@ class IntegrationBase(ABC):
             "\n"
             f"## {agent_name} Project-Map Hard Gate\n\n"
             f"**Crucial First Step**: You MUST read `PROJECT-HANDBOOK.md` and relevant `.specify/project-map/*.md` files {command_step}.\n"
-            "- If the handbook or required topical documents are missing, stale, or too broad for the touched area, run `/sp-map-codebase` before continuing.\n"
+            "- If the handbook or required topical documents are missing, stale, or too broad for the touched area, run `/sp-map-scan` followed by `/sp-map-build` before continuing.\n"
             "- Treat this as a hard gate, not a best-effort reminder; do not continue on chat memory or local instincts when the project map should be the source of truth.\n"
         )
 

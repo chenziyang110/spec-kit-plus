@@ -192,7 +192,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "`single-lane` names the topology for one safe execution lane" in content
     assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
     assert "selects the next executable phase and ready batch" in content
-    assert "run `/sp-map-codebase` before final completion reporting" in content.lower()
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before final completion reporting" in content.lower()
     assert "verification is truthfully green and no explicit blocker prevents completion" in content.lower()
     assert "including unresolved `open_gaps`" in content.lower()
     assert "shared implement template is the primary source of truth" in content
@@ -275,7 +275,8 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert "specify learning start --command constitution --format json" in constitution_content
     assert "project-handbook.md" in constitution_content
     assert ".specify/project-map/index/status.json" in constitution_content
-    assert "/sp-map-codebase" in constitution_content
+    assert "/sp-map-scan" in constitution_content
+    assert "/sp-map-build" in constitution_content
     assert "workflow-state.md" in constitution_content
     assert "/sp-plan" in constitution_content
     assert "/sp-tasks" in constitution_content
@@ -325,7 +326,7 @@ def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):
 
     assert result.exit_code == 0, result.output
 
-    for skill_name in ("sp-fast", "sp-quick", "sp-map-codebase", "sp-implement", "sp-specify", "sp-plan", "sp-tasks", "sp-debug"):
+    for skill_name in ("sp-fast", "sp-quick", "sp-map-scan", "sp-map-build", "sp-implement", "sp-specify", "sp-plan", "sp-tasks", "sp-debug"):
         content = (target / ".codex" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
         assert "[AGENT]" in content
 
@@ -387,12 +388,12 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "If analysis runs after `/sp-implement` has already started or finished" in analyze_content
 
 
-def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_path):
+def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
     runner = CliRunner()
-    target = tmp_path / "codex-map-codebase"
+    target = tmp_path / "codex-map-scan-build"
 
     result = runner.invoke(
         app,
@@ -401,37 +402,38 @@ def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_pa
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    skill_path = target / ".codex" / "skills" / "sp-map-codebase" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8").lower()
+    scan_content = (target / ".codex" / "skills" / "sp-map-scan" / "SKILL.md").read_text(encoding="utf-8").lower()
+    build_content = (target / ".codex" / "skills" / "sp-map-build" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert not (target / ".codex" / "skills" / "sp-map-codebase" / "SKILL.md").exists()
 
-    assert "project-handbook.md" in content
-    assert ".specify/project-map/index/atlas-index.json" in content
-    assert ".specify/project-map/root/architecture.md" in content
-    assert ".specify/project-map/modules/<module-id>/overview.md" in content
-    assert 'choose_execution_strategy(command_name="map-codebase"' in content
-    assert "spawn_agent" in content
-    assert "wait_agent" in content
-    assert "close_agent" in content
-    assert "complete-refresh" in content
-    assert "do not create `.planning/codebase/`" in content
-    assert "layering exists so map consumers can read detail on demand" in content
-    assert "do not treat layering as permission to discard technical detail" in content
-    assert "external or exported api contracts" in content
-    assert "`project-handbook.md` must stay concise and index-first" in content
-    assert "macro scan and architecture identification" in content
-    assert "directory structure deep analysis" in content
-    assert "dependency relationships and module analysis" in content
-    assert "core code element review" in content
-    assert "data flow and api surface mapping" in content
-    assert "patterns and conventions synthesis" in content
-    assert "the generated navigation system should collectively cover the equivalent of these seven technical-document chapters" in content
-    assert "for each high-value capability, core module, or critical workflow, emit at least one capability card" in content
-    assert "truth lives" in content
-    assert "extend here" in content
-    assert "minimum verification" in content
-    assert "failure modes" in content
-    assert "confidence" in content
-    assert "verified, inferred, or unknown-stale" in content
+    assert ".specify/project-map/map-scan.md" in scan_content
+    assert ".specify/project-map/coverage-ledger.md" in scan_content
+    assert ".specify/project-map/coverage-ledger.json" in scan_content
+    assert ".specify/project-map/scan-packets/<lane-id>.md" in scan_content
+    assert 'choose_execution_strategy(command_name="map-scan"' in scan_content
+    assert "rg --files" in scan_content
+    assert "git-tracked files" in scan_content
+    assert "reverse coverage" in scan_content
+    assert "spawn_agent" in scan_content
+    assert "wait_agent" in scan_content
+    assert "close_agent" in scan_content
+    assert "do not create `.planning/codebase/`" in scan_content
+
+    assert "project-handbook.md" in build_content
+    assert ".specify/project-map/index/atlas-index.json" in build_content
+    assert ".specify/project-map/root/architecture.md" in build_content
+    assert ".specify/project-map/modules/<module-id>/overview.md" in build_content
+    assert 'choose_execution_strategy(command_name="map-build"' in build_content
+    assert "route back to `/sp-map-scan`" in build_content
+    assert "spawn_agent" in build_content
+    assert "wait_agent" in build_content
+    assert "close_agent" in build_content
+    assert "complete-refresh" in build_content
+    assert "root and module document detail rules" in build_content
+    assert "root docs carry cross-module truth; module docs carry module-local truth" in build_content
+    assert "`project-handbook.md` must stay concise and index-first" in build_content
+    assert "minimum verification" in build_content
+    assert "confidence" in build_content
 
 
 def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):
@@ -470,7 +472,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "alternative cause candidates" in content
     assert "transition memo" in content
     assert "if the handbook navigation system is missing" in content
-    assert "run `/sp-map-codebase` before root-cause analysis continues" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before root-cause analysis continues" in content
     assert "truth-owning layers" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
@@ -536,7 +538,7 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "do the work directly" in content
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "run `/sp-map-codebase` before the final report" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before the final report" in content
     assert "if that refresh would break the fast-path scope" in content
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
@@ -568,7 +570,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "topic map" in content
     assert "touched-area topical files" in content
     assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content
-    assert "run `/sp-map-codebase` before continuing" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
     assert "--discuss" in content
     assert "--research" in content
     assert "--validate" in content
@@ -603,7 +605,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "current focus" in content
     assert "next action" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "run `/sp-map-codebase` before marking the quick task `resolved`" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before marking the quick task `resolved`" in content
     assert "resume" in content
     assert "resolved/" in content
     assert "status.md template" in content

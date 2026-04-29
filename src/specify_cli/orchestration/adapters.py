@@ -21,7 +21,8 @@ FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
         "analyze",
         "constitution",
         "checklist",
-        "map-codebase",
+        "map-scan",
+        "map-build",
         "taskstoissues",
     }
 )
