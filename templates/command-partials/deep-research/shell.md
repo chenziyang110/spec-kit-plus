@@ -24,8 +24,8 @@ direction it must preserve.
 - Decide whether a feasibility and research handoff gate is actually needed.
 - Decompose unknown implementation chains by capability and independent
   research track.
-- Use native multi-agent/subagent delegation when independent research tracks can
-  run in parallel and produce evidence packets without conflicting writes.
+- Dispatch subagents when independent research tracks can run in parallel and
+  produce evidence packets without conflicting writes.
 - Research external APIs, libraries, algorithms, platform constraints, and
   repository patterns only where those facts change planning.
 - Build the smallest disposable demo or spike when research alone cannot prove
@@ -39,9 +39,19 @@ direction it must preserve.
 - Optionally write isolated scratch assets under `research-spikes/`.
 - Update `alignment.md`, `context.md`, `references.md`, and `workflow-state.md`
   when feasibility evidence changes planning readiness.
+- If this gate is not needed, still write a lightweight `deep-research.md`
+  with `**Status**: Not needed`, `Feasibility Decision`, `Planning Handoff`,
+  and `Next Command`; do not invent `CAP/TRK/EVD/PH` IDs for already-proven
+  work.
 - Include a `Planning Handoff` section that `/sp.plan` can consume directly for
   recommended approach, module boundaries, API/library choices, demo artifacts,
   constraints, rejected options, and residual risks.
+- Use stable traceability IDs (`CAP-###`, `TRK-###`, `EVD-###`, `SPK-###`,
+  `PH-###`) plus an evidence quality rubric so `/sp.plan` can cite exactly which
+  research finding or spike supports each design decision.
+- Use `.specify/templates/examples/deep-research/` as the output-shape
+  reference when available: `not-needed.md`, `docs-only-evidence.md`, and
+  `spike-required.md`.
 - Report which capabilities are proven, constrained, blocked, or no longer worth
   planning.
 
@@ -54,6 +64,6 @@ direction it must preserve.
   implementation workflow.
 - Skip this command when the change is a minor adjustment to an existing,
   already-proven capability.
-- Do not let child research agents edit production files; they must either
+- Do not let research subagents edit production files; they must either
   return evidence packets or write only to their assigned disposable spike
   directory.

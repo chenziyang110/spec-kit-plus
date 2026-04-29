@@ -68,7 +68,9 @@ Built-in profiles:
 ```
 
 Use `/speckit.clarify` only when an existing spec needs deeper analysis before planning.
-Use `/speckit.deep-research` only when the requirements are clear but feasibility still needs proof before planning, for example an unproven API, library, integration, algorithm, performance envelope, or platform behavior. It can coordinate parallel research tracks and disposable demo spikes, then writes a `Planning Handoff` that `/speckit.plan` must consume. Skip it for minor changes to an existing capability that already has a clear implementation path.
+Use `/speckit.deep-research` only when the requirements are clear but feasibility still needs proof before planning, for example an unproven API, library, integration, algorithm, performance envelope, or platform behavior. It can coordinate parallel research tracks and disposable demo spikes, then writes a traceable `Planning Handoff` with evidence IDs that `/speckit.plan` must consume. Skip it for minor changes to an existing capability that already has a clear implementation path.
+Use `/speckit.research` only as a compatibility alias for `/speckit.deep-research`; it should route into the same gate and must not create separate workflow artifacts.
+When `/speckit.specify` records an unproven implementation chain, the recommended pre-planning branch is `/speckit.specify` -> `/speckit.deep-research` -> `/speckit.plan`.
 
 ### Step 5: Break Down and Implement
 
@@ -97,23 +99,23 @@ When the feature touches an established boundary pattern in the target project, 
 - `/speckit.plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
 - Use `Implementation Constitution` for architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus.
 - `/speckit.tasks` should turn those rules into explicit implementation guardrails before setup or feature work begins.
-- `/speckit.tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when delegated work needs task-local rule inheritance.
+- `/speckit.tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when subagent work needs task-local rule inheritance.
 - `/speckit.implement` should treat those guardrails as binding execution constraints and confirm the owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
 - Delegated execution should not rely on raw task text when architecture or quality rules matter.
 - `/speckit.plan` should provide `Dispatch Compilation Hints`.
-- `/speckit.implement` should compile and validate a `WorkerTaskPacket` before dispatching native workers; if native delegation is unavailable or low-confidence, it should stay on the leader path with an explicit fallback reason.
-- Delegated packets should carry platform guardrails when the lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
-- If the active integration exposes a runtime-managed result channel, delegated workers should use it. Otherwise they should write normalized result envelopes to the workflow-specific worker-results path.
-- When the local `specify` CLI is available and no runtime-managed result channel exists, delegated workers should prefer `specify result path` and `specify result submit` instead of inventing ad-hoc result locations or payload shapes.
-- Preserve the raw `reported_status` when worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` is normalized into canonical orchestration state.
-- Top-level `tasks.md` items should usually fit one coffee-break-sized implementation slice, roughly 10-20 minutes, while delegated workers may still break them into smaller 2-5 minute atomic steps internally.
+- `/speckit.implement` should compile and validate a `WorkerTaskPacket` before dispatching subagents; if subagent dispatch is unavailable or low-confidence, it should stay on the leader path with an explicit fallback reason.
+- Subagent packets should carry platform guardrails when the lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
+- If the active integration exposes a runtime-managed result channel, subagents should use it. Otherwise they should write normalized result envelopes to the workflow-specific worker-results path.
+- When the local `specify` CLI is available and no runtime-managed result channel exists, subagents should prefer `specify result path` and `specify result submit` instead of inventing ad-hoc result locations or payload shapes.
+- Preserve the raw `reported_status` when subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` is normalized into canonical orchestration state.
+- Top-level `tasks.md` items should usually fit one coffee-break-sized implementation slice, roughly 10-20 minutes, while subagents may still break them into smaller 2-5 minute atomic steps internally.
 - Keep decomposition progressive: refine only the current executable window after each join point instead of over-specifying later batches too early.
 - Every join point that gates downstream work should name a validation target, a validation command or check, and a pass condition.
 - Grouped parallelism is the default when ready tasks have isolated write sets; use a pipeline shape only when outputs flow stage-by-stage and keep explicit checkpoints between stages.
 - For high-risk batches touching shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces, add a review gate before crossing the join point.
 - If a read-only verification lane is available, use one peer-review lane only for those high-risk batches rather than for every batch.
-- If delegated work returns `blocked`, require the blocker, the failed assumption, and the smallest safe recovery step before accepting the result.
-- If a delegated lane reports `completed` or slips into `idle` before the promised handoff arrives, treat it as a stale lane and recover explicitly instead of assuming success.
+- If subagent work returns `blocked`, require the blocker, the failed assumption, and the smallest safe recovery step before accepting the result.
+- If a subagent lane reports `completed` or slips into `idle` before the promised handoff arrives, treat it as a stale lane and recover explicitly instead of assuming success.
 
 > [!TIP]
 > **Phased Implementation**: For complex projects, implement in phases to avoid overwhelming the agent's context. Start with core functionality, validate it works, then add features incrementally.
@@ -123,7 +125,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `/speckit.constitution`, `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`
-- **Support skills**: `/speckit.map-codebase`, `/speckit.auto`, `/speckit.clarify`, `/speckit.deep-research`, `/speckit.checklist`, `/speckit.analyze`, `/speckit.debug`, `/speckit.explain`
+- **Support skills**: `/speckit.map-codebase`, `/speckit.auto`, `/speckit.clarify`, `/speckit.deep-research` (`/speckit.research` alias), `/speckit.checklist`, `/speckit.analyze`, `/speckit.debug`, `/speckit.explain`
 - **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -132,9 +134,9 @@ For Codex team-mode execution, use the runtime surface deliberately:
 - Run `sp-teams live-probe` when the runtime was just installed, recently repaired, or still looks suspect after `doctor`.
 - If agent automation should use the optional MCP facade, install it with `pip install "specify-cli[mcp]"` and refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`.
 - Use `sp-teams result-template --request-id <id>` and `sp-teams submit-result --print-schema` instead of inventing handoff JSON by guesswork. The generated result template is a `pending placeholder` and must be replaced with a real success, blocked, or failed result before submission.
-- Use `sp-teams sync-back` after worker execution when the canonical code changes landed under `.specify/teams/worktrees/<session>/...` and need to be promoted back to the main workspace.
+- Use `sp-teams sync-back` after managed team execution when the canonical code changes landed under `.specify/teams/worktrees/<session>/...` and need to be promoted back to the main workspace.
 - In execution-oriented workflows, treat `single-lane` as the topology label for one safe execution lane, not as permission for leader-local execution.
-- Prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.
+- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.
 - Interpret `DONE_WITH_CONCERNS` as lane-local completion with follow-up concerns, not silent success.
 - Treat lane-local completion and repo-global verification separately: a batch can be complete while `doctor` still reports repo verification blocked by baseline debt.
 - Keep join point validation explicit in team-mode runs, and do not accept `idle` without the promised result handoff as completed work.
@@ -155,13 +157,13 @@ Use support skills when they solve a specific gap:
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
 - `/speckit.specify`, `/speckit.clarify`, `/speckit.deep-research`, `/speckit.plan`, and `/speckit.tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `/speckit.map-codebase` as the follow-up refresh workflow
 - `/speckit.clarify` when an existing spec still needs deeper analysis before planning
-- `/speckit.deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `/speckit.plan`
+- `/speckit.deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `/speckit.plan`; `/speckit.research` is only its compatibility alias
 - `/speckit.checklist` when you want to audit requirement quality after planning
 - `/speckit.analyze` as the required gate before implementation once `tasks.md` exists
 - `/speckit.debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
 - When you run `/speckit.analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `/speckit.analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
-- `/speckit.analyze` should also flag delegated packet failures through `DP1`, `DP2`, and `DP3` when worker packets or worker results lose required rule-carrying evidence
+- `/speckit.analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
 - `/speckit.explain` when you want the current spec, plan, task, implement, or handbook/project-map atlas artifact restated in plain language
 
 If you're starting from an existing codebase, `/speckit.map-codebase` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use `.specify/project-map/index/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
@@ -214,7 +216,7 @@ First-party workflow quality hooks:
 - Use `specify hook validate-artifacts --command <workflow> --feature-dir <dir>` to check that the promised artifact set really exists.
 - Use `specify hook checkpoint --command <workflow> ...` to build a resume-safe checkpoint from the active workflow state file.
 - Use `specify hook monitor-context --command <workflow> ...` to trigger proactive checkpointing before compaction or a risky transition.
-- Use `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` for delegated worker integrity.
+- Use `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` for subagent integrity.
 - Use `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` when path safety or workflow-bypass language is in doubt.
 - Use `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` to enforce workflow transitions and commit-time integrity.
 - Use `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` to turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
@@ -301,6 +303,8 @@ constraints become plan inputs.
 /speckit.deep-research Prove whether the notification provider can support the required retry and audit trail behavior with a small disposable spike, and produce a Planning Handoff for /speckit.plan.
 ```
 
+`/speckit.research` is accepted only as a compatibility alias for the same workflow.
+
 ### Step 4: Validate the Spec
 
 Validate the specification checklist using the `/speckit.checklist` command:
@@ -348,8 +352,8 @@ Finally, implement the solution:
 - **Don't focus on tech stack** during specification phase
 - **Use `specify -> plan` as the default path**
 - **Use `clarify` only when an existing spec needs deeper analysis before planning**
-- **Use `deep-research` only when feasibility or the implementation chain must be proven before planning, and preserve its Planning Handoff as plan input**
-- **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, run `sp-test` first so it can bootstrap the bundled language testing skills, establish a coverage baseline, leave manual validation evidence behind, and emit `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` for any brownfield testing-system program or coverage uplift program that needs follow-on routing
+- **Use `deep-research` only when feasibility or the implementation chain must be proven before planning, and preserve its Planning Handoff as plan input; treat `research` as a compatibility alias, not a separate workflow**
+- **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, run `sp-test` first so it can route to `sp-test-scan` for deep evidence gathering, then use `sp-test-build` when scan-approved lanes can bootstrap the bundled language testing skills, establish a coverage baseline, leave manual validation evidence behind, and emit `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` for any brownfield testing-system program or coverage uplift program that needs follow-on routing
 - **Validate** the plan before coding begins
 - **Let the AI agent handle** the implementation details
 

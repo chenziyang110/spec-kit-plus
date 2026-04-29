@@ -127,10 +127,10 @@ class CodexIntegration(SkillsIntegration):
             (
                 "\n"
                 f"## {agent_name} Native Multi-Agent Execution\n\n"
-                f"When running `sp-specify` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
-                f"- Use `spawn_agent` (or native handoffs) for bounded lanes such as repository and local context analysis, references analysis, and ambiguity/risk analysis.\n"
+                f"When running `sp-specify` in {agent_name}, dispatch subagents whenever the selected strategy is `native-multi-agent`.\n"
+                f"- Use `spawn_agent` for bounded lanes such as repository and local context analysis, references analysis, and ambiguity/risk analysis.\n"
                 f"- Use `wait_agent` only at the documented join points before capability decomposition and before writing `spec.md`, `alignment.md`, and `context.md`.\n"
-                f"- Use `close_agent` after integrating finished worker results.\n"
+                f"- Use `close_agent` after integrating finished subagent results.\n"
                 "- Keep the shared workflow language integration-neutral in user-visible output.\n"
             ),
         )
@@ -143,10 +143,10 @@ class CodexIntegration(SkillsIntegration):
             (
                 "\n"
                 f"## {agent_name} Native Multi-Agent Execution\n\n"
-                f"When running `sp-plan` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
-                f"- Use `spawn_agent` (or native handoffs) for bounded lanes such as research, data model design, contracts drafting, and quickstart or validation scenario generation.\n"
+                f"When running `sp-plan` in {agent_name}, dispatch subagents whenever the selected strategy is `native-multi-agent`.\n"
+                f"- Use `spawn_agent` for bounded lanes such as research, data model design, contracts drafting, and quickstart or validation scenario generation.\n"
                 f"- Use `wait_agent` only at the documented join points before the final constitution and risk re-check and before writing the consolidated implementation plan.\n"
-                f"- Use `close_agent` after integrating finished worker results.\n"
+                f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )
         self._augment_shared_skill(
@@ -158,10 +158,10 @@ class CodexIntegration(SkillsIntegration):
             (
                 "\n"
                 f"## {agent_name} Native Multi-Agent Execution\n\n"
-                f"When running `sp-tasks` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
-                f"- Use `spawn_agent` (or native handoffs) for bounded lanes such as story and phase decomposition, dependency graph analysis, and write-set or parallel-safety analysis.\n"
+                f"When running `sp-tasks` in {agent_name}, dispatch subagents whenever the selected strategy is `native-multi-agent`.\n"
+                f"- Use `spawn_agent` for bounded lanes such as story and phase decomposition, dependency graph analysis, and write-set or parallel-safety analysis.\n"
                 f"- Use `wait_agent` only at the documented join points before writing `tasks.md` and before emitting canonical parallel batches and join points.\n"
-                f"- Use `close_agent` after integrating finished worker results.\n"
+                f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )
         self._augment_shared_skill(
@@ -173,10 +173,14 @@ class CodexIntegration(SkillsIntegration):
             (
                 "\n"
                 f"## {agent_name} Native Multi-Agent Execution\n\n"
-                f"When running `sp-map-codebase` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
-                f"- Use `spawn_agent` (or native handoffs) for bounded lanes such as architecture/structure mapping, conventions/testing mapping, integrations/runtime mapping, and workflows/operations mapping.\n"
+                f"When running `sp-map-codebase` in {agent_name}, you **MUST** dispatch explorer subagents whenever the selected strategy is `native-multi-agent`.\n"
+                f"- If the selected strategy is `native-multi-agent`, dispatch bounded explorer subagents before doing broad leader-local scouting.\n"
+                f"- Use `spawn_agent` for bounded explorer subagents such as architecture/structure mapping, conventions/testing mapping, integrations/runtime mapping, and workflows/operations mapping.\n"
+                f"- For a full repository refresh with no narrow focus, launch at least three independent explorer subagents; use four when architecture, workflow, integration, and testing/operations areas can be separated safely.\n"
+                f"- Do not continue broad leader-local scouting after selecting `native-multi-agent` unless you record the concrete fallback reason and re-select the strategy.\n"
+                f"- Explorer subagents are read-only evidence collectors and must not write `PROJECT-HANDBOOK.md` or `.specify/project-map/*` artifacts directly.\n"
                 f"- Use `wait_agent` only at the documented join points before writing `PROJECT-HANDBOOK.md` and before the final consistency pass.\n"
-                f"- Use `close_agent` after integrating finished worker results.\n"
+                f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )
         self._augment_shared_skill(
@@ -188,10 +192,44 @@ class CodexIntegration(SkillsIntegration):
             (
                 "\n"
                 f"## {agent_name} Native Multi-Agent Execution\n\n"
-                f"When running `sp-test` in {agent_name}, prefer native worker delegation whenever the selected strategy is `native-multi-agent`.\n"
-                f"- Use `spawn_agent` (or native handoffs) for bounded lanes such as repository/module test-surface inventory, framework/config adoption analysis, coverage baseline collection, and testing contract/playbook drafting.\n"
-                f"- Use `wait_agent` only at the documented join points before mutating shared repository test framework/config files and before writing the consolidated `.specify/testing/*` artifacts.\n"
-                f"- Use `close_agent` after integrating finished worker results.\n"
+                f"When running `sp-test` in {agent_name}, treat it as a compatibility router, not the scan or build executor.\n"
+                "- Do not dispatch subagents from `sp-test` itself; route to `sp-test-scan` for read-only evidence fan-out or `sp-test-build` for execution fan-out.\n"
+                "- If the route is `sp-test-scan` or `sp-test-build`, let that routed command own `spawn_agent`, `wait_agent`, and `close_agent` behavior.\n"
+                "- Persist the routing decision in `.specify/testing/testing-state.md` before handoff.\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-test-scan" / "SKILL.md",
+            f"## {agent_name} Native Multi-Agent Execution",
+            (
+                "\n"
+                f"## {agent_name} Native Multi-Agent Execution\n\n"
+                f"When running `sp-test-scan` in {agent_name}, dispatch read-only scout subagents whenever the selected strategy is `native-multi-agent`.\n"
+                f"- Use `spawn_agent` for bounded module, framework, coverage-command, and risk-review scan lanes.\n"
+                "- Each scan subagent is read-only and must return inspected files, public entrypoints, existing tests, missing scenarios, recommended build lanes, validation commands, and blockers.\n"
+                f"- Use `wait_agent` only at the documented scan join points before final risk ranking, before writing `TEST_BUILD_PLAN.md` / `TEST_BUILD_PLAN.json`, and before marking scan complete.\n"
+                f"- Use `close_agent` after integrating finished scout results.\n"
+                "- Do not let scan subagents edit repository files or `.specify/testing/*` artifacts directly.\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-test-build" / "SKILL.md",
+            f"## {agent_name} Native Multi-Agent Execution",
+            (
+                "\n"
+                f"## {agent_name} Native Multi-Agent Execution\n\n"
+                f"When running `sp-test-build` in {agent_name}, dispatch subagents whenever the selected strategy is `native-multi-agent`.\n"
+                f"- Use `spawn_agent` for validated `TestBuildPacket` lanes with isolated write sets.\n"
+                "- Keep shared config, global fixture, CI, dependency, and production-code testability lanes on the leader path unless the packet explicitly authorizes a serial lane.\n"
+                f"- Use `wait_agent` only at the documented build join points after each parallel wave and before consolidated testing artifacts are updated.\n"
+                f"- Use `close_agent` after integrating finished build or review results.\n"
+                "- Wait for every subagent's structured handoff before accepting a lane, starting the next wave, or marking build complete.\n"
             ),
         )
 

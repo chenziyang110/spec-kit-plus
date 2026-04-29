@@ -2,8 +2,8 @@
 description: Use when tasks.md exists and the planned work should be executed through the tracked implementation workflow.
 workflow_contract:
   when_to_use: '`tasks.md` is ready and the feature should move from planning into tracked execution batches.'
-  primary_objective: Execute the ready batches while preserving tracker state, delegated worker contracts, verification discipline, and resumability.
-  primary_outputs: Verified code, test, and documentation changes plus implementation-tracker and worker-result artifacts for the active feature.
+  primary_objective: Execute the ready batches while preserving tracker state, subagent contracts, verification discipline, and resumability.
+  primary_outputs: Verified code, test, and documentation changes plus implementation-tracker and subagent-result artifacts for the active feature.
   default_handoff: Continue with the next ready batch, route blockers into /sp-debug, or report completion only when the implementation contract is actually satisfied.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
@@ -16,11 +16,11 @@ Treat non-empty `$ARGUMENTS` as first-class implementation context for the curre
 
 ## Leader Role
 
-- You are the implementation leader for this run. Your job is to recover context, choose the current ready batch, dispatch delegated work, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation.
-- You are not the default implementer for the current batch. When a delegated execution path is available for the selected batch, do not personally execute that batch just because it looks easy.
-- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a delegated worker executes that lane.
-- Prefer delegated worker execution only when the lane already has a validated `WorkerTaskPacket` and trustworthy delegation surface, so the delegated path can preserve or improve on leader-local quality.
-- If that delegation-readiness bar is not met, keep the lane on the leader path until the missing context, hard rules, validation gates, or handoff requirements are compiled.
+- You are the implementation leader for this run. Your job is to recover context, choose the current ready batch, dispatch subagents when useful, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation.
+- You are not the default implementer for the current batch. When a subagent path is available for the selected batch, do not personally execute that batch just because it looks easy.
+- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.
+- Prefer subagent execution only when the lane already has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader-local quality.
+- If that subagent-readiness bar is not met, keep the lane on the leader path until the missing context, hard rules, validation gates, or handoff requirements are compiled.
 - Use leader-local execution only when the workflow's explicit fallback conditions are met and the fallback reason is recorded in `implement-tracker.md`.
 
 ## Pre-Execution Checks
@@ -61,9 +61,9 @@ Treat non-empty `$ARGUMENTS` as first-class implementation context for the curre
 - Use `specify hook preflight --command implement --feature-dir "$FEATURE_DIR"` before execution so the shared product guardrail layer can block stale brownfield routing, analyze-gate drift, or invalid execution entry.
 - After `implement-tracker.md` is created or resumed, use `specify hook validate-state --command implement --feature-dir "$FEATURE_DIR"` so the shared validator confirms execution state exists and is resumable.
 - Use `specify hook validate-session-state --command implement --feature-dir "$FEATURE_DIR"` before choosing the next batch so `workflow-state.md` and `implement-tracker.md` do not silently disagree about whether implementation may continue.
-- Before delegated dispatch, use `specify hook validate-packet --packet-file <packet-json>` so `WorkerTaskPacket` integrity is enforced through the shared hook surface instead of only by runtime convention.
-- Before accepting a delegated handoff at a join point, use `specify hook validate-result --packet-file <packet-json> --result-file <result-json>` so the shared `DP1`/`DP2`/`DP3` contract blocks incomplete worker completion.
-- Before compaction-risk transitions, long validation phases, join points, or delegation fan-out, use `specify hook monitor-context --command implement --feature-dir "$FEATURE_DIR"` and, when it recommends checkpointing, follow it with `specify hook checkpoint --command implement --feature-dir "$FEATURE_DIR"`.
+- Before subagent dispatch, use `specify hook validate-packet --packet-file <packet-json>` so `WorkerTaskPacket` integrity is enforced through the shared hook surface instead of only by runtime convention.
+- Before accepting a subagent handoff at a join point, use `specify hook validate-result --packet-file <packet-json> --result-file <result-json>` so the shared `DP1`/`DP2`/`DP3` contract blocks incomplete subagent completion.
+- Before compaction-risk transitions, long validation phases, join points, or subagent fan-out, use `specify hook monitor-context --command implement --feature-dir "$FEATURE_DIR"` and, when it recommends checkpointing, follow it with `specify hook checkpoint --command implement --feature-dir "$FEATURE_DIR"`.
 - When execution changes map-level truth surfaces, prefer `specify hook mark-dirty --reason "<reason>"` as the shared dirty-mark path before recommending `/sp-map-codebase`.
 
 ## Passive Project Learning Layer
@@ -233,16 +233,16 @@ human_needed_checks:
    - **IF EXISTS**: Read quickstart.md for integration scenarios
    - **IF `Implementation Constitution` NAMES REQUIRED REFERENCES**: Read those boundary-defining files before choosing the next implementation batch
    - **IF THE NEXT READY BATCH TOUCHES AN ESTABLISHED BOUNDARY OR FRAMEWORK**: Record the active boundary framework, preserved pattern, forbidden drift, and required references in `implement-tracker.md` before dispatching work
-    - **REQUIRED FOR DELEGATED EXECUTION**: compile a `WorkerTaskPacket` for each delegated task using `.specify/memory/constitution.md`, `plan.md`, and `tasks.md`
-    - **REQUIRED FOR DELEGATED EXECUTION**: [AGENT] compile and validate the packet before any delegated work begins
-    - **REQUIRED FOR DELEGATED EXECUTION**: Validate each `WorkerTaskPacket` before dispatching work
-    - **REQUIRED FOR DELEGATED EXECUTION**: Use `.specify/templates/worker-prompts/implementer.md` as the default implementer worker contract and pair post-implementation reviews with `.specify/templates/worker-prompts/spec-reviewer.md` and `.specify/templates/worker-prompts/code-quality-reviewer.md`
-    - **REQUIRED FOR DELEGATED EXECUTION**: Prefer structured handoffs compatible with the shared `WorkerTaskResult` contract whenever the current runtime exposes structured delegated results
-    - **REQUIRED FOR DELEGATED EXECUTION**: If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized delegated result envelope to `FEATURE_DIR/worker-results/<task-id>.json`
-    - **REQUIRED FOR DELEGATED EXECUTION**: When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the result envelope
-    - **REQUIRED FOR DELEGATED EXECUTION**: Preserve `reported_status` when normalizing worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state
-    - **REQUIRED FOR DELEGATED EXECUTION**: Idle delegated worker is not an accepted result.
-    - **REQUIRED FOR DELEGATED EXECUTION**: [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting delegated execution.
+    - **REQUIRED FOR SUBAGENT EXECUTION**: compile a `WorkerTaskPacket` for each subagent task using `.specify/memory/constitution.md`, `plan.md`, and `tasks.md`
+    - **REQUIRED FOR SUBAGENT EXECUTION**: [AGENT] compile and validate the packet before any subagent work begins
+    - **REQUIRED FOR SUBAGENT EXECUTION**: Validate each `WorkerTaskPacket` before dispatching work
+    - **REQUIRED FOR SUBAGENT EXECUTION**: Use `.specify/templates/worker-prompts/implementer.md` as the default implementer subagent contract and pair post-implementation reviews with `.specify/templates/worker-prompts/spec-reviewer.md` and `.specify/templates/worker-prompts/code-quality-reviewer.md`
+    - **REQUIRED FOR SUBAGENT EXECUTION**: Prefer structured handoffs compatible with the shared `WorkerTaskResult` contract whenever the current runtime exposes structured subagent results
+    - **REQUIRED FOR SUBAGENT EXECUTION**: If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized subagent result envelope to `FEATURE_DIR/worker-results/<task-id>.json`
+    - **REQUIRED FOR SUBAGENT EXECUTION**: When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the result envelope
+    - **REQUIRED FOR SUBAGENT EXECUTION**: Preserve `reported_status` when normalizing subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state
+    - **REQUIRED FOR SUBAGENT EXECUTION**: Idle subagent is not an accepted result.
+    - **REQUIRED FOR SUBAGENT EXECUTION**: [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
     - **HARD RULE**: dispatch only from validated `WorkerTaskPacket`
     - **HARD RULE**: Do not dispatch from raw task text alone
     - **HARD RULE**: must not dispatch from raw task text alone
@@ -302,19 +302,19 @@ human_needed_checks:
 
 6. Select an execution strategy for each ready batch before writing code:
    - The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.
-   - The shared implement template is the primary source of truth for this leader-only milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
+   - The shared implement template is the primary source of truth for this leader-owned milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
    - Use the shared policy function before each batch with the current agent capability snapshot: `choose_execution_strategy(command_name="implement", snapshot, workload_shape)`
    - Also classify whether the current batch needs a review gate before the join point: `classify_review_gate_policy(workload_shape)`
    - For `sp-implement`, strategy names are `single-lane` and `native-multi-agent`.
-   - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for native delegation. If confidence is `low`, keep the batch on the leader path instead of forcing fragile worker fan-out.
+   - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for subagent dispatch. If confidence is `low`, keep the batch on the leader path instead of forcing fragile subagent fan-out.
    - Decision order (must match policy):
       - If `parallel_batches <= 0` or overlapping write sets -> `single-lane` (`no-safe-batch`)
       - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
-      - Else -> `single-lane` (`native-missing` or `fallback-low-confidence`)
-   - `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a delegated worker executes that lane.
-   - For implementation work, prefer delegated worker execution only when the lane already has a validated `WorkerTaskPacket` and trustworthy delegation surface, so the delegated path can preserve or improve on leader-local quality.
-   - If that delegation-readiness bar is not met, do not dispatch a low-context lane just to satisfy a routing preference; compile the missing packet contract first or keep the lane on the leader path until the contract is complete.
-   - If native worker delegation is unavailable or low-confidence for the current batch, keep `sp-implement` on the leader path, record the fallback reason in `implement-tracker.md`, and do not silently switch this workflow onto a coordinated runtime surface.
+   - Else -> `single-lane` (`native-missing` or `fallback-low-confidence`)
+   - `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.
+   - For implementation work, prefer subagent execution only when the lane already has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader-local quality.
+   - If that subagent-readiness bar is not met, do not dispatch a low-context lane just to satisfy a routing preference; compile the missing packet contract first or keep the lane on the leader path until the contract is complete.
+   - If subagent dispatch is unavailable or low-confidence for the current batch, keep `sp-implement` on the leader path and record the fallback reason in `implement-tracker.md`.
    - Re-evaluate the execution strategy at every new parallel batch or join point instead of choosing once for the whole feature
    - Refine only the current executable window after each join point. Do not pre-expand later batches when their exact shape depends on current batch evidence.
    - Grouped parallelism is the default when multiple ready tasks have isolated write sets and stable upstream inputs.
@@ -330,7 +330,7 @@ human_needed_checks:
       - Which files define the existing pattern that must be preserved?
       - What implementation drift is forbidden for this batch?
       - Which task or plan item proves that this constraint is intentional rather than inferred?
-      - Which compiled `WorkerTaskPacket` captures the hard rules, required references, validation gates, and done criteria for this delegated task?
+      - Which compiled `WorkerTaskPacket` captures the hard rules, required references, validation gates, and done criteria for this subagent task?
     - If those answers are not grounded in the current repository files, stop guesswork, read the missing references, and update `implement-tracker.md` before continuing.
 
 7. Execute implementation following the task plan:
@@ -338,14 +338,14 @@ human_needed_checks:
     - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
    - **Capability-aware execution**: After selecting the strategy, execute the current ready batch through `native-multi-agent` when selected by policy; otherwise execute via `single-lane` while preserving join-point semantics through the current lane owner.
-   - Once a `single-lane` batch clears the delegation-readiness bar, do not stop to ask the user whether the `single-lane` batch should switch to delegated execution; dispatch the delegated lane by default and only discuss a fallback after the delegation surfaces have concretely failed.
+   - Once a `single-lane` batch clears the subagent-readiness bar, do not stop to ask the user whether the `single-lane` batch should switch to subagent execution; dispatch the subagent by default and only discuss a fallback after dispatch has concretely failed.
     - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
     - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
-    - Do not stop after a single completed batch just because one worker, assignee, or delegated lane has gone idle; if ready work still exists for the milestone, keep selecting the next batch and continue.
+    - Do not stop after a single completed batch just because one subagent, assignee, or lane has gone idle; if ready work still exists for the milestone, keep selecting the next batch and continue.
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
    - **Hard TDD gate**: Write the failing test first for every behavior-changing task, bug fix, or refactor.
    - **Hard TDD gate**: Do not write production code for the batch until the RED state is verified.
-   - **Testing surface gate**: If no reliable automated test surface exists for the touched behavior, add the smallest viable test-surface bootstrap step first or stop and route through `/sp-test` before continuing.
+   - **Testing surface gate**: If no reliable automated test surface exists for the touched behavior, add the smallest viable test-surface bootstrap step first or stop and route through `/sp-test` or `/sp-test-scan` before continuing.
    - **Testing contract is binding when present**: If `.specify/testing/TESTING_CONTRACT.md` exists, add or update the required failing tests or regression tests before treating a behavior change as complete.
    - **File-based coordination**: Tasks affecting the same files must run sequentially
    - **Shared-surface coordination**: Treat shared registration files, router tables, export barrels, dependency injection containers, and similar coordination points as write conflicts even if the main feature files differ
@@ -365,12 +365,12 @@ human_needed_checks:
    - For tasks in parallel batches, continue with successful tasks, report failed ones, and do not cross the batch's join point until the failed work is resolved or explicitly deferred
    - Planned validation tasks are still ready work. If the remaining tasks are executable tests, E2E checks, security verification, quickstart validation, or other scripted validation work already present in `tasks.md`, continue automatically instead of asking whether validation should start.
    - Do not stop to ask whether validation should start unless a manual-only check or approval step is explicitly recorded in the tracker or task plan.
-   - If a delegated lane flips to `completed` or drifts into `idle` before the promised handoff, result file, or completion evidence arrives, treat it as a stale lane rather than accepted work: probe once for the missing handoff, then re-dispatch, block, or defer explicitly instead of silently continuing
+   - If a subagent lane flips to `completed` or drifts into `idle` before the promised handoff, result file, or completion evidence arrives, treat it as a stale lane rather than accepted work: probe once for the missing handoff, then re-dispatch, block, or defer explicitly instead of silently continuing
    - For high-risk batches, treat acceptance as a three-layer check:
-     - worker self-check
+     - subagent self-check
      - optional read-only peer-review lane when `classify_review_gate_policy(workload_shape)` recommends it
      - leader/orchestrator review before crossing the join point
-   - Blocked delegated worker results must include a concrete blocker summary, the failed assumption or dependency, and the smallest safe recovery step before the leader accepts the result.
+   - Blocked subagent results must include a concrete blocker summary, the failed assumption or dependency, and the smallest safe recovery step before the leader accepts the result.
    - Persist completed work, failed work, blocker evidence, `retry_attempts`, `recovery_action`, and `next_action` in `implement-tracker.md` as soon as they change
    - Before declaring the feature blocked, attempt the smallest safe recovery step that matches the evidence:
      - read the most relevant local implementation context for the failing area

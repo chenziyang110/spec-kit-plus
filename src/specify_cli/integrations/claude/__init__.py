@@ -21,6 +21,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "specify": "Describe the feature you want to specify",
     "clarify": "Describe what in the current spec package needs deeper analysis or correction",
     "deep-research": "Describe the feasibility question, research tracks, or demo proof needed before planning handoff",
+    "research": "Describe the feasibility question; routes to sp-deep-research without separate artifacts",
     "explain": "Optionally name the stage or artifact you want explained",
     "debug": "Describe the bug to investigate, or leave blank to resume the most recent session",
     "fast": "Describe the trivial local fix, or leave blank to use the current fast-path context",
@@ -33,7 +34,9 @@ ARGUMENT_HINTS: dict[str, str] = {
     "analyze": "Optional focus areas for analysis, such as boundary guardrail drift (BG1/BG2/BG3)",
     "constitution": "Principles or values for the project constitution",
     "checklist": "Domain or focus area for the checklist",
-    "test": "Optional testing-system scope, module focus, or audit-only guidance",
+    "test": "Optional testing-system routing hint; leave blank to choose scan or build from repository state",
+    "test-scan": "Optional module, package, or risk area to emphasize during the read-only testing-system scan",
+    "test-build": "Optional wave, lane, or module filter for building from the existing test scan",
     "map-codebase": "Optional subsystem or workflow area to emphasize while mapping",
     "taskstoissues": "Optional filter or label for GitHub issues",
 }
@@ -381,7 +384,7 @@ class ClaudeIntegration(SkillsIntegration):
         content: str,
         skill_name: str,
     ) -> str:
-        marker = "## Claude Worker Result Contract"
+        marker = "## Claude Subagent Result Contract"
         if marker in content:
             return content
 
@@ -391,14 +394,42 @@ class ClaudeIntegration(SkillsIntegration):
         )
         addendum = (
             "\n"
-            "## Claude Worker Result Contract\n\n"
+            "## Claude Subagent Result Contract\n\n"
             f"- Preferred result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- Normalize worker-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
-            "- Keep `reported_status` when normalization occurs so the leader can distinguish raw worker language from canonical orchestration state.\n"
-            "- Wait for every delegated lane's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
-            "- Do not treat an idle child as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
-            "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- Normalize subagent-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
+            "- Keep `reported_status` when normalization occurs so the leader can distinguish raw subagent language from canonical orchestration state.\n"
+            "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
+            "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
+            "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
+            "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
+        )
+        return content + addendum
+
+    def _append_agent_teams_teammate_result_contract(
+        self,
+        *,
+        content: str,
+    ) -> str:
+        marker = "## Claude Agent Teams Teammate Result Contract"
+        if marker in content:
+            return content
+
+        descriptor = describe_delegation_surface(
+            command_name="implement",
+            snapshot=self._claude_capability_snapshot(),
+        )
+        addendum = (
+            "\n"
+            "## Claude Agent Teams Teammate Result Contract\n\n"
+            f"- Preferred result contract: {descriptor.result_contract_hint}\n"
+            f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
+            "- Normalize teammate-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
+            "- Keep `reported_status` when normalization occurs so the leader can distinguish raw teammate language from canonical orchestration state.\n"
+            "- Wait for every Agent Teams teammate's structured handoff before accepting the join point, closing the team wave, or declaring completion.\n"
+            "- Do not treat an idle teammate as done work; idle without a consumed handoff means the team result channel is still unresolved.\n"
+            "- Do not interrupt or shut down teammate work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
             "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
         )
@@ -448,12 +479,12 @@ class ClaudeIntegration(SkillsIntegration):
         addendum = (
             "\n"
             "## Claude Dispatch-First Gate\n\n"
-            "- For `sp-implement`, attempt delegated execution before leader-local implementation.\n"
-            "- Use Claude's native delegated child-worker path as the default first attempt for the current ready batch whenever the batch is safe to delegate.\n"
+            "- For `sp-implement`, attempt subagent execution before leader-local implementation.\n"
+            "- Use Claude's native subagent path as the default first attempt for the current ready batch whenever the batch is safe to dispatch.\n"
             "- Treat `single-lane` as the topology for one safe execution lane, not as permission for the leader to implement directly.\n"
-            "- If multiple safe worker lanes exist for the current batch, dispatch them in parallel instead of defaulting to serial leader-local work.\n"
-            "- Prefer delegated child-worker fan-out over local deep-dive execution when the ready tasks have isolated write sets and stable upstream inputs.\n"
-            "- Do not begin concrete implementation on the leader path while an untried delegated path is available for the current batch.\n"
+            "- If multiple safe subagent lanes exist for the current batch, dispatch them in parallel instead of defaulting to serial leader-local work.\n"
+            "- Prefer subagent fan-out over local deep-dive execution when the ready tasks have isolated write sets and stable upstream inputs.\n"
+            "- Do not begin concrete implementation on the leader path while an untried subagent path is available for the current batch.\n"
             "- Only fall back to leader-local execution after recording a concrete fallback reason in `FEATURE_DIR/implement-tracker.md`.\n"
         )
         if "## Leader Role" in content:
@@ -476,7 +507,7 @@ class ClaudeIntegration(SkillsIntegration):
         frontmatter = self._parse_skill_frontmatter(raw)
         description = frontmatter.get(
             "description",
-            "Execute implementation through Claude Code Agent Teams when you explicitly want durable multi-worker execution.",
+            "Execute implementation through Claude Code Agent Teams when you explicitly want durable team execution.",
         )
         skill_content = self._render_skill_content(
             raw=raw,
@@ -687,7 +718,7 @@ class ClaudeIntegration(SkillsIntegration):
             if command_name == "implement":
                 content = self._replace_frontmatter_description(
                     content=content,
-                    description="Execute the implementation plan by dispatching tasks to worker agents and integrating their results",
+                    description="Execute the implementation plan by dispatching subagents and integrating their results",
                 )
                 content = self._append_dispatch_first_gate(content=content)
             content = self._append_delegation_surface_contract(
@@ -695,7 +726,7 @@ class ClaudeIntegration(SkillsIntegration):
                 agent_name="Claude",
                 command_name=command_name,
                 snapshot=snapshot,
-                heading="Delegation Surface Contract",
+                heading="Subagent Dispatch Contract",
             )
             content = self._append_worker_result_contract(
                 content=content,
@@ -716,10 +747,7 @@ class ClaudeIntegration(SkillsIntegration):
                 backend_label="Claude Code Agent Teams",
             )
             content = implement_teams_skill.read_text(encoding="utf-8")
-            content = self._append_worker_result_contract(
-                content=content,
-                skill_name="implement",
-            )
+            content = self._append_agent_teams_teammate_result_contract(content=content)
             implement_teams_skill.write_bytes(content.encode("utf-8"))
             self.record_file_in_manifest(implement_teams_skill, project_root, manifest)
 

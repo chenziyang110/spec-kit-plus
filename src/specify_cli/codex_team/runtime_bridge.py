@@ -277,7 +277,7 @@ def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
         "reason": (
             "No packet executor is configured for sp-teams auto-dispatch. "
             "The current runtime can report state and accept submitted results, "
-            "but it cannot truthfully execute worker packets."
+            "but it cannot truthfully execute subagent execution packets."
         ),
         "configured_value": configured,
         "bundled_runtime_binary": None,

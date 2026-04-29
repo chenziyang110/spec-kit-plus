@@ -10,6 +10,80 @@ def _create_project(tmp_path: Path) -> Path:
     return project
 
 
+def _valid_deep_research_artifact() -> str:
+    return """# Deep Research
+
+## Capability Feasibility Matrix
+
+| Capability ID | Capability | Unknown Link | Evidence Needed | Proof Method | Result |
+| --- | --- | --- | --- | --- | --- |
+| CAP-001 | Demo capability | API behavior | Runnable proof | EVD-001 / SPK-001 | proven |
+
+## Research Agent Findings
+
+| Track ID | Agent / Mode | Question | Evidence IDs | Confidence | Exit State | Planning Implication |
+| --- | --- | --- | --- | --- | --- | --- |
+| TRK-001 | single-lane research | Can it work? | EVD-001, SPK-001 | high | enough-to-plan | Use PH-001 |
+
+## Evidence Quality Rubric
+
+| Evidence ID | Supports | Source Tier | Source / Path | Reproduced Locally | Recency / Version | Confidence | Plan Impact | Limitations |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| EVD-001 | CAP-001 / PH-001 | runnable-spike | research-spikes/demo | yes | not time-sensitive | high | constraining | Does not prove production scale |
+
+## Synthesis Decisions
+
+- **Recommended approach**: PH-001 -> Use the proven API path.
+
+## Planning Handoff
+
+- **Handoff IDs**: PH-001
+- **Recommended approach**: PH-001 -> Use the proven API path; trace to CAP-001 / TRK-001 / EVD-001 / SPK-001.
+- **Architecture implications**: PH-001 -> Preserve the adapter boundary.
+- **Module boundaries**: PH-001 -> Keep ownership in the existing module.
+- **API / library choices**: PH-001 -> Use the tested API.
+- **Data flow notes**: PH-001 -> Input to adapter, output to service.
+- **Demo artifacts to reference**: PH-001 -> research-spikes/demo, SPK-001.
+- **Constraints `/sp.plan` must preserve**:
+  - PH-001 -> Keep the adapter boundary.
+- **Validation implications**: PH-001 -> Add a targeted integration check.
+- **Residual risks requiring design mitigation**:
+  - PH-001 -> Production scale remains unproven.
+- **Decisions already proven by research**:
+  - PH-001 -> API call shape works.
+
+## Planning Traceability Index
+
+| Handoff ID | Plan Consumer | Supported By | Evidence Quality | Required Plan Action |
+| --- | --- | --- | --- | --- |
+| PH-001 | architecture | CAP-001, TRK-001, EVD-001, SPK-001 | high / constraining | Preserve adapter boundary |
+"""
+
+
+def _not_needed_deep_research_artifact() -> str:
+    return """# Deep Research: Demo capability
+
+**Status**: Not needed
+
+## Feasibility Decision
+
+- **Recommendation**: Proceed to `/sp.plan`
+- **Reason**: Repository evidence already proves the implementation chain, so no feasibility research or spike is needed.
+- **Planning handoff readiness**: Not needed
+
+## Planning Handoff
+
+- **Handoff IDs**: Not needed
+- **Recommended approach**: Use the existing repository implementation path during `/sp.plan`.
+- **Reason**: No planning-critical capability has an unproven implementation-chain link.
+- **Constraints `/sp.plan` must preserve**: Preserve the existing implementation boundary already captured in `context.md`.
+
+## Next Command
+
+- `/sp.plan`
+"""
+
+
 def test_validate_artifacts_blocks_when_specify_outputs_are_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -48,13 +122,196 @@ def test_validate_artifacts_accepts_deep_research_outputs_when_present(tmp_path:
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
-    (feature_dir / "deep-research.md").write_text("# Deep Research\n", encoding="utf-8")
+    (feature_dir / "deep-research.md").write_text(_valid_deep_research_artifact(), encoding="utf-8")
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
 
     result = run_quality_hook(
         project,
         "workflow.artifacts.validate",
         {"command_name": "deep-research", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_accepts_deep_research_not_needed_outputs(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "deep-research.md").write_text(_not_needed_deep_research_artifact(), encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "deep-research", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_accepts_research_alias_for_deep_research_outputs(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "deep-research.md").write_text(_not_needed_deep_research_artifact(), encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "research", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_blocks_ambiguous_deep_research_not_needed_outputs(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "deep-research.md").write_text(
+        "# Deep Research\n\n**Status**: Not needed\n\nNo research needed.\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "deep-research", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("Feasibility Decision" in message for message in result.errors)
+    assert any("Planning Handoff" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_deep_research_without_planning_handoff_schema(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "deep-research.md").write_text("# Deep Research\n\nRaw notes only.\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "deep-research", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("Planning Handoff" in message for message in result.errors)
+    assert any("Evidence Quality Rubric" in message for message in result.errors)
+    assert any("CAP-001" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_plan_when_deep_research_handoff_is_not_consumed(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "deep-research.md").write_text(_valid_deep_research_artifact(), encoding="utf-8")
+    (feature_dir / "plan.md").write_text("# Plan\n\n## Design\n\nUse the adapter boundary.\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("Deep Research Traceability Matrix" in message for message in result.errors)
+    assert any("PH-001" in message for message in result.errors)
+
+
+def test_validate_artifacts_accepts_plan_consuming_deep_research_handoff(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "deep-research.md").write_text(_valid_deep_research_artifact(), encoding="utf-8")
+    (feature_dir / "plan.md").write_text(
+        """# Plan
+
+## Deep Research Traceability Matrix
+
+| Plan Decision | Handoff ID | Capability ID | Track ID | Evidence / Spike ID | Evidence Quality | Plan Action |
+| --- | --- | --- | --- | --- | --- | --- |
+| Preserve adapter boundary | PH-001 | CAP-001 | TRK-001 | EVD-001, SPK-001 | high / constraining | Implement the adapter boundary in design |
+""",
+        encoding="utf-8",
+    )
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_blocks_plan_when_handoff_id_is_outside_traceability_matrix(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "deep-research.md").write_text(_valid_deep_research_artifact(), encoding="utf-8")
+    (feature_dir / "plan.md").write_text(
+        """# Plan
+
+This prose mentions PH-001 but does not consume it in the required matrix.
+
+## Deep Research Traceability Matrix
+
+| Plan Decision | Handoff ID | Capability ID | Track ID | Evidence / Spike ID | Evidence Quality | Plan Action |
+| --- | --- | --- | --- | --- | --- | --- |
+| Preserve adapter boundary | missing | CAP-001 | TRK-001 | EVD-001, SPK-001 | high / constraining | Implement the adapter boundary in design |
+""",
+        encoding="utf-8",
+    )
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("PH-001" in message for message in result.errors)
+
+
+def test_validate_artifacts_ignores_non_handoff_ph_ids_when_validating_plan(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    deep_research = _valid_deep_research_artifact().replace(
+        "## Planning Handoff",
+        "Historical note: PH-999 was only an abandoned example and is not a handoff item.\n\n## Planning Handoff",
+    )
+    (feature_dir / "deep-research.md").write_text(deep_research, encoding="utf-8")
+    (feature_dir / "plan.md").write_text(
+        """# Plan
+
+## Deep Research Traceability Matrix
+
+| Plan Decision | Handoff ID | Capability ID | Track ID | Evidence / Spike ID | Evidence Quality | Plan Action |
+| --- | --- | --- | --- | --- | --- | --- |
+| Preserve adapter boundary | PH-001 | CAP-001 | TRK-001 | EVD-001, SPK-001 | high / constraining | Implement the adapter boundary in design |
+""",
+        encoding="utf-8",
+    )
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
     )
 
     assert result.status == "ok"

@@ -1,4 +1,12 @@
 from specify_cli.orchestration import CapabilitySnapshot, describe_delegation_surface
+from specify_cli.orchestration.adapters import normalize_command_name, supports_workflow_command
+
+
+def test_research_alias_normalizes_to_deep_research_for_orchestration_support() -> None:
+    assert normalize_command_name("research") == "deep-research"
+    assert normalize_command_name("sp-research") == "deep-research"
+    assert normalize_command_name("sp.research") == "deep-research"
+    assert supports_workflow_command("sp-research") is True
 
 
 def test_describe_delegation_surface_for_codex_implement_prefers_spawn_agent_contract() -> None:
@@ -38,7 +46,7 @@ def test_describe_delegation_surface_for_claude_debug_uses_evidence_contract() -
 
     assert descriptor.intent == "evidence"
     assert descriptor.native_surface == "native-cli"
-    assert "native delegated worker surface" in descriptor.native_dispatch_hint.lower()
+    assert "native subagent support" in descriptor.native_dispatch_hint.lower()
     assert "evidence payload" in descriptor.result_contract_hint.lower()
     assert ".planning/debug/results/<session-slug>/<lane-id>.json" in descriptor.result_handoff_hint
     assert descriptor.structured_results_expected is True
@@ -58,6 +66,6 @@ def test_describe_delegation_surface_for_gemini_explains_no_native_surface() -> 
     )
 
     assert descriptor.native_surface == "none"
-    assert "no native delegated worker surface" in descriptor.native_dispatch_hint.lower()
-    assert "no coordinated runtime surface" in descriptor.sidecar_surface_hint.lower()
+    assert "no subagent dispatch path" in descriptor.native_dispatch_hint.lower()
+    assert "no managed team workflow" in descriptor.sidecar_surface_hint.lower()
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in descriptor.result_handoff_hint

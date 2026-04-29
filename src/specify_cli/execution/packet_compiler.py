@@ -1,4 +1,4 @@
-"""Compile delegated worker packets from planning artifacts."""
+"""Compile subagent execution packets from planning artifacts."""
 
 from __future__ import annotations
 

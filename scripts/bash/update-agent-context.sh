@@ -177,7 +177,7 @@ render_speckit_managed_block() {
 - `.specify/memory/constitution.md` is the principle-level source of truth when present.
 - `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress.
 - `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.
-- `deep-research.md`, its `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.
+- `deep-research.md`, its traceable `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence IDs, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.
 - `plan.md` under the active feature directory is the implementation design source of truth once planning begins.
 - `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.
 - `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain implementation and debugging when present.

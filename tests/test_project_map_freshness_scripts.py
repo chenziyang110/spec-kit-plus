@@ -105,6 +105,34 @@ def _commit_seeded_map(repo: Path) -> None:
     subprocess.run(["git", "commit", "-m", "seed canonical map", "-q"], cwd=repo, check=True)
 
 
+def _seed_legacy_status(repo: Path, *, dirty: bool = True, dirty_reasons: list[str] | None = None) -> Path:
+    reasons = dirty_reasons if dirty_reasons is not None else (["workflow_contract_changed"] if dirty else [])
+    status_path = repo / ".specify" / "project-map" / "status.json"
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    status_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "last_mapped_commit": "",
+                "last_mapped_at": "2026-04-21T00:00:00Z",
+                "last_mapped_branch": "main",
+                "freshness": "stale" if dirty else "fresh",
+                "last_refresh_reason": "manual",
+                "last_refresh_topics": [],
+                "last_refresh_scope": "full",
+                "last_refresh_basis": "manual",
+                "last_refresh_changed_files_basis": [],
+                "dirty": dirty,
+                "dirty_reasons": reasons,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return status_path
+
+
 def test_bash_project_map_freshness_lifecycle(git_repo: Path):
     missing = _run_bash(git_repo, "check")
     assert missing["freshness"] == "missing"
@@ -121,6 +149,29 @@ def test_bash_project_map_freshness_lifecycle(git_repo: Path):
     assert dirty["dirty_reasons"] == ["shared_surface_changed"]
     assert dirty["must_refresh_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md"]
     assert dirty["review_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+
+
+def test_bash_check_reads_legacy_project_map_status(git_repo: Path):
+    _seed_legacy_status(git_repo)
+
+    result = _run_bash(git_repo, "check")
+
+    assert result["freshness"] == "stale"
+    assert result["dirty"] is True
+    assert result["dirty_reasons"] == ["workflow_contract_changed"]
+    assert result["status_path"].endswith(".specify/project-map/index/status.json")
+    assert result["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+
+
+def test_bash_mark_dirty_migrates_legacy_status_to_canonical_path(git_repo: Path):
+    _seed_legacy_status(git_repo, dirty=False)
+
+    result = _run_bash(git_repo, "mark-dirty", "shared_surface_changed")
+
+    assert result["freshness"] == "stale"
+    assert (git_repo / ".specify" / "project-map" / "index" / "status.json").exists()
+    payload = json.loads((git_repo / ".specify" / "project-map" / "status.json").read_text(encoding="utf-8"))
+    assert payload["dirty_reasons"] == ["shared_surface_changed"]
 
 
 def test_powershell_project_map_freshness_detects_git_changes(git_repo: Path):
@@ -140,6 +191,39 @@ def test_powershell_project_map_freshness_detects_git_changes(git_repo: Path):
     assert stale["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
     assert stale["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert stale["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+
+
+def test_powershell_check_reads_legacy_project_map_status(git_repo: Path):
+    _seed_legacy_status(git_repo)
+
+    result = _run_powershell(git_repo, "check")
+
+    assert result["freshness"] == "stale"
+    assert result["dirty"] is True
+    assert result["dirty_reasons"] == ["workflow_contract_changed"]
+    assert result["status_path"].replace("\\", "/").endswith(".specify/project-map/index/status.json")
+    assert result["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+
+
+def test_dirty_topic_order_is_stable_across_shell_helpers(git_repo: Path):
+    _seed_legacy_status(
+        git_repo,
+        dirty_reasons=["project_map_dirty", "workflow_contract_changed"],
+    )
+
+    expected_must = ["ARCHITECTURE.md", "WORKFLOWS.md"]
+    expected_review = ["ARCHITECTURE.md", "INTEGRATIONS.md", "TESTING.md"]
+    expected_suggested = ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+
+    bash_result = _run_bash(git_repo, "check")
+    powershell_result = _run_powershell(git_repo, "check")
+
+    assert bash_result["must_refresh_topics"] == expected_must
+    assert bash_result["review_topics"] == expected_review
+    assert bash_result["suggested_topics"] == expected_suggested
+    assert powershell_result["must_refresh_topics"] == expected_must
+    assert powershell_result["review_topics"] == expected_review
+    assert powershell_result["suggested_topics"] == expected_suggested
 
 
 def test_bash_record_refresh_requires_canonical_map_outputs(git_repo: Path):

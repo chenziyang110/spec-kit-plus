@@ -27,6 +27,8 @@ WORKFLOW_COMMAND_MAP = {
     "sp-tasks": "tasks",
     "sp-analyze": "analyze",
     "sp-test": "test",
+    "sp-test-scan": "test-scan",
+    "sp-test-build": "test-build",
     "sp-implement": "implement",
     "sp-debug": "debug",
     "sp-quick": "quick",

@@ -130,6 +130,22 @@ class SkillsIntegrationTests:
         assert actual_commands == expected_commands
         assert actual_passive_skills == expected_passive_skills
 
+    def test_research_alias_skill_routes_to_deep_research(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        alias_path = i.skills_dest(tmp_path) / "sp-research" / "SKILL.md"
+        assert alias_path.exists()
+        content = alias_path.read_text(encoding="utf-8")
+        lowered = content.lower()
+
+        assert "name: \"sp-research\"" in content
+        assert "compatibility alias" in lowered
+        assert "sp-deep-research" in content
+        assert "active_command: sp-deep-research" in content
+        assert "active_command: sp-research" not in content
+
     def test_passive_skills_use_distinct_non_sp_namespace(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
@@ -222,23 +238,23 @@ class SkillsIntegrationTests:
         assert "autonomous blocker recovery" in lowered
         assert "missed_agent_dispatch" in lowered
         assert "`single-lane` names the topology for one safe execution lane" in content
-        assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
-        assert "current runtime's native worker lanes" in lowered
-        assert "do not silently switch this workflow onto a coordinated runtime surface" in lowered
+        assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
+        assert "dispatch subagents first" in lowered
+        assert "keep `sp-implement` on the leader path and record the fallback reason" in lowered
         assert "dispatch only from validated `workertaskpacket`" in lowered
-        assert "must not edit implementation files directly while worker delegation is active" in lowered
+        assert "must not edit implementation files directly while subagent execution is active" in lowered
 
-    def test_runtime_skills_have_shared_delegation_and_result_contracts(self, tmp_path):
+    def test_runtime_skills_have_shared_subagent_dispatch_and_result_contracts(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         i.setup(tmp_path, m)
 
         for name in ("implement", "debug", "quick"):
             content = (i.skills_dest(tmp_path) / f"sp-{name}" / "SKILL.md").read_text(encoding="utf-8").lower()
-            assert "delegation surface contract" in content
-            assert "native dispatch surface" in content
-            assert "sidecar fallback" in content
-            assert "worker result contract" in content
+            assert "subagent dispatch contract" in content
+            assert "subagent dispatch" in content
+            assert "fallback path" in content
+            assert "subagent result contract" in content
             assert "result handoff path" in content
             assert "reported_status" in content
             assert "needs_context" in content
@@ -265,6 +281,19 @@ class SkillsIntegrationTests:
         assert "single-lane" in quick_content
         assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content
         assert "sidecar-runtime" in quick_content
+
+    def test_map_codebase_skill_requires_native_explorer_lanes_when_selected(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        content = (i.skills_dest(tmp_path) / "sp-map-codebase" / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert 'choose_execution_strategy(command_name="map-codebase"' in content
+        assert "if the selected strategy is `native-multi-agent`, dispatch bounded explorer subagents" in content
+        assert "do not continue with broad sequential exploration after selecting `native-multi-agent`" in content
+        assert "launch at least three independent explorer subagents" in content
+        assert "explorer subagents are read-only evidence collectors" in content
+        assert "the leader must wait for every dispatched explorer lane" in content
 
     def test_question_driven_skills_define_native_tool_preference_with_fallback(self, tmp_path):
         i = get_integration(self.KEY)

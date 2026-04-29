@@ -27,6 +27,8 @@ _SINGLE_LANE_LABEL_COMMANDS = frozenset(
         "specify",
         "tasks",
         "test",
+        "test-scan",
+        "test-build",
     }
 )
 
@@ -190,7 +192,7 @@ def prefers_single_lane_label(command_name: str) -> bool:
 def single_worker_delegation_default(command_name: str) -> bool:
     """Return whether a single worker lane should still prefer delegated execution."""
 
-    return command_name in {"implement", "quick"}
+    return command_name in {"implement", "quick", "test-build"}
 
 
 def _normalize_execution_strategy(strategy: str) -> ExecutionStrategy:

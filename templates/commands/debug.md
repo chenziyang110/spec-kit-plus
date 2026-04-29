@@ -17,7 +17,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 - The user is the reporter. They describe symptoms and confirm whether the final behavior is fixed.
 - The leader owns the session file, the current hypothesis, all state transitions, the final fix, and the verification checkpoint.
-- Any delegated helpers are evidence collectors. They do not own the investigation and must not decide that the bug is resolved.
+- Any subagents are evidence collectors. They do not own the investigation and must not decide that the bug is resolved.
 - You are not the default evidence worker for every lane. When the investigation splits into safe bounded lanes, your job is to route, integrate, and decide rather than manually performing every lane sequentially.
 - Stay on the leader path unless the current strategy truly remains `single-lane`; do not collapse a multi-lane investigation back into leader-local thrash.
 
@@ -252,11 +252,11 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
   - Else -> `single-lane` (`fallback` or `fallback-low-confidence`)
 - `single-lane` means only one investigation lane is currently safe.
 - `single-lane` does not, by itself, require leader-local work.
-- Delegate that single lane only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality.
-- If that delegation-readiness bar is not met, keep the lane on the leader path.
-- `native-multi-agent` means the leader delegates bounded evidence-gathering lanes through the integration's native delegation surface.
-- `sidecar-runtime` means the leader escalates the evidence-gathering lanes through the integration's coordinated runtime surface when native delegation is unavailable.
-- Suitable delegated tasks include:
+- Dispatch that single subagent only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality.
+- If that subagent-readiness bar is not met, keep the lane on the leader path.
+- `native-multi-agent` means the leader dispatches bounded evidence-gathering subagents.
+- `sidecar-runtime` means the leader uses the integration's managed team workflow only when subagent dispatch is unavailable.
+- Suitable subagent tasks include:
   - running targeted tests or repro commands,
   - collecting logs and exit codes,
   - searching for error text,
@@ -264,17 +264,17 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
   - comparing independent modules or configurations,
   - assessing whether existing logs are sufficient,
   - and gathering output after temporary or durable diagnostic logging has been added.
-- Keep the debug session leader-led: delegated helpers return facts, command results, and observations for the current hypothesis.
-- Delegated helpers must not redo observer framing from scratch; they inherit the observer framing and transition memo as the current outsider model.
-- Delegated helpers must not mutate the debug session state, declare the root cause final, or archive the session.
-- Before dispatching delegated investigation work, update the debug file to reflect the exact current focus and what evidence is being gathered next.
-- Use `.specify/templates/worker-prompts/debug-investigator.md` as the default evidence-collector contract whenever the current integration can delegate a debug lane.
-- If the current runtime supports structured delegated results, prefer a stable evidence payload over freeform summaries so the leader can merge findings without reinterpretation.
+- Keep the debug session leader-led: subagents return facts, command results, and observations for the current hypothesis.
+- Subagents must not redo observer framing from scratch; they inherit the observer framing and transition memo as the current outsider model.
+- Subagents must not mutate the debug session state, declare the root cause final, or archive the session.
+- Before dispatching subagent investigation work, update the debug file to reflect the exact current focus and what evidence is being gathered next.
+- Use `.specify/templates/worker-prompts/debug-investigator.md` as the default evidence-collector contract whenever the current integration can dispatch a debug subagent.
+- If the current runtime supports structured subagent results, prefer a stable evidence payload over freeform summaries so the leader can merge findings without reinterpretation.
 - If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized evidence/result envelope to `.planning/debug/results/<session-slug>/<lane-id>.json`
 - When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the evidence/result envelope.
-- Preserve `reported_status` when normalizing worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
-- Idle delegated worker is not an accepted result.
-- [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting delegated execution.
+- Preserve `reported_status` when normalizing subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
+- Idle subagent is not an accepted result.
+- [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
 
 ## Debug File Protocol
 
@@ -303,7 +303,7 @@ The session file must always make it clear:
 - Enter `fixing` only after the root cause is confirmed.
 - Write a failing automated repro test before changing production code.
 - Do not modify production behavior until the RED state is proven.
-- If no reliable automated test surface exists for the failing behavior, add the missing harness first or route through `/sp-test` before code changes.
+- If no reliable automated test surface exists for the failing behavior, add the missing harness first or route through `/sp-test` (which can route to `/sp-test-scan`) before code changes.
 - Apply the minimum code change needed to address that root cause.
 - Fix the owning control-plane failure first. Do not treat a UI/status smoothing change as sufficient unless the closed loop is proven healthy end-to-end.
 - Classify the fix before verification:

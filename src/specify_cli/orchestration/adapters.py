@@ -15,8 +15,12 @@ FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
         "explain",
         "debug",
         "deep-research",
+        "research",
         "plan",
         "tasks",
+        "test",
+        "test-scan",
+        "test-build",
         "implement",
         "analyze",
         "constitution",
@@ -25,6 +29,9 @@ FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
         "taskstoissues",
     }
 )
+COMMAND_ALIASES = {
+    "research": "deep-research",
+}
 
 _MODEL_ENV_KEYS: dict[str, tuple[str, ...]] = {
     "claude": ("CLAUDE_CODE_SUBAGENT_MODEL", "ANTHROPIC_MODEL"),
@@ -45,7 +52,7 @@ def normalize_command_name(command_name: str) -> str:
         normalized = normalized[3:]
     elif normalized.startswith("sp."):
         normalized = normalized[3:]
-    return normalized
+    return COMMAND_ALIASES.get(normalized, normalized)
 
 
 def supports_workflow_command(

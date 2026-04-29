@@ -27,7 +27,7 @@ class CopilotMultiAgentAdapter:
             delegation_confidence="low",
             model_family="copilot",
             notes=[
-                "Copilot currently routes through the shared workflow surface without a native delegated worker API in this repository.",
+                "Copilot currently routes through the shared workflow surface without a native subagent dispatch API in this repository.",
             ],
         )
 

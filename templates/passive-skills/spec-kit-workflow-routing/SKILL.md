@@ -27,8 +27,12 @@ before any complementary gate or learning layer runs.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
-- Use `sp-test` when the repository needs a project-level unit testing bootstrap,
-  refresh, or testing-contract pass instead of an ordinary feature workflow.
+- Use `sp-test` as the compatibility router when the repository needs project-level
+  testing-system work but the user did not name scan or build.
+- Use `sp-test-scan` when the repository needs read-only testing-system evidence,
+  module risk tiers, coverage-gap analysis, or build-ready test lanes.
+- Use `sp-test-build` when `TEST_SCAN.md` and `TEST_BUILD_PLAN.md/json` exist and
+  scan-approved lanes should construct or refresh the unit testing system.
 - Use `sp-auto` when repository state already records the recommended next step
   and the user wants to continue without naming the exact workflow manually.
 - Use `sp-specify` for new capability, behavior, or requirement changes that need an
@@ -39,6 +43,9 @@ before any complementary gate or learning layer runs.
   evidence, optional multi-agent research, or a disposable demo is needed to prove
   the implementation chain before planning. It must write a Planning Handoff for
   `sp-plan`; skip it for minor changes to already-proven project behavior.
+- Treat `sp-research` as a compatibility alias for `sp-deep-research`. It must
+  route into the canonical feasibility gate and must not create separate
+  `sp-research` artifacts or workflow state.
 - Use `sp-plan` only after a valid spec package exists.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` only after tasks are ready and execution should begin.

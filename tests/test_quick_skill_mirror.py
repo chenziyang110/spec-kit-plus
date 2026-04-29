@@ -9,7 +9,7 @@ from tests.test_extension_skills import _body_without_frontmatter
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_repo_quick_skill_mirror_has_codex_delegation_contract(tmp_path: Path) -> None:
+def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(tmp_path: Path) -> None:
     runner = CliRunner()
     target = tmp_path / "codex-quick-mirror"
 
@@ -31,7 +31,7 @@ def test_repo_quick_skill_mirror_has_codex_delegation_contract(tmp_path: Path) -
     assert "native-multi-agent" in body
     assert "sidecar-runtime" in body
     assert "`single-lane` names the topology for one safe execution lane" in body
-    assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in body
+    assert "does not, by itself, decide whether the leader or a subagent executes that lane" in body
     assert "before any substantial repository analysis" in body
     assert "first hard gate" in body
     assert "codex leader gate" in body

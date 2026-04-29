@@ -93,49 +93,49 @@ class CursorAgentIntegration(MarkdownIntegration):
                 "Before code edits, test edits, or implementation commands:\n"
                 "- Read `.specify/memory/constitution.md` first if it exists. This gate comes before `STATUS.md`, clarification, lane selection, delegation, or any repository analysis.\n"
                 "- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<slug>/STATUS.md` if this quick task is new.\n"
-                "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first worker lane is selected.\n"
+                "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first subagent lane is selected.\n"
                 "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"
-                "- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a delegated worker executes that lane.\n"
-                "- If Cursor's native delegated worker path is available for the current batch, you **MUST** use it before considering any leader-local fallback.\n"
-                "- If two or more safe delegated lanes would materially improve throughput, you **MUST** prefer launching them in parallel instead of serializing them without a concrete coordination reason.\n"
+                "- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.\n"
+                "- If Cursor can dispatch subagents for the current batch, you **MUST** use them before considering any leader-local fallback.\n"
+                "- If two or more safe subagent lanes would materially improve throughput, you **MUST** launch them in parallel instead of serializing them without a concrete coordination reason.\n"
                 "- After the first lane is defined, the next concrete action must be dispatch, not additional leader-local repo exploration.\n"
-                "- If a delegated lane is active, use the current join point to integrate results back into `STATUS.md` before selecting the next action.\n"
-                "- If native delegated execution is concretely unavailable for the current batch, escalate to the coordinated runtime surface before doing concrete implementation work yourself.\n"
-                "- Leader-local execution is allowed only when native delegated execution is unavailable for the current batch and the coordinated runtime path is also unavailable or unsuitable.\n"
+                "- If a subagent lane is active, use the current join point to integrate results back into `STATUS.md` before selecting the next action.\n"
+                "- If subagent execution is concretely unavailable for the current batch, use the managed team workflow before doing concrete implementation work yourself.\n"
+                "- Leader-local execution is allowed only when subagent execution and the managed team workflow are both unavailable or unsuitable.\n"
                 "- When leader-local fallback is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
                 "\n"
-                "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while delegated execution is active. Local execution is the last fallback, not the default reading of `single-lane`.\n"
+                "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active. Local execution is the last fallback, not the default reading of `single-lane`.\n"
             )
             if "## Process" in content:
                 content = content.replace("## Process", gate_addendum + "\n## Process", 1)
             else:
                 content += gate_addendum
 
-        marker = "## Cursor Delegated Execution"
+        marker = "## Cursor Subagent Execution"
         if marker in content:
             self.write_file_and_record(content, quick_command, project_root, manifest)
             return
 
         addendum = (
             "\n"
-            "## Cursor Delegated Execution\n\n"
-            "When running `sp-quick` in Cursor, prefer delegated worker execution whenever the selected quick-task strategy is `single-lane` or `native-multi-agent`.\n"
-            "- Treat `single-lane` as the topology for one safe execution lane. Prefer delegated worker execution only when the lane already has enough context and validation shape to preserve quality.\n"
-            "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first worker lane is selected.\n"
-            "- If Cursor's native delegated worker path is available for the current batch, you **MUST** use it before considering any leader-local fallback.\n"
-            f"- Use Cursor's native delegated worker path for bounded lanes when available. {descriptor.native_dispatch_hint}\n"
+            "## Cursor Subagent Execution\n\n"
+            "When running `sp-quick` in Cursor, prefer subagent execution whenever the selected quick-task strategy is `single-lane` or `native-multi-agent`.\n"
+            "- Treat `single-lane` as the topology for one safe execution lane. Prefer subagent execution only when the lane already has enough context and validation shape to preserve quality.\n"
+            "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first subagent lane is selected.\n"
+            "- If Cursor can dispatch subagents for the current batch, you **MUST** use them before considering any leader-local fallback.\n"
+            f"- Use Cursor's native subagent path for bounded lanes when available. {descriptor.native_dispatch_hint}\n"
             "- After the first lane is defined, the next concrete action must be dispatch, not additional leader-local repo exploration.\n"
             "- Once the first lane is chosen, dispatch it before continuing any leader-local deep-dive analysis of the repository.\n"
-            "- If multiple safe worker lanes exist and they materially improve throughput, dispatch them in parallel instead of defaulting to serial delegation.\n"
+            "- If multiple safe subagent lanes exist and they materially improve throughput, dispatch them in parallel instead of defaulting to serial execution.\n"
             "- Keep `.planning/quick/<slug>/STATUS.md` as the leader-owned source of truth with current focus, execution strategy, active lane or batch, join point, next action, and blockers.\n"
-            "- Child or delegated worker paths may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
-            f"- Join delegated lanes through the integration-native join point: {descriptor.native_join_hint}\n"
+            "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
+            f"- Join subagent lanes through the integration-native join point: {descriptor.native_join_hint}\n"
             "- Interpret `native-multi-agent` as Cursor's delegated multi-lane path when available.\n"
-            "- Interpret `sidecar-runtime` as escalation to the coordinated runtime surface only after native delegated execution is unavailable or unsuitable for the current quick-task batch.\n"
-            "- If native delegated execution is concretely unavailable for the current batch, escalate to the coordinated runtime surface before doing concrete implementation work yourself.\n"
+            "- Interpret `sidecar-runtime` as the managed team workflow used only after subagent execution is unavailable or unsuitable for the current quick-task batch.\n"
+            "- If subagent execution is concretely unavailable for the current batch, use the managed team workflow before doing concrete implementation work yourself.\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- Use leader-local execution only after both worker paths are concretely unavailable for the current batch, and record that fallback explicitly in `STATUS.md`.\n"
+            "- Use leader-local execution only after subagent execution and the managed team workflow are both concretely unavailable for the current batch, and record that fallback explicitly in `STATUS.md`.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
             "- Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.\n"
         )
@@ -145,7 +145,7 @@ class CursorAgentIntegration(MarkdownIntegration):
             agent_name="Cursor",
             command_name="quick",
             snapshot=cursor_snapshot,
-            heading="Delegation Surface Contract",
+            heading="Subagent Dispatch Contract",
         )
         if "## Cursor Worker Result Contract" not in content:
             content += (

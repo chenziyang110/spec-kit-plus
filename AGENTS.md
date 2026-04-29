@@ -1,8 +1,8 @@
 <!-- AUTONOMY DIRECTIVE - DO NOT REMOVE -->
 YOU ARE AN AUTONOMOUS CODING AGENT. EXECUTE CLEAR, LOW-RISK TASKS TO COMPLETION WITHOUT ASKING FOR ROUTINE PERMISSION.
 DO NOT PAUSE FOR "SHOULD I PROCEED?" WHEN THE NEXT STEP IS OBVIOUS, REVERSIBLE, AND WITHIN THE ACTIVE REQUEST.
-FOR ANY SUPPORTED AI CLI IN THIS REPOSITORY, USE THE INTEGRATION'S NATIVE SUBAGENTS OR NATIVE DELEGATION SURFACE FOR INDEPENDENT, BOUNDED PARALLEL SUBTASKS WHEN THAT IMPROVES THROUGHPUT.
-IN THIS REPOSITORY, NATIVE DELEGATION SURFACES ARE COMPLEMENTARY TO AGENT-SPECIFIC COORDINATED RUNTIMES; FOR CODEX, THAT DURABLE COORDINATION SURFACE REMAINS `sp-teams`.
+FOR ANY SUPPORTED AI CLI IN THIS REPOSITORY, DISPATCH SUBAGENTS FOR INDEPENDENT, BOUNDED PARALLEL SUBTASKS WHEN THAT IMPROVES THROUGHPUT, QUALITY, OR VERIFICATION CONFIDENCE.
+FOR CODEX, USE `sp-teams` ONLY WHEN THE WORK NEEDS DURABLE TEAM STATE BEYOND AN IN-SESSION SUBAGENT BURST.
 <!-- END AUTONOMY DIRECTIVE -->
 
 ## Execution Defaults
@@ -10,9 +10,9 @@ IN THIS REPOSITORY, NATIVE DELEGATION SURFACES ARE COMPLEMENTARY TO AGENT-SPECIF
 For AI CLI workflows in this repository:
 
 - Prefer direct execution for trivial or tightly coupled work.
-- Use each integration's native subagents or native delegation surface by default for independent, bounded subtasks when parallel delegation materially improves speed, quality, or verification confidence.
-- Use the integration's coordinated runtime when execution needs durable coordination, explicit runtime state, join-point tracking, or worker lifecycle control beyond one in-session delegation burst. For Codex, that runtime surface is `sp-teams`.
-- Treat native delegation and coordinated runtimes as complementary execution surfaces; choose the lighter path that preserves correctness.
+- Dispatch subagents by default for independent, bounded subtasks when parallel work materially improves speed, quality, or verification confidence.
+- Use `sp-teams` for Codex only when execution needs durable team state, explicit join-point tracking, or lifecycle control beyond one in-session subagent burst.
+- Choose the lightest path that preserves correctness: direct execution for trivial/tightly coupled work, subagents for bounded parallel work, and `sp-teams` for durable team execution.
 
 ## Project Memory
 
@@ -47,7 +47,7 @@ specify -> plan
 
 Treat `CLARIFY` as the optional enhancement path when an existing spec needs deeper analysis before planning.
 Treat `sp-deep-research` as the optional feasibility and planning handoff gate when the requirements are clear but one or more capabilities still need coordinated research, external evidence, an implementation chain proof, or a disposable demo before planning. Its findings and demo evidence must become explicit inputs to `sp-plan`; do not require it for minor adjustments to existing, already-proven capabilities.
-Treat `sp-test` as the optional project-level testing-system bootstrap or refresh path that writes a durable testing contract and, for brownfield coverage programs, emits `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` while preserving the mainline `specify -> plan` guidance.
+Treat `sp-test` as the compatibility router for project-level testing-system work. Use `sp-test-scan` for read-only evidence, risk tiering, and build-ready lane planning; use `sp-test-build` for leader/subagent construction of the unit testing system from scan-approved lanes. Brownfield coverage programs start from `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` emitted by `sp-test-scan`, while preserving the mainline `specify -> plan` guidance.
 
 ---
 
@@ -549,6 +549,7 @@ When adding new agents:
 
 - Treat `specify -> plan` as the default path.
 - Use `clarify` only when an existing spec needs deeper analysis before planning.
+- Use `deep-research` only when requirements are clear but feasibility or the implementation chain must be proven before planning; its research findings, demo evidence, and Planning Handoff become inputs to `plan`.
 
 ## Brownfield Context Gate
 
@@ -568,17 +569,21 @@ When adding new agents:
 - Use `sp-fast` only for trivial, low-risk local changes that do not need planning artifacts.
 - Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.
 - Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.
+- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.
 - Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
-- Use `sp-test` when the project-level testing contract or testing system coverage needs bootstrap, refresh, or audit work.
+- Use `sp-test` as the compatibility router for project-level testing work.
+- Use `sp-test-scan` when testing-system coverage needs read-only evidence, risk tiering, module-by-module gap analysis, or build-ready lanes.
+- Use `sp-test-build` when scan-approved lanes should construct or refresh the unit testing system through leader/subagent execution.
 
 ## Artifact Priority
 
 - `.specify/memory/constitution.md` is the principle-level source of truth when present.
 - `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress.
 - `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.
+- `deep-research.md`, its traceable `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence IDs, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.
 - `plan.md` under the active feature directory is the implementation design source of truth once planning begins.
 - `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.
-- `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain implementation and debugging when present.
+- `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain testing-system construction, implementation, and debugging when present.
 - `.specify/project-map/status.json` determines whether handbook/project-map coverage can be trusted as fresh.
 
 ## Map Maintenance

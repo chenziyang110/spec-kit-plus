@@ -47,4 +47,4 @@ def test_tasks_template_makes_parallel_tasks_packet_ready_for_leaders():
 
     assert "for each `[p]` task or explicit parallel batch" in lowered
     assert "objective, write set, required references, forbidden drift, validation command, and done condition" in lowered
-    assert "leader can compile a bounded worker packet" in lowered
+    assert "leader can compile a bounded subagent execution packet" in lowered

@@ -22,6 +22,19 @@ def test_workflow_boundary_allows_mainline_transition(tmp_path: Path):
     assert result.status == "ok"
 
 
+def test_workflow_boundary_normalizes_research_alias(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = run_quality_hook(
+        project,
+        "workflow.boundary.validate",
+        {"from_command": "research", "to_command": "plan"},
+    )
+
+    assert result.status == "ok"
+    assert result.data == {"from_command": "deep-research", "to_command": "plan"}
+
+
 def test_workflow_boundary_blocks_skipping_directly_to_implement(tmp_path: Path):
     project = _create_project(tmp_path)
 
@@ -33,4 +46,3 @@ def test_workflow_boundary_blocks_skipping_directly_to_implement(tmp_path: Path)
 
     assert result.status == "blocked"
     assert any("implement" in message for message in result.errors)
-

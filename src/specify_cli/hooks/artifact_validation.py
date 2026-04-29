@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from .checkpoint_serializers import normalize_command_name
@@ -17,6 +18,171 @@ REQUIRED_ARTIFACTS = {
     "tasks": ("tasks.md", "workflow-state.md"),
     "analyze": ("workflow-state.md",),
 }
+
+DEEP_RESEARCH_REQUIRED_SECTIONS = (
+    "## Planning Handoff",
+    "## Evidence Quality Rubric",
+    "## Planning Traceability Index",
+)
+
+DEEP_RESEARCH_HANDOFF_FIELDS = (
+    "**Handoff IDs**",
+    "**Recommended approach**",
+    "**Architecture implications**",
+    "**Module boundaries**",
+    "**API / library choices**",
+    "**Data flow notes**",
+    "**Demo artifacts to reference**",
+    "**Constraints `/sp.plan` must preserve**",
+    "**Validation implications**",
+    "**Residual risks requiring design mitigation**",
+    "**Decisions already proven by research**",
+)
+
+PLAN_DEEP_RESEARCH_TRACEABILITY_COLUMNS = (
+    "Plan Decision",
+    "Handoff ID",
+    "Evidence / Spike ID",
+    "Evidence Quality",
+    "Plan Action",
+)
+
+DEEP_RESEARCH_NOT_NEEDED_REQUIRED_SECTIONS = (
+    "## Feasibility Decision",
+    "## Planning Handoff",
+    "## Next Command",
+)
+
+DEEP_RESEARCH_NOT_NEEDED_STATUS_RE = re.compile(
+    r"(?im)^\*\*Status\*\*:\s*(?:\[)?Not needed(?:\])?\s*$"
+)
+
+
+def _extract_markdown_section(content: str, heading: str) -> str:
+    heading_match = re.search(rf"(?m)^##\s+{re.escape(heading)}\s*$", content)
+    if not heading_match:
+        return ""
+
+    section_body = content[heading_match.end() :]
+    next_heading = re.search(r"(?m)^##\s+", section_body)
+    if next_heading:
+        return section_body[: next_heading.start()]
+    return section_body
+
+
+def _extract_handoff_ids(content: str) -> set[str]:
+    return set(re.findall(r"\bPH-\d{3}\b", content))
+
+
+def _is_deep_research_not_needed(content: str) -> bool:
+    return bool(DEEP_RESEARCH_NOT_NEEDED_STATUS_RE.search(content))
+
+
+def _validate_deep_research_not_needed_artifact(content: str) -> list[str]:
+    errors: list[str] = []
+
+    for section in DEEP_RESEARCH_NOT_NEEDED_REQUIRED_SECTIONS:
+        if section not in content:
+            errors.append(f"deep-research.md not-needed output is missing required section: {section}")
+
+    feasibility_section = _extract_markdown_section(content, "Feasibility Decision")
+    handoff_section = _extract_markdown_section(content, "Planning Handoff")
+    next_command_section = _extract_markdown_section(content, "Next Command")
+
+    if "**Recommendation**" not in feasibility_section:
+        errors.append("deep-research.md not-needed Feasibility Decision is missing **Recommendation**")
+    elif "/sp.plan" not in feasibility_section:
+        errors.append("deep-research.md not-needed Feasibility Decision must recommend `/sp.plan`")
+
+    if "**Reason**" not in feasibility_section:
+        errors.append("deep-research.md not-needed Feasibility Decision is missing **Reason**")
+
+    if "**Handoff IDs**" not in handoff_section:
+        errors.append("deep-research.md not-needed Planning Handoff is missing **Handoff IDs**")
+    elif "not needed" not in handoff_section.lower():
+        errors.append("deep-research.md not-needed Planning Handoff must mark handoff IDs as Not needed")
+
+    if "**Recommended approach**" not in handoff_section:
+        errors.append("deep-research.md not-needed Planning Handoff is missing **Recommended approach**")
+    if "**Constraints `/sp.plan` must preserve**" not in handoff_section:
+        errors.append(
+            "deep-research.md not-needed Planning Handoff is missing **Constraints `/sp.plan` must preserve**"
+        )
+
+    if "/sp.plan" not in next_command_section:
+        errors.append("deep-research.md not-needed Next Command must be `/sp.plan`")
+
+    return errors
+
+
+def _validate_deep_research_artifact(feature_dir: Path) -> list[str]:
+    deep_research_path = feature_dir / "deep-research.md"
+    if not deep_research_path.exists():
+        return []
+
+    content = deep_research_path.read_text(encoding="utf-8", errors="replace")
+    if _is_deep_research_not_needed(content):
+        return _validate_deep_research_not_needed_artifact(content)
+
+    errors: list[str] = []
+
+    for section in DEEP_RESEARCH_REQUIRED_SECTIONS:
+        if section not in content:
+            errors.append(f"deep-research.md is missing required section: {section}")
+
+    handoff_section = _extract_markdown_section(content, "Planning Handoff")
+
+    for field in DEEP_RESEARCH_HANDOFF_FIELDS:
+        if field not in handoff_section:
+            errors.append(f"deep-research.md Planning Handoff is missing field: {field}")
+
+    if "CAP-" not in content:
+        errors.append("deep-research.md is missing capability traceability IDs such as CAP-001")
+    if "TRK-" not in content:
+        errors.append("deep-research.md is missing research track IDs such as TRK-001")
+    if "EVD-" not in content and "SPK-" not in content:
+        errors.append("deep-research.md is missing evidence or spike IDs such as EVD-001 or SPK-001")
+    if "PH-" not in handoff_section and "not needed" not in handoff_section.lower():
+        errors.append("deep-research.md is missing Planning Handoff IDs such as PH-001")
+
+    return errors
+
+
+def _validate_plan_consumes_deep_research(feature_dir: Path) -> list[str]:
+    deep_research_path = feature_dir / "deep-research.md"
+    plan_path = feature_dir / "plan.md"
+    if not deep_research_path.exists() or not plan_path.exists():
+        return []
+
+    deep_research_content = deep_research_path.read_text(encoding="utf-8", errors="replace")
+    handoff_section = _extract_markdown_section(deep_research_content, "Planning Handoff")
+    handoff_ids = _extract_handoff_ids(handoff_section)
+    if not handoff_ids:
+        return []
+
+    plan_content = plan_path.read_text(encoding="utf-8", errors="replace")
+    errors: list[str] = []
+
+    if "Deep Research Traceability Matrix" not in plan_content:
+        errors.append("plan.md is missing Deep Research Traceability Matrix for deep-research handoff IDs")
+
+    traceability_section = _extract_markdown_section(plan_content, "Deep Research Traceability Matrix")
+    if not traceability_section and "Deep Research Traceability Matrix" in plan_content:
+        errors.append("plan.md Deep Research Traceability Matrix must be a level-2 markdown section")
+
+    missing_columns = [
+        column for column in PLAN_DEEP_RESEARCH_TRACEABILITY_COLUMNS if column not in traceability_section
+    ]
+    if missing_columns:
+        joined = ", ".join(missing_columns)
+        errors.append(f"plan.md Deep Research Traceability Matrix is missing required columns: {joined}")
+
+    missing_ids = sorted(handoff_id for handoff_id in handoff_ids if handoff_id not in traceability_section)
+    if missing_ids:
+        joined = ", ".join(missing_ids)
+        errors.append(f"plan.md does not consume deep-research Planning Handoff IDs: {joined}")
+
+    return errors
 
 
 def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
@@ -42,6 +208,19 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
             status="blocked",
             severity="critical",
             errors=[f"missing required artifact: {name}" for name in missing],
+            data={"feature_dir": str(feature_dir)},
+        )
+    validation_errors: list[str] = []
+    if command_name == "deep-research":
+        validation_errors.extend(_validate_deep_research_artifact(feature_dir))
+    if command_name == "plan":
+        validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
+    if validation_errors:
+        return HookResult(
+            event=WORKFLOW_ARTIFACTS_VALIDATE,
+            status="blocked",
+            severity="critical",
+            errors=validation_errors,
             data={"feature_dir": str(feature_dir)},
         )
     return HookResult(

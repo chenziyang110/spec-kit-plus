@@ -10,6 +10,9 @@ from .types import QualityHookError
 
 
 SECTION_RE = re.compile(r"(?ms)^##+\s+(?P<title>.+?)\n(?P<body>.*?)(?=^##+\s+|\Z)")
+COMMAND_ALIASES = {
+    "research": "deep-research",
+}
 
 
 def normalize_command_name(command_name: str) -> str:
@@ -20,6 +23,7 @@ def normalize_command_name(command_name: str) -> str:
         normalized = normalized[3:]
     elif normalized.startswith("sp."):
         normalized = normalized[3:]
+    normalized = COMMAND_ALIASES.get(normalized, normalized)
     return normalized
 
 

@@ -2,7 +2,7 @@
 
 ## Objective
 
-Advance the current feature through tracked implementation batches while keeping execution state, delegated work, verification evidence, and recovery paths explicit.
+Advance the current feature through tracked implementation batches while keeping execution state, subagent work, verification evidence, and recovery paths explicit.
 
 ## Context
 
@@ -13,7 +13,7 @@ Advance the current feature through tracked implementation batches while keeping
 ## Process
 
 - Recover tracker state and identify the current ready batch.
-- Choose the execution strategy and dispatch delegated work or a documented fallback path.
+- Choose the execution strategy and dispatch subagents or a documented fallback path.
 - Integrate structured handoffs, update tracker truth, and keep verification evidence current.
 - Continue automatically until the feature is complete or blocked by a real blocker.
 

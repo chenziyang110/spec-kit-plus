@@ -1,4 +1,4 @@
-"""Shared helpers for describing per-command delegation surfaces."""
+"""Shared helpers for describing per-command subagent dispatch."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ DelegationIntent = Literal["implementation", "evidence"]
 
 @dataclass(slots=True, frozen=True)
 class DelegationSurfaceDescriptor:
-    """Normalized description of how the current session should delegate work."""
+    """Normalized description of how the current session should dispatch work."""
 
     integration_key: str
     command_name: str
@@ -32,7 +32,7 @@ class DelegationSurfaceDescriptor:
 
 def _command_intent(command_name: str) -> DelegationIntent:
     normalized = command_name.strip().lower()
-    return "evidence" if normalized == "debug" else "implementation"
+    return "evidence" if normalized in {"debug", "test-scan"} else "implementation"
 
 def describe_delegation_surface(
     *,
@@ -50,19 +50,19 @@ def describe_delegation_surface(
     )
     structured_results_expected = snapshot.structured_results or intent == "implementation"
 
-    native_dispatch_hint = "No native delegated worker surface for this session."
+    native_dispatch_hint = "No subagent dispatch path for this session."
     native_join_hint = (
         "Stay on the leader path and keep the current lane explicit."
         if normalized_command == "implement"
-        else "Stay on the leader path or use the coordinated runtime surface."
+        else "Stay on the leader path or use the managed team workflow."
     )
 
     if snapshot.native_worker_surface == "spawn_agent":
-        native_dispatch_hint = "Dispatch bounded lanes through `spawn_agent`."
+        native_dispatch_hint = "Dispatch bounded subagents through `spawn_agent`."
         native_join_hint = "Rejoin with `wait_agent`, integrate, then `close_agent`."
     elif snapshot.native_worker_surface == "native-cli":
         native_dispatch_hint = (
-            "Dispatch through the integration's native delegated worker surface using the shared worker prompt contract."
+            "Dispatch subagents through the integration's native subagent support using the shared prompt contract."
         )
         native_join_hint = (
             "Use the integration-native join point, then integrate results back on the leader path."
@@ -70,13 +70,13 @@ def describe_delegation_surface(
 
     if normalized_command == "implement":
         sidecar_surface_hint = (
-            "No in-command runtime fallback for `sp-implement`; if native delegation cannot proceed safely, stay on the leader path and record why."
+            "No in-command team fallback for `sp-implement`; if subagents cannot proceed safely, stay on the leader path and record why."
         )
     else:
         sidecar_surface_hint = (
-            "Escalate through the coordinated runtime surface when native delegation is unavailable, low-confidence, or unsuitable."
+            "Use the managed team workflow when subagents are unavailable, low-confidence, or unsuitable."
             if snapshot.sidecar_runtime_supported
-            else "No coordinated runtime surface is currently available; use leader-local fallback only when delegation cannot proceed safely."
+            else "No managed team workflow is currently available; use leader-local fallback only when subagents cannot proceed safely."
         )
 
     return DelegationSurfaceDescriptor(

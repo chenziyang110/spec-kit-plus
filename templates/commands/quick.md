@@ -15,10 +15,10 @@ scripts:
 ## Leader Role
 
 - You are the quick-task leader. You own scope control, `STATUS.md`, lane selection, join points, validation, and the final summary artifact.
-- You are not the default worker for the quick task. Once scope is locked and a delegated path is available, dispatch the lane instead of continuing leader-local implementation work.
-- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a delegated worker executes that lane.
-- Prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.
-- If that delegation-readiness bar is not met, keep the lane on the leader path until the missing context, constraints, validation target, or handoff expectations are explicit.
+- You are not the default implementer for the quick task. Once scope is locked and a subagent path is available, dispatch the lane instead of continuing leader-local implementation work.
+- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.
+- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.
+- If that subagent-readiness bar is not met, keep the lane on the leader path until the missing context, constraints, validation target, or handoff expectations are explicit.
 - Use leader-local execution only through the documented exception path and record the fallback reason in `STATUS.md`.
 
 ## Required Context Inputs
@@ -46,7 +46,7 @@ scripts:
 - Use `Topic Map` to choose only the touched-area topical files needed for the current quick task.
 - Use the loaded handbook/project-map coverage to name the touched area's owning surfaces, change-propagation hotspots, verification entry points, and known unknowns before choosing the quick-task lane shape.
 - Do not load the full topical map unless the task expands beyond its bounded quick-task scope.
-- Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch workers, or analyze repository code until the constitution has been read or confirmed absent.
+- Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch subagents, or analyze repository code until the constitution has been read or confirmed absent.
 - [AGENT] Create or resume `STATUS.md` at `.planning/quick/<id>-<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
 - Read `.planning/quick/<id>-<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
 - Treat `.planning/quick/index.json` as the derived quick-task index used for list, status, resume, close, and archive operations. If the index is stale or missing, rebuild it from `STATUS.md` files instead of treating it as the primary truth source.
@@ -106,34 +106,34 @@ The following flags are available and composable:
 ## Leader Execution Model
 
 - The invoking runtime is the leader for the quick task. It owns scope decisions, the lightweight plan, execution strategy selection, join-point handling, validation, and the final summary artifact.
-- The leader should not blur planning, execution, and validation into a long conversational loop when the task can be dispatched through a bounded worker lane or runtime surface.
-- Constitution first: read `.specify/memory/constitution.md` before workspace setup, clarification, lane selection, delegation, or local analysis.
+- The leader should not blur planning, execution, and validation into a long conversational loop when the task can be dispatched through a bounded subagent.
+- Constitution first: read `.specify/memory/constitution.md` before workspace setup, clarification, lane selection, subagent dispatch, or local analysis.
 - If the handbook navigation system is missing, rebuild it before `STATUS.md` initialization or touched-area analysis proceeds.
-- Before the first delegated lane is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first worker path.
-- Before implementation work starts, identify whether the quick task is best handled as one bounded worker lane or as two or more independent lanes that can safely proceed in parallel.
+- Before the first subagent is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first subagent path.
+- Before implementation work starts, identify whether the quick task is best handled by one bounded subagent or by two or more independent subagents that can safely proceed in parallel.
 - [AGENT] Use the shared policy function before execution begins and again at each join point: `choose_execution_strategy(command_name="quick", snapshot, workload_shape)`.
 - For `sp-quick`, strategy names are `single-lane`, `native-multi-agent`, `sidecar-runtime`.
-- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for the current native worker path. If confidence is `low`, prefer sidecar or explicit fallback over fragile native dispatch.
+- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for the current subagent path. If confidence is `low`, prefer the managed team workflow or explicit fallback over fragile dispatch.
 - Decision order:
   - If the quick task has only one safe lane, or the lanes share mutable state or write surfaces -> `single-lane` (`no-safe-batch`)
   - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
   - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
   - Else -> `single-lane` (`fallback` or `fallback-low-confidence`)
-- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a delegated worker executes that lane.
-- `native-multi-agent` means the leader dispatches independent bounded lanes through the integration's native delegation surface and rejoins at an explicit join point.
-- `sidecar-runtime` means the leader escalates the execution batch through the integration's coordinated runtime surface when native delegation is unavailable.
-- Prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that delegation-readiness bar is not met, keep the lane on the leader path until the missing contract is compiled.
-- If two or more independent delegated lanes can safely run in parallel and that fan-out materially improves throughput, prefer launching multiple worker lanes over serial single-lane execution.
-- Leader-local execution is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through native delegation and cannot proceed through the coordinated runtime surface either.
-- If leader-local execution is used, record the concrete reason in `STATUS.md`, including which delegation path was unavailable or blocked for the current batch.
-- The first actionable execution step after scope lock is to dispatch the first delegated worker lane or coordinated runtime batch, not to continue local deep-dive analysis.
-- Use `.specify/templates/worker-prompts/quick-worker.md` as the default contract for delegated quick-task lanes so the worker returns enough state for the leader to keep `STATUS.md` accurate.
-- Prefer structured delegated results compatible with the shared `WorkerTaskResult` contract when the current runtime supports them.
-- If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized delegated result envelope to `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`
-- When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the delegated result envelope.
-- Preserve `reported_status` when normalizing worker language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
-- Idle delegated worker is not an accepted result.
-- The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting delegated execution.
+- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.
+- `native-multi-agent` means the leader dispatches independent bounded subagents and rejoins at an explicit join point.
+- `sidecar-runtime` means the leader uses the managed team workflow only when subagent dispatch is unavailable.
+- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that readiness bar is not met, keep the lane on the leader path until the missing contract is compiled.
+- If two or more independent subagent lanes can safely run in parallel and that fan-out materially improves throughput, dispatch multiple subagents instead of serial single-lane execution.
+- Leader-local execution is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through subagents or the managed team workflow.
+- If leader-local execution is used, record the concrete reason in `STATUS.md`, including which subagent path was unavailable or blocked for the current batch.
+- The first actionable execution step after scope lock is to dispatch the first subagent or managed team batch, not to continue local deep-dive analysis.
+- Use `.specify/templates/worker-prompts/quick-worker.md` as the default contract for quick-task subagents so the subagent returns enough state for the leader to keep `STATUS.md` accurate.
+- Prefer structured subagent results compatible with the shared `WorkerTaskResult` contract when the current runtime supports them.
+- If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized subagent result envelope to `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`
+- When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the subagent result envelope.
+- Preserve `reported_status` when normalizing subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
+- Idle subagent is not an accepted result.
+- The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
 
 ## Quick-Task Workspace Protocol
 
@@ -240,11 +240,11 @@ resume_decision: [resume here | blocked waiting | resolved]
 
 - The leader must continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
 - Do not stop after a single edit, single command, or single failed attempt when the next recovery step is obvious and low-risk.
-- Prefer the integration's native delegation surface when `snapshot.native_multi_agent` is true and the workload has two or more safe lanes; if there is only one safe lane, `single-lane` remains valid.
-- Prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that delegation-readiness bar is not met, keep the lane on the leader path and finish compiling the missing contract first.
-- After `STATUS.md` is initialized and the first lane is defined, dispatch that worker path before doing any further local repository deep dive.
-- If multiple safe delegated lanes exist and they can improve throughput without creating write-surface conflicts, dispatch them in parallel instead of artificially serializing the work.
-- Use leader-local execution only as a constrained fallback after delegated execution is concretely unavailable for the current batch and the coordinated runtime surface is also unavailable or unsuitable.
+- Dispatch subagents when `snapshot.native_multi_agent` is true and the workload has two or more safe lanes; if there is only one safe lane, `single-lane` remains valid.
+- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that readiness bar is not met, keep the lane on the leader path and finish compiling the missing contract first.
+- After `STATUS.md` is initialized and the first lane is defined, dispatch that subagent path before doing any further local repository deep dive.
+- If multiple safe subagent lanes exist and they can improve throughput without creating write conflicts, dispatch them in parallel instead of artificially serializing the work.
+- Use leader-local execution only as a constrained fallback after subagent execution is concretely unavailable for the current batch and the managed team workflow is also unavailable or unsuitable.
 - Re-evaluate after every join point, recovery step, and validation result instead of assuming the first plan still holds.
 - A quick task reaches a terminal state only when `STATUS.md` shows either `resolved` or `blocked`.
 
@@ -258,10 +258,10 @@ resume_decision: [resume here | blocked waiting | resolved]
   - make one focused repair attempt that matches the evidence
   - if uncertainty remains high, use `--research`-style focused investigation for the narrow blocker rather than abandoning the task immediately
 - Record each recovery step in `STATUS.md` under `recovery_action` and increment `retry_attempts`.
-- If delegated execution is failing, attempt the next safe execution surface before switching to leader-local work:
-  - retry the bounded delegated lane when the failure looks transient
-  - escalate to the coordinated runtime surface when native delegation is unavailable for the current batch
-  - only then consider leader-local fallback if no worker path is currently available
+- If subagent execution is failing, attempt the next safe path before switching to leader-local work:
+  - retry the bounded subagent lane when the failure looks transient
+  - use the managed team workflow when subagent dispatch is unavailable for the current batch
+  - only then consider leader-local fallback if no subagent path is currently available
 - Escalate to `blocked` only when:
   - required credentials, services, permissions, or external systems are unavailable
   - the requirement remains high-impact ambiguous after the minimum safe clarification pass
@@ -351,26 +351,26 @@ resume_decision: [resume here | blocked waiting | resolved]
 4. **Lightweight planning**
    - Produce only the plan needed to execute this ad-hoc task safely.
    - Keep the work atomic and self-contained.
-   - Keep local planning shallow until the first delegated worker lane or coordinated runtime batch has been launched.
+   - Keep local planning shallow until the first subagent or managed team batch has been launched.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` is the upstream source, record which single module, risk tranche, or coverage wave this quick-task pass is consuming before implementation starts.
    - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
 - For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
 - Do not write production code until the RED state is captured and recorded in `STATUS.md`.
-- If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `/sp-test`.
+- If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `/sp-test` or directly to `/sp-test-scan`.
 - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
 - A `surface-only` or symptom-only change cannot satisfy the quick-task contract for a bug fix unless the user explicitly scoped the work to temporary mitigation.
 - Name the affected surfaces for this quick-task pass and decide how each one will be checked.
-   - If multiple safe lanes would materially improve throughput, plan the first fan-out as parallel worker lanes instead of defaulting to serial execution.
+   - If multiple safe lanes would materially improve throughput, plan the first fan-out as parallel subagents instead of defaulting to serial execution.
    - If the task includes a propagating change, write the minimal sweep plan first and list the affected surfaces that must be checked before completion.
 
 5. **Execution**
    - Execute the current quick-task lane or ready batch through the selected strategy.
-   - For `single-lane`, dispatch one delegated worker lane once the delegation-readiness bar is satisfied; otherwise finish compiling the missing contract on the leader path before dispatch.
-   - The first concrete execution action should normally be dispatching that delegated lane or coordinated runtime batch, not continuing leader-local repository analysis.
-   - If multiple delegated lanes are safe and useful, dispatch them in parallel as the current ready batch instead of holding back fan-out without a concrete coordination reason.
+   - For `single-lane`, dispatch one subagent once the subagent-readiness bar is satisfied; otherwise finish compiling the missing contract on the leader path before dispatch.
+   - The first concrete execution action should normally be dispatching that subagent or managed team batch, not continuing leader-local repository analysis.
+   - If multiple subagent lanes are safe and useful, dispatch them in parallel as the current ready batch instead of holding back fan-out without a concrete coordination reason.
    - Keep changes tightly scoped to the quick-task goal.
    - Re-evaluate strategy at each join point instead of assuming the first choice remains correct.
-   - Only use leader-local execution after both delegated execution paths are unavailable or blocked for the current batch, and record that fallback explicitly in `STATUS.md`.
+   - Only use leader-local execution after subagent execution and the managed team workflow are unavailable or blocked for the current batch, and record that fallback explicitly in `STATUS.md`.
    - Continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
    - If execution hits friction, attempt the smallest safe recovery step before declaring the task blocked.
 
@@ -400,5 +400,5 @@ resume_decision: [resume here | blocked waiting | resolved]
 - Preserve a lightweight planning and validation path rather than skipping discipline entirely.
 - Keep quick tasks atomic and self-contained.
 - Keep leader responsibilities explicit: scope, strategy selection, join points, validation, and summary stay on the leader path.
-- Keep concrete execution on delegated worker lanes whenever possible. Leader-local execution is the last fallback, not the default reading of `single-lane`.
+- Keep concrete execution on subagent lanes whenever possible. Leader-local execution is the last fallback, not the default reading of `single-lane`.
 - Quick-task state must be resumable from `STATUS.md` without depending on chat history.

@@ -61,7 +61,7 @@ def test_sp_implement_positions_the_runtime_as_leader_only() -> None:
     assert "invoking runtime acts as the leader" in content
     assert "dispatches work instead of performing concrete implementation directly" in content
     assert "`single-lane` names the topology for one safe execution lane" in content
-    assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
+    assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
 
 
 def test_sp_implement_documents_milestone_next_step_selection() -> None:

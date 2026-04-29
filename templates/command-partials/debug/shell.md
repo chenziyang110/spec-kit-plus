@@ -27,4 +27,4 @@ Drive a resumable debugging workflow that finds the real failure mechanism befor
 
 - No speculative fixes before evidence supports the failure mechanism.
 - No final resolution without fresh verification evidence.
-- No delegated worker may take ownership of the debug session state.
+- No subagent may take ownership of the debug session state.

@@ -23,6 +23,8 @@ def describe_result_handoff_template(*, command_name: str, integration_key: str)
         return ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json"
     if normalized_command == "debug":
         return ".planning/debug/results/<session-slug>/<lane-id>.json"
+    if normalized_command in {"test-scan", "test-build"}:
+        return ".specify/testing/worker-results/<lane-id>.json"
     return ".specify/worker-results/<lane-id>.json"
 
 
@@ -62,6 +64,11 @@ def build_result_handoff_path(
         if not debug_session_slug or not lane_id:
             raise ValueError("debug_session_slug and lane_id are required for debug result handoff paths")
         return project_root / ".planning" / "debug" / "results" / debug_session_slug / f"{lane_id}.json"
+
+    if normalized_command in {"test-scan", "test-build"}:
+        if not lane_id:
+            raise ValueError("lane_id is required for test result handoff paths")
+        return project_root / ".specify" / "testing" / "worker-results" / f"{lane_id}.json"
 
     if not lane_id:
         raise ValueError("lane_id is required for generic result handoff paths")

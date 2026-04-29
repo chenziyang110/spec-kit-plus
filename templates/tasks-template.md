@@ -25,8 +25,8 @@ description: "Task list template for feature implementation"
 
 - Map each implementation task to the delegated-execution rules it inherits from `plan.md`, `tasks.md`, and `.specify/memory/constitution.md`
 - Keep the mapping compact and task-specific so packet compilation can resolve applicable hard rules without copying the full constitution into every task body
-- Include task-to-guardrail mapping entries such as ``T017 -> G-PRESERVE-BOUNDARY, G-VALIDATE-AUTH`` when delegated work needs explicit execution constraints
-- For each `[P]` task or explicit parallel batch, include enough detail that the leader can compile a bounded worker packet: objective, write set, required references, forbidden drift, validation command, and done condition
+- Include task-to-guardrail mapping entries such as ``T017 -> G-PRESERVE-BOUNDARY, G-VALIDATE-AUTH`` when subagent execution needs explicit execution constraints
+- For each `[P]` task or explicit parallel batch, include enough detail that the leader can compile a bounded subagent execution packet: objective, write set, required references, forbidden drift, validation command, and done condition
 
 ## Task Shaping Rules
 

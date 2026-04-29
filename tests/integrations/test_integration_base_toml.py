@@ -137,6 +137,23 @@ class TomlIntegrationTests:
         has_args = any("{{args}}" in f.read_text(encoding="utf-8") for f in cmd_files)
         assert has_args, "No TOML command file contains {{args}} placeholder"
 
+    def test_research_alias_command_routes_to_deep_research(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        alias_path = i.commands_dest(tmp_path) / i.command_filename("research")
+        assert alias_path.exists()
+        content = alias_path.read_text(encoding="utf-8")
+        parsed = tomllib.loads(content)
+        prompt = parsed["prompt"]
+        lowered = prompt.lower()
+
+        assert "compatibility alias" in lowered
+        assert "sp-deep-research" in prompt
+        assert "active_command: sp-deep-research" in prompt
+        assert "active_command: sp-research" not in prompt
+
     def test_runtime_commands_hard_gate_project_map_reads(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
@@ -157,6 +174,20 @@ class TomlIntegrationTests:
             assert ".specify/project-map/*.md" in content
             assert "/sp-map-codebase" in content
 
+    def test_map_codebase_command_requires_native_explorer_lanes_when_selected(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        content = (i.commands_dest(tmp_path) / "sp.map-codebase.toml").read_text(encoding="utf-8").lower()
+        assert "choose_execution_strategy(command_name=" in content
+        assert "map-codebase" in content
+        assert "if the selected strategy is `native-multi-agent`, dispatch bounded explorer subagents" in content
+        assert "do not continue with broad sequential exploration after selecting `native-multi-agent`" in content
+        assert "launch at least three independent explorer subagents" in content
+        assert "explorer subagents are read-only evidence collectors" in content
+        assert "the leader must wait for every dispatched explorer lane" in content
+
     def test_implement_command_has_shared_leader_gate(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
@@ -172,23 +203,23 @@ class TomlIntegrationTests:
         assert "autonomous blocker recovery" in lowered
         assert "missed_agent_dispatch" in lowered
         assert "`single-lane` names the topology for one safe execution lane" in content
-        assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
-        assert "current runtime's native worker lanes" in lowered
-        assert "do not silently switch this workflow onto a coordinated runtime surface" in lowered
+        assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
+        assert "dispatch subagents first" in lowered
+        assert "keep `sp-implement` on the leader path and record the fallback reason" in lowered
         assert "dispatch only from validated `workertaskpacket`" in lowered
-        assert "must not edit implementation files directly while worker delegation is active" in lowered
+        assert "must not edit implementation files directly while subagent execution is active" in lowered
 
-    def test_runtime_commands_have_shared_delegation_and_result_contracts(self, tmp_path):
+    def test_runtime_commands_have_shared_subagent_dispatch_and_result_contracts(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         i.setup(tmp_path, m)
 
         for name in ("implement", "debug", "quick"):
             content = (i.commands_dest(tmp_path) / f"sp.{name}.toml").read_text(encoding="utf-8").lower()
-            assert "delegation surface contract" in content
-            assert "native dispatch surface" in content
-            assert "sidecar fallback" in content
-            assert "worker result contract" in content
+            assert "subagent dispatch contract" in content
+            assert "subagent dispatch" in content
+            assert "fallback path" in content
+            assert "subagent result contract" in content
             assert "result handoff path" in content
             assert "reported_status" in content
             assert "needs_context" in content

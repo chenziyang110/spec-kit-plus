@@ -201,14 +201,19 @@ Rules:
      - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime`
        (`native-missing`)
      - Else -> `single-lane` (`fallback`)
+   - [AGENT] If the selected strategy is `native-multi-agent`, dispatch bounded explorer subagents before doing broad leader-local scouting.
+   - [AGENT] Do not continue with broad sequential exploration after selecting `native-multi-agent`; either launch the explorer lanes, or record the concrete fallback reason and re-select the strategy.
+   - [AGENT] For a full repository refresh with no narrow focus, launch at least three independent explorer subagents when subagent dispatch is available. Use four subagents when the repository has separate architecture, workflow, integration, and testing/operations areas.
    - If collaboration is justified, keep `map-codebase` lanes limited to:
      - architecture and structure mapping
      - conventions and testing mapping
      - integrations and runtime mapping
      - workflows, operations, and risky coordination mapping
+   - Explorer subagents are read-only evidence collectors. They must return file-path evidence, ownership facts, contracts, workflows, integrations, verification routes, known unknowns, and confidence notes; they must not write handbook/project-map artifacts directly.
    - Required join points:
      - before writing `PROJECT-HANDBOOK.md`
      - before the final consistency pass across all map documents
+   - The leader must wait for every dispatched explorer lane at the documented join point, integrate the returned evidence, and note any missing lane or fallback reason in the mapping summary.
    - Keep user-visible wording integration-neutral in this shared template.
 
 3. **Scout the codebase**

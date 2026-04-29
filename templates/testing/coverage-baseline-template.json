@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_by": "sp-test",
+  "generated_by": "sp-test-build",
   "modules": [
     {
       "name": "example-module",

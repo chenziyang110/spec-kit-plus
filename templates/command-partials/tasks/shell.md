@@ -21,7 +21,7 @@ Convert the plan package into dependency-aware execution tasks that preserve pla
 
 - Write `tasks.md` as the authoritative execution breakdown for the current feature.
 - Make execution ordering, parallelization boundaries, and required verification steps explicit.
-- Preserve the guardrail information later worker packets and leaders must consume.
+- Preserve the guardrail information later subagent execution packets and leaders must consume.
 
 ## Guardrails
 

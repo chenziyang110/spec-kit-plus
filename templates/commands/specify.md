@@ -9,6 +9,10 @@ handoffs:
   - label: Build Technical Plan
     agent: sp.plan
     prompt: Create a plan for the spec. I am building with...
+  - label: Prove Feasibility Before Plan
+    agent: sp.deep-research
+    prompt: Prove the unverified implementation-chain risks recorded by sp-specify, then hand findings and demo evidence to sp-plan.
+    send: true
 scripts:
   sh: scripts/bash/create-new-feature.sh "{ARGS}"
   ps: scripts/powershell/create-new-feature.ps1 "{ARGS}"

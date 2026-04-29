@@ -35,7 +35,7 @@ def _create_codex_project(tmp_path: Path) -> Path:
     )
     (spec_root / "memory").mkdir(parents=True, exist_ok=True)
     (spec_root / "memory" / "constitution.md").write_text(
-        "# Constitution\n\n- MUST preserve worker validation evidence\n",
+        "# Constitution\n\n- MUST preserve subagent validation evidence\n",
         encoding="utf-8",
     )
     feature_dir = project / "specs" / "001-auto-dispatch"

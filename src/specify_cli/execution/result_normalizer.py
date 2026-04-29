@@ -1,4 +1,4 @@
-"""Normalize delegated worker result payloads into the canonical contract."""
+"""Normalize subagent result payloads into the canonical contract."""
 
 from __future__ import annotations
 

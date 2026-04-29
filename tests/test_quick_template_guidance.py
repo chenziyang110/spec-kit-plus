@@ -9,7 +9,7 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
 
     assert "## leader role" in content
     assert "you are the quick-task leader" in content
-    assert "you are not the default worker for the quick task" in content
+    assert "you are not the default implementer for the quick task" in content
     assert "dispatch the lane instead of continuing leader-local implementation work" in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
@@ -78,13 +78,13 @@ def test_quick_template_defines_capability_aware_execution_strategy() -> None:
     assert "leader" in content
     assert "join point" in content
     assert "`single-lane` names the topology" in content
-    assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
-    assert "prefer delegated worker execution only when a validated `workertaskpacket` or equivalent execution contract preserves quality" in content
-    assert "if that delegation-readiness bar is not met, keep the lane on the leader path" in content
+    assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
+    assert "prefer subagent execution only when a validated `workertaskpacket` or equivalent execution contract preserves quality" in content
+    assert "if that subagent-readiness bar is not met, keep the lane on the leader path" in content
     assert "leader-local execution is an exception path" in content
-    assert "only when the current quick-task batch cannot proceed through native delegation" in content
-    assert "the first actionable execution step after scope lock is to dispatch the first delegated worker lane" in content
-    assert "if two or more independent delegated lanes can safely run in parallel" in content
+    assert "only when the current quick-task batch cannot proceed through subagents or the managed team workflow" in content
+    assert "the first actionable execution step after scope lock is to dispatch the first subagent" in content
+    assert "if two or more independent subagent lanes can safely run in parallel" in content
 
 
 def test_quick_template_defines_recoverable_quick_task_artifacts() -> None:
@@ -144,8 +144,8 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
     assert "constitution first" in content
     assert "before `status.md` initialization or touched-area analysis proceeds" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
-    assert "prefer delegated worker execution only when a validated `workertaskpacket` or equivalent execution contract preserves quality" in content
-    assert "dispatch that worker path before doing any further local repository deep dive" in content
+    assert "prefer subagent execution only when a validated `workertaskpacket` or equivalent execution contract preserves quality" in content
+    assert "dispatch that subagent path before doing any further local repository deep dive" in content
     assert "resolved" in content
     assert "blocked" in content
 
@@ -156,7 +156,7 @@ def test_quick_template_requires_self_recovery_before_blocking() -> None:
     assert "attempt the smallest safe recovery step before declaring the task blocked" in content
     assert "read additional local context" in content
     assert "run the smallest meaningful verification or repro command" in content
-    assert "attempt the next safe execution surface before switching to leader-local work" in content
+    assert "if subagent execution is failing, attempt the next safe path before switching to leader-local work" in content
     assert "use `--research`-style focused investigation" in content or "focused investigation" in content
     assert "retry_attempts" in content
     assert "recovery_action" in content
@@ -207,15 +207,15 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "mark `.specify/project-map/index/status.json` dirty" in content
 
 
-def test_quick_template_requires_constitution_before_status_and_delegation() -> None:
+def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
     assert "do not create or update `status.md`" in content
     assert "until the constitution has been read or confirmed absent" in content
-    assert "before workspace setup, clarification, lane selection, delegation, or local analysis" in content
+    assert "before workspace setup, clarification, lane selection, subagent dispatch, or local analysis" in content
 
 
-def test_quick_template_prefers_parallel_worker_fanout_when_safe() -> None:
+def test_quick_template_prefers_parallel_subagent_fanout_when_safe() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
     assert "materially improve throughput" in content

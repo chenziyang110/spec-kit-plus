@@ -168,11 +168,11 @@ scripts:
     - If the testing contract names required regression or coverage work for an affected module, preserve that requirement explicitly in the task list
     - If the touched area lacks a reliable automated test surface, add explicit bootstrap tasks to establish the smallest runnable test surface first before implementation tasks for that slice
     - Top-level tasks should usually fit one bounded implementation slice: roughly 10-20 minutes, one stable objective, one isolated write set, and one verification path.
-    - A delegated worker can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks.
+    - A subagent can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks.
     - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence.
     - If later work still depends on upstream evidence, add a refinement checkpoint instead of guessing detailed downstream tasks too early.
     - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
-    - [AGENT] Add a `Task Guardrail Index` or equivalent task-to-guardrail mapping when delegated execution needs task-local hard rules, required references, forbidden drift, or validation gates compiled into worker packets
+    - [AGENT] Add a `Task Guardrail Index` or equivalent task-to-guardrail mapping when subagent execution needs task-local hard rules, required references, forbidden drift, or validation gates compiled into task packets
     - For every `[P]` task or explicit parallel batch, emit the dispatch-ready lane packet inputs the leader will need later: objective, write set, required references, forbidden drift, validation command, and done condition.
     - Generate dependency graph showing user story completion order
     - Derive a write set for each task (files or shared registration surfaces it will modify)
@@ -205,7 +205,7 @@ scripts:
    - Parallel execution examples per story
     - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution
     - Planning inputs section showing implementation constitution rules when they materially shape execution
-    - `Task Guardrail Index` entries or equivalent task-to-guardrail mapping when delegated work must inherit explicit execution rules
+    - `Task Guardrail Index` entries or equivalent task-to-guardrail mapping when subagent work must inherit explicit execution rules
     - Implementation strategy section (phased delivery, priority-ordered delivery, capability-aware parallel execution)
 
 6. **Report**: Output path to generated tasks.md and summary:

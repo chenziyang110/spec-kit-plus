@@ -156,10 +156,16 @@ Mainline pre-planning flow:
 specify -> plan
 ```
 
+Optional feasibility branch when `sp-specify` finds an unproven implementation chain:
+
+```text
+specify -> deep-research -> plan
+```
+
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- Support skills: `map-codebase`, `test`, `auto`, `clarify`, `deep-research`, `checklist`, `analyze`, `debug`, `explain`
+- Support skills: `map-codebase`, `test`, `test-scan`, `test-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
 - Codex-only runtime: `sp-teams`
 
 Conditional gates and follow-up commands:
@@ -167,17 +173,19 @@ Conditional gates and follow-up commands:
 - `map-codebase` is the required brownfield gate for an existing codebase; generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before specification, planning, task generation, or implementation continues
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `map-codebase` as the follow-up refresh workflow
-- `test` to bootstrap or refresh a durable project-wide unit testing system using bundled language testing skills, establish a coverage baseline, capture manual validation evidence, and write a durable testing contract plus standard test/coverage playbook; for brownfield coverage programs it also emits `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` so follow-on work can be routed into `sp-specify`, `sp-quick`, or `sp-fast`
+- `test` as the backward-compatible router for project-level testing work; it routes to `test-scan` when evidence or build lanes are missing and to `test-build` when scan artifacts are ready for execution
+- `test-scan` to run a deep, read-only testing-system scan using leader-managed scout subagents, then write `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, and `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`
+- `test-build` to consume scan-approved lanes, coordinate leader/subagent test-building waves, update tests/fixtures/config as authorized by lane packets, bootstrap or refresh bundled language testing skills, establish a coverage baseline, capture manual validation evidence, and write the durable testing contract plus standard test/coverage playbook
 - `auto` to resume the recommended next workflow step from current repository state; it reads canonical state surfaces such as `workflow-state.md`, `implement-tracker.md`, `.specify/testing/testing-state.md`, quick-task `STATUS.md`, and debug session files, then continues under the routed workflow's contract without rewriting downstream `next_command` to `sp-auto`
 - `clarify` to deepen an existing spec before planning when analysis, references, or gaps need more work
-- `deep-research` to coordinate focused feasibility research, optional multi-agent evidence gathering, and disposable demos before planning when requirements are clear but a capability still lacks a credible implementation chain; it writes a `Planning Handoff` for `plan` and should be skipped for minor tweaks to already-proven project behavior
+- `deep-research` to coordinate focused feasibility research, optional multi-agent evidence gathering, and disposable demos before planning when requirements are clear but a capability still lacks a credible implementation chain; it writes a traceable `Planning Handoff` with evidence IDs for `plan` and should be skipped for minor tweaks to already-proven project behavior. `research` is a compatibility alias for this same gate and must not create separate workflow artifacts
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
 - `analyze` is the default pre-implementation gate once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` before implementation starts
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
 - `explain` to describe the current spec, plan, task, implement, or handbook/project-map atlas artifact in plain language
 - when you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)
-- `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing worker validation evidence)
+- `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing subagent validation evidence)
 
 Already have code? Run `map-codebase` first and treat it as the required brownfield gate before deeper specification, planning, task generation, or implementation work.
 Generated projects also track handbook freshness in `.specify/project-map/index/status.json`, so brownfield workflows can decide whether the current atlas baseline is fresh, possibly stale, or stale before proceeding.
@@ -188,8 +196,8 @@ Routing guide for lightweight work:
 - Move from `sp-fast` to `sp-quick` as soon as the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
-- Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` now follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, bootstrap it through `sp-test` before continuing.
-- For brownfield repositories with weak legacy coverage, let `sp-test` generate `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and treat it as the starting artifact for any testing-system program or coverage uplift program that must continue through `sp-specify`, `sp-quick`, or `sp-fast`.
+- Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` now follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, route through `sp-test` or directly to `sp-test-scan` before continuing.
+- For brownfield repositories with weak legacy coverage, let `sp-test-scan` generate `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and treat it as the starting artifact for any testing-system program or coverage uplift program that must continue through `sp-specify`, `sp-quick`, or `sp-fast`; use `sp-test-build` only once build-ready lanes exist.
 - Quick workspaces now live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the task source of truth and `.planning/quick/index.json` as a derived management index.
 - Invoking `sp-quick` with no arguments should resume unfinished quick work when possible. If only one unfinished quick task exists, continue it automatically. `blocked` quick tasks still count as resumable unfinished work.
 - Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage tracked quick tasks. `specify quick list` defaults to unfinished quick tasks.
@@ -198,7 +206,7 @@ Routing guide for lightweight work:
 Required action markers:
 
 - `[AGENT]` marks a required AI action and is independent from `[P]`.
-- `[P]` still means parallel-safe work; `[AGENT]` does not imply parallelism, delegation, or worker routing by itself.
+- `[P]` still means parallel-safe work; `[AGENT]` does not imply parallelism, subagent dispatch, or runtime routing by itself.
 - Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file append or replacement.
 - First-wave `[AGENT]` coverage started with `sp-fast`, `sp-quick`, and `sp-map-codebase`; the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows now use the same marker for hard gates and required state updates.
 
@@ -234,7 +242,7 @@ First-party workflow quality hooks:
 - `specify hook monitor-context --command <workflow> ...` recommends proactive checkpointing when context pressure or a risky structural transition appears.
 - `specify hook validate-session-state --command <workflow> ...` reconciles resume-critical state across the active workflow surfaces.
 - `specify hook render-statusline --command <workflow> ...` returns a compact operator-facing status summary.
-- `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` enforce the shared delegated execution contract.
+- `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` enforce the shared subagent execution contract.
 - `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` provide shared read-boundary and prompt-bypass guards.
 - `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` cover workflow transitions and last-mile commit integrity.
 - `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
@@ -296,26 +304,26 @@ Boundary-sensitive implementation rule:
 - Typical triggers include existing framework-owned boundaries, native/plugin bridges, protocol seams, generated API surfaces, or any area where "generic implementation instinct" would likely drift from the repository's established pattern.
 - A good heuristic is: if an implementer should be forced to inspect specific existing boundary files before coding safely, the feature likely needs `Implementation Constitution`.
 - `tasks` should convert those rules into explicit implementation guardrails before setup or feature work begins.
-- `tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when delegated execution needs task-local rule inheritance.
+- `tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when subagent execution needs task-local rule inheritance.
 - `implement` should treat those guardrails as binding execution constraints and confirm the touched boundary's owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
 - Delegated execution should no longer rely on raw task text when architecture or quality rules matter.
 - `plan` should provide `Dispatch Compilation Hints`.
-- `implement` should compile and validate a `WorkerTaskPacket` before dispatching native workers.
-- Delegated packets should carry platform guardrails when a lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
+- `implement` should compile and validate a `WorkerTaskPacket` before dispatching subagents.
+- Subagent packets should carry platform guardrails when a lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
 
 Current `sp-implement` runtime model in this fork:
 
 - `sp-implement` acts as a milestone-level orchestration leader rather than the direct executor
-- concrete implementation runs through delegated native execution paths (`single-lane` or `native-multi-agent`), and otherwise stays on the leader path with an explicit fallback reason
+- concrete implementation runs through subagents when the selected strategy and packet are ready, and otherwise stays on the leader path with an explicit fallback reason
 - durable teams/runtime execution is an explicit alternate surface (`sp-implement-teams` / `sp-teams`), not an internal fallback hidden inside `sp-implement`
-- delegated workers should execute from compiled `WorkerTaskPacket` contracts rather than rediscovering rules from background context
-- delegated result handoff should use the runtime-managed result channel when one exists; otherwise workers should write normalized result envelopes to the declared filesystem handoff path for the current workflow
+- subagents should execute from compiled `WorkerTaskPacket` contracts rather than rediscovering rules from background context
+- subagent result handoff should use the runtime-managed result channel when one exists; otherwise subagents should write normalized result envelopes to the declared filesystem handoff path for the current workflow
 - implementation lanes without a runtime-managed channel should use `FEATURE_DIR/worker-results/<task-id>.json`
 - quick-task lanes without a runtime-managed channel should use `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`
 - debug evidence lanes without a runtime-managed channel should use `.planning/debug/results/<session-slug>/<lane-id>.json`
-- when the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the delegated result envelope
-- when worker language is normalized into canonical orchestration state, preserve the raw `reported_status`
-- top-level `tasks.md` items should stay bounded to one coffee-break-sized implementation slice, usually roughly 10-20 minutes, while delegated workers may still execute them through smaller 2-5 minute atomic steps
+- when the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the subagent result envelope
+- when subagent language is normalized into canonical orchestration state, preserve the raw `reported_status`
+- top-level `tasks.md` items should stay bounded to one coffee-break-sized implementation slice, usually roughly 10-20 minutes, while subagents may still execute them through smaller 2-5 minute atomic steps
 - task decomposition should stay progressive: refine only the current executable window after each join point instead of pre-expanding later batches that still depend on upstream evidence
 - parallel work is coordinated through explicit join points before dependent work continues
 - every join point that gates downstream work should name a validation target, a validation command or check, and a pass condition
@@ -323,15 +331,15 @@ Current `sp-implement` runtime model in this fork:
 - high-risk batches touching shared registration surfaces, schema changes, protocol seams, native/plugin bridges, or generated API surfaces should add a review gate before crossing the join point
 - if a read-only verification lane is available, use one peer-review lane only for those high-risk batches rather than for every batch
 - runtime surfaces can report retry-pending work and blockers instead of hiding those states in chat-only narration
-- blocked delegated worker results should carry the blocker, the failed assumption, and the smallest safe recovery step so the leader can fail fast instead of guessing
-- if a delegated lane reports `completed` or drifts into `idle` before the promised handoff arrives, treat it as a stale lane and recover explicitly instead of assuming success
+- blocked subagent results should carry the blocker, the failed assumption, and the smallest safe recovery step so the leader can fail fast instead of guessing
+- if a subagent lane reports `completed` or drifts into `idle` before the promised handoff arrives, treat it as a stale lane and recover explicitly instead of assuming success
 - established boundary patterns should be preserved through `Implementation Constitution` and implementation guardrails, not rediscovered ad hoc during coding
 
 Shared runtime-facing guidance across integrations:
 
-- `sp-implement`, `sp-debug`, and `sp-quick` now all carry a shared leader contract, delegation-surface contract, and worker-result contract across Markdown, TOML, and skills-based integrations.
+- `sp-implement`, `sp-debug`, and `sp-quick` now all carry a shared leader contract, subagent-dispatch contract, and subagent-result contract across Markdown, TOML, and skills-based integrations.
 - The shared contract is integration-neutral: leader role, join-point discipline, structured handoff expectations, and `reported_status` preservation are common across CLIs. Workflow-specific fallback semantics stay explicit in the command guidance.
-- Only the concrete native dispatch surface remains integration-specific. For example, Codex may name `spawn_agent` and `sp-teams`, while another CLI may expose only a generic native delegated worker surface or no sidecar runtime at all.
+- Only the concrete dispatch command remains integration-specific. For example, Codex names `spawn_agent` and uses `sp-teams` only when durable team state is needed.
 
 For Codex and other skills-based integrations, the generated commands are installed in skills form. Codex now uses the dedicated `.codex/skills/` directory for generated skills.
 
@@ -348,9 +356,9 @@ Current orchestration status in this fork:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
 - `specify`, `plan`, `tasks`, `test`, `map-codebase`, `explain`, `debug`, and `quick` surface `single-lane`, `native-multi-agent`, and `sidecar-runtime` in user-facing workflow guidance
-- `implement` now surfaces `single-lane` and `native-multi-agent`; when native delegation is unavailable or low-confidence, it stays on the leader path with an explicit fallback reason instead of switching execution surfaces internally
-- `single-lane` is the topology label for one safe execution lane, not a synonym for either worker-only or leader-only execution
-- in execution-oriented workflows, prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
+- `implement` now surfaces `single-lane` and `native-multi-agent`; when subagent dispatch is unavailable or low-confidence, it stays on the leader path with an explicit fallback reason
+- `single-lane` is the topology label for one safe execution lane, not a synonym for either subagent execution or leader-local execution
+- in execution-oriented workflows, prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
 - `sp-teams` remains the Codex runtime-heavy execution surface
 - Claude, Gemini, and Copilot ship first-release adapter skeletons (alongside Codex) for native-first capability reporting
@@ -376,7 +384,7 @@ sp-teams
 - `sp-teams resume` re-attaches to an existing runtime session by replaying the metadata in `.specify/teams/` and restarting the tmux backend.
 - `sp-teams shutdown` requests a graceful stop, letting workers finish or fail their in-flight tasks before tearing down.
 - `sp-teams cleanup` removes `.specify/teams/` state after shutdown succeeds; run it only once shutdown has settled to avoid corrupting the state folder.
-- `sp-teams submit-result --request-id <id> --result-file <path>` validates and records a structured worker result for an existing dispatch. Use `sp-teams result-template --request-id <id>` only to generate the canonical `pending` placeholder; do not submit that template unchanged.
+- `sp-teams submit-result --request-id <id> --result-file <path>` validates and records a structured subagent result for an existing dispatch. Use `sp-teams result-template --request-id <id>` only to generate the canonical `pending` placeholder; do not submit that template unchanged.
 - `sp-teams api <operation>` proxies structured JSON operations (task claims, worker heartbeats, events) into the runtime; use it when automation needs a predictable channel.
 
 For agents and automation, prefer the optional MCP supplement instead of having the model compose CLI invocations directly:
@@ -401,7 +409,7 @@ Lifecycle notes:
 
 - Tasks run through `pending -> in_progress -> completed|failed` and emit events that `sp-teams status` surfaces.
 - Workers claim tasks with identity records, write heartbeats under `state/workers`, and consume mailbox messages from `state/mailboxes`.
-- Structured worker results live under `state/results/` and are submitted through `sp-teams submit-result` / `sp-teams api submit-result` before `complete-batch` should mark a structured-result batch done.
+- Structured subagent results live under `state/results/` and are submitted through `sp-teams submit-result` / `sp-teams api submit-result` before `complete-batch` should mark a structured-result batch done.
 - Shutdown requests append a terminal event, and cleanup removes the `.specify/teams/` directory once all JSON files have been archived.
 
 Operators should treat this directory as the single source of truth for resumes, restarts, and audits, and not attempt to recreate state outside the official CLI surface.

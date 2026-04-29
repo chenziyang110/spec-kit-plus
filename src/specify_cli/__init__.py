@@ -471,7 +471,7 @@ app.add_typer(project_map_app, name="project-map")
 
 result_app = typer.Typer(
     name="result",
-    help="Inspect and submit delegated worker result handoffs",
+    help="Inspect and submit subagent result handoffs",
     add_completion=False,
 )
 app.add_typer(result_app, name="result")
@@ -615,7 +615,7 @@ def _project_map_preflight(
             f"[red]Error:[/red] Project-map freshness is {freshness} for [cyan]{command_name}[/cyan]."
         )
         console.print(
-            "Run [cyan]map-codebase[/cyan] to refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/`, then retry."
+            "Run [cyan]/sp-map-codebase[/cyan] to refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/`, then retry."
         )
         raise typer.Exit(1)
 
@@ -648,7 +648,7 @@ def _ensure_project_map_artifacts_exist(project_root: Path) -> list[Path]:
     for path in missing:
         console.print(f"- {path}")
     console.print(
-        "Run [cyan]map-codebase[/cyan] first so `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` exist, then retry [cyan]project-map complete-refresh[/cyan]. Use [cyan]project-map record-refresh[/cyan] only for low-level/manual recovery."
+        "Run [cyan]/sp-map-codebase[/cyan] first so `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` exist, then retry [cyan]project-map complete-refresh[/cyan]. Use [cyan]project-map record-refresh[/cyan] only for low-level/manual recovery."
     )
     raise typer.Exit(1)
 
@@ -769,17 +769,17 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.",
             "- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.",
             "- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.",
-            "- Use `sp-test` when the project-level testing contract or testing system coverage needs bootstrap, refresh, audit work, or a brownfield unit-test system request.",
+            "- Use `sp-test` as the compatibility router for project-level testing work; it routes to `sp-test-scan` for evidence and build planning, or `sp-test-build` for leader-managed testing-system construction.",
             "",
             "## Artifact Priority",
             "",
             "- `.specify/memory/constitution.md` is the principle-level source of truth when present.",
             "- `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress.",
             "- `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.",
-            "- `deep-research.md`, its `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.",
+            "- `deep-research.md`, its traceable `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence IDs, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.",
             "- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.",
             "- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.",
-            "- `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, and `.specify/testing/testing-state.md` constrain implementation and brownfield testing-program routing when present.",
+            "- `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, and `.specify/testing/testing-state.md` constrain testing-system construction and brownfield testing-program routing when present.",
             "- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh.",
             "",
             "## Map Maintenance",
@@ -2423,6 +2423,7 @@ SKILL_DESCRIPTIONS = {
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "clarify": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
     "deep-research": "Use when a planning-ready spec still has feasibility risk and needs coordinated research, evidence packets, a Planning Handoff, or a disposable demo before implementation planning.",
+    "research": "Use when a compatibility alias is needed for deep-research; route to the canonical feasibility research gate without creating separate sp-research artifacts.",
     "explain": "Use when the user needs the current stage artifact or handbook/project-map atlas artifact explained in plain language without changing the underlying files.",
     "fast": "Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.",
     "quick": "Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.",
@@ -2432,7 +2433,9 @@ SKILL_DESCRIPTIONS = {
     "analyze": "Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution.",
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
     "checklist": "Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.",
-    "test": "Use when you need to bootstrap or refresh the project's unit testing system so later Spec Kit Plus workflows can keep tests current by default.",
+    "test": "Use when you need a compatibility entrypoint that routes project-level testing system work into scan or build phases.",
+    "test-scan": "Use when you need a deep, read-only scan that turns a repository's testing gaps into a build-ready unit-test system plan.",
+    "test-build": "Use when a completed test-system scan exists and you need to build or refresh the repository's unit testing system through leader-managed execution waves.",
     "map-codebase": "Use when handbook/project-map coverage is missing, stale, or insufficient and you need to generate or refresh the atlas-style codebase handbook system from live code.",
     "taskstoissues": "Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.",
 }
@@ -3017,10 +3020,12 @@ def init(
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-codebase')}[/] - Generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` as the atlas-style encyclopedia for existing code before specification or planning")
-    steps_lines.append(f"   - [cyan]{_display_cmd('test')}[/] - Bootstrap or refresh the project-wide testing system, write a durable testing contract, and emit a brownfield unit-test system request when follow-on coverage work needs routing")
+    steps_lines.append(f"   - [cyan]{_display_cmd('test')}[/] - Route testing-system work to scan or build while preserving backward compatibility")
+    steps_lines.append(f"   - [cyan]{_display_cmd('test-scan')}[/] - Deep-scan the testing surface and produce build-ready lanes")
+    steps_lines.append(f"   - [cyan]{_display_cmd('test-build')}[/] - Build the unit testing system from scan-approved lanes with leader/subagent coordination")
     steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
     steps_lines.append(f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work")
-    steps_lines.append(f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a Planning Handoff before planning")
+    steps_lines.append(f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning")
     steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
     steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/], including boundary guardrail gaps")
     steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, implement, or handbook/project-map atlas state in plain language")
@@ -3732,7 +3737,7 @@ def result_path_command(
 @result_app.command("submit")
 def result_submit_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command (implement|quick|debug)"),
-    result_file: str = typer.Option(..., "--result-file", help="Path to worker result JSON"),
+    result_file: str = typer.Option(..., "--result-file", help="Path to subagent result JSON"),
     request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"),
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for implement result handoff"),
     task_id: str | None = typer.Option(None, "--task-id", help="Task id for implement result handoff"),
@@ -3740,7 +3745,7 @@ def result_submit_command(
     session_slug: str | None = typer.Option(None, "--session-slug", help="Debug session slug"),
     lane_id: str | None = typer.Option(None, "--lane-id", help="Delegated lane id"),
 ):
-    """Normalize and write a delegated worker result to the canonical handoff path."""
+    """Normalize and write a subagent result to the canonical handoff path."""
     project_root = Path.cwd()
     integration_key = _require_result_project(project_root)
     if integration_key == "codex":
@@ -3882,9 +3887,9 @@ def hook_checkpoint_command(
 
 @hook_app.command("validate-packet")
 def hook_validate_packet_command(
-    packet_file: str = typer.Option(..., "--packet-file", help="Path to worker packet JSON"),
+    packet_file: str = typer.Option(..., "--packet-file", help="Path to WorkerTaskPacket JSON"),
 ):
-    """Validate a delegated worker packet and return JSON."""
+    """Validate a subagent execution packet and return JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _run_hook_and_print(
@@ -3896,10 +3901,10 @@ def hook_validate_packet_command(
 
 @hook_app.command("validate-result")
 def hook_validate_result_command(
-    packet_file: str = typer.Option(..., "--packet-file", help="Path to worker packet JSON"),
-    result_file: str = typer.Option(..., "--result-file", help="Path to worker result JSON"),
+    packet_file: str = typer.Option(..., "--packet-file", help="Path to WorkerTaskPacket JSON"),
+    result_file: str = typer.Option(..., "--result-file", help="Path to subagent result JSON"),
 ):
-    """Validate a delegated worker result against its packet and return JSON."""
+    """Validate a subagent result against its packet and return JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _run_hook_and_print(

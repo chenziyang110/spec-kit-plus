@@ -15,6 +15,7 @@ if (-not $RepoRoot) {
 
 $projectMapDir = Get-ProjectMapDir -RepoRoot $RepoRoot
 $statusPath = Get-ProjectMapStatusPath -RepoRoot $RepoRoot
+$legacyStatusPath = Get-LegacyProjectMapStatusPath -RepoRoot $RepoRoot
 $canonicalMapFiles = @(
     (Join-Path $RepoRoot "PROJECT-HANDBOOK.md"),
     (Join-Path $RepoRoot ".specify/project-map/index/atlas-index.json"),
@@ -31,13 +32,23 @@ $canonicalMapFiles = @(
 New-Item -ItemType Directory -Path $projectMapDir -Force | Out-Null
 New-Item -ItemType Directory -Path (Split-Path -Parent $statusPath) -Force | Out-Null
 
+function Get-StatusReadPath {
+    if (Test-Path -LiteralPath $statusPath) {
+        return $statusPath
+    }
+    if (Test-Path -LiteralPath $legacyStatusPath) {
+        return $legacyStatusPath
+    }
+    return $statusPath
+}
+
 function Assert-CanonicalMapFiles {
     $missing = @($canonicalMapFiles | Where-Object { -not (Test-Path -LiteralPath $_) })
     if (-not $missing -or $missing.Count -eq 0) {
         return
     }
 
-    Write-Error "Cannot record a fresh project-map baseline because canonical map files are missing:`n - $($missing -join "`n - ")`nRun map-codebase first so PROJECT-HANDBOOK.md and .specify/project-map/*.md exist."
+    Write-Error "Cannot record a fresh project-map baseline because canonical map files are missing:`n - $($missing -join "`n - ")`nRun /sp-map-codebase first so PROJECT-HANDBOOK.md and .specify/project-map/*.md exist."
     exit 1
 }
 
@@ -66,11 +77,12 @@ function Get-BranchName {
 }
 
 function Read-Status {
-    if (-not (Test-Path -LiteralPath $statusPath)) {
+    $readPath = Get-StatusReadPath
+    if (-not (Test-Path -LiteralPath $readPath)) {
         return @{}
     }
     try {
-        $raw = Get-Content -LiteralPath $statusPath -Raw -ErrorAction Stop
+        $raw = Get-Content -LiteralPath $readPath -Raw -ErrorAction Stop
         $parsed = $raw | ConvertFrom-Json -ErrorAction Stop
         $result = @{}
         foreach ($prop in $parsed.PSObject.Properties) {
@@ -125,7 +137,11 @@ function Write-Status {
         dirty_reasons = @($DirtyReasons)
     }
 
-    $payload | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statusPath -Encoding utf8
+    $json = $payload | ConvertTo-Json -Depth 5
+    $json | Set-Content -LiteralPath $statusPath -Encoding utf8
+    if ($legacyStatusPath -ne $statusPath) {
+        $json | Set-Content -LiteralPath $legacyStatusPath -Encoding utf8
+    }
 }
 
 function Classify-Path {
@@ -331,7 +347,7 @@ function Invoke-Check {
     $status = Read-Status
     $headCommit = Get-HeadCommit
 
-    if (-not (Test-Path -LiteralPath $statusPath)) {
+    if (-not (Test-Path -LiteralPath (Get-StatusReadPath))) {
         Emit-CheckResult -Freshness "missing" -HeadCommit $headCommit -LastMappedCommit "" -Dirty $false -DirtyReasons @() -Reasons @("project-map status missing") -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @()
         return
     }
@@ -343,6 +359,7 @@ function Invoke-Check {
     if ($dirty) {
         $mustRefreshTopics = New-Object System.Collections.Generic.List[string]
         $reviewTopics = New-Object System.Collections.Generic.List[string]
+        $topicOrder = @("ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md")
         foreach ($reason in $dirtyReasons) {
             $plan = Get-RefreshPlanForDirtyReason -Reason ([string]$reason)
             foreach ($topic in @($plan.must_refresh_topics)) {
@@ -352,13 +369,10 @@ function Invoke-Check {
                 if ($reviewTopics -notcontains $topic) { $reviewTopics.Add($topic) }
             }
         }
-        $suggestedTopics = New-Object System.Collections.Generic.List[string]
-        foreach ($topic in @("ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md")) {
-            if ($mustRefreshTopics -contains $topic -or $reviewTopics -contains $topic) {
-                $suggestedTopics.Add($topic)
-            }
-        }
-        Emit-CheckResult -Freshness "stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $true -DirtyReasons $dirtyReasons -Reasons $dirtyReasons -ChangedFiles @() -SuggestedTopics $suggestedTopics -MustRefreshTopics $mustRefreshTopics -ReviewTopics $reviewTopics
+        $orderedMustRefreshTopics = @($topicOrder | Where-Object { $mustRefreshTopics -contains $_ })
+        $orderedReviewTopics = @($topicOrder | Where-Object { $reviewTopics -contains $_ })
+        $suggestedTopics = @($topicOrder | Where-Object { $orderedMustRefreshTopics -contains $_ -or $orderedReviewTopics -contains $_ })
+        Emit-CheckResult -Freshness "stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $true -DirtyReasons $dirtyReasons -Reasons $dirtyReasons -ChangedFiles @() -SuggestedTopics $suggestedTopics -MustRefreshTopics $orderedMustRefreshTopics -ReviewTopics $orderedReviewTopics
         return
     }
 

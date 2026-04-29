@@ -11,6 +11,7 @@ REASON="${3:-}"
 
 PROJECT_MAP_DIR="$(project_map_dir "$REPO_ROOT")"
 STATUS_PATH="$(project_map_status_path "$REPO_ROOT")"
+LEGACY_STATUS_PATH="$(legacy_project_map_status_path "$REPO_ROOT")"
 CANONICAL_MAP_FILES=(
     "$REPO_ROOT/PROJECT-HANDBOOK.md"
     "$REPO_ROOT/.specify/project-map/index/atlas-index.json"
@@ -28,6 +29,18 @@ CANONICAL_MAP_FILES=(
 mkdir -p "$PROJECT_MAP_DIR"
 mkdir -p "$(dirname "$STATUS_PATH")"
 
+status_read_path() {
+    if [[ -f "$STATUS_PATH" ]]; then
+        echo "$STATUS_PATH"
+        return 0
+    fi
+    if [[ -f "$LEGACY_STATUS_PATH" ]]; then
+        echo "$LEGACY_STATUS_PATH"
+        return 0
+    fi
+    echo "$STATUS_PATH"
+}
+
 ensure_canonical_map_files() {
     local missing=()
     local path
@@ -43,7 +56,7 @@ ensure_canonical_map_files() {
 
     echo "Cannot record a fresh project-map baseline because canonical map files are missing:" >&2
     printf ' - %s\n' "${missing[@]}" >&2
-    echo "Run map-codebase first so PROJECT-HANDBOOK.md and .specify/project-map/*.md exist." >&2
+    echo "Run /sp-map-codebase first so PROJECT-HANDBOOK.md and .specify/project-map/*.md exist." >&2
     return 1
 }
 
@@ -65,14 +78,16 @@ git_branch_name() {
 
 read_status_field() {
     local field="$1"
-    if [[ ! -f "$STATUS_PATH" ]]; then
+    local read_path
+    read_path="$(status_read_path)"
+    if [[ ! -f "$read_path" ]]; then
         return 0
     fi
 
     if command -v python3 >/dev/null 2>&1; then
-        STATUS_PATH="$STATUS_PATH" FIELD="$field" python3 - <<'PY'
+        STATUS_READ_PATH="$read_path" FIELD="$field" python3 - <<'PY'
 import json, os, sys
-path = os.environ["STATUS_PATH"]
+path = os.environ["STATUS_READ_PATH"]
 field = os.environ["FIELD"]
 try:
     with open(path, "r", encoding="utf-8") as fh:
@@ -92,20 +107,22 @@ PY
         return 0
     fi
 
-    grep -o "\"$field\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$STATUS_PATH" 2>/dev/null | sed -E "s/.*:[[:space:]]*\"(.*)\"/\1/" | head -n1 || true
+    grep -o "\"$field\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$read_path" 2>/dev/null | sed -E "s/.*:[[:space:]]*\"(.*)\"/\1/" | head -n1 || true
 }
 
 read_status_array() {
     local field="$1"
-    if [[ ! -f "$STATUS_PATH" ]]; then
+    local read_path
+    read_path="$(status_read_path)"
+    if [[ ! -f "$read_path" ]]; then
         echo "[]"
         return 0
     fi
 
     if command -v python3 >/dev/null 2>&1; then
-        STATUS_PATH="$STATUS_PATH" FIELD="$field" python3 - <<'PY'
+        STATUS_READ_PATH="$read_path" FIELD="$field" python3 - <<'PY'
 import json, os, sys
-path = os.environ["STATUS_PATH"]
+path = os.environ["STATUS_READ_PATH"]
 field = os.environ["FIELD"]
 try:
     with open(path, "r", encoding="utf-8") as fh:
@@ -137,7 +154,8 @@ write_status() {
     local dirty="${10}"
     local dirty_reasons_json="${11}"
 
-    cat > "$STATUS_PATH" <<EOF
+    local payload
+    payload="$(cat <<EOF
 {
   "version": 1,
   "last_mapped_commit": "$(json_escape "$last_mapped_commit")",
@@ -153,6 +171,12 @@ write_status() {
   "dirty_reasons": $dirty_reasons_json
 }
 EOF
+)"
+    printf '%s\n' "$payload" > "$STATUS_PATH"
+    if [[ "$LEGACY_STATUS_PATH" != "$STATUS_PATH" ]]; then
+        mkdir -p "$(dirname "$LEGACY_STATUS_PATH")"
+        printf '%s\n' "$payload" > "$LEGACY_STATUS_PATH"
+    fi
 }
 
 classify_path() {
@@ -468,7 +492,7 @@ run_check() {
     local head_commit last_mapped_commit dirty dirty_reasons_json
     head_commit="$(git_head_commit)"
 
-    if [[ ! -f "$STATUS_PATH" ]]; then
+    if [[ ! -f "$(status_read_path)" ]]; then
         emit_check_json "missing" "$head_commit" "" "false" "[]" '["project-map status missing"]' "[]" "[]" "[]" "[]"
         return 0
     fi
@@ -504,10 +528,7 @@ for reason in reasons:
             review.append(topic)
 must = [t for t in order if t in must]
 review = [t for t in order if t in review]
-suggested = []
-for topic in must + review:
-    if topic not in suggested:
-        suggested.append(topic)
+suggested = [topic for topic in order if topic in set(must + review)]
 print(json.dumps(must, ensure_ascii=False))
 print(json.dumps(review, ensure_ascii=False))
 print(json.dumps(suggested, ensure_ascii=False))

@@ -1,5 +1,5 @@
 ---
-description: Execute implementation through Claude Code Agent Teams when you explicitly want durable multi-worker execution.
+description: Execute implementation through Claude Code Agent Teams when you explicitly want durable team execution.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
@@ -19,6 +19,7 @@ User-facing workflow skill:
 2. Implementation-phase entry point only; use it after `tasks.md` is ready
 3. Use Claude Code's built-in Agent Teams surface, not the Codex runtime surface
 4. Keep `sp-teams` and Codex extension commands out of Claude guidance
+5. The ordinary `Agent` tool must not be used as a teammate substitute. `/sp-implement-teams` requires team-managed teammates that join the shared Agent Teams ledger.
 
 ## When To Use
 
@@ -102,6 +103,19 @@ Platform Guardrails:
 Join Point:
 - Join Point 1.1
 ```
+8b. Team Wave Protocol: plan the team wave before launching teammates.
+   - Each execution wave must identify:
+     - implementation teammate ownership for concrete write tasks
+     - review teammate ownership for shared surfaces, schema/API changes, risky refactors, or cross-module changes
+     - verification teammate ownership for test execution, E2E checks, build checks, or scripted validation
+     - leader integration responsibility for final synthesis and next-wave planning
+   - A wave may omit a review teammate or verification teammate only when the leader records why the batch is low risk and what validation evidence will replace that role.
+   - Treat the team wave as a collaboration protocol, not just parallel task dispatch.
+   - Require these team messages when applicable:
+     - `interface_change` before a teammate changes a shared API, schema, protocol, config surface, or boundary contract
+     - `review_requested` when an implementation teammate finishes a risky or shared-surface task
+     - `verification_started` before a verification teammate begins the validation lane
+     - `team_synthesis` from the leader after every join point, summarizing completed work, open blockers, interface changes, verification evidence, and the next ready wave
 9. Encode dependencies and ownership with `TaskUpdate`:
    - use `blockedBy` / `blocks` for ordering
    - use `owner` to assign each task to a named teammate
@@ -114,6 +128,9 @@ Join Point:
    - do not ask the user for an explicit teammate model just to launch the team
    - do not require local `.claude/agents/<team-name>-<role>.md` teammate definitions solely to force a model choice
 11. Create the teammates on the native Agent Teams surface:
+   - this step requires the current Claude Code Agent Teams teammate launch surface, not the ordinary `Agent` tool
+   - the ordinary `Agent` tool must not be used as a teammate substitute, even if it can read or update shared tasks
+   - if no native Agent Teams teammate launch surface is available, stop instead of falling back to ordinary subagents and report that Agent Teams is unavailable for this run
    - reference a generated teammate definition name when the current Claude build supports it and you genuinely need reusable teammate packaging
    - prompt-only specialization is acceptable when you do not need a persisted custom teammate definition
    - use read-only style teammate definitions for analysis or planning lanes and implementation-oriented teammate definitions for write lanes
@@ -129,6 +146,9 @@ Join Point:
 13. Tell every teammate to call `TaskList`, claim or inspect its assigned work, and use `SendMessage` for coordination instead of silent progress.
    - ack the context bundle before claiming work; a teammate must not claim work until it has confirmed the required paths
    - after claiming work, the teammate must emit an explicit `task_started` message before settling into background execution so the leader can distinguish real execution from a silent idle lane
+   - implementation teammates must announce `interface_change` before changing shared contracts
+   - review teammates must use `review_requested` / `review_completed` messages instead of relying on task status alone
+   - verification teammates must send `verification_started` and `verification_completed` with commands, exit status, and evidence paths
 14. Track progress through the shared task list:
    - `TaskUpdate({ taskId, status: "in_progress" })`
    - `TaskUpdate({ taskId, status: "completed" })`

@@ -1,4 +1,4 @@
-"""Validation helpers for delegated worker results."""
+"""Validation helpers for subagent execution results."""
 
 from __future__ import annotations
 

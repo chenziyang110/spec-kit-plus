@@ -14,6 +14,7 @@ def test_quickstart_teaches_specify_to_plan_mainline():
     assert "move directly from `/speckit.specify` to `/speckit.plan`" in quickstart
     assert "`/speckit.specify` to `/speckit.plan`" in quickstart or "`/speckit.specify` and `/speckit.plan`" in quickstart
     assert "`specify -> plan` as the default path" in quickstart
+    assert "/speckit.specify` -> `/speckit.deep-research` -> `/speckit.plan" in quickstart
 
 
 def test_quickstart_positions_clarify_correctly():
@@ -186,6 +187,7 @@ def test_guidance_docs_explain_deep_research_feasibility_gate():
 
     assert "multi-agent" in readme or "parallel research" in quickstart
     assert "demo evidence" in quickstart or "demo evidence" in readme
+    assert "evidence ids" in readme or "evidence ids" in quickstart
 
 
 def test_guidance_docs_explain_failing_test_first_execution_rule():
@@ -296,7 +298,7 @@ def test_guidance_docs_explain_analyze_reentry_loop():
         assert "started or finished" in content
 
 
-def test_guidance_docs_explain_rule_carrying_worker_packets():
+def test_guidance_docs_explain_rule_carrying_subagent_execution_packets():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
 
@@ -311,7 +313,7 @@ def test_guidance_docs_explain_rule_carrying_worker_packets():
         assert "DP3" in content
 
 
-def test_guidance_docs_explain_delegated_result_handoff_contract():
+def test_guidance_docs_explain_subagent_result_handoff_contract():
     readme = _read("README.md").lower()
     quickstart = _read("docs/quickstart.md").lower()
 
@@ -327,7 +329,7 @@ def test_guidance_docs_explain_delegated_result_handoff_contract():
     assert "specify result submit" in quickstart
     assert "reported_status" in quickstart
     assert "pending placeholder" in quickstart
-    assert "before dispatching native workers; if native delegation is unavailable or low-confidence" in quickstart
+    assert "before dispatching subagents; if subagent dispatch is unavailable or low-confidence" in quickstart
     assert "do not submit" in readme
 
 
@@ -398,11 +400,11 @@ def test_repo_docs_share_same_workflow_guidance():
     assert "specify -> plan" in quickstart
 
 
-def test_agents_declares_native_delegation_defaults():
+def test_agents_declares_subagent_dispatch_defaults():
     agents = _read("AGENTS.md").lower()
 
-    assert "native subagents or native delegation surface" in agents
-    assert "for codex, that runtime surface is `sp-teams`" in agents
+    assert "dispatch subagents by default" in agents
+    assert "use `sp-teams` for codex only when execution needs durable team state" in agents
 
 
 def test_guidance_docs_explain_agent_marker_and_current_agents_contract() -> None:
@@ -415,7 +417,7 @@ def test_guidance_docs_explain_agent_marker_and_current_agents_contract() -> Non
         assert "independent from `[P]`" in content
 
     assert "AUTONOMY DIRECTIVE" in agents
-    assert "native subagents or native delegation surface" in agents.lower()
+    assert "dispatch subagents for independent, bounded parallel subtasks" in agents.lower()
     assert "specify -> plan" in agents.lower()
     assert "sp-test" in agents.lower()
     assert "sp-teams" in agents.lower()

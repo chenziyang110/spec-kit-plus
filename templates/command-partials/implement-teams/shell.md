@@ -1,6 +1,6 @@
 ## Objective
 
-Run the existing implementation contract through the durable Codex teams runtime when the current batch needs explicit coordinated multi-worker execution.
+Run the existing implementation contract through the durable Codex teams runtime when the current batch needs explicit coordinated team execution.
 
 ## Context
 

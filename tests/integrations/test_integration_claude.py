@@ -1302,12 +1302,12 @@ class TestClaudeArgumentHints:
         assert hint_count == 1
 
 
-def test_claude_generated_runtime_facing_skills_include_native_delegation_contract(tmp_path):
+def test_claude_generated_runtime_facing_skills_include_native_subagent_contract(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
     runner = CliRunner()
-    target = tmp_path / "claude-delegation-contract"
+    target = tmp_path / "claude-subagent-contract"
 
     result = runner.invoke(
         app,
@@ -1319,13 +1319,13 @@ def test_claude_generated_runtime_facing_skills_include_native_delegation_contra
     skills_dir = target / ".claude" / "skills"
     for skill_name in ("sp-implement", "sp-debug", "sp-quick"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "delegation surface contract" in content
+        assert "subagent dispatch contract" in content
         assert "native dispatch surface" in content
         assert "result contract" in content
         assert "result handoff path" in content
-        assert "wait for every delegated lane's structured handoff" in content
-        assert "do not treat an idle child as done work" in content
-        assert "do not interrupt or shut down delegated work before the handoff has been written" in content
+        assert "wait for every subagent's structured handoff" in content
+        assert "do not treat an idle subagent as done work" in content
+        assert "do not interrupt or shut down subagent work before the handoff has been written" in content
         assert "done_with_concerns" in content
         assert "needs_context" in content
         assert "workertaskresult" in content
@@ -1356,26 +1356,26 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
     content = (target / ".claude" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
 
     assert "## claude dispatch-first gate" in content
-    assert "attempt delegated execution before leader-local implementation" in content
+    assert "attempt subagent execution before leader-local implementation" in content
     assert "treat `single-lane` as the topology for one safe execution lane" in content
-    assert "if multiple safe worker lanes exist for the current batch, dispatch them in parallel" in content
-    assert "do not begin concrete implementation on the leader path while an untried delegated path is available" in content
+    assert "if multiple safe subagent lanes exist for the current batch, dispatch them in parallel" in content
+    assert "do not begin concrete implementation on the leader path while an untried subagent path is available" in content
     assert "only fall back to leader-local execution after recording a concrete fallback reason" in content
     assert "/sp-implement-teams" not in content
     assert "## claude code leader gate".lower() in content
     assert "you are the **leader**, not the concrete implementer" in content
     assert "autonomous blocker recovery" in content
     assert "missed_agent_dispatch" in content
-    assert "current runtime's native worker lanes" in content
-    assert "do not silently switch this workflow onto a coordinated runtime surface" in content
+    assert "dispatch subagents first" in content
+    assert "keep `sp-implement` on the leader path and record the fallback reason" in content
 
 
-def test_claude_generated_sp_implement_description_prefers_worker_dispatch(tmp_path):
+def test_claude_generated_sp_implement_description_prefers_subagent_dispatch(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
     runner = CliRunner()
-    target = tmp_path / "claude-implement-description"
+    target = tmp_path / "claude-implement-subagent-description"
 
     result = runner.invoke(
         app,
@@ -1389,7 +1389,7 @@ def test_claude_generated_sp_implement_description_prefers_worker_dispatch(tmp_p
     parsed = yaml.safe_load(parts[1])
 
     assert parsed["description"] == (
-        "Execute the implementation plan by dispatching tasks to worker agents and integrating their results"
+        "Execute the implementation plan by dispatching subagents and integrating their results"
     )
 
 
@@ -1454,6 +1454,19 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "claude code's configured subagent model behavior" in lower
     assert "enters `idle` without consuming its first probe message" in lower
     assert "treat startup as failed rather than successful" in lower
+    assert "ordinary `agent` tool" in lower
+    assert "must not be used as a teammate substitute" in lower
+    assert "if no native agent teams teammate launch surface is available" in lower
+    assert "stop instead of falling back to ordinary subagents" in lower
+    assert "agent teams teammate result contract" in lower
+    assert "team wave protocol" in lower
+    assert "implementation teammate" in lower
+    assert "review teammate" in lower
+    assert "verification teammate" in lower
+    assert "interface_change" in lower
+    assert "review_requested" in lower
+    assert "verification_started" in lower
+    assert "team_synthesis" in lower
     assert "check-prerequisites.sh --json --require-tasks --include-tasks" in lower
     assert "parse `feature_dir` and `available_docs` list" in lower
     assert "all paths must be absolute" in lower
@@ -1467,7 +1480,8 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "native-multi-agent" in lower
     assert "join point" in lower
     assert "worker-results" in lower
-    assert "worker result contract" in lower
+    assert "subagent result contract" not in lower
+    assert "subagent dispatch contract" not in lower
     assert "result file handoff path" in lower
     assert "feature_dir/worker-results/<task-id>.json" in lower
     assert "core implementation complete" in lower
@@ -1504,6 +1518,10 @@ def test_claude_implement_teams_template_keeps_only_backend_specific_guidance():
     assert "`claude_code_subagent_model`" in lower
     assert "do not derive teammate model from `anthropic_model`" in lower
     assert "prompt-only specialization is acceptable" in lower
+    assert "ordinary `agent` tool" in lower
+    assert "must not be used as a teammate substitute" in lower
+    assert "team wave protocol" in lower
+    assert "review teammate" in lower
     assert "claude_code_experimental_agent_teams" in lower
     assert "hard prerequisite" in lower
     assert "idle" in lower

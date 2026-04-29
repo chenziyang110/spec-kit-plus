@@ -108,7 +108,7 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "native-multi-agent" in lower
     assert "sidecar-runtime" in lower
     assert "join point" in lower
-    assert "worker result contract" in lower
+    assert "subagent result contract" in lower
     assert "result file handoff path" in lower
     assert ".specify/teams/state/results/<request-id>.json" in lower
     assert "core implementation complete" in lower
@@ -190,7 +190,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "native-multi-agent" in content
     assert "invoking runtime acts as the leader" in content
     assert "`single-lane` names the topology for one safe execution lane" in content
-    assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
+    assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
     assert "selects the next executable phase and ready batch" in content
     assert "run `/sp-map-codebase` before final completion reporting" in content.lower()
     assert "verification is truthfully green and no explicit blocker prevents completion" in content.lower()
@@ -199,18 +199,18 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "join point" in content.lower()
     assert "retry-pending" in content.lower() or "retry pending" in content.lower()
     assert "blocker" in content.lower()
-    assert "once a `single-lane` batch clears the delegation-readiness bar" in content.lower()
+    assert "once a `single-lane` batch clears the subagent-readiness bar" in content.lower()
     assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
     assert "`research_gap`" in content
     assert "`plan_gap`" in content
     assert "`spec_gap`" in content
-    assert "delegated execution" in content.lower() or "delegates execution" in content.lower()
+    assert "subagent execution" in content.lower()
     assert "prefer `native-multi-agent`" in content
     assert "sp-teams" not in content.lower()
     assert "sidecar-runtime" not in content.lower()
-    assert "must not edit implementation files directly while worker delegation is active" in content.lower()
-    assert "wait for every delegated lane's structured handoff" in content.lower()
-    assert "do not treat an idle child as done work" in content.lower()
+    assert "must not edit implementation files directly while subagent execution is active" in content.lower()
+    assert "wait for every subagent's structured handoff" in content.lower()
+    assert "do not treat an idle subagent as done work" in content.lower()
 
 
 def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guidance(tmp_path):
@@ -228,7 +228,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skills_dir = target / ".codex" / "skills"
-    for skill_name in ("sp-specify", "sp-plan", "sp-test", "sp-tasks"):
+    for skill_name in ("sp-specify", "sp-plan", "sp-test-scan", "sp-test-build", "sp-tasks"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "single-lane" in content
         assert "native-multi-agent" in content
@@ -259,14 +259,30 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "workflow_state_file" in content
         assert "re-read `workflow_state_file`" in content or "re-read `workflow-state-file`" in content
 
-    test_content = (skills_dir / "sp-test" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "specify team" not in test_content
-    assert "testing-state.md" in test_content
-    assert "testing_state_file" in test_content or "testing-state-file" in test_content
-    assert "manually execute the canonical test commands" in test_content
-    assert "most recent manual validation run" in test_content
-    assert "run coverage after the first meaningful test pass" in test_content
-    assert "iterate on uncovered critical paths" in test_content
+    test_router = (skills_dir / "sp-test" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "specify team" not in test_router
+    assert "compatibility router" in test_router
+    assert "testing-state.md" in test_router
+    assert "testing_state_file" in test_router or "testing-state-file" in test_router
+    assert "route to `sp-test-scan`" in test_router
+    assert "`sp-test-build`" in test_router
+    assert "do not dispatch subagents from `sp-test` itself" in test_router
+
+    test_scan_content = (skills_dir / "sp-test-scan" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "testscanpacket" in test_scan_content
+    assert "read-only scout subagents" in test_scan_content
+    assert "spawn_agent" in test_scan_content
+    assert "wait_agent" in test_scan_content
+    assert "test_build_plan.json" in test_scan_content
+
+    test_build_content = (skills_dir / "sp-test-build" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "testbuildpacket" in test_build_content
+    assert "manually execute the canonical test commands" in test_build_content
+    assert "most recent manual validation run" in test_build_content
+    assert "run coverage after the first meaningful test pass" in test_build_content
+    assert "iterate on uncovered critical paths" in test_build_content
+    assert "spawn_agent" in test_build_content
+    assert "wait_agent" in test_build_content
 
     constitution_content = (skills_dir / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert ".specify/memory/project-rules.md" in constitution_content
@@ -364,7 +380,7 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "Which files define the existing pattern that must be preserved?" in implement_content
     assert "What implementation drift is forbidden for this batch?" in implement_content
     assert "Boundary-pattern preservation" in implement_content
-    assert "compile and validate the packet before any delegated work begins" in implement_content
+    assert "compile and validate the packet before any subagent work begins" in implement_content
     assert "validated `WorkerTaskPacket`" in implement_content
     assert "must not dispatch from raw task text alone" in implement_content.lower()
 
@@ -412,6 +428,10 @@ def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_pa
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
+    assert "dispatch explorer subagents" in content
+    assert "at least three independent explorer subagents" in content
+    assert "do not continue broad leader-local scouting" in content
+    assert "read-only evidence collectors" in content
     assert "complete-refresh" in content
     assert "do not create `.planning/codebase/`" in content
     assert "layering exists so map consumers can read detail on demand" in content
@@ -481,8 +501,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "diagnostic_profile" in content
     assert "scheduler-admission" in content or "evidence-gathering" in content
     assert "must not update the debug file" in content
-    assert "wait for every delegated lane's structured handoff" in content
-    assert "do not treat an idle child as done work" in content
+    assert "wait for every subagent's structured handoff" in content
+    assert "do not treat an idle subagent as done work" in content
 
 
 def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):
@@ -595,8 +615,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "execution_fallback" in content
     assert "join point" in content
     assert "leader" in content
-    assert "wait for every delegated lane's structured handoff" in content
-    assert "do not treat an idle child as done work" in content
+    assert "wait for every subagent's structured handoff" in content
+    assert "do not treat an idle subagent as done work" in content
     assert ".planning/quick/<id>-<slug>/" in content
     assert ".planning/quick/index.json" in content
     assert "status.md" in content

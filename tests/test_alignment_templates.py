@@ -41,6 +41,8 @@ def test_core_sp_templates_use_learning_review_hooks():
         "tasks": "templates/commands/tasks.md",
         "analyze": "templates/commands/analyze.md",
         "test": "templates/commands/test.md",
+        "test-scan": "templates/commands/test-scan.md",
+        "test-build": "templates/commands/test-build.md",
         "implement": "templates/commands/implement.md",
         "debug": "templates/commands/debug.md",
         "quick": "templates/commands/quick.md",
@@ -479,7 +481,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "instead of silently dropping it" in lowered
     assert "top-level tasks should usually fit one bounded implementation slice" in lowered
     assert "roughly 10-20 minutes" in lowered
-    assert "delegated worker can still execute the task internally through smaller 2-5 minute atomic steps" in lowered
+    assert "subagent can still execute the task internally through smaller 2-5 minute atomic steps" in lowered
     assert "stop decomposition once the current executable window is atomic" in lowered
     assert "leave later phases at the coarser story or phase level" in lowered
     assert "grouped parallelism is the default" in lowered
@@ -638,6 +640,15 @@ def test_deep_research_template_defines_feasibility_gate_contract():
     assert "Strategy names are canonical" in content
     assert "Research Orchestration" in content
     assert "before writing `Planning Handoff`" in content
+    assert "Traceability and Evidence Quality Contract" in content
+    assert "CAP-001" in content
+    assert "TRK-001" in content
+    assert "EVD-001" in content
+    assert "SPK-001" in content
+    assert "PH-001" in content
+    assert "Evidence Quality Rubric" in content
+    assert "Planning Traceability Index" in content
+    assert "what this does not prove" in lowered
     assert "evidence packet" in lowered
     assert "Research Agent Findings" in content
     assert "capability feasibility matrix" in lowered
@@ -657,11 +668,15 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
     plan = _read("templates/commands/plan.md")
 
     assert "Run a feasibility and implementation-chain gate." in specify
+    assert "label: Prove Feasibility Before Plan" in specify
+    assert "agent: sp.deep-research" in specify
     assert "recommend `/sp.deep-research` as the next command instead of `/sp.plan`" in specify
     assert "minor adjustments to capabilities that already exist" in specify
     assert "research-to-plan handoff path" in specify
     assert "Feasibility Evidence From Deep Research" in plan
     assert "Planning Handoff From Deep Research" in plan
+    assert "Deep Research Traceability Matrix" in plan
+    assert "every architecture, module-boundary, API/library, data-flow, validation, or residual-risk decision derived from deep research must cite at least one `PH-###` item" in plan
     assert "Treat the `Planning Handoff` section in `deep-research.md` as a direct planning input" in plan
     assert "Run /sp.deep-research before planning" in plan
 
@@ -944,6 +959,8 @@ def test_workflow_state_driven_templates_prefer_capture_auto_for_learning_closeo
         ("templates/commands/tasks.md", "tasks"),
         ("templates/commands/analyze.md", "analyze"),
         ("templates/commands/test.md", "test"),
+        ("templates/commands/test-scan.md", "test-scan"),
+        ("templates/commands/test-build.md", "test-build"),
     ):
         content = _read(rel_path).lower()
         assert f"capture-auto --command {cli_name}" in content
@@ -1029,7 +1046,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "What framework or boundary pattern owns the touched surface?" in content
     assert "Which files define the existing pattern that must be preserved?" in content
     assert "What implementation drift is forbidden for this batch?" in content
-    assert "compile a `WorkerTaskPacket` for each delegated task" in content
+    assert "compile a `WorkerTaskPacket` for each subagent task" in content
     assert "dispatch only from validated `WorkerTaskPacket`" in content
     assert "Do not dispatch from raw task text alone" in content
     assert ".specify/templates/worker-prompts/implementer.md" in content
@@ -1039,7 +1056,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "feature_dir/worker-results/<task-id>.json" in lowered
     assert "specify result submit" in lowered
     assert "reported_status" in lowered
-    assert "idle delegated worker is not an accepted result" in lowered
+    assert "idle subagent is not an accepted result" in lowered
     assert "must wait for and consume the structured handoff before closing the join point" in lowered
     assert "boundary-pattern preservation" in lowered
     assert "implement-tracker.md" in content
@@ -1065,7 +1082,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "classify_review_gate_policy(workload_shape)" in content
     assert "three-layer check" in lowered
     assert "optional read-only peer-review lane" in lowered
-    assert "blocked delegated worker results must include" in lowered
+    assert "blocked subagent results must include" in lowered
     assert "failed assumption" in lowered
     assert "smallest safe recovery step" in lowered
     assert "execution strategy" in lowered
@@ -1078,7 +1095,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "no-safe-batch" in lowered
     assert "native-supported" in lowered
     assert "native-missing" in lowered
-    assert "do not silently switch this workflow onto a coordinated runtime surface" in lowered
+    assert "keep `sp-implement` on the leader path and record the fallback reason" in lowered
     assert "run `/sp-map-codebase` before final completion reporting" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
@@ -1108,17 +1125,17 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "you are the implementation leader for this run" in lowered
     assert "you are not the default implementer for the current batch" in lowered
     assert "`single-lane` names the topology for one safe execution lane" in content
-    assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
-    assert "prefer delegated worker execution only when the lane already has a validated `workertaskpacket` and trustworthy delegation surface" in lowered
+    assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
+    assert "prefer subagent execution only when the lane already has a validated `workertaskpacket` and enough context" in lowered
     assert "fallback reason is recorded in `implement-tracker.md`" in lowered
     assert "invoking runtime acts as the leader" in lowered
-    assert "delegated worker execution" in lowered
+    assert "subagent execution" in lowered
     assert "next executable phase" in lowered
     assert "shared implement template is the primary source of truth" in lowered
     assert "join point" in lowered
     assert "retry-pending" in lowered or "retry pending" in lowered
     assert "blocker" in lowered
-    assert "do not stop to ask the user whether the `single-lane` batch should switch to delegated execution" in lowered
+    assert "do not stop to ask the user whether the `single-lane` batch should switch to subagent execution" in lowered
     assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
     assert "core implementation complete" in lowered
     assert "ready for integration testing" in lowered
@@ -1137,7 +1154,7 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
 def test_shared_implement_teams_contract_preserves_explicit_execution_packet_fields():
     content = _read("src/specify_cli/integrations/base.py").lower()
 
-    assert "every delegated task in the teams-backed flow must still behave like an explicit execution packet" in content
+    assert "every team-managed task in the teams-backed flow must still behave like an explicit execution packet" in content
     assert "write set and shared surfaces" in content
     assert "explicit verification command or acceptance check" in content
     assert "canonical result handoff path or runtime-managed result channel expectation" in content
@@ -1204,8 +1221,8 @@ def test_debug_and_quick_templates_reference_shared_worker_prompt_assets() -> No
     assert "specify result submit" in quick_content.lower()
     assert "reported_status" in debug_content.lower()
     assert "reported_status" in quick_content.lower()
-    assert "idle delegated worker is not an accepted result" in debug_content.lower()
-    assert "idle delegated worker is not an accepted result" in quick_content.lower()
+    assert "idle subagent is not an accepted result" in debug_content.lower()
+    assert "idle subagent is not an accepted result" in quick_content.lower()
     assert "must wait for and consume the structured handoff before closing the join point" in debug_content.lower()
     assert "must wait for and consume the structured handoff before closing the join point" in quick_content.lower()
 

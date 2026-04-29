@@ -75,25 +75,25 @@
 ## Dispatch Compilation Hints
 
 <!--
-  Record the minimum data a delegated worker packet compiler needs so
+  Record the minimum data a subagent execution packet compiler needs so
   downstream execution never has to infer boundary rules from loose context.
 -->
 
 ### Boundary Owner
 
-- [Truth-owning module, service, or boundary that delegated work must preserve]
+- [Truth-owning module, service, or boundary that subagent execution must preserve]
 
 ### Required Packet References
 
-- [File every delegated worker must inspect before changing this area]
+- [File every subagent must inspect before changing this area]
 
 ### Packet Validation Gates
 
-- [Command that must run before a delegated worker can claim completion]
+- [Command that must run before a subagent can claim completion]
 
 ### Task-Level Quality Floor
 
-- [Feature-specific quality rule every delegated worker must inherit]
+- [Feature-specific quality rule every subagent must inherit]
 
 ## Alignment Inputs
 

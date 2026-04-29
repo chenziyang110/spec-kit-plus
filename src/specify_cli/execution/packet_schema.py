@@ -1,4 +1,4 @@
-"""Typed execution packet contract for delegated work."""
+"""Typed execution packet contract for subagent work."""
 
 from __future__ import annotations
 

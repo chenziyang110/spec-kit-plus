@@ -10,76 +10,113 @@ def _read(rel_path: str) -> str:
     return read_template(rel_path)
 
 
-def test_test_template_bootstraps_testing_contract_assets():
+def test_test_template_routes_to_scan_or_build():
     content = _read("templates/commands/test.md")
     lowered = content.lower()
 
     assert "## Workflow Contract Summary" in content
-    assert "project-wide unit testing system" in lowered
-    assert ".specify/testing/TESTING_CONTRACT.md".lower() in lowered
-    assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in lowered
-    assert ".specify/testing/COVERAGE_BASELINE.json".lower() in lowered
+    assert "compatibility router" in lowered
+    assert "/sp-test-scan" in content
+    assert "/sp-test-build" in content
+    assert ".specify/testing/TEST_SCAN.md".lower() in lowered
+    assert ".specify/testing/TEST_BUILD_PLAN.md".lower() in lowered
+    assert ".specify/testing/TEST_BUILD_PLAN.json".lower() in lowered
     assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md".lower() in lowered
     assert ".specify/testing/testing-state.md" in lowered
-    assert "bootstrap" in lowered
-    assert "refresh" in lowered
-    assert "audit-only" in lowered
-    assert ".specify/templates/passive-skills/*-testing/" in lowered
+    assert "do not write tests" in lowered
+    assert "report exactly one next command" in lowered
+
+
+def test_test_scan_template_deep_scans_and_emits_build_plan():
+    content = _read("templates/commands/test-scan.md")
+    lowered = content.lower()
+
+    assert "## Workflow Contract Summary" in content
+    assert "read-only scan" in lowered
+    assert ".specify/testing/TEST_SCAN.md".lower() in lowered
+    assert ".specify/testing/TEST_BUILD_PLAN.md".lower() in lowered
+    assert ".specify/testing/TEST_BUILD_PLAN.json".lower() in lowered
+    assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md".lower() in lowered
     assert "specify testing inventory --format json" in lowered
     assert "module_kind" in lowered
     assert "framework_confidence" in lowered
     assert "selected_skill" in lowered
-    assert "testing-contract-template.md" in lowered
-    assert "testing-playbook-template.md" in lowered
-    assert "coverage-baseline-template.json" in lowered
+    assert "risk tier" in lowered
+    assert "p0" in lowered
+    assert "truth_owning_files" in lowered
+    assert "public_entrypoints" in lowered
+    assert "missing_scenarios" in lowered
+    assert "readiness" in lowered
+    assert "`ready`" in content
+    assert "`needs-leader-review`" in content
+    assert "`needs-research`" in content
+    assert "`blocked`" in content
+    assert "test-scan-template.md" in lowered
+    assert "test-build-plan-template.md" in lowered
+    assert "test-build-plan-template.json" in lowered
     assert "unit-test-system-request-template.md" in lowered
-    assert 'choose_execution_strategy(command_name="test"' in lowered
+
+
+def test_test_scan_template_requires_read_only_subagent_evidence():
+    content = _read("templates/commands/test-scan.md")
+    lowered = content.lower()
+
+    assert 'choose_execution_strategy(command_name="test-scan"' in lowered
     assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
-    assert "before mutating shared repository test framework/config files" in lowered
-    assert "before writing the consolidated `.specify/testing/*` artifacts" in lowered
+    assert "testscanpacket" in lowered
+    assert "mode: read_only" in content
+    assert "dispatch read-only scan subagents" in lowered
+    assert "inspected files" in lowered
+    assert "concrete scenario evidence" in lowered
+    assert "subagents must not edit files" in lowered
+    assert "before writing `test_build_plan.md` or `test_build_plan.json`" in lowered
+    assert "before marking scan complete" in lowered
 
 
-def test_test_template_prefers_auto_capture_from_testing_state() -> None:
-    content = _read("templates/commands/test.md").lower()
-
-    assert "capture-auto --command test" in content
-    assert "testing-state already captures reusable gaps" in content or "testing-state already captures reusable" in content
-    assert "fall back to `specify hook capture-learning --command test" in content
-
-
-def test_test_template_explains_bundled_language_testing_skills():
-    content = _read("templates/commands/test.md")
+def test_test_build_template_consumes_scan_and_dispatches_build_packets():
+    content = _read("templates/commands/test-build.md")
     lowered = content.lower()
-    state_template = _read("templates/testing/testing-state-template.md").lower()
 
-    assert "built-in `sp-test` language testing lane" in content
-    assert "templates/passive-skills/*-testing/" in lowered
-    assert ".specify/templates/passive-skills/*-testing/" in lowered
-    assert "not an unrelated optional addon" in lowered
-    assert "explicitly tell the user" in lowered
-    assert "selected bundled language testing skills" in lowered
-    assert "bundled `sp-test` language skills" in state_template
+    assert "## Workflow Contract Summary" in content
+    assert ".specify/testing/TEST_SCAN.md".lower() in lowered
+    assert ".specify/testing/TEST_BUILD_PLAN.md".lower() in lowered
+    assert ".specify/testing/TEST_BUILD_PLAN.json".lower() in lowered
+    assert "stop and route to `/sp-test-scan`" in lowered
+    assert 'choose_execution_strategy(command_name="test-build"' in lowered
+    assert "testbuildpacket" in lowered
+    assert "validated `testbuildpacket`" in lowered
+    assert "a subagent may only edit files inside its `write_set`" in lowered
+    assert "shared config, global fixtures, ci/presubmit, dependency, and production-code edits are leader-owned" in lowered
+    assert "reported_status: done | done_with_concerns | blocked | needs_context" in lowered
+    assert "idle subagent is not an accepted result" in lowered
+    assert "test-quality review lane" in lowered
 
 
-def test_test_template_requires_manual_execution_evidence_and_add_test_guidance():
-    content = _read("templates/commands/test.md")
+def test_test_build_template_requires_manual_execution_evidence_and_assets():
+    content = _read("templates/commands/test-build.md")
     lowered = content.lower()
     contract_template = _read("templates/testing/testing-contract-template.md").lower()
     playbook_template = _read("templates/testing/testing-playbook-template.md").lower()
     state_template = _read("templates/testing/testing-state-template.md").lower()
 
+    assert ".specify/testing/TESTING_CONTRACT.md".lower() in lowered
+    assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in lowered
+    assert ".specify/testing/COVERAGE_BASELINE.json".lower() in lowered
     assert "manually execute the canonical test commands" in lowered
     assert "most recent manual validation run" in lowered
+    assert "testing-contract-template.md" in lowered
+    assert "testing-playbook-template.md" in lowered
+    assert "coverage-baseline-template.json" in lowered
     assert "add new tests" in playbook_template
     assert "where new tests belong" in playbook_template
     assert "critical public/module-facing behavior" in contract_template
     assert "last_manual_validation" in state_template
 
 
-def test_test_template_requires_coverage_uplift_iteration():
-    content = _read("templates/commands/test.md").lower()
+def test_test_build_template_requires_coverage_uplift_iteration():
+    content = _read("templates/commands/test-build.md").lower()
     contract_template = _read("templates/testing/testing-contract-template.md").lower()
 
     assert "run coverage after the first meaningful test pass" in content
@@ -90,7 +127,7 @@ def test_test_template_requires_coverage_uplift_iteration():
 
 
 def test_test_template_requires_professional_unit_test_system_request_artifact():
-    content = _read("templates/commands/test.md").lower()
+    content = _read("templates/commands/test-scan.md").lower()
     request_template = _read("templates/testing/unit-test-system-request-template.md").lower()
 
     assert "unit_test_system_request.md" in content or "unit-test-system-request.md" in content
@@ -112,19 +149,20 @@ def test_test_template_requires_professional_unit_test_system_request_artifact()
     assert "scenario matrix" in request_template
 
 
-def test_test_template_uses_handbook_and_project_map_gates():
-    content = _read("templates/commands/test.md")
+def test_test_scan_and_build_templates_use_handbook_and_project_map_gates():
+    scan_content = _read("templates/commands/test-scan.md")
+    build_content = _read("templates/commands/test-build.md")
 
-    assert "[AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
-    assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`." in content
-    assert "[AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
-    assert "[AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
-    assert "[AGENT] Read `PROJECT-HANDBOOK.md`." in content
-    assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" in content
+    for content in (scan_content, build_content):
+        assert "[AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+        assert "freshness is `possibly_stale`" in content
+        assert "PROJECT-HANDBOOK.md" in content
+        assert "[AGENT] Read `PROJECT-HANDBOOK.md`." in content
+        assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" in content
 
 
 def test_test_template_emits_result_driven_handoff_recommendation():
-    content = _read("templates/commands/test.md")
+    content = _read("templates/commands/test-build.md")
     lowered = content.lower()
     state_template = _read("templates/testing/testing-state-template.md")
 
@@ -146,6 +184,23 @@ def test_test_template_emits_result_driven_handoff_recommendation():
     assert "include the recommended next command and one-line rationale in the final report" in lowered
     assert "- next_command:" in state_template
     assert "- handoff_reason:" in state_template
+
+
+def test_testing_state_tracks_scan_and_build_lifecycle():
+    state_template = _read("templates/testing/testing-state-template.md")
+    lowered = state_template.lower()
+
+    assert "active_command: sp-test" in state_template
+    assert "scan_status" in lowered
+    assert "build_status" in lowered
+    assert "test_scan" in lowered
+    assert "test_build_plan" in lowered
+    assert "test_build_plan_json" in lowered
+    assert "current_wave" in lowered
+    assert "current_lane" in lowered
+    assert "accepted_results" in lowered
+    assert "rejected_results" in lowered
+    assert "failed_validation" in lowered
 
 
 def test_plan_template_consumes_testing_contract_when_present():

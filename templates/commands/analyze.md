@@ -189,9 +189,9 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
   - `BG1`: missing `Implementation Constitution` for a boundary-sensitive feature area
   - `BG2`: `tasks.md` lacks explicit implementation guardrails even though `plan.md` declares a boundary-sensitive constitution rule
   - `BG3`: implementation guidance does not require confirming the owning framework, defining reference files, or forbidden drift before code-writing work begins
-  - `DP1`: delegated execution path lacks compiled hard rules, validation gates, or done criteria in its worker packet
-  - `DP2`: delegated execution path lacks required references or forbidden drift in its worker packet
-  - `DP3`: delegated worker completion lacks required validation evidence or rule acknowledgement
+  - `DP1`: subagent execution path lacks compiled hard rules, validation gates, or done criteria in its task packet
+  - `DP2`: subagent execution path lacks required references or forbidden drift in its task packet
+  - `DP3`: subagent completion lacks required validation evidence or rule acknowledgement
 - Treat these signals as triggers:
   - established framework-owned boundary or adapter pattern
   - native bridge, plugin surface, protocol seam, generated API surface, or other contract-heavy boundary
@@ -226,7 +226,7 @@ Output a Markdown report (no file writes) with the following structure:
 | BG3 | Boundary Guardrail Gap | HIGH | implement guidance | Execution guidance does not force boundary confirmation before code-writing work starts | Update implementation guidance so the owning framework, required references, and forbidden drift are confirmed before dispatch |
 | DP1 | Dispatch Packet Gap | HIGH | implement guidance, runtime payload | Delegated execution path is missing compiled hard rules, validation gates, or done criteria | Compile and validate a `WorkerTaskPacket` before dispatch |
 | DP2 | Dispatch Packet Gap | HIGH | plan.md, tasks.md, runtime payload | Delegated execution path is missing required references or forbidden drift | Add packet references/forbidden drift to planning artifacts, then recompile |
-| DP3 | Dispatch Result Gap | HIGH | worker result, join point | Delegated worker completion lacks validation evidence or rule acknowledgement | Reject the worker result and require a packet-compliant rerun |
+| DP3 | Dispatch Result Gap | HIGH | subagent result, join point | Subagent completion lacks validation evidence or rule acknowledgement | Reject the subagent result and require a packet-compliant rerun |
 
 (Add one row per finding; generate stable IDs prefixed by category initial.)
 
@@ -279,7 +279,7 @@ After `Next Actions`, output a short `Recommended Re-entry` block that names the
 - If the highest-impact issue is a clear requirement with an unproven implementation chain: route to `/sp-deep-research`, then `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
 - If the highest-impact issue lives in `plan.md`: route to `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
 - If the highest-impact issue lives only in `tasks.md`: route to `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
-- If the issues are limited to execution evidence, worker packets, runtime handoff state, or implementation-only verification gaps with no upstream artifact drift: route to `/sp-implement` or `/sp-debug` as appropriate
+- If the issues are limited to execution evidence, subagent execution packets, runtime handoff state, or implementation-only verification gaps with no upstream artifact drift: route to `/sp-implement` or `/sp-debug` as appropriate
 - If analysis runs after `/sp-implement` has already started or finished, do not frame findings as informational only. Reopen the highest invalid stage, regenerate downstream artifacts, and treat the current implementation output as provisional until the re-entry path has been completed
 
 ### 9.5 Persist Workflow Gate Result

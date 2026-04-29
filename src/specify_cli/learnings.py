@@ -50,12 +50,17 @@ KNOWN_COMMANDS = (
     "sp-tasks",
     "sp-analyze",
     "sp-test",
+    "sp-test-scan",
+    "sp-test-build",
     "sp-implement",
     "sp-debug",
     "sp-fast",
     "sp-quick",
     "sp-map-codebase",
 )
+COMMAND_ALIASES = {
+    "sp-research": "sp-deep-research",
+}
 
 MACHINE_BEGIN = "<!-- SPECKIT_LEARNING_DATA_BEGIN -->"
 MACHINE_END = "<!-- SPECKIT_LEARNING_DATA_END -->"
@@ -200,7 +205,7 @@ def normalize_command_name(command_name: str) -> str:
         normalized = f"sp-{raw[3:]}"
     else:
         normalized = f"sp-{raw}"
-    return normalized
+    return COMMAND_ALIASES.get(normalized, normalized)
 
 
 def _slugify(text: str) -> str:
@@ -231,7 +236,7 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
     if normalized_type == "routing_mistake":
         return ["sp-fast", "sp-quick", "sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
     if normalized_type == "verification_gap":
-        return ["sp-test", "sp-implement", "sp-debug", "sp-quick"]
+        return ["sp-test", "sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", "sp-quick"]
     if normalized_type == "state_surface_gap":
         return ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-implement", "sp-debug", "sp-quick", "sp-map-codebase"]
     if normalized_type == "map_coverage_gap":
@@ -1450,7 +1455,7 @@ def capture_auto_learning(
         if workspace is None:
             raise ValueError("workspace is required for quick auto-capture")
         source_path, suggestions = _suggest_quick_auto_capture(workspace)
-    elif normalized_command == "sp-test":
+    elif normalized_command in {"sp-test", "sp-test-scan", "sp-test-build"}:
         source_path, suggestions = _suggest_test_auto_capture(project_root)
     elif normalized_command in WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS:
         if feature_dir is None:

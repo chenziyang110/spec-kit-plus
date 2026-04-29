@@ -62,8 +62,8 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "native-multi-agent" in content
     assert "sidecar-runtime" in content
     assert "`single-lane` means only one investigation lane is currently safe" in content
-    assert "delegate that single lane only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality" in content
-    assert "if that delegation-readiness bar is not met, keep the lane on the leader path" in content
+    assert "dispatch that single subagent only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality" in content
+    assert "if that subagent-readiness bar is not met, keep the lane on the leader path" in content
     assert 'choose_execution_strategy(command_name="debug"' in content
     assert "leader-led" in content
     assert "debug file" in content
@@ -92,8 +92,8 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "if automated verification or human verification fails repeatedly" in content
     assert ".planning/debug/[slug].research.md" in content
     assert "debug-local research checkpoint" in content
-    assert "native delegation surface" in content
-    assert "coordinated runtime surface" in content
+    assert "dispatches bounded evidence-gathering subagents" in content
+    assert "managed team workflow" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved`" in content
     assert "mark `.specify/project-map/index/status.json` dirty" in content

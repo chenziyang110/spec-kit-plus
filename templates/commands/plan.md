@@ -152,6 +152,7 @@ agent_scripts:
      - ERROR "Specification still has unproven feasibility. Run /sp.deep-research before planning."
    - If `deep-research.md` exists but lacks a `Planning Handoff` section and the feature depends on its research conclusions:
      - ERROR "Deep research evidence is not ready for planning. Re-run /sp.deep-research to synthesize a Planning Handoff."
+   - If `deep-research.md` exists and includes Planning Handoff IDs (`PH-###`), preserve those IDs in plan sections that consume the research. Do not collapse traceable handoff items into unsourced prose.
 
 5. **Assume the specification package is analysis-first**:
    - Treat `/sp.specify` as the primary pre-planning requirement-analysis entry point
@@ -159,7 +160,8 @@ agent_scripts:
    - Use capability decomposition from `spec.md` when sequencing design work
    - Use `references.md` when retained sources or reusable examples affect planning choices
    - Use `deep-research.md` when feasibility evidence, disposable demo results, research-agent findings, synthesis decisions, or implementation-chain constraints affect planning choices
-   - Treat the `Planning Handoff` section in `deep-research.md` as a direct planning input, not a status note. Preserve its recommended approach, architecture implications, module boundaries, API/library choices, data flow notes, demo artifacts, validation implications, rejected options, and residual risks.
+   - Treat the `Planning Handoff` section in `deep-research.md` as a direct planning input, not a status note. Preserve its `PH-###` IDs, recommended approach, architecture implications, module boundaries, API/library choices, data flow notes, demo artifacts, validation implications, rejected options, and residual risks.
+   - Use the `Evidence Quality Rubric` and `Planning Traceability Index` from `deep-research.md` to distinguish blocking constraints from informative context.
    - Treat `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` as active planning inputs, not descriptive appendix material
    - Treat `context.md` as the primary implementation-context artifact that captures downstream planning decisions explicitly
    - Do not introduce a separate clarification command as the normal next step for routine planning readiness
@@ -189,11 +191,15 @@ agent_scripts:
       - the touched area is a native bridge, plugin surface, protocol seam, generated API surface, or other contract-heavy boundary
       - a generic implementation instinct would likely drift away from the repository's existing pattern
       - the repository already has canonical boundary files or examples that implementers must inspect before changing code safely
-    - Add `Dispatch Compilation Hints` whenever delegated execution would be unsafe without an explicit boundary owner, packet references, validation gates, or task-level quality floor
+    - Add `Dispatch Compilation Hints` whenever subagent execution would be unsafe without an explicit boundary owner, packet references, validation gates, or task-level quality floor
    - Fill Constitution Check from the constitution
    - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
    - Add a `Feasibility Evidence From Deep Research` section when `deep-research.md` exists, preserving proven chains, research-agent findings, spike evidence, constraints, rejected options, and residual risks
    - Add a `Planning Handoff From Deep Research` section when `deep-research.md` contains `Planning Handoff`, and translate that handoff into implementation strategy, architecture implications, module boundaries, API/library choices, data flow notes, validation implications, and plan-level risks
+   - Add a `Deep Research Traceability Matrix` section when `deep-research.md` contains Planning Handoff IDs:
+     - columns: `Plan Decision`, `Handoff ID`, `Capability ID`, `Track ID`, `Evidence / Spike ID`, `Evidence Quality`, `Plan Action`
+     - every architecture, module-boundary, API/library, data-flow, validation, or residual-risk decision derived from deep research must cite at least one `PH-###` item
+     - mark any `PH-###` item not consumed by the plan as `deferred`, `not applicable`, or `requires user decision`
    - Copy locked planning decisions from `alignment.md`, `context.md`, `spec.md`, and `deep-research.md` into planning constraints, assumptions, or design notes so they are not silently dropped
    - Copy implementation-chain constraints and synthesis decisions from `deep-research.md` into the implementation plan instead of rediscovering or weakening them
    - If `.specify/testing/TESTING_CONTRACT.md` exists, copy the project-level testing rules into the implementation plan instead of treating tests as optional follow-up work

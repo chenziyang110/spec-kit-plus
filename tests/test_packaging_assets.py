@@ -18,6 +18,44 @@ def test_wheel_force_include_bundles_command_partials_and_testing_templates() ->
     assert '"templates/testing" = "specify_cli/core_pack/templates/testing"' in pyproject
 
 
+def test_wheel_force_include_covers_deep_research_planning_handoff_contract() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    deep_research = (REPO_ROOT / "templates" / "commands" / "deep-research.md").read_text(encoding="utf-8")
+    plan = (REPO_ROOT / "templates" / "commands" / "plan.md").read_text(encoding="utf-8")
+    shell_partial = (
+        REPO_ROOT / "templates" / "command-partials" / "deep-research" / "shell.md"
+    ).read_text(encoding="utf-8")
+
+    assert '"templates/commands" = "specify_cli/core_pack/commands"' in pyproject
+    assert '"templates/command-partials" = "specify_cli/core_pack/command-partials"' in pyproject
+    assert "Traceability and Evidence Quality Contract" in deep_research
+    assert "Planning Handoff" in deep_research
+    assert "PH-001" in deep_research
+    assert "CAP-001" in deep_research
+    assert "Deep Research Traceability Matrix" in plan
+    assert "research finding or spike supports each design decision" in shell_partial
+
+
+def test_deep_research_golden_examples_are_bundled_with_templates() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    examples_dir = REPO_ROOT / "templates" / "examples" / "deep-research"
+
+    assert '"templates/examples" = "specify_cli/core_pack/templates/examples"' in pyproject
+    assert (examples_dir / "not-needed.md").exists()
+    assert (examples_dir / "docs-only-evidence.md").exists()
+    assert (examples_dir / "spike-required.md").exists()
+
+    not_needed = (examples_dir / "not-needed.md").read_text(encoding="utf-8")
+    docs_only = (examples_dir / "docs-only-evidence.md").read_text(encoding="utf-8")
+    spike_required = (examples_dir / "spike-required.md").read_text(encoding="utf-8")
+
+    assert "**Status**: Not needed" in not_needed
+    assert "EVD-001" in docs_only
+    assert "PH-001" in docs_only
+    assert "SPK-001" in spike_required
+    assert "research-spikes/" in spike_required
+
+
 def test_wheel_force_include_bundles_workflow_state_template() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
@@ -65,6 +103,11 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
         "# Testing Contract\n",
         encoding="utf-8",
     )
+    (core_pack / "templates" / "examples" / "deep-research").mkdir(parents=True)
+    (core_pack / "templates" / "examples" / "deep-research" / "not-needed.md").write_text(
+        "# Not needed\n",
+        encoding="utf-8",
+    )
     (core_pack / "command-partials" / "test").mkdir(parents=True)
     (core_pack / "command-partials" / "test" / "shell.md").write_text("shell\n", encoding="utf-8")
     (core_pack / "passive-skills" / "python-testing").mkdir(parents=True)
@@ -83,6 +126,7 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
 
     assert _install_shared_infra(project_root, "ps") is True
     assert (project_root / ".specify" / "templates" / "testing" / "testing-contract-template.md").exists()
+    assert (project_root / ".specify" / "templates" / "examples" / "deep-research" / "not-needed.md").exists()
     assert (project_root / ".specify" / "templates" / "command-partials" / "test" / "shell.md").exists()
     assert (project_root / ".specify" / "templates" / "passive-skills" / "python-testing" / "SKILL.md").exists()
     assert (project_root / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()

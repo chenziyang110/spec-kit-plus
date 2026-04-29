@@ -90,10 +90,10 @@ scripts:
   - data shape, migration, permission, performance, or integration constraints
   - alternative approach comparison
   - disposable demo/spike validation
-- [AGENT] Use native subagents or the integration's native delegation surface when available and when it materially improves evidence quality or speed. Keep work local when the next coordinator decision is blocked on a single tightly coupled fact.
-- [AGENT] Give each child agent one bounded track, one expected output shape, and one write scope. Research-only agents should return evidence packets in their final response. Demo/spike agents may write only under `FEATURE_DIR/research-spikes/<track-slug>/`.
-- [AGENT] Do not duplicate work across child agents. If two tracks overlap, assign one owner and ask the other to focus on a distinct risk or alternative.
-- [AGENT] Require every child agent to return an evidence packet with:
+- [AGENT] Dispatch subagents when independent tracks can run in parallel and that materially improves evidence quality or speed. Keep work local when the next coordinator decision is blocked on a single tightly coupled fact.
+- [AGENT] Give each subagent one bounded track, one expected output shape, and one write scope. Research-only subagents should return evidence packets in their final response. Demo/spike subagents may write only under `FEATURE_DIR/research-spikes/<track-slug>/`.
+- [AGENT] Do not duplicate work across subagents. If two tracks overlap, assign one owner and ask the other to focus on a distinct risk or alternative.
+- [AGENT] Require every subagent to return an evidence packet with:
   - `track`
   - `question`
   - `sources_or_repo_evidence`
@@ -104,9 +104,42 @@ scripts:
   - `rejected_options`
   - `residual_risks`
   - `spike_artifacts` when applicable
-- [AGENT] Join all child-agent results before writing final conclusions. Resolve contradictions by preferring runnable spike evidence, current repository evidence, primary documentation, then secondary sources in that order. Mark conflicts that remain unresolved instead of hiding them.
-- [AGENT] The coordinator must convert child-agent packets into `Research Agent Findings`, `Synthesis Decisions`, and `Planning Handoff`; do not paste raw child-agent output as the final artifact.
-- [AGENT] If no native multi-agent facility is available, perform the same track decomposition sequentially and record that orchestration mode as `single-lane research`.
+- [AGENT] Join all subagent results before writing final conclusions. Resolve contradictions by preferring runnable spike evidence, current repository evidence, primary documentation, then secondary sources in that order. Mark conflicts that remain unresolved instead of hiding them.
+- [AGENT] The coordinator must convert subagent packets into `Research Agent Findings`, `Synthesis Decisions`, and `Planning Handoff`; do not paste raw subagent output as the final artifact.
+- [AGENT] If subagent dispatch is unavailable or unsafe, perform the same track decomposition sequentially and record that orchestration mode as `single-lane research`.
+
+## Traceability and Evidence Quality Contract
+
+- Assign stable IDs before running research so later planning can cite specific evidence instead of paraphrasing it:
+  - capability IDs: `CAP-001`, `CAP-002`, ...
+  - research track IDs: `TRK-001`, `TRK-002`, ...
+  - evidence IDs: `EVD-001`, `EVD-002`, ...
+  - spike IDs: `SPK-001`, `SPK-002`, ...
+  - Planning Handoff item IDs: `PH-001`, `PH-002`, ...
+- Use the IDs consistently across `Capability Feasibility Matrix`, `Research Agent Findings`, `Implementation Chain Evidence`, `Demo / Spike Evidence`, `Synthesis Decisions`, and `Planning Handoff`.
+- Every handoff item must trace back to at least one evidence ID, spike ID, repository path, or source reference.
+- Grade each evidence item using this rubric:
+  - **Source tier**: `repo-evidence | runnable-spike | primary-docs | official-example | standard | secondary-source | inference`
+  - **Reproduced locally**: `yes | no | not applicable`
+  - **Recency**: [date, version, or `not time-sensitive`]
+  - **Confidence**: `high | medium | low`
+  - **Plan impact**: `blocking | constraining | informative`
+  - **Limitations**: [what the evidence does not prove]
+- Stop each research track when it reaches one of these exit states:
+  - `enough-to-plan`
+  - `constrained-but-plannable`
+  - `blocked`
+  - `not-viable`
+  - `user-decision-required`
+- Do not continue researching a track once it has enough evidence to support a planning decision. Convert the result into a handoff item and move on.
+- For every spike, record the reproducibility contract:
+  - hypothesis
+  - setup/env
+  - command
+  - expected result
+  - actual result
+  - cleanup note
+  - what this does not prove
 
 ## Outline
 
@@ -148,11 +181,13 @@ scripts:
 
 4. **Decide whether this gate is needed**:
    - Skip deep research and recommend `/sp.plan` when all target capabilities already have a known implementation path in the repository or the work is only a minor adjustment to existing behavior.
+   - When skipping, still write a lightweight `deep-research.md` using `**Status**: Not needed`, `Feasibility Decision`, `Planning Handoff`, and `Next Command`; do not invent `CAP/TRK/EVD/PH` IDs for work that is already proven.
    - Continue when any capability depends on an unproven API, library, algorithm, platform behavior, data volume, permission boundary, external integration, performance envelope, generated-code workflow, native/plugin bridge, or other path where planning would otherwise guess.
    - If the uncertainty is a requirement gap rather than feasibility risk, recommend `/sp.clarify` and update `workflow-state.md` with that route reason.
 
 5. **Build a capability feasibility matrix**:
    For each capability or module slice, record:
+   - stable capability ID (`CAP-###`)
    - capability name
    - desired outcome
    - current evidence from the repository
@@ -182,25 +217,28 @@ scripts:
 
 7. **Plan and run coordinated research**:
    - Create research tracks from the capability matrix before searching broadly.
-   - For each track, define the exact question, evidence target, likely sources, whether a spike is needed, and how the result will affect `/sp.plan`.
-   - If two or more tracks are independent and native multi-agent delegation is available, dispatch bounded child agents according to the Multi-Agent Research Orchestration contract.
-   - If delegation is unavailable or low-value, run the tracks sequentially and still write evidence packets.
+   - For each track, assign a stable track ID (`TRK-###`) and define the exact question, evidence target, likely sources, whether a spike is needed, and how the result will affect `/sp.plan`.
+   - If two or more tracks are independent and subagent dispatch is available, dispatch bounded subagents according to the Multi-Agent Research Orchestration contract.
+   - If subagent dispatch is unavailable or low-value, run the tracks sequentially and still write evidence packets.
    - Search and read only sources that answer a named feasibility question.
    - Prefer primary docs, official examples, standards, changelogs, release notes, library docs, code examples from the dependency itself, and current repository evidence.
    - Cite external sources in `references.md` and summarize how each source affects the implementation chain.
    - Separate facts from inference. If one source is weak or unverified, say so.
    - Preserve rejected alternatives with explicit reasons when they matter to planning.
-   - Convert every completed track into an evidence packet.
+   - Convert every completed track into an evidence packet with stable evidence IDs (`EVD-###`), evidence quality ratings, limitations, and a track exit state.
 
 8. **Run isolated demo validation when needed**:
-   - Create the smallest runnable spike under `SPIKES_DIR` when docs and repository evidence cannot prove feasibility.
+   - Assign a stable spike ID (`SPK-###`) and create the smallest runnable spike under `SPIKES_DIR` when docs and repository evidence cannot prove feasibility.
    - Keep the spike intentionally disposable: no production imports unless read-only, no edits outside `FEATURE_DIR/research-spikes/`, no migration or test-suite changes.
    - Define the spike before writing it:
      - hypothesis
      - inputs / fixture data
+     - setup/env
      - expected pass condition
      - commands to run
+     - actual result capture format
      - cleanup or non-persistence note
+     - what this does not prove
    - Run the spike command if the local environment supports it.
    - Capture command, exit status, relevant output summary, and evidence path in `deep-research.md`.
    - If the environment cannot run the spike, record exactly what is missing and whether planning can still proceed with a manual-risk note.
@@ -211,9 +249,42 @@ scripts:
    - Identify the recommended approach, rejected approaches, and constraints `/sp.plan` must preserve.
    - Translate demo observations into planning implications rather than leaving them as raw logs.
    - Identify module boundaries, API/library choices, data flow notes, operational constraints, and validation implications that planning must account for.
+   - Assign stable Planning Handoff IDs (`PH-###`) to each decision or constraint that `/sp.plan` must consume.
 
 10. **Write `deep-research.md`**:
-   Use this structure:
+   Use `.specify/templates/examples/deep-research/` as the output-shape reference when available:
+   - `not-needed.md` for `**Status**: Not needed`
+   - `docs-only-evidence.md` when repository evidence and primary documentation are enough
+   - `spike-required.md` when a disposable demo proves the implementation chain
+
+   Use the lightweight structure below only when the gate is not needed:
+
+   ```markdown
+   # Deep Research: [FEATURE NAME]
+
+   **Feature Branch**: `[###-feature-name]`
+   **Created**: [DATE]
+   **Status**: Not needed
+
+   ## Feasibility Decision
+
+   - **Recommendation**: Proceed to `/sp.plan`
+   - **Reason**: [Why repository evidence already proves the implementation chain]
+   - **Planning handoff readiness**: Not needed
+
+   ## Planning Handoff
+
+   - **Handoff IDs**: Not needed
+   - **Recommended approach**: [Existing implementation path `/sp.plan` should use]
+   - **Reason**: [Why no feasibility evidence or spike is required]
+   - **Constraints `/sp.plan` must preserve**: [Existing boundary, behavior, or constraint]
+
+   ## Next Command
+
+   - `/sp.plan`
+   ```
+
+   Use the full structure below when any capability needed research, evidence, or a disposable spike:
 
    ```markdown
    # Deep Research: [FEATURE NAME]
@@ -230,9 +301,9 @@ scripts:
 
    ## Capability Feasibility Matrix
 
-   | Capability | Unknown Link | Evidence Needed | Proof Method | Result |
-   | --- | --- | --- | --- | --- |
-   | [Name] | [What was uncertain] | [Proof target] | [docs / repo evidence / demo] | [proven / constrained / blocked / not needed] |
+   | Capability ID | Capability | Unknown Link | Evidence Needed | Proof Method | Result |
+   | --- | --- | --- | --- | --- | --- |
+   | CAP-001 | [Name] | [What was uncertain] | [Proof target] | [docs / repo evidence / demo] | [proven / constrained / blocked / not needed] |
 
    ## Research Orchestration
 
@@ -247,29 +318,41 @@ scripts:
 
    ## Research Agent Findings
 
-   | Track | Agent / Mode | Question | Evidence | Confidence | Planning Implication |
-   | --- | --- | --- | --- | --- | --- |
-   | [Track] | [child agent name or single-lane research] | [Question] | [Sources, repo files, or spike path] | [high / medium / low] | [What `/sp.plan` must use] |
+   | Track ID | Agent / Mode | Question | Evidence IDs | Confidence | Exit State | Planning Implication |
+   | --- | --- | --- | --- | --- | --- | --- |
+   | TRK-001 | [child agent name or single-lane research] | [Question] | EVD-001, SPK-001 | [high / medium / low] | [enough-to-plan / constrained-but-plannable / blocked / not-viable / user-decision-required] | [What `/sp.plan` must use] |
+
+   ## Evidence Quality Rubric
+
+   | Evidence ID | Supports | Source Tier | Source / Path | Reproduced Locally | Recency / Version | Confidence | Plan Impact | Limitations |
+   | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+   | EVD-001 | CAP-001 / PH-001 | [repo-evidence / runnable-spike / primary-docs / official-example / standard / secondary-source / inference] | [URL, file path, or spike path] | [yes / no / not applicable] | [date/version/not time-sensitive] | [high / medium / low] | [blocking / constraining / informative] | [what this does not prove] |
 
    ## Implementation Chain Evidence
 
    ### [Capability Name]
 
+   - **Capability ID**: CAP-001
    - **Chain**: [trigger/input -> module/API/library -> state/output -> validation]
-   - **Repository evidence**: [files, patterns, existing behavior]
-   - **External evidence**: [source links or references.md entries]
-   - **Demo evidence**: [spike path and command result, or not needed]
+   - **Repository evidence**: [EVD IDs, files, patterns, existing behavior]
+   - **External evidence**: [EVD IDs, source links or references.md entries]
+   - **Demo evidence**: [SPK IDs, spike path and command result, or not needed]
    - **Planning constraints**: [rules `/sp.plan` must preserve]
    - **Residual risk**: [remaining uncertainty]
 
    ## Demo / Spike Evidence
 
+   - **Spike ID**: SPK-001
    - **Spike**: [name]
    - **Hypothesis**: [what it proves]
    - **Path**: `research-spikes/[name]`
+   - **Setup / env**: [runtime, dependency, fixture, credentials placeholder, or not required]
    - **Command**: `[command]`
-   - **Result**: [passed / failed / not run]
+   - **Expected result**: [observable pass condition]
+   - **Actual result**: [passed / failed / not run, with summary]
    - **Evidence summary**: [short result]
+   - **Cleanup note**: [what remains disposable or how to remove it]
+   - **What this does not prove**: [limits of the spike]
    - **Planning implication**: [what design or validation decision follows]
 
    ## Spike Log
@@ -283,29 +366,36 @@ scripts:
 
    ## Synthesis Decisions
 
-   - **Recommended approach**: [approach and why]
+   - **Recommended approach**: [PH-001 -> approach and why]
    - **Rejected options**:
-     - [option] -> [evidence-based reason]
+     - [option] -> [evidence-based reason and evidence IDs]
    - **Conflict resolution**:
      - [conflict] -> [resolution and evidence priority]
    - **Plan constraints**:
-     - [constraint `/sp.plan` must preserve]
+     - PH-### -> [constraint `/sp.plan` must preserve]
 
    ## Planning Handoff
 
-   - **Recommended approach**: [implementation direction `/sp.plan` should start from]
-   - **Architecture implications**: [components, layering, boundaries, sequencing]
-   - **Module boundaries**: [owners and interfaces to preserve]
-   - **API / library choices**: [selected APIs/libraries and why]
-   - **Data flow notes**: [inputs, state, outputs, side effects]
-   - **Demo artifacts to reference**: [`research-spikes/...` and command result]
+   - **Handoff IDs**: PH-001, PH-002, ...
+   - **Recommended approach**: PH-001 -> [implementation direction `/sp.plan` should start from; trace to CAP/TRK/EVD/SPK IDs]
+   - **Architecture implications**: PH-002 -> [components, layering, boundaries, sequencing; trace to CAP/TRK/EVD/SPK IDs]
+   - **Module boundaries**: PH-003 -> [owners and interfaces to preserve; trace to CAP/TRK/EVD/SPK IDs]
+   - **API / library choices**: PH-004 -> [selected APIs/libraries and why; trace to CAP/TRK/EVD/SPK IDs]
+   - **Data flow notes**: PH-005 -> [inputs, state, outputs, side effects; trace to CAP/TRK/EVD/SPK IDs]
+   - **Demo artifacts to reference**: PH-006 -> [`research-spikes/...` and command result; trace to SPK IDs]
    - **Constraints `/sp.plan` must preserve**:
-     - [constraint]
-   - **Validation implications**: [tests/checks the plan should include later]
+     - PH-### -> [constraint; trace to CAP/TRK/EVD/SPK IDs]
+   - **Validation implications**: PH-### -> [tests/checks the plan should include later; trace to CAP/TRK/EVD/SPK IDs]
    - **Residual risks requiring design mitigation**:
-     - [risk]
+     - PH-### -> [risk; trace to CAP/TRK/EVD/SPK IDs]
    - **Decisions already proven by research**:
-     - [decision]
+     - PH-### -> [decision; trace to CAP/TRK/EVD/SPK IDs]
+
+   ## Planning Traceability Index
+
+   | Handoff ID | Plan Consumer | Supported By | Evidence Quality | Required Plan Action |
+   | --- | --- | --- | --- | --- |
+   | PH-001 | [architecture / module boundary / data model / validation / risk] | CAP-001, TRK-001, EVD-001, SPK-001 | [highest relevant confidence and plan impact] | [what `/sp.plan` must include] |
 
    ## Sources
 
@@ -331,7 +421,7 @@ scripts:
       - unproven capability chains presented as facts
       - demos with no pass condition
       - source claims without source attribution
-      - child-agent findings copied without coordinator synthesis
+      - subagent findings copied without coordinator synthesis
       - missing or vague research orchestration strategy when multiple tracks were available
       - missing `Planning Handoff` decisions for capabilities that affect plan structure
       - production-code edits from the research phase
@@ -351,7 +441,7 @@ scripts:
     - branch or feature directory
     - deep-research artifact path
     - spike paths and command results, if any
-    - research tracks and child-agent evidence packet summary, if any
+    - research tracks and subagent evidence packet summary, if any
     - proven capabilities
     - constrained or blocked capabilities
     - Planning Handoff summary for `/sp.plan`

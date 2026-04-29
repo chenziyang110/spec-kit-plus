@@ -257,6 +257,8 @@ class TestBuiltInSkillGeneration:
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (skills_dir / "sp-test" / "SKILL.md").exists()
+        assert (skills_dir / "sp-test-scan" / "SKILL.md").exists()
+        assert (skills_dir / "sp-test-build" / "SKILL.md").exists()
         assert (skills_dir / "sp-fast" / "SKILL.md").exists()
         assert (skills_dir / "sp-quick" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
@@ -266,7 +268,7 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "testing" / "testing-playbook-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "testing" / "coverage-baseline-template.json").exists()
 
-        for skill_name in ("sp-specify", "sp-deep-research", "sp-plan", "sp-test", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
+        for skill_name in ("sp-specify", "sp-deep-research", "sp-plan", "sp-test", "sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
             body = _body_without_frontmatter(skills_dir / skill_name / "SKILL.md").lower()
             assert ".specify/memory/project-rules.md" in body
             assert ".specify/memory/project-learnings.md" in body
@@ -407,7 +409,7 @@ class TestBuiltInSkillGeneration:
         assert "Which files define the existing pattern that must be preserved?" in implement_body
         assert "What implementation drift is forbidden for this batch?" in implement_body
         assert "**Boundary-pattern preservation**" in implement_body
-        assert "compile and validate the packet before any delegated work begins" in implement_body
+        assert "compile and validate the packet before any subagent work begins" in implement_body
         assert "validated `workertaskpacket`" in implement_body.lower()
         assert "must not dispatch from raw task text alone" in implement_body.lower()
         assert "write the failing test first for every behavior-changing task, bug fix, or refactor" in implement_body.lower()
@@ -461,31 +463,51 @@ class TestBuiltInSkillGeneration:
         assert "the generated navigation system should collectively cover the equivalent of these seven technical-document chapters" in map_body.lower()
 
         test_body = _body_without_frontmatter(skills_dir / "sp-test" / "SKILL.md")
-        assert ".specify/testing/TESTING_CONTRACT.md" in test_body
-        assert ".specify/testing/TESTING_PLAYBOOK.md" in test_body
-        assert ".specify/testing/COVERAGE_BASELINE.json" in test_body
-        assert "audit-only" in test_body.lower()
-        assert "bootstrap" in test_body.lower()
-        assert "refresh" in test_body.lower()
-        assert ".specify/templates/passive-skills/*-testing/" in test_body.lower()
-        assert 'choose_execution_strategy(command_name="test"' in test_body.lower()
-        assert "single-lane" in test_body.lower()
-        assert "native-multi-agent" in test_body.lower()
-        assert "sidecar-runtime" in test_body.lower()
-        assert "before mutating shared repository test framework/config files" in test_body.lower()
-        assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing" in test_body.lower()
-        assert "if testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing" in test_body.lower()
-        assert "read `project-handbook.md`." in test_body.lower()
-        assert "classify the next workflow recommendation before the final report" in test_body.lower()
-        assert "recommend exactly one next command" in test_body.lower()
-        assert "recommend `/sp-quick`" in test_body.lower()
-        assert "recommend `/sp-specify`" in test_body.lower()
-        assert "recommend `/sp-debug`" in test_body.lower()
-        assert "resume `/sp-implement`" in test_body.lower()
-        assert "manually execute the canonical test commands" in test_body.lower()
-        assert "most recent manual validation run" in test_body.lower()
-        assert "run coverage after the first meaningful test pass" in test_body.lower()
-        assert "iterate on uncovered critical paths" in test_body.lower()
+        assert "compatibility router" in test_body.lower()
+        assert "/sp-test-scan" in test_body.lower()
+        assert "/sp-test-build" in test_body.lower()
+        assert ".specify/testing/TEST_SCAN.md" in test_body
+        assert ".specify/testing/TEST_BUILD_PLAN.md" in test_body
+        assert ".specify/testing/TEST_BUILD_PLAN.json" in test_body
+        assert "do not write tests" in test_body.lower()
+        assert "report exactly one next command" in test_body.lower()
+
+        test_scan_body = _body_without_frontmatter(skills_dir / "sp-test-scan" / "SKILL.md")
+        assert ".specify/testing/TEST_SCAN.md" in test_scan_body
+        assert ".specify/testing/TEST_BUILD_PLAN.md" in test_scan_body
+        assert ".specify/testing/TEST_BUILD_PLAN.json" in test_scan_body
+        assert "testscanpacket" in test_scan_body.lower()
+        assert 'choose_execution_strategy(command_name="test-scan"' in test_scan_body.lower()
+        assert "native-multi-agent" in test_scan_body.lower()
+        assert "read-only scan subagents" in test_scan_body.lower()
+        assert "if `project-handbook.md` or required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing" in test_scan_body.lower()
+        assert "read `project-handbook.md`." in test_scan_body.lower()
+
+        test_build_body = _body_without_frontmatter(skills_dir / "sp-test-build" / "SKILL.md")
+        assert ".specify/testing/TESTING_CONTRACT.md" in test_build_body
+        assert ".specify/testing/TESTING_PLAYBOOK.md" in test_build_body
+        assert ".specify/testing/COVERAGE_BASELINE.json" in test_build_body
+        assert "bootstrap" in test_build_body.lower()
+        assert "refresh" in test_build_body.lower()
+        assert 'choose_execution_strategy(command_name="test-build"' in test_build_body.lower()
+        assert "single-lane" in test_build_body.lower()
+        assert "native-multi-agent" in test_build_body.lower()
+        assert "sidecar-runtime" in test_build_body.lower()
+        assert "testbuildpacket" in test_build_body.lower()
+        assert "before mutating shared repository test framework/config files" in test_build_body.lower()
+        assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing" in test_build_body.lower()
+        assert "if testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing" in test_build_body.lower()
+        assert "read `project-handbook.md`." in test_build_body.lower()
+        assert "classify the next workflow recommendation before the final report" in test_build_body.lower()
+        assert "recommend exactly one next command" in test_build_body.lower()
+        assert "recommend `/sp-quick`" in test_build_body.lower()
+        assert "recommend `/sp-specify`" in test_build_body.lower()
+        assert "recommend `/sp-debug`" in test_build_body.lower()
+        assert "resume `/sp-implement`" in test_build_body.lower()
+        assert "manually execute the canonical test commands" in test_build_body.lower()
+        assert "most recent manual validation run" in test_build_body.lower()
+        assert "run coverage after the first meaningful test pass" in test_build_body.lower()
+        assert "iterate on uncovered critical paths" in test_build_body.lower()
 
         fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md")
         assert "write a failing targeted test or failing repro check before editing production code" in fast_body.lower()

@@ -164,12 +164,17 @@ class TestInitIntegrationFlag:
         assert result.exit_code == 0, result.output
 
         skills_dir = project / ".claude" / "skills"
-        for skill_name in ("sp-specify", "sp-plan", "sp-test", "sp-tasks", "sp-explain", "sp-debug"):
+        for skill_name in ("sp-specify", "sp-plan", "sp-test-scan", "sp-test-build", "sp-tasks", "sp-explain", "sp-debug"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "single-lane" in content
             assert "native-multi-agent" in content
             assert "sidecar-runtime" in content
             assert "specify team" not in content
+
+        test_router = (skills_dir / "sp-test" / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "compatibility router" in test_router
+        assert "/sp-test-scan" in test_router
+        assert "/sp-test-build" in test_router
 
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert 'choose_execution_strategy(command_name="debug"' in debug_content

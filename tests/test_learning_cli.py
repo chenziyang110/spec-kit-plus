@@ -7,9 +7,16 @@ from typer.testing import CliRunner
 from specify_cli import app
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.debug.schema import DebugGraphState, DebugStatus, RootCause, ValidationCheck
+from specify_cli.learnings import normalize_command_name
 
 
 runner = CliRunner()
+
+
+def test_learning_normalizes_research_alias_to_deep_research() -> None:
+    assert normalize_command_name("research") == "sp-deep-research"
+    assert normalize_command_name("sp-research") == "sp-deep-research"
+    assert normalize_command_name("sp.research") == "sp-deep-research"
 
 
 def _seed_learning_templates(project_path: Path) -> None:

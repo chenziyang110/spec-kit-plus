@@ -41,7 +41,7 @@ Upgrade to `/sp-quick` immediately if:
 - The handbook says the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make direct execution unsafe.
 - The requested work comes from `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and is larger than one tiny harness, command, fixture, or helper repair.
 - The task stops being obvious and needs research or clarification to proceed safely.
-- The task needs delegated execution, resumable tracking, or a written quick-task summary artifact.
+- The task needs subagent execution, resumable tracking, or a written quick-task summary artifact.
 - The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a truly local repair. In that case, route to `/sp-debug`.
 
 Upgrade to `/sp-specify` immediately if:
@@ -83,7 +83,7 @@ Upgrade to `/sp-specify` immediately if:
    - Before reading any non-obvious path, prefer `specify hook validate-read-path --target-path "<candidate path>"` when you are unsure whether the path stays inside the repository or whether it may be a sensitive file.
    - If the task is behavior-changing rather than docs-only, write a failing targeted test or failing repro check before editing production code.
    - Do not use manual sanity checks as a substitute for red when behavior changes.
-   - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-test` or `/sp-quick` instead of hand-waving the verification gap.
+   - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-test` (which routes to `/sp-test-scan`) or `/sp-quick` instead of hand-waving the verification gap.
    - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
    - Do the work directly in the current context.
    - Keep the change as small and local as possible.

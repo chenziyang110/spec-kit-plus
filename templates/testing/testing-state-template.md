@@ -1,6 +1,9 @@
 ---
-status: inventory
+active_command: sp-test
+status: routing
 mode: bootstrap
+scan_status: pending
+build_status: pending
 updated: [ISO timestamp]
 ---
 
@@ -12,8 +15,24 @@ updated: [ISO timestamp]
 - next_command:
 - handoff_reason:
 - selected_modules:
-- selected_language_skills: bundled `sp-test` language skills (for example `python-testing`, `js-testing`, `rust-testing`)
+- selected_language_skills: bundled Spec Kit testing language skills used by `sp-test-scan` / `sp-test-build` (for example `python-testing`, `js-testing`, `rust-testing`)
 - inventory_source: specify testing inventory --format json
+- current_wave:
+- current_lane:
+
+## Scan Artifacts
+
+- test_scan: .specify/testing/TEST_SCAN.md
+- test_build_plan: .specify/testing/TEST_BUILD_PLAN.md
+- test_build_plan_json: .specify/testing/TEST_BUILD_PLAN.json
+- unit_test_system_request: .specify/testing/UNIT_TEST_SYSTEM_REQUEST.md
+
+## Build Execution
+
+- accepted_results:
+- rejected_results:
+- failed_validation:
+- retry_policy:
 
 ## Module Inventory
 
