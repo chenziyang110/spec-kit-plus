@@ -9,13 +9,14 @@ import { fileURLToPath } from 'node:url';
 import { withPackagedExploreHarnessHidden, withPackagedExploreHarnessLock } from './packaged-explore-harness-lock.js';
 import { checkExploreHarness } from '../doctor.js';
 
+const testDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(testDir, '..', '..', '..');
+
 function runOmx(
   cwd: string,
   argv: string[],
   envOverrides: Record<string, string> = {},
 ): { status: number | null; stdout: string; stderr: string; error?: string } {
-  const testDir = dirname(fileURLToPath(import.meta.url));
-  const repoRoot = join(testDir, '..', '..', '..');
   const omxBin = join(repoRoot, 'dist', 'cli', 'omx.js');
   const mergedEnv = { ...process.env, ...envOverrides };
   if (typeof envOverrides.HOME === 'string' && typeof envOverrides.USERPROFILE !== 'string') {
@@ -116,6 +117,39 @@ enabled = true
     }
   });
 
+  it('recognizes current specify MCP servers as OMX-managed MCP coverage', async () => {
+    const wd = await mkdtemp(join(tmpdir(), 'omx-doctor-specify-mcp-'));
+    try {
+      const home = join(wd, 'home');
+      const codexDir = join(home, '.codex');
+      await mkdir(codexDir, { recursive: true });
+      await writeFile(
+        join(codexDir, 'config.toml'),
+        `
+# oh-my-codex (OMX) Configuration
+[mcp_servers.specify_state]
+command = "node"
+args = ["state-server.js"]
+enabled = true
+`.trimStart(),
+      );
+
+      const res = runOmx(wd, ['doctor'], {
+        HOME: home,
+        CODEX_HOME: join(home, '.codex'),
+      });
+      if (shouldSkipForSpawnPermissions(res.error)) return;
+      assert.equal(res.status, 0, res.stderr || res.stdout);
+      assert.match(res.stdout, /MCP Servers: 1 servers configured \(OMX present\)/);
+      assert.doesNotMatch(
+        res.stdout,
+        /MCP Servers: 1 servers but no OMX servers yet \(expected before first setup; run "omx setup --force" once\)/,
+      );
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
   it('warns when explore harness sources are packaged but cargo is unavailable', async () => {
     const wd = await mkdtemp(join(tmpdir(), 'omx-doctor-explore-copy-'));
     try {
@@ -137,7 +171,7 @@ enabled = true
         assert.equal(res.status, 0, res.stderr || res.stdout);
         assert.match(
           res.stdout,
-          /Explore Harness: (Rust harness sources are packaged, but no compatible packaged prebuilt or cargo was found \(install Rust or set OMX_EXPLORE_BIN for omx explore\)|not ready \(no packaged binary, OMX_EXPLORE_BIN, or cargo toolchain\))/,
+          /Explore Harness: (Rust harness sources are packaged, but no compatible packaged prebuilt or cargo was found \(install Rust or set OMX_EXPLORE_BIN for omx explore\)|not ready \(no packaged binary, OMX_EXPLORE_BIN, or cargo toolchain\)|the built-in explore harness is not ready on Windows)/,
         );
       });
     } finally {
@@ -152,7 +186,7 @@ enabled = true
         const home = join(wd, 'home');
         const codexDir = join(home, '.codex');
         const fakeBin = join(wd, 'bin');
-        const packageBinDir = join(process.cwd(), 'bin');
+        const packageBinDir = join(repoRoot, 'bin');
         const packagedBinary = join(packageBinDir, process.platform === 'win32' ? 'omx-explore-harness.exe' : 'omx-explore-harness');
         const packagedMeta = join(packageBinDir, 'omx-explore-harness.meta.json');
         const hadExistingBinary = existsSync(packagedBinary);

@@ -15,6 +15,7 @@ import { parse as parseToml } from '@iarna/toml';
 import {
   getBuiltinExploreHarnessUnsupportedReason,
   resolvePackagedExploreHarnessCommand,
+  repoBuiltExploreHarnessCommand,
   EXPLORE_BIN_ENV,
 } from './explore.js';
 import { getPackageRoot } from '../utils/package.js';
@@ -489,14 +490,6 @@ export function checkExploreHarness(
   env: NodeJS.ProcessEnv = process.env,
 ): Check {
   const packageRoot = getPackageRoot();
-  const manifestPath = join(packageRoot, 'crates', 'omx-explore', 'Cargo.toml');
-  if (!existsSync(manifestPath)) {
-    return {
-      name: 'Explore Harness',
-      status: 'warn',
-      message: 'Rust harness sources not found in this install (omx explore unavailable until packaged or OMX_EXPLORE_BIN is set)',
-    };
-  }
 
   const override = env[EXPLORE_BIN_ENV]?.trim();
   if (override) {
@@ -515,6 +508,24 @@ export function checkExploreHarness(
     };
   }
 
+  const packaged = resolvePackagedExploreHarnessCommand(packageRoot);
+  if (packaged) {
+    return {
+      name: 'Explore Harness',
+      status: 'pass',
+      message: `ready (packaged native binary: ${packaged.command})`,
+    };
+  }
+
+  const repoBuilt = repoBuiltExploreHarnessCommand(packageRoot, platform);
+  if (repoBuilt) {
+    return {
+      name: 'Explore Harness',
+      status: 'pass',
+      message: `ready (repo-built native binary: ${repoBuilt.command})`,
+    };
+  }
+
   const unsupportedReason = getBuiltinExploreHarnessUnsupportedReason(platform, env);
   if (unsupportedReason) {
     return {
@@ -524,12 +535,12 @@ export function checkExploreHarness(
     };
   }
 
-  const packaged = resolvePackagedExploreHarnessCommand(packageRoot);
-  if (packaged) {
+  const manifestPath = join(packageRoot, 'crates', 'omx-explore', 'Cargo.toml');
+  if (!existsSync(manifestPath)) {
     return {
       name: 'Explore Harness',
-      status: 'pass',
-      message: `ready (packaged native binary: ${packaged.command})`,
+      status: 'warn',
+      message: `not ready (no packaged binary, ${EXPLORE_BIN_ENV}, or cargo toolchain)`,
     };
   }
 
@@ -904,7 +915,10 @@ async function checkMcpServers(configPath: string): Promise<Check> {
           message: `${mcpCount} servers configured, but retired [mcp_servers.omx_team_run] is not supported; run "omx setup --force" to repair the config`,
         };
       }
-      const hasOmx = content.includes('omx_state') || content.includes('omx_memory');
+      const hasOmx =
+        /^\s*\[mcp_servers\.(?:"?(?:omx|specify)_(?:state|memory|code_intel|trace|wiki)"?)\]\s*$/m.test(
+          content,
+        );
       if (hasOmx) {
         return { name: 'MCP Servers', status: 'pass', message: `${mcpCount} servers configured (OMX present)` };
       }

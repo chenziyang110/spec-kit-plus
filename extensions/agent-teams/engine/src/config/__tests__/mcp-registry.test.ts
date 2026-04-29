@@ -1,9 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { delimiter, join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+  commandExistsOnPath,
   getUnifiedMcpRegistryCandidates,
   loadUnifiedMcpRegistry,
   planClaudeCodeMcpSettingsSync,
@@ -31,7 +32,10 @@ describe("unified MCP registry loader", () => {
         }),
       );
 
-      const result = await loadUnifiedMcpRegistry({ homeDir: wd });
+      const result = await loadUnifiedMcpRegistry({
+        homeDir: wd,
+        commandExists: () => true,
+      });
       assert.equal(result.sourcePath, omxPath);
       assert.deepEqual(result.servers.map((server) => server.name), ["eslint"]);
       assert.equal(result.servers[0].startupTimeoutSec, 11);
@@ -52,7 +56,10 @@ describe("unified MCP registry loader", () => {
         }),
       );
 
-      const result = await loadUnifiedMcpRegistry({ candidates: [omcPath] });
+      const result = await loadUnifiedMcpRegistry({
+        candidates: [omcPath],
+        commandExists: () => true,
+      });
       assert.equal(result.sourcePath, omcPath);
       assert.equal(result.servers.length, 1);
       assert.equal(result.servers[0].name, "legacy_helper");
@@ -77,11 +84,46 @@ describe("unified MCP registry loader", () => {
 
       const result = await loadUnifiedMcpRegistry({
         candidates: [registryPath],
+        commandExists: () => true,
       });
       assert.equal(result.servers.length, 1);
       assert.equal(result.servers[0].name, "good");
       assert.equal(result.servers[0].startupTimeoutSec, 7);
       assert.equal(result.warnings.length >= 2, true);
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
+  it("skips enabled entries whose command is not installed", async () => {
+    const wd = await mkdtemp(join(tmpdir(), "omx-mcp-registry-"));
+    try {
+      const registryPath = join(wd, "registry.json");
+      await writeFile(
+        registryPath,
+        JSON.stringify({
+          missing_enabled: { command: "missing-mcp-server", args: ["mcp"] },
+          missing_disabled: {
+            command: "missing-disabled-mcp-server",
+            args: ["mcp"],
+            enabled: false,
+          },
+          good: { command: "npx", args: ["@eslint/mcp@latest"] },
+        }),
+      );
+
+      const result = await loadUnifiedMcpRegistry({
+        candidates: [registryPath],
+        commandExists: (command) => command === "npx",
+      });
+
+      assert.deepEqual(
+        result.servers.map((server) => server.name),
+        ["missing_disabled", "good"],
+      );
+      assert.deepEqual(result.warnings, [
+        'registry entry "missing_enabled" command "missing-mcp-server" was not found; skipping enabled MCP server',
+      ]);
     } finally {
       await rm(wd, { recursive: true, force: true });
     }
@@ -109,6 +151,7 @@ describe("unified MCP registry loader", () => {
 
       const result = await loadUnifiedMcpRegistry({
         candidates: [registryPath],
+        commandExists: () => true,
       });
       assert.equal(result.servers.length, 2);
       assert.deepEqual(result.servers[0], {
@@ -136,8 +179,53 @@ describe("unified MCP registry loader", () => {
 
   it("returns canonical home-based registry candidates", () => {
     const candidates = getUnifiedMcpRegistryCandidates("/tmp/home");
-    assert.deepEqual(candidates, ["/tmp/home/.omx/mcp-registry.json"]);
+    assert.deepEqual(candidates, [join("/tmp/home", ".omx", "mcp-registry.json")]);
   });
+
+  it("detects executable registry commands from PATH and PATHEXT", async () => {
+    const wd = await mkdtemp(join(tmpdir(), "omx-mcp-command-"));
+    const previousPath = process.env.PATH;
+    const previousPathext = process.env.PATHEXT;
+    try {
+      await mkdir(wd, { recursive: true });
+      const executableName =
+        process.platform === "win32" ? "example-mcp.CMD" : "example-mcp";
+      const executablePath = join(wd, executableName);
+      await writeFile(executablePath, "echo example\n");
+      if (process.platform !== "win32") {
+        await chmod(executablePath, 0o755);
+      } else {
+        process.env.PATHEXT = ".CMD;.EXE";
+      }
+
+      process.env.PATH = [wd, previousPath].filter(Boolean).join(delimiter);
+
+      assert.equal(commandExistsOnPath("example-mcp"), true);
+      assert.equal(commandExistsOnPath(executablePath), true);
+    } finally {
+      if (typeof previousPath === "string") process.env.PATH = previousPath;
+      else delete process.env.PATH;
+      if (typeof previousPathext === "string") process.env.PATHEXT = previousPathext;
+      else delete process.env.PATHEXT;
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
+  it("does not treat directories on PATH as executable MCP commands", async () => {
+    const wd = await mkdtemp(join(tmpdir(), "omx-mcp-command-"));
+    const previousPath = process.env.PATH;
+    try {
+      await mkdir(join(wd, "directory-mcp"), { recursive: true });
+      process.env.PATH = [wd, previousPath].filter(Boolean).join(delimiter);
+
+      assert.equal(commandExistsOnPath("directory-mcp"), false);
+    } finally {
+      if (typeof previousPath === "string") process.env.PATH = previousPath;
+      else delete process.env.PATH;
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
   it("plans Claude settings sync by adding only missing shared servers", () => {
     const plan = planClaudeCodeMcpSettingsSync(
       JSON.stringify(

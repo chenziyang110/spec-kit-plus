@@ -174,6 +174,11 @@ const LEGACY_SETUP_MODEL = "gpt-5.3-codex";
 const DEFAULT_SETUP_MODEL = DEFAULT_FRONTIER_MODEL;
 const OBSOLETE_NATIVE_AGENT_FIELD = ["skill", "ref"].join("_");
 const TUI_OWNED_BY_CODEX_VERSION = [0, 107, 0] as const;
+const LEGACY_NATIVE_AGENT_DESCRIPTIONS: Record<string, string> = {
+  explorer: "Read-only codebase exploration and evidence gathering",
+  reviewer: "Correctness, security, regression, and test coverage review",
+  "docs-researcher": "Primary documentation and release-note verification",
+};
 
 function createEmptyCategorySummary(): SetupCategorySummary {
   return {
@@ -272,6 +277,40 @@ async function filesDiffer(src: string, dst: string): Promise<boolean> {
 function containsTomlKey(content: string, key: string): boolean {
   const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`^\\s*${escapedKey}\\s*=`, "m").test(content);
+}
+
+function escapeTomlBasicString(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function readTomlBasicStringKey(content: string, key: string): string | null {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = content.match(
+    new RegExp(`^\\s*${escapedKey}\\s*=\\s*"((?:\\\\.|[^"\\\\])*)"\\s*$`, "m"),
+  );
+  if (!match) return null;
+  return match[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+}
+
+function defaultNativeAgentDescription(name: string): string {
+  return LEGACY_NATIVE_AGENT_DESCRIPTIONS[name] ?? `Codex native agent: ${name}`;
+}
+
+function addMissingNativeAgentDescription(content: string): string | null {
+  if (containsTomlKey(content, "description")) return null;
+  const name = readTomlBasicStringKey(content, "name");
+  if (!name) return null;
+
+  const lines = content.split(/\r?\n/);
+  const nameLineIndex = lines.findIndex((line) => /^\s*name\s*=/.test(line));
+  if (nameLineIndex < 0) return null;
+
+  lines.splice(
+    nameLineIndex + 1,
+    0,
+    `description = "${escapeTomlBasicString(defaultNativeAgentDescription(name))}"`,
+  );
+  return lines.join("\n");
 }
 
 function parseSkillFrontmatterScalar(
@@ -1440,6 +1479,12 @@ async function refreshNativeAgentConfigs(
     backupContext,
     options,
   );
+  await repairMalformedNativeAgentDescriptions(
+    agentsDir,
+    summary,
+    backupContext,
+    options,
+  );
 
   if (options.force && manifest && existsSync(agentsDir)) {
     const installedFiles = await readdir(agentsDir);
@@ -1472,6 +1517,45 @@ async function refreshNativeAgentConfigs(
   }
 
   return summary;
+}
+
+async function repairMalformedNativeAgentDescriptions(
+  agentsDir: string,
+  summary: SetupCategorySummary,
+  backupContext: SetupBackupContext,
+  options: Pick<SetupOptions, "dryRun" | "verbose">,
+): Promise<void> {
+  if (!existsSync(agentsDir)) return;
+
+  const installedFiles = await readdir(agentsDir);
+  for (const file of installedFiles) {
+    if (!file.endsWith(".toml")) continue;
+
+    const fullPath = join(agentsDir, file);
+    let content = "";
+    try {
+      content = await readFile(fullPath, "utf-8");
+    } catch {
+      continue;
+    }
+
+    const repaired = addMissingNativeAgentDescription(content);
+    if (!repaired || repaired === content) continue;
+
+    if (await ensureBackup(fullPath, true, backupContext, options)) {
+      summary.backedUp += 1;
+    }
+    if (!options.dryRun) {
+      await writeFile(fullPath, repaired);
+    }
+    summary.updated += 1;
+    if (options.verbose) {
+      const prefix = options.dryRun
+        ? "would repair native agent description"
+        : "repaired native agent description";
+      console.log(`  ${prefix} ${file}`);
+    }
+  }
 }
 
 async function cleanupObsoleteNativeAgents(

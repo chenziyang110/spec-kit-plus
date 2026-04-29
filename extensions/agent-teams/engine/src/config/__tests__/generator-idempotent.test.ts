@@ -15,6 +15,21 @@ function count(text: string, pattern: RegExp): number {
   return (text.match(pattern) ?? []).length;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function escapeTomlString(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function notifyRegexForLauncher(launcher: string): RegExp {
+  return new RegExp(
+    `^notify = \\["${escapeRegExp(escapeTomlString(launcher))}", ".*notify-hook\\.js"\\]$`,
+    "m",
+  );
+}
+
 /** Assert the current OMX block appears exactly once */
 function assertSingleOmxBlock(toml: string): void {
   assert.equal(
@@ -146,6 +161,31 @@ describe("config generator idempotency (#384)", () => {
     } finally {
       await rm(wd, { recursive: true, force: true });
     }
+  });
+
+  it("does not accumulate blank lines before preserved root keys", () => {
+    const existing = [
+      'model_provider = "OpenAI"',
+      'model = "gpt-5.5"',
+      'model_context_window = 250000',
+      'model_auto_compact_token_limit = 200000',
+      "",
+    ].join("\n");
+
+    const first = buildMergedConfig(existing, "/tmp/omx");
+    const second = buildMergedConfig(first, "/tmp/omx");
+    const third = buildMergedConfig(second, "/tmp/omx");
+
+    assert.equal(second, first);
+    assert.equal(third, first);
+    assert.match(
+      first,
+      /^developer_instructions = ".*"\n\nmodel_provider = "OpenAI"$/m,
+    );
+    assert.doesNotMatch(
+      first,
+      /^developer_instructions = ".*"\n{3,}model_provider = "OpenAI"$/m,
+    );
   });
 
   it("cleans up legacy config without markers", async () => {
@@ -435,7 +475,7 @@ describe("config generator idempotency (#384)", () => {
       const toml = await readFile(configPath, "utf-8");
 
       assert.equal(count(toml, /^notify\s*=/gm), 1, "notify should appear once");
-      assert.match(toml, /^notify = \["node", ".*notify-hook\.js"\]$/m);
+      assert.match(toml, notifyRegexForLauncher(process.execPath));
       assert.doesNotMatch(toml, /^\s*"node",\s*$/m, "orphan fragment removed");
       assert.doesNotMatch(toml, /legacy-notify-hook\.js/, "legacy notify path removed");
     } finally {
@@ -666,6 +706,63 @@ describe("config generator idempotency (#384)", () => {
       );
       // User MCP server must survive
       assert.match(toml, /^\[mcp_servers\.figma\]$/m, "user MCP preserved");
+    } finally {
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
+  it("strips orphaned managed specify MCP tables before appending the current block", async () => {
+    const wd = await mkdtemp(join(tmpdir(), "omx-idem-"));
+    try {
+      const stale = [
+        '[mcp_servers.pencil]',
+        'command = "pencil"',
+        'args = ["--app", "cursor"]',
+        "",
+        '[mcp_servers.specify_state]',
+        'command = "old-node"',
+        'args = ["old-state-server.js"]',
+        'startup_timeout_sec = 5.0',
+        "",
+        '[mcp_servers.specify_memory]',
+        'command = "old-node"',
+        'args = ["old-memory-server.js"]',
+        'startup_timeout_sec = 5.0',
+        "",
+        '[mcp_servers.specify_code_intel]',
+        'command = "old-node"',
+        'args = ["old-code-intel-server.js"]',
+        'startup_timeout_sec = 10.0',
+        "",
+        '[mcp_servers.specify_trace]',
+        'command = "old-node"',
+        'args = ["old-trace-server.js"]',
+        'startup_timeout_sec = 5.0',
+        "",
+        '# Specify Wiki MCP Server',
+        '[mcp_servers."specify_wiki"]',
+        'command = "old-node"',
+        'args = ["old-wiki-server.js"]',
+        'startup_timeout_sec = 5.0',
+        "",
+        '[tui.model_availability_nux]',
+        '"gpt-5.5" = 4',
+        "",
+        '# ============================================================',
+        '# End oh-my-codex',
+        "",
+      ].join("\n");
+
+      const toml = buildMergedConfig(stale, wd);
+      TOML.parse(toml);
+      assertSingleOmxBlock(toml);
+      assert.match(toml, /^\[mcp_servers\.pencil\]$/m, "user MCP preserved");
+      assert.match(
+        toml,
+        /^\[tui\.model_availability_nux\]$/m,
+        "user tui subtable preserved",
+      );
+      assert.doesNotMatch(toml, /old-(state|memory|code-intel|trace|wiki)-server/);
     } finally {
       await rm(wd, { recursive: true, force: true });
     }

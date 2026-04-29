@@ -30,6 +30,10 @@ function escapeTomlString(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+function getManagedLauncherCommand(): string {
+  return process.execPath || "node";
+}
+
 // ---------------------------------------------------------------------------
 // Top-level OMX keys (must live before any [table] header)
 // ---------------------------------------------------------------------------
@@ -146,12 +150,13 @@ function getOmxTopLevelLines(
   modelOverride?: string,
 ): string[] {
   const notifyHookPath = join(pkgRoot, "dist", "scripts", "notify-hook.js");
+  const escapedLauncher = escapeTomlString(getManagedLauncherCommand());
   const escapedPath = escapeTomlString(notifyHookPath);
   const rootValues = parseRootKeyValues(existingConfig);
 
   const lines = [
     "# oh-my-codex top-level settings (must be before any [table])",
-    `notify = ["node", "${escapedPath}"]`,
+    `notify = ["${escapedLauncher}", "${escapedPath}"]`,
     'model_reasoning_effort = "medium"',
     `developer_instructions = "You have oh-my-codex installed. AGENTS.md is your orchestration brain and the main orchestration surface. Use skill/keyword routing like $name plus spawned role-specialized subagents for specialized work. Codex native subagents are available via .codex/agents and may be used for independent parallel subtasks within a single session or team pane. Skills are loaded from installed SKILL.md files under .codex/skills, not from native agent TOMLs. Use workflow skills via $name when explicitly invoked or clearly routed by AGENTS.md. Treat installed prompts as narrower internal execution surfaces under AGENTS.md authority, even when user-facing docs prefer $name keywords."`,
   ];
@@ -281,13 +286,17 @@ function stripRootLevelKeys(config: string, keys: readonly string[]): string {
 function stripOrphanedManagedNotify(config: string): string {
   return config
     .replace(
-      /^\s*notify\s*=\s*\["node",\s*".*notify-hook\.js"\]\s*$(\n)?/gm,
+      /^\s*notify\s*=\s*\["[^"]+",\s*".*notify-hook\.js"\]\s*$(\n)?/gm,
       "",
     )
     .replace(
-      /\n?\s*"node",\s*\n\s*".*notify-hook\.js",\s*\n\s*\]\s*(?=\n|$)/g,
+      /\n?\s*"[^"]+",\s*\n\s*".*notify-hook\.js",\s*\n\s*\]\s*(?=\n|$)/g,
       "",
     );
+}
+
+function trimLeadingBlankLines(config: string): string {
+  return config.replace(/^(?:[ \t]*\r?\n)+/, "");
 }
 
 /**
@@ -575,6 +584,28 @@ function isLegacyOmxAgentSection(tableName: string): boolean {
   return Object.prototype.hasOwnProperty.call(AGENT_DEFINITIONS, name);
 }
 
+function isManagedSpecifyMcpSection(tableName: string): boolean {
+  const m = tableName.match(/^mcp_servers\.(?:"([^"]+)"|(\w[\w-]*))$/);
+  if (!m) return false;
+  const name = m[1] || m[2] || "";
+  return [
+    "specify_state",
+    "specify_memory",
+    "specify_code_intel",
+    "specify_trace",
+    "specify_wiki",
+  ].includes(name);
+}
+
+function isManagedOmxComment(line: string): boolean {
+  return (
+    line.trim() === "" ||
+    /^#\s*(OMX|oh-my-codex)/i.test(line) ||
+    /^#\s*Specify .* MCP Server/i.test(line) ||
+    /^# =+$/.test(line.trim())
+  );
+}
+
 /**
  * Strip OMX-owned table sections that exist outside the marker block.
  * This covers legacy configs that were written before markers were added,
@@ -591,6 +622,14 @@ function stripOrphanedOmxSections(config: string): string {
     const line = lines[i];
     const tableMatch = line.match(/^\s*\[([^\]]+)\]\s*$/);
 
+    if (/^#\s*End oh-my-codex\s*$/i.test(line.trim())) {
+      while (result.length > 0 && isManagedOmxComment(result[result.length - 1])) {
+        result.pop();
+      }
+      i++;
+      continue;
+    }
+
     if (tableMatch) {
       const tableName = tableMatch[1];
       // Note: [tui] is NOT stripped here because it could be user-owned.
@@ -598,13 +637,14 @@ function stripOrphanedOmxSections(config: string): string {
       // when it lives inside the OMX marker block.
       const isOmxSection =
         /^mcp_servers\.omx_/.test(tableName) ||
+        isManagedSpecifyMcpSection(tableName) ||
         isLegacyOmxAgentSection(tableName);
 
       if (isOmxSection) {
         // Remove preceding OMX comment lines and blank lines
         while (result.length > 0) {
           const last = result[result.length - 1];
-          if (last.trim() === "" || /^#\s*(OMX|oh-my-codex)/i.test(last)) {
+          if (isManagedOmxComment(last)) {
             result.pop();
           } else {
             break;
@@ -957,6 +997,7 @@ function getSharedMcpRegistryBlock(
  * Contains ONLY [table] sections — no bare keys.
  */
 function getOmxTablesBlock(pkgRoot: string, includeTui = true): string {
+  const escapedLauncher = escapeTomlString(getManagedLauncherCommand());
   const stateServerPath = escapeTomlString(
     join(pkgRoot, "dist", "mcp", "state-server.js"),
   );
@@ -982,35 +1023,35 @@ function getOmxTablesBlock(pkgRoot: string, includeTui = true): string {
     "",
     "# Specify State Management MCP Server",
     "[mcp_servers.specify_state]",
-    'command = "node"',
+    `command = "${escapedLauncher}"`,
     `args = ["${stateServerPath}"]`,
     "enabled = true",
     "startup_timeout_sec = 5",
     "",
     "# Specify Project Memory MCP Server",
     "[mcp_servers.specify_memory]",
-    'command = "node"',
+    `command = "${escapedLauncher}"`,
     `args = ["${memoryServerPath}"]`,
     "enabled = true",
     "startup_timeout_sec = 5",
     "",
     "# Specify Code Intelligence MCP Server (LSP diagnostics, AST search)",
     "[mcp_servers.specify_code_intel]",
-    'command = "node"',
+    `command = "${escapedLauncher}"`,
     `args = ["${codeIntelServerPath}"]`,
     "enabled = true",
     "startup_timeout_sec = 10",
     "",
     "# Specify Trace MCP Server (agent flow timeline & statistics)",
     "[mcp_servers.specify_trace]",
-    'command = "node"',
+    `command = "${escapedLauncher}"`,
     `args = ["${traceServerPath}"]`,
     "enabled = true",
     "startup_timeout_sec = 5",
     "",
     "# Specify Wiki MCP Server (persistent project knowledge base)",
     "[mcp_servers.specify_wiki]",
-    'command = "node"',
+    `command = "${escapedLauncher}"`,
     `args = ["${wikiServerPath}"]`,
     "enabled = true",
     "startup_timeout_sec = 5",
@@ -1090,7 +1131,7 @@ export function buildMergedConfig(
     existing,
   );
 
-  let body = existing.trimEnd();
+  let body = trimLeadingBlankLines(existing.trimEnd());
   if (sharedRegistryBlock) {
     body = body ? `${body}\n\n${sharedRegistryBlock}` : sharedRegistryBlock;
   }

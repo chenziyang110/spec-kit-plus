@@ -1,7 +1,7 @@
-import { existsSync } from "fs";
+import { accessSync, constants, existsSync, statSync } from "fs";
 import { readFile } from "fs/promises";
 import { homedir } from "os";
-import { join } from "path";
+import { delimiter, isAbsolute, join } from "path";
 
 export interface UnifiedMcpRegistryServer {
   name: string;
@@ -33,6 +33,7 @@ export interface ClaudeCodeSettingsSyncPlan {
 }
 interface LoadUnifiedMcpRegistryOptions {
   candidates?: string[];
+  commandExists?: (command: string) => boolean;
   homeDir?: string;
 }
 
@@ -123,6 +124,54 @@ function normalizeEntry(
   };
 }
 
+function pathEnvValue(): string {
+  return process.env.PATH ?? process.env.Path ?? process.env.path ?? "";
+}
+
+function windowsExecutableExtensions(): string[] {
+  return (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+    .split(";")
+    .map((extension) => extension.trim())
+    .filter(Boolean);
+}
+
+function commandPathCandidates(command: string): string[] {
+  const trimmed = command.trim();
+  if (process.platform !== "win32") return [trimmed];
+  if (/\.[^\\/]+$/.test(trimmed)) return [trimmed];
+  return [trimmed, ...windowsExecutableExtensions().map((extension) => `${trimmed}${extension}`)];
+}
+
+function executableFileExists(path: string): boolean {
+  try {
+    if (!statSync(path).isFile()) return false;
+    if (process.platform !== "win32") {
+      accessSync(path, constants.X_OK);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function commandExistsOnPath(command: string): boolean {
+  const trimmed = command.trim();
+  if (!trimmed) return false;
+
+  if (isAbsolute(trimmed) || /[\\/]/.test(trimmed)) {
+    return commandPathCandidates(trimmed).some((candidate) => executableFileExists(candidate));
+  }
+
+  for (const directory of pathEnvValue().split(delimiter)) {
+    if (!directory.trim()) continue;
+    for (const candidate of commandPathCandidates(trimmed)) {
+      if (executableFileExists(join(directory, candidate))) return true;
+    }
+  }
+
+  return false;
+}
+
 export function getUnifiedMcpRegistryCandidates(homeDir = homedir()): string[] {
   return [join(homeDir, ".omx", "mcp-registry.json")];
 }
@@ -156,9 +205,16 @@ export async function loadUnifiedMcpRegistry(
   }
 
   const servers: UnifiedMcpRegistryServer[] = [];
+  const commandExists = options.commandExists ?? commandExistsOnPath;
   for (const [name, value] of Object.entries(parsed)) {
     const normalized = normalizeEntry(name, value, warnings);
     if (!normalized) continue;
+    if (normalized.enabled && !commandExists(normalized.command)) {
+      warnings.push(
+        `registry entry "${name}" command "${normalized.command}" was not found; skipping enabled MCP server`,
+      );
+      continue;
+    }
     servers.push(normalized);
   }
 

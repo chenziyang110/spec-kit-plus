@@ -62,7 +62,7 @@ export function onSessionStart(data: { cwd?: string }): { additionalContext?: st
     if (!index) return {};
 
     const summary = [
-      `[OMX Wiki: ${pages.length} pages at .omx/wiki/]`,
+      `[Specify Wiki: ${pages.length} pages at .specify/runtime/wiki/]`,
       '',
       'Use wiki_query to search, wiki_list to browse, wiki_read to inspect pages.',
       '',

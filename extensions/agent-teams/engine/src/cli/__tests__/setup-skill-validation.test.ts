@@ -54,7 +54,7 @@ describe('omx setup skill validation', () => {
           { backupRoot: join(root, 'backups'), baseRoot: root },
           { force: false, dryRun: false, verbose: false },
         ),
-        /src-skills\/help\/SKILL\.md.*unterminated quoted string/i,
+        /src-skills[\\/]help[\\/]SKILL\.md.*unterminated quoted string/i,
       );
 
       assert.equal(existsSync(join(dstDir, 'help', 'SKILL.md')), false);

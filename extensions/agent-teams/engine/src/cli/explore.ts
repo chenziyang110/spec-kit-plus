@@ -94,7 +94,7 @@ export interface ExploreSparkShellRoute {
 
 const MAX_WIKI_CONTEXT_RESULTS = 5;
 const WEAK_WIKI_NOTE =
-  'Wiki evidence is weak or missing. Fall back to broader repository search and recommend that the user build an initial project wiki under .omx/wiki/ if this repo benefits from persistent project knowledge.';
+  'Wiki evidence is weak or missing. Fall back to broader repository search and recommend that the user build an initial project wiki under .specify/runtime/wiki/ if this repo benefits from persistent project knowledge.';
 
 function formatWikiContextBlock(prompt: string, cwd: string): string | null {
   const wikiDir = getWikiDir(cwd);

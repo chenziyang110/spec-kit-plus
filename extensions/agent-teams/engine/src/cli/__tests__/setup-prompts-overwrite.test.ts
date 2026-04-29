@@ -147,4 +147,37 @@ describe('omx setup prompt/native-agent overwrite behavior', () => {
     }
   });
 
+  it('repairs stale native agent toml files that are missing descriptions', async () => {
+    const wd = await mkdtemp(join(tmpdir(), 'omx-setup-prompts-'));
+    const previousCwd = process.cwd();
+    try {
+      await mkdir(join(wd, '.omx', 'state'), { recursive: true });
+      process.chdir(wd);
+
+      await setup({ scope: 'project' });
+
+      const agentsDir = join(wd, '.codex', 'agents');
+      const staleAgents = {
+        'explorer.toml': 'name = "explorer"\nmodel = "gpt-5.4"\ndeveloper_instructions = """explore"""\n',
+        'reviewer.toml': 'name = "reviewer"\nmodel = "gpt-5.4"\ndeveloper_instructions = """review"""\n',
+        'docs-researcher.toml': 'name = "docs-researcher"\nmodel = "gpt-5.4"\ndeveloper_instructions = """docs"""\n',
+      };
+      for (const [file, content] of Object.entries(staleAgents)) {
+        await writeFile(join(agentsDir, file), content);
+      }
+
+      await setup({ scope: 'project' });
+
+      const explorerToml = await readFile(join(agentsDir, 'explorer.toml'), 'utf-8');
+      const reviewerToml = await readFile(join(agentsDir, 'reviewer.toml'), 'utf-8');
+      const docsResearcherToml = await readFile(join(agentsDir, 'docs-researcher.toml'), 'utf-8');
+      assert.match(explorerToml, /^description = "Read-only codebase exploration and evidence gathering"$/m);
+      assert.match(reviewerToml, /^description = "Correctness, security, regression, and test coverage review"$/m);
+      assert.match(docsResearcherToml, /^description = "Primary documentation and release-note verification"$/m);
+    } finally {
+      process.chdir(previousCwd);
+      await rm(wd, { recursive: true, force: true });
+    }
+  });
+
 });

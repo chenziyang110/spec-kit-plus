@@ -66,8 +66,8 @@ describe("omx setup refresh summary and dry-run behavior", () => {
       await mkdir(join(wd, ".omx", "state"), { recursive: true });
       await runSetupInTempDir(wd, { scope: "project" });
 
-      const skillPath = join(wd, ".codex", "skills", "help", "SKILL.md");
-      await writeFile(skillPath, "# locally modified help\n");
+      const skillPath = join(wd, ".codex", "skills", "worker", "SKILL.md");
+      await writeFile(skillPath, "# locally modified worker\n");
 
       const output = await runSetupWithCapturedLogs(wd, {
         scope: "project",
@@ -79,7 +79,7 @@ describe("omx setup refresh summary and dry-run behavior", () => {
       assert.match(output, /native_agents: updated=/);
       assert.match(output, /agents_md: updated=/);
       assert.match(output, /config: updated=/);
-      assert.match(output, /updated skill help\/SKILL\.md/);
+      assert.match(output, /updated skill worker\/SKILL\.md/);
     } finally {
       await rm(wd, { recursive: true, force: true });
     }
@@ -91,8 +91,8 @@ describe("omx setup refresh summary and dry-run behavior", () => {
       await mkdir(join(wd, ".omx", "state"), { recursive: true });
       await runSetupInTempDir(wd, { scope: "project" });
 
-      const skillPath = join(wd, ".codex", "skills", "help", "SKILL.md");
-      const customized = "# locally modified help\n";
+      const skillPath = join(wd, ".codex", "skills", "worker", "SKILL.md");
+      const customized = "# locally modified worker\n";
       await writeFile(skillPath, customized);
 
       const output = await runSetupWithCapturedLogs(wd, {
@@ -113,7 +113,7 @@ describe("omx setup refresh summary and dry-run behavior", () => {
     try {
       await runSetupInTempDir(wd, { scope: "project" });
 
-      assert.equal(existsSync(join(wd, ".omx", "state")), true);
+      assert.equal(existsSync(join(wd, ".specify", "runtime", "state")), true);
       assert.equal(
         await readFile(join(wd, ".gitignore"), "utf-8"),
         EXPECTED_PROJECT_GITIGNORE,
@@ -164,7 +164,7 @@ describe("omx setup refresh summary and dry-run behavior", () => {
           ".codex/config.toml",
           ".codex/agents/local.toml",
           ".codex/prompts/local.md",
-          ".codex/skills/help/SKILL.md",
+          ".codex/skills/worker/SKILL.md",
           ".codex/skills/.system/cache.json",
         ],
         { cwd: wd, encoding: "utf-8" },
@@ -173,7 +173,7 @@ describe("omx setup refresh summary and dry-run behavior", () => {
       assert.match(status.stdout, /^!! \.codex\/config\.toml$/m);
       assert.match(status.stdout, /^\?\? \.codex\/agents\/local\.toml$/m);
       assert.match(status.stdout, /^\?\? \.codex\/prompts\/local\.md$/m);
-      assert.match(status.stdout, /^\?\? \.codex\/skills\/help\/SKILL\.md$/m);
+      assert.match(status.stdout, /^\?\? \.codex\/skills\/worker\/SKILL\.md$/m);
       assert.match(status.stdout, /^!! \.codex\/skills\/\.system\/cache\.json$/m);
     } finally {
       await rm(wd, { recursive: true, force: true });
@@ -438,9 +438,11 @@ describe("omx setup refresh summary and dry-run behavior", () => {
   it("syncs shared MCP registry entries into ~/.claude/settings.json for user scope", async () => {
     const wd = await mkdtemp(join(tmpdir(), "omx-setup-refresh-"));
     const previousHome = process.env.HOME;
+    const previousUserProfile = process.env.USERPROFILE;
     const previousCodexHome = process.env.CODEX_HOME;
     try {
       process.env.HOME = wd;
+      process.env.USERPROFILE = wd;
       delete process.env.CODEX_HOME;
 
       await mkdir(join(wd, ".omx", "state"), { recursive: true });
@@ -514,6 +516,8 @@ describe("omx setup refresh summary and dry-run behavior", () => {
     } finally {
       if (typeof previousHome === "string") process.env.HOME = previousHome;
       else delete process.env.HOME;
+      if (typeof previousUserProfile === "string") process.env.USERPROFILE = previousUserProfile;
+      else delete process.env.USERPROFILE;
       if (typeof previousCodexHome === "string") process.env.CODEX_HOME = previousCodexHome;
       else delete process.env.CODEX_HOME;
       await rm(wd, { recursive: true, force: true });
@@ -523,9 +527,11 @@ describe("omx setup refresh summary and dry-run behavior", () => {
   it("does not write ~/.claude/settings.json during project-scoped setup", async () => {
     const wd = await mkdtemp(join(tmpdir(), "omx-setup-refresh-"));
     const previousHome = process.env.HOME;
+    const previousUserProfile = process.env.USERPROFILE;
     const previousCodexHome = process.env.CODEX_HOME;
     try {
       process.env.HOME = wd;
+      process.env.USERPROFILE = wd;
       delete process.env.CODEX_HOME;
 
       await mkdir(join(wd, ".omx", "state"), { recursive: true });
@@ -546,6 +552,8 @@ describe("omx setup refresh summary and dry-run behavior", () => {
     } finally {
       if (typeof previousHome === "string") process.env.HOME = previousHome;
       else delete process.env.HOME;
+      if (typeof previousUserProfile === "string") process.env.USERPROFILE = previousUserProfile;
+      else delete process.env.USERPROFILE;
       if (typeof previousCodexHome === "string") process.env.CODEX_HOME = previousCodexHome;
       else delete process.env.CODEX_HOME;
       await rm(wd, { recursive: true, force: true });
@@ -555,9 +563,11 @@ describe("omx setup refresh summary and dry-run behavior", () => {
   it("ignores legacy ~/.omc/mcp-registry.json during setup unless candidates are passed explicitly", async () => {
     const wd = await mkdtemp(join(tmpdir(), "omx-setup-refresh-"));
     const previousHome = process.env.HOME;
+    const previousUserProfile = process.env.USERPROFILE;
     const previousCodexHome = process.env.CODEX_HOME;
     try {
       process.env.HOME = wd;
+      process.env.USERPROFILE = wd;
       delete process.env.CODEX_HOME;
 
       await mkdir(join(wd, ".omx", "state"), { recursive: true });
@@ -576,11 +586,13 @@ describe("omx setup refresh summary and dry-run behavior", () => {
       assert.doesNotMatch(config, /Shared MCP Server: legacy_helper/);
 
       const output = await runSetupWithCapturedLogs(wd, { scope: "project" });
-      assert.match(output, /legacy shared MCP registry detected at .*\.omc\/mcp-registry\.json but ignored by default/i);
-      assert.match(output, /move it to .*\.omx\/mcp-registry\.json/i);
+      assert.match(output, /legacy shared MCP registry detected at .*\.omc[\\/]mcp-registry\.json but ignored by default/i);
+      assert.match(output, /move it to .*\.omx[\\/]mcp-registry\.json/i);
     } finally {
       if (typeof previousHome === "string") process.env.HOME = previousHome;
       else delete process.env.HOME;
+      if (typeof previousUserProfile === "string") process.env.USERPROFILE = previousUserProfile;
+      else delete process.env.USERPROFILE;
       if (typeof previousCodexHome === "string") process.env.CODEX_HOME = previousCodexHome;
       else delete process.env.CODEX_HOME;
       await rm(wd, { recursive: true, force: true });
