@@ -19,7 +19,7 @@ from specify_cli.codex_team.state_paths import (
 def test_codex_team_state_root_is_under_specify_state(codex_team_project_root: Path):
     root = codex_team_state_root(codex_team_project_root)
 
-    assert root == codex_team_project_root / ".specify" / "codex-team" / "state"
+    assert root == codex_team_project_root / ".specify" / "teams" / "state"
     assert root.parent.parent == orchestration_root(codex_team_project_root).parent
 
 
@@ -34,13 +34,13 @@ def test_codex_team_state_root_delegates_specify_namespace(monkeypatch, codex_te
 
     root = codex_team_state_root(codex_team_project_root)
 
-    assert root == delegated_orchestration_root.parent / "codex-team" / "state"
+    assert root == delegated_orchestration_root.parent / "teams" / "state"
 
 
 def test_runtime_session_path_uses_session_prefix(codex_team_project_root: Path):
     path = runtime_session_path(codex_team_project_root, "abc123")
 
-    assert path == codex_team_project_root / ".specify" / "codex-team" / "state" / "session-abc123.json"
+    assert path == codex_team_project_root / ".specify" / "teams" / "state" / "session-abc123.json"
 
 
 def test_canonical_runtime_paths_are_under_state_root(codex_team_project_root: Path):

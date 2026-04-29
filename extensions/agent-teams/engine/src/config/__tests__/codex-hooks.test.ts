@@ -8,6 +8,18 @@ import {
 } from "../codex-hooks.js";
 
 describe("codex hooks helpers", () => {
+  it("builds managed wrappers with the current launcher by default", () => {
+    const config = buildManagedCodexHooksConfig("/repo");
+    const preToolUseEntry = config.hooks.PreToolUse[0] as {
+      hooks?: Array<{ command?: string }>;
+    };
+
+    assert.match(
+      String(preToolUseEntry.hooks?.[0]?.command ?? ""),
+      new RegExp(`^"${process.execPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" `),
+    );
+  });
+
   it("merges managed wrappers without dropping user hooks", () => {
     const merged = JSON.parse(
       mergeManagedCodexHooksConfig(

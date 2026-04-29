@@ -59,12 +59,12 @@ scripts:
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command tasks --format json` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+- [AGENT] Run `specify learning start --command tasks --format json` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader task-generation context.
 - Review `.planning/learnings/candidates.md` only when it still contains task-generation-relevant candidate learnings after the passive start step, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
 - [AGENT] When task-shaping friction appears, run `specify hook signal-learning --command tasks ...` with artifact-rewrite, route-change, false-start, or hidden-dependency counts.
 - [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command tasks --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `routing_mistake`, `verification_gap`, `decision_debt`, or `project_constraint` exists.
-- [AGENT] Prefer `specify hook capture-learning --command tasks ...` when decomposition exposes reusable dependency, batching, verification, or ownership mistakes.
+- [AGENT] Prefer `specify learning capture-auto --command tasks --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command tasks ...` when the durable state does not capture the reusable lesson cleanly.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Workflow Phase Lock
@@ -98,12 +98,12 @@ scripts:
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 2. **Ensure repository navigation system exists**:
-   - Check whether `.specify/project-map/status.json` exists.
+   - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task-generation request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before generating task batches.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
-   - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
    - [AGENT] If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - [AGENT] If task-relevant coverage is insufficient for the current task-generation request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
@@ -122,16 +122,17 @@ scripts:
    - **Required when present**: `.specify/memory/project-learnings.md` (confirmed reusable project learnings that may shape decomposition, validation, or guardrails)
    - **If `.planning/learnings/candidates.md` exists**: inspect only the entries relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
    - **Required**: [AGENT] Read `PROJECT-HANDBOOK.md`
-   - **Required**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`
+   - **Required**: Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`
    - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 4. **Execute task generation workflow**:
-   - [AGENT] Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="tasks", snapshot, workload_shape)`
-   - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
-   - The chosen execution strategy applies to the **current ready batch**, not automatically to the entire feature or task graph.
-   - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`
+    - [AGENT] Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="tasks", snapshot, workload_shape)`
+    - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
+    - The chosen execution strategy applies to the **current ready batch**, not automatically to the entire feature or task graph.
+    - Primary decomposition goal: maximize safe native-subagent throughput for later `sp-implement` runs by isolating write sets and turning ready work into a dispatch-ready lane packet instead of a vague checklist.
+    - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`
    - Decision order is fixed:
      - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
      - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
@@ -172,10 +173,12 @@ scripts:
     - If later work still depends on upstream evidence, add a refinement checkpoint instead of guessing detailed downstream tasks too early.
     - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
     - [AGENT] Add a `Task Guardrail Index` or equivalent task-to-guardrail mapping when delegated execution needs task-local hard rules, required references, forbidden drift, or validation gates compiled into worker packets
+    - For every `[P]` task or explicit parallel batch, emit the dispatch-ready lane packet inputs the leader will need later: objective, write set, required references, forbidden drift, validation command, and done condition.
     - Generate dependency graph showing user story completion order
-   - Derive a write set for each task (files or shared registration surfaces it will modify)
-   - Group ready tasks into each phase's parallel batches using those write sets
-   - Grouped parallelism is the default when multiple ready tasks have isolated write sets and do not depend on each other's outputs.
+    - Derive a write set for each task (files or shared registration surfaces it will modify)
+    - Group ready tasks into each phase's parallel batches using those write sets
+    - Grouped parallelism is the default when multiple ready tasks have isolated write sets and do not depend on each other's outputs.
+    - Prefer moving shared registrations, export barrels, schema indexes, router tables, and other coordination edits into explicit serial join tasks so the surrounding feature work can stay parallel-ready.
    - Pipeline is preferred when outputs flow linearly from one bounded lane to the next, for example transform -> generate -> validate.
    - Every pipeline stage still needs an explicit checkpoint before downstream stages continue so stale assumptions do not propagate silently.
    - If `classify_review_gate_policy(workload_shape)` requires a review gate, add an explicit high-risk review checkpoint before downstream tasks continue.
@@ -218,7 +221,7 @@ scripts:
     - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
     - workflow-state path
     - Recommended next command: `/sp.analyze`
-    - if the decomposition exposes new shared surfaces, new workflow joins, new validation entry points, or other atlas facts that the current handbook/project-map does not yet capture well enough for downstream execution, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield implementation proceeds
+    - if the decomposition exposes new shared surfaces, new workflow joins, new validation entry points, or other atlas facts that the current handbook/project-map does not yet capture well enough for downstream execution, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield implementation proceeds
     - If the current ready batch strategy is `single-lane` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`

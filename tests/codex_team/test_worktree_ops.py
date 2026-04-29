@@ -8,7 +8,7 @@ from specify_cli.codex_team import tmux_backend, worktree_ops, worker_bootstrap
 
 
 def test_worker_worktree_path_is_rooted_within_project(codex_team_project_root):
-    expected = codex_team_project_root / ".specify" / "codex-team" / "worktrees" / "sess" / "worker"
+    expected = codex_team_project_root / ".specify" / "teams" / "worktrees" / "sess" / "worker"
     actual = worktree_ops.worker_worktree_path(codex_team_project_root, session_id="sess", worker_id="worker")
     assert actual == expected
 

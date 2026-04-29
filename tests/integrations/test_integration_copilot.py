@@ -51,6 +51,7 @@ class TestCopilotIntegration:
                 ".specify/memory/project-learnings.md",
                 ".specify/memory/project-rules.md",
                 ".specify/project-map/status.json",
+                ".specify/project-map/index/status.json",
             ]
         )
 

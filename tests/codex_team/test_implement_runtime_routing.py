@@ -24,7 +24,7 @@ def test_sp_implement_documents_canonical_decision_order() -> None:
 
     no_safe_batch = content.find("parallel_batches <= 0")
     native_supported = content.find("native_multi_agent")
-    native_missing = content.find("sidecar_runtime_supported")
+    native_missing = content.find("native-missing")
     fallback = content.find("fallback")
 
     assert no_safe_batch != -1
@@ -50,7 +50,6 @@ def test_sp_implement_distinguishes_execution_modes() -> None:
 
     assert "single-lane" in content
     assert "native-multi-agent" in content
-    assert "sidecar-runtime" in content
     assert "decision order" in content
     assert "specify team" not in content
     assert "auto-dispatch" not in content

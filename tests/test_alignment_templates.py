@@ -36,6 +36,7 @@ def test_core_sp_templates_use_learning_review_hooks():
     command_templates = {
         "specify": "templates/commands/specify.md",
         "clarify": "templates/commands/clarify.md",
+        "deep-research": "templates/commands/deep-research.md",
         "plan": "templates/commands/plan.md",
         "tasks": "templates/commands/tasks.md",
         "analyze": "templates/commands/analyze.md",
@@ -85,13 +86,17 @@ def test_specify_template_uses_alignment_first_contract():
     assert ".planning/learnings/candidates.md" in content
     assert "specify learning start --command specify --format json" in content
     assert "specify learning capture --command specify" in content
-    assert ".specify/project-map/status.json" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/index/status.json" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" in content
     assert "Use `Topic Map` to choose the smallest relevant topical documents" in content
     assert "run `/sp-map-codebase` before continuing" in content
+    assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md" in content
+    assert "primary brownfield testing-program input" in content
+    assert "module priority waves" in content
+    assert "small / medium / large" in lowered
     assert "project-map freshness helper" in lowered
     assert "freshness is `missing` or `stale`" in lowered
     assert "freshness is `possibly_stale`" in lowered
@@ -256,7 +261,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify`" in content
     assert "explicit pre-release check" in lowered
     assert "without needing `/sp.clarify`" in content
-    assert "mark `.specify/project-map/status.json` dirty" in lowered
+    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
     assert "recommend `/sp-map-codebase`" in content
     assert "`Capability 1 / 3 | Question 2`" in content
     assert "SPECIFY SESSION - Capability 1 / 3 | Question 2" in content
@@ -272,7 +277,7 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert ".planning/learnings/candidates.md" in content
     assert "specify learning start --command constitution --format json" in content
     assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/status.json" in content
+    assert ".specify/project-map/index/status.json" in content
     assert "/sp-map-codebase" in content
     assert "workflow-state.md" in content
     assert "/sp-plan" in content
@@ -323,10 +328,10 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert ".planning/learnings/candidates.md" in content
     assert "specify learning start --command plan --format json" in content
     assert "specify learning capture --command plan" in content
-    assert ".specify/project-map/status.json" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/index/status.json" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "run `/sp-map-codebase` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -346,7 +351,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "Read `templates/research-template.md`" in content
     assert "Treat `context.md` as the primary implementation-context artifact" in content
     assert "planning-critical unresolved items remain" in content
-    assert "locked planning decisions from `alignment.md`, `context.md`, and `spec.md`" in content
+    assert "locked planning decisions from `alignment.md`, `context.md`, `spec.md`, and `deep-research.md`" in content
     assert "silently omitted from the generated plan artifacts" in content
     assert "Add `Implementation Constitution` whenever one or more of these heuristics is true" in content
     assert "established framework-owned boundary or adapter pattern" in content
@@ -377,7 +382,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "What does the planner need to know to produce a high-quality implementation plan" in content
     assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
     assert "recommended follow-up quality check: `/sp.checklist`" in content
-    assert "mark `.specify/project-map/status.json` dirty" in lowered
+    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
     assert "recommend `/sp-map-codebase`" in content
     assert "specify team" not in lowered
     assert "specify -> clarify -> plan" not in lowered
@@ -449,9 +454,9 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "phase_mode: task-generation-only" in content
     assert "Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution." in content
     assert "When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding." in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "run `/sp-map-codebase` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -486,7 +491,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "Planning inputs section" in content
     assert "before writing `tasks.md`" in content
     assert "before emitting canonical parallel batches and join points" in lowered
-    assert "mark `.specify/project-map/status.json` dirty" in lowered
+    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
     assert "recommend `/sp-map-codebase`" in content
     assert "specify team" not in lowered
 
@@ -525,10 +530,10 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "when no upstream remediation is required" in lowered
     assert "`next_command: /sp.plan`" in content or "`next_command: /sp.tasks`" in content
     assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/status.json" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/index/status.json" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "run `/sp-map-codebase` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -537,7 +542,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "- CONTEXT = FEATURE_DIR/context.md" in content
     assert ".specify/memory/constitution.md" in content
     assert "Read `PROJECT-HANDBOOK.md`" in content
-    assert "Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`" in content
+    assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" in content
     assert "**From context.md:**" in content
     assert "Locked Decisions" in content
     assert "Locked Planning Decisions" in content
@@ -590,7 +595,9 @@ def test_workflow_state_template_supports_analyze_gate_phase():
     lowered = content.lower()
 
     assert "analysis-only" in lowered
+    assert "research-only" in lowered
     assert "/sp.analyze" in content
+    assert "/sp.deep-research" in content
     assert "/sp.constitution" in content
 
 
@@ -613,8 +620,50 @@ def test_new_analysis_workflow_command_templates_exist():
 
     assert "map-codebase" in template_stems
     assert "clarify" in template_stems
+    assert "deep-research" in template_stems
     assert "explain" in template_stems
     assert "spec-extend" not in template_stems
+
+
+def test_deep_research_template_defines_feasibility_gate_contract():
+    content = _read("templates/commands/deep-research.md")
+    lowered = content.lower()
+
+    assert "sp-deep-research" in content
+    assert "phase_mode: research-only" in content
+    assert "deep-research.md" in content
+    assert "research-spikes/" in content
+    assert "Multi-Agent Research Orchestration" in content
+    assert 'choose_execution_strategy(command_name="deep-research"' in content
+    assert "Strategy names are canonical" in content
+    assert "Research Orchestration" in content
+    assert "before writing `Planning Handoff`" in content
+    assert "evidence packet" in lowered
+    assert "Research Agent Findings" in content
+    assert "capability feasibility matrix" in lowered
+    assert "implementation chain evidence" in content.lower()
+    assert "Synthesis Decisions" in content
+    assert "Planning Handoff" in content
+    assert "constraints `/sp.plan` must preserve" in content
+    assert "disposable demo" in lowered
+    assert "do not edit production code" in lowered
+    assert "skip deep research" in lowered
+    assert "minor adjustment to existing behavior" in lowered
+    assert "next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
+
+
+def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research():
+    specify = _read("templates/commands/specify.md")
+    plan = _read("templates/commands/plan.md")
+
+    assert "Run a feasibility and implementation-chain gate." in specify
+    assert "recommend `/sp.deep-research` as the next command instead of `/sp.plan`" in specify
+    assert "minor adjustments to capabilities that already exist" in specify
+    assert "research-to-plan handoff path" in specify
+    assert "Feasibility Evidence From Deep Research" in plan
+    assert "Planning Handoff From Deep Research" in plan
+    assert "Treat the `Planning Handoff` section in `deep-research.md` as a direct planning input" in plan
+    assert "Run /sp.deep-research before planning" in plan
 
 
 def test_map_codebase_template_generates_handbook_navigation_system() -> None:
@@ -622,13 +671,13 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     lowered = content.lower()
 
     assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/CONVENTIONS.md" in content
-    assert ".specify/project-map/INTEGRATIONS.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
-    assert ".specify/project-map/TESTING.md" in content
-    assert ".specify/project-map/OPERATIONS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/CONVENTIONS.md" in content
+    assert ".specify/project-map/root/INTEGRATIONS.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
+    assert ".specify/project-map/root/TESTING.md" in content
+    assert ".specify/project-map/root/OPERATIONS.md" in content
     assert 'choose_execution_strategy(command_name="map-codebase"' in content
     assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
@@ -670,9 +719,9 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     assert "change-propagation hotspots" in lowered
     assert "\u9879\u76ee\u6280\u672f\u6587\u6863.md" not in content
     assert "`status.json` must preserve the current freshness contract" in content
-    assert "last_mapped_commit" in content
-    assert "last_refresh_topics" in content
-    assert "dirty_reasons" in content
+    assert "`global`" in content
+    assert "`modules`" in content
+    assert "deep_status" in content
     assert "component and module dependency graph" in lowered
     assert "runtime data and event flows" in lowered
     assert "state lifecycle" in lowered
@@ -786,12 +835,12 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
     assert "Existing Code Insights" in content
     assert "unresolved gray areas that still change plan structure" in lowered
     assert "missing locked decisions, canonical references, or deferred-scope notes" in lowered
-    assert "whether the spec package is now ready for `/sp.plan` or still needs more clarification" in content
+    assert "whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first" in content
     assert "whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning" in content
     assert "avoid implying an automatic handoff to `/sp.plan`" in lowered
     assert "default rescue lane" in lowered
     assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
-    assert "mark `.specify/project-map/status.json` dirty" in lowered
+    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
     assert "recommend `/sp-map-codebase`" in content
 
 
@@ -852,10 +901,53 @@ def test_workflow_state_template_exists_and_captures_phase_lock_contract():
     assert "## Exit Criteria" in content
     assert "## Next Action" in content
     assert "## Next Command" in content
+    assert "## Learning Signals" in content
+    assert "### False Starts" in content
+    assert "### Hidden Dependencies" in content
+    assert "### Reusable Constraints" in content
     assert "planning-only" in content
     assert "design-only" in content
     assert "task-generation-only" in content
     assert "/sp.constitution" in content
+
+
+def test_auto_template_routes_from_existing_state_surfaces():
+    content = _read("templates/commands/auto.md")
+    lowered = content.lower()
+
+    assert "recommended next spec kit plus workflow step" in lowered
+    assert "launcher/router" in lowered or "routing entrypoint" in lowered or "resume entrypoint" in lowered
+    assert "workflow-state.md" in content
+    assert "implement-tracker.md" in content
+    assert "testing-state.md" in content
+    assert "status.md" in lowered
+    assert "debug" in lowered
+    assert "next_command" in content
+    assert "do not rewrite the underlying workflow state to `/sp.auto`" in lowered
+    assert "obey the recorded upstream gate" in lowered or "must obey the recorded upstream gate" in lowered
+    assert "if state is missing, stale, conflicting, or cannot identify one safe next step" in lowered
+    assert "stop in read-only diagnosis" in lowered or "diagnostic mode" in lowered
+    assert "read `.specify/templates/commands/<target>.md`" in lowered or "follow the routed command's shared contract" in lowered
+    assert "/sp.plan" in content
+    assert "/sp.tasks" in content
+    assert "/sp.analyze" in content
+    assert "/sp.implement" in content
+    assert "/sp.debug" in content
+    assert "/sp.quick" in content
+    assert "/sp.fast" in content
+
+
+def test_workflow_state_driven_templates_prefer_capture_auto_for_learning_closeout():
+    for rel_path, cli_name in (
+        ("templates/commands/specify.md", "specify"),
+        ("templates/commands/plan.md", "plan"),
+        ("templates/commands/tasks.md", "tasks"),
+        ("templates/commands/analyze.md", "analyze"),
+        ("templates/commands/test.md", "test"),
+    ):
+        content = _read(rel_path).lower()
+        assert f"capture-auto --command {cli_name}" in content
+        assert "workflow-state.md" in content or "testing-state.md" in content
 
 
 def test_tasks_templates_default_to_phased_delivery_not_mvp():
@@ -924,9 +1016,9 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".planning/learnings/candidates.md" in content
     assert "specify learning start --command implement --format json" in content
     assert "specify learning capture --command implement" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "run `/sp-map-codebase` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -980,25 +1072,25 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "single-lane" in lowered
     assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
-    assert "sidecar-runtime" in lowered
     assert "delegation_confidence" in lowered
-    assert "native-low-confidence" in lowered
+    assert "fallback-low-confidence" in lowered
     assert "parallel_batches" in lowered
     assert "no-safe-batch" in lowered
     assert "native-supported" in lowered
     assert "native-missing" in lowered
+    assert "do not silently switch this workflow onto a coordinated runtime surface" in lowered
     assert "run `/sp-map-codebase` before final completion reporting" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
     assert "if you cannot complete that refresh in the current pass" in lowered
-    assert "mark `.specify/project-map/status.json` dirty" in lowered
+    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
     assert "specify team" not in lowered
     assert "auto-dispatch" not in lowered
     assert "codex runtime rule" not in lowered
 
     no_safe_batch = step_6.find("parallel_batches <= 0")
     native_supported = step_6.find("native_multi_agent")
-    native_missing = step_6.find("sidecar_runtime_supported")
+    native_missing = step_6.find("native-missing")
     fallback = step_6.find("fallback")
 
     assert no_safe_batch != -1
@@ -1037,6 +1129,9 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "`plan_gap`" in content
     assert "`spec_gap`" in content
     assert "/sp.clarify" in content
+    assert "planned validation tasks are still ready work" in lowered
+    assert "do not stop to ask whether validation should start" in lowered
+    assert "manual-only check or approval step is explicitly recorded in the tracker or task plan" in lowered
 
 
 def test_shared_implement_teams_contract_preserves_explicit_execution_packet_fields():
@@ -1177,7 +1272,7 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "specify learning start --command checklist --format json" in lowered
     assert "specify learning capture --command checklist" in lowered
     assert "project-handbook.md" in lowered
-    assert ".specify/project-map/status.json" in lowered
+    assert ".specify/project-map/index/status.json" in lowered
     assert "run `/sp-map-codebase` before continuing" in lowered
     assert "if the checklist reveals planning-critical requirement gaps" in lowered
     assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered

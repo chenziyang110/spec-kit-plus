@@ -22,24 +22,24 @@ def test_team_command_bootstrap_dispatch_fail_cleanup(monkeypatch, codex_team_pr
 
     with monkeypatch.context() as m:
         m.chdir(codex_team_project_root)
-        result = runner.invoke(app, ["team", "--bootstrap", "--session-id", "smoke"], catch_exceptions=False)
+        result = runner.invoke(app, ["sp-teams", "--bootstrap", "--session-id", "smoke"], catch_exceptions=False)
         assert result.exit_code == 0, result.output
 
         result = runner.invoke(
             app,
-            ["team", "--dispatch", "req-smoke", "--worker", "worker-smoke", "--session-id", "smoke"],
+            ["sp-teams", "--dispatch", "req-smoke", "--worker", "worker-smoke", "--session-id", "smoke"],
             catch_exceptions=False,
         )
         assert result.exit_code == 0, result.output
 
         result = runner.invoke(
             app,
-            ["team", "--fail", "--dispatch", "req-smoke", "--reason", "boom", "--session-id", "smoke"],
+            ["sp-teams", "--fail", "--dispatch", "req-smoke", "--reason", "boom", "--session-id", "smoke"],
             catch_exceptions=False,
         )
         assert result.exit_code == 0, result.output
 
-        result = runner.invoke(app, ["team", "--cleanup", "--session-id", "smoke"], catch_exceptions=False)
+        result = runner.invoke(app, ["sp-teams", "--cleanup", "--session-id", "smoke"], catch_exceptions=False)
         assert result.exit_code == 0, result.output
 
     session_payload = json.loads(runtime_session_path(codex_team_project_root, "smoke").read_text(encoding="utf-8"))
@@ -73,7 +73,7 @@ def test_team_command_status_guides_native_windows_users_to_psmux(monkeypatch, c
 
     with monkeypatch.context() as m:
         m.chdir(codex_team_project_root)
-        result = runner.invoke(app, ["team"], catch_exceptions=False)
+        result = runner.invoke(app, ["sp-teams"], catch_exceptions=False)
 
     assert result.exit_code == 0, result.output
     assert "psmux" in result.output
@@ -101,12 +101,12 @@ def test_team_command_dispatch_blocks_when_project_map_is_dirty(monkeypatch, cod
 
     with monkeypatch.context() as m:
         m.chdir(codex_team_project_root)
-        result = runner.invoke(app, ["team", "--bootstrap", "--session-id", "smoke"], catch_exceptions=False)
+        result = runner.invoke(app, ["sp-teams", "--bootstrap", "--session-id", "smoke"], catch_exceptions=False)
         assert result.exit_code == 0, result.output
 
         result = runner.invoke(
             app,
-            ["team", "--dispatch", "req-smoke", "--worker", "worker-smoke", "--session-id", "smoke"],
+            ["sp-teams", "--dispatch", "req-smoke", "--worker", "worker-smoke", "--session-id", "smoke"],
             catch_exceptions=False,
         )
 

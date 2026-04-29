@@ -129,4 +129,4 @@ def test_result_submit_rejects_codex_projects_and_redirects_to_team_surface(tmp_
     )
 
     assert result.exit_code != 0
-    assert "specify team submit-result" in result.output
+    assert "sp-teams submit-result" in result.output

@@ -21,6 +21,11 @@ import {
 } from "../codex-native-hook.js";
 import { writeSessionStart } from "../../hooks/session.js";
 import { resetTriageConfigCache } from "../../hooks/triage-config.js";
+import { specifyNotepadPath, specifyProjectMemoryPath, specifyRuntimeStateDir } from "../../utils/paths.js";
+
+function runtimeStateDir(projectRoot: string): string {
+  return specifyRuntimeStateDir(projectRoot);
+}
 
 async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true }).catch(() => {});
@@ -164,7 +169,7 @@ async function writeReleaseReadinessStateMarker(
   cwd: string,
 ): Promise<void> {
   await writeJson(
-    join(cwd, ".omx", "state", "sessions", sessionId, "release-readiness-state.json"),
+    join(runtimeStateDir(cwd), "sessions", sessionId, "release-readiness-state.json"),
     {
       active: true,
       session_id: sessionId,
@@ -371,7 +376,7 @@ describe("codex native hook dispatch", () => {
       assert.equal(result.omxEventName, "session-start");
       assert.equal(result.outputJson, null);
       const sessionState = JSON.parse(
-        await readFile(join(cwd, ".omx", "state", "session.json"), "utf-8"),
+        await readFile(join(runtimeStateDir(cwd), "session.json"), "utf-8"),
       ) as { session_id?: string; native_session_id?: string; pid?: number };
       assert.equal(sessionState.session_id, "sess-start-1");
       assert.equal(sessionState.native_session_id, "sess-start-1");
@@ -384,7 +389,7 @@ describe("codex native hook dispatch", () => {
   it("preserves canonical OMX session scope when native SessionStart arrives with a different id", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-session-reconcile-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       const canonicalSessionId = "omx-launch-1";
       const nativeSessionId = "codex-native-1";
       await mkdir(join(stateDir, "sessions", canonicalSessionId), { recursive: true });
@@ -438,7 +443,7 @@ describe("codex native hook dispatch", () => {
   it("passes the canonical OMX session id when UserPromptSubmit revives HUD", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-hud-session-revive-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       const canonicalSessionId = "omx-launch-hud";
       const nativeSessionId = "codex-native-hud";
       await mkdir(join(stateDir, "sessions", canonicalSessionId), { recursive: true });
@@ -562,7 +567,7 @@ describe("codex native hook dispatch", () => {
   it("includes persisted project-memory summary in SessionStart context", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-session-memory-"));
     try {
-      await writeJson(join(cwd, ".omx", "project-memory.json"), {
+      await writeJson(specifyProjectMemoryPath(cwd), {
         techStack: "TypeScript + Node.js",
         build: "npm test",
         conventions: "small diffs, verify before claim",
@@ -597,7 +602,7 @@ describe("codex native hook dispatch", () => {
   it("starts a fresh native session without inheriting stale task-scoped context", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-session-isolation-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       const priorSessionId = "omx-old-session";
       await mkdir(join(stateDir, "sessions", priorSessionId), { recursive: true });
       await writeSessionStart(cwd, priorSessionId, {
@@ -634,7 +639,7 @@ describe("codex native hook dispatch", () => {
         },
       });
       await writeFile(
-        join(cwd, ".omx", "notepad.md"),
+        specifyNotepadPath(cwd),
         [
           "# OMX Notepad",
           "",
@@ -700,7 +705,7 @@ describe("codex native hook dispatch", () => {
   it("records keyword activation from UserPromptSubmit payloads", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -718,7 +723,7 @@ describe("codex native hook dispatch", () => {
       assert.ok(result.outputJson, "UserPromptSubmit should emit developer context");
       assert.match(JSON.stringify(result.outputJson), /skill: ralplan activated and initial state initialized at \.omx\/state\/sessions\/sess-1\/ralplan-state\.json; write subsequent updates via omx_state MCP\./);
 
-      const statePath = join(cwd, ".omx", "state", "skill-active-state.json");
+      const statePath = join(runtimeStateDir(cwd), "skill-active-state.json");
       assert.equal(existsSync(statePath), true);
       const state = JSON.parse(await readFile(statePath, "utf-8")) as {
         skill?: string;
@@ -728,7 +733,7 @@ describe("codex native hook dispatch", () => {
       assert.equal(state.skill, "ralplan");
       assert.equal(state.active, true);
       assert.equal(state.initialized_mode, "ralplan");
-      assert.equal(existsSync(join(cwd, ".omx", "state", "sessions", "sess-1", "ralplan-state.json")), true);
+      assert.equal(existsSync(join(runtimeStateDir(cwd), "sessions", "sess-1", "ralplan-state.json")), true);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -737,7 +742,7 @@ describe("codex native hook dispatch", () => {
   it("normalizes the Korean keyboard typo for ulw during UserPromptSubmit activation", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-ulw-ko-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -757,7 +762,7 @@ describe("codex native hook dispatch", () => {
         (result.outputJson as { hookSpecificOutput?: { additionalContext?: string } })?.hookSpecificOutput?.additionalContext || "",
       );
       assert.match(additionalContext, /workflow keyword \"ulw\" -> ultrawork/);
-      assert.equal(existsSync(join(cwd, ".omx", "state", "sessions", "sess-ulw-ko", "ultrawork-state.json")), true);
+      assert.equal(existsSync(join(runtimeStateDir(cwd), "sessions", "sess-ulw-ko", "ultrawork-state.json")), true);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -766,7 +771,7 @@ describe("codex native hook dispatch", () => {
   it("adds ultrawork-specific activation guidance only for true ultrawork workflow activation", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-ultrawork-routing-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -797,7 +802,7 @@ describe("codex native hook dispatch", () => {
   it("does not activate Ralph workflow state from a plain conversational mention", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-ralph-plain-text-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -820,9 +825,9 @@ describe("codex native hook dispatch", () => {
       );
       assert.doesNotMatch(advisoryContext, /skill:\s*ralph/i);
       assert.doesNotMatch(advisoryContext, /ralph-state\.json/i);
-      assert.equal(existsSync(join(cwd, ".omx", "state", "skill-active-state.json")), false);
-      assert.equal(existsSync(join(cwd, ".omx", "state", "sessions", "sess-ralph-plain-text", "skill-active-state.json")), false);
-      assert.equal(existsSync(join(cwd, ".omx", "state", "sessions", "sess-ralph-plain-text", "ralph-state.json")), false);
+      assert.equal(existsSync(join(runtimeStateDir(cwd), "skill-active-state.json")), false);
+      assert.equal(existsSync(join(runtimeStateDir(cwd), "sessions", "sess-ralph-plain-text", "skill-active-state.json")), false);
+      assert.equal(existsSync(join(runtimeStateDir(cwd), "sessions", "sess-ralph-plain-text", "ralph-state.json")), false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -831,7 +836,7 @@ describe("codex native hook dispatch", () => {
   it("adds execution handoff context for non-keyword prompts that authorize implementation", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-execution-handoff-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const prompts = [
         "按照这个plan开始执行优化",
         "开始执行",
@@ -866,7 +871,7 @@ describe("codex native hook dispatch", () => {
   it("adds latest-followup priority context for short same-thread follow-up prompts", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-followup-priority-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -892,7 +897,7 @@ describe("codex native hook dispatch", () => {
   it("clarifies that prompt-side $ralph activation does not invoke the PRD-gated CLI path", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-ralph-routing-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -923,7 +928,7 @@ describe("codex native hook dispatch", () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-autopilot-bare-continuation-"));
     try {
       const sessionId = "sess-autopilot-cont";
-      const sessionDir = join(cwd, ".omx", "state", "sessions", sessionId);
+      const sessionDir = join(runtimeStateDir(cwd), "sessions", sessionId);
       await mkdir(sessionDir, { recursive: true });
       await writeJson(join(sessionDir, "skill-active-state.json"), {
         version: 1,
@@ -975,7 +980,7 @@ describe("codex native hook dispatch", () => {
   it("clarifies that prompt-side deep-interview activation must use omx question", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-deep-interview-routing-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -1013,7 +1018,7 @@ describe("codex native hook dispatch", () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-deep-interview-pane-hint-"));
     try {
       const sessionId = "sess-deep-interview-pane-hint";
-      const sessionDir = join(cwd, ".omx", "state", "sessions", sessionId);
+      const sessionDir = join(runtimeStateDir(cwd), "sessions", sessionId);
       await mkdir(sessionDir, { recursive: true });
       await writeJson(join(sessionDir, "deep-interview-state.json"), {
         active: true,
@@ -1053,7 +1058,7 @@ describe("codex native hook dispatch", () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-ralph-bare-continuation-"));
     try {
       const sessionId = "sess-ralph-cont";
-      const sessionDir = join(cwd, ".omx", "state", "sessions", sessionId);
+      const sessionDir = join(runtimeStateDir(cwd), "sessions", sessionId);
       await mkdir(sessionDir, { recursive: true });
       await writeJson(join(sessionDir, "skill-active-state.json"), {
         version: 1,
@@ -1106,7 +1111,7 @@ describe("codex native hook dispatch", () => {
   it("ignores generic wrapper fields so metadata cannot trigger workflow routing or Stop blocking", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-wrapper-metadata-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const promptResult = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -1126,7 +1131,7 @@ describe("codex native hook dispatch", () => {
       assert.equal(promptResult.omxEventName, "keyword-detector");
       assert.equal(promptResult.skillState, null);
       assert.equal(promptResult.outputJson, null);
-      assert.equal(existsSync(join(cwd, ".omx", "state", "skill-active-state.json")), false);
+      assert.equal(existsSync(join(runtimeStateDir(cwd), "skill-active-state.json")), false);
 
       const stopResult = await dispatchCodexNativeHook(
         {
@@ -1195,7 +1200,7 @@ export async function onHookEvent(event) {
   it("does not emit UserPromptSubmit routing context for unknown $tokens", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-unknown-token-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -1211,7 +1216,7 @@ export async function onHookEvent(event) {
       assert.equal(result.omxEventName, "keyword-detector");
       assert.equal(result.skillState, null);
       assert.equal(result.outputJson, null);
-      assert.equal(existsSync(join(cwd, ".omx", "state", "skill-active-state.json")), false);
+      assert.equal(existsSync(join(runtimeStateDir(cwd), "skill-active-state.json")), false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -1220,7 +1225,7 @@ export async function onHookEvent(event) {
   it("nudges $team prompt-submit routing toward omx team runtime usage", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-team-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -1243,7 +1248,7 @@ export async function onHookEvent(event) {
       assert.match(JSON.stringify(result.outputJson), /If you need runtime syntax, run `omx team --help` yourself\./);
 
       const state = JSON.parse(
-        await readFile(join(cwd, ".omx", "state", "team-state.json"), "utf-8"),
+        await readFile(join(runtimeStateDir(cwd), "team-state.json"), "utf-8"),
       ) as { mode?: string; active?: boolean; current_phase?: string };
       assert.equal(state.mode, "team");
       assert.equal(state.active, true);
@@ -1256,7 +1261,7 @@ export async function onHookEvent(event) {
   it("returns actionable denial guidance for unsupported workflow overlaps on prompt submit", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-transition-deny-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -1286,7 +1291,7 @@ export async function onHookEvent(event) {
       assert.match(JSON.stringify(denied.outputJson), /`omx state clear --mode <mode>`/);
       assert.match(JSON.stringify(denied.outputJson), /`omx_state\.\*` MCP tools/);
       assert.equal(
-        existsSync(join(cwd, ".omx", "state", "sessions", "sess-deny-1", "autopilot-state.json")),
+        existsSync(join(runtimeStateDir(cwd), "sessions", "sess-deny-1", "autopilot-state.json")),
         false,
       );
     } finally {
@@ -1297,7 +1302,7 @@ export async function onHookEvent(event) {
   it("surfaces transition success output for allowlisted prompt-submit handoffs", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-transition-success-"));
     try {
-      const sessionDir = join(cwd, ".omx", "state", "sessions", "sess-handoff-1");
+      const sessionDir = join(runtimeStateDir(cwd), "sessions", "sess-handoff-1");
       await mkdir(sessionDir, { recursive: true });
       await writeJson(join(sessionDir, "deep-interview-state.json"), {
         active: true,
@@ -1339,7 +1344,7 @@ export async function onHookEvent(event) {
   it("keeps the planning skill active when planning and execution workflows are invoked together", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-planning-precedence-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
 
       const result = await dispatchCodexNativeHook(
         {
@@ -1375,7 +1380,8 @@ export async function onHookEvent(event) {
     try {
       process.env.TMUX = "1";
       process.env.TMUX_PANE = "%1";
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
+      await mkdir(join(cwd, ".omx"), { recursive: true });
       await writeFile(
         join(cwd, ".omx", "hud-config.json"),
         JSON.stringify({ preset: "focused", git: { display: "branch" } }, null, 2),
@@ -2380,7 +2386,7 @@ export async function onHookEvent(event) {
         undefined,
         { ...process.env, OMX_SESSION_ID: "sess-transport" },
       );
-      await writeJson(join(cwd, ".omx", "state", "team-state.json"), {
+      await writeJson(join(runtimeStateDir(cwd), "team-state.json"), {
         active: true,
         team_name: "transport-team",
         current_phase: "team-exec",
@@ -2404,7 +2410,7 @@ export async function onHookEvent(event) {
       assert.equal(phase?.current_phase, "failed");
       assert.equal(attention?.leader_attention_reason, "mcp_transport_dead");
       assert.equal(attention?.leader_attention_pending, true);
-      assert.equal(existsSync(join(cwd, ".omx", "state", "team", "transport-team")), true);
+      assert.equal(existsSync(join(runtimeStateDir(cwd), "team", "transport-team")), true);
     } finally {
       process.chdir(previousCwd);
       await rm(cwd, { recursive: true, force: true });
@@ -2419,7 +2425,7 @@ export async function onHookEvent(event) {
     try {
       process.chdir(cwd);
       await writeSessionStart(cwd, canonicalSessionId);
-      const sessionPath = join(cwd, ".omx", "state", "session.json");
+      const sessionPath = join(runtimeStateDir(cwd), "session.json");
       const sessionState = JSON.parse(
         await readFile(sessionPath, "utf-8"),
       ) as { session_id?: string; native_session_id?: string };
@@ -2444,7 +2450,7 @@ export async function onHookEvent(event) {
         undefined,
         { ...process.env, OMX_SESSION_ID: canonicalSessionId },
       );
-      await writeJson(join(cwd, ".omx", "state", "team-state.json"), {
+      await writeJson(join(runtimeStateDir(cwd), "team-state.json"), {
         active: true,
         team_name: "transport-team",
         current_phase: "team-exec",
@@ -2581,13 +2587,13 @@ export async function onHookEvent(event) {
       );
 
       const phase = JSON.parse(
-        await readFile(join(cwd, ".omx", "state", "team", "mcp-transport-dead-team", "phase.json"), "utf-8"),
+        await readFile(join(runtimeStateDir(cwd), "team", "mcp-transport-dead-team", "phase.json"), "utf-8"),
       ) as { current_phase?: string; transitions?: Array<{ reason?: string }> };
       assert.equal(phase.current_phase, "failed");
       assert.equal(phase.transitions?.at(-1)?.reason, "mcp_transport_dead");
 
       const attention = JSON.parse(
-        await readFile(join(cwd, ".omx", "state", "team", "mcp-transport-dead-team", "leader-attention.json"), "utf-8"),
+        await readFile(join(runtimeStateDir(cwd), "team", "mcp-transport-dead-team", "leader-attention.json"), "utf-8"),
       ) as { leader_attention_reason?: string; attention_reasons?: string[] };
       assert.equal(attention.leader_attention_reason, "mcp_transport_dead");
       assert.ok(attention.attention_reasons?.includes("mcp_transport_dead"));
@@ -2669,7 +2675,7 @@ export async function onHookEvent(event) {
         undefined,
         { ...process.env, OMX_SESSION_ID: "sess-stop-mcp-transport" },
       );
-      await writeJson(join(cwd, ".omx", "state", "team-state.json"), {
+      await writeJson(join(runtimeStateDir(cwd), "team-state.json"), {
         active: true,
         team_name: "transport-team",
         current_phase: "team-exec",
@@ -2819,7 +2825,7 @@ export async function onHookEvent(event) {
   it("returns Stop continuation output while Autopilot is active", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-autopilot-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "autopilot-state.json"), {
         active: true,
@@ -2851,7 +2857,7 @@ export async function onHookEvent(event) {
   it("suppresses duplicate Autopilot planning Stop replays so stale planning state cannot loop indefinitely", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-autopilot-planning-replay-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "autopilot-state.json"), {
         active: true,
@@ -2893,7 +2899,7 @@ export async function onHookEvent(event) {
   it("does not block Stop from stale root Autopilot planning state when the explicit session has no scoped state", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-stale-root-autopilot-planning-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-current"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-current", cwd });
       await writeJson(join(stateDir, "autopilot-state.json"), {
@@ -2921,7 +2927,7 @@ export async function onHookEvent(event) {
   it("does not block Stop when an explicit blocked_on_user run_outcome is present on a mode state", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-autopilot-blocked-outcome-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "autopilot-state.json"), {
         active: true,
@@ -2948,7 +2954,7 @@ export async function onHookEvent(event) {
   it("returns Stop continuation output while Ultrawork is active", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-ultrawork-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "ultrawork-state.json"), {
         active: true,
@@ -2975,7 +2981,7 @@ export async function onHookEvent(event) {
   it("returns Stop continuation output while UltraQA is active", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-ultraqa-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "ultraqa-state.json"), {
         active: true,
@@ -3002,7 +3008,7 @@ export async function onHookEvent(event) {
   it("returns Stop continuation output while team phase is non-terminal", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-team-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "team-state.json"), {
         active: true,
@@ -3054,13 +3060,13 @@ export async function onHookEvent(event) {
         undefined,
         { ...process.env, OMX_SESSION_ID: "sess-stop-team-worker" },
       );
-      const workerDir = join(cwd, ".omx", "state", "team", "worker-stop-team", "workers", "worker-1");
+      const workerDir = join(runtimeStateDir(cwd), "team", "worker-stop-team", "workers", "worker-1");
       await writeJson(join(workerDir, "status.json"), {
         state: "idle",
         current_task_id: "1",
         updated_at: new Date().toISOString(),
       });
-      await writeJson(join(cwd, ".omx", "state", "team", "worker-stop-team", "tasks", "task-1.json"), {
+      await writeJson(join(runtimeStateDir(cwd), "team", "worker-stop-team", "tasks", "task-1.json"), {
         id: "1",
         subject: "hook task",
         description: "finish hook task",
@@ -3070,7 +3076,7 @@ export async function onHookEvent(event) {
       });
 
       process.env.OMX_TEAM_WORKER = "worker-stop-team/worker-1";
-      process.env.OMX_TEAM_STATE_ROOT = join(cwd, ".omx", "state");
+      process.env.OMX_TEAM_STATE_ROOT = runtimeStateDir(cwd);
       process.env.OMX_TEAM_LEADER_CWD = cwd;
 
       const result = await dispatchCodexNativeHook(
@@ -3114,13 +3120,13 @@ export async function onHookEvent(event) {
         undefined,
         { ...process.env, OMX_SESSION_ID: "sess-stop-team-worker-terminal" },
       );
-      const workerDir = join(cwd, ".omx", "state", "team", "worker-stop-team-terminal", "workers", "worker-1");
+      const workerDir = join(runtimeStateDir(cwd), "team", "worker-stop-team-terminal", "workers", "worker-1");
       await writeJson(join(workerDir, "status.json"), {
         state: "done",
         current_task_id: "1",
         updated_at: new Date().toISOString(),
       });
-      await writeJson(join(cwd, ".omx", "state", "team", "worker-stop-team-terminal", "tasks", "task-1.json"), {
+      await writeJson(join(runtimeStateDir(cwd), "team", "worker-stop-team-terminal", "tasks", "task-1.json"), {
         id: "1",
         subject: "hook task",
         description: "finish hook task",
@@ -3130,7 +3136,7 @@ export async function onHookEvent(event) {
       });
 
       process.env.OMX_TEAM_WORKER = "worker-stop-team-terminal/worker-1";
-      process.env.OMX_TEAM_STATE_ROOT = join(cwd, ".omx", "state");
+      process.env.OMX_TEAM_STATE_ROOT = runtimeStateDir(cwd);
 
       const result = await dispatchCodexNativeHook(
         {
@@ -3348,7 +3354,7 @@ export async function onHookEvent(event) {
         undefined,
         { ...process.env, OMX_SESSION_ID: "sess-stop-team-terminal" },
       );
-      await writeJson(join(cwd, ".omx", "state", "team", "terminal-team", "phase.json"), {
+      await writeJson(join(runtimeStateDir(cwd), "team", "terminal-team", "phase.json"), {
         current_phase: "complete",
         max_fix_attempts: 3,
         current_fix_attempt: 0,
@@ -3384,7 +3390,7 @@ export async function onHookEvent(event) {
         undefined,
         { ...process.env, OMX_SESSION_ID: "sess-stop-team-legacy" },
       );
-      const manifestPath = join(cwd, ".omx", "state", "team", "legacy-team", "manifest.v2.json");
+      const manifestPath = join(runtimeStateDir(cwd), "team", "legacy-team", "manifest.v2.json");
       const manifest = JSON.parse(await readFile(manifestPath, "utf-8")) as Record<string, unknown>;
       await writeJson(manifestPath, {
         ...manifest,
@@ -3504,7 +3510,7 @@ export async function onHookEvent(event) {
   it("blocks Stop from session-scoped team mode when session.json points to another session", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-team-session-mismatch-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-live-team"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-other-team" });
       await writeJson(join(stateDir, "sessions", "sess-live-team", "team-state.json"), {
@@ -3546,7 +3552,7 @@ export async function onHookEvent(event) {
   it("returns Stop continuation output for active ralplan skill with matching active mode state and without active subagents", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-skill-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-skill"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-skill" });
       await writeJson(join(stateDir, "sessions", "sess-stop-skill", "skill-active-state.json"), {
@@ -3584,7 +3590,7 @@ export async function onHookEvent(event) {
   it("does not block on stale ralplan skill-active state when the matching mode state is absent", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-stale-skill-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-stale-skill"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-stale-skill" });
       await writeJson(join(stateDir, "sessions", "sess-stop-stale-skill", "skill-active-state.json"), {
@@ -3619,7 +3625,7 @@ export async function onHookEvent(event) {
   it("does not block on active ralplan skill when subagents are still active", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-skill-subagent-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-skill-subagent"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-skill-subagent" });
       await writeJson(join(stateDir, "sessions", "sess-stop-skill-subagent", "skill-active-state.json"), {
@@ -3677,7 +3683,7 @@ export async function onHookEvent(event) {
   it("does not block on stale root ralplan skill when the explicit session-scoped canonical skill state is absent", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-stale-root-skill-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "skill-active-state.json"), {
         active: true,
@@ -3705,7 +3711,7 @@ export async function onHookEvent(event) {
   it("blocks Stop while autoresearch is active without validator completion", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-autoresearch-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-autoresearch"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-autoresearch", cwd });
       await writeJson(join(stateDir, "sessions", "sess-stop-autoresearch", "autoresearch-state.json"), {
@@ -3742,7 +3748,7 @@ export async function onHookEvent(event) {
   it("allows Stop once autoresearch validator evidence is complete", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-autoresearch-complete-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       const specDir = join(cwd, '.omx', 'specs', 'autoresearch-demo');
       await mkdir(join(stateDir, "sessions", "sess-stop-autoresearch-complete"), { recursive: true });
       await mkdir(specDir, { recursive: true });
@@ -3777,7 +3783,7 @@ export async function onHookEvent(event) {
   it("does not block Stop from stale root autoresearch state when the explicit session has no scoped autoresearch state", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-stale-root-autoresearch-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       const specDir = join(cwd, '.omx', 'specs', 'autoresearch-demo');
       await mkdir(join(stateDir, 'sessions', 'sess-current'), { recursive: true });
       await mkdir(specDir, { recursive: true });
@@ -3810,7 +3816,7 @@ export async function onHookEvent(event) {
   it("does not block Stop solely because deep-interview is active", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-deep-interview-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-deep-interview"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-deep-interview" });
       await writeJson(join(stateDir, "sessions", "sess-stop-deep-interview", "skill-active-state.json"), {
@@ -3841,7 +3847,7 @@ export async function onHookEvent(event) {
   it("blocks Stop when deep-interview has a pending omx question obligation", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-deep-interview-question-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-deep-interview-question"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-deep-interview-question" });
       await writeJson(join(stateDir, "sessions", "sess-stop-deep-interview-question", "skill-active-state.json"), {
@@ -3893,7 +3899,7 @@ export async function onHookEvent(event) {
   it("blocks Stop when a same-session deep-interview question obligation is pending even after the mode marked itself inactive", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-deep-interview-question-inactive-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-deep-interview-question-inactive"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-deep-interview-question-inactive" });
       await writeJson(join(stateDir, "sessions", "sess-stop-deep-interview-question-inactive", "skill-active-state.json"), {
@@ -3950,7 +3956,7 @@ export async function onHookEvent(event) {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-deep-interview-question-answered-"));
     try {
       const sessionId = "sess-stop-deep-interview-question-answered";
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       const sessionDir = join(stateDir, "sessions", sessionId);
       await mkdir(join(sessionDir, "questions"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: sessionId });
@@ -4034,7 +4040,7 @@ export async function onHookEvent(event) {
   it("keeps blocking pending deep-interview question Stop replays until the obligation changes", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-deep-interview-question-replay-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-deep-interview-question-replay"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-deep-interview-question-replay" });
       await writeJson(join(stateDir, "sessions", "sess-stop-deep-interview-question-replay", "skill-active-state.json"), {
@@ -4086,7 +4092,7 @@ export async function onHookEvent(event) {
     for (const status of ["satisfied", "cleared"] as const) {
       const cwd = await mkdtemp(join(tmpdir(), `omx-native-hook-stop-deep-interview-question-${status}-`));
       try {
-        const stateDir = join(cwd, ".omx", "state");
+        const stateDir = runtimeStateDir(cwd);
         await mkdir(join(stateDir, "sessions", `sess-stop-deep-interview-question-${status}`), { recursive: true });
         await writeJson(join(stateDir, "session.json"), { session_id: `sess-stop-deep-interview-question-${status}` });
         await writeJson(join(stateDir, "sessions", `sess-stop-deep-interview-question-${status}`, "skill-active-state.json"), {
@@ -4131,7 +4137,7 @@ export async function onHookEvent(event) {
   it("ignores pending deep-interview question obligations from another session", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-deep-interview-question-foreign-session-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-other"), { recursive: true });
       await mkdir(join(stateDir, "sessions", "sess-current"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-current" });
@@ -4173,7 +4179,7 @@ export async function onHookEvent(event) {
   it("blocks a new same-session deep-interview question obligation even after an earlier round was satisfied", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-deep-interview-question-next-round-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-deep-interview-question-next-round"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-deep-interview-question-next-round" });
       await writeJson(join(stateDir, "sessions", "sess-stop-deep-interview-question-next-round", "skill-active-state.json"), {
@@ -4223,7 +4229,7 @@ export async function onHookEvent(event) {
   it("ignores root skill-active fallback from a different thread when evaluating Stop", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-foreign-thread-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "skill-active-state.json"), {
         active: true,
@@ -4252,7 +4258,7 @@ export async function onHookEvent(event) {
   it("returns Stop continuation output while Ralph is active without an explicit session pin", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeFile(
         join(stateDir, "ralph-state.json"),
@@ -4287,7 +4293,7 @@ export async function onHookEvent(event) {
   it("blocks Stop from session-scoped Ralph state when session.json points to another session", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-ralph-session-mismatch-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-live-ralph"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-other-ralph" });
       await writeJson(join(stateDir, "sessions", "sess-live-ralph", "ralph-state.json"), {
@@ -4322,7 +4328,7 @@ export async function onHookEvent(event) {
   it("does not block Stop from stale session-scoped Ralph state that belongs to another session", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-stale-session-ralph-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-current"), { recursive: true });
       await mkdir(join(stateDir, "sessions", "sess-stale"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-current" });
@@ -4351,7 +4357,7 @@ export async function onHookEvent(event) {
   it("does not block Stop from stale current-session Ralph state when session.json points to a dead owner", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-stale-current-session-ralph-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-dead"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), {
         session_id: "sess-dead",
@@ -4400,7 +4406,7 @@ export async function onHookEvent(event) {
   it("does not block Stop from another session-scoped Ralph state when an explicit session_id has no active Ralph state", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-explicit-session-ralph-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-other"), { recursive: true });
       await writeJson(join(stateDir, "sessions", "sess-other", "ralph-state.json"), {
         active: true,
@@ -4427,7 +4433,7 @@ export async function onHookEvent(event) {
   it("does not block Stop from root Ralph fallback when the current session has no scoped Ralph state", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-root-fallback-ralph-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-current"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-current", cwd });
       await writeJson(join(stateDir, "ralph-state.json"), {
@@ -4454,7 +4460,7 @@ export async function onHookEvent(event) {
   it("does not block Stop when the current session Ralph state is cancelled even if stale root fallback remains", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-cancelled-session-ralph-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-current"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-current", cwd });
       await writeJson(join(stateDir, "sessions", "sess-current", "ralph-state.json"), {
@@ -4487,7 +4493,7 @@ export async function onHookEvent(event) {
   it("does not block Stop from root Ralph fallback when an explicit session_id is present and session.json points to another worktree", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-root-fallback-cwd-mismatch-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "session.json"), {
         session_id: "sess-elsewhere",
@@ -4518,7 +4524,7 @@ export async function onHookEvent(event) {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-ralph-replay-"));
     const previousOmxSessionId = process.env.OMX_SESSION_ID;
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeFile(
         join(stateDir, "ralph-state.json"),
@@ -4567,7 +4573,7 @@ export async function onHookEvent(event) {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-ralph-hook-dedupe-"));
     const previousOmxSessionId = process.env.OMX_SESSION_ID;
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-ralph-hook-dedupe"), { recursive: true });
       await writeHookCounterPlugin(cwd);
       await writeFile(
@@ -4613,7 +4619,7 @@ export async function onHookEvent(event) {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-ralph-hook-refire-"));
     const previousOmxSessionId = process.env.OMX_SESSION_ID;
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-ralph-hook-refire"), { recursive: true });
       await writeHookCounterPlugin(cwd);
       await writeFile(
@@ -4678,7 +4684,7 @@ export async function onHookEvent(event) {
   it("returns Stop continuation output for native auto-nudge stall prompts", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto";
 
@@ -4708,7 +4714,7 @@ export async function onHookEvent(event) {
   it("re-blocks duplicate native auto-nudge replays for the same Stop reply", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-once-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-once";
 
@@ -4753,7 +4759,7 @@ export async function onHookEvent(event) {
   it("re-blocks duplicate native auto-nudge replays across native/canonical session-id drift", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-session-drift-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       process.env.OMX_SESSION_ID = "omx-canonical";
       await writeJson(join(stateDir, "session.json"), {
@@ -4807,7 +4813,7 @@ export async function onHookEvent(event) {
   it("dedupes native stop hook replay across owner launch SessionStart reconciliation drift", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-dispatch-session-drift-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "omx-canonical"), { recursive: true });
       await writeHookCounterPlugin(cwd);
       process.env.OMX_SESSION_ID = "omx-canonical";
@@ -4870,7 +4876,7 @@ export async function onHookEvent(event) {
   it("re-fires native auto-nudge for a later fresh Stop reply even when stop_hook_active is true", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-refire-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-refire";
 
@@ -4915,7 +4921,7 @@ export async function onHookEvent(event) {
   it("auto-continues native Stop on permission-seeking prompts", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-permission-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-permission";
 
       const result = await dispatchCodexNativeHook(
@@ -4944,7 +4950,7 @@ export async function onHookEvent(event) {
   it("auto-continues native Stop on \"if you want\" permission-seeking prompts", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-if-you-want-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-if-you-want";
 
       const result = await dispatchCodexNativeHook(
@@ -4973,7 +4979,7 @@ export async function onHookEvent(event) {
   it("does not auto-continue native Stop while deep-interview is waiting on an intent-first question", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-deep-interview-question-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-auto-question"), { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-question";
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-auto-question" });
@@ -5024,7 +5030,7 @@ export async function onHookEvent(event) {
   it("suppresses native auto-nudge re-fire while session-scoped deep-interview state is still active", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-deep-interview-state-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-auto-interview"), { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-interview";
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-auto-interview" });
@@ -5057,7 +5063,7 @@ export async function onHookEvent(event) {
   it("suppresses native auto-nudge when root deep-interview mode state is active without an explicit session", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-deep-interview-mode-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-mode";
       await writeJson(join(stateDir, "deep-interview-state.json"), {
@@ -5086,7 +5092,7 @@ export async function onHookEvent(event) {
   it("does not suppress native auto-nudge from stale root deep-interview mode state when the explicit session-scoped mode state is absent", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-stale-root-mode-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-stale-root-mode";
       await writeJson(join(stateDir, "deep-interview-state.json"), {
@@ -5123,7 +5129,7 @@ export async function onHookEvent(event) {
   it("does not suppress native auto-nudge from stale root deep-interview skill state when the explicit session-scoped canonical skill state is absent", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-stale-root-skill-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-stale-root-skill";
       await writeJson(join(stateDir, "skill-active-state.json"), {
@@ -5160,7 +5166,7 @@ export async function onHookEvent(event) {
   it("does not suppress native auto-nudge from stale root deep-interview input lock when the explicit session-scoped canonical skill state is absent", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-stale-root-lock-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-stale-root-lock";
       await writeJson(join(stateDir, "skill-active-state.json"), {
@@ -5203,7 +5209,7 @@ export async function onHookEvent(event) {
   it("does not suppress native auto-nudge from active root deep-interview state when the current scoped mode state is explicitly inactive", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-auto-nudge-inactive-scoped-mode-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-auto-inactive-mode"), { recursive: true });
       process.env.OMX_SESSION_ID = "sess-stop-auto-inactive-mode";
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-auto-inactive-mode" });
@@ -5286,7 +5292,7 @@ export async function onHookEvent(event) {
   it("re-fires team Stop output for a later fresh Stop reply while the team is still active", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-team-refire-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "team-state.json"), {
         active: true,
@@ -5340,7 +5346,7 @@ export async function onHookEvent(event) {
   it("suppresses duplicate team Stop replays across native/canonical session-id drift", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-team-session-drift-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "omx-canonical"), { recursive: true });
       process.env.OMX_SESSION_ID = "omx-canonical";
       await writeJson(join(stateDir, "session.json"), {
@@ -5426,7 +5432,7 @@ export async function onHookEvent(event) {
   it("suppresses duplicate ultrawork Stop replays while stop_hook_active stays true", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-ultrawork-repeat-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(stateDir, { recursive: true });
       await writeJson(join(stateDir, "ultrawork-state.json"), {
         active: true,
@@ -5485,7 +5491,7 @@ export async function onHookEvent(event) {
   it("re-blocks active ralplan skill state on repeated Stop hooks", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-skill-repeat-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-stop-skill-repeat"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-stop-skill-repeat" });
       await writeJson(join(stateDir, "sessions", "sess-stop-skill-repeat", "skill-active-state.json"), {
@@ -5537,7 +5543,7 @@ export async function onHookEvent(event) {
   it("does not block Stop from another session's stale root team state when no scoped team state exists", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-stale-root-team-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-current"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-current" });
       await writeJson(join(stateDir, "team-state.json"), {
@@ -5573,7 +5579,7 @@ export async function onHookEvent(event) {
   it("does not block Stop from orphaned team mode state after cleanup removed canonical team artifacts", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-orphaned-team-state-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-current"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-current" });
       await writeJson(join(stateDir, "team-state.json"), {
@@ -5602,7 +5608,7 @@ export async function onHookEvent(event) {
   it("prefers the current session team state over a stale root team fallback during Stop", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-current-session-team-preferred-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-current"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-current" });
       await writeJson(join(stateDir, "sessions", "sess-current", "team-state.json"), {
@@ -5657,7 +5663,7 @@ export async function onHookEvent(event) {
   it("does not fall back to active root team state when the current scoped team state is inactive", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-stop-inactive-scoped-team-"));
     try {
-      const stateDir = join(cwd, ".omx", "state");
+      const stateDir = runtimeStateDir(cwd);
       await mkdir(join(stateDir, "sessions", "sess-current"), { recursive: true });
       await writeJson(join(stateDir, "session.json"), { session_id: "sess-current" });
       await writeJson(join(stateDir, "sessions", "sess-current", "team-state.json"), {
@@ -5719,7 +5725,7 @@ describe("codex native hook triage integration", () => {
   it("does not inject triage advisory for $ralplan keyword prompts", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-keyword-ralplan-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -5740,7 +5746,7 @@ describe("codex native hook triage integration", () => {
       assert.doesNotMatch(additionalContext, /narrow edit-shaped/);
       assert.doesNotMatch(additionalContext, /visual\/style request/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-kw-ralplan-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-kw-ralplan-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -5750,7 +5756,7 @@ describe("codex native hook triage integration", () => {
   it("does not inject triage advisory for autopilot keyword prompts", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-keyword-autopilot-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -5771,7 +5777,7 @@ describe("codex native hook triage integration", () => {
       assert.doesNotMatch(additionalContext, /narrow edit-shaped/);
       assert.doesNotMatch(additionalContext, /visual\/style request/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-kw-autopilot-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-kw-autopilot-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -5783,7 +5789,7 @@ describe("codex native hook triage integration", () => {
   it("injects HEAVY advisory and writes prompt-routing-state for a multi-step goal prompt", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-heavy-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -5803,10 +5809,10 @@ describe("codex native hook triage integration", () => {
       assert.match(additionalContext, /Prefer the existing autopilot-style workflow/);
 
       // skill-active-state.json must NOT be written (triage is advisory only)
-      assert.equal(existsSync(join(cwd, ".omx", "state", "skill-active-state.json")), false);
+      assert.equal(existsSync(join(runtimeStateDir(cwd), "skill-active-state.json")), false);
 
       // prompt-routing-state.json must be written with lane=HEAVY
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-heavy-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-heavy-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), true);
       const state = JSON.parse(await readFile(stateFile, "utf-8")) as {
         version?: number;
@@ -5827,7 +5833,7 @@ describe("codex native hook triage integration", () => {
   it("injects LIGHT/explore advisory and writes state for a question-shaped prompt", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-light-explore-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -5846,7 +5852,7 @@ describe("codex native hook triage integration", () => {
       assert.match(additionalContext, /read-only\/question-shaped/);
       assert.match(additionalContext, /Prefer the explore role surface/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-explore-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-explore-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), true);
       const state = JSON.parse(await readFile(stateFile, "utf-8")) as {
         last_triage?: { lane?: string; destination?: string };
@@ -5865,7 +5871,7 @@ describe("codex native hook triage integration", () => {
   it("injects LIGHT/executor advisory and writes state for a narrow edit-shaped prompt", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-light-executor-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -5884,7 +5890,7 @@ describe("codex native hook triage integration", () => {
       assert.match(additionalContext, /narrow edit-shaped/);
       assert.match(additionalContext, /Prefer the executor role surface/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-executor-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-executor-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), true);
       const state = JSON.parse(await readFile(stateFile, "utf-8")) as {
         last_triage?: { lane?: string; destination?: string };
@@ -5901,7 +5907,7 @@ describe("codex native hook triage integration", () => {
   it("injects LIGHT/designer advisory and writes state for a visual/style prompt", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-light-designer-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -5920,7 +5926,7 @@ describe("codex native hook triage integration", () => {
       assert.match(additionalContext, /visual\/style request/);
       assert.match(additionalContext, /Prefer the designer role surface/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-designer-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-designer-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), true);
       const state = JSON.parse(await readFile(stateFile, "utf-8")) as {
         last_triage?: { lane?: string; destination?: string };
@@ -5937,7 +5943,7 @@ describe("codex native hook triage integration", () => {
   it("produces no triage advisory and no state for trivial greeting prompts", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-pass-hello-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -5958,7 +5964,7 @@ describe("codex native hook triage integration", () => {
       assert.doesNotMatch(additionalContext, /narrow edit-shaped/);
       assert.doesNotMatch(additionalContext, /visual\/style request/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-pass-hello-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-pass-hello-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -5968,7 +5974,7 @@ describe("codex native hook triage integration", () => {
   it("produces no triage advisory and no state for ambiguous short prompts", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-pass-short-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -5989,7 +5995,7 @@ describe("codex native hook triage integration", () => {
       assert.doesNotMatch(additionalContext, /narrow edit-shaped/);
       assert.doesNotMatch(additionalContext, /visual\/style request/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-pass-short-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-pass-short-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -6002,7 +6008,7 @@ describe("codex native hook triage integration", () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-suppress-heavy-"));
     const sessionId = "triage-suppress-heavy-1";
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
 
       // Turn 1: HEAVY fires
       const turn1 = await dispatchCodexNativeHook(
@@ -6046,7 +6052,7 @@ describe("codex native hook triage integration", () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-suppress-explore-"));
     const sessionId = "triage-suppress-explore-1";
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
 
       // Turn 1: LIGHT/explore fires
       await dispatchCodexNativeHook(
@@ -6088,7 +6094,7 @@ describe("codex native hook triage integration", () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-pass-then-light-"));
     const sessionId = "triage-pass-then-light-1";
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
 
       // Turn 1: PASS — no state written
       await dispatchCodexNativeHook(
@@ -6103,7 +6109,7 @@ describe("codex native hook triage integration", () => {
         { cwd },
       );
       assert.equal(
-        existsSync(join(cwd, ".omx", "state", "sessions", sessionId, "prompt-routing-state.json")),
+        existsSync(join(runtimeStateDir(cwd), "sessions", sessionId, "prompt-routing-state.json")),
         false,
       );
 
@@ -6133,7 +6139,7 @@ describe("codex native hook triage integration", () => {
   it("produces no triage advisory when prompt contains 'just chat' opt-out", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-optout-chat-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -6152,7 +6158,7 @@ describe("codex native hook triage integration", () => {
       assert.doesNotMatch(additionalContext, /multi-step goal with no workflow keyword/);
       assert.doesNotMatch(additionalContext, /read-only\/question-shaped/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-optout-chat-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-optout-chat-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -6162,7 +6168,7 @@ describe("codex native hook triage integration", () => {
   it("produces no triage advisory when prompt contains 'no workflow' opt-out", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-optout-noworkflow-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -6180,7 +6186,7 @@ describe("codex native hook triage integration", () => {
       );
       assert.doesNotMatch(additionalContext, /visual\/style request/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-optout-noworkflow-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-optout-noworkflow-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -6193,7 +6199,7 @@ describe("codex native hook triage integration", () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-kw-followup-"));
     const sessionId = "triage-kw-followup-1";
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
 
       // Turn 1: neutral prompt — triage may or may not fire, doesn't matter
       await dispatchCodexNativeHook(
@@ -6232,7 +6238,7 @@ describe("codex native hook triage integration", () => {
       assert.doesNotMatch(ctx2, /visual\/style request/);
 
       // No triage state written on the keyword turn
-      const triageState = join(cwd, ".omx", "state", "sessions", sessionId, "prompt-routing-state.json");
+      const triageState = join(runtimeStateDir(cwd), "sessions", sessionId, "prompt-routing-state.json");
       // The state from turn 1 (if any) must not have been created either (hello = PASS)
       assert.equal(existsSync(triageState), false);
     } finally {
@@ -6253,7 +6259,7 @@ describe("codex native hook triage integration", () => {
       process.env.CODEX_HOME = tmpHome;
       resetTriageConfigCache();
 
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -6271,7 +6277,7 @@ describe("codex native hook triage integration", () => {
       );
       assert.doesNotMatch(additionalContext, /multi-step goal with no workflow keyword/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-disabled-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-disabled-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), false);
     } finally {
       await rm(tmpHome, { recursive: true, force: true });
@@ -6290,7 +6296,7 @@ describe("codex native hook triage integration", () => {
       process.env.CODEX_HOME = tmpHome;
       resetTriageConfigCache();
 
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -6308,7 +6314,7 @@ describe("codex native hook triage integration", () => {
       );
       assert.match(additionalContext, /multi-step goal with no workflow keyword/);
 
-      const stateFile = join(cwd, ".omx", "state", "sessions", "triage-defaulted-1", "prompt-routing-state.json");
+      const stateFile = join(runtimeStateDir(cwd), "sessions", "triage-defaulted-1", "prompt-routing-state.json");
       assert.equal(existsSync(stateFile), true);
     } finally {
       if (typeof previousCodexHome === "string") process.env.CODEX_HOME = previousCodexHome;
@@ -6323,7 +6329,7 @@ describe("codex native hook triage integration", () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-short-new-request-"));
     const sessionId = "triage-short-new-request-1";
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
 
       await dispatchCodexNativeHook(
         {
@@ -6361,7 +6367,7 @@ describe("codex native hook triage integration", () => {
   it("skips triage state persistence for malformed explicit session ids without writing root state", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-triage-invalid-session-"));
     try {
-      await mkdir(join(cwd, ".omx", "state"), { recursive: true });
+      await mkdir(runtimeStateDir(cwd), { recursive: true });
       const result = await dispatchCodexNativeHook(
         {
           hook_event_name: "UserPromptSubmit",
@@ -6378,7 +6384,7 @@ describe("codex native hook triage integration", () => {
         (result.outputJson as { hookSpecificOutput?: { additionalContext?: string } })?.hookSpecificOutput?.additionalContext ?? "",
       );
       assert.match(additionalContext, /multi-step goal with no workflow keyword/);
-      assert.equal(existsSync(join(cwd, ".omx", "state", "prompt-routing-state.json")), false);
+      assert.equal(existsSync(join(runtimeStateDir(cwd), "prompt-routing-state.json")), false);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

@@ -10,6 +10,7 @@ from specify_cli.project_map_status import (
     has_git_repo,
     inspect_project_map_freshness,
     mark_project_map_dirty,
+    project_map_status_path,
 )
 
 from .events import PROJECT_MAP_COMPLETE_REFRESH, PROJECT_MAP_MARK_DIRTY
@@ -58,7 +59,7 @@ def mark_dirty_hook(project_root: Path, payload: dict[str, object]) -> HookResul
         event=PROJECT_MAP_MARK_DIRTY,
         status="ok",
         severity="info",
-        writes={"status_path": str(project_root / ".specify" / "project-map" / "status.json")},
+        writes={"status_path": str(project_map_status_path(project_root))},
         data={"project_map_status": status.to_dict()},
     )
 
@@ -76,7 +77,6 @@ def complete_refresh_hook(project_root: Path, _payload: dict[str, object]) -> Ho
         event=PROJECT_MAP_COMPLETE_REFRESH,
         status="ok",
         severity="info",
-        writes={"status_path": str(project_root / ".specify" / "project-map" / "status.json")},
+        writes={"status_path": str(project_map_status_path(project_root))},
         data={"project_map_status": status.to_dict()},
     )
-

@@ -7,7 +7,7 @@
 
 ## Phase Mode
 
-- phase_mode: `planning-only | design-only | task-generation-only | analysis-only | execution-only`
+- phase_mode: `planning-only | research-only | design-only | task-generation-only | analysis-only | execution-only`
 - summary: [One-sentence reminder of what this phase is allowed to do]
 
 ## Allowed Artifact Writes
@@ -38,4 +38,21 @@
 
 ## Next Command
 
-- `/sp.constitution | /sp.plan | /sp.tasks | /sp.analyze | /sp.implement | /sp.clarify`
+- `/sp.constitution | /sp.plan | /sp.tasks | /sp.analyze | /sp.implement | /sp.clarify | /sp.deep-research`
+
+## Learning Signals
+
+- route_reason: [Why the workflow must hand off or reopen instead of pretending it can continue locally]
+- blocked_reason: [What specifically prevented clean completion]
+
+### False Starts
+
+- [Misleading early route, assumption, or diagnosis that later proved wrong]
+
+### Hidden Dependencies
+
+- [Dependency, prerequisite, or external coupling discovered during the workflow]
+
+### Reusable Constraints
+
+- [Constraint that future related work should see before repeating the same mistake]

@@ -10,7 +10,11 @@ from .types import HookResult, QualityHookError
 ALLOWED_WORKFLOW_TRANSITIONS = {
     ("specify", "plan"),
     ("specify", "clarify"),
+    ("specify", "deep-research"),
     ("clarify", "plan"),
+    ("clarify", "deep-research"),
+    ("deep-research", "plan"),
+    ("deep-research", "clarify"),
     ("plan", "tasks"),
     ("plan", "checklist"),
     ("tasks", "analyze"),
@@ -22,6 +26,8 @@ ALLOWED_WORKFLOW_TRANSITIONS = {
 
 ALLOWED_PHASE_TRANSITIONS = {
     ("planning-only", "design-only"),
+    ("planning-only", "research-only"),
+    ("research-only", "design-only"),
     ("design-only", "task-generation-only"),
     ("task-generation-only", "analysis-only"),
     ("analysis-only", "execution-only"),
@@ -68,4 +74,3 @@ def phase_boundary_hook(_project_root, payload: dict[str, object]) -> HookResult
         severity="info",
         data={"from_phase_mode": from_phase, "to_phase_mode": to_phase},
     )
-

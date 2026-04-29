@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-WORKTREE_RELATIVE_ROOT = Path(".specify") / "codex-team" / "worktrees"
+WORKTREE_RELATIVE_ROOT = Path(".specify") / "teams" / "worktrees"
 
 
 def codex_team_worktrees_root(project_root: Path) -> Path:

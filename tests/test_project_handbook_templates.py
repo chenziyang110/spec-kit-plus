@@ -25,8 +25,9 @@ def test_project_handbook_template_exists_and_routes_to_project_map():
     assert "## Atlas Views" in content
     assert "## Where To Read Next" in content
     assert "## Topic Map" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/OPERATIONS.md" in content
+    assert "`.specify/project-map/index/atlas-index.json`" in content
+    assert "`.specify/project-map/root/ARCHITECTURE.md`" in content
+    assert "`.specify/project-map/modules/<module-id>/OVERVIEW.md`" in content
 
 
 def test_project_map_templates_share_metadata_contract():

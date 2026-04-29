@@ -29,10 +29,16 @@ before any complementary gate or learning layer runs.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
 - Use `sp-test` when the repository needs a project-level unit testing bootstrap,
   refresh, or testing-contract pass instead of an ordinary feature workflow.
+- Use `sp-auto` when repository state already records the recommended next step
+  and the user wants to continue without naming the exact workflow manually.
 - Use `sp-specify` for new capability, behavior, or requirement changes that need an
   aligned spec package before implementation.
 - Use `sp-clarify` when an existing spec package needs deeper analysis before
   planning can safely proceed.
+- Use `sp-deep-research` when the requirements are clear but feasibility, external
+  evidence, optional multi-agent research, or a disposable demo is needed to prove
+  the implementation chain before planning. It must write a Planning Handoff for
+  `sp-plan`; skip it for minor changes to already-proven project behavior.
 - Use `sp-plan` only after a valid spec package exists.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` only after tasks are ready and execution should begin.
@@ -49,6 +55,8 @@ before any complementary gate or learning layer runs.
 - Do not replace a matching `sp-*` workflow with ad hoc implementation.
 - If multiple routes seem plausible, choose the smallest safe route and make the next
   escalation trigger explicit.
+- If the user intent is effectively "continue with the recommended next step",
+  prefer `sp-auto` over guessing which canonical workflow they meant from chat alone.
 - Keep `sp-*` workflows as the visible daily surface. This passive skill should guide
   into them, not become a competing workflow.
 - If the user is already invoking the correct `sp-*` skill, do not redirect.

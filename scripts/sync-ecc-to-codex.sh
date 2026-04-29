@@ -26,10 +26,10 @@ DIST_CLI="${ENGINE_DIR}/dist/cli/index.js"
 
 print_usage() {
   cat <<'EOF'
-Refresh Codex config and managed MCP servers using the OMX setup flow.
+Refresh Codex config and managed MCP servers using the bundled Specify runtime setup flow.
 
 Usage:
-  scripts/sync-ecc-to-codex.sh [--dry-run] [--scope project|user] [additional omx setup args]
+  scripts/sync-ecc-to-codex.sh [--dry-run] [--scope project|user] [additional runtime setup args]
 
 Examples:
   scripts/sync-ecc-to-codex.sh --dry-run
@@ -42,30 +42,26 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
-if command -v omx >/dev/null 2>&1; then
-  exec omx setup "$@"
-fi
-
 if ! command -v node >/dev/null 2>&1; then
-  echo "error: node is required when 'omx' is not installed on PATH." >&2
-  echo "hint: install the global omx CLI or install Node.js and rerun this script." >&2
+  echo "error: node is required to run the bundled Specify runtime setup." >&2
+  echo "hint: install Node.js and rerun this script." >&2
   exit 1
 fi
 
 if [[ ! -f "${ENGINE_DIR}/package.json" ]]; then
-  echo "error: 'omx' is not installed on PATH and no bundled engine checkout was found near ${REPO_ROOT}." >&2
-  echo "hint: install the global omx CLI or run this script from the spec-kit-plus repository root." >&2
+  echo "error: no bundled runtime engine checkout was found near ${REPO_ROOT}." >&2
+  echo "hint: run this script from the spec-kit-plus repository root." >&2
   exit 1
 fi
 
 if [[ ! -f "${DIST_CLI}" ]]; then
   if ! command -v npm >/dev/null 2>&1; then
-    echo "error: bundled OMX CLI is not built and npm is unavailable to build it." >&2
+    echo "error: bundled runtime CLI is not built and npm is unavailable to build it." >&2
     echo "hint: install npm, run 'npm --prefix extensions/agent-teams/engine run build', then retry." >&2
     exit 1
   fi
 
-  echo "Bundled OMX CLI not built; running npm build first..." >&2
+  echo "Bundled runtime CLI not built; running npm build first..." >&2
   npm --prefix "${ENGINE_DIR}" run build >/dev/null
 fi
 

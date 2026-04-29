@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+import json
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +40,7 @@ LEARNING_REVIEW_DECISIONS = {
 }
 
 PAIN_THRESHOLD = 5
+RECENT_SIGNAL_MAX_AGE_SECONDS = 6 * 60 * 60
 
 
 def _coerce_int(value: Any) -> int:
@@ -67,6 +70,71 @@ def _coerce_str_list(value: Any) -> list[str]:
         if stripped:
             values.append(stripped)
     return values
+
+
+def _now_iso() -> str:
+    return datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _signal_state_path(project_root: Path) -> Path:
+    return project_root / ".planning" / "learnings" / "signal-state.json"
+
+
+def _load_signal_state(project_root: Path) -> dict[str, dict[str, object]]:
+    path = _signal_state_path(project_root)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        str(key): value
+        for key, value in payload.items()
+        if isinstance(key, str) and isinstance(value, dict)
+    }
+
+
+def _write_signal_state(project_root: Path, state: dict[str, dict[str, object]]) -> None:
+    path = _signal_state_path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _record_recent_signal(project_root: Path, *, command_name: str, payload: dict[str, object]) -> None:
+    state = _load_signal_state(project_root)
+    state[command_name] = payload
+    _write_signal_state(project_root, state)
+
+
+def _clear_recent_signal(project_root: Path, *, command_name: str) -> None:
+    state = _load_signal_state(project_root)
+    if command_name not in state:
+        return
+    del state[command_name]
+    _write_signal_state(project_root, state)
+
+
+def _recent_signal_for_command(project_root: Path, *, command_name: str) -> dict[str, object] | None:
+    state = _load_signal_state(project_root)
+    payload = state.get(command_name)
+    if not isinstance(payload, dict):
+        return None
+    observed_at = str(payload.get("observed_at") or "").strip()
+    if not observed_at:
+        return payload
+    try:
+        observed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+    except ValueError:
+        return payload
+    age_seconds = (datetime.now(tz=UTC) - observed).total_seconds()
+    if age_seconds <= RECENT_SIGNAL_MAX_AGE_SECONDS:
+        return payload
+    del state[command_name]
+    _write_signal_state(project_root, state)
+    return None
 
 
 def _sp_command(command_name: str) -> str:
@@ -102,8 +170,8 @@ def derive_injection_targets(command_name: str, learning_type: str) -> list[str]
         "tooling_trap": ["sp-debug", "sp-implement", "sp-map-codebase"],
         "false_lead_pattern": ["sp-debug", "sp-implement"],
         "near_miss": ["sp-implement", "sp-debug", "project-rules"],
-        "decision_debt": ["sp-specify", "sp-plan", "sp-tasks", "ADR"],
-        "workflow_gap": ["sp-specify", "sp-plan", "sp-tasks"],
+        "decision_debt": ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "ADR"],
+        "workflow_gap": ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks"],
         "project_constraint": ["project-rules", "project-learnings", command],
         "recovery_path": ["sp-debug", "sp-implement", "sp-quick"],
         "pitfall": ["sp-debug", "sp-implement", "sp-quick"],
@@ -112,15 +180,18 @@ def derive_injection_targets(command_name: str, learning_type: str) -> list[str]
     return sorted(dict.fromkeys([command, *targets_by_type.get(normalized_type, [])]))
 
 
-def learning_signal_hook(_project_root: Path, payload: dict[str, object]) -> HookResult:
+def learning_signal_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
     command_name = normalize_command_name(str(payload.get("command_name") or ""))
     score, factors = _pain_score(payload)
+    false_starts = _coerce_str_list(payload.get("false_starts"))
+    hidden_dependencies = _coerce_str_list(payload.get("hidden_dependencies"))
     data = {
         "command": f"sp-{command_name}",
         "pain_score": score,
         "factors": factors,
         "threshold": PAIN_THRESHOLD,
-        "false_starts": _coerce_str_list(payload.get("false_starts")),
+        "false_starts": false_starts,
+        "hidden_dependencies": hidden_dependencies,
     }
     if score < PAIN_THRESHOLD:
         return HookResult(
@@ -129,6 +200,18 @@ def learning_signal_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
             severity="info",
             data=data,
         )
+    _record_recent_signal(
+        project_root,
+        command_name=command_name,
+        payload={
+            "command": f"sp-{command_name}",
+            "pain_score": score,
+            "factors": factors,
+            "false_starts": false_starts,
+            "hidden_dependencies": hidden_dependencies,
+            "observed_at": _now_iso(),
+        },
+    )
     return HookResult(
         event=WORKFLOW_LEARNING_SIGNAL,
         status="warn",
@@ -195,6 +278,30 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
             errors=["learning review decision `none` requires a rationale"],
             data={"command": f"sp-{command_name}", "terminal_status": terminal_status, "review": raw_review},
         )
+    if decision == "none":
+        recent_signal = _recent_signal_for_command(_project_root, command_name=command_name)
+        if recent_signal is not None:
+            return HookResult(
+                event=WORKFLOW_LEARNING_REVIEW,
+                status="blocked",
+                severity="critical",
+                errors=[
+                    "recent friction signal indicates reusable learning value; `decision=none` is not allowed until the learning is captured or explicitly deferred"
+                ],
+                actions=[
+                    f"run `specify hook capture-learning --command {command_name} ...` to preserve the reusable lesson",
+                    f"or rerun `specify hook review-learning --command {command_name} --terminal-status {terminal_status} --decision deferred --rationale \"...\"` when capture must wait",
+                ],
+                data={
+                    "command": f"sp-{command_name}",
+                    "terminal_status": terminal_status,
+                    "review": raw_review,
+                    "recent_signal": recent_signal,
+                },
+            )
+
+    if decision != "none":
+        _clear_recent_signal(_project_root, command_name=command_name)
 
     return HookResult(
         event=WORKFLOW_LEARNING_REVIEW,

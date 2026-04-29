@@ -174,7 +174,7 @@ class TomlIntegrationTests:
         assert "`single-lane` names the topology for one safe execution lane" in content
         assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
         assert "current runtime's native worker lanes" in lowered
-        assert "current integration's coordinated runtime surface" in lowered
+        assert "do not silently switch this workflow onto a coordinated runtime surface" in lowered
         assert "dispatch only from validated `workertaskpacket`" in lowered
         assert "must not edit implementation files directly while worker delegation is active" in lowered
 
@@ -222,7 +222,7 @@ class TomlIntegrationTests:
         i.setup(tmp_path, m)
         agent_name = i.config["name"].replace(" CLI", "").lower()
 
-        for name in ("specify", "clarify", "checklist", "quick", "debug"):
+        for name in ("specify", "clarify", "deep-research", "checklist", "quick", "debug"):
             content = (i.commands_dest(tmp_path) / f"sp.{name}.toml").read_text(encoding="utf-8").lower()
             assert f"## {agent_name} structured question preference" in content
             assert "native structured question tool" in content
@@ -238,6 +238,7 @@ class TomlIntegrationTests:
                 or "textual question format" in content
                 or "plain-text clarification" in content
                 or "missing-information question" in content
+                or "research-track decision" in content
             )
             assert "active question exactly once" in content
 
@@ -510,6 +511,7 @@ class TomlIntegrationTests:
         files.append(".specify/memory/project-learnings.md")
         files.append(".specify/memory/project-rules.md")
         files.append(".specify/project-map/status.json")
+        files.append(".specify/project-map/index/status.json")
         return sorted(files)
 
     def test_complete_file_inventory_sh(self, tmp_path):
@@ -587,19 +589,21 @@ class TomlIntegrationTests:
         assert "sp-fast" in content
         assert "sp-quick" in content
         assert "sp-specify" in content
+        assert "sp-deep-research" in content
         assert "sp-debug" in content
         assert "sp-test" in content
         assert "## Artifact Priority" in content
         assert "workflow-state.md" in content
         assert "alignment.md" in content
         assert "context.md" in content
+        assert "deep-research.md" in content
         assert "plan.md" in content
         assert "tasks.md" in content
         assert ".specify/testing/TESTING_CONTRACT.md" in content
-        assert ".specify/project-map/status.json" in content
+        assert ".specify/project-map/index/status.json" in content
         assert "## Map Maintenance" in content
         assert "refresh `PROJECT-HANDBOOK.md`" in content
-        assert "mark `.specify/project-map/status.json` dirty" in content
+        assert "mark `.specify/project-map/index/status.json` dirty" in content
 
     def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner

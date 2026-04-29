@@ -2,7 +2,7 @@
 YOU ARE AN AUTONOMOUS CODING AGENT. EXECUTE CLEAR, LOW-RISK TASKS TO COMPLETION WITHOUT ASKING FOR ROUTINE PERMISSION.
 DO NOT PAUSE FOR "SHOULD I PROCEED?" WHEN THE NEXT STEP IS OBVIOUS, REVERSIBLE, AND WITHIN THE ACTIVE REQUEST.
 FOR ANY SUPPORTED AI CLI IN THIS REPOSITORY, USE THE INTEGRATION'S NATIVE SUBAGENTS OR NATIVE DELEGATION SURFACE FOR INDEPENDENT, BOUNDED PARALLEL SUBTASKS WHEN THAT IMPROVES THROUGHPUT.
-IN THIS REPOSITORY, NATIVE DELEGATION SURFACES ARE COMPLEMENTARY TO AGENT-SPECIFIC COORDINATED RUNTIMES; FOR CODEX, THAT DURABLE COORDINATION SURFACE REMAINS `specify team`.
+IN THIS REPOSITORY, NATIVE DELEGATION SURFACES ARE COMPLEMENTARY TO AGENT-SPECIFIC COORDINATED RUNTIMES; FOR CODEX, THAT DURABLE COORDINATION SURFACE REMAINS `sp-teams`.
 <!-- END AUTONOMY DIRECTIVE -->
 
 ## Execution Defaults
@@ -11,7 +11,7 @@ For AI CLI workflows in this repository:
 
 - Prefer direct execution for trivial or tightly coupled work.
 - Use each integration's native subagents or native delegation surface by default for independent, bounded subtasks when parallel delegation materially improves speed, quality, or verification confidence.
-- Use the integration's coordinated runtime when execution needs durable coordination, explicit runtime state, join-point tracking, or worker lifecycle control beyond one in-session delegation burst. For Codex, that runtime surface is `specify team`.
+- Use the integration's coordinated runtime when execution needs durable coordination, explicit runtime state, join-point tracking, or worker lifecycle control beyond one in-session delegation burst. For Codex, that runtime surface is `sp-teams`.
 - Treat native delegation and coordinated runtimes as complementary execution surfaces; choose the lighter path that preserves correctness.
 
 ## Project Memory
@@ -46,7 +46,8 @@ specify -> plan
 ```
 
 Treat `CLARIFY` as the optional enhancement path when an existing spec needs deeper analysis before planning.
-Treat `sp-test` as the optional project-level testing-system bootstrap or refresh path that writes a durable testing contract while preserving the mainline `specify -> plan` guidance.
+Treat `sp-deep-research` as the optional feasibility and planning handoff gate when the requirements are clear but one or more capabilities still need coordinated research, external evidence, an implementation chain proof, or a disposable demo before planning. Its findings and demo evidence must become explicit inputs to `sp-plan`; do not require it for minor adjustments to existing, already-proven capabilities.
+Treat `sp-test` as the optional project-level testing-system bootstrap or refresh path that writes a durable testing contract and, for brownfield coverage programs, emits `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` while preserving the mainline `specify -> plan` guidance.
 
 ---
 
@@ -537,3 +538,54 @@ When adding new agents:
 ---
 
 *This documentation should be updated whenever new agents are added to maintain accuracy and completeness.*
+
+<!-- SPEC-KIT:BEGIN -->
+## Spec Kit Plus Managed Rules
+
+- `[AGENT]` marks an action the AI must explicitly execute.
+- `[AGENT]` is independent from `[P]`.
+
+## Workflow Mainline
+
+- Treat `specify -> plan` as the default path.
+- Use `clarify` only when an existing spec needs deeper analysis before planning.
+
+## Brownfield Context Gate
+
+- `PROJECT-HANDBOOK.md` is the root navigation artifact.
+- Deep project knowledge lives under `.specify/project-map/`.
+- Before planning, debugging, or implementing against existing code, read `PROJECT-HANDBOOK.md` and the smallest relevant `.specify/project-map/*.md` files.
+- If handbook/project-map coverage is missing, stale, or too broad, run the runtime's `map-codebase` workflow entrypoint before continuing.
+
+## Project Memory
+
+- Passive project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`.
+- Shared project memory is always available to later work in this repository, not just when a `sp-*` workflow is active.
+- Prefer generated project-local Spec Kit workflows, skills, and commands over ad-hoc execution when they fit the task.
+
+## Workflow Routing
+
+- Use `sp-fast` only for trivial, low-risk local changes that do not need planning artifacts.
+- Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.
+- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.
+- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
+- Use `sp-test` when the project-level testing contract or testing system coverage needs bootstrap, refresh, or audit work.
+
+## Artifact Priority
+
+- `.specify/memory/constitution.md` is the principle-level source of truth when present.
+- `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress.
+- `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.
+- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.
+- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.
+- `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain implementation and debugging when present.
+- `.specify/project-map/status.json` determines whether handbook/project-map coverage can be trusted as fresh.
+
+## Map Maintenance
+
+- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.
+- If that refresh cannot happen in the current pass, mark `.specify/project-map/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-codebase`.
+- Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.
+
+- Preserve content outside this managed block.
+<!-- SPEC-KIT:END -->

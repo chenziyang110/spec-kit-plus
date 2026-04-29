@@ -21,31 +21,33 @@ def test_project_map_status_round_trip(tmp_path):
     mod = _load_module()
 
     status = mod.ProjectMapStatus(
-        last_mapped_commit="abc123",
-        last_mapped_at="2026-04-21T00:00:00Z",
-        last_mapped_branch="main",
-        freshness="fresh",
-        last_refresh_reason="manual",
-        last_refresh_topics=["ARCHITECTURE.md", "WORKFLOWS.md"],
-        last_refresh_scope="partial",
-        last_refresh_basis="manual",
-        last_refresh_changed_files_basis=["src/routes/api.ts"],
-        dirty=False,
-        dirty_reasons=[],
+        version=2,
+        global_freshness="fresh",
+        global_last_refresh_commit="abc123",
+        global_last_refresh_at="2026-04-21T00:00:00Z",
+        global_stale_reasons=[],
+        global_affected_root_docs=["WORKFLOWS.md"],
+        modules={
+            "specify-cli-core": {
+                "freshness": "fresh",
+                "deep_status": "deep_stale",
+                "last_refresh_commit": "abc123",
+                "coverage_fingerprint": "sha256:test",
+                "stale_reasons": [],
+                "affected_docs": ["WORKFLOWS.md"],
+            }
+        },
     )
 
     written = mod.write_project_map_status(tmp_path, status)
     loaded = mod.read_project_map_status(tmp_path)
 
-    assert written == tmp_path / ".specify" / "project-map" / "status.json"
-    assert loaded.last_mapped_commit == "abc123"
-    assert loaded.last_mapped_branch == "main"
-    assert loaded.freshness == "fresh"
-    assert loaded.last_refresh_topics == ["ARCHITECTURE.md", "WORKFLOWS.md"]
-    assert loaded.last_refresh_scope == "partial"
-    assert loaded.last_refresh_basis == "manual"
-    assert loaded.last_refresh_changed_files_basis == ["src/routes/api.ts"]
-    assert loaded.dirty is False
+    assert written == tmp_path / ".specify" / "project-map" / "index" / "status.json"
+    assert loaded.version == 2
+    assert loaded.global_last_refresh_commit == "abc123"
+    assert loaded.global_freshness == "fresh"
+    assert loaded.global_affected_root_docs == ["WORKFLOWS.md"]
+    assert loaded.modules["specify-cli-core"]["deep_status"] == "deep_stale"
 
 
 def test_missing_canonical_project_map_paths_lists_required_outputs(tmp_path):
@@ -56,13 +58,17 @@ def test_missing_canonical_project_map_paths_lists_required_outputs(tmp_path):
     normalized = [str(path).replace("\\", "/") for path in missing]
     assert normalized == [
         f"{tmp_path.as_posix()}/PROJECT-HANDBOOK.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/ARCHITECTURE.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/STRUCTURE.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/CONVENTIONS.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/INTEGRATIONS.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/WORKFLOWS.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/TESTING.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/OPERATIONS.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/index/atlas-index.json",
+        f"{tmp_path.as_posix()}/.specify/project-map/index/modules.json",
+        f"{tmp_path.as_posix()}/.specify/project-map/index/relations.json",
+        f"{tmp_path.as_posix()}/.specify/project-map/index/status.json",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/ARCHITECTURE.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/STRUCTURE.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/CONVENTIONS.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/INTEGRATIONS.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/WORKFLOWS.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/TESTING.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/OPERATIONS.md",
     ]
 
 
@@ -245,8 +251,8 @@ def test_classify_changed_path_matches_shell_contract():
     mod = _load_module()
 
     assert mod.classify_changed_path("PROJECT-HANDBOOK.md") == "stale"
-    assert mod.classify_changed_path(".specify/project-map/ARCHITECTURE.md") == "stale"
-    assert mod.classify_changed_path(".specify/project-map/status.json") == "ignore"
+    assert mod.classify_changed_path(".specify/project-map/root/ARCHITECTURE.md") == "stale"
+    assert mod.classify_changed_path(".specify/project-map/index/status.json") == "ignore"
     assert mod.classify_changed_path("src/routes/api.ts") == "stale"
     assert mod.classify_changed_path("src/components/button.tsx") == "possibly_stale"
     assert mod.classify_changed_path("notes/changelog.txt") == "ignore"
@@ -271,7 +277,7 @@ def test_suggested_topics_for_changed_path_maps_high_value_surfaces():
         "OPERATIONS.md",
         "TESTING.md",
     ]
-    assert mod.suggested_topics_for_changed_path(".specify/project-map/status.json") == []
+    assert mod.suggested_topics_for_changed_path(".specify/project-map/index/status.json") == []
 
 
 def test_refresh_plan_for_changed_path_splits_must_refresh_from_review():
@@ -289,7 +295,7 @@ def test_refresh_plan_for_changed_path_splits_must_refresh_from_review():
         "must_refresh_topics": ["INTEGRATIONS.md", "OPERATIONS.md"],
         "review_topics": ["TESTING.md"],
     }
-    assert mod.refresh_plan_for_changed_path(".specify/project-map/status.json") == {
+    assert mod.refresh_plan_for_changed_path(".specify/project-map/index/status.json") == {
         "must_refresh_topics": [],
         "review_topics": [],
     }

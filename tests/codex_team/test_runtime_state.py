@@ -32,7 +32,7 @@ from specify_cli.codex_team.state_paths import (
 def test_state_root_is_under_specify_state(codex_team_project_root):
     root = codex_team_state_root(codex_team_project_root)
 
-    assert root == codex_team_project_root / ".specify" / "codex-team" / "state"
+    assert root == codex_team_project_root / ".specify" / "teams" / "state"
 
 
 def test_canonical_runtime_paths_are_under_state_root(codex_team_project_root):
@@ -190,4 +190,4 @@ def test_monitor_snapshot_parser_ignores_unknown_fields():
 
 def test_dispatch_record_path_contract_stays_under_dispatch_root(codex_team_project_root):
     payload = dispatch_record_path(codex_team_project_root, "req-contract")
-    assert str(payload).endswith(".specify\\codex-team\\state\\dispatch\\req-contract.json") or str(payload).endswith(".specify/codex-team/state/dispatch/req-contract.json")
+    assert str(payload).endswith(".specify\\teams\\state\\dispatch\\req-contract.json") or str(payload).endswith(".specify/teams/state/dispatch/req-contract.json")

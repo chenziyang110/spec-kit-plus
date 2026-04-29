@@ -41,10 +41,10 @@ $distCli = Join-Path $engineDir 'dist\cli\index.js'
 
 function Show-Usage {
     @'
-Refresh Codex config and managed MCP servers using the OMX setup flow.
+Refresh Codex config and managed MCP servers using the bundled Specify runtime setup flow.
 
 Usage:
-  scripts/powershell/sync-ecc-to-codex.ps1 [-DryRun] [-Scope project|user] [additional omx setup args]
+  scripts/powershell/sync-ecc-to-codex.ps1 [-DryRun] [-Scope project|user] [additional runtime setup args]
 
 Examples:
   scripts/powershell/sync-ecc-to-codex.ps1 -DryRun
@@ -68,28 +68,22 @@ if ($AdditionalArgs.Count -gt 0) {
     $setupArgs += $AdditionalArgs
 }
 
-$omxCommand = Get-Command omx -ErrorAction SilentlyContinue
-if ($omxCommand) {
-    & $omxCommand.Source @setupArgs
-    exit $LASTEXITCODE
-}
-
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
 if (-not $nodeCommand) {
-    throw "node is required when 'omx' is not installed on PATH."
+    throw "node is required to run the bundled Specify runtime setup."
 }
 
 if (-not (Test-Path (Join-Path $engineDir 'package.json') -PathType Leaf)) {
-    throw "'omx' is not installed on PATH and no bundled engine checkout was found near $repoRoot."
+    throw "No bundled runtime engine checkout was found near $repoRoot."
 }
 
 if (-not (Test-Path $distCli -PathType Leaf)) {
     $npmCommand = Get-Command npm -ErrorAction SilentlyContinue
     if (-not $npmCommand) {
-        throw "Bundled OMX CLI is not built and npm is unavailable to build it."
+        throw "Bundled runtime CLI is not built and npm is unavailable to build it."
     }
 
-    Write-Host "Bundled OMX CLI not built; running npm build first..."
+    Write-Host "Bundled runtime CLI not built; running npm build first..."
     & $npmCommand.Source --prefix $engineDir run build | Out-Null
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE

@@ -284,6 +284,11 @@ class IntegrationBase(ABC):
                 "high-impact gap confirmation",
                 "scope or constraint confirmation when enhancement changes planning readiness",
             ],
+            "deep-research": [
+                "whether the feasibility question is actually a requirement gap",
+                "minimum research tracks needed before planning",
+                "manual confirmation before force-proceeding with unresolved feasibility risk",
+            ],
             "checklist": [
                 "initial contextual clarifying questions (`Q1`-`Q3`)",
                 "optional targeted follow-ups (`Q4`-`Q5`) when high-value gaps remain",
@@ -303,6 +308,7 @@ class IntegrationBase(ABC):
         fallback_hints = {
             "specify": "If the native tool is unavailable in the current runtime or the tool call fails, fall back to the shared open question block structure already defined in this template.",
             "clarify": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
+            "deep-research": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text question about the missing feasibility or research-track decision, then continue with the existing research workflow.",
             "checklist": "If the native tool is unavailable in the current runtime or the tool call fails, keep the template's existing `Q1`/`Q2`/`Q3` (and optional `Q4`/`Q5`) textual question format.",
             "quick": "If the native tool is unavailable in the current runtime or the tool call fails, use the template's existing concise plain-text clarification or quick-task selection wording.",
             "debug": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise missing-information question in plain text during observer framing before entering reproduction work.",
@@ -319,7 +325,7 @@ class IntegrationBase(ABC):
         agent_name: str,
         command_name: str,
     ) -> str:
-        question_driven_commands = {"specify", "clarify", "checklist", "quick", "debug"}
+        question_driven_commands = {"specify", "clarify", "deep-research", "checklist", "quick", "debug"}
         if command_name not in question_driven_commands:
             return content
 
@@ -525,8 +531,8 @@ class IntegrationBase(ABC):
             "- Before any delegated implementation work starts, compile and validate the packet for the current task or batch item.\n"
             "- Before delegated dispatch, prefer `specify hook validate-packet --packet-file <packet-json>` when the current runtime has written the packet to disk.\n"
             "- If the selected strategy is `native-multi-agent`, you **MUST** dispatch the concrete work through the current runtime's native worker lanes before considering any fallback path.\n"
-            "- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** escalate through the current integration's coordinated runtime surface before doing any concrete implementation work yourself.\n"
-            "- Do **not** fall through from worker delegation or sidecar fallback into local self-execution just because the implementation looks feasible.\n"
+            "- If native worker delegation is low-confidence or unavailable for the current batch, keep `sp-implement` on the leader path, record the fallback reason in `FEATURE_DIR/implement-tracker.md`, and do not silently switch this workflow onto a coordinated runtime surface.\n"
+            "- Do **not** fall through from worker delegation into local self-execution just because the implementation looks feasible.\n"
             "- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a delegated worker executes that lane.\n"
             "- Prefer delegated worker execution only when the lane already has a validated `WorkerTaskPacket` and trustworthy delegation surface, so the delegated path can preserve or improve on leader-local quality.\n"
             "- If that delegation-readiness bar is not met, keep the lane on the leader path until the missing context, hard rules, validation gates, or handoff requirements are compiled. Do not dispatch a low-context lane just to satisfy a routing preference.\n"
@@ -535,7 +541,7 @@ class IntegrationBase(ABC):
             "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             "- Dispatch only from validated `WorkerTaskPacket`.\n"
             "\n"
-            "**Hard rule:** The leader must not edit implementation files directly while worker delegation is active or while `sidecar-runtime` is selected.\n"
+            "**Hard rule:** The leader must not edit implementation files directly while worker delegation is active.\n"
         )
 
         if "## Outline" in content:
@@ -1564,7 +1570,7 @@ class SkillsIntegration(IntegrationBase):
 
             # Derive the skill name from the template stem
             command_name = src_file.stem  # e.g. "plan"
-            skill_name = f"sp-{command_name.replace('.', '-')}"
+            skill_name = "sp-teams" if command_name == "team" else f"sp-{command_name.replace('.', '-')}"
 
             # Parse frontmatter for description
             frontmatter = self._parse_skill_frontmatter(raw)
@@ -1747,9 +1753,8 @@ class SkillsIntegration(IntegrationBase):
                 "- Interpret `single-lane` as the topology for one safe execution lane, not a hard-coded executor choice.\n"
                 "- Prefer delegated worker execution only when the lane already has a validated `WorkerTaskPacket` and trustworthy delegation surface, so the delegated path can preserve or improve on leader-local quality.\n"
                 "- Interpret `native-multi-agent` as the native subagents path.\n"
-                "- Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable for the current batch.\n"
-                f"- Decision order for {agent_name} `sp-implement` must stay fixed: `no-safe-batch` -> `native-preferred` -> `sidecar-fallback` -> `fallback`.\n"
-                "- Only fall back to `specify team` after a concrete blocker shows that the current batch cannot proceed through native worker delegation.\n"
+                f"- Decision order for {agent_name} `sp-implement` must stay fixed: `no-safe-batch` -> `native-preferred` -> `leader-fallback`.\n"
+                "- If native worker delegation is unavailable or low-confidence for the current batch, keep `sp-implement` on the leader path, record the fallback reason, and preserve the same join-point discipline locally.\n"
                 "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
                 "- The leader delegates execution through these worker paths rather than executing the implementation itself.\n"
                 "- Once a `single-lane` batch clears the delegation-readiness bar, do **not** ask the user whether it should switch to delegated execution; dispatch the lane by default and only discuss fallback after delegation surfaces concretely fail.\n"
@@ -1878,7 +1883,7 @@ class SkillsIntegration(IntegrationBase):
                 "- Wait for every delegated lane's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
                 "- Do not treat an idle child as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
                 "- Do not interrupt or shut down delegated work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
-                f"- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`specify team auto-dispatch`** for the quick-task workload before doing concrete implementation work yourself.\n"
+                f"- If the selected strategy is `sidecar-runtime`, or if native worker delegation proves concretely unavailable for the current batch, you **MUST** call **`sp-teams auto-dispatch`** for the quick-task workload before doing concrete implementation work yourself.\n"
                 "- Leader-local execution is allowed only when native worker delegation is concretely unavailable and the sidecar runtime path is also unavailable.\n"
                 "- When leader-local fallback is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
                 "\n"
@@ -1917,8 +1922,8 @@ class SkillsIntegration(IntegrationBase):
             "- Interpret `single-lane` as the topology for one safe execution lane, not a hard-coded executor choice.\n"
             "- Prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
             "- Interpret `native-multi-agent` as the native subagents path.\n"
-            "- Interpret `sidecar-runtime` as escalation via **`specify team`** only after native worker delegation is unavailable or unsuitable.\n"
-            "- When `sidecar-runtime` is selected for a quick-task batch, call **`specify team auto-dispatch`** before any leader-local implementation fallback.\n"
+            "- Interpret `sidecar-runtime` as escalation via **`sp-teams`** only after native worker delegation is unavailable or unsuitable.\n"
+            "- When `sidecar-runtime` is selected for a quick-task batch, call **`sp-teams auto-dispatch`** before any leader-local implementation fallback.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
         )
 

@@ -64,6 +64,16 @@
 - **Boundary and non-goals**: [What stays inside this capability versus adjacent capabilities]
 - **Acceptance proof**: [What evidence would show this capability is implemented correctly]
 
+## Feasibility / Deep Research Gate
+
+- **Gate status**: [Not needed | Needed before plan | Completed | Blocked]
+- **Reason**: [Why feasibility research is or is not required before planning]
+- **Capabilities requiring proof**:
+  - [Capability] -> [unknown implementation-chain link] -> [proof target or spike needed]
+- **Prototype / demo expectation**: [None | disposable `research-spikes/` demo needed | completed evidence path]
+- **Implementation-chain confidence**: [Existing proven path | Proven by research | Constrained but plannable | Blocked]
+- **Planning Handoff readiness**: [Not needed | Needed from `/sp.deep-research` | Complete | Incomplete]
+
 ## High-Impact Decision Forks
 
 - **[Decision Fork]**: [Requirement-shaping choice that changed behavior, boundary, compatibility, or acceptance proof]
@@ -98,13 +108,14 @@
 
 - [Proceed directly to `/sp.plan`]
 - [Run `/sp.clarify` first to close planning-critical gaps]
+- [Run `/sp.deep-research` first to prove feasibility or produce a disposable demo]
 - [Force proceed only if the user accepts the known risks]
 
 ## Artifact Review Gate
 
 - **Self-review**: [passed | revised]
 - **Reviewer lane**: [not used | approved | issues found then revised]
-- **User artifact review**: [approved | changes requested | continue analysis with `/sp.clarify`]
+- **User artifact review**: [approved | changes requested | continue analysis with `/sp.clarify` | prove feasibility with `/sp.deep-research`]
 
 ## Release Decision
 

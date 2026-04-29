@@ -12,7 +12,7 @@
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { withModeRuntimeContext } from '../state/mode-state-context.js';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { classifyTaskSize, isHeavyMode, type TaskSizeResult, type TaskSizeThresholds } from './task-size-detector.js';
 import { isApprovedExecutionFollowupShortcut, type FollowupMode } from '../team/followup-planner.js';
 import { isPlanningComplete, readPlanningArtifacts } from '../planning/artifacts.js';
@@ -228,6 +228,20 @@ async function readJsonStateIfExists(path: string): Promise<Record<string, unkno
   } catch {
     return null;
   }
+}
+
+function projectRootFromStateDir(stateDir: string): string {
+  const runtimeDir = dirname(stateDir);
+  const specifyDir = dirname(runtimeDir);
+  if (
+    basename(stateDir) === 'state'
+    && basename(runtimeDir) === 'runtime'
+    && basename(specifyDir) === '.specify'
+  ) {
+    return dirname(specifyDir);
+  }
+
+  return dirname(dirname(stateDir));
 }
 
 export async function persistDeepInterviewModeState(
@@ -740,7 +754,7 @@ export async function recordSkillActivation(input: RecordSkillActivationInput): 
 
     try {
       await writeSkillActiveStateCopies(
-        dirname(dirname(input.stateDir)),
+        projectRootFromStateDir(input.stateDir),
         state,
         input.sessionId,
         selectRootSkillStateCopy(previousRoot, state, input.sessionId),
@@ -813,7 +827,7 @@ export async function recordSkillActivation(input: RecordSkillActivationInput): 
 
       if (decision.autoCompleteModes.length > 0) {
         const transition = await reconcileWorkflowTransition(
-          dirname(dirname(input.stateDir)),
+          projectRootFromStateDir(input.stateDir),
           requestedMode,
           {
             action: 'activate',
@@ -913,7 +927,7 @@ export async function recordSkillActivation(input: RecordSkillActivationInput): 
       }
       nextState.active_skills = buildActiveSkills(nextState);
       await writeSkillActiveStateCopies(
-        dirname(dirname(input.stateDir)),
+        projectRootFromStateDir(input.stateDir),
         nextState,
         input.sessionId,
         selectRootSkillStateCopy(previousRoot, nextState, input.sessionId),
@@ -956,7 +970,7 @@ export async function recordSkillActivation(input: RecordSkillActivationInput): 
     const nextState = await persistStatefulSkillSeedState(input.stateDir, state, nowIso, previous);
     nextState.active_skills = buildActiveSkills(nextState);
     await writeSkillActiveStateCopies(
-      dirname(dirname(input.stateDir)),
+      projectRootFromStateDir(input.stateDir),
       nextState,
       input.sessionId,
       selectRootSkillStateCopy(previousRoot, nextState, input.sessionId),

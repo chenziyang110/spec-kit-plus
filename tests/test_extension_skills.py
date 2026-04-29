@@ -253,6 +253,7 @@ class TestBuiltInSkillGeneration:
 
         skills_dir = project_dir / ".claude" / "skills"
         assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
+        assert (skills_dir / "sp-deep-research" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (skills_dir / "sp-test" / "SKILL.md").exists()
@@ -265,7 +266,7 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "testing" / "testing-playbook-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "testing" / "coverage-baseline-template.json").exists()
 
-        for skill_name in ("sp-specify", "sp-plan", "sp-test", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
+        for skill_name in ("sp-specify", "sp-deep-research", "sp-plan", "sp-test", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
             body = _body_without_frontmatter(skills_dir / skill_name / "SKILL.md").lower()
             assert ".specify/memory/project-rules.md" in body
             assert ".specify/memory/project-learnings.md" in body
@@ -278,7 +279,7 @@ class TestBuiltInSkillGeneration:
         assert ".planning/learnings/candidates.md" in constitution_body
         assert "specify learning start --command constitution --format json" in constitution_body
         assert "project-handbook.md" in constitution_body
-        assert ".specify/project-map/status.json" in constitution_body
+        assert ".specify/project-map/index/status.json" in constitution_body
         assert "/sp-map-codebase" in constitution_body
         assert "workflow-state.md" in constitution_body
         assert "/sp-plan" in constitution_body
@@ -328,8 +329,8 @@ class TestBuiltInSkillGeneration:
         assert "current-understanding or confirmation gate" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
         assert "PROJECT-HANDBOOK.md" in specify_body
-        assert ".specify/project-map/ARCHITECTURE.md" in specify_body
-        assert ".specify/project-map/WORKFLOWS.md" in specify_body
+        assert ".specify/project-map/root/ARCHITECTURE.md" in specify_body
+        assert ".specify/project-map/root/WORKFLOWS.md" in specify_body
         assert "Topic Map" in specify_body
         assert "coverage-model check" in specify_body
         assert "truth-owning surfaces" in specify_body
@@ -365,7 +366,7 @@ class TestBuiltInSkillGeneration:
         assert "recommend `/sp.clarify` as the next command instead of `/sp.plan`" in specify_body
         assert "recommended review follow-up: `/sp.clarify`" in specify_body
         assert "without needing `/sp.clarify`" in specify_body
-        assert "mark `.specify/project-map/status.json` dirty" in specify_body.lower()
+        assert "mark `.specify/project-map/index/status.json` dirty" in specify_body.lower()
         assert "recommend `/sp-map-codebase`" in specify_body
 
         plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
@@ -379,7 +380,7 @@ class TestBuiltInSkillGeneration:
         assert "phase_mode: design-only" in plan_body
         assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in plan_body
         assert "recommended follow-up quality check: `/sp.checklist`" in plan_body
-        assert "mark `.specify/project-map/status.json` dirty" in plan_body.lower()
+        assert "mark `.specify/project-map/index/status.json` dirty" in plan_body.lower()
         assert "recommend `/sp-map-codebase`" in plan_body
 
         tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
@@ -397,7 +398,7 @@ class TestBuiltInSkillGeneration:
         assert "recommended next command: `/sp.analyze`" in tasks_body.lower()
         assert "implementation remains blocked until `/sp-analyze`" in tasks_body.lower()
         assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in tasks_body.lower()
-        assert "mark `.specify/project-map/status.json` dirty" in tasks_body.lower()
+        assert "mark `.specify/project-map/index/status.json` dirty" in tasks_body.lower()
         assert "recommend `/sp-map-codebase`" in tasks_body
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
@@ -437,13 +438,16 @@ class TestBuiltInSkillGeneration:
 
         map_body = _body_without_frontmatter(skills_dir / "sp-map-codebase" / "SKILL.md")
         assert "PROJECT-HANDBOOK.md" in map_body
-        assert ".specify/project-map/ARCHITECTURE.md" in map_body
+        assert ".specify/project-map/index/atlas-index.json" in map_body
+        assert ".specify/project-map/root/ARCHITECTURE.md" in map_body
+        assert ".specify/project-map/modules/<module-id>/OVERVIEW.md" in map_body
         assert 'choose_execution_strategy(command_name="map-codebase"' in map_body
         assert "run `/sp-map-codebase`" in map_body
         assert "complete-refresh" in map_body
         assert "do not create `.planning/codebase/`" in map_body
         assert "Layering exists so map consumers can read detail on demand" in map_body
         assert "Do not treat layering as permission to discard technical detail." in map_body
+        assert "deep_stale" in map_body
         assert "external or exported API contracts" in map_body
         assert "core data models, state semantics, and handoff fields" in map_body
         assert "IPC, bridge, native-host, message, pipe, or protocol seams" in map_body
@@ -508,7 +512,7 @@ class TestBuiltInSkillGeneration:
         assert "specify learning start --command checklist --format json" in checklist_lower
         assert "specify learning capture --command checklist" in checklist_lower
         assert "project-handbook.md" in checklist_lower
-        assert ".specify/project-map/status.json" in checklist_lower
+        assert ".specify/project-map/index/status.json" in checklist_lower
         assert "run `/sp-map-codebase` before continuing" in checklist_lower
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
         assert "recommend `/sp-plan`" in checklist_lower
@@ -547,6 +551,8 @@ class TestSkillDescriptions:
         assert "guided requirement discovery" in SKILL_DESCRIPTIONS["specify"].lower()
         assert "planning-ready specification package" in SKILL_DESCRIPTIONS["specify"].lower()
         assert "planning-critical gaps" in SKILL_DESCRIPTIONS["clarify"].lower()
+        assert "feasibility risk" in SKILL_DESCRIPTIONS["deep-research"].lower()
+        assert "planning handoff" in SKILL_DESCRIPTIONS["deep-research"].lower()
         assert "plain language" in SKILL_DESCRIPTIONS["explain"].lower()
         assert "implementation planning" in SKILL_DESCRIPTIONS["plan"].lower()
         assert "dependency-aware tasks" in SKILL_DESCRIPTIONS["tasks"].lower()

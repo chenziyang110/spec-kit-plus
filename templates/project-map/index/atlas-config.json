@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "discovery": {
+    "mode": "auto-with-overrides",
+    "root_patterns": [],
+    "ignore_patterns": []
+  },
+  "module_id_policy": {
+    "default": "path-derived",
+    "allow_overrides": true
+  },
+  "notes": [
+    "Override root_paths, include_globs, exclude_globs, and module IDs here when auto-discovery is insufficient."
+  ]
+}

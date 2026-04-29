@@ -1,166 +1,224 @@
 ---
 name: spec-kit-project-learning
-description: Use this skill whenever you discover a recurring bug, workflow gap, missing project constraint, or global user preference in a Spec Kit Plus repository, OR when the user explicitly asks to "remember this", "add a rule", "update project memory", or capture a learning. It guides you on how to properly extract, record, and promote operational knowledge into the shared project memory layer using the `specify learning` CLI instead of trapping it in single-task chat memory.
+description: Use this skill whenever you discover reusable operational knowledge in a Spec Kit Plus repository, such as a repeated pitfall, recovery trick, user preference, project constraint, false lead, or tooling trap. It teaches when the memory system should trigger, what kind of learning to record, how to store it, and how to promote it into durable project memory without trapping it in one workflow run or chat session.
 origin: spec-kit-plus
 ---
 
 # Spec Kit Project Learning
 
-Spec Kit Plus uses a 4-layer shared memory system to prevent recurring mistakes and retain project-level operational knowledge across workflows (`sp-specify`, `sp-plan`, `sp-implement`, `sp-debug`, etc.). 
+This skill is about the memory system itself.
 
-## The 4-Layer Memory Architecture
+Its job is to teach an agent:
 
-1. **Principle Layer (`.specify/memory/constitution.md`)**
-   - Holds principle-level MUST and SHOULD governance.
-   - Changes slowly and intentionally. Highest authority.
+- when a run has discovered reusable knowledge,
+- how that knowledge should be recorded,
+- where it should live,
+- when it should be promoted,
+- and how future runs should benefit from it.
 
-2. **Stable Rules (`.specify/memory/project-rules.md`)**
-   - Preserves stable, shared project rules that affect multiple workflows.
-   - Stronger than general learnings, weaker than constitution principles.
+It is not a catalog of `sp-*` workflows. Other routing and workflow skills decide
+which active workflow should run. This skill decides how reusable knowledge should be
+captured and preserved once a run exposes it.
 
-3. **Confirmed Learnings (`.specify/memory/project-learnings.md`)**
-   - Preserves confirmed project learnings that are reusable but not yet principle level.
-   - The main project-level improvement layer.
+## Core Principle
 
-4. **Runtime Candidates (`.planning/learnings/candidates.md` & `review.md`)**
-   - Stores noisy or newly observed candidate learnings.
-   - Avoids polluting stable memory with one-off observations.
+Do not keep reusable operational knowledge in transient chat memory.
 
-## When to Capture a Learning
+If a run uncovers something that would help later work avoid the same mistake, route
+faster, recover earlier, or honor a repeated user/project constraint, that knowledge
+should enter the shared memory system.
 
-As an Agent executing a workflow, you should actively identify and capture operational knowledge when you observe:
+The user should not have to manually remind the agent to remember recurring pitfalls.
+Memory capture is part of correct workflow execution.
 
-- **`pitfall`**: Repeated implementation traps or testing failures.
-- **`recovery_path`**: Recovery sequences that repeatedly save time.
-- **`user_preference`**: User corrections or style preferences repeated across features.
-- **`project_constraint`**: Constraints repeated across features.
-- **`workflow_gap`**: Planning-critical details repeatedly missed during `sp-specify` or `sp-plan`.
-- **`routing_mistake`**: The run started in the wrong `sp-*` workflow or had to upgrade/downgrade route after friction.
-- **`verification_gap`**: The run lacked the minimum credible validation path or discovered a broken testing assumption.
-- **`state_surface_gap`**: Durable state failed to capture the information needed to resume, review, or auto-capture learning.
-- **`map_coverage_gap`**: The handbook/project-map atlas lacked the dependency, lifecycle, ownership, or change-impact facts needed for safe work.
-- **`tooling_trap`**: Toolchain, dev-server, watcher, environment, or observer behavior masqueraded as an application bug.
-- **`false_lead_pattern`**: The symptom strongly resembled one cause, but reusable evidence showed the root cause family was elsewhere.
-- **`near_miss`**: A risky path was avoided late enough that future workflows should learn from it.
-- **`decision_debt`**: A vague or deferred decision repeatedly caused downstream workflow cost.
+## What Counts As Memory-Worthy Knowledge
 
-## Complementary Passive Skills
+Capture memory when the run exposes reusable knowledge such as:
 
-- `spec-kit-workflow-routing` decides which active `sp-*` workflow should run.
-- `spec-kit-project-map-gate` decides whether brownfield work has enough handbook and
-  project-map coverage to continue or must route through `sp-map-codebase` first.
-- This passive skill starts and captures the shared learning stream once the correct
-  workflow and brownfield context gate are in place.
+- a repeated bug pattern or implementation trap
+- a recovery sequence that repeatedly saves time
+- a user correction that will matter again later
+- a project constraint that affects multiple later tasks
+- a tooling or environment trap that masquerades as an application bug
+- a false lead pattern that wastes investigation time
+- a validation gap that should change future execution
+- a planning or workflow omission that keeps recurring
+- a near miss that future runs should avoid
 
-## Command Roles
+Good trigger heuristic:
 
-Each `specify` workflow has a specific role in consuming and producing learnings:
+- If future you would benefit from seeing this before starting a related task, it is memory-worthy.
 
-- **`sp-specify`**: Primary producer of `workflow_gap`, `user_preference`, and `project_constraint`.
-- **`sp-plan`**: Primary producer of `workflow_gap` and `project_constraint`.
-- **`sp-checklist`**: Focused producer of requirement-quality `workflow_gap` and checklist-shaping `project_constraint`.
-- **`sp-tasks`**: Primary producer of reusable decomposition `workflow_gap` and execution-shaping `project_constraint`.
-- **`sp-test`**: Primary producer of reusable testing `workflow_gap`, testing-specific `project_constraint`, and reusable `pitfall` findings about the project test surface.
-- **`sp-implement`**: Primary producer of `pitfall`, `recovery_path`, and `project_constraint`.
-- **`sp-debug`**: Primary producer of `pitfall`, `recovery_path`, and repeated debugging-side `project_constraint`.
-- **`sp-fast`**: Strong consumer, weak producer (only produces clearly high-signal findings).
-- **`sp-quick`**: Strong consumer, selective producer (only for reusable findings).
-- **`sp-map-codebase`**: Primary producer of brownfield `project_constraint` and mapping-related `workflow_gap`.
+## Memory Layers
 
-**CLI Learning Commands:**
-Use the `specify learning` CLI to manage the learning state explicitly:
-- `specify learning status`: Inspect learning file state.
-- `specify learning start --command <command-name>`: Prepare learning context. Use the
-  workflow name without the `sp-` prefix.
-- `specify learning capture --command <command-name> --type <type> --summary "<summary>" --evidence "<evidence>"`: Capture a candidate learning for the active workflow.
-- `specify learning capture-auto --command <command-name> ...`: Infer candidate learnings from workflow state files when the workflow has a durable state surface such as `implement-tracker.md`, quick `STATUS.md`, or debug session files.
-- `specify learning promote --recurrence-key <key> --target <learning|rule>`: Promote a learning into `project-learnings.md` or `project-rules.md`.
+Spec Kit Plus uses four layers:
 
-**First-Party Learning Hooks:**
-Use the `specify hook` surface when a workflow needs product-level enforcement instead of prompt-only discipline:
-- `specify hook signal-learning --command <command-name> ...`: Compute a friction-based pain score during the run. It warns when retry attempts, hypothesis changes, validation failures, route changes, false starts, or hidden dependencies indicate reusable learning value.
-- `specify hook review-learning --command <command-name> --terminal-status <resolved|blocked> ...`: Required before terminal closeout. It may record `--decision none --rationale "..."`, but terminal workflows should not skip the review gate.
-- `specify hook capture-learning --command <command-name> --type <type> --summary "..." --evidence "..."`: Capture structured path learning with optional `--pain-score`, `--false-start`, `--rejected-path`, `--decisive-signal`, `--root-cause-family`, `--injection-target`, and `--promotion-hint`.
-- `specify hook inject-learning --command <command-name> --type <type> --summary "..."`: Derive the workflow, document, or rule surfaces where the learning should be injected so future runs are stopped earlier.
+1. **Principle Layer**: `.specify/memory/constitution.md`
+   - Slow-changing MUST/SHOULD governance.
 
-`signal-learning` is a soft prompt. `review-learning` is the hard terminal gate. `capture-learning` is the structured candidate writer. `inject-learning` is the prevention-routing helper. Promotion still requires recurrence or explicit confirmation.
+2. **Stable Rules**: `.specify/memory/project-rules.md`
+   - Strong reusable project defaults and constraints.
 
-## Learning-Start Trigger Matrix
+3. **Confirmed Learnings**: `.specify/memory/project-learnings.md`
+   - Confirmed reusable learnings that are important but not yet principle-level.
 
-- **`sp-specify`**: Run `specify learning start --command specify --format json`
-  before request shaping, discovery, or spec framing begins.
-- **`sp-plan`**: Run `specify learning start --command plan --format json` before
-  decomposition, sequencing, or plan shaping begins.
-- **`sp-checklist`**: Run `specify learning start --command checklist --format json`
-  before checklist shaping, review-scope selection, or requirement-quality analysis begins.
-- **`sp-tasks`**: Run `specify learning start --command tasks --format json` before
-  task-batch generation or task-shaping begins.
-- **`sp-test`**: Run `specify learning start --command test --format json` before
-  testing-system inventory, framework adoption, or testing-contract generation begins.
-- **`sp-implement`**: Run `specify learning start --command implement --format json`
-  before editing, delegation, or implementation verification begins.
-- **`sp-debug`**: Run `specify learning start --command debug --format json` before
-  repro, investigation, or root-cause analysis begins.
-- **`sp-fast`**: Run `specify learning start --command fast --format json`
-  immediately after the task stays on the fast lane and before execution begins.
-- **`sp-quick`**: Run `specify learning start --command quick --format json` before
-  touched-area analysis, status initialization, or quick-task execution planning begins.
-- **`sp-map-codebase`**: Run `specify learning start --command map-codebase --format json`
-  before handbook/project-map refresh, coverage diagnosis, or brownfield map rebuild work begins.
+4. **Runtime Candidates**: `.planning/learnings/candidates.md` and `review.md`
+   - Newly observed or still-noisy learnings awaiting confirmation or promotion.
 
-## Learning-Capture Trigger Matrix
+## Learning Types
 
-All workflows should run the learning review gate before final `resolved`, `blocked`, closeout, handoff, or completion reporting. If no reusable learning exists, use `specify hook review-learning --command <command> --terminal-status <status> --decision none --rationale "..."`. If reusable friction exists, capture it first with `specify hook capture-learning ...`, then review with `--decision captured`.
+Use the smallest accurate type:
 
-- **`sp-specify`**: Use `specify learning capture --command specify --type workflow_gap`
-  when specification discovery exposes reusable missing requirements,
-  `project_constraint`, or `user_preference`.
-- **`sp-plan`**: Use `specify learning capture --command plan --type workflow_gap`
-  when planning exposes reusable sequencing gaps, ownership gaps, or
-  `project_constraint`.
-- **`sp-checklist`**: Use `specify learning capture --command checklist --type workflow_gap`
-  when checklist generation exposes reusable requirement-quality gaps, repeated ambiguity patterns, or
-  checklist-shaping `project_constraint`.
-- **`sp-tasks`**: Use `specify learning capture --command tasks --type workflow_gap`
-  when task decomposition exposes reusable batching rules, dependency gaps, or
-  execution-shaping `project_constraint`.
-- **`sp-test`**: Use `specify learning capture --command test --type project_constraint`
-  when testing bootstrap or refresh exposes reusable framework rules, project-wide
-  testing pitfalls, or contract-shaping `workflow_gap` findings.
-- **`sp-implement`**: Prefer `specify implement closeout --feature-dir FEATURE_DIR`
-  so implementation session state is validated and retry-heavy implementation
-  patterns can be inferred from `implement-tracker.md` automatically. Fall back to
-  `specify learning capture --command implement --type pitfall` when the durable
-  state files do not capture the reusable insight.
-- **`sp-debug`**: Prefer `specify learning capture-auto --command debug --session-file .planning/debug/[slug].md`
-  so resolved debug sessions can infer repeatable failure and recovery patterns from
-  the persisted session file. Fall back to `specify learning capture --command debug --type pitfall`
-  when the durable state files do not capture the reusable insight.
-- **`sp-fast`**: Use `specify learning capture --command fast --type pitfall` only for
-  highest-signal `pitfall`, `workflow_gap`, or `project_constraint` findings that
-  should survive beyond the fast-path session.
-- **`sp-quick`**: Prefer `specify learning capture-auto --command quick --workspace .planning/quick/<id>-<slug>`
-  so resolved quick tasks can infer retry-heavy patterns from `STATUS.md`.
-  Fall back to `specify learning capture --command quick --type pitfall` for reusable
-  `pitfall`, `recovery_path`, `workflow_gap`, or `project_constraint` findings that
-  the quick-task state file does not capture on its own.
-- **`sp-map-codebase`**: Use `specify learning capture --command map-codebase --type project_constraint`
-  when mapping exposes reusable ownership rules, stale-handbook blind spots, or
-  brownfield `workflow_gap` findings that other workflows must consume.
+- `pitfall`: repeated implementation or testing trap
+- `recovery_path`: repeatable recovery sequence
+- `user_preference`: repeated user correction or preference
+- `project_constraint`: reusable project constraint
+- `workflow_gap`: repeated upstream omission
+- `routing_mistake`: wrong workflow entry or route correction
+- `verification_gap`: missing or broken validation path
+- `state_surface_gap`: durable state failed to preserve needed context
+- `map_coverage_gap`: handbook/project-map lacked needed truth
+- `tooling_trap`: environment, shell, toolchain, watcher, or dev-surface trap
+- `false_lead_pattern`: misleading diagnosis pattern
+- `near_miss`: late-avoided risky path
+- `decision_debt`: vague deferred decision that keeps causing downstream cost
 
-## How to Act on Learnings
+## Required Behavior
 
-1. **Consume First:** Always read `constitution.md`, `project-rules.md`, and `project-learnings.md` (in that order) before executing tasks, planning, or debugging. Do not rely on generic framework instincts if a project rule exists.
-2. **Identify Candidates:** When you solve a difficult bug, receive a global preference correction from the user, or notice a gap in the provided plan, recognize it as a candidate learning.
-3. **Capture:** Do not silently adapt your local behavior without recording it for the future. Prefer `specify hook capture-learning` for structured path learning; use `specify learning capture` only as the lower-level fallback.
-4. **Promote:** Do not immediately write stable non-principle rules into `constitution.md`. 
-   - New observations go to `candidates.md`.
-   - Repeated/confirmed observations go to `project-learnings.md` (via `specify learning promote --target learning`).
-   - True stable cross-workflow rules go to `project-rules.md` (via `specify learning promote --target rule`).
+### 1. Consume memory before deeper work
+
+Before broad execution or diagnosis, the workflow should load shared memory first:
+
+- constitution
+- project rules
+- project learnings
+- relevant candidate learnings when they still matter
+
+This should happen as part of workflow behavior. It should not depend on the user
+explicitly asking for memory to be loaded.
+
+### 2. Capture reusable knowledge during the run
+
+When the run exposes reusable knowledge, record it.
+
+Do not silently adapt local behavior and leave the lesson trapped in the current chat,
+task file, or session transcript.
+
+### 3. Review memory before terminal closeout
+
+Before a workflow closes in a terminal state, it should either:
+
+- capture the reusable learning, or
+- explicitly record that no reusable learning exists and why
+
+The closeout review exists to stop the same pitfall from being rediscovered endlessly.
+
+### 4. Promote when the evidence is strong enough
+
+Promotion rules:
+
+- New or uncertain observations go to candidates.
+- Confirmed reusable observations move to `project-learnings.md`.
+- Stable cross-workflow defaults move to `project-rules.md`.
+
+## Start-Time Memory Effects
+
+Treat `learning start` as required preflight memory, not optional telemetry.
+
+- Confirmed project rules and confirmed project learnings should surface as start-time warnings for later relevant work.
+- Single high-signal candidates should still appear in start-time warnings so the next run does not rediscover the same issue from scratch.
+- Repeated candidates, including repeated high-signal candidates, should auto-promote instead of staying stuck in the candidate layer forever.
+
+Native hooks are an optional enhancement. Without native hooks, the shared
+`specify learning start`, `specify hook review-learning`, and
+`specify hook capture-learning` path must still execute correctly and preserve the
+same memory guarantees.
+
+## Command Surface
+
+These are the memory-system primitives:
+
+- `specify learning status`
+- `specify learning start --command <command-name>`
+- `specify learning capture --command <command-name> --type <type> --summary "..." --evidence "..."`
+- `specify learning capture-auto --command <command-name> ...`
+- `specify learning promote --recurrence-key <key> --target <learning|rule>`
+
+## First-Party Learning Hooks
+
+Use this hook surface when memory handling needs product-level enforcement or richer
+signal capture:
+
+- `specify hook signal-learning --command <command-name> ...`
+- `specify hook review-learning --command <command-name> --terminal-status <status> ...`
+- `specify hook capture-learning --command <command-name> --type <type> --summary "..." --evidence "..."`
+- `specify hook inject-learning --command <command-name> --type <type> --summary "..."`
+
+## When To Prefer Each Surface
+
+- Use `learning start` to load and expose relevant memory before deeper work.
+- Use `signal-learning` when friction signals suggest the run has memory value.
+- Use `capture-learning` when you already know the reusable lesson and want to store it structurally.
+- Use `capture-auto` when durable workflow state already contains enough evidence to infer the lesson.
+- Use `review-learning` before terminal closeout so memory capture cannot be silently skipped.
+- Use `promote` when recurrence or explicit confirmation justifies moving a learning into a stronger layer.
+
+Typical durable-state sources include:
+
+- `implement-tracker.md`
+- quick-task `STATUS.md`
+- debug session files
+- `testing-state.md`
+- `workflow-state.md` when it preserves route reasons, false starts, hidden dependencies, or reusable constraints
+
+## Capture Heuristics
+
+Capture when one or more of these happened:
+
+- multiple retries were needed
+- the hypothesis changed more than once
+- validation failed repeatedly
+- the user corrected the same kind of mistake again
+- the agent followed a false lead before finding the real cause
+- an environment/toolchain issue looked like a code bug
+- the same project constraint had to be rediscovered
+- a missing test or missing state surface caused preventable rework
+
+If the run was painful, surprising, or repeatedly avoidable, it probably deserves memory.
+
+## Promotion Heuristics
+
+Promote to `project-learnings.md` when:
+
+- the learning has recurred,
+- or the evidence is already strong and cross-stage useful,
+- or the user explicitly confirmed it should be remembered.
+
+Promote to `project-rules.md` when:
+
+- it is a stable default,
+- it should shape many later workflows,
+- and violating it would predictably create repeated cost.
+
+## Injection Goal
+
+The memory system is not complete when a lesson is merely stored.
+
+The lesson should influence future work by being surfaced at the right time:
+
+- before related execution starts,
+- before the same route mistake repeats,
+- before the same tooling trap gets misdiagnosed,
+- or before the same project constraint is forgotten.
+
+That is why `inject-learning` exists: to route prevention back into the right shared
+surface.
 
 ## Behavioral Rules
 
-- **Do NOT** automatically edit `constitution.md` for a single-task bug fix or minor user preference.
-- **Do NOT** trap valuable cross-stage learnings inside single-task memory (like `alignment.md` or chat history). Extract them to the candidate layer.
-- **Do NOT** close a terminal `sp-*` workflow without either a captured learning or an explicit `review-learning --decision none` rationale.
+- **Do NOT** wait for the user to explicitly say “remember this” when the run clearly exposed reusable knowledge.
+- **Do NOT** trap durable lessons in chat history, task-local notes, or one workflow artifact.
+- **Do NOT** write everything into `constitution.md`.
+- **Do NOT** leave repeated high-signal findings stuck in the candidate layer forever.
+- **Do NOT** close a terminal workflow without either captured memory or an explicit review rationale.
 - Keep `project-rules.md` stricter than `project-learnings.md`.

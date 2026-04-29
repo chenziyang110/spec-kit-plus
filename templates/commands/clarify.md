@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: The current spec package exists, but planning-critical ambiguity or new evidence makes /sp-plan unreliable.
   primary_objective: Strengthen the existing spec package without rerunning the entire `sp-specify` flow from scratch.
   primary_outputs: Updated `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` inside the active `FEATURE_DIR`.
-  default_handoff: /sp-plan if the package becomes planning-ready; otherwise continue clarification or run another repair pass.
+  default_handoff: /sp-plan if the package becomes planning-ready; otherwise continue clarification, run another repair pass, or route unproven feasibility through /sp-deep-research.
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -59,7 +59,8 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 
 - Run `specify learning start --command clarify --format json` when available so this repair pass can consume existing project rules and learnings.
 - When clarification friction appears, run `specify hook signal-learning --command clarify ...` with user-correction, scope-change, route-change, false-start, or hidden-dependency counts.
-- Before final completion or blocked reporting, run `specify hook review-learning --command clarify --terminal-status <resolved|blocked> ...`; capture reusable `workflow_gap`, `decision_debt`, `map_coverage_gap`, `user_preference`, or `project_constraint` findings with `specify hook capture-learning --command clarify ...`.
+- Before final completion or blocked reporting, run `specify hook review-learning --command clarify --terminal-status <resolved|blocked> ...`.
+- Prefer `specify learning capture-auto --command clarify --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command clarify ...` when the durable state does not capture the reusable lesson cleanly.
 
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
    - `FEATURE_DIR`
@@ -92,7 +93,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - `.specify/memory/project-rules.md` if present
    - `.specify/memory/project-learnings.md` if present
    - `PROJECT-HANDBOOK.md` if present
-   - the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`
+   - the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`
    - relevant repository documentation and design artifacts when they materially affect the requested change
 
 4. Identify what needs enhancement:
@@ -102,6 +103,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - underused reference material
    - newly provided requirements or constraints
    - unresolved gray areas that still change plan structure
+   - unproven feasibility or implementation-chain links that make `/sp.plan` guess
    - missing locked decisions, canonical references, or deferred-scope notes
    - gaps that would make `/sp.plan` less reliable
 
@@ -121,6 +123,13 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - examples: external references, local codebase context, risk analysis, comparison of alternatives
    - keep the final output synthesized back into the main spec package instead of returning raw research noise
 
+7a. Decide whether a separate feasibility gate is needed:
+   - If the remaining issue is "what should the system do?", keep clarifying in this command.
+   - If the remaining issue is "can this capability work with the available APIs, libraries, platform behavior, performance envelope, or integration boundary?", update `alignment.md` and `workflow-state.md` to recommend `/sp.deep-research`.
+   - Prefer `/sp.deep-research` when a disposable demo under `FEATURE_DIR/research-spikes/` would prove the implementation chain before planning.
+   - Record that `/sp.deep-research` must return a `Planning Handoff` with findings, demo evidence, constraints, rejected options, and recommended approach for `/sp.plan`.
+   - Do not require `/sp.deep-research` for minor changes to existing capabilities that already have a clear implementation path in the repository.
+
 8. Apply enhancements directly to the artifact set:
    - update `spec.md`
    - update `alignment.md`
@@ -128,6 +137,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - update `references.md`
    - strengthen `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` when relevant
    - strengthen `Locked Decisions For Planning`, `Outstanding Questions`, and `Planning Gate Recommendation` in `alignment.md`
+   - strengthen feasibility / deep research gate status when an implementation-chain proof is needed before planning
    - strengthen `Locked Decisions`, `Claude Discretion`, `Canonical References`, `Existing Code Insights`, `Specific User Signals`, and `Outstanding Questions` in `context.md`
 
 9. Maintain a clean output contract:
@@ -142,10 +152,10 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - updated paths
    - remaining planning risks
    - recommended next command
-   - whether the spec package is now ready for `/sp.plan` or still needs more clarification
+   - whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first
    - whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning
    - updated `workflow-state.md` path
-   - if this repair pass proves the current handbook/project-map no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield implementation proceeds
+   - if this repair pass proves the current handbook/project-map no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield implementation proceeds
 
 ## Presentation Contract
 
@@ -166,6 +176,7 @@ When communicating findings and completion, use a structured terminal presentati
 - If new information materially changes scope or alignment, update `alignment.md` in the same pass.
 - Treat `/sp.clarify` as the default rescue lane and repair lane when planning-critical ambiguity remains after `/sp.specify`.
 - If high-impact ambiguity remains after enhancement, recommend another clarification pass instead of implying that `/sp.plan` is now safe.
+- If requirements are clear but feasibility is unproven, recommend `/sp.deep-research` instead of implying that `/sp.plan` is now safe.
 
 ## Post-Execution Checks
 

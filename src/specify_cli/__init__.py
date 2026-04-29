@@ -100,17 +100,21 @@ from specify_cli.learnings import (
     start_learning_session,
 )
 from specify_cli.project_map_status import (
+    ProjectMapStatus,
     TOPIC_FILES,
     clear_project_map_dirty,
     complete_project_map_refresh,
     git_branch_name,
     git_head_commit,
     inspect_project_map_freshness,
+    legacy_project_map_status_path,
     mark_project_map_dirty,
     mark_project_map_refreshed,
     missing_canonical_project_map_paths,
+    project_map_status_path,
     read_project_map_status,
     refresh_project_map_topics,
+    write_project_map_status,
 )
 
 def _build_agent_config() -> dict[str, dict[str, Any]]:
@@ -429,13 +433,13 @@ app = typer.Typer(
     cls=BannerGroup,
 )
 
-team_app = typer.Typer(
-    name="team",
+teams_app = typer.Typer(
+    name="sp-teams",
     help="Codex-only team/runtime surface",
     invoke_without_command=True,
     no_args_is_help=False,
 )
-app.add_typer(team_app, name="team")
+app.add_typer(teams_app, name="sp-teams")
 
 quick_app = typer.Typer(
     name="quick",
@@ -742,6 +746,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "- Treat `specify -> plan` as the default path.",
             "- Use `clarify` only when an existing spec needs deeper analysis before planning.",
+            "- Use `deep-research` only when requirements are clear but feasibility or the implementation chain must be proven before planning; its research findings, demo evidence, and Planning Handoff become inputs to `plan`.",
             "",
             "## Brownfield Context Gate",
             "",
@@ -760,24 +765,27 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "- Use `sp-fast` only for trivial, low-risk local changes that do not need planning artifacts.",
             "- Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.",
+            "- Use `sp-auto` when repository state already records the recommended next step and the user wants one continue entrypoint instead of naming the exact workflow manually.",
             "- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.",
+            "- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.",
             "- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.",
-            "- Use `sp-test` when the project-level testing contract or testing system coverage needs bootstrap, refresh, or audit work.",
+            "- Use `sp-test` when the project-level testing contract or testing system coverage needs bootstrap, refresh, audit work, or a brownfield unit-test system request.",
             "",
             "## Artifact Priority",
             "",
             "- `.specify/memory/constitution.md` is the principle-level source of truth when present.",
             "- `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress.",
             "- `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.",
+            "- `deep-research.md`, its `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.",
             "- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.",
             "- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.",
-            "- `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain implementation and debugging when present.",
-            "- `.specify/project-map/status.json` determines whether handbook/project-map coverage can be trusted as fresh.",
+            "- `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, and `.specify/testing/testing-state.md` constrain implementation and brownfield testing-program routing when present.",
+            "- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh.",
             "",
             "## Map Maintenance",
             "",
             "- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.",
-            "- If that refresh cannot happen in the current pass, mark `.specify/project-map/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-codebase`.",
+            "- If that refresh cannot happen in the current pass, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-codebase`.",
             "- Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.",
             "",
             "- Preserve content outside this managed block.",
@@ -1216,7 +1224,7 @@ def project_map_refresh_topics_command(
         reason=reason,
     )
     payload = status.to_dict()
-    payload["status_path"] = str(project_root / ".specify" / "project-map" / "status.json")
+    payload["status_path"] = str(project_map_status_path(project_root))
     if output_format.lower() == "json":
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return
@@ -1237,7 +1245,7 @@ def project_map_status_command(
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     status = read_project_map_status(project_root).to_dict()
-    status["status_path"] = str(project_root / ".specify" / "project-map" / "status.json")
+    status["status_path"] = str(project_map_status_path(project_root))
     if output_format.lower() == "json":
         print(json.dumps(status, ensure_ascii=False, indent=2))
         return
@@ -1330,6 +1338,7 @@ def learning_start_command(
         ("Relevant Rules", str(len(payload["relevant_rules"]))),
         ("Relevant Learnings", str(len(payload["relevant_learnings"]))),
         ("Relevant Candidates", str(len(payload["relevant_candidates"]))),
+        ("Preflight Warnings", str(len(payload["preflight_warnings"]))),
         ("Auto Promoted", str(len(payload["auto_promoted"]))),
         ("Promotable", str(len(payload["promotable_candidates"]))),
         ("Needs Confirmation", str(len(payload["confirmation_candidates"]))),
@@ -1394,15 +1403,14 @@ def learning_capture_command(
     console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Capture", border_style="cyan"))
 
 
-@learning_app.command("capture-auto")
-def learning_capture_auto_command(
-    command_name: str = typer.Option(..., "--command", help="Workflow command name, for example implement, quick, or debug"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory containing implement-tracker.md"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace containing STATUS.md"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session markdown file"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
-):
-    """Auto-capture learning candidates from workflow state files."""
+def _run_learning_capture_auto(
+    *,
+    command_name: str,
+    feature_dir: str | None,
+    workspace: str | None,
+    session_file: str | None,
+    output_format: str,
+) -> None:
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     payload = capture_auto_learning(
@@ -1425,6 +1433,26 @@ def learning_capture_auto_command(
     if payload.get("reason"):
         rows.append(("Reason", str(payload["reason"])))
     console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Auto-Capture", border_style="cyan"))
+
+
+def learning_capture_auto_cli_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name, for example plan, test, implement, quick, or debug"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory containing workflow-state.md and/or implement-tracker.md"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace containing STATUS.md"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session markdown file"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Auto-capture learning candidates from workflow state files."""
+    _run_learning_capture_auto(
+        command_name=command_name,
+        feature_dir=feature_dir,
+        workspace=workspace,
+        session_file=session_file,
+        output_format=output_format,
+    )
+
+
+learning_app.command(name="capture-auto")(learning_capture_auto_cli_command)
 
 
 @learning_app.command("promote")
@@ -2104,21 +2132,13 @@ def _install_shared_infra(
 
     # Seed the live project-map status file so downstream workflows share a
     # stable freshness surface even before the first real map refresh.
-    status_path = project_path / ".specify" / "project-map" / "status.json"
+    status_path = project_map_status_path(project_path)
     if not status_path.exists():
-        status_path.parent.mkdir(parents=True, exist_ok=True)
-        status_payload = {
-            "version": 1,
-            "last_mapped_commit": "",
-            "last_mapped_at": "",
-            "last_mapped_branch": "",
-            "freshness": "missing",
-            "last_refresh_reason": "",
-            "dirty": False,
-            "dirty_reasons": [],
-        }
-        status_path.write_text(json.dumps(status_payload, indent=2) + "\n", encoding="utf-8")
+        write_project_map_status(project_path, ProjectMapStatus())
         manifest.record_existing(status_path.relative_to(project_path).as_posix())
+        legacy_status_path = legacy_project_map_status_path(project_path)
+        if legacy_status_path.exists():
+            manifest.record_existing(legacy_status_path.relative_to(project_path).as_posix())
 
     if skipped_files:
         import logging
@@ -2402,6 +2422,7 @@ NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "clarify": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
+    "deep-research": "Use when a planning-ready spec still has feasibility risk and needs coordinated research, evidence packets, a Planning Handoff, or a disposable demo before implementation planning.",
     "explain": "Use when the user needs the current stage artifact or handbook/project-map atlas artifact explained in plain language without changing the underlying files.",
     "fast": "Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.",
     "quick": "Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.",
@@ -2996,16 +3017,18 @@ def init(
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-codebase')}[/] - Generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` as the atlas-style encyclopedia for existing code before specification or planning")
-    steps_lines.append(f"   - [cyan]{_display_cmd('test')}[/] - Bootstrap or refresh the project-wide testing system and write a durable testing contract")
+    steps_lines.append(f"   - [cyan]{_display_cmd('test')}[/] - Bootstrap or refresh the project-wide testing system, write a durable testing contract, and emit a brownfield unit-test system request when follow-on coverage work needs routing")
+    steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
     steps_lines.append(f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work")
+    steps_lines.append(f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a Planning Handoff before planning")
     steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
     steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/], including boundary guardrail gaps")
     steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, implement, or handbook/project-map atlas state in plain language")
     if codex_skill_mode:
         steps_lines.append("   ")
         steps_lines.append("   Codex-only runtime")
-        steps_lines.append("   - [cyan]specify team[/] - Inspect the official Codex team/runtime surface and environment status")
-        steps_lines.append("   - [cyan]$sp-team[/] - Reach the same Codex-only runtime surface from the skills layer")
+        steps_lines.append("   - [cyan]sp-teams[/] - Inspect the official Codex team/runtime surface and environment status")
+        steps_lines.append("   - [cyan]$sp-teams[/] - Reach the same Codex-only runtime surface from the skills layer")
         steps_lines.append("   - [cyan]$sp-implement-teams[/] - Run implementation through the Codex-only teams execution surface")
     if claude_skill_mode:
         steps_lines.append("   ")
@@ -3023,12 +3046,14 @@ def init(
     enhancement_lines = [enhancement_intro, ""]
     if codex_skill_mode:
         enhancement_lines.append(
-            "○ [cyan]specify team[/] [bright_black](codex-only)[/bright_black] - Inspect the official Codex team/runtime surface and environment status"
+            "○ [cyan]sp-teams[/] [bright_black](codex-only)[/bright_black] - Inspect the official Codex team/runtime surface and environment status"
         )
     enhancement_lines.extend(
         [
             f"○ [cyan]{_display_cmd('map-codebase')}[/] [bright_black](required for existing code)[/bright_black] - Generate or refresh the handbook/project-map atlas-style encyclopedia before deeper brownfield specification, planning, task generation, or implementation resumes",
+            f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",
             f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
+            f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility and research gate)[/bright_black] - Prove whether a clear requirement can be implemented and hand [cyan]{_display_cmd('plan')}[/] the research findings, demo evidence, constraints, and recommended approach",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](default gate before implement)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
             f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, task, implement, or handbook/project-map atlas artifact in plain language before moving forward",
             f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
@@ -3154,7 +3179,7 @@ def _resolve_result_context(
     raise typer.Exit(1)
 
 
-@team_app.callback(invoke_without_command=True)
+@teams_app.callback(invoke_without_command=True)
 def _team_root(
     ctx: typer.Context,
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
@@ -3227,7 +3252,7 @@ def _handle_legacy_team_flags(
         raise typer.Exit(1)
 
 
-@team_app.command("status")
+@teams_app.command("status")
 def team_status(
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
@@ -3263,7 +3288,7 @@ def team_status(
         )
     else:
         console.print("live session: none")
-    console.print("runtime config: [cyan].specify/codex-team/runtime.json[/cyan]")
+    console.print("runtime config: [cyan].specify/teams/runtime.json[/cyan]")
     if not status["runtime_backend_available"]:
         try:
             ensure_tmux_available()
@@ -3275,7 +3300,7 @@ def team_status(
             console.print(f"- {step}")
 
 
-@team_app.command("watch")
+@teams_app.command("watch")
 def team_watch(
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
     refresh_interval: float = typer.Option(1.0, "--refresh-interval", help="Refresh interval in seconds"),
@@ -3303,7 +3328,7 @@ def team_watch(
     )
 
 
-@team_app.command("await")
+@teams_app.command("await")
 def team_await(
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
@@ -3315,7 +3340,7 @@ def team_await(
     console.print(f"Worker count: {snapshot.worker_count}")
 
 
-@team_app.command("doctor")
+@teams_app.command("doctor")
 def team_doctor_command(
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
@@ -3378,7 +3403,7 @@ def team_doctor_command(
             )
 
 
-@team_app.command("live-probe")
+@teams_app.command("live-probe")
 def team_live_probe_command(
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
@@ -3398,7 +3423,7 @@ def team_live_probe_command(
         console.print(f"dispatch reason: {dispatch['reason']}")
 
 
-@team_app.command("sync-back")
+@teams_app.command("sync-back")
 def team_sync_back(
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show candidate files without copying them"),
@@ -3427,7 +3452,7 @@ def team_sync_back(
         console.print(f"- {candidate['relative_path']} ({candidate['worker_id']})")
 
 
-@team_app.command("resume")
+@teams_app.command("resume")
 def team_resume(
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
@@ -3444,7 +3469,7 @@ def team_resume(
         )
 
 
-@team_app.command("shutdown")
+@teams_app.command("shutdown")
 def team_shutdown(
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
     reason: str | None = typer.Option(None, "--reason", help="Failure reason for shutdown"),
@@ -3473,7 +3498,7 @@ def team_shutdown(
     console.print(f"Shutdown requested for session [cyan]{session_id}[/cyan].")
 
 
-@team_app.command("cleanup")
+@teams_app.command("cleanup")
 def team_cleanup(
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
 ):
@@ -3483,7 +3508,7 @@ def team_cleanup(
     console.print(f"Cleaned session [cyan]{session.session_id}[/cyan].")
 
 
-@team_app.command("notify-hook", hidden=True)
+@teams_app.command("notify-hook", hidden=True)
 def team_notify_hook(
     payload_json: str = typer.Argument(..., help="JSON payload from Codex CLI"),
 ):
@@ -3498,7 +3523,7 @@ def team_notify_hook(
     run_notify_hook(payload)
 
 
-@team_app.command("auto-dispatch")
+@teams_app.command("auto-dispatch")
 def team_auto_dispatch(
     feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory that contains the active implementation state artifacts"),
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
@@ -3525,7 +3550,7 @@ def team_auto_dispatch(
     )
 
 
-@team_app.command("complete-batch")
+@teams_app.command("complete-batch")
 def team_complete_batch(
     batch_id: str = typer.Option(..., "--batch-id", help="Dispatched batch identifier"),
     session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
@@ -3553,7 +3578,7 @@ def team_complete_batch(
         )
 
 
-@team_app.command("submit-result")
+@teams_app.command("submit-result")
 def team_submit_result(
     request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request identifier"),
     result_file: str | None = typer.Option(None, "--result-file", help="Path to worker result JSON"),
@@ -3602,7 +3627,7 @@ def team_submit_result(
     )
 
 
-@team_app.command("result-template")
+@teams_app.command("result-template")
 def team_result_template(
     request_id: str = typer.Option(..., "--request-id", help="Dispatch request identifier"),
     output: str | None = typer.Option(None, "--output", help="Optional file path to write the template to"),
@@ -3629,7 +3654,7 @@ def team_result_template(
     console.print(f"Wrote result template for [cyan]{request_id}[/cyan] to [cyan]{output_path}[/cyan].")
 
 
-@team_app.command("api")
+@teams_app.command("api")
 def team_api(
     operation: str = typer.Argument(..., help="API operation (status|doctor|live-probe|tasks|auto-dispatch|complete-batch|submit-result)"),
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for auto-dispatch"),
@@ -3719,7 +3744,7 @@ def result_submit_command(
     project_root = Path.cwd()
     integration_key = _require_result_project(project_root)
     if integration_key == "codex":
-        console.print("[red]Error:[/red] Codex projects must use `specify team submit-result` for runtime-managed result channels.")
+        console.print("[red]Error:[/red] Codex projects must use `sp-teams submit-result` for runtime-managed result channels.")
         raise typer.Exit(1)
 
     source_path = Path(result_file)
@@ -4410,8 +4435,8 @@ def _write_integration_json(
     }
     if integration_key == "codex":
         payload["team"] = {
-            "surface": "specify team",
-            "runtime_config": ".specify/codex-team/runtime.json",
+            "surface": "sp-teams",
+            "runtime_config": ".specify/teams/runtime.json",
         }
     dest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 

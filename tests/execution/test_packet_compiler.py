@@ -13,22 +13,22 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     feature_dir = project_root / "specs" / "001-test-feature"
     feature_dir.mkdir(parents=True)
     (project_root / ".specify" / "memory").mkdir(parents=True)
-    (project_root / ".specify" / "project-map").mkdir(parents=True)
+    (project_root / ".specify" / "project-map" / "root").mkdir(parents=True)
     (project_root / ".specify" / "testing").mkdir(parents=True)
     (project_root / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
-    (project_root / ".specify" / "project-map" / "ARCHITECTURE.md").write_text(
+    (project_root / ".specify" / "project-map" / "root" / "ARCHITECTURE.md").write_text(
         "# Architecture\n",
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-map" / "WORKFLOWS.md").write_text(
+    (project_root / ".specify" / "project-map" / "root" / "WORKFLOWS.md").write_text(
         "# Workflows\n",
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-map" / "OPERATIONS.md").write_text(
+    (project_root / ".specify" / "project-map" / "root" / "OPERATIONS.md").write_text(
         "# Operations\n",
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-map" / "TESTING.md").write_text(
+    (project_root / ".specify" / "project-map" / "root" / "TESTING.md").write_text(
         "# Testing\n",
         encoding="utf-8",
     )
@@ -97,10 +97,10 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     assert packet.validation_gates == ["pytest tests/unit/test_auth_service.py -q"]
     assert [item.path for item in packet.context_bundle] == [
         "PROJECT-HANDBOOK.md",
-        ".specify/project-map/ARCHITECTURE.md",
-        ".specify/project-map/WORKFLOWS.md",
-        ".specify/project-map/OPERATIONS.md",
-        ".specify/project-map/TESTING.md",
+        ".specify/project-map/root/ARCHITECTURE.md",
+        ".specify/project-map/root/WORKFLOWS.md",
+        ".specify/project-map/root/OPERATIONS.md",
+        ".specify/project-map/root/TESTING.md",
         ".specify/testing/TESTING_CONTRACT.md",
         ".specify/testing/TESTING_PLAYBOOK.md",
         "src/contracts/auth.py",

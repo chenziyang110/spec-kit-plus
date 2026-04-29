@@ -13,16 +13,20 @@ PROJECT_MAP_DIR="$(project_map_dir "$REPO_ROOT")"
 STATUS_PATH="$(project_map_status_path "$REPO_ROOT")"
 CANONICAL_MAP_FILES=(
     "$REPO_ROOT/PROJECT-HANDBOOK.md"
-    "$REPO_ROOT/.specify/project-map/ARCHITECTURE.md"
-    "$REPO_ROOT/.specify/project-map/STRUCTURE.md"
-    "$REPO_ROOT/.specify/project-map/CONVENTIONS.md"
-    "$REPO_ROOT/.specify/project-map/INTEGRATIONS.md"
-    "$REPO_ROOT/.specify/project-map/WORKFLOWS.md"
-    "$REPO_ROOT/.specify/project-map/TESTING.md"
-    "$REPO_ROOT/.specify/project-map/OPERATIONS.md"
+    "$REPO_ROOT/.specify/project-map/index/atlas-index.json"
+    "$REPO_ROOT/.specify/project-map/index/modules.json"
+    "$REPO_ROOT/.specify/project-map/index/relations.json"
+    "$REPO_ROOT/.specify/project-map/root/ARCHITECTURE.md"
+    "$REPO_ROOT/.specify/project-map/root/STRUCTURE.md"
+    "$REPO_ROOT/.specify/project-map/root/CONVENTIONS.md"
+    "$REPO_ROOT/.specify/project-map/root/INTEGRATIONS.md"
+    "$REPO_ROOT/.specify/project-map/root/WORKFLOWS.md"
+    "$REPO_ROOT/.specify/project-map/root/TESTING.md"
+    "$REPO_ROOT/.specify/project-map/root/OPERATIONS.md"
 )
 
 mkdir -p "$PROJECT_MAP_DIR"
+mkdir -p "$(dirname "$STATUS_PATH")"
 
 ensure_canonical_map_files() {
     local missing=()
@@ -157,7 +161,8 @@ classify_path() {
     lower="$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')"
 
     case "$lower" in
-        .specify/project-map/status.json)
+        .specify/project-map/status.json|\
+        .specify/project-map/index/status.json)
             echo "ignore"
             return 0
             ;;
@@ -243,13 +248,13 @@ refresh_plan_for_path() {
     }
 
     case "$lower" in
-        project-handbook.md|.specify/project-map/architecture.md) add_topic must_refresh "ARCHITECTURE.md" ;;
-        .specify/project-map/structure.md) add_topic must_refresh "STRUCTURE.md" ;;
-        .specify/project-map/conventions.md) add_topic must_refresh "CONVENTIONS.md" ;;
-        .specify/project-map/integrations.md) add_topic must_refresh "INTEGRATIONS.md" ;;
-        .specify/project-map/workflows.md) add_topic must_refresh "WORKFLOWS.md" ;;
-        .specify/project-map/testing.md) add_topic must_refresh "TESTING.md" ;;
-        .specify/project-map/operations.md) add_topic must_refresh "OPERATIONS.md" ;;
+        project-handbook.md|.specify/project-map/root/architecture.md|.specify/project-map/architecture.md) add_topic must_refresh "ARCHITECTURE.md" ;;
+        .specify/project-map/root/structure.md|.specify/project-map/structure.md) add_topic must_refresh "STRUCTURE.md" ;;
+        .specify/project-map/root/conventions.md|.specify/project-map/conventions.md) add_topic must_refresh "CONVENTIONS.md" ;;
+        .specify/project-map/root/integrations.md|.specify/project-map/integrations.md) add_topic must_refresh "INTEGRATIONS.md" ;;
+        .specify/project-map/root/workflows.md|.specify/project-map/workflows.md) add_topic must_refresh "WORKFLOWS.md" ;;
+        .specify/project-map/root/testing.md|.specify/project-map/testing.md) add_topic must_refresh "TESTING.md" ;;
+        .specify/project-map/root/operations.md|.specify/project-map/operations.md) add_topic must_refresh "OPERATIONS.md" ;;
     esac
 
     if [[ "$lower" =~ (^|/)(route|routes|router|routing|api|endpoint|endpoints|workflow|workflows|command|commands)(/|\.|$) ]]; then

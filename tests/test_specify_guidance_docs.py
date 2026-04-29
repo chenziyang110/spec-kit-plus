@@ -31,18 +31,22 @@ def test_guidance_docs_explain_skill_groups():
     assert "Core workflow skills" in readme
     assert "Support skills" in readme
     assert "Codex-only runtime" in readme
+    assert "`auto`" in readme
     assert "`clarify`" in readme
+    assert "`deep-research`" in readme
     assert "`checklist`" in readme
     assert "`analyze`" in readme
     assert "`debug`" in readme
     assert "`explain`" in readme
     assert "`map-codebase`" in readme
-    assert "`specify team`" in readme
+    assert "`sp-teams`" in readme
 
     assert "Core workflow skills" in quickstart
     assert "Support skills" in quickstart
     assert "Codex-only runtime" in quickstart
+    assert "/speckit.auto" in quickstart
     assert "/speckit.clarify" in quickstart
+    assert "/speckit.deep-research" in quickstart
     assert "/speckit.checklist" in quickstart
     assert "/speckit.analyze" in quickstart
     assert "/speckit.debug" in quickstart
@@ -91,7 +95,7 @@ def test_guidance_docs_explain_handbook_navigation_system():
         assert "Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact." in content
         assert "Deep project knowledge lives under `.specify/project-map/`." in content
         assert "atlas-style technical encyclopedia" in content.lower()
-        assert ".specify/project-map/status.json" in content
+        assert ".specify/project-map/index/status.json" in content
         assert "project-map complete-refresh" in content
         assert "Any code change that alters navigation meaning must update the handbook system." in content
 
@@ -116,7 +120,7 @@ def test_guidance_docs_explain_that_spec_workflows_do_not_refresh_map_content_di
     quickstart = _read("docs/quickstart.md").lower()
 
     for content in (readme, quickstart):
-        assert "mark `.specify/project-map/status.json` dirty" in content or "mark `.specify/project-map/status.json` dirty" in _read("AGENTS.md").lower()
+        assert "mark `.specify/project-map/index/status.json` dirty" in content or "mark `.specify/project-map/index/status.json` dirty" in _read("AGENTS.md").lower()
         assert "run `map-codebase` first" in content or "run `/speckit.map-codebase`" in content
 
 
@@ -138,6 +142,19 @@ def test_guidance_docs_frame_analyze_as_pre_implement_gate():
     assert "required gate before implementation once `tasks.md` exists" in quickstart
 
 
+def test_guidance_docs_position_auto_as_state_driven_resume_lane():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+
+    for content in (readme, quickstart):
+        assert "sp-auto" in content or "/speckit.auto" in content
+        assert "recommended next" in content
+        assert "current repository state" in content or "current state" in content
+
+    assert "sp-autonomous" not in readme
+    assert "sp-autonomous" not in quickstart
+
+
 def test_guidance_docs_explain_fast_quick_specify_routing():
     readme = _read("README.md").lower()
     quickstart = _read("docs/quickstart.md").lower()
@@ -153,6 +170,22 @@ def test_guidance_docs_explain_fast_quick_specify_routing():
         assert "root cause" in content
         assert "sp-debug" in content or "/speckit.debug" in content
         assert "symptom" in content
+
+
+def test_guidance_docs_explain_deep_research_feasibility_gate():
+    readme = _read("README.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+    agents = _read("AGENTS.md").lower()
+
+    for content in (readme, quickstart, agents):
+        assert "deep-research" in content
+        assert "feasibility" in content
+        assert "implementation chain" in content or "implementation-chain" in content
+        assert "planning handoff" in content
+        assert "minor" in content
+
+    assert "multi-agent" in readme or "parallel research" in quickstart
+    assert "demo evidence" in quickstart or "demo evidence" in readme
 
 
 def test_guidance_docs_explain_failing_test_first_execution_rule():
@@ -294,6 +327,7 @@ def test_guidance_docs_explain_delegated_result_handoff_contract():
     assert "specify result submit" in quickstart
     assert "reported_status" in quickstart
     assert "pending placeholder" in quickstart
+    assert "before dispatching native workers; if native delegation is unavailable or low-confidence" in quickstart
     assert "do not submit" in readme
 
 
@@ -368,7 +402,7 @@ def test_agents_declares_native_delegation_defaults():
     agents = _read("AGENTS.md").lower()
 
     assert "native subagents or native delegation surface" in agents
-    assert "for codex, that runtime surface is `specify team`" in agents
+    assert "for codex, that runtime surface is `sp-teams`" in agents
 
 
 def test_guidance_docs_explain_agent_marker_and_current_agents_contract() -> None:
@@ -384,7 +418,7 @@ def test_guidance_docs_explain_agent_marker_and_current_agents_contract() -> Non
     assert "native subagents or native delegation surface" in agents.lower()
     assert "specify -> plan" in agents.lower()
     assert "sp-test" in agents.lower()
-    assert "specify team" in agents.lower()
+    assert "sp-teams" in agents.lower()
 
 
 def test_guidance_docs_list_auto_learning_and_implement_closeout_helpers() -> None:
@@ -404,3 +438,6 @@ def test_guidance_docs_describe_sp_test_as_execution_backed_testing_bootstrap() 
         assert "manual validation" in content
         assert "coverage baseline" in content
         assert "bundled language testing skills" in content
+        assert "unit_test_system_request.md" in content or "unit-test-system-request.md" in content
+        assert "brownfield" in content
+        assert "coverage uplift program" in content or "testing-system program" in content

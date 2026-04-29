@@ -342,5 +342,5 @@ project_map_dir() {
 
 project_map_status_path() {
     local repo_root="${1:-$(get_repo_root)}"
-    echo "$(project_map_dir "$repo_root")/status.json"
+    echo "$(project_map_dir "$repo_root")/index/status.json"
 }

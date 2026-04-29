@@ -102,7 +102,7 @@ def test_runtime_bridge_accepts_windows_runtime_exe(tmp_path: Path):
     engine_root = tmp_path / "engine"
     release_dir = engine_root / "target" / "release"
     release_dir.mkdir(parents=True)
-    runtime_exe = release_dir / "omx-runtime.exe"
+    runtime_exe = release_dir / "specify-runtime.exe"
     runtime_exe.write_text("", encoding="utf-8")
 
     resolved = resolve_agent_teams_runtime_binary(engine_root)

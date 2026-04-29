@@ -165,6 +165,16 @@ export function getBaseStateDir(workingDirectory?: string): string {
       return resolveWorkingDirectoryForState(process.env.SPECIFY_TEAM_STATE_ROOT.trim());
     } catch {}
   }
+  if ((workingDirectory == null || workingDirectory === '') && typeof process.env.SP_TEAMS_STATE_ROOT === 'string' && process.env.SP_TEAMS_STATE_ROOT.trim() !== '') {
+    try {
+      return resolveWorkingDirectoryForState(process.env.SP_TEAMS_STATE_ROOT.trim());
+    } catch {}
+  }
+  if ((workingDirectory == null || workingDirectory === '') && typeof process.env.OMX_TEAM_STATE_ROOT === 'string' && process.env.OMX_TEAM_STATE_ROOT.trim() !== '') {
+    try {
+      return resolveWorkingDirectoryForState(process.env.OMX_TEAM_STATE_ROOT.trim());
+    } catch {}
+  }
   return join(resolveWorkingDirectoryForState(workingDirectory), '.specify', 'runtime', 'state');
 }
 

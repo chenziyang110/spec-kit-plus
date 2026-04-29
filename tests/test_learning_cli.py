@@ -100,33 +100,62 @@ def _write_implement_tracker(
     (feature_dir / "implement-tracker.md").write_text("\n".join(flattened) + "\n", encoding="utf-8")
 
 
-def _write_workflow_state(feature_dir: Path, *, next_command: str = "/sp.implement", status: str = "completed") -> None:
+def _write_workflow_state(
+    feature_dir: Path,
+    *,
+    next_command: str = "/sp.implement",
+    status: str = "completed",
+    route_reason: str = "",
+    blocked_reason: str = "",
+    false_starts: list[str] | None = None,
+    hidden_dependencies: list[str] | None = None,
+    reusable_constraints: list[str] | None = None,
+) -> None:
     feature_dir.mkdir(parents=True, exist_ok=True)
-    (feature_dir / "workflow-state.md").write_text(
-        "\n".join(
+    false_starts = false_starts or []
+    hidden_dependencies = hidden_dependencies or []
+    reusable_constraints = reusable_constraints or []
+    lines = [
+        "# Workflow State: Demo",
+        "",
+        "## Current Command",
+        "",
+        "- active_command: `sp-analyze`",
+        f"- status: `{status}`",
+        "",
+        "## Phase Mode",
+        "",
+        "- phase_mode: `analysis-only`",
+        "- summary: demo",
+        "",
+        "## Next Action",
+        "",
+        "- continue",
+        "",
+        "## Next Command",
+        "",
+        f"- `{next_command}`",
+    ]
+    if route_reason or blocked_reason or false_starts or hidden_dependencies or reusable_constraints:
+        lines.extend(
             [
-                "# Workflow State: Demo",
                 "",
-                "## Current Command",
+                "## Learning Signals",
                 "",
-                "- active_command: `sp-analyze`",
-                f"- status: `{status}`",
+                f"- route_reason: {route_reason}",
+                f"- blocked_reason: {blocked_reason}",
                 "",
-                "## Phase Mode",
-                "",
-                "- phase_mode: `analysis-only`",
-                "- summary: demo",
-                "",
-                "## Next Action",
-                "",
-                "- continue",
-                "",
-                "## Next Command",
-                "",
-                f"- `{next_command}`",
-                "",
+                "### False Starts",
             ]
-        ),
+        )
+        lines.extend([f"- {item}" for item in false_starts] or ["-"])
+        lines.extend(["", "### Hidden Dependencies"])
+        lines.extend([f"- {item}" for item in hidden_dependencies] or ["-"])
+        lines.extend(["", "### Reusable Constraints"])
+        lines.extend([f"- {item}" for item in reusable_constraints] or ["-"])
+    lines.append("")
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(lines),
         encoding="utf-8",
     )
 
@@ -152,6 +181,77 @@ def _write_resolved_debug_session(project: Path, slug: str) -> Path:
     state.resolution.loop_restoration_proof = ["Fresh cache validation passed end-to-end"]
     handler.save(state)
     return debug_dir / f"{slug}.md"
+
+
+def _write_testing_state(
+    project: Path,
+    *,
+    status: str,
+    mode: str,
+    next_action: str,
+    next_command: str,
+    handoff_reason: str,
+    unit_test_system_request: str = ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md",
+    validation_commands: list[str] | None = None,
+    validation_exit_status: str = "passed",
+    validation_summary: str = "testing contract validated",
+    open_gaps: list[dict[str, str]] | None = None,
+) -> Path:
+    testing_dir = project / ".specify" / "testing"
+    testing_dir.mkdir(parents=True, exist_ok=True)
+    validation_commands = validation_commands or []
+    open_gaps = open_gaps or []
+    lines = [
+        "---",
+        f"status: {status}",
+        f"mode: {mode}",
+        'updated: "2026-04-29T00:00:00Z"',
+        "---",
+        "",
+        "# Testing State",
+        "",
+        "## Current Focus",
+        f"- next_action: {next_action}",
+        f"- next_command: {next_command}",
+        f"- handoff_reason: {handoff_reason}",
+        "- selected_modules: core-module",
+        "- selected_language_skills: python-testing",
+        "- inventory_source: specify testing inventory --format json",
+        "",
+        "## Testing Assets",
+        "- testing_contract: .specify/testing/TESTING_CONTRACT.md",
+        "- testing_playbook: .specify/testing/TESTING_PLAYBOOK.md",
+        "- coverage_baseline: .specify/testing/COVERAGE_BASELINE.json",
+        f"- unit_test_system_request: {unit_test_system_request}",
+        "",
+        "## Validation Evidence",
+        "- last_manual_validation:",
+    ]
+    if validation_commands:
+        lines.append("  - commands:")
+        for command in validation_commands:
+            lines.append(f"    - {command}")
+        lines.append('  - run_at: "2026-04-29T00:10:00Z"')
+        lines.append(f"  - exit_status: {validation_exit_status}")
+        lines.append(f"  - summary: {validation_summary}")
+    else:
+        lines.append("  - commands:")
+        lines.append("  - run_at:")
+        lines.append("  - exit_status:")
+        lines.append("  - summary:")
+    lines.extend(["", "## Open Gaps"])
+    for item in open_gaps:
+        lines.extend(
+            [
+                "- module:",
+                f"  - summary: {item['summary']}",
+                f"  - next_action: {item['next_action']}",
+            ]
+        )
+    lines.append("")
+    path = testing_dir / "testing-state.md"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
 
 
 def test_learning_ensure_creates_stable_and_runtime_files(tmp_path: Path) -> None:
@@ -367,7 +467,111 @@ def test_learning_capture_confirm_and_promote_rule_flow(tmp_path: Path) -> None:
     assert "Always name touched shared surfaces explicitly" in rule_summaries
 
 
-def test_learning_start_keeps_repeated_high_signal_candidates_for_confirmation(tmp_path: Path) -> None:
+def test_learning_start_exposes_confirmed_project_constraint_warning_for_all_workflows(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "project_constraint",
+            "--summary",
+            "Use the validated build surface before retrying native compilation",
+            "--evidence",
+            "Confirmed reusable build constraint",
+            "--recurrence-key",
+            "build.surface.must.be.validated",
+            "--confirm",
+            "--format",
+            "json",
+        ],
+    )
+
+    workflow_commands = (
+        "constitution",
+        "specify",
+        "clarify",
+        "deep-research",
+        "plan",
+        "checklist",
+        "tasks",
+        "analyze",
+        "test",
+        "implement",
+        "debug",
+        "fast",
+        "quick",
+        "map-codebase",
+    )
+
+    for command_name in workflow_commands:
+        result = _invoke_in_project(project, ["learning", "start", "--command", command_name, "--format", "json"])
+        assert result.exit_code == 0, result.stdout
+        payload = json.loads(result.stdout)
+        relevant_learnings = [entry["summary"] for entry in payload["relevant_learnings"]]
+        preflight_warnings = payload["preflight_warnings"]
+
+        assert "Use the validated build surface before retrying native compilation" in relevant_learnings
+        assert any(
+            item["summary"] == "Use the validated build surface before retrying native compilation"
+            and item["source_layer"] == "project_learnings"
+            for item in preflight_warnings
+        )
+
+
+def test_learning_start_surfaces_single_high_signal_candidate_as_preflight_warning(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "debug",
+            "--type",
+            "tooling_trap",
+            "--summary",
+            "Validate the shell and solution platform before retrying MSBuild",
+            "--evidence",
+            "Single high-signal build trap that should still shape the next run",
+            "--recurrence-key",
+            "build.shell-and-platform.must-be-validated",
+            "--signal",
+            "high",
+            "--format",
+            "json",
+        ],
+    )
+
+    result = _invoke_in_project(project, ["learning", "start", "--command", "implement", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    confirmation = [entry["summary"] for entry in payload["confirmation_candidates"]]
+    preflight_warnings = payload["preflight_warnings"]
+
+    assert "Validate the shell and solution platform before retrying MSBuild" in confirmation
+    assert any(
+        item["summary"] == "Validate the shell and solution platform before retrying MSBuild"
+        and item["source_layer"] == "candidate"
+        and item["requires_confirmation"] is True
+        and "sp-implement" in item["why_now"]
+        for item in preflight_warnings
+    )
+
+
+def test_learning_start_auto_promotes_repeated_high_signal_candidates(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
@@ -399,9 +603,75 @@ def test_learning_start_keeps_repeated_high_signal_candidates_for_confirmation(t
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     auto_promoted = [entry["summary"] for entry in payload["auto_promoted"]]
-    confirmation = [entry["summary"] for entry in payload["confirmation_candidates"]]
-    assert "Always name touched shared surfaces explicitly" not in auto_promoted
-    assert "Always name touched shared surfaces explicitly" in confirmation
+    relevant_learnings = [entry["summary"] for entry in payload["relevant_learnings"]]
+    relevant_candidates = [entry["summary"] for entry in payload["relevant_candidates"]]
+    assert "Always name touched shared surfaces explicitly" in auto_promoted
+    assert "Always name touched shared surfaces explicitly" in relevant_learnings
+    assert "Always name touched shared surfaces explicitly" not in relevant_candidates
+
+
+def test_learning_start_auto_promote_preserves_structured_learning_fields(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    args = [
+        "learning",
+        "capture",
+        "--command",
+        "debug",
+        "--type",
+        "tooling_trap",
+        "--summary",
+        "Validate native shell before retrying the build",
+        "--evidence",
+        "Repeated build retries failed until the shell was corrected.",
+        "--recurrence-key",
+        "build.shell.must.be.validated",
+        "--signal",
+        "high",
+        "--pain-score",
+        "7",
+        "--false-start",
+        "retrying msbuild from the wrong shell",
+        "--rejected-path",
+        "source-code regression",
+        "--decisive-signal",
+        "the same build passed immediately after switching shells",
+        "--root-cause-family",
+        "native-build-shell-mismatch",
+        "--injection-target",
+        "sp-debug",
+        "--promotion-hint",
+        "promote whenever native build setup is involved",
+        "--format",
+        "json",
+    ]
+    _invoke_in_project(project, args)
+    _invoke_in_project(project, args)
+
+    result = _invoke_in_project(project, ["learning", "start", "--command", "debug", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    promoted_entry = next(
+        entry for entry in payload["auto_promoted"]
+        if entry["recurrence_key"] == "build.shell.must.be.validated"
+    )
+    relevant_learning = next(
+        entry for entry in payload["relevant_learnings"]
+        if entry["recurrence_key"] == "build.shell.must.be.validated"
+    )
+
+    assert promoted_entry["pain_score"] == 7
+    assert promoted_entry["false_starts"] == ["retrying msbuild from the wrong shell"]
+    assert promoted_entry["rejected_paths"] == ["source-code regression"]
+    assert promoted_entry["decisive_signal"] == "the same build passed immediately after switching shells"
+    assert promoted_entry["root_cause_family"] == "native-build-shell-mismatch"
+    assert promoted_entry["injection_targets"] == ["sp-debug"]
+    assert promoted_entry["promotion_hint"] == "promote whenever native build setup is involved"
+    assert relevant_learning["pain_score"] == 7
 
 
 def test_learning_aggregate_json_reports_grouped_patterns(tmp_path: Path) -> None:
@@ -486,7 +756,9 @@ def test_learning_start_exposes_top_warnings_and_summary_counts(tmp_path: Path) 
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert payload["summary_counts"]["relevant_candidates"] == 1
+    assert payload["summary_counts"]["relevant_candidates"] == 0
+    assert payload["summary_counts"]["relevant_learnings"] == 1
+    assert payload["summary_counts"]["preflight_warnings"] == 1
     assert payload["top_warnings"][0]["recurrence_key"] == "shared.boundary.pattern"
     assert payload["top_warnings"][0]["summary"] == "Need to preserve shared boundary pattern"
 
@@ -501,6 +773,24 @@ def test_learning_help_surfaces_low_level_helper_commands() -> None:
     assert "capture" in result.stdout
     assert "capture-auto" in result.stdout
     assert "promote" in result.stdout
+
+
+def test_learning_capture_auto_help_mentions_broader_state_surfaces() -> None:
+    result = runner.invoke(app, ["learning", "capture-auto", "--help"], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.stdout
+    output = result.stdout
+    assert "--command" in output
+    assert "plan" in output
+    assert "test" in output
+    assert "implement" in output
+    assert "quick" in output
+    assert "debug" in output
+    assert "--feature-dir" in output
+    assert "workflow-state.md" in output
+    assert "implement-tracker.md" in output
+    assert "STATUS.md" in output
+    assert "Debug session markdown file" in output
 
 
 def test_project_constraint_default_applies_to_includes_test_and_map_codebase(tmp_path: Path) -> None:
@@ -865,6 +1155,88 @@ def test_learning_capture_auto_quick_extracts_fallback_constraint(tmp_path: Path
     payload = json.loads(result.stdout)
     keys = [entry["recurrence_key"] for entry in payload["captured"]]
     assert "quick.leader-local-fallback-preserves-runtime-unavailability-reason" in keys
+
+
+def test_learning_capture_auto_test_extracts_followup_route_and_validation_gaps(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _write_testing_state(
+        project,
+        status="complete",
+        mode="bootstrap",
+        next_action="Route the brownfield testing program into specification",
+        next_command="/sp-specify",
+        handoff_reason="Multiple uncovered module waves still need scoped planning.",
+        validation_commands=[],
+        validation_exit_status="",
+        validation_summary="",
+        open_gaps=[
+            {
+                "summary": "Core module still lacks the baseline public-contract tests.",
+                "next_action": "Plan the first coverage uplift wave before implementation resumes.",
+            }
+        ],
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture-auto",
+            "--command",
+            "test",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    keys = [entry["recurrence_key"] for entry in payload["captured"]]
+    assert payload["status"] == "captured"
+    assert "test.open-gaps-require-explicit-follow-up-route" in keys
+    assert "test.complete-state-requires-manual-validation-evidence" in keys
+    assert "test.brownfield-programs-start-from-unit-test-system-request" in keys
+
+
+def test_learning_capture_auto_plan_extracts_route_reason_false_starts_and_constraints(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    feature_dir = project / "specs" / "demo-feature"
+    _write_workflow_state(
+        feature_dir,
+        next_command="/sp.tasks",
+        status="blocked",
+        route_reason="Planning cannot proceed until the ownership split is made explicit.",
+        blocked_reason="Shared boundary ownership is still ambiguous.",
+        false_starts=["assumed the adapter layer owned persistence concerns"],
+        hidden_dependencies=["deployment workflow depends on the ownership split"],
+        reusable_constraints=["keep persistence ownership explicit in plan artifacts"],
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture-auto",
+            "--command",
+            "plan",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    keys = [entry["recurrence_key"] for entry in payload["captured"]]
+    assert payload["status"] == "captured"
+    assert "sp-plan.workflow-state-preserves-reentry-reason" in keys
+    assert "sp-plan.workflow-state-preserves-false-starts" in keys
+    assert "sp-plan.workflow-state-promotes-discovered-constraints" in keys
 
 
 def test_implement_closeout_validates_state_and_auto_captures(tmp_path: Path) -> None:

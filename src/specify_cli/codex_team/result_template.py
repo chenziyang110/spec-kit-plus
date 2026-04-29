@@ -90,7 +90,7 @@ def normalize_result_submission(
         if payload.startswith("\ufeff"):
             raise ValueError(
                 "Result file contains a UTF-8 BOM. Re-save it without BOM and retry. "
-                f"Use `specify team result-template --request-id {request_id}` for a canonical payload."
+                f"Use `sp-teams result-template --request-id {request_id}` for a canonical payload."
             )
         try:
             raw_payload: WorkerTaskResult | dict[str, Any] | str = json.loads(payload)
@@ -122,14 +122,14 @@ def normalize_result_submission(
         missing = ", ".join(missing_fields)
         raise ValueError(
             f"Result file is missing required fields: {missing}. "
-            f"Use `specify team result-template --request-id {request_id}` or `specify team submit-result --print-schema`."
+            f"Use `sp-teams result-template --request-id {request_id}` or `sp-teams submit-result --print-schema`."
         )
 
     packet = load_request_packet(project_root, request_id)
     if normalized.task_id != packet.task_id:
         raise ValueError(
             f"Result task_id {normalized.task_id!r} does not match dispatched packet task_id {packet.task_id!r}. "
-            f"Use `specify team result-template --request-id {request_id}`."
+            f"Use `sp-teams result-template --request-id {request_id}`."
         )
     if normalized.status == "pending":
         raise ValueError(
@@ -141,5 +141,5 @@ def normalize_result_submission(
         return validate_worker_task_result(normalized, packet)
     except PacketValidationError as exc:
         raise ValueError(
-            f"{exc}. Use `specify team result-template --request-id {request_id}` or `specify team submit-result --print-schema`."
+            f"{exc}. Use `sp-teams result-template --request-id {request_id}` or `sp-teams submit-result --print-schema`."
         ) from exc

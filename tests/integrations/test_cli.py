@@ -15,7 +15,7 @@ class TestInitIntegrationFlag:
         parts = content.split("---", 2)
         return yaml.safe_load(parts[1])
 
-    def test_codex_init_advertises_specify_team_surface(self, tmp_path):
+    def test_codex_init_advertises_sp_teams_surface(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
 
@@ -44,18 +44,18 @@ class TestInitIntegrationFlag:
             os.chdir(old_cwd)
 
         assert result.exit_code == 0, result.output
-        assert (project / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
-        assert (project / ".specify" / "codex-team" / "runtime.json").exists()
+        assert (project / ".codex" / "skills" / "sp-teams" / "SKILL.md").exists()
+        assert (project / ".specify" / "teams" / "runtime.json").exists()
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
         assert (project / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
         assert (project / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
         assert (project / ".specify" / "project-map" / "status.json").exists()
-        assert "specify team" in result.output
+        assert "sp-teams" in result.output
         assert "Codex Teams Readiness" in result.output
         assert "git repo detected" in result.output
         assert "worktree-ready" in result.output
 
-    def test_non_codex_init_does_not_advertise_specify_team_surface(self, tmp_path):
+    def test_non_codex_init_does_not_advertise_sp_teams_surface(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
 
@@ -84,10 +84,10 @@ class TestInitIntegrationFlag:
             os.chdir(old_cwd)
 
         assert result.exit_code == 0, result.output
-        assert not (project / ".claude" / "skills" / "sp-team" / "SKILL.md").exists()
-        assert not (project / ".specify" / "codex-team" / "runtime.json").exists()
+        assert not (project / ".claude" / "skills" / "sp-teams" / "SKILL.md").exists()
+        assert not (project / ".specify" / "teams" / "runtime.json").exists()
         assert "specify team" not in result.output.lower()
-        assert "/sp-team" not in result.output.lower()
+        assert "/sp-teams" not in result.output.lower()
         assert "(codex-only)" not in result.output.lower()
 
     def test_non_codex_implement_skill_does_not_use_specify_team_as_primary_entrypoint(self, tmp_path):
@@ -119,8 +119,8 @@ class TestInitIntegrationFlag:
             os.chdir(old_cwd)
 
         assert result.exit_code == 0, result.output
-        assert not (project / ".claude" / "skills" / "sp-team" / "SKILL.md").exists()
-        assert not (project / ".specify" / "codex-team" / "runtime.json").exists()
+        assert not (project / ".claude" / "skills" / "sp-teams" / "SKILL.md").exists()
+        assert not (project / ".specify" / "teams" / "runtime.json").exists()
 
         implement_skill = project / ".claude" / "skills" / "sp-implement" / "SKILL.md"
         assert implement_skill.exists()
@@ -128,10 +128,9 @@ class TestInitIntegrationFlag:
         assert "single-lane" in content
         assert "single-lane" in content
         assert "native-multi-agent" in content
-        assert "sidecar-runtime" in content
         assert "project-handbook.md" in content.lower()
-        assert ".specify/project-map/architecture.md" in content.lower()
-        assert ".specify/project-map/operations.md" in content.lower()
+        assert ".specify/project-map/root/architecture.md" in content.lower()
+        assert ".specify/project-map/root/operations.md" in content.lower()
         assert "specify team" not in content.lower()
 
     def test_non_codex_shared_workflow_skills_use_canonical_strategy_language(self, tmp_path):
@@ -176,8 +175,8 @@ class TestInitIntegrationFlag:
         assert 'choose_execution_strategy(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
         assert "project-handbook.md" in debug_content
-        assert ".specify/project-map/architecture.md" in debug_content
-        assert ".specify/project-map/workflows.md" in debug_content
+        assert ".specify/project-map/root/architecture.md" in debug_content
+        assert ".specify/project-map/root/workflows.md" in debug_content
         assert "spawn_agent" not in debug_content
 
         fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
@@ -403,10 +402,12 @@ class TestInitIntegrationFlag:
         assert "$sp-checklist" in result.output
         assert "$sp-test" in result.output
         assert "$sp-analyze" in result.output
+        assert "$sp-auto" in result.output
         assert "$sp-explain" in result.output
         assert "$sp-map-codebase" in result.output
         assert "$sp-clarify" in result.output
-        assert "$sp-team" in result.output
+        assert "$sp-deep-research" in result.output
+        assert "$sp-teams" in result.output
         assert "seeded default constitution" in result.output.lower()
         assert "project-specific changes" in result.output.lower()
         assert "required for existing code" in result.output
@@ -465,17 +466,19 @@ class TestInitIntegrationFlag:
         assert "/sp-checklist" in result.output
         assert "/sp-test" in result.output
         assert "/sp-analyze" in result.output
+        assert "/sp-auto" in result.output
         assert "seeded default constitution" in result.output.lower()
         assert "project-specific changes" in result.output.lower()
         assert "/sp-explain" in result.output
         assert "/sp-map-codebase" in result.output
         assert "/sp-clarify" in result.output
+        assert "/sp-deep-research" in result.output
         assert "required for existing code" in result.output
         assert "default gate before" in result.output
         assert "/sp-learnings" not in result.output
         assert "Codex-only runtime" not in result.output
         assert "specify team" not in result.output.lower()
-        assert "/sp-team" not in result.output.lower()
+        assert "/sp-teams" not in result.output.lower()
         assert "(codex-only)" not in result.output.lower()
 
     def test_init_directory_conflict_uses_normalized_error_surface(self, tmp_path):
@@ -527,18 +530,21 @@ class TestInitIntegrationFlag:
         skills_dir = project / ".codex" / "skills"
 
         assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
+        assert (skills_dir / "sp-deep-research" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
 
         specify_fm = self._frontmatter(skills_dir / "sp-specify" / "SKILL.md")
         spec_extend_fm = self._frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
+        deep_research_fm = self._frontmatter(skills_dir / "sp-deep-research" / "SKILL.md")
         plan_fm = self._frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         explain_fm = self._frontmatter(skills_dir / "sp-explain" / "SKILL.md")
         map_codebase_fm = self._frontmatter(skills_dir / "sp-map-codebase" / "SKILL.md")
 
         assert isinstance(specify_fm["description"], str) and specify_fm["description"].strip()
         assert isinstance(spec_extend_fm["description"], str) and spec_extend_fm["description"].strip()
+        assert isinstance(deep_research_fm["description"], str) and deep_research_fm["description"].strip()
         assert isinstance(plan_fm["description"], str) and plan_fm["description"].strip()
         assert isinstance(explain_fm["description"], str) and explain_fm["description"].strip()
         assert isinstance(map_codebase_fm["description"], str) and map_codebase_fm["description"].strip()
@@ -606,7 +612,7 @@ class TestInitIntegrationFlag:
         status_payload = json.loads(status_result.output)
         check_payload = json.loads(check_result.output)
         assert status_payload["freshness"] == "missing"
-        assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-map/status.json")
+        assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-map/index/status.json")
         assert check_payload["freshness"] == "possibly_stale"
         assert check_payload["reasons"] == ["git baseline unavailable for project-map freshness"]
 
@@ -761,6 +767,13 @@ class TestInitIntegrationFlag:
             )
             (project / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
             project_map_dir = project / ".specify" / "project-map"
+            index_dir = project_map_dir / "index"
+            root_dir = project_map_dir / "root"
+            index_dir.mkdir(parents=True, exist_ok=True)
+            root_dir.mkdir(parents=True, exist_ok=True)
+            (index_dir / "atlas-index.json").write_text("{}\n", encoding="utf-8")
+            (index_dir / "modules.json").write_text('{"modules":[]}\n', encoding="utf-8")
+            (index_dir / "relations.json").write_text('{"relations":[]}\n', encoding="utf-8")
             for name in (
                 "ARCHITECTURE.md",
                 "STRUCTURE.md",
@@ -770,7 +783,7 @@ class TestInitIntegrationFlag:
                 "TESTING.md",
                 "OPERATIONS.md",
             ):
-                (project_map_dir / name).write_text(f"# {name}\n", encoding="utf-8")
+                (root_dir / name).write_text(f"# {name}\n", encoding="utf-8")
 
             refresh_result = runner.invoke(
                 app,
@@ -857,6 +870,13 @@ class TestInitIntegrationFlag:
             )
             (project / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
             project_map_dir = project / ".specify" / "project-map"
+            index_dir = project_map_dir / "index"
+            root_dir = project_map_dir / "root"
+            index_dir.mkdir(parents=True, exist_ok=True)
+            root_dir.mkdir(parents=True, exist_ok=True)
+            (index_dir / "atlas-index.json").write_text("{}\n", encoding="utf-8")
+            (index_dir / "modules.json").write_text('{"modules":[]}\n', encoding="utf-8")
+            (index_dir / "relations.json").write_text('{"relations":[]}\n', encoding="utf-8")
             for name in (
                 "ARCHITECTURE.md",
                 "STRUCTURE.md",
@@ -866,7 +886,7 @@ class TestInitIntegrationFlag:
                 "TESTING.md",
                 "OPERATIONS.md",
             ):
-                (project_map_dir / name).write_text(f"# {name}\n", encoding="utf-8")
+                (root_dir / name).write_text(f"# {name}\n", encoding="utf-8")
 
             refresh_result = runner.invoke(
                 app,

@@ -5,6 +5,28 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mergeConfig } from '../generator.js';
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function escapeTomlString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function notifyRegexForLauncher(launcher: string): RegExp {
+  return new RegExp(
+    `^notify = \\["${escapeRegExp(escapeTomlString(launcher))}", ".*notify-hook\\.js"\\]$`,
+    'm',
+  );
+}
+
+function commandRegexForLauncher(launcher: string): RegExp {
+  return new RegExp(
+    `^command = "${escapeRegExp(escapeTomlString(launcher))}"$`,
+    'm',
+  );
+}
+
 describe('config generator', () => {
   it('places top-level keys before [features]', async () => {
     const wd = await mkdtemp(join(tmpdir(), 'omx-config-gen-'));
@@ -62,7 +84,8 @@ describe('config generator', () => {
       await mergeConfig(configPath, wd);
       const toml = await readFile(configPath, 'utf-8');
 
-      assert.match(toml, /^notify = \["node", ".*notify-hook\.js"\]$/m);
+      assert.match(toml, notifyRegexForLauncher(process.execPath));
+      assert.match(toml, commandRegexForLauncher(process.execPath));
       assert.match(toml, /^codex_hooks = true$/m);
     } finally {
       await rm(wd, { recursive: true, force: true });
@@ -140,7 +163,12 @@ describe('config generator', () => {
       await mergeConfig(configPath, wd);
       const toml = await readFile(configPath, 'utf-8');
 
-      const m = toml.match(/^notify = \["node", "(.*)"\]$/m);
+      const m = toml.match(
+        new RegExp(
+          `^notify = \\["${escapeRegExp(escapeTomlString(process.execPath))}", "(.*)"\\]$`,
+          'm',
+        ),
+      );
       assert.ok(m, 'notify array not found');
       assert.match(m[1], /pkg root/);
       assert.match(m[1], /notify-hook\.js$/);
@@ -181,7 +209,7 @@ describe('config generator', () => {
       assert.match(rerun, /^name = "kept"$/m);
 
       // Top-level keys present and before [features]
-      assert.match(rerun, /^notify = \["node", ".*notify-hook\.js"\]$/m);
+      assert.match(rerun, notifyRegexForLauncher(process.execPath));
       assert.match(rerun, /^codex_hooks = true$/m);
       assert.match(rerun, /^model_reasoning_effort = "medium"$/m);
       const notifyIdx = rerun.indexOf('notify =');
@@ -344,7 +372,8 @@ describe('config generator', () => {
       assert.match(toml, /^name = "kept-before"$/m);
       assert.match(toml, /^\[user.after\]$/m);
       assert.match(toml, /^name = "kept-after"$/m);
-      assert.match(toml, /^notify = \["node", ".*notify-hook\.js"\]$/m);
+      assert.match(toml, notifyRegexForLauncher(process.execPath));
+      assert.match(toml, commandRegexForLauncher(process.execPath));
     } finally {
       await rm(wd, { recursive: true, force: true });
     }

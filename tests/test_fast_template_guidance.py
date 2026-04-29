@@ -15,7 +15,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "specify learning start --command fast --format json" in content
     assert "specify learning capture --command fast" in content
     assert "read `project-handbook.md`" in content
-    assert ".specify/project-map/status.json" in content
+    assert ".specify/project-map/index/status.json" in content
     assert "project-map freshness helper" in content
     assert "freshness is `missing` or `stale`" in content
     assert "freshness is `possibly_stale`" in content
@@ -26,6 +26,8 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "change-propagation hotspots" in content
     assert "verification entry points" in content
     assert "known unknowns" in content
+    assert ".specify/testing/unit_test_system_request.md" in content or ".specify/testing/unit-test-system-request.md" in content
+    assert "tiny harness, command, fixture, or helper repair" in content
     assert "if `project-handbook.md` or `.specify/project-map/` is missing" in content
     assert "redirect to `/sp-quick` so the navigation system can be rebuilt safely" in content
     assert "## workflow contract summary" in content
@@ -41,7 +43,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-codebase` before the final report" in content
     assert "if that refresh would break the fast-path scope" in content
-    assert "mark `.specify/project-map/status.json` dirty" in content
+    assert "mark `.specify/project-map/index/status.json` dirty" in content
     assert "highest-signal" in content
 
 
@@ -63,6 +65,7 @@ def test_fast_template_defines_explicit_upgrade_triggers() -> None:
     assert "known unknowns" in content
     assert "needs research" in content or "research or clarification" in content
     assert "upgrade to `/sp-specify` immediately if" in content
+    assert "unit test system program" in content or "testing-system program" in content
     assert "new workflow" in content
     assert "compatibility" in content
     assert "acceptance criteria" in content

@@ -76,7 +76,7 @@ def test_choose_execution_strategy_prefers_native_for_codex_implement_when_avail
     assert decision.execution_surface == "native-delegation"
 
 
-def test_choose_execution_strategy_falls_back_to_sidecar_when_native_is_missing() -> None:
+def test_choose_execution_strategy_keeps_sp_implement_on_leader_path_when_native_is_missing() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="codex",
         native_multi_agent=False,
@@ -92,14 +92,14 @@ def test_choose_execution_strategy_falls_back_to_sidecar_when_native_is_missing(
         },
     )
 
-    assert decision.strategy == "sidecar-runtime"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "native-missing"
     assert decision.fallback_from is None
-    assert decision.lane_topology == "multi-lane"
-    assert decision.execution_surface == "sidecar-runtime"
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "leader-local"
 
 
-def test_choose_execution_strategy_prefers_sidecar_when_native_confidence_is_low() -> None:
+def test_choose_execution_strategy_keeps_sp_implement_on_leader_path_when_native_confidence_is_low() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="claude",
         native_multi_agent=True,
@@ -117,10 +117,10 @@ def test_choose_execution_strategy_prefers_sidecar_when_native_confidence_is_low
         },
     )
 
-    assert decision.strategy == "sidecar-runtime"
-    assert decision.reason == "native-low-confidence"
-    assert decision.lane_topology == "multi-lane"
-    assert decision.execution_surface == "sidecar-runtime"
+    assert decision.strategy == "single-lane"
+    assert decision.reason == "fallback-low-confidence"
+    assert decision.lane_topology == "single-lane"
+    assert decision.execution_surface == "leader-local"
 
 
 def test_choose_execution_strategy_uses_single_lane_when_native_confidence_is_low_and_no_sidecar() -> None:
@@ -351,7 +351,7 @@ def test_choose_execution_strategy_supports_explain_command_name() -> None:
     assert decision.execution_surface == "leader-local"
 
 
-def test_choose_execution_strategy_routes_single_lane_implement_work_to_sidecar_when_native_is_missing() -> None:
+def test_choose_execution_strategy_routes_single_lane_implement_work_to_leader_when_native_is_missing() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="codex",
         native_multi_agent=False,
@@ -367,10 +367,10 @@ def test_choose_execution_strategy_routes_single_lane_implement_work_to_sidecar_
         },
     )
 
-    assert decision.strategy == "sidecar-runtime"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "no-safe-batch"
     assert decision.lane_topology == "single-lane"
-    assert decision.execution_surface == "sidecar-runtime"
+    assert decision.execution_surface == "leader-local"
 
 
 def test_classify_batch_execution_policy_marks_low_risk_preparation_as_mixed_tolerance() -> None:

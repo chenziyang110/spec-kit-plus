@@ -21,16 +21,20 @@ This passive skill is the brownfield hard gate, not the route selection layer.
 Before code edits, investigation, planning against existing code, or architectural
 judgment in an established Spec Kit Plus repository:
 
+- Read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` when they exist.
 - Read `PROJECT-HANDBOOK.md`.
-- Read the relevant `.specify/project-map/*.md` files for the touched subsystem,
-  workflow, or boundary.
+- Resolve the primary touched module from `.specify/project-map/index/modules.json` when that registry exists.
+- Read that module's `OVERVIEW.md` and the smallest relevant module docs for the touched subsystem, workflow, or boundary.
+- Expand into additional modules only when `.specify/project-map/index/relations.json` says the touched area crosses module boundaries.
+- If the repository is still on the older flat `.specify/project-map/*.md` layout, use those files as migration-era fallback evidence until the layered atlas is refreshed.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.
 
 ## Missing Or Stale Context
 
-- If the handbook or project-map documents do not exist, are stale, or are too broad
+- If the handbook, module docs, or root docs do not exist, are stale, or are too broad
   for the touched area, use `sp-map-codebase` before continuing.
+- Treat `deep_stale` as a real warning: if the current task needs deep module detail and the module status says `deep_stale`, refresh or manually rebuild the required deep docs before trusting them.
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
   repository map should be the source of truth.
 

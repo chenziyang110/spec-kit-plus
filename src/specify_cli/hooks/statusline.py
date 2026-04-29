@@ -57,7 +57,7 @@ def statusline_hook(project_root: Path, payload: dict[str, object]) -> HookResul
             data={"statusline": line, "checkpoint": checkpoint},
         )
 
-    if command_name in {"specify", "plan", "tasks", "analyze"}:
+    if command_name in {"specify", "deep-research", "plan", "tasks", "analyze"}:
         feature_dir = _required_path(project_root, payload, "feature_dir")
         checkpoint = serialize_workflow_state(feature_dir / "workflow-state.md")
         line = " ".join(
@@ -105,4 +105,3 @@ def _required_path(project_root: Path, payload: dict[str, object], key: str) -> 
     if not path.is_absolute():
         path = (project_root / path).resolve()
     return path
-

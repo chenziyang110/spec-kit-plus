@@ -19,7 +19,7 @@ def test_describe_delegation_surface_for_codex_implement_prefers_spawn_agent_con
     assert "spawn_agent" in descriptor.native_dispatch_hint
     assert "wait_agent" in descriptor.native_join_hint
     assert "WorkerTaskResult" in descriptor.result_contract_hint
-    assert ".specify/codex-team/state/results/<request-id>.json" in descriptor.result_handoff_hint
+    assert ".specify/teams/state/results/<request-id>.json" in descriptor.result_handoff_hint
     assert descriptor.structured_results_expected is True
 
 

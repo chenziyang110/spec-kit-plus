@@ -219,7 +219,7 @@ def _detect_agent_teams_runtime_cli(project_root: Path) -> str | None:
 
 
 def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
-    """Return whether a packet executor is wired into ``specify team``."""
+    """Return whether a packet executor is wired into ``sp-teams``."""
 
     configured = os.environ.get("SPECIFY_CODEX_TEAM_EXECUTOR", "").strip().lower()
     runtime_cli_path = _detect_agent_teams_runtime_cli(project_root)
@@ -268,14 +268,14 @@ def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
     elif not node_binary:
         next_steps.append("Install Node.js or make `node` available on PATH before enabling teams execution.")
     next_steps.append(
-        "Use sp-implement for implementation work until a packet executor is wired into specify team."
+        "Use sp-implement for implementation work until a packet executor is wired into sp-teams."
     )
 
     return {
         "available": False,
         "mode": "none",
         "reason": (
-            "No packet executor is configured for specify team auto-dispatch. "
+            "No packet executor is configured for sp-teams auto-dispatch. "
             "The current runtime can report state and accept submitted results, "
             "but it cannot truthfully execute worker packets."
         ),
@@ -288,7 +288,7 @@ def detect_codex_team_executor(project_root: Path) -> dict[str, object]:
 
 
 def ensure_codex_team_executor_available(project_root: Path) -> dict[str, object]:
-    """Fail visibly when ``specify team`` has no packet executor configured."""
+    """Fail visibly when ``sp-teams`` has no packet executor configured."""
 
     executor = detect_codex_team_executor(project_root)
     if executor["available"]:
@@ -299,10 +299,10 @@ def ensure_codex_team_executor_available(project_root: Path) -> dict[str, object
 def resolve_agent_teams_runtime_binary(engine_root: Path) -> Path | None:
     """Return the first available bundled runtime binary for the given engine root."""
     candidates = [
-        engine_root / "target" / "release" / "omx-runtime",
-        engine_root / "target" / "release" / "omx-runtime.exe",
-        engine_root / "target" / "debug" / "omx-runtime",
-        engine_root / "target" / "debug" / "omx-runtime.exe",
+        engine_root / "target" / "release" / "specify-runtime",
+        engine_root / "target" / "release" / "specify-runtime.exe",
+        engine_root / "target" / "debug" / "specify-runtime",
+        engine_root / "target" / "debug" / "specify-runtime.exe",
     ]
     for candidate in candidates:
         if candidate.is_file():

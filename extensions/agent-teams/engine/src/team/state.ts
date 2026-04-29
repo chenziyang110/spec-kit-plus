@@ -545,7 +545,7 @@ function normalizeTask(task: TeamTask): TeamTaskV2 {
 
 // Team state directory: .specify/runtime/state/team/{teamName}/
 function resolveTeamStateRoot(cwd: string, env: NodeJS.ProcessEnv = process.env): string {
-  const explicit = env.SPECIFY_TEAM_STATE_ROOT;
+  const explicit = env.SPECIFY_TEAM_STATE_ROOT || env.SP_TEAMS_STATE_ROOT || env.OMX_TEAM_STATE_ROOT;
   if (typeof explicit === 'string' && explicit.trim() !== '') {
     return resolve(cwd, explicit.trim());
   }

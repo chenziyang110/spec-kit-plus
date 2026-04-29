@@ -16,6 +16,9 @@ from typing import Any
 
 
 STATUS_FILENAME = "status.json"
+INDEX_DIRNAME = "index"
+ROOT_DIRNAME = "root"
+MODULES_DIRNAME = "modules"
 TOPIC_FILES = (
     "ARCHITECTURE.md",
     "STRUCTURE.md",
@@ -24,6 +27,12 @@ TOPIC_FILES = (
     "OPERATIONS.md",
     "WORKFLOWS.md",
     "TESTING.md",
+)
+INDEX_FILES = (
+    "atlas-index.json",
+    "modules.json",
+    "relations.json",
+    STATUS_FILENAME,
 )
 DIRTY_REASON_ALIASES = {
     "shared surface changed": "shared_surface_changed",
@@ -45,14 +54,35 @@ def project_map_dir(project_root: Path) -> Path:
     return project_root / ".specify" / "project-map"
 
 
+def project_map_index_dir(project_root: Path) -> Path:
+    return project_map_dir(project_root) / INDEX_DIRNAME
+
+
+def project_map_root_dir(project_root: Path) -> Path:
+    return project_map_dir(project_root) / ROOT_DIRNAME
+
+
+def project_map_modules_dir(project_root: Path) -> Path:
+    return project_map_dir(project_root) / MODULES_DIRNAME
+
+
 def project_map_status_path(project_root: Path) -> Path:
+    return project_map_index_dir(project_root) / STATUS_FILENAME
+
+
+def legacy_project_map_status_path(project_root: Path) -> Path:
     return project_map_dir(project_root) / STATUS_FILENAME
 
 
 def canonical_project_map_paths(project_root: Path) -> list[Path]:
-    project_map_root = project_map_dir(project_root)
+    project_map_index_root = project_map_index_dir(project_root)
+    project_map_root = project_map_root_dir(project_root)
     return [
         project_root / "PROJECT-HANDBOOK.md",
+        project_map_index_root / "atlas-index.json",
+        project_map_index_root / "modules.json",
+        project_map_index_root / "relations.json",
+        project_map_index_root / STATUS_FILENAME,
         project_map_root / "ARCHITECTURE.md",
         project_map_root / "STRUCTURE.md",
         project_map_root / "CONVENTIONS.md",
@@ -133,7 +163,7 @@ def _merged_dirty_reason_topics(reasons: list[str]) -> dict[str, list[str]]:
 
 
 def classify_changed_path(path: str) -> str:
-    lower = path.lower()
+    lower = path.lower().replace("\\", "/")
 
     high_impact_exact = {
         "project-handbook.md",
@@ -159,12 +189,18 @@ def classify_changed_path(path: str) -> str:
         "docker-compose.yaml",
         "makefile",
     }
-    if lower == ".specify/project-map/status.json":
+    if lower in {
+        ".specify/project-map/status.json",
+        ".specify/project-map/index/status.json",
+    }:
         return "ignore"
     if lower in high_impact_exact:
         return "stale"
 
     high_impact_prefixes = (
+        ".specify/project-map/root/",
+        ".specify/project-map/modules/",
+        ".specify/project-map/index/",
         ".specify/project-map/",
         ".specify/templates/project-map/",
         ".github/workflows/",
@@ -210,7 +246,7 @@ def classify_changed_path(path: str) -> str:
         "exports",
         "index",
     )
-    path_parts = [part for part in lower.replace("\\", "/").split("/") if part]
+    path_parts = [part for part in lower.split("/") if part]
     for part in path_parts:
         stem = part.split(".", 1)[0]
         if stem in high_impact_terms:
@@ -259,19 +295,23 @@ def refresh_plan_for_changed_path(path: str) -> dict[str, list[str]]:
             if name not in target:
                 target.append(name)
 
-    if lower in {"project-handbook.md", ".specify/project-map/architecture.md"}:
+    if lower in {
+        "project-handbook.md",
+        ".specify/project-map/root/architecture.md",
+        ".specify/project-map/architecture.md",
+    }:
         add(must_refresh, "ARCHITECTURE.md")
-    if lower == ".specify/project-map/structure.md":
+    if lower in {".specify/project-map/root/structure.md", ".specify/project-map/structure.md"}:
         add(must_refresh, "STRUCTURE.md")
-    if lower == ".specify/project-map/conventions.md":
+    if lower in {".specify/project-map/root/conventions.md", ".specify/project-map/conventions.md"}:
         add(must_refresh, "CONVENTIONS.md")
-    if lower == ".specify/project-map/integrations.md":
+    if lower in {".specify/project-map/root/integrations.md", ".specify/project-map/integrations.md"}:
         add(must_refresh, "INTEGRATIONS.md")
-    if lower == ".specify/project-map/workflows.md":
+    if lower in {".specify/project-map/root/workflows.md", ".specify/project-map/workflows.md"}:
         add(must_refresh, "WORKFLOWS.md")
-    if lower == ".specify/project-map/testing.md":
+    if lower in {".specify/project-map/root/testing.md", ".specify/project-map/testing.md"}:
         add(must_refresh, "TESTING.md")
-    if lower == ".specify/project-map/operations.md":
+    if lower in {".specify/project-map/root/operations.md", ".specify/project-map/operations.md"}:
         add(must_refresh, "OPERATIONS.md")
 
     path_parts = [part for part in lower.split("/") if part]
@@ -332,39 +372,244 @@ def refresh_plan_for_changed_path(path: str) -> dict[str, list[str]]:
     }
 
 
-@dataclass(slots=True)
+@dataclass(init=False, slots=True)
 class ProjectMapStatus:
-    version: int = 1
-    last_mapped_commit: str = ""
-    last_mapped_at: str = ""
-    last_mapped_branch: str = ""
-    freshness: str = "missing"
-    last_refresh_reason: str = ""
-    last_refresh_topics: list[str] | None = None
-    last_refresh_scope: str = "full"
-    last_refresh_basis: str = ""
-    last_refresh_changed_files_basis: list[str] | None = None
-    dirty: bool = False
-    dirty_reasons: list[str] | None = None
+    version: int
+    global_freshness: str
+    global_last_refresh_commit: str
+    global_last_refresh_at: str
+    global_last_refresh_branch: str
+    global_last_refresh_reason: str
+    global_last_refresh_topics: list[str] | None
+    global_last_refresh_scope: str
+    global_last_refresh_basis: str
+    global_last_refresh_changed_files_basis: list[str] | None
+    global_dirty: bool
+    global_dirty_reasons: list[str] | None
+    global_stale_reasons: list[str] | None
+    global_affected_root_docs: list[str] | None
+    modules: dict[str, dict[str, Any]] | None
+
+    def __init__(
+        self,
+        *,
+        version: int = 2,
+        global_freshness: str = "missing",
+        global_last_refresh_commit: str = "",
+        global_last_refresh_at: str = "",
+        global_last_refresh_branch: str = "",
+        global_last_refresh_reason: str = "",
+        global_last_refresh_topics: list[str] | None = None,
+        global_last_refresh_scope: str = "full",
+        global_last_refresh_basis: str = "",
+        global_last_refresh_changed_files_basis: list[str] | None = None,
+        global_dirty: bool = False,
+        global_dirty_reasons: list[str] | None = None,
+        global_stale_reasons: list[str] | None = None,
+        global_affected_root_docs: list[str] | None = None,
+        modules: dict[str, dict[str, Any]] | None = None,
+        last_mapped_commit: str | None = None,
+        last_mapped_at: str | None = None,
+        last_mapped_branch: str | None = None,
+        freshness: str | None = None,
+        last_refresh_reason: str | None = None,
+        last_refresh_topics: list[str] | None = None,
+        last_refresh_scope: str | None = None,
+        last_refresh_basis: str | None = None,
+        last_refresh_changed_files_basis: list[str] | None = None,
+        dirty: bool | None = None,
+        dirty_reasons: list[str] | None = None,
+    ) -> None:
+        self.version = int(version)
+        self.global_freshness = freshness if freshness is not None else global_freshness
+        self.global_last_refresh_commit = (
+            last_mapped_commit if last_mapped_commit is not None else global_last_refresh_commit
+        )
+        self.global_last_refresh_at = (
+            last_mapped_at if last_mapped_at is not None else global_last_refresh_at
+        )
+        self.global_last_refresh_branch = (
+            last_mapped_branch if last_mapped_branch is not None else global_last_refresh_branch
+        )
+        self.global_last_refresh_reason = (
+            last_refresh_reason if last_refresh_reason is not None else global_last_refresh_reason
+        )
+        self.global_last_refresh_topics = list(
+            last_refresh_topics if last_refresh_topics is not None else (global_last_refresh_topics or [])
+        )
+        self.global_last_refresh_scope = (
+            last_refresh_scope if last_refresh_scope is not None else global_last_refresh_scope
+        )
+        self.global_last_refresh_basis = (
+            last_refresh_basis if last_refresh_basis is not None else global_last_refresh_basis
+        )
+        self.global_last_refresh_changed_files_basis = list(
+            last_refresh_changed_files_basis
+            if last_refresh_changed_files_basis is not None
+            else (global_last_refresh_changed_files_basis or [])
+        )
+        self.global_dirty = dirty if dirty is not None else global_dirty
+        resolved_global_reasons = (
+            dirty_reasons
+            if dirty_reasons is not None
+            else (
+                global_dirty_reasons
+                if global_dirty_reasons is not None
+                else global_stale_reasons
+            )
+        )
+        self.global_dirty_reasons = list(
+            resolved_global_reasons or []
+        )
+        self.global_stale_reasons = list(self.global_dirty_reasons)
+        self.global_affected_root_docs = list(global_affected_root_docs or [])
+        self.modules = dict(modules or {})
+
+    @property
+    def last_mapped_commit(self) -> str:
+        return self.global_last_refresh_commit
+
+    @last_mapped_commit.setter
+    def last_mapped_commit(self, value: str) -> None:
+        self.global_last_refresh_commit = value
+
+    @property
+    def last_mapped_at(self) -> str:
+        return self.global_last_refresh_at
+
+    @last_mapped_at.setter
+    def last_mapped_at(self, value: str) -> None:
+        self.global_last_refresh_at = value
+
+    @property
+    def last_mapped_branch(self) -> str:
+        return self.global_last_refresh_branch
+
+    @last_mapped_branch.setter
+    def last_mapped_branch(self, value: str) -> None:
+        self.global_last_refresh_branch = value
+
+    @property
+    def freshness(self) -> str:
+        return self.global_freshness
+
+    @freshness.setter
+    def freshness(self, value: str) -> None:
+        self.global_freshness = value
+
+    @property
+    def last_refresh_reason(self) -> str:
+        return self.global_last_refresh_reason
+
+    @last_refresh_reason.setter
+    def last_refresh_reason(self, value: str) -> None:
+        self.global_last_refresh_reason = value
+
+    @property
+    def last_refresh_topics(self) -> list[str]:
+        return list(self.global_last_refresh_topics or [])
+
+    @last_refresh_topics.setter
+    def last_refresh_topics(self, value: list[str] | None) -> None:
+        self.global_last_refresh_topics = list(value or [])
+
+    @property
+    def last_refresh_scope(self) -> str:
+        return self.global_last_refresh_scope
+
+    @last_refresh_scope.setter
+    def last_refresh_scope(self, value: str) -> None:
+        self.global_last_refresh_scope = value
+
+    @property
+    def last_refresh_basis(self) -> str:
+        return self.global_last_refresh_basis
+
+    @last_refresh_basis.setter
+    def last_refresh_basis(self, value: str) -> None:
+        self.global_last_refresh_basis = value
+
+    @property
+    def last_refresh_changed_files_basis(self) -> list[str]:
+        return list(self.global_last_refresh_changed_files_basis or [])
+
+    @last_refresh_changed_files_basis.setter
+    def last_refresh_changed_files_basis(self, value: list[str] | None) -> None:
+        self.global_last_refresh_changed_files_basis = list(value or [])
+
+    @property
+    def dirty(self) -> bool:
+        return self.global_dirty
+
+    @dirty.setter
+    def dirty(self, value: bool) -> None:
+        self.global_dirty = value
+
+    @property
+    def dirty_reasons(self) -> list[str]:
+        return list(self.global_dirty_reasons or [])
+
+    @dirty_reasons.setter
+    def dirty_reasons(self, value: list[str] | None) -> None:
+        self.global_dirty_reasons = list(value or [])
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "version": self.version,
+            "global": {
+                "freshness": self.global_freshness,
+                "last_refresh_commit": self.global_last_refresh_commit,
+                "last_refresh_at": self.global_last_refresh_at,
+                "last_refresh_branch": self.global_last_refresh_branch,
+                "last_refresh_reason": self.global_last_refresh_reason,
+                "last_refresh_topics": list(self.global_last_refresh_topics or []),
+                "last_refresh_scope": self.global_last_refresh_scope,
+                "last_refresh_basis": self.global_last_refresh_basis,
+                "last_refresh_changed_files_basis": list(self.global_last_refresh_changed_files_basis or []),
+                "dirty": self.global_dirty,
+                "dirty_reasons": list(self.global_dirty_reasons or []),
+                "stale_reasons": list(self.global_dirty_reasons or []),
+                "affected_root_docs": list(self.global_affected_root_docs or []),
+            },
+            "modules": dict(self.modules or {}),
+            # Legacy flat compatibility keys:
             "last_mapped_commit": self.last_mapped_commit,
             "last_mapped_at": self.last_mapped_at,
             "last_mapped_branch": self.last_mapped_branch,
             "freshness": self.freshness,
             "last_refresh_reason": self.last_refresh_reason,
-            "last_refresh_topics": list(self.last_refresh_topics or []),
+            "last_refresh_topics": self.last_refresh_topics,
             "last_refresh_scope": self.last_refresh_scope,
             "last_refresh_basis": self.last_refresh_basis,
-            "last_refresh_changed_files_basis": list(self.last_refresh_changed_files_basis or []),
+            "last_refresh_changed_files_basis": self.last_refresh_changed_files_basis,
             "dirty": self.dirty,
-            "dirty_reasons": list(self.dirty_reasons or []),
+            "dirty_reasons": self.dirty_reasons,
+            "stale_reasons": self.dirty_reasons,
+            "affected_root_docs": list(self.global_affected_root_docs or []),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ProjectMapStatus":
+        global_payload = data.get("global")
+        if isinstance(global_payload, dict):
+            return cls(
+                version=int(data.get("version", 2)),
+                global_freshness=str(global_payload.get("freshness", "missing")),
+                global_last_refresh_commit=str(global_payload.get("last_refresh_commit", "")),
+                global_last_refresh_at=str(global_payload.get("last_refresh_at", "")),
+                global_last_refresh_branch=str(global_payload.get("last_refresh_branch", "")),
+                global_last_refresh_reason=str(global_payload.get("last_refresh_reason", "")),
+                global_last_refresh_topics=list(global_payload.get("last_refresh_topics", []) or []),
+                global_last_refresh_scope=str(global_payload.get("last_refresh_scope", "full")),
+                global_last_refresh_basis=str(global_payload.get("last_refresh_basis", "")),
+                global_last_refresh_changed_files_basis=list(global_payload.get("last_refresh_changed_files_basis", []) or []),
+                global_dirty=bool(global_payload.get("dirty", False)),
+                global_dirty_reasons=list(global_payload.get("dirty_reasons", []) or []),
+                global_stale_reasons=list(global_payload.get("stale_reasons", []) or []),
+                global_affected_root_docs=list(global_payload.get("affected_root_docs", []) or []),
+                modules=dict(data.get("modules", {}) or {}),
+            )
+
         return cls(
             version=int(data.get("version", 1)),
             last_mapped_commit=str(data.get("last_mapped_commit", "")),
@@ -378,26 +623,33 @@ class ProjectMapStatus:
             last_refresh_changed_files_basis=list(data.get("last_refresh_changed_files_basis", []) or []),
             dirty=bool(data.get("dirty", False)),
             dirty_reasons=list(data.get("dirty_reasons", []) or []),
+            modules=dict(data.get("modules", {}) or {}),
         )
 
 
 def read_project_map_status(project_root: Path) -> ProjectMapStatus:
-    status_path = project_map_status_path(project_root)
-    if not status_path.exists():
-        return ProjectMapStatus()
-    try:
-        payload = json.loads(status_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return ProjectMapStatus()
-    if not isinstance(payload, dict):
-        return ProjectMapStatus()
-    return ProjectMapStatus.from_dict(payload)
+    for status_path in (project_map_status_path(project_root), legacy_project_map_status_path(project_root)):
+        if not status_path.exists():
+            continue
+        try:
+            payload = json.loads(status_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        return ProjectMapStatus.from_dict(payload)
+    return ProjectMapStatus()
 
 
 def write_project_map_status(project_root: Path, status: ProjectMapStatus) -> Path:
     status_path = project_map_status_path(project_root)
     status_path.parent.mkdir(parents=True, exist_ok=True)
-    status_path.write_text(json.dumps(status.to_dict(), indent=2) + "\n", encoding="utf-8")
+    payload = json.dumps(status.to_dict(), indent=2) + "\n"
+    status_path.write_text(payload, encoding="utf-8")
+    legacy_path = legacy_project_map_status_path(project_root)
+    if legacy_path != status_path:
+        legacy_path.parent.mkdir(parents=True, exist_ok=True)
+        legacy_path.write_text(payload, encoding="utf-8")
     return status_path
 
 
@@ -414,17 +666,18 @@ def mark_project_map_refreshed(
     changed_files_basis: list[str] | None = None,
 ) -> ProjectMapStatus:
     status = ProjectMapStatus(
-        last_mapped_commit=head_commit,
-        last_mapped_at=mapped_at or iso_now(),
-        last_mapped_branch=branch,
-        freshness="fresh",
-        last_refresh_reason=reason,
-        last_refresh_topics=list(refresh_topics or TOPIC_FILES),
-        last_refresh_scope=refresh_scope,
-        last_refresh_basis=refresh_basis or reason,
-        last_refresh_changed_files_basis=list(changed_files_basis or []),
-        dirty=False,
-        dirty_reasons=[],
+        version=2,
+        global_last_refresh_commit=head_commit,
+        global_last_refresh_at=mapped_at or iso_now(),
+        global_last_refresh_branch=branch,
+        global_freshness="fresh",
+        global_last_refresh_reason=reason,
+        global_last_refresh_topics=list(refresh_topics or TOPIC_FILES),
+        global_last_refresh_scope=refresh_scope,
+        global_last_refresh_basis=refresh_basis or reason,
+        global_last_refresh_changed_files_basis=list(changed_files_basis or []),
+        global_dirty=False,
+        global_dirty_reasons=[],
     )
     write_project_map_status(project_root, status)
     return status
@@ -498,7 +751,7 @@ def assess_project_map_freshness(
 ) -> dict[str, Any]:
     status = read_project_map_status(project_root)
 
-    if not project_map_status_path(project_root).exists():
+    if not project_map_status_path(project_root).exists() and not legacy_project_map_status_path(project_root).exists():
         return {
             "freshness": "missing",
             "status_path": str(project_map_status_path(project_root)),
@@ -511,6 +764,8 @@ def assess_project_map_freshness(
             "must_refresh_topics": [],
             "review_topics": [],
             "suggested_topics": [],
+            "global": status.to_dict().get("global", {}),
+            "modules": dict(status.modules or {}),
         }
 
     if status.dirty:
@@ -527,6 +782,8 @@ def assess_project_map_freshness(
             "must_refresh_topics": dirty_topic_plan["must_refresh_topics"],
             "review_topics": dirty_topic_plan["review_topics"],
             "suggested_topics": [topic for topic in TOPIC_FILES if topic in (*dirty_topic_plan["must_refresh_topics"], *dirty_topic_plan["review_topics"])],
+            "global": status.to_dict().get("global", {}),
+            "modules": dict(status.modules or {}),
         }
 
     if not has_git or not status.last_mapped_commit or not head_commit:
@@ -542,6 +799,8 @@ def assess_project_map_freshness(
             "must_refresh_topics": [],
             "review_topics": [],
             "suggested_topics": [],
+            "global": status.to_dict().get("global", {}),
+            "modules": dict(status.modules or {}),
         }
 
     worst = "fresh"
@@ -598,6 +857,8 @@ def assess_project_map_freshness(
         "must_refresh_topics": must_refresh_topics,
         "review_topics": review_topics,
         "suggested_topics": suggested_topics,
+        "global": status.to_dict().get("global", {}),
+        "modules": dict(status.modules or {}),
     }
 
 

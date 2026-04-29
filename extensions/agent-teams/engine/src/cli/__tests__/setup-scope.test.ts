@@ -143,7 +143,7 @@ describe("omx setup scope behavior", () => {
       assert.match(
         res.stdout,
         new RegExp(
-          `Codex home: (?:/private)?${wd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/\\.codex`,
+          `Codex home: (?:/private)?${wd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\\\/]\\.codex`,
         ),
       );
       assert.doesNotMatch(res.stdout, /Codex home: .*\/home\/\.codex/);
@@ -192,15 +192,7 @@ describe("omx setup scope behavior", () => {
       assert.equal(existsSync(localAgents), true);
       assert.equal(existsSync(join(localAgents, "executor.toml")), true);
       assert.equal(
-        existsSync(join(localSkills, "omx-setup", "SKILL.md")),
-        true,
-      );
-      assert.equal(
-        existsSync(join(localSkills, "ask-claude", "SKILL.md")),
-        true,
-      );
-      assert.equal(
-        existsSync(join(localSkills, "ask-gemini", "SKILL.md")),
+        existsSync(join(localSkills, "worker", "SKILL.md")),
         true,
       );
       assert.ok(
@@ -391,7 +383,7 @@ describe("omx setup scope behavior", () => {
       );
       assert.match(
         res.stdout,
-        /\[OK\] AGENTS\.md: found in .*home\/\.codex\/AGENTS\.md/,
+        /\[OK\] AGENTS\.md: found in .*home[\\/]\.codex[\\/]AGENTS\.md/,
       );
     } finally {
       await rm(wd, { recursive: true, force: true });

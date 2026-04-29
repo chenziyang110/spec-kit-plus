@@ -40,7 +40,7 @@ scripts:
 - Review `.planning/learnings/candidates.md` only when it still contains checklist-relevant candidate learnings after the passive start step, especially repeated requirement gaps, review defaults, or project constraints that should shape the generated checklist.
 - [AGENT] When checklist-shaping friction appears, run `specify hook signal-learning --command checklist ...` with user-correction, artifact-rewrite, scope-change, false-start, or hidden-dependency counts.
 - [AGENT] Before final reporting, run `specify hook review-learning --command checklist --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `decision_debt`, or `project_constraint` exists.
-- [AGENT] Prefer `specify hook capture-learning --command checklist ...` when checklist work exposes reusable requirement-quality gaps or prevention targets.
+- [AGENT] Prefer `specify learning capture-auto --command checklist --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command checklist ...` when the durable state does not capture the reusable lesson cleanly.
 - [AGENT] Before the final report, capture any new `workflow_gap` or `project_constraint` learning through `specify learning capture --command checklist ...` when the checklist exposes a reusable requirement-quality gap that should influence future workflows.
 
 ## Execution Steps
@@ -50,13 +50,13 @@ scripts:
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 2. **Read brownfield navigation context before shaping the checklist**
-   - Check whether `.specify/project-map/status.json` exists.
+   - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If checklist-relevant coverage is stale for the current feature area, run `/sp-map-codebase` before continuing.
    - [AGENT] Read `PROJECT-HANDBOOK.md`.
    - [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-   - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` when they shape the checklist focus, review audience, or scenario coverage.
+   - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` when they shape the checklist focus, review audience, or scenario coverage.
    - Treat this as a coverage-model check, not a file-presence check. If the current handbook/project-map set cannot tell you the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-codebase` before continuing.
 
 3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
@@ -241,6 +241,7 @@ scripts:
    - Any explicit user-specified must-have items incorporated
    - Recommended next workflow:
      - If the checklist reveals planning-critical requirement gaps, contradictory behavior, or missing acceptance criteria, recommend `/sp-specify` (or `/sp-clarify` when the spec package already exists and only needs deeper analysis).
+     - If the checklist reveals a clear requirement whose implementation chain is still unproven, recommend `/sp-deep-research` before `/sp-plan`.
      - If the checklist exposes plan-shaping technical or artifact completeness gaps, recommend `/sp-plan`.
      - If the checklist is materially satisfied and execution preparation should continue through cross-artifact validation, recommend `/sp-analyze`.
 

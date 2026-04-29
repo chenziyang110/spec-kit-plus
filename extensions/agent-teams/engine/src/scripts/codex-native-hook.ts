@@ -1,7 +1,7 @@
 import { execFileSync } from "child_process";
 import { existsSync, readFileSync, statSync } from "fs";
 import { mkdir, readFile, readdir, writeFile } from "fs/promises";
-import { join, resolve } from "path";
+import { basename, dirname, join, resolve } from "path";
 import { pathToFileURL } from "url";
 import { readModeState, readModeStateForSession, updateModeState } from "../modes/base.js";
 import {
@@ -24,7 +24,7 @@ import {
   writeTeamLeaderAttention,
   writeTeamPhase,
 } from "../team/state.js";
-import { omxNotepadPath, omxProjectMemoryPath } from "../utils/paths.js";
+import { omxNotepadPath, omxProjectMemoryPath, specifyRuntimeStateDir } from "../utils/paths.js";
 import { getStateFilePath, getStatePath } from "../mcp/state-paths.js";
 import {
   detectKeywords,
@@ -747,11 +747,25 @@ async function readActiveAutoresearchState(
   return state;
 }
 
+function projectRootFromStateDir(stateDir: string): string {
+  const runtimeDir = dirname(stateDir);
+  const specifyDir = dirname(runtimeDir);
+  if (
+    basename(stateDir) === "state"
+    && basename(runtimeDir) === "runtime"
+    && basename(specifyDir) === ".specify"
+  ) {
+    return dirname(specifyDir);
+  }
+
+  return dirname(dirname(stateDir));
+}
+
 async function readActiveRalphState(
   stateDir: string,
   preferredSessionId?: string,
 ): Promise<Record<string, unknown> | null> {
-  const cwd = resolve(stateDir, "..", "..");
+  const cwd = projectRootFromStateDir(stateDir);
   const [rawSessionInfo, usableSessionInfo] = await Promise.all([
     readSessionState(cwd),
     readUsableSessionState(cwd),
@@ -1322,7 +1336,7 @@ async function readTeamModeStateForStop(
   const scopedState = await readStopSessionPinnedState("team-state.json", cwd, normalizedSessionId);
   if (scopedState) return scopedState;
 
-  const rootState = await readJsonIfExists(join(cwd, ".omx", "state", "team-state.json"));
+  const rootState = await readJsonIfExists(join(specifyRuntimeStateDir(cwd), "team-state.json"));
   if (rootState?.active !== true) return null;
 
   const ownerSessionId = safeString(rootState.session_id).trim();
@@ -2142,7 +2156,7 @@ export async function dispatchCodexNativeHook(
 ): Promise<NativeHookDispatchResult> {
   const hookEventName = readHookEventName(payload);
   const cwd = options.cwd ?? (safeString(payload.cwd).trim() || process.cwd());
-  const stateDir = join(cwd, ".omx", "state");
+  const stateDir = specifyRuntimeStateDir(cwd);
   await mkdir(stateDir, { recursive: true });
 
   const omxEventName = mapCodexHookEventToOmxEvent(hookEventName);

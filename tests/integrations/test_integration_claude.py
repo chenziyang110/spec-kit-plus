@@ -89,6 +89,7 @@ class TestClaudeIntegration:
                 ".specify/memory/project-learnings.md",
                 ".specify/memory/project-rules.md",
                 ".specify/project-map/status.json",
+                ".specify/project-map/index/status.json",
             ]
         )
 
@@ -959,10 +960,10 @@ class TestClaudeIntegration:
         assert "plan.md" in content
         assert "tasks.md" in content
         assert ".specify/testing/TESTING_CONTRACT.md" in content
-        assert ".specify/project-map/status.json" in content
+        assert ".specify/project-map/index/status.json" in content
         assert "## Map Maintenance" in content
         assert "refresh `PROJECT-HANDBOOK.md`" in content
-        assert "mark `.specify/project-map/status.json` dirty" in content
+        assert "mark `.specify/project-map/index/status.json` dirty" in content
 
     def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner
@@ -1360,13 +1361,13 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
     assert "if multiple safe worker lanes exist for the current batch, dispatch them in parallel" in content
     assert "do not begin concrete implementation on the leader path while an untried delegated path is available" in content
     assert "only fall back to leader-local execution after recording a concrete fallback reason" in content
-    assert "/sp-implement-teams" in content
+    assert "/sp-implement-teams" not in content
     assert "## claude code leader gate".lower() in content
     assert "you are the **leader**, not the concrete implementer" in content
     assert "autonomous blocker recovery" in content
     assert "missed_agent_dispatch" in content
     assert "current runtime's native worker lanes" in content
-    assert "current integration's coordinated runtime surface" in content
+    assert "do not silently switch this workflow onto a coordinated runtime surface" in content
 
 
 def test_claude_generated_sp_implement_description_prefers_worker_dispatch(tmp_path):
@@ -1428,7 +1429,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "hard prerequisite for `/sp-implement-teams`" in lower
     assert "executioncontextbundle" in lower or "execution context bundle" in lower
     assert "project-handbook.md" in lower
-    assert ".specify/project-map/workflows.md" in lower
+    assert ".specify/project-map/root/workflows.md" in lower
     assert ".specify/testing/TESTING_CONTRACT.md".lower() in lower
     assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in lower
     assert "read-order" in lower or "read order" in lower
@@ -1453,6 +1454,9 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "claude code's configured subagent model behavior" in lower
     assert "enters `idle` without consuming its first probe message" in lower
     assert "treat startup as failed rather than successful" in lower
+    assert "check-prerequisites.sh --json --require-tasks --include-tasks" in lower
+    assert "parse `feature_dir` and `available_docs` list" in lower
+    assert "all paths must be absolute" in lower
     assert "minimal readiness probe message before task assignment" in lower
     assert "shared contract with `/sp-implement`" in lower
     assert "canonical implementation workflow" in lower
@@ -1461,7 +1465,6 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "single-lane" in lower
     assert "single-lane" in lower
     assert "native-multi-agent" in lower
-    assert "sidecar-runtime" in lower
     assert "join point" in lower
     assert "worker-results" in lower
     assert "worker result contract" in lower
@@ -1479,6 +1482,8 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "after each completed join point or ready batch, immediately re-read the shared task ledger" in lower
     assert "select the next ready batch and continue automatically" in lower
     assert "stop only when no ready work remains, a real blocker stops progress, or an explicit human approval gate is reached" in lower
+    assert "planned validation tasks are still ready work" in lower
+    assert "do not stop to ask whether validation should start" in lower
     assert "do not stop after a single completed batch just because the current assignee went idle" in lower
     assert "specify team" not in lower
     assert "sp.agent-teams.run" not in lower
@@ -1493,6 +1498,9 @@ def test_claude_implement_teams_template_keeps_only_backend_specific_guidance():
     lower = template.lower()
 
     assert "## Shared Contract With `/sp-implement`" not in template
+    assert "scripts:" in template
+    assert "--require-tasks --include-tasks" in template
+    assert "Run `{SCRIPT}` from repo root and parse `FEATURE_DIR` and `AVAILABLE_DOCS` list." in template
     assert "`claude_code_subagent_model`" in lower
     assert "do not derive teammate model from `anthropic_model`" in lower
     assert "prompt-only specialization is acceptable" in lower

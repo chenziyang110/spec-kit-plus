@@ -17,15 +17,19 @@ $projectMapDir = Get-ProjectMapDir -RepoRoot $RepoRoot
 $statusPath = Get-ProjectMapStatusPath -RepoRoot $RepoRoot
 $canonicalMapFiles = @(
     (Join-Path $RepoRoot "PROJECT-HANDBOOK.md"),
-    (Join-Path $RepoRoot ".specify/project-map/ARCHITECTURE.md"),
-    (Join-Path $RepoRoot ".specify/project-map/STRUCTURE.md"),
-    (Join-Path $RepoRoot ".specify/project-map/CONVENTIONS.md"),
-    (Join-Path $RepoRoot ".specify/project-map/INTEGRATIONS.md"),
-    (Join-Path $RepoRoot ".specify/project-map/WORKFLOWS.md"),
-    (Join-Path $RepoRoot ".specify/project-map/TESTING.md"),
-    (Join-Path $RepoRoot ".specify/project-map/OPERATIONS.md")
+    (Join-Path $RepoRoot ".specify/project-map/index/atlas-index.json"),
+    (Join-Path $RepoRoot ".specify/project-map/index/modules.json"),
+    (Join-Path $RepoRoot ".specify/project-map/index/relations.json"),
+    (Join-Path $RepoRoot ".specify/project-map/root/ARCHITECTURE.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/STRUCTURE.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/CONVENTIONS.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/INTEGRATIONS.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/WORKFLOWS.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/TESTING.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/OPERATIONS.md")
 )
 New-Item -ItemType Directory -Path $projectMapDir -Force | Out-Null
+New-Item -ItemType Directory -Path (Split-Path -Parent $statusPath) -Force | Out-Null
 
 function Assert-CanonicalMapFiles {
     $missing = @($canonicalMapFiles | Where-Object { -not (Test-Path -LiteralPath $_) })
@@ -131,6 +135,7 @@ function Classify-Path {
 
     switch -Regex ($lower) {
         '^\.specify/project-map/status\.json$' { return "ignore" }
+        '^\.specify/project-map/index/status\.json$' { return "ignore" }
         '^project-handbook\.md$' { return "stale" }
         '^\.specify/project-map/' { return "stale" }
         '^\.specify/templates/project-map/' { return "stale" }
@@ -180,12 +185,19 @@ function Get-RefreshPlanForPath {
 
     switch ($lower) {
         "project-handbook.md" { Add-Topic $mustRefresh @("ARCHITECTURE.md") }
+        ".specify/project-map/root/architecture.md" { Add-Topic $mustRefresh @("ARCHITECTURE.md") }
         ".specify/project-map/architecture.md" { Add-Topic $mustRefresh @("ARCHITECTURE.md") }
+        ".specify/project-map/root/structure.md" { Add-Topic $mustRefresh @("STRUCTURE.md") }
         ".specify/project-map/structure.md" { Add-Topic $mustRefresh @("STRUCTURE.md") }
+        ".specify/project-map/root/conventions.md" { Add-Topic $mustRefresh @("CONVENTIONS.md") }
         ".specify/project-map/conventions.md" { Add-Topic $mustRefresh @("CONVENTIONS.md") }
+        ".specify/project-map/root/integrations.md" { Add-Topic $mustRefresh @("INTEGRATIONS.md") }
         ".specify/project-map/integrations.md" { Add-Topic $mustRefresh @("INTEGRATIONS.md") }
+        ".specify/project-map/root/workflows.md" { Add-Topic $mustRefresh @("WORKFLOWS.md") }
         ".specify/project-map/workflows.md" { Add-Topic $mustRefresh @("WORKFLOWS.md") }
+        ".specify/project-map/root/testing.md" { Add-Topic $mustRefresh @("TESTING.md") }
         ".specify/project-map/testing.md" { Add-Topic $mustRefresh @("TESTING.md") }
+        ".specify/project-map/root/operations.md" { Add-Topic $mustRefresh @("OPERATIONS.md") }
         ".specify/project-map/operations.md" { Add-Topic $mustRefresh @("OPERATIONS.md") }
     }
 

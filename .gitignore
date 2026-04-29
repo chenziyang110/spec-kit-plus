@@ -59,6 +59,14 @@ docs/dev
 .specify/extensions/*/local-config.yml
 
 # Codex team runtime state
-.specify/codex-team/state/
-.specify/codex-team/worktrees/
+.specify/
+.planning/debug/
 .worktrees/
+.codex/*
+!.codex/agents/
+!.codex/agents/**
+!.codex/skills/
+!.codex/skills/**
+.codex/skills/.system/**
+!.codex/prompts/
+!.codex/prompts/**

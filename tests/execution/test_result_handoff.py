@@ -14,7 +14,7 @@ def test_describe_result_handoff_template_matches_supported_workflows() -> None:
     assert describe_result_handoff_template(command_name="implement", integration_key="claude") == "FEATURE_DIR/worker-results/<task-id>.json"
     assert describe_result_handoff_template(command_name="quick", integration_key="cursor-agent") == ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json"
     assert describe_result_handoff_template(command_name="debug", integration_key="claude") == ".planning/debug/results/<session-slug>/<lane-id>.json"
-    assert describe_result_handoff_template(command_name="implement", integration_key="codex") == ".specify/codex-team/state/results/<request-id>.json"
+    assert describe_result_handoff_template(command_name="implement", integration_key="codex") == ".specify/teams/state/results/<request-id>.json"
 
 
 def test_build_result_handoff_path_for_codex_runtime(project_root: Path = Path("F:/tmp/project")) -> None:
@@ -25,7 +25,7 @@ def test_build_result_handoff_path_for_codex_runtime(project_root: Path = Path("
         request_id="req-1",
     )
 
-    assert str(path).replace("\\", "/").endswith(".specify/codex-team/state/results/req-1.json")
+    assert str(path).replace("\\", "/").endswith(".specify/teams/state/results/req-1.json")
 
 
 def test_build_result_handoff_path_for_feature_worker_result(project_root: Path = Path("F:/tmp/project")) -> None:

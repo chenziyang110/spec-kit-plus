@@ -32,7 +32,7 @@ def test_detect_solution_metadata_reads_solution_configurations(tmp_path: Path):
 def test_classify_baseline_build_status_uses_cached_state_record(codex_team_project_root: Path):
     from specify_cli.codex_team.baseline_check import classify_baseline_build_status
 
-    state_path = codex_team_project_root / ".specify" / "codex-team" / "state" / "baseline-build.json"
+    state_path = codex_team_project_root / ".specify" / "teams" / "state" / "baseline-build.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(
         json.dumps(

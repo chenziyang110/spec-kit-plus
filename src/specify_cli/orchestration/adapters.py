@@ -14,6 +14,7 @@ FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
         "clarify",
         "explain",
         "debug",
+        "deep-research",
         "plan",
         "tasks",
         "implement",

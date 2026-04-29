@@ -108,6 +108,10 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     next_command = section_body(text, "Next Command")
     authoritative_files = section_body(text, "Authoritative Files")
     exit_criteria = section_body(text, "Exit Criteria")
+    learning_signals = section_body(text, "Learning Signals")
+    false_starts = section_body(text, "False Starts")
+    hidden_dependencies = section_body(text, "Hidden Dependencies")
+    reusable_constraints = section_body(text, "Reusable Constraints")
 
     return {
         "state_kind": "workflow-state",
@@ -119,6 +123,11 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
         "next_command": extract_first_nonempty_line(next_command),
         "authoritative_files": extract_bullets(authoritative_files),
         "exit_criteria": extract_bullets(exit_criteria),
+        "route_reason": extract_field(learning_signals, "route_reason"),
+        "blocked_reason": extract_field(learning_signals, "blocked_reason"),
+        "false_starts": extract_bullets(false_starts),
+        "hidden_dependencies": extract_bullets(hidden_dependencies),
+        "reusable_constraints": extract_bullets(reusable_constraints),
     }
 
 
@@ -166,4 +175,3 @@ def serialize_debug_session(path: Path) -> dict[str, Any]:
         "next_action": extract_field(current_focus, "next_action") or extract_first_nonempty_line(current_focus),
         "observer_summary": extract_first_nonempty_line(observer_framing),
     }
-

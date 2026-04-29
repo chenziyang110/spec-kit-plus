@@ -22,8 +22,8 @@ class TestCodexIntegration(SkillsIntegrationTests):
             [
                 ".codex/config.toml",
                 ".specify/config.json",
-                ".specify/codex-team/README.md",
-                ".specify/codex-team/runtime.json",
+                ".specify/teams/README.md",
+                ".specify/teams/runtime.json",
             ]
         )
         return sorted(files)
@@ -43,10 +43,10 @@ class TestCodexAutoPromote:
 
         assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
         assert (target / ".codex" / "skills" / "sp-plan" / "SKILL.md").exists()
-        assert (target / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
+        assert (target / ".codex" / "skills" / "sp-teams" / "SKILL.md").exists()
         assert (target / ".codex" / "skills" / "spec-kit-workflow-routing" / "SKILL.md").exists()
         assert (target / ".codex" / "skills" / "spec-kit-project-map-gate" / "SKILL.md").exists()
-        assert (target / ".specify" / "codex-team" / "runtime.json").exists()
+        assert (target / ".specify" / "teams" / "runtime.json").exists()
         assert (target / ".specify" / "templates" / "project-handbook-template.md").exists()
         assert (target / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
         assert (target / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
@@ -93,7 +93,7 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "codex-only" in lower
     assert "psmux" in lower
     assert "native windows" in lower
-    assert "specify team" in lower
+    assert "sp-teams" in lower
     assert "sp.agent-teams.run" not in lower
     assert "primary product surface" in lower or "primary surface" in lower
     assert "specify extension add agent-teams" not in lower
@@ -102,15 +102,15 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "implement-tracker.md" in lower
     assert "execution-state source of truth" in lower
     assert "workertaskpacket" in lower
-    assert "specify team doctor" in lower
-    assert "specify team live-probe" in lower
+    assert "sp-teams doctor" in lower
+    assert "sp-teams live-probe" in lower
     assert "single-lane" in lower
     assert "native-multi-agent" in lower
     assert "sidecar-runtime" in lower
     assert "join point" in lower
     assert "worker result contract" in lower
     assert "result file handoff path" in lower
-    assert ".specify/codex-team/state/results/<request-id>.json" in lower
+    assert ".specify/teams/state/results/<request-id>.json" in lower
     assert "core implementation complete" in lower
     assert "ready for integration testing" in lower
     assert "overall feature completion" in lower
@@ -129,14 +129,22 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "after each completed join point or ready batch, re-read the tracker and task state" in lower
     assert "select the next ready batch and continue automatically" in lower
     assert "stop only when no ready work remains, a real blocker stops progress, or an explicit human gate is reached" in lower
+    assert "planned validation tasks are still ready work" in lower
+    assert "do not stop to ask whether validation should start" in lower
+    assert "check-prerequisites.sh --json --require-tasks --include-tasks" in lower
+    assert "parse `feature_dir` and `available_docs` list" in lower
+    assert "all paths must be absolute" in lower
 
 
 def test_codex_implement_teams_template_keeps_only_backend_specific_guidance():
     template = Path("templates/commands/implement-teams.md").read_text(encoding="utf-8")
 
     assert "## Shared Contract With `sp-implement`" not in template
-    assert "specify team doctor" in template
-    assert "specify team live-probe" in template
+    assert "scripts:" in template
+    assert "--require-tasks --include-tasks" in template
+    assert "Run `{SCRIPT}` from repo root and parse `FEATURE_DIR` and `AVAILABLE_DOCS` list." in template
+    assert "sp-teams doctor" in template
+    assert "sp-teams live-probe" in template
     assert "validation target" in template.lower()
     assert "stale lane" in template.lower()
 
@@ -168,9 +176,9 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
     assert "project-handbook.md" in content.lower()
-    assert ".specify/project-map/architecture.md" in content.lower()
-    assert ".specify/project-map/workflows.md" in content.lower()
-    assert ".specify/project-map/operations.md" in content.lower()
+    assert ".specify/project-map/root/architecture.md" in content.lower()
+    assert ".specify/project-map/root/workflows.md" in content.lower()
+    assert ".specify/project-map/root/operations.md" in content.lower()
     assert "first-class implementation context" in content.lower()
     assert "user execution notes" in content.lower()
     assert "resume_decision" in content.lower()
@@ -178,10 +186,8 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
-    assert "specify team" in content
     assert "single-lane" in content
     assert "native-multi-agent" in content
-    assert "sidecar-runtime" in content
     assert "invoking runtime acts as the leader" in content
     assert "`single-lane` names the topology for one safe execution lane" in content
     assert "does not, by itself, decide whether the leader or a delegated worker executes that lane" in content
@@ -200,7 +206,8 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "`spec_gap`" in content
     assert "delegated execution" in content.lower() or "delegates execution" in content.lower()
     assert "prefer `native-multi-agent`" in content
-    assert "only fall back to `specify team`" in content.lower()
+    assert "sp-teams" not in content.lower()
+    assert "sidecar-runtime" not in content.lower()
     assert "must not edit implementation files directly while worker delegation is active" in content.lower()
     assert "wait for every delegated lane's structured handoff" in content.lower()
     assert "do not treat an idle child as done work" in content.lower()
@@ -221,7 +228,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skills_dir = target / ".codex" / "skills"
-    for skill_name in ("sp-specify", "sp-plan", "sp-test", "sp-tasks", "sp-implement"):
+    for skill_name in ("sp-specify", "sp-plan", "sp-test", "sp-tasks"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "single-lane" in content
         assert "native-multi-agent" in content
@@ -229,11 +236,20 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "spawn_agent" in content
         assert "wait_agent" in content
         assert "project-handbook.md" in content
-        assert ".specify/project-map/architecture.md" in content
-        assert ".specify/project-map/workflows.md" in content
+        assert ".specify/project-map/root/architecture.md" in content
+        assert ".specify/project-map/root/workflows.md" in content
         assert ".specify/memory/project-rules.md" in content
         assert ".specify/memory/project-learnings.md" in content
         assert ".planning/learnings/candidates.md" in content
+
+    implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "single-lane" in implement_content
+    assert "native-multi-agent" in implement_content
+    assert "spawn_agent" in implement_content
+    assert "wait_agent" in implement_content
+    assert "close_agent" in implement_content
+    assert "sidecar-runtime" not in implement_content
+    assert "sp-teams" not in implement_content
 
     shared_skills = ("sp-specify", "sp-plan", "sp-tasks")
     for skill_name in shared_skills:
@@ -258,7 +274,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert ".planning/learnings/candidates.md" in constitution_content
     assert "specify learning start --command constitution --format json" in constitution_content
     assert "project-handbook.md" in constitution_content
-    assert ".specify/project-map/status.json" in constitution_content
+    assert ".specify/project-map/index/status.json" in constitution_content
     assert "/sp-map-codebase" in constitution_content
     assert "workflow-state.md" in constitution_content
     assert "/sp-plan" in constitution_content
@@ -389,7 +405,9 @@ def test_codex_generated_sp_map_codebase_includes_native_mapping_guidance(tmp_pa
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert "project-handbook.md" in content
-    assert ".specify/project-map/architecture.md" in content
+    assert ".specify/project-map/index/atlas-index.json" in content
+    assert ".specify/project-map/root/architecture.md" in content
+    assert ".specify/project-map/modules/<module-id>/overview.md" in content
     assert 'choose_execution_strategy(command_name="map-codebase"' in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
@@ -438,11 +456,11 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert ".planning/learnings/candidates.md" in content
     assert "codex native multi-agent investigation" in content
     assert "project-handbook.md" in content
-    assert ".specify/project-map/architecture.md" in content
-    assert ".specify/project-map/workflows.md" in content
-    assert ".specify/project-map/integrations.md" in content
-    assert ".specify/project-map/testing.md" in content
-    assert ".specify/project-map/operations.md" in content
+    assert ".specify/project-map/root/architecture.md" in content
+    assert ".specify/project-map/root/workflows.md" in content
+    assert ".specify/project-map/root/integrations.md" in content
+    assert ".specify/project-map/root/testing.md" in content
+    assert ".specify/project-map/root/operations.md" in content
     assert "observer framing" in content
     assert "compressed observer framing" in content
     assert "full observer framing" in content
@@ -562,7 +580,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
-    assert "specify team" in content
+    assert "sp-teams" in content
     assert "single-lane" in content
     assert "single-lane" in content
     assert "native-multi-agent" in content

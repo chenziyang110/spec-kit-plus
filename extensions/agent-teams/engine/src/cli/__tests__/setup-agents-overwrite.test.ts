@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os';
 import { setup } from '../setup.js';
 import { addGeneratedAgentsMarker } from '../../utils/agents-md.js';
 import { resolveAgentsModelTableContext, upsertAgentsModelTable } from '../../utils/agents-model-table.js';
+import { getPackageRoot } from '../../utils/package.js';
+import { specifyRuntimeStateDir } from '../../utils/paths.js';
 
 function setMockTty(value: boolean): () => void {
   Object.defineProperty(process.stdin, 'isTTY', {
@@ -88,7 +90,7 @@ describe('omx setup AGENTS refresh behavior', () => {
         scope: 'user',
       });
 
-      assert.match(output, /Generated AGENTS\.md in .*home\/\.codex\./);
+      assert.match(output, /Generated AGENTS\.md in .*home[\\/]\.codex\./);
       assert.match(output, /User scope leaves project AGENTS\.md unchanged\./);
       assert.match(output, /agents_md: updated=1, unchanged=0, backed_up=0, skipped=0, removed=0/);
       assert.equal(await readFile(join(wd, 'AGENTS.md'), 'utf-8'), existing);
@@ -119,7 +121,7 @@ describe('omx setup AGENTS refresh behavior', () => {
       const agentsContent = await readFile(join(wd, 'AGENTS.md'), 'utf-8');
       const backupPath = join(wd, '.AGENTS.md.bkup');
       assert.match(output, /Generated AGENTS\.md in project root\./);
-      assert.match(output, new RegExp(`Backed up existing AGENTS\\.md to ${backupPath.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\.`));
+      assert.ok(output.includes(`Backed up existing AGENTS.md to ${backupPath}.`));
       assert.match(output, /agents_md: updated=1, unchanged=0, backed_up=1, skipped=0, removed=0/);
       assert.match(agentsContent, /^<!-- AUTONOMY DIRECTIVE — DO NOT REMOVE -->/);
       assert.match(agentsContent, /# oh-my-codex - Intelligent Multi-Agent Orchestration/);
@@ -153,7 +155,7 @@ describe('omx setup AGENTS refresh behavior', () => {
       });
 
       const backupPath = join(wd, '.AGENTS.md.bkup2');
-      assert.match(output, new RegExp(`Backed up existing AGENTS\\.md to ${backupPath.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\.`));
+      assert.ok(output.includes(`Backed up existing AGENTS.md to ${backupPath}.`));
       assert.equal(await readFile(backupPath, 'utf-8'), existing);
     } finally {
       restoreHome();
@@ -167,7 +169,7 @@ describe('omx setup AGENTS refresh behavior', () => {
     const restoreTty = setMockTty(false);
     const home = join(wd, 'home');
     const restoreHome = setMockHome(home);
-    const template = readFileSync(join(process.cwd(), 'templates', 'AGENTS.md'), 'utf-8');
+    const template = readFileSync(join(getPackageRoot(), 'templates', 'AGENTS.md'), 'utf-8');
     try {
       await mkdir(join(wd, '.omx', 'state'), { recursive: true });
       const existing = upsertAgentsModelTable(
@@ -322,10 +324,11 @@ describe('omx setup AGENTS refresh behavior', () => {
     const existing = '# active session file\n';
     try {
       const pidStartTicks = await readCurrentLinuxStartTicks();
-      await mkdir(join(wd, '.omx', 'state'), { recursive: true });
+      const stateDir = specifyRuntimeStateDir(wd);
+      await mkdir(stateDir, { recursive: true });
       await writeFile(join(wd, 'AGENTS.md'), existing);
       await writeFile(
-        join(wd, '.omx', 'state', 'session.json'),
+        join(stateDir, 'session.json'),
         JSON.stringify({
           session_id: 'sess-test',
           started_at: new Date().toISOString(),

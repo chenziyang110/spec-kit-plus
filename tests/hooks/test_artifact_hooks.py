@@ -44,6 +44,23 @@ def test_validate_artifacts_accepts_tasks_outputs_when_present(tmp_path: Path):
     assert result.errors == []
 
 
+def test_validate_artifacts_accepts_deep_research_outputs_when_present(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "deep-research.md").write_text("# Deep Research\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "deep-research", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
 def test_validate_artifacts_accepts_constitution_outputs_when_present(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"

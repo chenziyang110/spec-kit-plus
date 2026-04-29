@@ -3,7 +3,7 @@ description: Use when you need to bootstrap or refresh the project's unit testin
 workflow_contract:
   when_to_use: The repository needs a durable unit testing system, testing contract, or coverage baseline before later feature work can stay reliably inside a TDD loop.
   primary_objective: Inventory the current test surface, establish or refresh framework/config/test coverage, and write a project-level testing contract that later workflows consume automatically.
-  primary_outputs: '`.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/COVERAGE_BASELINE.json`, `.specify/testing/testing-state.md`, plus any repository-local test framework/config updates justified by the audit.'
+  primary_outputs: '`.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/COVERAGE_BASELINE.json`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, `.specify/testing/testing-state.md`, plus any repository-local test framework/config updates justified by the audit.'
   default_handoff: Resume `/sp-specify`, `/sp-plan`, `/sp-tasks`, `/sp-implement`, or `/sp-debug` with the generated testing contract in force.
 ---
 
@@ -45,12 +45,12 @@ workflow_contract:
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command test --format json` when available so passive learning files exist, the current testing-system run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+- [AGENT] Run `specify learning start --command test --format json` when available so passive learning files exist, the current testing-system run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader testing-system analysis.
 - Review `.planning/learnings/candidates.md` only when it still contains testing-relevant candidate learnings after the passive start step, especially repeated flaky areas, framework constraints, or project defaults that should influence the generated testing contract.
 - [AGENT] When testing-system friction appears, run `specify hook signal-learning --command test ...` with validation-failure, artifact-rewrite, false-start, or hidden-dependency counts.
 - [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command test --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `verification_gap`, `state_surface_gap`, `pitfall`, `workflow_gap`, or `project_constraint` exists.
-- [AGENT] Prefer `specify hook capture-learning --command test ...` when testing work exposes reusable framework traps, missing verification paths, flaky surfaces, or injection targets.
+- [AGENT] Prefer `specify learning capture-auto --command test --format json` when testing-state already captures reusable gaps, follow-up routing, or validation evidence. Fall back to `specify hook capture-learning --command test ...` when `testing-state.md` does not capture the reusable lesson cleanly.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Testing State Protocol
@@ -70,12 +70,13 @@ workflow_contract:
   - `open_gaps`
   - `adopted_frameworks`
   - `coverage_notes`
+  - `unit_test_system_request`
 
 ## Outline
 
 1. **Establish repository context**
    - Confirm the repository root and treat this workflow as project-level rather than feature-level.
-   - Check whether `.specify/project-map/status.json` exists.
+   - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If the testing surfaces are stale or weak, run `/sp-map-codebase` before continuing. Otherwise review the relevant topic files before trusting the current map.
@@ -87,7 +88,7 @@ workflow_contract:
      - which startup, CI, or operator commands are required to run tests safely
    - [AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - [AGENT] Read `PROJECT-HANDBOOK.md`.
-   - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+   - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.
 
 2. **Inventory the current testing surface**
@@ -154,7 +155,7 @@ workflow_contract:
    - Do not delete or silently rewrite existing user-owned tests unless the user explicitly asks for cleanup.
 
 7. **Generate durable testing assets**
-   - Read `.specify/templates/testing/testing-contract-template.md`, `.specify/templates/testing/testing-playbook-template.md`, and `.specify/templates/testing/coverage-baseline-template.json`.
+   - Read `.specify/templates/testing/testing-contract-template.md`, `.specify/templates/testing/testing-playbook-template.md`, `.specify/templates/testing/coverage-baseline-template.json`, and `.specify/templates/testing/unit-test-system-request-template.md`.
    - Write `.specify/testing/TESTING_CONTRACT.md` with:
      - project testing scope
      - mandatory testing rules for future work
@@ -172,14 +173,24 @@ workflow_contract:
      - TDD loop guidance for this repository
      - where new tests belong, how they should be named, and which helper/fixture layers they should reuse
    - Write `.specify/testing/COVERAGE_BASELINE.json` with current per-module baseline data and explicit unknowns where measurement is not yet reliable.
+   - Write `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as the professional-grade brownfield unit-test system request for later planning work. It must capture:
+     - current test-surface assessment by module
+     - `small / medium / large` test policy and target mix
+     - public-contract testing rule plus mock / fake strategy
+     - module risk tiers and module priority waves
+     - scenario matrix rows for critical public behavior, invalid input, boundary conditions, exception handling, and local integration seams
+     - coverage uplift waves, CI/presubmit gate policy, and allowed testability refactors
+     - the recommended next workflow route when the work continues beyond this bootstrap pass
 
 8. **Push the contract back into the main workflow**
    - Treat the generated testing contract as active project guidance for later `sp-plan`, `sp-tasks`, `sp-implement`, and `sp-debug` runs.
    - If the contract exists after this run, later workflows should no longer treat tests as globally optional for affected behavior changes.
+   - Treat `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as the primary brownfield testing-program input whenever the repository needs a phased unit-test construction or coverage uplift program.
 
 9. **Validation and reporting**
    - Set `TESTING_STATE_FILE` to `validating` while checking:
      - the testing contract and playbook exist
+     - the unit-test system request exists when brownfield test-system work was discovered
      - the module inventory is complete enough for later workflows
      - canonical test and coverage commands are explicit
      - the selected framework ownership is recorded for each touched module
@@ -193,11 +204,14 @@ workflow_contract:
    - Recommend exactly one next command and persist the recommendation in `TESTING_STATE_FILE` as `next_command`, `next_action`, and `handoff_reason`.
    - Route the recommendation using this order:
      - If no actionable gaps remain and the repository now has a usable testing contract, resume the previous workflow. If no prior workflow context is recoverable, fall back to the metadata default handoff.
-     - If the remaining work is a single bounded module or surface, such as one failing test file, one config issue, one translation key, or one local fixture/helper repair, recommend `/sp-quick`.
+     - If the remaining work is a single command, config, or helper repair with obvious local verification, recommend `/sp-fast`.
+     - If the remaining work is a single bounded module or surface, such as one failing test file, one module-specific harness pass, or one local fixture/helper repair, recommend `/sp-quick`.
      - If the remaining work spans multiple modules, multiple failure classes, a coverage uplift program, or changes that need explicit scope and acceptance planning, recommend `/sp-specify`.
      - If the remaining work is an execution-time regression inside an already active feature and the failure still needs diagnosis, recommend `/sp-debug`.
      - If the remaining work is an execution-time regression inside an already active feature and the fix path is already understood and bounded, resume `/sp-implement`.
    - Include the recommended next command and one-line rationale in the final report so the workflow does not end in a dead-end audit summary.
+   - When recommending `/sp-specify`, explicitly name `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as required starting context for the brownfield testing-system program.
+   - When recommending `/sp-quick` or `/sp-fast`, name the single module, risk tranche, coverage wave, or tiny harness/config/helper repair that should be executed next from the request.
    - [AGENT] Before the final completion report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `specify learning capture --command test ...`.
 
 10. **Check for extension hooks**

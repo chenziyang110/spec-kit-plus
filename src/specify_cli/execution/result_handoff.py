@@ -16,7 +16,7 @@ def describe_result_handoff_template(*, command_name: str, integration_key: str)
     normalized_integration = integration_key.strip().lower()
 
     if normalized_integration == "codex":
-        return ".specify/codex-team/state/results/<request-id>.json"
+        return ".specify/teams/state/results/<request-id>.json"
     if normalized_command == "implement":
         return "FEATURE_DIR/worker-results/<task-id>.json"
     if normalized_command == "quick":
@@ -46,7 +46,7 @@ def build_result_handoff_path(
     if normalized_integration == "codex":
         if not request_id:
             raise ValueError("request_id is required for codex result handoff paths")
-        return project_root / ".specify" / "codex-team" / "state" / "results" / f"{request_id}.json"
+        return project_root / ".specify" / "teams" / "state" / "results" / f"{request_id}.json"
 
     if normalized_command == "implement":
         if feature_dir is None or not task_id:

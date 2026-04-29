@@ -81,7 +81,13 @@ def _run_powershell(repo: Path, *args: str) -> dict:
 def _seed_canonical_map(repo: Path) -> None:
     (repo / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
     project_map_dir = repo / ".specify" / "project-map"
-    project_map_dir.mkdir(parents=True, exist_ok=True)
+    index_dir = project_map_dir / "index"
+    root_dir = project_map_dir / "root"
+    index_dir.mkdir(parents=True, exist_ok=True)
+    root_dir.mkdir(parents=True, exist_ok=True)
+    (index_dir / "atlas-index.json").write_text("{}\n", encoding="utf-8")
+    (index_dir / "modules.json").write_text('{"modules":[]}\n', encoding="utf-8")
+    (index_dir / "relations.json").write_text('{"relations":[]}\n', encoding="utf-8")
     for name in (
         "ARCHITECTURE.md",
         "STRUCTURE.md",
@@ -91,7 +97,7 @@ def _seed_canonical_map(repo: Path) -> None:
         "TESTING.md",
         "OPERATIONS.md",
     ):
-        (project_map_dir / name).write_text(f"# {name}\n", encoding="utf-8")
+        (root_dir / name).write_text(f"# {name}\n", encoding="utf-8")
 
 
 def _commit_seeded_map(repo: Path) -> None:
@@ -107,7 +113,7 @@ def test_bash_project_map_freshness_lifecycle(git_repo: Path):
     _commit_seeded_map(git_repo)
     refreshed = _run_bash(git_repo, "record-refresh", "manual")
     assert refreshed["freshness"] == "fresh"
-    assert refreshed["status_path"].endswith(".specify/project-map/status.json")
+    assert refreshed["status_path"].endswith(".specify/project-map/index/status.json")
 
     dirty = _run_bash(git_repo, "mark-dirty", "shared_surface_changed")
     assert dirty["freshness"] == "stale"
@@ -150,7 +156,7 @@ def test_bash_complete_refresh_uses_map_codebase_reason(git_repo: Path):
     refreshed = _run_bash(git_repo, "complete-refresh")
 
     assert refreshed["freshness"] == "fresh"
-    status_path = git_repo / ".specify" / "project-map" / "status.json"
+    status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
     payload = json.loads(status_path.read_text(encoding="utf-8"))
     assert payload["last_refresh_reason"] == "map-codebase"
     assert payload["last_refresh_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md"]
@@ -175,7 +181,7 @@ def test_bash_check_downgrades_to_review_only_when_partial_refresh_already_cover
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
 
-    status_path = git_repo / ".specify" / "project-map" / "status.json"
+    status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
     status_path.parent.mkdir(parents=True, exist_ok=True)
     status_path.write_text(
         json.dumps(
@@ -213,7 +219,7 @@ def test_bash_check_downgrades_to_review_only_when_partial_refresh_already_cover
 
 
 def test_powershell_check_downgrades_to_review_only_when_partial_refresh_already_covers_topics(git_repo: Path):
-    status_path = git_repo / ".specify" / "project-map" / "status.json"
+    status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
     status_path.parent.mkdir(parents=True, exist_ok=True)
     status_path.write_text(
         json.dumps(

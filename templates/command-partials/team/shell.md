@@ -5,7 +5,7 @@ Point the user at the supported Codex team/runtime surface and keep unsupported 
 ## Context
 
 - This surface is Codex-only.
-- It exists to route users to the official `specify team` product entry point rather than to internal runtime plumbing.
+- It exists to route users to the official `sp-teams` product entry point rather than to internal runtime plumbing.
 - The runtime still requires a tmux-capable environment and the generated Codex team assets.
 
 ## Process

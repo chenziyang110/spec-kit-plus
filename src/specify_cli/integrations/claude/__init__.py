@@ -20,10 +20,12 @@ from .multi_agent import ClaudeMultiAgentAdapter
 ARGUMENT_HINTS: dict[str, str] = {
     "specify": "Describe the feature you want to specify",
     "clarify": "Describe what in the current spec package needs deeper analysis or correction",
+    "deep-research": "Describe the feasibility question, research tracks, or demo proof needed before planning handoff",
     "explain": "Optionally name the stage or artifact you want explained",
     "debug": "Describe the bug to investigate, or leave blank to resume the most recent session",
     "fast": "Describe the trivial local fix, or leave blank to use the current fast-path context",
     "quick": "Describe the bounded quick task, or leave blank to resume the current quick-task workspace",
+    "auto": "Optional continue request or routing hint; leave blank to let repository state choose the next workflow",
     "plan": "Optional guidance for the planning phase",
     "tasks": "Optional task generation constraints",
     "implement": "Optional implementation guidance or task filter",
@@ -453,31 +455,10 @@ class ClaudeIntegration(SkillsIntegration):
             "- Prefer delegated child-worker fan-out over local deep-dive execution when the ready tasks have isolated write sets and stable upstream inputs.\n"
             "- Do not begin concrete implementation on the leader path while an untried delegated path is available for the current batch.\n"
             "- Only fall back to leader-local execution after recording a concrete fallback reason in `FEATURE_DIR/implement-tracker.md`.\n"
-            "- If the current batch needs durable shared coordination or explicit teammate messaging, escalate to `/sp-implement-teams` instead of simulating that coordination on the leader path.\n"
         )
         if "## Leader Role" in content:
             return content.replace("## Leader Role", addendum + "\n## Leader Role", 1)
         return content + addendum
-
-    def _append_agent_teams_escalation(
-        self,
-        *,
-        content: str,
-    ) -> str:
-        marker = "## Claude Agent Teams Escalation"
-        if marker in content:
-            return content
-
-        addendum = (
-            "\n"
-            "## Claude Agent Teams Escalation\n\n"
-            "- If durable coordinated execution is required, switch to `/sp-implement-teams` instead of inventing an ad hoc leader-local loop.\n"
-            "- Treat `/sp-implement-teams` as a backend swap for `/sp-implement`, not as a separate implementation contract.\n"
-            "- Treat `/sp-implement-teams` as the Claude-native surface for shared team state, task dependencies, teammate messaging, and shutdown.\n"
-            "- Do not redirect Claude users to Codex runtime surfaces or Codex extension commands.\n"
-        )
-        return content + addendum
-
     def _install_claude_specific_skills(
         self,
         *,
@@ -720,8 +701,6 @@ class ClaudeIntegration(SkillsIntegration):
                 content=content,
                 skill_name=command_name,
             )
-            if command_name == "implement":
-                content = self._append_agent_teams_escalation(content=content)
             path.write_bytes(content.encode("utf-8"))
             self.record_file_in_manifest(path, project_root, manifest)
 

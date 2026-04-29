@@ -148,7 +148,8 @@ render_speckit_managed_block() {
 ## Workflow Mainline
 
 - Treat `specify -> plan` as the default path.
-- Use `spec-extend` only when an existing spec needs deeper analysis before planning.
+- Use `clarify` only when an existing spec needs deeper analysis before planning.
+- Use `deep-research` only when requirements are clear but feasibility or the implementation chain must be proven before planning; its research findings, demo evidence, and Planning Handoff become inputs to `plan`.
 
 ## Brownfield Context Gate
 
@@ -167,6 +168,7 @@ render_speckit_managed_block() {
 - Use `sp-fast` only for trivial, low-risk local changes that do not need planning artifacts.
 - Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.
 - Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.
+- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.
 - Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
 - Use `sp-test` when the project-level testing contract or testing system coverage needs bootstrap, refresh, or audit work.
 
@@ -175,15 +177,16 @@ render_speckit_managed_block() {
 - `.specify/memory/constitution.md` is the principle-level source of truth when present.
 - `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress.
 - `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.
+- `deep-research.md`, its `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.
 - `plan.md` under the active feature directory is the implementation design source of truth once planning begins.
 - `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.
 - `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain implementation and debugging when present.
-- `.specify/project-map/status.json` determines whether handbook/project-map coverage can be trusted as fresh.
+- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh.
 
 ## Map Maintenance
 
 - If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.
-- If that refresh cannot happen in the current pass, mark `.specify/project-map/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-codebase`.
+- If that refresh cannot happen in the current pass, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-codebase`.
 - Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the navigation system current.
 
 - Preserve content outside this managed block.
@@ -805,7 +808,7 @@ update_specific_agent() {
             ;;
         codex)
             update_agent_file "$AGENTS_FILE" "Codex CLI" || return 1
-            log_info "Codex team/runtime uses the specify-owned surface: specify team"
+            log_info "Codex team/runtime uses the specify-owned surface: sp-teams"
             ;;
         windsurf)
             update_agent_file "$WINDSURF_FILE" "Windsurf" || return 1

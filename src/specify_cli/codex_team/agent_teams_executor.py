@@ -1,4 +1,4 @@
-"""Batch executor that bridges ``specify team`` dispatches into agent-teams runtime-cli."""
+"""Batch executor that bridges ``sp-teams`` dispatches into agent-teams runtime-cli."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def _write_runtime_transcript(
 def _resolve_agent_types(worker_count: int) -> list[str]:
     raw_map = (
         os.environ.get("SP_TEAMS_WORKER_CLI_MAP", "").strip()
-        or os.environ.get("OMX_TEAM_WORKER_CLI_MAP", "").strip()
+        or os.environ.get("SPECIFY_TEAM_WORKER_CLI_MAP", "").strip()
     )
     if raw_map:
         values = [value.strip().lower() for value in raw_map.split(",") if value.strip()]
@@ -68,7 +68,7 @@ def _resolve_agent_types(worker_count: int) -> list[str]:
 
     raw_single = (
         os.environ.get("SP_TEAMS_WORKER_CLI", "").strip()
-        or os.environ.get("OMX_TEAM_WORKER_CLI", "").strip()
+        or os.environ.get("SPECIFY_TEAM_WORKER_CLI", "").strip()
     ).lower()
     if raw_single in SUPPORTED_AGENT_TYPES:
         return [raw_single] * max(1, worker_count)
@@ -211,7 +211,7 @@ def run_manifest(project_root: Path, manifest_path: Path) -> int:
 
     env = {
         **os.environ,
-        "OMX_TEAM_STATE_ROOT": str(state_root),
+        "SPECIFY_TEAM_STATE_ROOT": str(state_root),
         "SP_TEAMS_STATE_ROOT": str(state_root),
     }
     if os.name == "nt":

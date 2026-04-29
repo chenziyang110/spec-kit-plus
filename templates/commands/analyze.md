@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: '`tasks.md` is available and you need a read-only analysis pass before, during, or after implementation revalidation.'
   primary_objective: 'Identify inconsistencies, ambiguities, drift, and boundary-guardrail gaps across `spec.md`, `context.md`, `plan.md`, and `tasks.md`.'
   primary_outputs: A structured analysis report plus workflow-state gate updates. This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`.
-  default_handoff: Route into `/sp-clarify`, `/sp-plan`, `/sp-tasks`, `/sp-debug`, or `/sp-implement` based on the findings; if analysis runs after implementation has started or finished, reopen the highest invalid stage and regenerate downstream artifacts before continuing.
+  default_handoff: Route into `/sp-clarify`, `/sp-deep-research`, `/sp-plan`, `/sp-tasks`, `/sp-debug`, or `/sp-implement` based on the findings; if analysis runs after implementation has started or finished, reopen the highest invalid stage and regenerate downstream artifacts before continuing.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
@@ -43,7 +43,8 @@ Identify inconsistencies, duplications, ambiguities, and underspecified items ac
 - Before final gate reporting, use `specify hook validate-artifacts --command analyze --feature-dir "$FEATURE_DIR"` so the required analyze-side artifact set is checked by the shared hook surface.
 - Before compaction-risk transitions or after large findings synthesis, use `specify hook checkpoint --command analyze --feature-dir "$FEATURE_DIR"` to emit a resume-safe checkpoint payload from `workflow-state.md`.
 - Run `specify learning start --command analyze --format json` when available, then use `specify hook signal-learning --command analyze ...` if the analysis exposes repeated artifact rewrites, route changes, false starts, or hidden dependencies.
-- Before final cleared or blocked gate reporting, run `specify hook review-learning --command analyze --terminal-status <resolved|blocked> ...`; capture reusable `workflow_gap`, `routing_mistake`, `state_surface_gap`, `verification_gap`, or `project_constraint` findings with `specify hook capture-learning --command analyze ...`.
+- Before final cleared or blocked gate reporting, run `specify hook review-learning --command analyze --terminal-status <resolved|blocked> ...`.
+- Prefer `specify learning capture-auto --command analyze --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command analyze ...` when the durable state does not capture the reusable lesson cleanly.
 
 ## Execution Steps
 
@@ -66,12 +67,12 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 
 ### 2. Ensure repository navigation system exists
 
-- Check whether `.specify/project-map/status.json` exists.
+- Check whether `.specify/project-map/index/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 - If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current analysis request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for analysis.
 - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
-- Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+- Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
 - If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - If task-relevant coverage is insufficient for the current analysis request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
@@ -83,7 +84,7 @@ Load only the minimal necessary context from each artifact:
 **From handbook/project map:**
 
 - Read `PROJECT-HANDBOOK.md`
-- Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`
+- Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`
 - If topical coverage is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
 
 **From spec.md:**
@@ -275,6 +276,7 @@ At end of report, output a concise Next Actions block:
 After `Next Actions`, output a short `Recommended Re-entry` block that names the highest workflow stage that must be reopened and the minimum downstream regeneration path. Use this routing table:
 
 - If the highest-impact issue lives in `spec.md` or `context.md`: route to `/sp-clarify` (or a targeted manual spec/context edit), then `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
+- If the highest-impact issue is a clear requirement with an unproven implementation chain: route to `/sp-deep-research`, then `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
 - If the highest-impact issue lives in `plan.md`: route to `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
 - If the highest-impact issue lives only in `tasks.md`: route to `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
 - If the issues are limited to execution evidence, worker packets, runtime handoff state, or implementation-only verification gaps with no upstream artifact drift: route to `/sp-implement` or `/sp-debug` as appropriate

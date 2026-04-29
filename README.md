@@ -138,7 +138,8 @@ After `specify init`, use the generated workflow commands in your agent:
 2. `specify` to produce a planning-ready, analysis-first feature spec
 3. `plan` to define implementation design
 4. `tasks` to break work into executable tasks
-5. `implement` to execute the task plan (supports autonomous loop via `/sp-autonomous`)
+5. `implement` to execute the task plan
+6. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
 
 Built-in constitution profiles:
 
@@ -158,16 +159,18 @@ specify -> plan
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- Support skills: `map-codebase`, `test`, `clarify`, `checklist`, `analyze`, `debug`, `explain`
-- Codex-only runtime: `specify team` and `sp-team`
+- Support skills: `map-codebase`, `test`, `auto`, `clarify`, `deep-research`, `checklist`, `analyze`, `debug`, `explain`
+- Codex-only runtime: `sp-teams`
 
 Conditional gates and follow-up commands:
 
 - `map-codebase` is the required brownfield gate for an existing codebase; generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before specification, planning, task generation, or implementation continues
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
-- `specify`, `clarify`, `plan`, and `tasks` do not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/status.json` dirty and run `map-codebase` as the follow-up refresh workflow
-- `test` to bootstrap or refresh a durable project-wide unit testing system using bundled language testing skills, establish a coverage baseline, capture manual validation evidence, and write a durable testing contract plus standard test/coverage playbook
+- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `map-codebase` as the follow-up refresh workflow
+- `test` to bootstrap or refresh a durable project-wide unit testing system using bundled language testing skills, establish a coverage baseline, capture manual validation evidence, and write a durable testing contract plus standard test/coverage playbook; for brownfield coverage programs it also emits `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` so follow-on work can be routed into `sp-specify`, `sp-quick`, or `sp-fast`
+- `auto` to resume the recommended next workflow step from current repository state; it reads canonical state surfaces such as `workflow-state.md`, `implement-tracker.md`, `.specify/testing/testing-state.md`, quick-task `STATUS.md`, and debug session files, then continues under the routed workflow's contract without rewriting downstream `next_command` to `sp-auto`
 - `clarify` to deepen an existing spec before planning when analysis, references, or gaps need more work
+- `deep-research` to coordinate focused feasibility research, optional multi-agent evidence gathering, and disposable demos before planning when requirements are clear but a capability still lacks a credible implementation chain; it writes a `Planning Handoff` for `plan` and should be skipped for minor tweaks to already-proven project behavior
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
 - `analyze` is the default pre-implementation gate once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` before implementation starts
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
@@ -177,7 +180,7 @@ Conditional gates and follow-up commands:
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing worker validation evidence)
 
 Already have code? Run `map-codebase` first and treat it as the required brownfield gate before deeper specification, planning, task generation, or implementation work.
-Generated projects also track handbook freshness in `.specify/project-map/status.json`, so brownfield workflows can decide whether the current atlas baseline is fresh, possibly stale, or stale before proceeding.
+Generated projects also track handbook freshness in `.specify/project-map/index/status.json`, so brownfield workflows can decide whether the current atlas baseline is fresh, possibly stale, or stale before proceeding.
 
 Routing guide for lightweight work:
 
@@ -186,6 +189,7 @@ Routing guide for lightweight work:
 - `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
 - Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` now follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, bootstrap it through `sp-test` before continuing.
+- For brownfield repositories with weak legacy coverage, let `sp-test` generate `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and treat it as the starting artifact for any testing-system program or coverage uplift program that must continue through `sp-specify`, `sp-quick`, or `sp-fast`.
 - Quick workspaces now live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the task source of truth and `.planning/quick/index.json` as a derived management index.
 - Invoking `sp-quick` with no arguments should resume unfinished quick work when possible. If only one unfinished quick task exists, continue it automatically. `blocked` quick tasks still count as resumable unfinished work.
 - Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage tracked quick tasks. `specify quick list` defaults to unfinished quick tasks.
@@ -296,13 +300,14 @@ Boundary-sensitive implementation rule:
 - `implement` should treat those guardrails as binding execution constraints and confirm the touched boundary's owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
 - Delegated execution should no longer rely on raw task text when architecture or quality rules matter.
 - `plan` should provide `Dispatch Compilation Hints`.
-- `implement` should compile and validate a `WorkerTaskPacket` before dispatching native workers or sidecar workers.
+- `implement` should compile and validate a `WorkerTaskPacket` before dispatching native workers.
 - Delegated packets should carry platform guardrails when a lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
 
 Current `sp-implement` runtime model in this fork:
 
 - `sp-implement` acts as a milestone-level orchestration leader rather than the direct executor
-- concrete implementation runs through delegated execution paths (`single-lane`, `native-multi-agent`, or `sidecar-runtime`)
+- concrete implementation runs through delegated native execution paths (`single-lane` or `native-multi-agent`), and otherwise stays on the leader path with an explicit fallback reason
+- durable teams/runtime execution is an explicit alternate surface (`sp-implement-teams` / `sp-teams`), not an internal fallback hidden inside `sp-implement`
 - delegated workers should execute from compiled `WorkerTaskPacket` contracts rather than rediscovering rules from background context
 - delegated result handoff should use the runtime-managed result channel when one exists; otherwise workers should write normalized result envelopes to the declared filesystem handoff path for the current workflow
 - implementation lanes without a runtime-managed channel should use `FEATURE_DIR/worker-results/<task-id>.json`
@@ -325,8 +330,8 @@ Current `sp-implement` runtime model in this fork:
 Shared runtime-facing guidance across integrations:
 
 - `sp-implement`, `sp-debug`, and `sp-quick` now all carry a shared leader contract, delegation-surface contract, and worker-result contract across Markdown, TOML, and skills-based integrations.
-- The shared contract is integration-neutral: leader role, join-point discipline, structured handoff expectations, `reported_status` preservation, and sidecar fallback semantics are common across CLIs.
-- Only the concrete native dispatch surface remains integration-specific. For example, Codex may name `spawn_agent` and `specify team`, while another CLI may expose only a generic native delegated worker surface or no sidecar runtime at all.
+- The shared contract is integration-neutral: leader role, join-point discipline, structured handoff expectations, and `reported_status` preservation are common across CLIs. Workflow-specific fallback semantics stay explicit in the command guidance.
+- Only the concrete native dispatch surface remains integration-specific. For example, Codex may name `spawn_agent` and `sp-teams`, while another CLI may expose only a generic native delegated worker surface or no sidecar runtime at all.
 
 For Codex and other skills-based integrations, the generated commands are installed in skills form. Codex now uses the dedicated `.codex/skills/` directory for generated skills.
 
@@ -342,11 +347,12 @@ Skills-based projects now install two layers into the same skills directory:
 Current orchestration status in this fork:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
-- `specify`, `plan`, `tasks`, `test`, `map-codebase`, `explain`, `debug`, `implement`, and `quick` now surface `single-lane`, `native-multi-agent`, and `sidecar-runtime` in user-facing workflow guidance
+- `specify`, `plan`, `tasks`, `test`, `map-codebase`, `explain`, `debug`, and `quick` surface `single-lane`, `native-multi-agent`, and `sidecar-runtime` in user-facing workflow guidance
+- `implement` now surfaces `single-lane` and `native-multi-agent`; when native delegation is unavailable or low-confidence, it stays on the leader path with an explicit fallback reason instead of switching execution surfaces internally
 - `single-lane` is the topology label for one safe execution lane, not a synonym for either worker-only or leader-only execution
 - in execution-oriented workflows, prefer delegated worker execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
-- `specify team` remains the Codex compatibility surface for runtime-heavy execution
+- `sp-teams` remains the Codex runtime-heavy execution surface
 - Claude, Gemini, and Copilot ship first-release adapter skeletons (alongside Codex) for native-first capability reporting
 - durable runtime maturity for `implement` and `debug`, plus wider integration rollout, remain future work
 
@@ -357,21 +363,21 @@ This repository is no longer only a Milestone 1 slice, but the full execution/ru
 This fork now exposes a Codex-only first-release team/runtime surface through:
 
 ```bash
-specify team
+sp-teams
 ```
 
-### The `specify team` surface
+### The `sp-teams` surface
 
-`specify team` is the official CLI surface for the runtime. All operations start from this command, so avoid advertising other entry points such as `omx` or `$team`.
+`sp-teams` is the official CLI surface for the runtime. All operations start from this command, so avoid advertising legacy aliases or alternate entry points.
 
-- `specify team watch` opens a full-screen observer over members and flow, with lightweight terminal interaction for focus switching, detail expansion, and view cycling.
-- `specify team status` dumps the latest JSON snapshot of the team phase, worker roster, task queue, and mailbox state.
-- `specify team await` blocks until the runtime reaches a terminal phase so operators can wait for batch completion.
-- `specify team resume` re-attaches to an existing runtime session by replaying the metadata in `.specify/codex-team/` and restarting the tmux backend.
-- `specify team shutdown` requests a graceful stop, letting workers finish or fail their in-flight tasks before tearing down.
-- `specify team cleanup` removes `.specify/codex-team/` state after shutdown succeeds; run it only once shutdown has settled to avoid corrupting the state folder.
-- `specify team submit-result --request-id <id> --result-file <path>` validates and records a structured worker result for an existing dispatch. Use `specify team result-template --request-id <id>` only to generate the canonical `pending` placeholder; do not submit that template unchanged.
-- `specify team api <operation>` proxies structured JSON operations (task claims, worker heartbeats, events) into the runtime; use it when automation needs a predictable channel.
+- `sp-teams watch` opens a full-screen observer over members and flow, with lightweight terminal interaction for focus switching, detail expansion, and view cycling.
+- `sp-teams status` dumps the latest JSON snapshot of the team phase, worker roster, task queue, and mailbox state.
+- `sp-teams await` blocks until the runtime reaches a terminal phase so operators can wait for batch completion.
+- `sp-teams resume` re-attaches to an existing runtime session by replaying the metadata in `.specify/teams/` and restarting the tmux backend.
+- `sp-teams shutdown` requests a graceful stop, letting workers finish or fail their in-flight tasks before tearing down.
+- `sp-teams cleanup` removes `.specify/teams/` state after shutdown succeeds; run it only once shutdown has settled to avoid corrupting the state folder.
+- `sp-teams submit-result --request-id <id> --result-file <path>` validates and records a structured worker result for an existing dispatch. Use `sp-teams result-template --request-id <id>` only to generate the canonical `pending` placeholder; do not submit that template unchanged.
+- `sp-teams api <operation>` proxies structured JSON operations (task claims, worker heartbeats, events) into the runtime; use it when automation needs a predictable channel.
 
 For agents and automation, prefer the optional MCP supplement instead of having the model compose CLI invocations directly:
 
@@ -379,13 +385,13 @@ For agents and automation, prefer the optional MCP supplement instead of having 
 - install the optional facade with `pip install "specify-cli[mcp]"`; Codex config can register it only when that extra is available
 - if you install the MCP extra after project init, refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`
 - the MCP layer is intended for agent/tool consumers
-- `specify team` remains the human/operator CLI and parity fallback surface
+- `sp-teams` remains the human/operator CLI and parity fallback surface
 
-This command suite powers both the `sp-team` skill and the runtime APIs that downstream tooling relies on, which is why the command is restricted to Codex-initiated projects.
+This command suite powers both the `sp-teams` skill and the runtime APIs that downstream tooling relies on, which is why the command is restricted to Codex-initiated projects.
 
 ### Runtime state location and lifecycle
 
-All runtime state lives under `.specify/codex-team/`:
+All runtime state lives under `.specify/teams/`:
 
 - `runtime.json` contains the active session metadata and canonical root paths.
 - `state/` holds per-object JSON files (`tasks/*.json`, `workers/*.json`, `mailboxes/*.json`, `dispatch/*.json`) along with `phase.json` and `events.log` for the lifecycle stream.
@@ -393,20 +399,20 @@ All runtime state lives under `.specify/codex-team/`:
 
 Lifecycle notes:
 
-- Tasks run through `pending -> in_progress -> completed|failed` and emit events that `specify team status` surfaces.
+- Tasks run through `pending -> in_progress -> completed|failed` and emit events that `sp-teams status` surfaces.
 - Workers claim tasks with identity records, write heartbeats under `state/workers`, and consume mailbox messages from `state/mailboxes`.
-- Structured worker results live under `state/results/` and are submitted through `specify team submit-result` / `specify team api submit-result` before `complete-batch` should mark a structured-result batch done.
-- Shutdown requests append a terminal event, and cleanup removes the `.specify/codex-team/` directory once all JSON files have been archived.
+- Structured worker results live under `state/results/` and are submitted through `sp-teams submit-result` / `sp-teams api submit-result` before `complete-batch` should mark a structured-result batch done.
+- Shutdown requests append a terminal event, and cleanup removes the `.specify/teams/` directory once all JSON files have been archived.
 
 Operators should treat this directory as the single source of truth for resumes, restarts, and audits, and not attempt to recreate state outside the official CLI surface.
 
 ### Operator guidance and backend requirements
 
 - The runtime currently requires a tmux-capable backend (`tmux` on Unix/WSL or a Windows-compatible alternative) to host worker panes; the CLI validates the backend before bootstrapping a session.
-- `specify team watch` is the operator-facing live board: use it when you need a continuous view of members and flow instead of one-shot diagnostics.
-- Use `specify team resume` whenever a previously-running session still holds worker heartbeats or task claims to prevent duplicate boots.
-- Issue `specify team shutdown` before terminating the tmux backend so the runtime can flush claims and notify join points, then run `specify team cleanup` once the CLI reports the phase is `shutdown`/`cleaned`.
-- `specify team await` is useful for scripts that need to pause until the team exits the `dispatch` phase without polling `state/` files directly.
+- `sp-teams watch` is the operator-facing live board: use it when you need a continuous view of members and flow instead of one-shot diagnostics.
+- Use `sp-teams resume` whenever a previously-running session still holds worker heartbeats or task claims to prevent duplicate boots.
+- Issue `sp-teams shutdown` before terminating the tmux backend so the runtime can flush claims and notify join points, then run `sp-teams cleanup` once the CLI reports the phase is `shutdown`/`cleaned`.
+- `sp-teams await` is useful for scripts that need to pause until the team exits the `dispatch` phase without polling `state/` files directly.
 
 ### Release isolation guidance
 
@@ -414,16 +420,16 @@ Current release scope:
 
 - Codex-only for first release
 - requires a tmux-capable environment
-- installs the Codex team skill as `sp-team`
+- installs the Codex team skill as `sp-teams`
 - keeps non-Codex integrations free of the team/runtime surface by default
-- installs runtime helper assets only under `.specify/codex-team/` for Codex projects
+- installs runtime helper assets only under `.specify/teams/` for Codex projects
 
 Existing Codex projects may use an optional upgrade path, but that upgrade remains optional, non-blocking release support rather than a first-release requirement.
 
 Release isolation guidance:
 
-- `specify init --ai codex` may generate `sp-team` and `.specify/codex-team/*`
-- non-Codex init flows must not generate `sp-team`, `.specify/codex-team/*`, or advertise `specify team`
+- `specify init --ai codex` may generate `sp-teams` and `.specify/teams/*`
+- non-Codex init flows must not generate `sp-teams`, `.specify/teams/*`, or advertise `sp-teams`
 - `omx` and `$team` are not the supported product surface for this repository
 
 Maintainer note:
@@ -501,7 +507,7 @@ Navigation and technical truth are now handbook-first:
 - Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
 - Deep project knowledge lives under `.specify/project-map/`.
 - Treat the combined handbook/project-map surface as an atlas-style technical encyclopedia for dependency graph, runtime flows, state lifecycle, and change-impact view.
-- `.specify/project-map/status.json` records the last successful map refresh and dirty state for freshness checks.
+- `.specify/project-map/index/status.json` records the last successful map refresh and dirty state for freshness checks.
 - After a successful `map-codebase` refresh, use `project-map complete-refresh` as the standard completion hook to record the new fresh baseline.
 - Any code change that alters navigation meaning must update the handbook system.
 

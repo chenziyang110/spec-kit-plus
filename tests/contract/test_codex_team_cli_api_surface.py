@@ -21,7 +21,7 @@ def _create_codex_project(tmp_path: Path) -> Path:
     spec_root.mkdir()
     integration_json = spec_root / "integration.json"
     integration_json.write_text(json.dumps({"integration": "codex"}), encoding="utf-8")
-    (spec_root / "codex-team").mkdir(parents=True, exist_ok=True)
+    (spec_root / "teams").mkdir(parents=True, exist_ok=True)
     return project
 
 
@@ -38,7 +38,7 @@ def _invoke_in_project(project: Path, args: list[str], env: dict[str, str] | Non
 
 def _seed_runtime_dispatch(project: Path, *, request_id: str = "req-submit", session_id: str = "default") -> Path:
     bootstrap_runtime_session(project, session_id)
-    packet_path = project / ".specify" / "codex-team" / "state" / "packets" / f"{request_id}.json"
+    packet_path = project / ".specify" / "teams" / "state" / "packets" / f"{request_id}.json"
     packet_path.parent.mkdir(parents=True, exist_ok=True)
     packet_path.write_text(
         """
@@ -93,7 +93,7 @@ def test_api_status_returns_json(tmp_path: Path):
     runtime_cli.write_text("// fake runtime cli\n", encoding="utf-8")
     env = os.environ.copy()
     env["SPECIFY_CODEX_TEAM_RUNTIME_CLI"] = str(runtime_cli)
-    result = _invoke_in_project(project, ["team", "api", "status"], env=env)
+    result = _invoke_in_project(project, ["sp-teams", "api", "status"], env=env)
     assert result.exit_code == 0, result.output
     envelope = json.loads(result.output.strip())
     assert envelope["operation"] == "status"
@@ -113,7 +113,7 @@ def test_api_status_returns_json(tmp_path: Path):
 def test_api_tasks_reports_existing_task(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     task_ops.create_task(project, task_id="api-task", summary="API task")
-    result = _invoke_in_project(project, ["team", "api", "tasks"])
+    result = _invoke_in_project(project, ["sp-teams", "api", "tasks"])
     assert result.exit_code == 0, result.output
     envelope = json.loads(result.output.strip())
     tasks = envelope["payload"]["tasks"]
@@ -122,7 +122,7 @@ def test_api_tasks_reports_existing_task(tmp_path: Path):
 
 def test_api_doctor_returns_json(tmp_path: Path):
     project = _create_codex_project(tmp_path)
-    result = _invoke_in_project(project, ["team", "api", "doctor"])
+    result = _invoke_in_project(project, ["sp-teams", "api", "doctor"])
 
     assert result.exit_code == 0, result.output
     envelope = json.loads(result.output.strip())
@@ -144,7 +144,7 @@ def test_api_live_probe_returns_json(tmp_path: Path):
                 "import sys",
                 "from pathlib import Path",
                 "payload = json.loads(sys.stdin.read())",
-                "state_root = Path(os.environ['OMX_TEAM_STATE_ROOT'])",
+                "state_root = Path(os.environ['SPECIFY_TEAM_STATE_ROOT'])",
                 "tasks_dir = state_root / 'team' / payload['teamName'] / 'tasks'",
                 "tasks_dir.mkdir(parents=True, exist_ok=True)",
                 "task = payload['tasks'][0]",
@@ -163,7 +163,7 @@ def test_api_live_probe_returns_json(tmp_path: Path):
     )
     env = os.environ.copy()
     env["SPECIFY_CODEX_TEAM_RUNTIME_CLI"] = str(runtime_cli)
-    result = _invoke_in_project(project, ["team", "api", "live-probe"], env=env)
+    result = _invoke_in_project(project, ["sp-teams", "api", "live-probe"], env=env)
 
     assert result.exit_code == 0, result.output
     envelope = json.loads(result.output.strip())
@@ -178,7 +178,7 @@ def test_api_submit_result_returns_json_and_persists_result(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "api", "submit-result", "--request-id", "req-submit", "--result-file", str(result_file)],
+        ["sp-teams", "api", "submit-result", "--request-id", "req-submit", "--result-file", str(result_file)],
     )
 
     assert result.exit_code == 0, result.output
@@ -197,7 +197,7 @@ def test_team_submit_result_command_accepts_worker_result_file(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "submit-result", "--request-id", "req-submit", "--result-file", str(result_file)],
+        ["sp-teams", "submit-result", "--request-id", "req-submit", "--result-file", str(result_file)],
     )
 
     assert result.exit_code == 0, result.output
@@ -233,7 +233,7 @@ def test_team_submit_result_command_normalizes_done_with_concerns_payload(tmp_pa
 
     result = _invoke_in_project(
         project,
-        ["team", "submit-result", "--request-id", "req-alias", "--result-file", str(result_file)],
+        ["sp-teams", "submit-result", "--request-id", "req-alias", "--result-file", str(result_file)],
     )
 
     assert result.exit_code == 0, result.output
@@ -247,7 +247,7 @@ def test_team_result_template_command_prints_canonical_payload(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "result-template", "--request-id", "req-template"],
+        ["sp-teams", "result-template", "--request-id", "req-template"],
     )
 
     assert result.exit_code == 0, result.output
@@ -263,7 +263,7 @@ def test_team_submit_result_print_schema_outputs_shape_hint(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "submit-result", "--print-schema"],
+        ["sp-teams", "submit-result", "--print-schema"],
     )
 
     assert result.exit_code == 0, result.output
@@ -283,7 +283,7 @@ def test_team_submit_result_reports_bom_payload_actionably(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "submit-result", "--request-id", "req-bom", "--result-file", str(result_file)],
+        ["sp-teams", "submit-result", "--request-id", "req-bom", "--result-file", str(result_file)],
     )
 
     assert result.exit_code != 0
@@ -301,7 +301,7 @@ def test_team_submit_result_reports_missing_required_fields_actionably(tmp_path:
 
     result = _invoke_in_project(
         project,
-        ["team", "submit-result", "--request-id", "req-missing-fields", "--result-file", str(result_file)],
+        ["sp-teams", "submit-result", "--request-id", "req-missing-fields", "--result-file", str(result_file)],
     )
 
     assert result.exit_code != 0
@@ -337,7 +337,7 @@ def test_team_submit_result_rejects_pending_template_payload_actionably(tmp_path
 
     result = _invoke_in_project(
         project,
-        ["team", "submit-result", "--request-id", "req-pending", "--result-file", str(result_file)],
+        ["sp-teams", "submit-result", "--request-id", "req-pending", "--result-file", str(result_file)],
     )
 
     assert result.exit_code != 0

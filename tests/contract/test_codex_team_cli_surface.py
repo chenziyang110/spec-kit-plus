@@ -19,7 +19,7 @@ def _create_codex_project(tmp_path: Path) -> Path:
     spec_root.mkdir()
     integration_json = spec_root / "integration.json"
     integration_json.write_text(json.dumps({"integration": "codex"}), encoding="utf-8")
-    (spec_root / "codex-team").mkdir(parents=True, exist_ok=True)
+    (spec_root / "teams").mkdir(parents=True, exist_ok=True)
     return project
 
 
@@ -46,7 +46,7 @@ def _invoke_in_project(project: Path, args: list[str], env: dict[str, str] | Non
 
 def test_team_status_subcommand_shows_runtime_info(tmp_path: Path):
     project = _create_codex_project(tmp_path)
-    result = _invoke_in_project(project, ["team", "status"])
+    result = _invoke_in_project(project, ["sp-teams", "status"])
     assert result.exit_code == 0, result.output
     assert "Codex team runtime" in result.output
     assert "runtime backend" in result.output
@@ -59,7 +59,7 @@ def test_team_status_subcommand_shows_runtime_info(tmp_path: Path):
 
 def test_team_status_subcommand_surfaces_missing_prerequisite_next_steps(tmp_path: Path):
     project = _create_codex_project(tmp_path)
-    result = _invoke_in_project(project, ["team", "status"])
+    result = _invoke_in_project(project, ["sp-teams", "status"])
 
     assert result.exit_code == 0, result.output
     assert "Next steps" in result.output
@@ -68,7 +68,7 @@ def test_team_status_subcommand_surfaces_missing_prerequisite_next_steps(tmp_pat
 
 def test_team_doctor_subcommand_shows_diagnostics(tmp_path: Path):
     project = _create_codex_project(tmp_path)
-    result = _invoke_in_project(project, ["team", "doctor"])
+    result = _invoke_in_project(project, ["sp-teams", "doctor"])
 
     assert result.exit_code == 0, result.output
     lowered = result.output.lower()
@@ -90,7 +90,7 @@ def test_team_live_probe_subcommand_shows_probe_result(tmp_path: Path):
                 "import sys",
                 "from pathlib import Path",
                 "payload = json.loads(sys.stdin.read())",
-                "state_root = Path(os.environ['OMX_TEAM_STATE_ROOT'])",
+                "state_root = Path(os.environ['SPECIFY_TEAM_STATE_ROOT'])",
                 "tasks_dir = state_root / 'team' / payload['teamName'] / 'tasks'",
                 "tasks_dir.mkdir(parents=True, exist_ok=True)",
                 "task = payload['tasks'][0]",
@@ -109,7 +109,7 @@ def test_team_live_probe_subcommand_shows_probe_result(tmp_path: Path):
     )
     env = os.environ.copy()
     env["SPECIFY_CODEX_TEAM_RUNTIME_CLI"] = str(runtime_cli)
-    result = _invoke_in_project(project, ["team", "live-probe"], env=env)
+    result = _invoke_in_project(project, ["sp-teams", "live-probe"], env=env)
 
     assert result.exit_code == 0, result.output
     lowered = result.output.lower()
@@ -119,11 +119,11 @@ def test_team_live_probe_subcommand_shows_probe_result(tmp_path: Path):
 
 def test_team_sync_back_subcommand_shows_candidate_files_in_dry_run(tmp_path: Path):
     project = _create_codex_project(tmp_path)
-    worker_file = project / ".specify" / "codex-team" / "worktrees" / "default" / "worker-a" / "src" / "app.py"
+    worker_file = project / ".specify" / "teams" / "worktrees" / "default" / "worker-a" / "src" / "app.py"
     worker_file.parent.mkdir(parents=True, exist_ok=True)
     worker_file.write_text("print('candidate')\n", encoding="utf-8")
 
-    result = _invoke_in_project(project, ["team", "sync-back", "--dry-run"])
+    result = _invoke_in_project(project, ["sp-teams", "sync-back", "--dry-run"])
 
     assert result.exit_code == 0, result.output
     lowered = result.output.lower()
@@ -134,7 +134,7 @@ def test_team_sync_back_subcommand_shows_candidate_files_in_dry_run(tmp_path: Pa
 def test_team_await_subcommand_reports_monitor_snapshot(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     task_ops.create_task(project, task_id="await-test", summary="Await me")
-    result = _invoke_in_project(project, ["team", "await"])
+    result = _invoke_in_project(project, ["sp-teams", "await"])
     assert result.exit_code == 0, result.output
     assert "monitor snapshot" in result.output.lower()
     assert "task count" in result.output.lower()
@@ -143,7 +143,7 @@ def test_team_await_subcommand_reports_monitor_snapshot(tmp_path: Path):
 def test_team_resume_subcommand_bootstraps_session(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
-    result = _invoke_in_project(project, ["team", "resume"], env=env)
+    result = _invoke_in_project(project, ["sp-teams", "resume"], env=env)
     assert result.exit_code == 0, result.output
     assert "Bootstrapped session" in result.output
     session_file = runtime_session_path(project, "default")
@@ -154,10 +154,10 @@ def test_team_resume_subcommand_reuses_existing_active_session(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
 
-    first = _invoke_in_project(project, ["team", "resume"], env=env)
+    first = _invoke_in_project(project, ["sp-teams", "resume"], env=env)
     assert first.exit_code == 0, first.output
 
-    second = _invoke_in_project(project, ["team", "resume"], env=env)
+    second = _invoke_in_project(project, ["sp-teams", "resume"], env=env)
     assert second.exit_code == 0, second.output
     lowered = second.output.lower()
     assert "resumed existing session" in lowered or "reused existing session" in lowered
@@ -166,19 +166,19 @@ def test_team_resume_subcommand_reuses_existing_active_session(tmp_path: Path):
 def test_team_shutdown_subcommand_requests_and_acknowledges(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
-    first = _invoke_in_project(project, ["team", "resume"], env=env)
+    first = _invoke_in_project(project, ["sp-teams", "resume"], env=env)
     assert first.exit_code == 0, first.output
 
     request = _invoke_in_project(
         project,
-        ["team", "shutdown", "--reason", "testing", "--requested-by", "tester"],
+        ["sp-teams", "shutdown", "--reason", "testing", "--requested-by", "tester"],
     )
     assert request.exit_code == 0, request.output
     assert "shutdown requested" in request.output.lower()
 
     ack = _invoke_in_project(
         project,
-        ["team", "shutdown", "--acknowledge", "--acknowledged-by", "lead"],
+        ["sp-teams", "shutdown", "--acknowledge", "--acknowledged-by", "lead"],
     )
     assert ack.exit_code == 0, ack.output
     assert "shutdown acknowledged" in ack.output.lower()
@@ -187,7 +187,7 @@ def test_team_shutdown_subcommand_requests_and_acknowledges(tmp_path: Path):
 def test_team_cleanup_subcommand_requires_terminal_session(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
-    ready = _invoke_in_project(project, ["team", "resume"], env=env)
+    ready = _invoke_in_project(project, ["sp-teams", "resume"], env=env)
     assert ready.exit_code == 0, ready.output
 
     session_file = runtime_session_path(project, "default")
@@ -196,7 +196,7 @@ def test_team_cleanup_subcommand_requires_terminal_session(tmp_path: Path):
     payload["finished_at"] = payload.get("updated_at", "")
     session_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    result = _invoke_in_project(project, ["team", "cleanup"])
+    result = _invoke_in_project(project, ["sp-teams", "cleanup"])
     assert result.exit_code == 0, result.output
     assert "cleaned session" in result.output.lower()
 
@@ -204,7 +204,7 @@ def test_team_cleanup_subcommand_requires_terminal_session(tmp_path: Path):
 def test_team_watch_subcommand_is_exposed_in_help(tmp_path: Path):
     project = _create_codex_project(tmp_path)
 
-    result = _invoke_in_project(project, ["team", "watch", "--help"])
+    result = _invoke_in_project(project, ["sp-teams", "watch", "--help"])
 
     assert result.exit_code == 0, result.output
     lowered = result.output.lower()
@@ -228,7 +228,7 @@ def test_team_watch_subcommand_routes_to_watch_runner(tmp_path: Path, monkeypatc
 
     result = _invoke_in_project(
         project,
-        ["team", "watch", "--refresh-interval", "2.5", "--focus", "worker-2", "--view", "flow"],
+        ["sp-teams", "watch", "--refresh-interval", "2.5", "--focus", "worker-2", "--view", "flow"],
     )
 
     assert result.exit_code == 0, result.output

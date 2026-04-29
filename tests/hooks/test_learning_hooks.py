@@ -44,6 +44,80 @@ def test_learning_review_allows_explicit_none_decision(tmp_path: Path):
     assert result.data["review"]["decision"] == "none"
 
 
+def test_learning_review_blocks_none_decision_when_recent_friction_signal_exists(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    signal_result = run_quality_hook(
+        project,
+        "workflow.learning.signal",
+        {
+            "command_name": "implement",
+            "retry_attempts": 2,
+            "hypothesis_changes": 1,
+            "validation_failures": 1,
+            "false_starts": ["retried the same build path without fixing the shell"],
+        },
+    )
+    review_result = run_quality_hook(
+        project,
+        "workflow.learning.review",
+        {
+            "command_name": "implement",
+            "terminal_status": "resolved",
+            "learning_review": {
+                "decision": "none",
+                "rationale": "The work eventually completed.",
+            },
+        },
+    )
+
+    assert signal_result.status == "warn"
+    assert review_result.status == "blocked"
+    assert any("recent friction signal" in message.lower() for message in review_result.errors)
+
+
+def test_learning_review_clears_recent_signal_after_non_none_decision(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    run_quality_hook(
+        project,
+        "workflow.learning.signal",
+        {
+            "command_name": "implement",
+            "retry_attempts": 2,
+            "hypothesis_changes": 1,
+            "validation_failures": 1,
+        },
+    )
+    captured_review = run_quality_hook(
+        project,
+        "workflow.learning.review",
+        {
+            "command_name": "implement",
+            "terminal_status": "resolved",
+            "learning_review": {
+                "decision": "captured",
+                "rationale": "Captured the reusable lesson before closeout.",
+            },
+        },
+    )
+    followup_none = run_quality_hook(
+        project,
+        "workflow.learning.review",
+        {
+            "command_name": "implement",
+            "terminal_status": "resolved",
+            "learning_review": {
+                "decision": "none",
+                "rationale": "No new reusable learning remains after the previous capture.",
+            },
+        },
+    )
+
+    assert captured_review.status == "ok"
+    assert followup_none.status == "ok"
+
+
 def test_learning_signal_warns_when_pain_score_crosses_threshold(tmp_path: Path):
     project = _create_project(tmp_path)
 

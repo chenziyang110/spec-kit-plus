@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "generated_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "modules_count": 0,
+  "last_full_refresh_commit": "",
+  "global_freshness": "missing",
+  "primary_root_docs": [
+    ".specify/project-map/root/ARCHITECTURE.md",
+    ".specify/project-map/root/WORKFLOWS.md",
+    ".specify/project-map/root/TESTING.md"
+  ],
+  "module_registry_path": ".specify/project-map/index/modules.json",
+  "relations_path": ".specify/project-map/index/relations.json",
+  "status_path": ".specify/project-map/index/status.json"
+}

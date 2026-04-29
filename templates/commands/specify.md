@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
   primary_objective: 'Produce the specification artifact set grounded in repository reality: `spec.md`, `alignment.md`, `context.md`, and supporting references when needed.'
   primary_outputs: '`FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
-  default_handoff: /sp-plan once planning-critical ambiguity is reduced far enough; otherwise stay in clarification or recommend /sp-clarify.
+  default_handoff: /sp-plan once planning-critical ambiguity and feasibility risk are reduced far enough; otherwise stay in clarification, recommend /sp-clarify, or route uncertain implementation chains through /sp-deep-research.
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -58,12 +58,12 @@ scripts:
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command specify --format json` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+- [AGENT] Run `specify learning start --command specify --format json` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains candidate learnings relevant to specification after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
 - [AGENT] When specification friction appears, run `specify hook signal-learning --command specify ...` with user-correction, route-change, scope-change, false-start, or hidden-dependency counts.
 - [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command specify --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `user_preference`, `decision_debt`, or `project_constraint` exists.
-- [AGENT] Prefer `specify hook capture-learning --command specify ...` when the run exposes reusable ambiguity, decision debt, route mistakes, or project constraints.
+- [AGENT] Prefer `specify learning capture-auto --command specify --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command specify ...` when the durable state does not capture the reusable lesson cleanly.
 - Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
 
 ## Workflow Phase Lock
@@ -111,12 +111,12 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 4. Ensure repository navigation system exists.
-   - Check whether `.specify/project-map/status.json` exists.
+   - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
-   - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
    - [AGENT] If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - Task-relevant coverage is insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - Treat task-relevant coverage as a coverage-model check, not just a file-presence check. Coverage is also insufficient when the handbook/project-map set cannot yet tell you:
@@ -139,7 +139,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Read `.specify/memory/project-learnings.md` if present.
    - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
    - [AGENT] Read `PROJECT-HANDBOOK.md` if present and treat it as the primary codebase-scout input for brownfield understanding.
-   - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+   - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
+   - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Extract module priority waves, `small / medium / large` policy, scenario matrix expectations, allowed testability refactors, coverage goals, and CI gate expectations from it.
    - From the handbook navigation system, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
    - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
    - Read repository context relevant to the request.
@@ -222,6 +223,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
 11. Capability decomposition.
     - Decompose the analyzed feature into bounded capabilities.
+    - For brownfield testing-system work seeded by `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, default capability decomposition to foundation work plus module priority waves instead of vague subsystem buckets.
     - Record the purpose of each capability, what scenarios it supports, and how it depends on other capabilities or prerequisites.
     - Separate user-visible capabilities from enabling/supporting capabilities where that improves planning clarity.
     - Note whether each capability is:
@@ -319,6 +321,20 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - If repository evidence can answer one of these, use the scout summary or targeted live-file reads instead of asking the user to restate codebase facts.
     - If the user gives a broad answer such as "we can make the internals detailed later", either turn it into a concrete checklist for confirmation or mark it as an explicit deferred risk.
     - Do not treat this gate as implementation brainstorming; stay at the level of requirement-shaping contracts, lifecycle expectations, and planning safety.
+
+13c. Run a feasibility and implementation-chain gate.
+    - For each capability, decide whether the implementation chain is already credible enough for planning.
+    - Treat the chain as credible when repository evidence, retained references, or prior working behavior clearly show:
+      - trigger/input
+      - owning module, API, service, library, or integration surface
+      - state/output path
+      - validation evidence or acceptance proof
+    - Route to `/sp.deep-research` before `/sp.plan` when a capability depends on an unproven API, library, algorithm, platform behavior, data volume, permission boundary, external integration, native/plugin bridge, generated-code workflow, performance envelope, or other unknown where planning would otherwise guess.
+    - Prefer `/sp.deep-research` when the real question is "can this work?" and a small disposable demo under `FEATURE_DIR/research-spikes/` would prove the path.
+    - Treat `/sp.deep-research` as a research-to-plan handoff path: its `deep-research.md` must preserve findings, demo evidence, rejected options, constraints, and a `Planning Handoff` that `/sp.plan` can consume.
+    - Do not require `/sp.deep-research` for minor adjustments to capabilities that already exist in the project and have a clear implementation path.
+    - Record feasibility status in `alignment.md` as `Not needed`, `Needed before plan`, `Completed`, or `Blocked`.
+    - If feasibility risk is actually a requirement ambiguity, keep it in `sp-specify` or route to `/sp.clarify` instead of treating it as research.
 
 14. Identify gray areas before concluding alignment.
    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
@@ -461,6 +477,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - If the requirement package has enough clarity to plan safely inside `sp-specify`, release `Aligned: ready for plan`.
     - If common docs/config/process-change flows or bounded feature work can reach planning-ready alignment inside `sp-specify`, do so without needing `/sp.clarify`.
     - If planning-critical gaps remain but the spec package is still salvageable, recommend `/sp.clarify` as the next command instead of `/sp.plan`.
+    - If the requirements are clear but a planning-critical implementation chain remains unproven, recommend `/sp.deep-research` as the next command instead of `/sp.plan`.
     - Only use `Force proceed with known risks` when the user accepts that unresolved planning risk will be carried into downstream work.
     - Make the closeout explicit: if ambiguity remains, ask whether the user wants to continue exploring or move to the next step with the documented risks.
     - Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions in place of concrete behavior, boundary handling, compatibility impact, or acceptance proof.
@@ -577,6 +594,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - unresolved items
     - engineering closure for boundary-sensitive features: trigger source, contract boundary, lifecycle/retention, failure/retry semantics, configuration surface
     - capability checkpoints for high-risk capabilities
+    - feasibility / deep research gate status, including capabilities that need proof before planning
     - high-impact decision-fork outcomes
     - clarification summary
     - release decision:
@@ -615,7 +633,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
       - current authoritative files
       - exit criteria for planning readiness
       - the next action required before handoff
-      - `next_command` as either `/sp.plan` or `/sp.clarify`
+      - `next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`
 
 24. Generate or update `FEATURE_DIR/checklists/requirements.md` with these validation items:
 
@@ -656,6 +674,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - [ ] Release decision is recorded
     - [ ] Release decision is either `Aligned: ready for plan` or `Force proceed with known risks`
     - [ ] High-risk capabilities have checkpoints for purpose, boundary, and acceptance proof
+    - [ ] Feasibility gate is recorded; unproven implementation chains route to `/sp.deep-research`
     - [ ] High-impact decision forks are resolved or explicitly force-carried
     - [ ] Locked decisions are preserved in context.md
     - [ ] workflow-state.md records `sp-specify` with planning-only restrictions
@@ -682,6 +701,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
       - proceed to `/sp.plan`
       - revise current artifacts
       - continue analysis with `/sp.clarify`
+      - prove feasibility with `/sp.deep-research`
     - If the user requests changes, update the artifact set, re-run validation, and repeat the artifact review gate.
     - Do not present `/sp.plan` as ready until the written artifact set passes this gate.
 
@@ -694,9 +714,9 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - references file path when created
     - checklist results
     - release decision
-    - readiness for the next phase (`/sp.plan` for the mainline, or `/sp.clarify` when deeper analysis is still needed)
+    - readiness for the next phase (`/sp.plan` for the mainline, `/sp.clarify` when deeper analysis is still needed, or `/sp.deep-research` when feasibility must be proven first)
     - recommended review follow-up: `/sp.clarify` when the user wants one more targeted repair pass over the written spec package before planning
-    - if this pass reveals that the current atlas is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current handbook/project-map does not yet capture, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield execution work proceeds
+    - if this pass reveals that the current atlas is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current handbook/project-map does not yet capture, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield execution work proceeds
     - [AGENT] before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `specify learning capture --command specify ...`
     - keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence
     - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or a repeated recurrence that should become shared project memory

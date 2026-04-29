@@ -18,6 +18,7 @@ from .types import HookResult, QualityHookError
 EXPECTED_WORKFLOW_STATE = {
     "constitution": ("sp-constitution", "planning-only"),
     "specify": ("sp-specify", "planning-only"),
+    "deep-research": ("sp-deep-research", "research-only"),
     "plan": ("sp-plan", "design-only"),
     "tasks": ("sp-tasks", "task-generation-only"),
     "analyze": ("sp-analyze", "analysis-only"),

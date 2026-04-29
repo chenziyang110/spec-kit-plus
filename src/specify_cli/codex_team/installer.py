@@ -2,26 +2,37 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+import importlib.metadata as importlib_metadata
 import json
+import os
 import re
+import subprocess
 import shutil
-from pathlib import Path
 from typing import Any
 
 from .state_paths import codex_team_state_root
 
 CODEX_TEAM_HELPER_FILES = (
-    ".specify/codex-team/runtime.json",
-    ".specify/codex-team/README.md",
+    ".specify/teams/runtime.json",
+    ".specify/teams/README.md",
     ".specify/config.json",
 )
 CODEx_TEAM_HELPER_FILES = CODEX_TEAM_HELPER_FILES
 
-CODEX_TEAM_INSTALL_STATE_FILE = ".specify/codex-team/install-state.json"
-TEAM_NOTIFY_JSON_COMMAND = "specify team notify-hook"
-TEAM_NOTIFY_TOML_TOKENS = ("specify", "team", "notify-hook")
+CODEX_TEAM_INSTALL_STATE_FILE = ".specify/teams/install-state.json"
+TEAM_NOTIFY_TOML_TOKENS = ("sp-teams", "notify-hook")
 SPECIFY_TEAMS_MCP_SERVER_NAME = "specify_teams"
 SPECIFY_TEAMS_MCP_COMMAND = "specify-teams-mcp"
+SPECIFY_PACKAGE_NAME = "specify-cli"
+
+
+@dataclass(frozen=True)
+class SpecifyLauncherSpec:
+    """Command forms that invoke the current specify install source."""
+
+    command: str
+    argv: tuple[str, ...]
 
 __all__ = [
     "CODEX_TEAM_HELPER_FILES",
@@ -33,6 +44,7 @@ __all__ = [
     "integration_supports_codex_team",
     "missing_codex_team_assets",
     "restore_codex_team_project_configs",
+    "resolve_specify_launcher_spec",
     "upgrade_existing_codex_project",
 ]
 
@@ -81,12 +93,74 @@ def _json_text(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
 
+def _render_command(argv: tuple[str, ...]) -> str:
+    if os.name == "nt":
+        return subprocess.list2cmdline(list(argv))
+    return " ".join(argv)
+
+
+def _default_specify_launcher_spec() -> SpecifyLauncherSpec:
+    argv = ("specify",)
+    return SpecifyLauncherSpec(command=_render_command(argv), argv=argv)
+
+
+def resolve_specify_launcher_spec() -> SpecifyLauncherSpec:
+    """Return the best available launcher for the current specify install source."""
+
+    default = _default_specify_launcher_spec()
+
+    try:
+        distribution = importlib_metadata.distribution(SPECIFY_PACKAGE_NAME)
+    except importlib_metadata.PackageNotFoundError:
+        return default
+
+    try:
+        direct_url_text = distribution.read_text("direct_url.json")
+    except FileNotFoundError:
+        return default
+
+    if not direct_url_text:
+        return default
+
+    try:
+        payload = json.loads(direct_url_text)
+    except json.JSONDecodeError:
+        return default
+
+    if not isinstance(payload, dict):
+        return default
+
+    vcs_info = payload.get("vcs_info")
+    url = payload.get("url")
+    if not isinstance(vcs_info, dict) or not isinstance(url, str):
+        return default
+    if vcs_info.get("vcs") != "git" or not url.strip():
+        return default
+
+    commit_id = str(vcs_info.get("commit_id", "")).strip()
+    source = url if url.startswith("git+") else f"git+{url}"
+    if commit_id:
+        source = f"{source}@{commit_id}"
+
+    if not shutil.which("uvx"):
+        return default
+
+    argv = ("uvx", "--from", source, "specify")
+    return SpecifyLauncherSpec(command=_render_command(argv), argv=argv)
+
+
 def _escape_toml_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _notify_line() -> str:
-    values = ", ".join(f'"{_escape_toml_string(token)}"' for token in TEAM_NOTIFY_TOML_TOKENS)
+def _notify_json_command(launcher: SpecifyLauncherSpec) -> str:
+    return f"{launcher.command} sp-teams notify-hook"
+
+
+def _notify_line(launcher: SpecifyLauncherSpec) -> str:
+    values = ", ".join(
+        f'"{_escape_toml_string(token)}"' for token in launcher.argv + TEAM_NOTIFY_TOML_TOKENS
+    )
     return f"notify = [{values}]"
 
 
@@ -121,8 +195,11 @@ def _strip_root_notify(root_lines: list[str]) -> list[str]:
     return stripped
 
 
-def _merge_notify_root_lines(root_lines: list[str]) -> list[str]:
-    desired_notify = _notify_line()
+def _merge_notify_root_lines(
+    root_lines: list[str],
+    launcher: SpecifyLauncherSpec,
+) -> list[str]:
+    desired_notify = _notify_line(launcher)
     sanitized_root = _strip_root_notify(root_lines)
     prefix: list[str] = []
     index = 0
@@ -175,9 +252,14 @@ def _managed_teams_mcp_block() -> list[str]:
     ]
 
 
-def _merge_codex_config_toml(existing: str, *, include_teams_mcp: bool) -> str:
+def _merge_codex_config_toml(
+    existing: str,
+    *,
+    launcher: SpecifyLauncherSpec,
+    include_teams_mcp: bool,
+) -> str:
     root_lines, table_lines = _split_root_and_tables(existing)
-    merged_root = _merge_notify_root_lines(root_lines)
+    merged_root = _merge_notify_root_lines(root_lines, launcher)
     merged_tables = _strip_managed_teams_mcp_table(table_lines)
 
     if include_teams_mcp:
@@ -228,9 +310,10 @@ def install_codex_team_assets(
     created: list[Path] = []
     restore_files: dict[str, str] = {}
     teams_mcp_supported = can_configure_specify_teams_mcp()
+    launcher = resolve_specify_launcher_spec()
 
     runtime_payload = {
-        "surface": "specify team",
+        "surface": "sp-teams",
         "integration": "codex",
         "tmux_required": True,
         "state_root": codex_team_state_root(project_root).as_posix(),
@@ -240,17 +323,17 @@ def install_codex_team_assets(
         manifest,
         created,
         project_root,
-        ".specify/codex-team/runtime.json",
+        ".specify/teams/runtime.json",
         _json_text(runtime_payload),
     )
     _record_tracked_file(
         manifest,
         created,
         project_root,
-        ".specify/codex-team/README.md",
+        ".specify/teams/README.md",
         (
             "# Codex Team Runtime\n\n"
-            "This project exposes the Codex-only team/runtime surface through `specify team`.\n\n"
+            "This project exposes the Codex-only team/runtime surface through `sp-teams`.\n\n"
             "Optional agent-facing MCP facade: install `specify-cli[mcp]` so "
             f"`{SPECIFY_TEAMS_MCP_COMMAND}` can be registered in `.codex/config.toml`.\n"
         ),
@@ -262,7 +345,7 @@ def install_codex_team_assets(
         specify_config = _load_json_object(specify_config_path)
     else:
         specify_config = {}
-    specify_config["notify"] = TEAM_NOTIFY_JSON_COMMAND
+    specify_config["notify"] = _notify_json_command(launcher)
     specify_config_text = _json_text(specify_config)
     if ".specify/config.json" in restore_files:
         specify_config_path.write_text(specify_config_text, encoding="utf-8")
@@ -283,6 +366,7 @@ def install_codex_team_assets(
         existing_codex_config = ""
     codex_config_text = _merge_codex_config_toml(
         existing_codex_config,
+        launcher=launcher,
         include_teams_mcp=teams_mcp_supported,
     )
     if ".codex/config.toml" in restore_files:

@@ -1,4 +1,4 @@
-"""Rich renderers and lightweight interaction state for `specify team watch`."""
+"""Rich renderers and lightweight interaction state for `sp-teams watch`."""
 
 from __future__ import annotations
 

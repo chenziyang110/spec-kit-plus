@@ -92,7 +92,7 @@ def _write_fake_runtime_cli(path: Path, *, emit_results: bool, capture_path: Pat
                 "",
                 "payload = json.loads(sys.stdin.read())",
                 capture_line,
-                "state_root = Path(os.environ['OMX_TEAM_STATE_ROOT'])",
+                "state_root = Path(os.environ['SPECIFY_TEAM_STATE_ROOT'])",
                 "team_name = payload['teamName']",
                 "tasks_dir = state_root / 'team' / team_name / 'tasks'",
                 "tasks_dir.mkdir(parents=True, exist_ok=True)",

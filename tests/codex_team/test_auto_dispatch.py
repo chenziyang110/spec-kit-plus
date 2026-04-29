@@ -80,7 +80,7 @@ def _write_fake_agent_teams_runtime_cli(path: Path) -> None:
                 "from pathlib import Path",
                 "",
                 "payload = json.loads(sys.stdin.read())",
-                "state_root = Path(os.environ['OMX_TEAM_STATE_ROOT'])",
+                "state_root = Path(os.environ['SPECIFY_TEAM_STATE_ROOT'])",
                 "team_name = payload['teamName']",
                 "tasks_dir = state_root / 'team' / team_name / 'tasks'",
                 "tasks_dir.mkdir(parents=True, exist_ok=True)",
@@ -468,13 +468,13 @@ def test_route_ready_parallel_batch_dispatches_each_task(monkeypatch, codex_team
             "t002",
             "T002",
             "default-parallel-batch-1-1-t002",
-            str(codex_team_project_root / ".specify" / "codex-team" / "state" / "results" / "default-parallel-batch-1-1-t002.json"),
+            str(codex_team_project_root / ".specify" / "teams" / "state" / "results" / "default-parallel-batch-1-1-t002.json"),
         ),
         (
             "t003",
             "T003",
             "default-parallel-batch-1-1-t003",
-            str(codex_team_project_root / ".specify" / "codex-team" / "state" / "results" / "default-parallel-batch-1-1-t003.json"),
+            str(codex_team_project_root / ".specify" / "teams" / "state" / "results" / "default-parallel-batch-1-1-t003.json"),
         ),
     ]
     assert worker_heartbeat_path(codex_team_project_root, "t002").exists()

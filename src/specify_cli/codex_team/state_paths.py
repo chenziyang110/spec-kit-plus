@@ -9,7 +9,7 @@ from specify_cli.orchestration.state_store import orchestration_root
 
 def codex_team_state_root(project_root: Path) -> Path:
     """Return the root directory for Codex team runtime state."""
-    return orchestration_root(project_root).parent / "codex-team" / "state"
+    return orchestration_root(project_root).parent / "teams" / "state"
 
 
 def runtime_session_path(project_root: Path, session_id: str) -> Path:

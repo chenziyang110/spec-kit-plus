@@ -1,4 +1,4 @@
-"""State aggregation for the `specify team watch` surface."""
+"""State aggregation for the `sp-teams watch` surface."""
 
 from __future__ import annotations
 

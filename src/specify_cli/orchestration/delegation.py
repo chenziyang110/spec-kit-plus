@@ -41,6 +41,7 @@ def describe_delegation_surface(
 ) -> DelegationSurfaceDescriptor:
     """Describe how the current integration should dispatch and rejoin work."""
 
+    normalized_command = command_name.strip().lower()
     intent = _command_intent(command_name)
     result_contract_hint = (
         "Fact-only evidence payload: hypothesis tested, commands run, files inspected, observations, confidence, blocker."
@@ -50,7 +51,11 @@ def describe_delegation_surface(
     structured_results_expected = snapshot.structured_results or intent == "implementation"
 
     native_dispatch_hint = "No native delegated worker surface for this session."
-    native_join_hint = "Stay on the leader path or use the coordinated runtime surface."
+    native_join_hint = (
+        "Stay on the leader path and keep the current lane explicit."
+        if normalized_command == "implement"
+        else "Stay on the leader path or use the coordinated runtime surface."
+    )
 
     if snapshot.native_worker_surface == "spawn_agent":
         native_dispatch_hint = "Dispatch bounded lanes through `spawn_agent`."
@@ -63,11 +68,16 @@ def describe_delegation_surface(
             "Use the integration-native join point, then integrate results back on the leader path."
         )
 
-    sidecar_surface_hint = (
-        "Escalate through the coordinated runtime surface when native delegation is unavailable, low-confidence, or unsuitable."
-        if snapshot.sidecar_runtime_supported
-        else "No coordinated runtime surface is currently available; use leader-local fallback only when delegation cannot proceed safely."
-    )
+    if normalized_command == "implement":
+        sidecar_surface_hint = (
+            "No in-command runtime fallback for `sp-implement`; if native delegation cannot proceed safely, stay on the leader path and record why."
+        )
+    else:
+        sidecar_surface_hint = (
+            "Escalate through the coordinated runtime surface when native delegation is unavailable, low-confidence, or unsuitable."
+            if snapshot.sidecar_runtime_supported
+            else "No coordinated runtime surface is currently available; use leader-local fallback only when delegation cannot proceed safely."
+        )
 
     return DelegationSurfaceDescriptor(
         integration_key=snapshot.integration_key,

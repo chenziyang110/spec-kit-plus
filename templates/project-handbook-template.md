@@ -86,13 +86,18 @@ and what sits clearly outside the system boundary.]
 
 ## Topic Map
 
-- `.specify/project-map/ARCHITECTURE.md` - layers, abstractions, truth ownership
-- `.specify/project-map/STRUCTURE.md` - where code lives and where to add new code
-- `.specify/project-map/CONVENTIONS.md` - naming, imports, error handling, style
-- `.specify/project-map/INTEGRATIONS.md` - external tools, env, runtime dependencies
-- `.specify/project-map/WORKFLOWS.md` - user flows, maintainer flows, workflow risks
-- `.specify/project-map/TESTING.md` - test layers and smallest meaningful checks
-- `.specify/project-map/OPERATIONS.md` - startup, recovery, troubleshooting, operator notes
+- `.specify/project-map/index/atlas-index.json` - atlas entry summary and the next machine-readable lookup step
+- `.specify/project-map/index/modules.json` - module registry, owned roots, and module document paths
+- `.specify/project-map/index/relations.json` - cross-module dependencies, shared surfaces, and expansion routes
+- `.specify/project-map/index/status.json` - atlas freshness plus module and deep staleness state
+- `.specify/project-map/root/ARCHITECTURE.md` - layers, abstractions, truth ownership, and cross-module seams
+- `.specify/project-map/root/STRUCTURE.md` - global structure, shared directories, and placement rules
+- `.specify/project-map/root/CONVENTIONS.md` - repository-wide conventions and contract rules
+- `.specify/project-map/root/INTEGRATIONS.md` - external tools, env, runtime dependencies, and trust boundaries
+- `.specify/project-map/root/WORKFLOWS.md` - user flows, maintainer flows, and cross-module workflow risks
+- `.specify/project-map/root/TESTING.md` - root verification strategy and shared regression-sensitive surfaces
+- `.specify/project-map/root/OPERATIONS.md` - startup, recovery, troubleshooting, operator notes, and runtime invariants
+- `.specify/project-map/modules/<module-id>/OVERVIEW.md` - module-local routing, ownership, and next reads
 
 ## Update Triggers
 

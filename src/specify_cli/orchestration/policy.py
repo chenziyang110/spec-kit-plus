@@ -136,7 +136,7 @@ def choose_execution_strategy(
                     lane_topology="single-lane",
                     execution_surface="native-delegation",
                 )
-            if snapshot.sidecar_runtime_supported:
+            if command_name != "implement" and snapshot.sidecar_runtime_supported:
                 return ExecutionDecision(
                     command_name=command_name,
                     strategy="sidecar-runtime",
@@ -157,7 +157,7 @@ def choose_execution_strategy(
         and snapshot.runtime_probe_succeeded
         and snapshot.delegation_confidence == "low"
     ):
-        if snapshot.sidecar_runtime_supported:
+        if command_name != "implement" and snapshot.sidecar_runtime_supported:
             return ExecutionDecision(
                 command_name=command_name,
                 strategy="sidecar-runtime",
@@ -180,6 +180,15 @@ def choose_execution_strategy(
             reason="native-supported",
             lane_topology="multi-lane",
             execution_surface="native-delegation",
+        )
+
+    if command_name == "implement":
+        return ExecutionDecision(
+            command_name=command_name,
+            strategy=single_worker_strategy,
+            reason="native-missing",
+            lane_topology="single-lane",
+            execution_surface="leader-local",
         )
 
     if snapshot.sidecar_runtime_supported:

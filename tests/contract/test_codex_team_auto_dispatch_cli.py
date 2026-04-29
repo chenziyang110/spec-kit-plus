@@ -16,7 +16,7 @@ def _create_codex_project(tmp_path: Path) -> Path:
     spec_root = project / ".specify"
     spec_root.mkdir()
     (spec_root / "integration.json").write_text(json.dumps({"integration": "codex"}), encoding="utf-8")
-    (spec_root / "codex-team").mkdir(parents=True, exist_ok=True)
+    (spec_root / "teams").mkdir(parents=True, exist_ok=True)
     (spec_root / "project-map").mkdir(parents=True, exist_ok=True)
     (spec_root / "project-map" / "status.json").write_text(
         json.dumps(
@@ -160,7 +160,7 @@ def test_team_auto_dispatch_subcommand_dispatches_ready_batch(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        ["sp-teams", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
         env=env,
     )
 
@@ -176,7 +176,7 @@ def test_team_api_auto_dispatch_returns_json_payload(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        ["sp-teams", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
         env=env,
     )
 
@@ -196,7 +196,7 @@ def test_team_complete_batch_marks_join_point_complete(tmp_path: Path):
 
     dispatched = _invoke_in_project(
         project,
-        ["team", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        ["sp-teams", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
         env=env,
     )
     assert dispatched.exit_code == 0, dispatched.output
@@ -204,7 +204,7 @@ def test_team_complete_batch_marks_join_point_complete(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
+        ["sp-teams", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
         env=env,
     )
 
@@ -221,7 +221,7 @@ def test_team_complete_batch_auto_dispatches_next_ready_batch(tmp_path: Path):
 
     dispatched = _invoke_in_project(
         project,
-        ["team", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        ["sp-teams", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
         env=env,
     )
     assert dispatched.exit_code == 0, dispatched.output
@@ -229,7 +229,7 @@ def test_team_complete_batch_auto_dispatches_next_ready_batch(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
+        ["sp-teams", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
         env=env,
     )
 
@@ -247,7 +247,7 @@ def test_team_api_complete_batch_returns_json_payload(tmp_path: Path):
 
     dispatched = _invoke_in_project(
         project,
-        ["team", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        ["sp-teams", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
         env=env,
     )
     assert dispatched.exit_code == 0, dispatched.output
@@ -255,7 +255,7 @@ def test_team_api_complete_batch_returns_json_payload(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "api", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
+        ["sp-teams", "api", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
         env=env,
     )
 
@@ -273,7 +273,7 @@ def test_team_api_complete_batch_reports_auto_dispatched_next_batch(tmp_path: Pa
 
     dispatched = _invoke_in_project(
         project,
-        ["team", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        ["sp-teams", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
         env=env,
     )
     assert dispatched.exit_code == 0, dispatched.output
@@ -281,7 +281,7 @@ def test_team_api_complete_batch_reports_auto_dispatched_next_batch(tmp_path: Pa
 
     result = _invoke_in_project(
         project,
-        ["team", "api", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
+        ["sp-teams", "api", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
         env=env,
     )
 
@@ -298,7 +298,7 @@ def test_team_submit_result_updates_task_and_batch_state(tmp_path: Path):
 
     dispatched = _invoke_in_project(
         project,
-        ["team", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        ["sp-teams", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
         env=env,
     )
     assert dispatched.exit_code == 0, dispatched.output
@@ -309,7 +309,7 @@ def test_team_submit_result_updates_task_and_batch_state(tmp_path: Path):
         result_path = result_record_path(project, request_id)
         submit = _invoke_in_project(
             project,
-            ["team", "submit-result", "--request-id", request_id, "--result-file", str(result_path)],
+            ["sp-teams", "submit-result", "--request-id", request_id, "--result-file", str(result_path)],
             env=env,
         )
         assert submit.exit_code == 0, submit.output
@@ -335,7 +335,7 @@ def test_team_auto_dispatch_blocks_when_project_map_is_dirty(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["team", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        ["sp-teams", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
         env=env,
     )
 
@@ -355,7 +355,7 @@ def test_team_auto_dispatch_blocks_when_baseline_build_is_known_blocked(tmp_path
     payload["dirty_reasons"] = []
     status_path.write_text(json.dumps(payload), encoding="utf-8")
 
-    baseline_path = project / ".specify" / "codex-team" / "state" / "baseline-build.json"
+    baseline_path = project / ".specify" / "teams" / "state" / "baseline-build.json"
     baseline_path.parent.mkdir(parents=True, exist_ok=True)
     baseline_path.write_text(
         json.dumps(
@@ -372,7 +372,7 @@ def test_team_auto_dispatch_blocks_when_baseline_build_is_known_blocked(tmp_path
 
     result = _invoke_in_project(
         project,
-        ["team", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        ["sp-teams", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
         env=env,
     )
 

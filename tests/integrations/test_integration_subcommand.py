@@ -164,8 +164,8 @@ class TestIntegrationInstall:
         finally:
             os.chdir(old_cwd)
         assert result.exit_code == 0, result.output
-        assert (project / ".codex" / "skills" / "sp-team" / "SKILL.md").exists()
-        assert (project / ".specify" / "codex-team" / "runtime.json").exists()
+        assert (project / ".codex" / "skills" / "sp-teams" / "SKILL.md").exists()
+        assert (project / ".specify" / "teams" / "runtime.json").exists()
 
     def test_install_bare_project_gets_shared_infra(self, tmp_path):
         """Installing into a bare project should create shared scripts and templates."""

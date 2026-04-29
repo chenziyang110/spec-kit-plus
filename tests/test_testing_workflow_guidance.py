@@ -19,6 +19,7 @@ def test_test_template_bootstraps_testing_contract_assets():
     assert ".specify/testing/TESTING_CONTRACT.md".lower() in lowered
     assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in lowered
     assert ".specify/testing/COVERAGE_BASELINE.json".lower() in lowered
+    assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md".lower() in lowered
     assert ".specify/testing/testing-state.md" in lowered
     assert "bootstrap" in lowered
     assert "refresh" in lowered
@@ -31,12 +32,21 @@ def test_test_template_bootstraps_testing_contract_assets():
     assert "testing-contract-template.md" in lowered
     assert "testing-playbook-template.md" in lowered
     assert "coverage-baseline-template.json" in lowered
+    assert "unit-test-system-request-template.md" in lowered
     assert 'choose_execution_strategy(command_name="test"' in lowered
     assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
     assert "before mutating shared repository test framework/config files" in lowered
     assert "before writing the consolidated `.specify/testing/*` artifacts" in lowered
+
+
+def test_test_template_prefers_auto_capture_from_testing_state() -> None:
+    content = _read("templates/commands/test.md").lower()
+
+    assert "capture-auto --command test" in content
+    assert "testing-state already captures reusable gaps" in content or "testing-state already captures reusable" in content
+    assert "fall back to `specify hook capture-learning --command test" in content
 
 
 def test_test_template_explains_bundled_language_testing_skills():
@@ -79,6 +89,29 @@ def test_test_template_requires_coverage_uplift_iteration():
     assert "coverage objective" in contract_template
 
 
+def test_test_template_requires_professional_unit_test_system_request_artifact():
+    content = _read("templates/commands/test.md").lower()
+    request_template = _read("templates/testing/unit-test-system-request-template.md").lower()
+
+    assert "unit_test_system_request.md" in content or "unit-test-system-request.md" in content
+    assert "professional-grade brownfield unit-test system request" in content
+    assert "small / medium / large" in content
+    assert "scenario matrix" in content
+    assert "module risk tiers" in content
+    assert "coverage uplift waves" in content
+
+    assert "small tests" in request_template
+    assert "medium tests" in request_template
+    assert "large tests" in request_template
+    assert "80%" in request_template
+    assert "15%" in request_template
+    assert "5%" in request_template
+    assert "public contracts" in request_template
+    assert "mock / fake strategy" in request_template
+    assert "presubmit / ci gate policy" in request_template
+    assert "scenario matrix" in request_template
+
+
 def test_test_template_uses_handbook_and_project_map_gates():
     content = _read("templates/commands/test.md")
 
@@ -87,7 +120,7 @@ def test_test_template_uses_handbook_and_project_map_gates():
     assert "[AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
     assert "[AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
     assert "[AGENT] Read `PROJECT-HANDBOOK.md`." in content
-    assert "Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`" in content
+    assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" in content
 
 
 def test_test_template_emits_result_driven_handoff_recommendation():
@@ -100,10 +133,12 @@ def test_test_template_emits_result_driven_handoff_recommendation():
     assert "persist the recommendation in `testing_state_file`" in lowered
     assert "`next_command`" in content
     assert "resume the previous workflow" in lowered
+    assert "recommend `/sp-fast`" in content
     assert "recommend `/sp-quick`" in content
     assert "recommend `/sp-specify`" in content
     assert "recommend `/sp-debug`" in content
     assert "resume `/sp-implement`" in content
+    assert "single command, config, or helper repair" in lowered
     assert "single bounded module or surface" in lowered
     assert "multiple modules, multiple failure classes" in lowered
     assert "coverage uplift program" in lowered

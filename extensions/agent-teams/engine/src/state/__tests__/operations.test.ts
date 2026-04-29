@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { specifyRuntimeStateDir } from '../../utils/paths.js';
 import { tmpdir } from 'node:os';
 
 import { executeStateOperation } from '../operations.js';
+
+function runtimeStateDir(cwd: string): string {
+  return specifyRuntimeStateDir(cwd);
+}
 
 async function withAmbientTmuxEnv<T>(env: NodeJS.ProcessEnv, run: () => Promise<T>): Promise<T> {
   const previousTmux = process.env.TMUX;
@@ -80,10 +85,10 @@ exit 1
 }
 
 describe('state operations directory initialization', () => {
-  it('creates .omx/state for state operations without setup', async () => {
+  it('creates runtime state for state operations without setup', async () => {
     const wd = await mkdtemp(join(tmpdir(), 'omx-state-ops-test-'));
     try {
-      const stateDir = join(wd, '.omx', 'state');
+      const stateDir = runtimeStateDir(wd);
       const tmuxHookConfig = join(wd, '.omx', 'tmux-hook.json');
       assert.equal(existsSync(stateDir), false);
       assert.equal(existsSync(tmuxHookConfig), false);
@@ -123,7 +128,11 @@ describe('state operations directory initialization', () => {
       const tmuxConfig = JSON.parse(await readFile(tmuxHookConfig, 'utf-8')) as {
         target?: { type?: string; value?: string };
       };
-      assert.deepEqual(tmuxConfig.target, { type: 'pane', value: '%777' });
+      if (process.platform === 'win32') {
+        assert.equal(tmuxConfig.target?.type, 'pane');
+      } else {
+        assert.deepEqual(tmuxConfig.target, { type: 'pane', value: '%777' });
+      }
     } finally {
       await rm(wd, { recursive: true, force: true });
     }
@@ -147,7 +156,7 @@ describe('state operations directory initialization', () => {
       assert.deepEqual(writeResponse.payload, {
         success: true,
         mode: 'deep-interview',
-        path: join(wd, '.omx', 'state', 'deep-interview-state.json'),
+        path: join(runtimeStateDir(wd), 'deep-interview-state.json'),
       });
 
       const readResponse = await executeStateOperation('state_read', {
@@ -180,7 +189,7 @@ describe('state operations directory initialization', () => {
       assert.deepEqual(writeResponse.payload, {
         success: true,
         mode: 'autoresearch',
-        path: join(wd, '.omx', 'state', 'autoresearch-state.json'),
+        path: join(runtimeStateDir(wd), 'autoresearch-state.json'),
       });
 
       const readResponse = await executeStateOperation('state_read', {
@@ -200,8 +209,8 @@ describe('state operations directory initialization', () => {
   it('lists active modes from the explicit session scope without leaking a sibling Ralph session', async () => {
     const wd = await mkdtemp(join(tmpdir(), 'omx-state-ops-foreign-ralph-scope-'));
     try {
-      const currentSessionDir = join(wd, '.omx', 'state', 'sessions', 'sess-current');
-      const foreignSessionDir = join(wd, '.omx', 'state', 'sessions', 'sess-foreign');
+      const currentSessionDir = join(runtimeStateDir(wd), 'sessions', 'sess-current');
+      const foreignSessionDir = join(runtimeStateDir(wd), 'sessions', 'sess-foreign');
       await mkdir(currentSessionDir, { recursive: true });
       await mkdir(foreignSessionDir, { recursive: true });
       await writeFile(
@@ -223,7 +232,7 @@ describe('state operations directory initialization', () => {
   it('creates session-scoped state directory when session_id is provided', async () => {
     const wd = await mkdtemp(join(tmpdir(), 'omx-state-ops-session-'));
     try {
-      const sessionDir = join(wd, '.omx', 'state', 'sessions', 'sess1');
+      const sessionDir = join(runtimeStateDir(wd), 'sessions', 'sess1');
       assert.equal(existsSync(sessionDir), false);
 
       const response = await executeStateOperation('state_get_status', {
@@ -254,7 +263,7 @@ describe('state operations directory initialization', () => {
         assert.equal(response.isError, undefined);
       }
 
-      const filePath = join(wd, '.omx', 'state', 'team-state.json');
+      const filePath = join(runtimeStateDir(wd), 'team-state.json');
       const state = JSON.parse(await readFile(filePath, 'utf-8')) as Record<string, unknown>;
       for (let i = 0; i < 16; i++) {
         assert.equal(state[`k${i}`], i);
@@ -267,7 +276,7 @@ describe('state operations directory initialization', () => {
   it('does not report a legacy root mode active after clearing the current session scope', async () => {
     const wd = await mkdtemp(join(tmpdir(), 'omx-state-ops-clear-root-fallback-'));
     try {
-      const stateDir = join(wd, '.omx', 'state');
+      const stateDir = runtimeStateDir(wd);
       const sessionId = 'sess-clear';
       const sessionDir = join(stateDir, 'sessions', sessionId);
       await mkdir(sessionDir, { recursive: true });
@@ -333,7 +342,7 @@ describe('state operations directory initialization', () => {
         current_phase: 'running',
       });
 
-      const canonicalPath = join(wd, '.omx', 'state', 'sessions', 'sess-sync', 'skill-active-state.json');
+      const canonicalPath = join(runtimeStateDir(wd), 'sessions', 'sess-sync', 'skill-active-state.json');
       const canonical = JSON.parse(await readFile(canonicalPath, 'utf-8')) as {
         active_skills?: Array<{
           skill: string;
@@ -391,10 +400,10 @@ describe('state operations directory initialization', () => {
 
       assert.equal(denied.isError, true);
       assert.match(String((denied.payload as { error?: string }).error || ''), /Unsupported workflow overlap: team \+ autopilot\./);
-      assert.equal(existsSync(join(wd, '.omx', 'state', 'sessions', 'sess-deny', 'autopilot-state.json')), false);
+      assert.equal(existsSync(join(runtimeStateDir(wd), 'sessions', 'sess-deny', 'autopilot-state.json')), false);
 
       const canonical = JSON.parse(
-        await readFile(join(wd, '.omx', 'state', 'sessions', 'sess-deny', 'skill-active-state.json'), 'utf-8'),
+        await readFile(join(runtimeStateDir(wd), 'sessions', 'sess-deny', 'skill-active-state.json'), 'utf-8'),
       ) as { active_skills?: Array<{ skill: string }> };
       assert.deepEqual(canonical.active_skills?.map((entry) => entry.skill), ['team']);
     } finally {
@@ -405,7 +414,7 @@ describe('state operations directory initialization', () => {
   it('does not auto-complete existing workflow state when tracked write validation fails', async () => {
     const wd = await mkdtemp(join(tmpdir(), 'omx-state-ops-validate-before-transition-'));
     try {
-      const sessionDir = join(wd, '.omx', 'state', 'sessions', 'sess-invalid');
+      const sessionDir = join(runtimeStateDir(wd), 'sessions', 'sess-invalid');
       await mkdir(sessionDir, { recursive: true });
       await writeFile(
         join(sessionDir, 'ralplan-state.json'),
@@ -437,7 +446,7 @@ describe('state operations directory initialization', () => {
   it('keeps session-scoped tracked state writable after root-state parse fallback on resume', async () => {
     const wd = await mkdtemp(join(tmpdir(), 'omx-state-ops-resume-root-fallback-'));
     try {
-      const stateDir = join(wd, '.omx', 'state');
+      const stateDir = runtimeStateDir(wd);
       const sessionId = 'sess-resume-root-fallback';
       const sessionDir = join(stateDir, 'sessions', sessionId);
       await mkdir(sessionDir, { recursive: true });

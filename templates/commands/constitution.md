@@ -48,6 +48,7 @@ missing, copy the template first.
   use `--decision none --rationale "..."` only when no reusable
   `decision_debt`, `workflow_gap`, `user_preference`, or `project_constraint`
   exists.
+- Prefer `specify learning capture-auto --command constitution --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command constitution ...` when the durable state does not capture the reusable lesson cleanly.
 - Treat project rules or learnings that conflict with the amended constitution
   as mandatory follow-up work: either realign them in this run or flag them
   explicitly in the Sync Impact Report.
@@ -55,7 +56,7 @@ missing, copy the template first.
 ## Repository Context and Navigation Freshness
 
 - If repo-derived evidence is needed, read `PROJECT-HANDBOOK.md` as the root
-  navigation artifact and use `.specify/project-map/status.json` to assess
+  navigation artifact and use `.specify/project-map/index/status.json` to assess
   freshness before trusting topical project-map files.
 - If the navigation system is missing or stale for an existing codebase, run
   `/sp-map-codebase` before continuing or mark the refresh as a blocking
@@ -158,7 +159,7 @@ Follow this execution flow:
    - If the amendment changes navigation, structure, ownership, workflow,
      testing, integration, or operations expectations, mark
      `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/` topical
-     files for refresh and include `.specify/project-map/status.json` in the
+     files for refresh and include `.specify/project-map/index/status.json` in the
      propagation review.
    - Read any runtime guidance docs (for example `README.md`,
      `docs/quickstart.md`, or agent-specific guidance files if present). Update

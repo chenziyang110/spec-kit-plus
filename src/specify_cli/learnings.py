@@ -12,6 +12,7 @@ import yaml
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.hooks.checkpoint_serializers import (
     parse_frontmatter,
+    serialize_workflow_state,
 )
 from specify_cli.verification import summarize_validation_results
 
@@ -43,6 +44,7 @@ KNOWN_COMMANDS = (
     "sp-constitution",
     "sp-specify",
     "sp-clarify",
+    "sp-deep-research",
     "sp-plan",
     "sp-checklist",
     "sp-tasks",
@@ -225,15 +227,15 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
     if normalized_type in {"user_preference", "project_constraint"}:
         return list(KNOWN_COMMANDS)
     if normalized_type == "workflow_gap":
-        return ["sp-specify", "sp-plan", "sp-tasks", "sp-quick"]
+        return ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-quick"]
     if normalized_type == "routing_mistake":
         return ["sp-fast", "sp-quick", "sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
     if normalized_type == "verification_gap":
         return ["sp-test", "sp-implement", "sp-debug", "sp-quick"]
     if normalized_type == "state_surface_gap":
-        return ["sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug", "sp-quick", "sp-map-codebase"]
+        return ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-implement", "sp-debug", "sp-quick", "sp-map-codebase"]
     if normalized_type == "map_coverage_gap":
-        return ["sp-map-codebase", "sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
+        return ["sp-map-codebase", "sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
     if normalized_type == "tooling_trap":
         return ["sp-implement", "sp-debug", "sp-quick", "sp-map-codebase"]
     if normalized_type == "false_lead_pattern":
@@ -241,7 +243,7 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
     if normalized_type == "near_miss":
         return sorted({normalized_source, "sp-implement", "sp-debug", "sp-quick"})
     if normalized_type == "decision_debt":
-        return ["sp-specify", "sp-plan", "sp-tasks", "sp-map-codebase"]
+        return ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-map-codebase"]
     if normalized_type == "recovery_path":
         return ["sp-implement", "sp-debug", "sp-quick"]
     if normalized_type == "pitfall":
@@ -387,6 +389,44 @@ def _coerce_dict_list(value: Any) -> list[dict[str, Any]]:
         if isinstance(item, dict):
             values.append(item)
     return values
+
+
+def _coerce_section_mapping(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return dict(value)
+    if not isinstance(value, list):
+        return {}
+    merged: dict[str, Any] = {}
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        for key, nested in item.items():
+            merged[str(key)] = nested
+    return merged
+
+
+def _coerce_grouped_mapping_list(value: Any, *, group_key: str) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    items: list[Any]
+    if isinstance(value, list):
+        items = value
+    elif isinstance(value, dict):
+        items = [value]
+    else:
+        return []
+
+    results: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        grouped = item.get(group_key)
+        mapping = _coerce_section_mapping(grouped)
+        if mapping:
+            results.append(mapping)
+    return results
 
 
 def _load_sectioned_markdown(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -871,6 +911,199 @@ def _suggest_quick_auto_capture(workspace: Path) -> tuple[Path, list[AutoCapture
     return status_path, suggestions
 
 
+def _suggest_test_auto_capture(project_root: Path) -> tuple[Path, list[AutoCaptureSuggestion]]:
+    state_path = project_root / ".specify" / "testing" / "testing-state.md"
+    if not state_path.exists():
+        return state_path, []
+
+    frontmatter, sections = _load_sectioned_markdown(state_path)
+    status = str(frontmatter.get("status", "")).strip().lower()
+    mode = str(frontmatter.get("mode", "")).strip().lower()
+    current_focus = _coerce_section_mapping(sections.get("Current Focus"))
+    testing_assets = _coerce_section_mapping(sections.get("Testing Assets"))
+    validation_evidence = _coerce_section_mapping(sections.get("Validation Evidence"))
+    last_manual_validation = _coerce_section_mapping(validation_evidence.get("last_manual_validation"))
+    open_gaps = _coerce_grouped_mapping_list(sections.get("Open Gaps"), group_key="module")
+
+    next_action = str(current_focus.get("next_action") or "").strip()
+    next_command = str(current_focus.get("next_command") or "").strip()
+    handoff_reason = str(current_focus.get("handoff_reason") or "").strip()
+    unit_test_system_request = str(testing_assets.get("unit_test_system_request") or "").strip()
+    validation_commands = _coerce_str_list(last_manual_validation.get("commands"))
+    validation_exit_status = str(last_manual_validation.get("exit_status") or "").strip()
+    validation_summary = str(last_manual_validation.get("summary") or "").strip()
+    gap_summaries = [
+        str(item.get("summary") or "").strip()
+        for item in open_gaps
+        if str(item.get("summary") or "").strip()
+    ]
+    gap_next_actions = [
+        str(item.get("next_action") or "").strip()
+        for item in open_gaps
+        if str(item.get("next_action") or "").strip()
+    ]
+
+    suggestions: list[AutoCaptureSuggestion] = []
+    if open_gaps and next_command:
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="workflow_gap",
+                summary="Testing-system open gaps should drive an explicit follow-up route before later workflows resume",
+                recurrence_key="test.open-gaps-require-explicit-follow-up-route",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from testing-state.md",
+                    [
+                        ("state_path", state_path),
+                        ("status", status),
+                        ("mode", mode),
+                        ("next_action", next_action),
+                        ("next_command", next_command),
+                        ("handoff_reason", handoff_reason),
+                        ("open_gap_summaries", gap_summaries),
+                        ("open_gap_next_actions", gap_next_actions),
+                    ],
+                ),
+            )
+        )
+    if unit_test_system_request and next_command.lower() in {"/sp-specify", "/sp.specify"}:
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="project_constraint",
+                summary="Brownfield testing programs should start from UNIT_TEST_SYSTEM_REQUEST instead of ad-hoc implementation work",
+                recurrence_key="test.brownfield-programs-start-from-unit-test-system-request",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from testing-state.md",
+                    [
+                        ("state_path", state_path),
+                        ("mode", mode),
+                        ("next_action", next_action),
+                        ("next_command", next_command),
+                        ("handoff_reason", handoff_reason),
+                        ("unit_test_system_request", unit_test_system_request),
+                    ],
+                ),
+            )
+        )
+    if status in {"complete", "completed"} and (not validation_commands or not validation_exit_status or not validation_summary):
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="verification_gap",
+                summary="Testing-system completion requires explicit manual validation evidence in testing-state",
+                recurrence_key="test.complete-state-requires-manual-validation-evidence",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from testing-state.md",
+                    [
+                        ("state_path", state_path),
+                        ("status", status),
+                        ("mode", mode),
+                        ("validation_commands", validation_commands),
+                        ("validation_exit_status", validation_exit_status),
+                        ("validation_summary", validation_summary),
+                    ],
+                ),
+            )
+        )
+    return state_path, suggestions
+
+
+WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS = {
+    "sp-constitution",
+    "sp-specify",
+    "sp-clarify",
+    "sp-deep-research",
+    "sp-plan",
+    "sp-checklist",
+    "sp-tasks",
+    "sp-analyze",
+    "sp-map-codebase",
+}
+
+
+def _suggest_workflow_state_auto_capture(
+    feature_dir: Path,
+    *,
+    command_name: str,
+) -> tuple[Path, list[AutoCaptureSuggestion]]:
+    state_path = feature_dir / "workflow-state.md"
+    if not state_path.exists():
+        return state_path, []
+
+    checkpoint = serialize_workflow_state(state_path)
+    next_command = str(checkpoint.get("next_command") or "").strip()
+    next_action = str(checkpoint.get("next_action") or "").strip()
+    route_reason = str(checkpoint.get("route_reason") or "").strip()
+    blocked_reason = str(checkpoint.get("blocked_reason") or "").strip()
+    false_starts = _coerce_str_list(checkpoint.get("false_starts"))
+    hidden_dependencies = _coerce_str_list(checkpoint.get("hidden_dependencies"))
+    reusable_constraints = _coerce_str_list(checkpoint.get("reusable_constraints"))
+    status = str(checkpoint.get("status") or "").strip()
+    phase_mode = str(checkpoint.get("phase_mode") or "").strip()
+
+    suggestions: list[AutoCaptureSuggestion] = []
+    if next_command and route_reason:
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="workflow_gap",
+                summary="Workflow-state handoff should preserve the exact re-entry reason so later stages do not rediscover why routing changed",
+                recurrence_key=f"{command_name}.workflow-state-preserves-reentry-reason",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from workflow-state.md",
+                    [
+                        ("feature_dir", feature_dir),
+                        ("command", command_name),
+                        ("status", status),
+                        ("phase_mode", phase_mode),
+                        ("next_command", next_command),
+                        ("next_action", next_action),
+                        ("route_reason", route_reason),
+                        ("blocked_reason", blocked_reason),
+                    ],
+                ),
+            )
+        )
+    if false_starts:
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="false_lead_pattern",
+                summary="Workflow-state should preserve false starts so later runs do not repeat the same route or diagnosis loop",
+                recurrence_key=f"{command_name}.workflow-state-preserves-false-starts",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from workflow-state.md",
+                    [
+                        ("feature_dir", feature_dir),
+                        ("command", command_name),
+                        ("status", status),
+                        ("phase_mode", phase_mode),
+                        ("false_starts", false_starts),
+                        ("next_command", next_command),
+                        ("next_action", next_action),
+                    ],
+                ),
+            )
+        )
+    if hidden_dependencies or reusable_constraints:
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="project_constraint",
+                summary="Dependencies and reusable constraints discovered in workflow-state should be promoted into shared memory before later work resumes",
+                recurrence_key=f"{command_name}.workflow-state-promotes-discovered-constraints",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from workflow-state.md",
+                    [
+                        ("feature_dir", feature_dir),
+                        ("command", command_name),
+                        ("status", status),
+                        ("phase_mode", phase_mode),
+                        ("hidden_dependencies", hidden_dependencies),
+                        ("reusable_constraints", reusable_constraints),
+                        ("next_command", next_command),
+                    ],
+                ),
+            )
+        )
+    return state_path, suggestions
+
+
 def _suggest_debug_auto_capture(session_file: Path) -> tuple[Path, list[AutoCaptureSuggestion]]:
     if not session_file.exists():
         return session_file, []
@@ -951,8 +1184,37 @@ def should_auto_promote_on_start(entry: LearningEntry, command_name: str) -> boo
         entry.status == "candidate"
         and is_relevant_to_command(entry, command_name)
         and entry.occurrence_count >= 2
-        and entry.signal_strength != "high"
     )
+
+
+def _preflight_warning_payload(
+    entry: LearningEntry,
+    *,
+    current_command: str,
+    source_layer: str,
+    requires_confirmation: bool = False,
+) -> dict[str, Any]:
+    layer_label_map = {
+        "project_rules": "stable project rule",
+        "project_learnings": "confirmed project learning",
+        "candidate": "candidate learning",
+    }
+    label = layer_label_map.get(source_layer, "shared learning")
+    why_now = (
+        f"{label} applies to {current_command} and should shape this workflow run before the same issue repeats"
+        if source_layer != "candidate"
+        else f"high-signal candidate should be reviewed before {current_command} rediscovers the same issue from scratch"
+    )
+    return {
+        "recurrence_key": entry.recurrence_key,
+        "summary": entry.summary,
+        "learning_type": entry.learning_type,
+        "source_layer": source_layer,
+        "signal_strength": entry.signal_strength,
+        "occurrence_count": entry.occurrence_count,
+        "requires_confirmation": requires_confirmation,
+        "why_now": why_now,
+    }
 
 
 def start_learning_session(project_root: Path, *, command_name: str) -> dict[str, Any]:
@@ -966,20 +1228,11 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
     remaining_candidates: list[LearningEntry] = []
     for entry in candidate_entries:
         if should_auto_promote_on_start(entry, normalized_command):
-            promoted_entry = LearningEntry(
-                id=entry.id,
-                summary=entry.summary,
-                learning_type=entry.learning_type,
-                source_command=entry.source_command,
-                evidence=entry.evidence,
-                recurrence_key=entry.recurrence_key,
-                default_scope=entry.default_scope,
-                applies_to=entry.applies_to,
-                signal_strength=entry.signal_strength,
-                status="confirmed",
-                first_seen=entry.first_seen,
-                last_seen=entry.last_seen,
-                occurrence_count=entry.occurrence_count,
+            promoted_entry = LearningEntry.from_payload(
+                {
+                    **entry.to_payload(),
+                    "status": "confirmed",
+                }
             )
             learning_entries, stored = _upsert_entry(learning_entries, promoted_entry, status="confirmed")
             auto_promoted.append(stored)
@@ -1018,8 +1271,57 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         if is_relevant_to_command(entry, normalized_command) and is_highest_signal(entry)
     ]
 
+    preflight_warning_entries: list[dict[str, Any]] = []
+    seen_preflight_keys: set[str] = set()
+
+    for entry in rule_entries:
+        if not is_relevant_to_command(entry, normalized_command):
+            continue
+        if entry.recurrence_key in seen_preflight_keys:
+            continue
+        preflight_warning_entries.append(
+            _preflight_warning_payload(
+                entry,
+                current_command=normalized_command,
+                source_layer="project_rules",
+            )
+        )
+        seen_preflight_keys.add(entry.recurrence_key)
+
+    for entry in learning_entries:
+        if not is_relevant_to_command(entry, normalized_command):
+            continue
+        if entry.recurrence_key in seen_preflight_keys:
+            continue
+        preflight_warning_entries.append(
+            _preflight_warning_payload(
+                entry,
+                current_command=normalized_command,
+                source_layer="project_learnings",
+            )
+        )
+        seen_preflight_keys.add(entry.recurrence_key)
+
+    for entry in candidate_entries:
+        if not is_relevant_to_command(entry, normalized_command):
+            continue
+        if not is_highest_signal(entry):
+            continue
+        if entry.recurrence_key in seen_preflight_keys:
+            continue
+        preflight_warning_entries.append(
+            _preflight_warning_payload(
+                entry,
+                current_command=normalized_command,
+                source_layer="candidate",
+                requires_confirmation=True,
+            )
+        )
+        seen_preflight_keys.add(entry.recurrence_key)
+
     top_warning_entries = sorted(
         [
+            *auto_promoted,
             *[LearningEntry.from_payload(item) for item in promotable],
             *[LearningEntry.from_payload(item) for item in confirmation_candidates],
         ],
@@ -1052,6 +1354,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         "auto_promoted": [entry.to_payload() for entry in auto_promoted],
         "promotable_candidates": promotable,
         "confirmation_candidates": confirmation_candidates,
+        "preflight_warnings": preflight_warning_entries,
         "summary_counts": {
             "relevant_rules": len(relevant_rules),
             "relevant_learnings": len(relevant_learnings),
@@ -1059,6 +1362,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
             "auto_promoted": len(auto_promoted),
             "promotable_candidates": len(promotable),
             "confirmation_candidates": len(confirmation_candidates),
+            "preflight_warnings": len(preflight_warning_entries),
         },
         "top_warnings": top_warnings,
     }
@@ -1146,6 +1450,15 @@ def capture_auto_learning(
         if workspace is None:
             raise ValueError("workspace is required for quick auto-capture")
         source_path, suggestions = _suggest_quick_auto_capture(workspace)
+    elif normalized_command == "sp-test":
+        source_path, suggestions = _suggest_test_auto_capture(project_root)
+    elif normalized_command in WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS:
+        if feature_dir is None:
+            raise ValueError("feature_dir is required for workflow-state auto-capture")
+        source_path, suggestions = _suggest_workflow_state_auto_capture(
+            feature_dir,
+            command_name=normalized_command,
+        )
     elif normalized_command == "sp-debug":
         if session_file is None:
             raise ValueError("session_file is required for debug auto-capture")

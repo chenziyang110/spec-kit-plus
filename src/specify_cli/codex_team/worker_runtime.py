@@ -1,4 +1,4 @@
-"""Background worker runtime used by `specify team` auto-dispatch."""
+"""Background worker runtime used by `sp-teams` auto-dispatch."""
 
 from __future__ import annotations
 

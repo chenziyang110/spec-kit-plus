@@ -30,6 +30,7 @@ _FALLBACK_CORE_COMMAND_NAMES = frozenset({
     "checklist",
     "constitution",
     "debug",
+    "deep-research",
     "explain",
     "implement",
     "map-codebase",

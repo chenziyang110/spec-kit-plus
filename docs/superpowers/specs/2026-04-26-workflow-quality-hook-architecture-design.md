@@ -101,7 +101,7 @@ surfaces.
 The shared templates already define strong rules for:
 
 - workflow phase locks through `workflow-state.md`
-- brownfield freshness gates through `.specify/project-map/status.json`
+- brownfield freshness gates through `.specify/project-map/index/status.json`
 - execution-state tracking through `implement-tracker.md`
 - quick-task resumability through `.planning/quick/<id>-<slug>/STATUS.md`
 - debug-session resumability through `.planning/debug/[slug].md`
@@ -340,7 +340,7 @@ Purpose: turn freshness from a template reminder into a real gate.
 
 Shared behavior:
 
-- inspect `.specify/project-map/status.json`
+- inspect `.specify/project-map/index/status.json`
 - map the touched area to required or review topics
 - block or warn according to freshness and touched-area risk
 

@@ -3,7 +3,7 @@ description: Use when handbook/project-map coverage is missing, stale, or insuff
 workflow_contract:
   when_to_use: A workflow needs reliable handbook/project-map coverage and the current navigation artifacts are missing, stale, or too weak for the touched area.
   primary_objective: Generate or refresh the canonical atlas-style technical encyclopedia directly from the live repository.
-  primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json`.'
+  primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/index/*.json`, `.specify/project-map/root/*.md`, `.specify/project-map/modules/<module-id>/*.md`, and `.specify/project-map/index/status.json`.'
   default_handoff: Return to the blocked workflow that required fresh navigation coverage.
 ---
 
@@ -32,42 +32,53 @@ navigation summaries.
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command map-codebase --format json` when available so passive learning files exist, the current mapping run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
+- [AGENT] Run `specify learning start --command map-codebase --format json` when available so passive learning files exist, the current mapping run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - [AGENT] When mapping friction appears, run `specify hook signal-learning --command map-codebase ...` with route-change, artifact-rewrite, false-start, or hidden-dependency counts so atlas blind spots become explicit learning signals.
 - [AGENT] Before reporting completion or a blocked refresh, run `specify hook review-learning --command map-codebase --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `map_coverage_gap`, `workflow_gap`, `state_surface_gap`, or `project_constraint` exists.
-- [AGENT] Prefer `specify hook capture-learning --command map-codebase ...` for structured atlas learnings with `--injection-target PROJECT-HANDBOOK.md`, `.specify/project-map/`, or the affected `sp-*` workflow.
+- [AGENT] Prefer `specify learning capture-auto --command map-codebase --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command map-codebase ...` for structured atlas learnings when the durable state does not capture the reusable lesson cleanly.
 
 ## Output Contract
 
 The only canonical outputs are:
 
 - `PROJECT-HANDBOOK.md`
-- `.specify/project-map/ARCHITECTURE.md`
-- `.specify/project-map/STRUCTURE.md`
-- `.specify/project-map/CONVENTIONS.md`
-- `.specify/project-map/INTEGRATIONS.md`
-- `.specify/project-map/WORKFLOWS.md`
-- `.specify/project-map/TESTING.md`
-- `.specify/project-map/OPERATIONS.md`
+- `.specify/project-map/index/atlas-index.json`
+- `.specify/project-map/index/modules.json`
+- `.specify/project-map/index/relations.json`
+- `.specify/project-map/index/status.json`
+- `.specify/project-map/root/ARCHITECTURE.md`
+- `.specify/project-map/root/STRUCTURE.md`
+- `.specify/project-map/root/CONVENTIONS.md`
+- `.specify/project-map/root/INTEGRATIONS.md`
+- `.specify/project-map/root/WORKFLOWS.md`
+- `.specify/project-map/root/TESTING.md`
+- `.specify/project-map/root/OPERATIONS.md`
+- `.specify/project-map/modules/<module-id>/OVERVIEW.md`
+- `.specify/project-map/modules/<module-id>/ARCHITECTURE.md`
+- `.specify/project-map/modules/<module-id>/STRUCTURE.md`
+- `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
+- `.specify/project-map/modules/<module-id>/TESTING.md`
 
 Supporting metadata written alongside the canonical map:
 
-- `.specify/project-map/status.json`
+- `.specify/project-map/index/status.json`
 
 `status.json` must preserve the current freshness contract. At minimum it should carry:
 
 - `version`
-- `last_mapped_commit`
-- `last_mapped_at`
-- `last_mapped_branch`
-- `freshness`
-- `last_refresh_reason`
-- `last_refresh_topics`
-- `last_refresh_scope`
-- `last_refresh_basis`
-- `last_refresh_changed_files_basis`
-- `dirty`
-- `dirty_reasons`
+- `global`
+- `modules`
+- global freshness metadata
+- module-local freshness metadata
+- module `deep_status`
+
+The layered index contract must also preserve:
+
+- `atlas-index.json` as the entry summary, not the truth source
+- `modules.json` as the canonical module registry
+- `relations.json` as the cross-module routing source
+- `status.json` as the global plus module freshness source
+- `deep_stale` as the explicit signal that deep module content is not current enough to trust blindly
 
 Rules:
 
@@ -85,6 +96,10 @@ Rules:
   constraint, integration, or regression-sensitive testing guidance.
 - Treat the map as a coverage system, not just a navigation summary.
 - Treat the combined handbook/project-map set as the repository's atlas-style technical encyclopedia, not as a folder tree with commentary.
+- The machine index exists to route agents into the correct root or module docs before broad live-code reads.
+- `atlas-index.json` must stay intentionally small so consumers use it for routing rather than for technical truth.
+- Module-local truth should live under `.specify/project-map/modules/<module-id>/`, while cross-module and repository-wide truth should live under `.specify/project-map/root/`.
+- Module `deep/` content does not need automatic full refresh. When deep detail is not refreshed, mark the owning module `deep_stale` in `status.json` and say so explicitly.
 - The generated navigation system should collectively cover the equivalent of these seven technical-document chapters, distributed across the canonical outputs instead of recreated as one monolithic file:
   - project architecture overview
   - directory structure and responsibilities
@@ -163,8 +178,10 @@ Rules:
 
 1. **Load the mapping contract**
    - Read `.specify/memory/constitution.md` if present.
-   - [AGENT] Read `.specify/project-map/status.json` if present to recover the current map baseline, dirty state, and previous refresh metadata.
-   - [AGENT] Read `PROJECT-HANDBOOK.md` and all existing `.specify/project-map/*.md` files if present.
+   - [AGENT] Read `.specify/project-map/index/status.json` if present to recover the current map baseline, dirty state, previous refresh metadata, and any module `deep_stale` warnings.
+   - [AGENT] Read `.specify/project-map/index/atlas-index.json`, `.specify/project-map/index/modules.json`, and `.specify/project-map/index/relations.json` if present.
+   - [AGENT] Read `PROJECT-HANDBOOK.md` and all existing `.specify/project-map/root/*.md` files if present.
+   - [AGENT] If an existing repository still uses the older flat `.specify/project-map/*.md` layout, treat those files as migration-era support evidence until the layered atlas is refreshed.
    - Read `.specify/templates/project-handbook-template.md` and
      `.specify/templates/project-map/*.md` if present so the generated output
      follows the local navigation contract.
@@ -255,22 +272,15 @@ Rules:
 
 4. **Generate or refresh the topical map**
    - [AGENT] Map the comprehensive scout into the canonical outputs instead of inventing a standalone technical-document file:
-     - `PROJECT-HANDBOOK.md` -> project architecture overview summary,
-       cross-cutting hotspots, and topic routing
-     - `ARCHITECTURE.md` -> top-level architecture pattern, major module
-       dependency relationships, truth ownership, and critical component seams
-     - `STRUCTURE.md` -> directory structure and responsibilities, including
-       major directories and representative subdirectories
-     - `CONVENTIONS.md` -> common patterns and conventions, naming rules,
-       configuration customs, and utility locations
-     - `INTEGRATIONS.md` -> APIs, external surfaces, protocol seams, platform
-       assumptions, and integration boundaries
-     - `WORKFLOWS.md` -> core data flows, request/command lifecycles, and
-       entry-to-exit handoffs
-     - `TESTING.md` -> verification routes that prove the mapped contracts and
-       workflows
-     - `OPERATIONS.md` -> build/deploy/runtime constraints, troubleshooting,
-       and recovery paths
+     - `PROJECT-HANDBOOK.md` -> project architecture overview summary, cross-cutting hotspots, and topic routing
+     - `.specify/project-map/index/atlas-index.json` -> atlas entry summary, module count, and next lookup pointers
+     - `.specify/project-map/index/modules.json` -> canonical module registry and module document paths
+     - `.specify/project-map/index/relations.json` -> cross-module routing, shared surfaces, and dependency expansion paths
+     - `.specify/project-map/root/*.md` -> repository-wide and cross-module topical truth
+     - `.specify/project-map/modules/<module-id>/*.md` -> module-local truth, ownership, workflows, and testing
+   - [AGENT] Root docs must carry cross-module truth; module docs must carry module-local truth. Do not push all technical detail back into the root layer.
+   - [AGENT] For each high-value module, create at least `OVERVIEW.md`, `ARCHITECTURE.md`, `STRUCTURE.md`, `WORKFLOWS.md`, and `TESTING.md`.
+   - [AGENT] When a module needs deeper detail, use controlled `deep/` categories: `capabilities/`, `workflows/`, `integrations/`, `runtime/`, and `references/`.
    - Every topical document should begin with a metadata block:
      ```markdown
      **Last Updated:** YYYY-MM-DD
@@ -377,7 +387,7 @@ Rules:
    - Each subsystem or topic-map item in the handbook should stay to one short paragraph and end with an explicit route to the relevant topical file.
 
 6. **Run a consistency pass**
-   - [AGENT] Ensure `PROJECT-HANDBOOK.md` and `.specify/project-map/*.md` agree on paths, ownership, and workflow names.
+   - [AGENT] Ensure `PROJECT-HANDBOOK.md`, `.specify/project-map/index/*.json`, `.specify/project-map/root/*.md`, and `.specify/project-map/modules/*/*.md` agree on paths, ownership, module IDs, and workflow names.
    - Remove duplicate truth blocks when a topic belongs in a topical document
      instead of the root handbook.
    - If touched-area coverage is still missing, stale, too broad, or

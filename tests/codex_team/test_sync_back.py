@@ -4,7 +4,7 @@ import pytest
 
 
 def _seed_worker_file(project_root: Path, *, session_id: str = "default", worker_id: str = "worker-a") -> Path:
-    worktree_root = project_root / ".specify" / "codex-team" / "worktrees" / session_id / worker_id
+    worktree_root = project_root / ".specify" / "teams" / "worktrees" / session_id / worker_id
     file_path = worktree_root / "src" / "app.py"
     file_path.parent.mkdir(parents=True, exist_ok=True)
     file_path.write_text("print('from worker')\n", encoding="utf-8")

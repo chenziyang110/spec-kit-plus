@@ -12,6 +12,7 @@ from .types import HookResult, QualityHookError
 REQUIRED_ARTIFACTS = {
     "constitution": ("workflow-state.md",),
     "specify": ("spec.md", "alignment.md", "context.md", "workflow-state.md"),
+    "deep-research": ("deep-research.md", "workflow-state.md"),
     "plan": ("plan.md", "workflow-state.md"),
     "tasks": ("tasks.md", "workflow-state.md"),
     "analyze": ("workflow-state.md",),

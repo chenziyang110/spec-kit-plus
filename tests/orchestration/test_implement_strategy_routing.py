@@ -66,7 +66,7 @@ def test_implement_keeps_non_codex_integrations_on_native_when_supported() -> No
     assert decision.reason == "native-supported"
 
 
-def test_implement_routes_to_sidecar_runtime_when_native_is_missing() -> None:
+def test_implement_stays_single_lane_when_native_is_missing() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="codex",
         native_multi_agent=False,
@@ -82,9 +82,10 @@ def test_implement_routes_to_sidecar_runtime_when_native_is_missing() -> None:
         },
     )
 
-    assert decision.strategy == "sidecar-runtime"
+    assert decision.strategy == "single-lane"
     assert decision.reason == "native-missing"
     assert decision.fallback_from is None
+    assert decision.execution_surface == "leader-local"
 
 
 def test_implement_routes_to_single_lane_when_parallel_batch_count_is_zero() -> None:
