@@ -17,6 +17,8 @@ If `$ARGUMENTS` names a subsystem, workflow, or focus area, use it to bias
 classification and packet priority, but still keep the scan package globally
 coherent for all project-relevant surfaces.
 
+## Guardrails
+
 ## Hard Boundary
 
 - `sp-map-scan` must not write final atlas truth.

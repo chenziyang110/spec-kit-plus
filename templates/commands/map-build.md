@@ -38,6 +38,15 @@ Before writing final atlas documents, read:
 If any scan-package file is missing, `sp-map-build` must not guess and continue.
 Produce a scan gap report and route back to `/sp-map-scan`.
 
+## Process
+
+1. Validate that the `sp-map-scan` package is present and complete.
+2. Refuse atlas writing when readiness checks fail, and report the smallest safe `sp-map-scan` repair.
+3. Select the execution strategy and dispatch read-only explorer lanes only when the scan packets justify it.
+4. Write the canonical handbook/project-map atlas from accepted packet evidence.
+5. Prove reverse coverage validation before reporting success.
+6. Finalize freshness with `project-map complete-refresh` after a successful full refresh.
+
 ## Readiness Refusal Rules
 
 `sp-map-build` must refuse atlas writing when the scan package has:
@@ -90,7 +99,10 @@ Every explorer result must include:
 The leader must not accept packet results without paths read, packet results
 that only summarize without evidence, or results that omit required unknowns.
 
-## Atlas Output Contract
+## Output Contract
+
+This atlas output contract is the only final write surface for
+`sp-map-build`.
 
 The only canonical outputs for this command are:
 
@@ -115,6 +127,8 @@ The only canonical outputs for this command are:
 
 Do not create `.planning/codebase/`, a second mapping tree, or any alternate
 source-of-truth document.
+
+## Guardrails
 
 ## Root and Module Document Detail Rules
 
