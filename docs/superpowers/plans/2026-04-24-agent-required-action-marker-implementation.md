@@ -504,7 +504,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def test_map_codebase_template_marks_refresh_and_strategy_gates_with_agent_marker() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "map-codebase.md").read_text(encoding="utf-8")
 
-    assert "[AGENT] Read `.specify/project-map/status.json`" in content
+    assert "[AGENT] Read `.specify/project-map/index/status.json`" in content
     assert "[AGENT] Read `PROJECT-HANDBOOK.md` and all existing `.specify/project-map/*.md` files if present." in content
     assert "[AGENT] Before broad scouting begins, assess workload shape" in content
     assert "[AGENT] Read only the live files needed to establish current facts" in content
@@ -542,7 +542,7 @@ Insert representative blocks:
 ```
 
 ```md
-- [AGENT] Read `.specify/project-map/status.json` if present.
+- [AGENT] Read `.specify/project-map/index/status.json` if present.
 - [AGENT] Read `PROJECT-HANDBOOK.md` and all existing `.specify/project-map/*.md` files if present.
 - [AGENT] Before broad scouting begins, assess workload shape and run `choose_execution_strategy(command_name="map-codebase", snapshot, workload_shape)`.
 - [AGENT] Read only the live files needed to establish current facts.

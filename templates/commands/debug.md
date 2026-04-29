@@ -88,7 +88,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ### Observer Framing Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
-- Check whether `.specify/project-map/status.json` exists.
+- Check whether `.specify/project-map/index/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
 - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the failing area, run `/sp-map-codebase` before root-cause analysis continues. If only `review_topics` are non-empty, review those topical files before widening the investigation.
@@ -97,7 +97,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - [AGENT] If task-relevant coverage is insufficient for the failing area, run `/sp-map-codebase` before root-cause analysis continues, then reload the generated navigation artifacts.
 - Read whichever of `ARCHITECTURE.md`, `WORKFLOWS.md`, `INTEGRATIONS.md`, `TESTING.md`, and `OPERATIONS.md` map to the failing area.
-- Read the corresponding `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` files for the failing area.
+- Read the corresponding `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` files for the failing area.
 - Use the navigation system to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
 - Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
@@ -314,8 +314,8 @@ The session file must always make it clear:
 - If verification fails, return to `investigating` with updated evidence. Do not keep layering fixes without updating the hypothesis.
 - If automated verification or human verification fails repeatedly without producing a stronger causal explanation, stop the local fix loop and create or refresh `.planning/debug/[slug].research.md` before another code change.
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
-- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
-- If you cannot complete that refresh in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield work proceeds.
+- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass.
+- If you cannot complete that refresh in the current pass, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield work proceeds.
 - [AGENT] Before the final completion or `awaiting_human_verify` report, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command debug ...`.
 - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
 - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.

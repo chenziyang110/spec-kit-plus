@@ -367,7 +367,7 @@ def test_bash_script_updates_existing_non_agents_file_with_managed_guidance(
     assert "## Artifact Priority" in content
     assert "workflow-state.md" in content
     assert "## Map Maintenance" in content
-    assert ".specify/project-map/status.json" in content
+    assert ".specify/project-map/index/status.json" in content
 
 
 def test_powershell_script_updates_existing_non_agents_file_with_managed_guidance(
@@ -399,7 +399,7 @@ def test_powershell_script_updates_existing_non_agents_file_with_managed_guidanc
     assert "## Artifact Priority" in content
     assert "workflow-state.md" in content
     assert "## Map Maintenance" in content
-    assert ".specify/project-map/status.json" in content
+    assert ".specify/project-map/index/status.json" in content
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")

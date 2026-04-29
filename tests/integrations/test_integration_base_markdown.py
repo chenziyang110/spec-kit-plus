@@ -362,7 +362,7 @@ class MarkdownIntegrationTests:
         files.append(".specify/memory/constitution.md")
         files.append(".specify/memory/project-learnings.md")
         files.append(".specify/memory/project-rules.md")
-        files.append(".specify/project-map/status.json")
+        files.append(".specify/project-map/index/status.json")
         return sorted(files)
 
     def test_complete_file_inventory_sh(self, tmp_path):
@@ -449,10 +449,10 @@ class MarkdownIntegrationTests:
         assert "plan.md" in content
         assert "tasks.md" in content
         assert ".specify/testing/TESTING_CONTRACT.md" in content
-        assert ".specify/project-map/status.json" in content
+        assert ".specify/project-map/index/status.json" in content
         assert "## Map Maintenance" in content
         assert "refresh `PROJECT-HANDBOOK.md`" in content
-        assert "mark `.specify/project-map/status.json` dirty" in content
+        assert "mark `.specify/project-map/index/status.json` dirty" in content
 
     def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner

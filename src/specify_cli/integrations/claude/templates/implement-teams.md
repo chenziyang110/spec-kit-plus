@@ -48,7 +48,7 @@ TeamCreate({
    - shared tasks live under `~/.claude/tasks/{team-name}/`
 5. Before the first `TaskCreate`, compile an execution context bundle for the current batch:
    - include `PROJECT-HANDBOOK.md`
-   - include the smallest relevant `.specify/project-map/*.md` files for the touched subsystem, at minimum `.specify/project-map/WORKFLOWS.md` plus any architecture/operations/testing topics that define the lane boundary
+   - include the smallest relevant `.specify/project-map/*.md` files for the touched subsystem, at minimum `.specify/project-map/root/WORKFLOWS.md` plus any architecture/operations/testing topics that define the lane boundary
    - include `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present
    - for each bundled item, preserve the path, why it matters, and a read order so the teammate knows both where the project truth lives and what it is for
 6. Convert the ready implementation slices into explicit shared tasks with `TaskCreate`.
@@ -74,7 +74,7 @@ Write Set:
 - apps/relay-server/src/protocol.rs
 Required References:
 - PROJECT-HANDBOOK.md
-- .specify/project-map/WORKFLOWS.md
+- .specify/project-map/root/WORKFLOWS.md
 Deliverables:
 - matching protocol definitions on both sides
 - focused tests updated

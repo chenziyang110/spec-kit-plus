@@ -69,13 +69,13 @@ in view.]
 
 ## Topic Map
 
-- `.specify/project-map/ARCHITECTURE.md` - layers, abstractions, truth ownership
-- `.specify/project-map/STRUCTURE.md` - where code lives and where to add new code
-- `.specify/project-map/CONVENTIONS.md` - naming, imports, error handling, style
-- `.specify/project-map/INTEGRATIONS.md` - external tools, env, runtime dependencies
-- `.specify/project-map/WORKFLOWS.md` - user flows, maintainer flows, workflow risks
-- `.specify/project-map/TESTING.md` - test layers and smallest meaningful checks
-- `.specify/project-map/OPERATIONS.md` - startup, recovery, troubleshooting, operator notes
+- `.specify/project-map/root/ARCHITECTURE.md` - layers, abstractions, truth ownership
+- `.specify/project-map/root/STRUCTURE.md` - where code lives and where to add new code
+- `.specify/project-map/root/CONVENTIONS.md` - naming, imports, error handling, style
+- `.specify/project-map/root/INTEGRATIONS.md` - external tools, env, runtime dependencies
+- `.specify/project-map/root/WORKFLOWS.md` - user flows, maintainer flows, workflow risks
+- `.specify/project-map/root/TESTING.md` - test layers and smallest meaningful checks
+- `.specify/project-map/root/OPERATIONS.md` - startup, recovery, troubleshooting, operator notes
 
 ## Update Triggers
 

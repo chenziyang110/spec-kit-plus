@@ -97,10 +97,10 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     assert packet.validation_gates == ["pytest tests/unit/test_auth_service.py -q"]
     assert [item.path for item in packet.context_bundle] == [
         "PROJECT-HANDBOOK.md",
-        ".specify/project-map/ARCHITECTURE.md",
-        ".specify/project-map/WORKFLOWS.md",
-        ".specify/project-map/OPERATIONS.md",
-        ".specify/project-map/TESTING.md",
+        ".specify/project-map/root/ARCHITECTURE.md",
+        ".specify/project-map/root/WORKFLOWS.md",
+        ".specify/project-map/root/OPERATIONS.md",
+        ".specify/project-map/root/TESTING.md",
         ".specify/testing/TESTING_CONTRACT.md",
         ".specify/testing/TESTING_PLAYBOOK.md",
         "src/contracts/auth.py",

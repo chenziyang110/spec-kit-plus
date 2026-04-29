@@ -47,7 +47,7 @@ def test_test_template_uses_handbook_and_project_map_gates():
     assert "[AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
     assert "[AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
     assert "[AGENT] Read `PROJECT-HANDBOOK.md`." in content
-    assert "Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`" in content
+    assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" in content
 
 
 def test_test_template_emits_result_driven_handoff_recommendation():

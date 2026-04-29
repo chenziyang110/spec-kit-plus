@@ -56,7 +56,7 @@ def test_guidance_docs_explain_handbook_navigation_system():
     for content in (readme, quickstart):
         assert "Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact." in content
         assert "Deep project knowledge lives under `.specify/project-map/`." in content
-        assert ".specify/project-map/status.json" in content
+        assert ".specify/project-map/index/status.json" in content
         assert "project-map complete-refresh" in content
         assert "Any code change that alters navigation meaning must update the handbook system." in content
 

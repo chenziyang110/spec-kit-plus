@@ -93,12 +93,12 @@ agent_scripts:
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 2. **Ensure repository navigation system exists**:
-   - Check whether `.specify/project-map/status.json` exists.
+   - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current planning request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for planning.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
-   - Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
    - [AGENT] If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - [AGENT] If task-relevant coverage is insufficient for the current planning request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
@@ -117,7 +117,7 @@ agent_scripts:
    - Read `.specify/memory/project-learnings.md` if present
    - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to planning so repeated workflow gaps, implementation constraints, and user defaults are not rediscovered from scratch
    - [AGENT] Read `PROJECT-HANDBOOK.md`
-   - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+   - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
    - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
    - Read `templates/research-template.md`
    - Read `templates/workflow-state-template.md`

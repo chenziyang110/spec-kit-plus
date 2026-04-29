@@ -44,7 +44,7 @@ def sample_packet() -> WorkerTaskPacket:
                 selection_reason="root navigation artifact",
             ),
             ContextBundleItem(
-                path=".specify/project-map/WORKFLOWS.md",
+                path=".specify/project-map/root/WORKFLOWS.md",
                 kind="project_map",
                 purpose="Describe when to use teams and when to fall back to leader-local closure",
                 required_for=["workflow_boundary", "runtime_constraints"],
@@ -88,7 +88,7 @@ def test_validate_worker_task_result_accepts_acknowledged_result(
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
         ),
     )
 
@@ -133,7 +133,7 @@ def test_validate_worker_task_result_accepts_blocked_result_with_fail_fast_conte
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
         ),
     )
 
@@ -168,7 +168,7 @@ def test_validate_worker_task_result_rejects_blocked_result_without_recovery_con
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
         ),
     )
 
@@ -226,7 +226,7 @@ def test_validate_worker_task_result_rejects_success_without_truthful_validation
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
         ),
     )
 
@@ -256,7 +256,7 @@ def test_validate_worker_task_result_rejects_success_when_a_validation_gate_is_m
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
         ),
     )
 

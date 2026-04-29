@@ -72,7 +72,7 @@ workflow_contract:
 
 1. **Establish repository context**
    - Confirm the repository root and treat this workflow as project-level rather than feature-level.
-   - Check whether `.specify/project-map/status.json` exists.
+   - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If the testing surfaces are stale or weak, run `/sp-map-codebase` before continuing. Otherwise review the relevant topic files before trusting the current map.
@@ -84,7 +84,7 @@ workflow_contract:
      - which startup, CI, or operator commands are required to run tests safely
    - [AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
    - [AGENT] Read `PROJECT-HANDBOOK.md`.
-   - Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+   - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.
 
 2. **Inventory the current testing surface**

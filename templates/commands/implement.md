@@ -191,18 +191,18 @@ human_needed_checks:
    - **IF TRACKER EXISTS WITH STATUS `validating`**: Resume the unfinished validation checks before considering any new implementation work.
    - **IF TRACKER EXISTS WITH STATUS `executing` OR `recovering`**: Resume from the recorded `current_batch`, `failed_tasks`, and `retry_attempts` rather than recomputing progress from chat narration.
    - **IF `$ARGUMENTS` IS NON-EMPTY**: Extract any high-signal execution constraints, environment facts, build instructions, startup instructions, or recovery hints and record them under `## User Execution Notes` in `implement-tracker.md` before choosing the next batch.
-   - **REQUIRED**: Check whether `.specify/project-map/status.json` exists.
+   - **REQUIRED**: Check whether `.specify/project-map/index/status.json` exists.
    - **IF STATUS EXISTS**: Use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - **IF FRESHNESS IS `missing` OR `stale`**: Run `/sp-map-codebase` before continuing, then reload the generated handbook/project-map navigation system.
    - **IF FRESHNESS IS `possibly_stale`**: Inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current implementation area, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for implementation decisions.
    - **REQUIRED**: Check whether `PROJECT-HANDBOOK.md` exists at the repository
      root.
-   - **REQUIRED**: Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+   - **REQUIRED**: Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
    - **IF MISSING**: Run `/sp-map-codebase` before continuing, then reload the generated handbook/project-map navigation system.
    - **TREAT TASK-RELEVANT COVERAGE AS INSUFFICIENT** when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: Run `/sp-map-codebase` before continuing, then reload the generated handbook/project-map navigation system.
    - **REQUIRED**: [AGENT] Read `PROJECT-HANDBOOK.md`.
-   - **REQUIRED**: Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+   - **REQUIRED**: Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
    - **IF TOPICAL COVERAGE IS MISSING/STALE/TOO BROAD OR TASK-RELEVANT COVERAGE IS INSUFFICIENT**: run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read `.specify/memory/project-rules.md` if present.
@@ -380,8 +380,8 @@ human_needed_checks:
      - `research_gap`: the blocker is a missing technical decision or evidence gap; update `research.md`, record the new finding in the tracker, then continue
      - `plan_gap`: the current plan/tasks do not cover the work needed to satisfy the feature goal; update `plan.md` and `tasks.md`, set tracker status to `replanning`, then continue from the next ready batch after the replan
      - `spec_gap`: the requirement itself is ambiguous, contradictory, or newly changed; stop autonomous replanning, keep the gap explicit in the tracker, and recommend `/sp.spec-extend`
-   - If the completed implementation changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`, run `/sp-map-codebase` before final completion reporting so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
-   - If you cannot complete that refresh in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before the next brownfield workflow proceeds.
+   - If the completed implementation changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`, run `/sp-map-codebase` before final completion reporting so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass.
+   - If you cannot complete that refresh in the current pass, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before the next brownfield workflow proceeds.
    - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
    - [AGENT] Before the final completion report, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning through `specify learning capture --command implement ...`.
    - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.

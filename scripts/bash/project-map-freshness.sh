@@ -13,13 +13,13 @@ PROJECT_MAP_DIR="$(project_map_dir "$REPO_ROOT")"
 STATUS_PATH="$(project_map_status_path "$REPO_ROOT")"
 CANONICAL_MAP_FILES=(
     "$REPO_ROOT/PROJECT-HANDBOOK.md"
-    "$REPO_ROOT/.specify/project-map/ARCHITECTURE.md"
-    "$REPO_ROOT/.specify/project-map/STRUCTURE.md"
-    "$REPO_ROOT/.specify/project-map/CONVENTIONS.md"
-    "$REPO_ROOT/.specify/project-map/INTEGRATIONS.md"
-    "$REPO_ROOT/.specify/project-map/WORKFLOWS.md"
-    "$REPO_ROOT/.specify/project-map/TESTING.md"
-    "$REPO_ROOT/.specify/project-map/OPERATIONS.md"
+    "$REPO_ROOT/.specify/project-map/root/ARCHITECTURE.md"
+    "$REPO_ROOT/.specify/project-map/root/STRUCTURE.md"
+    "$REPO_ROOT/.specify/project-map/root/CONVENTIONS.md"
+    "$REPO_ROOT/.specify/project-map/root/INTEGRATIONS.md"
+    "$REPO_ROOT/.specify/project-map/root/WORKFLOWS.md"
+    "$REPO_ROOT/.specify/project-map/root/TESTING.md"
+    "$REPO_ROOT/.specify/project-map/root/OPERATIONS.md"
 )
 
 mkdir -p "$PROJECT_MAP_DIR"
@@ -157,7 +157,7 @@ classify_path() {
     lower="$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')"
 
     case "$lower" in
-        .specify/project-map/status.json)
+        .specify/project-map/index/status.json)
             echo "ignore"
             return 0
             ;;

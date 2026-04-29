@@ -8,7 +8,7 @@ def test_map_codebase_template_marks_learning_refresh_and_output_gates_with_agen
     content = (PROJECT_ROOT / "templates" / "commands" / "map-codebase.md").read_text(encoding="utf-8")
 
     assert "[AGENT] Run `specify learning start --command map-codebase --format json`" in content
-    assert "[AGENT] Read `.specify/project-map/status.json`" in content
+    assert "[AGENT] Read `.specify/project-map/index/status.json`" in content
     assert "[AGENT] Read `PROJECT-HANDBOOK.md` and all existing `.specify/project-map/*.md` files if present." in content
     assert "[AGENT] Before broad scouting begins, assess workload shape" in content
     assert "[AGENT] Read only the live files needed to establish current facts" in content

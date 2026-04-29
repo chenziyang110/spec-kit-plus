@@ -445,10 +445,10 @@ class SkillsIntegrationTests:
         assert "plan.md" in content
         assert "tasks.md" in content
         assert ".specify/testing/TESTING_CONTRACT.md" in content
-        assert ".specify/project-map/status.json" in content
+        assert ".specify/project-map/index/status.json" in content
         assert "## Map Maintenance" in content
         assert "refresh `PROJECT-HANDBOOK.md`" in content
-        assert "mark `.specify/project-map/status.json` dirty" in content
+        assert "mark `.specify/project-map/index/status.json` dirty" in content
 
     def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner
@@ -581,7 +581,7 @@ class SkillsIntegrationTests:
             ".specify/memory/constitution.md",
             ".specify/memory/project-learnings.md",
             ".specify/memory/project-rules.md",
-            ".specify/project-map/status.json",
+            ".specify/project-map/index/status.json",
         ]
         # Script variant
         if script_variant == "sh":

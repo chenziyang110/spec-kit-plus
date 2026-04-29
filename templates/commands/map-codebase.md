@@ -3,7 +3,7 @@ description: Use when handbook/project-map coverage is missing, stale, or insuff
 workflow_contract:
   when_to_use: A workflow needs reliable handbook/project-map coverage and the current navigation artifacts are missing, stale, or too weak for the touched area.
   primary_objective: Generate or refresh the canonical navigation artifact set directly from the live repository.
-  primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json`.'
+  primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json`.'
   default_handoff: Return to the blocked workflow that required fresh navigation coverage.
 ---
 
@@ -39,17 +39,17 @@ navigation summaries.
 The only canonical outputs are:
 
 - `PROJECT-HANDBOOK.md`
-- `.specify/project-map/ARCHITECTURE.md`
-- `.specify/project-map/STRUCTURE.md`
-- `.specify/project-map/CONVENTIONS.md`
-- `.specify/project-map/INTEGRATIONS.md`
-- `.specify/project-map/WORKFLOWS.md`
-- `.specify/project-map/TESTING.md`
-- `.specify/project-map/OPERATIONS.md`
+- `.specify/project-map/root/ARCHITECTURE.md`
+- `.specify/project-map/root/STRUCTURE.md`
+- `.specify/project-map/root/CONVENTIONS.md`
+- `.specify/project-map/root/INTEGRATIONS.md`
+- `.specify/project-map/root/WORKFLOWS.md`
+- `.specify/project-map/root/TESTING.md`
+- `.specify/project-map/root/OPERATIONS.md`
 
 Supporting metadata written alongside the canonical map:
 
-- `.specify/project-map/status.json`
+- `.specify/project-map/index/status.json`
 
 `status.json` must preserve the current freshness contract. At minimum it should carry:
 
@@ -141,7 +141,7 @@ Rules:
 
 1. **Load the mapping contract**
    - Read `.specify/memory/constitution.md` if present.
-   - [AGENT] Read `.specify/project-map/status.json` if present to recover the current map baseline, dirty state, and previous refresh metadata.
+   - [AGENT] Read `.specify/project-map/index/status.json` if present to recover the current map baseline, dirty state, and previous refresh metadata.
    - [AGENT] Read `PROJECT-HANDBOOK.md` and all existing `.specify/project-map/*.md` files if present.
    - Read `.specify/templates/project-handbook-template.md` and
      `.specify/templates/project-map/*.md` if present so the generated output

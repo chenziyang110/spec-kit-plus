@@ -26,7 +26,7 @@ scripts:
 - [AGENT] Run `specify learning start --command quick --format json` when available so passive learning files exist, the current quick-task run sees relevant shared project memory, and repeated non-high-signal candidates can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` after the constitution gate and before broader quick-task context.
 - If `.planning/learnings/candidates.md` still contains relevant entries after the passive start step, inspect only the entries relevant to the touched area so repeated pitfalls, workflow gaps, and project constraints are not rediscovered from scratch.
-- Check whether `.specify/project-map/status.json` exists.
+- Check whether `.specify/project-map/index/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
 - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the touched area, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topical files before proceeding and refresh the map if they still look insufficient for the quick task.
@@ -285,8 +285,8 @@ resume_decision: [resume here | blocked waiting | resolved]
   - any unverified surface or remaining gap is called out explicitly instead of being implied away
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
-- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before marking the quick task `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/status.json` are refreshed in the same pass.
-- If you cannot complete that refresh in the current pass, mark `.specify/project-map/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before the next brownfield workflow proceeds.
+- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before marking the quick task `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass.
+- If you cannot complete that refresh in the current pass, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before the next brownfield workflow proceeds.
 
 ## Propagating Change Rule
 

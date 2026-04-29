@@ -17,13 +17,13 @@ $projectMapDir = Get-ProjectMapDir -RepoRoot $RepoRoot
 $statusPath = Get-ProjectMapStatusPath -RepoRoot $RepoRoot
 $canonicalMapFiles = @(
     (Join-Path $RepoRoot "PROJECT-HANDBOOK.md"),
-    (Join-Path $RepoRoot ".specify/project-map/ARCHITECTURE.md"),
-    (Join-Path $RepoRoot ".specify/project-map/STRUCTURE.md"),
-    (Join-Path $RepoRoot ".specify/project-map/CONVENTIONS.md"),
-    (Join-Path $RepoRoot ".specify/project-map/INTEGRATIONS.md"),
-    (Join-Path $RepoRoot ".specify/project-map/WORKFLOWS.md"),
-    (Join-Path $RepoRoot ".specify/project-map/TESTING.md"),
-    (Join-Path $RepoRoot ".specify/project-map/OPERATIONS.md")
+    (Join-Path $RepoRoot ".specify/project-map/root/ARCHITECTURE.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/STRUCTURE.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/CONVENTIONS.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/INTEGRATIONS.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/WORKFLOWS.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/TESTING.md"),
+    (Join-Path $RepoRoot ".specify/project-map/root/OPERATIONS.md")
 )
 New-Item -ItemType Directory -Path $projectMapDir -Force | Out-Null
 

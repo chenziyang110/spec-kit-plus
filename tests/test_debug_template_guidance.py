@@ -36,7 +36,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "specify learning start --command debug --format json" in content
     assert "specify learning capture --command debug" in content
     assert "read `project-handbook.md`" in content
-    assert ".specify/project-map/status.json" in content
+    assert ".specify/project-map/index/status.json" in content
     assert "if the active session is `awaiting_human_verify`" in content
     assert "start a linked follow-up session" in content
     assert "record the parent/child relationship" in content
@@ -93,7 +93,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "coordinated runtime surface" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved`" in content
-    assert "mark `.specify/project-map/status.json` dirty" in content
+    assert "mark `.specify/project-map/index/status.json` dirty" in content
     assert "if you cannot complete that refresh in the current pass" in content
     assert "highest-signal" in content
     assert "write a failing automated repro test before changing production code" in content

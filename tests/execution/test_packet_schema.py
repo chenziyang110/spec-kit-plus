@@ -173,7 +173,7 @@ def test_worker_task_result_round_trips_context_read_receipts() -> None:
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/WORKFLOWS.md"],
+            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
             critical_notes=["validated the canonical worker verification route before execution"],
         ),
     )
@@ -183,7 +183,7 @@ def test_worker_task_result_round_trips_context_read_receipts() -> None:
     assert restored.rule_acknowledgement.context_bundle_read is True
     assert restored.rule_acknowledgement.paths_read == [
         "PROJECT-HANDBOOK.md",
-        ".specify/project-map/WORKFLOWS.md",
+        ".specify/project-map/root/WORKFLOWS.md",
     ]
     assert restored.rule_acknowledgement.critical_notes == [
         "validated the canonical worker verification route before execution"
