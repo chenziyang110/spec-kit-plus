@@ -49,10 +49,10 @@ def test_specify_template_uses_alignment_first_contract():
     assert ".planning/learnings/candidates.md" in content
     assert "specify learning start --command specify --format json" in content
     assert "specify learning capture --command specify" in content
-    assert ".specify/project-map/status.json" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/index/status.json" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" in content
     assert "Use `Topic Map` to choose the smallest relevant topical documents" in content
     assert "run `/sp-map-codebase` before continuing" in content
@@ -232,10 +232,10 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert ".planning/learnings/candidates.md" in content
     assert "specify learning start --command plan --format json" in content
     assert "specify learning capture --command plan" in content
-    assert ".specify/project-map/status.json" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/index/status.json" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "run `/sp-map-codebase` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -355,9 +355,9 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "phase_mode: task-generation-only" in content
     assert "Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution." in content
     assert "When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding." in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "run `/sp-map-codebase` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -417,10 +417,10 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
 
     assert "description: Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, context.md, plan.md, and tasks.md after task generation, including boundary guardrail drift." in content
     assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/status.json" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/index/status.json" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "run `/sp-map-codebase` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -429,7 +429,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "- CONTEXT = FEATURE_DIR/context.md" in content
     assert ".specify/memory/constitution.md" in content
     assert "Read `PROJECT-HANDBOOK.md`" in content
-    assert "Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`" in content
+    assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" in content
     assert "**From context.md:**" in content
     assert "Locked Decisions" in content
     assert "Locked Planning Decisions" in content
@@ -494,13 +494,13 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     lowered = content.lower()
 
     assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/CONVENTIONS.md" in content
-    assert ".specify/project-map/INTEGRATIONS.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
-    assert ".specify/project-map/TESTING.md" in content
-    assert ".specify/project-map/OPERATIONS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/CONVENTIONS.md" in content
+    assert ".specify/project-map/root/INTEGRATIONS.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
+    assert ".specify/project-map/root/TESTING.md" in content
+    assert ".specify/project-map/root/OPERATIONS.md" in content
     assert 'choose_execution_strategy(command_name="map-codebase"' in content
     assert "single-agent" in lowered
     assert "native-multi-agent" in lowered
@@ -737,9 +737,9 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".planning/learnings/candidates.md" in content
     assert "specify learning start --command implement --format json" in content
     assert "specify learning capture --command implement" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/STRUCTURE.md" in content
-    assert ".specify/project-map/WORKFLOWS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/STRUCTURE.md" in content
+    assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "run `/sp-map-codebase` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -803,7 +803,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
     assert "if you cannot complete that refresh in the current pass" in lowered
-    assert "mark `.specify/project-map/status.json` dirty" in lowered
+    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
     assert "specify team" not in lowered
     assert "auto-dispatch" not in lowered
     assert "codex runtime rule" not in lowered

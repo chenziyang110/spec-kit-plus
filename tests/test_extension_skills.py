@@ -304,8 +304,8 @@ class TestBuiltInSkillGeneration:
         assert "current-understanding or confirmation gate" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
         assert "PROJECT-HANDBOOK.md" in specify_body
-        assert ".specify/project-map/ARCHITECTURE.md" in specify_body
-        assert ".specify/project-map/WORKFLOWS.md" in specify_body
+        assert ".specify/project-map/root/ARCHITECTURE.md" in specify_body
+        assert ".specify/project-map/root/WORKFLOWS.md" in specify_body
         assert "Topic Map" in specify_body
         assert "coverage-model check" in specify_body
         assert "truth-owning surfaces" in specify_body
@@ -386,7 +386,7 @@ class TestBuiltInSkillGeneration:
 
         map_body = _body_without_frontmatter(skills_dir / "sp-map-codebase" / "SKILL.md")
         assert "PROJECT-HANDBOOK.md" in map_body
-        assert ".specify/project-map/ARCHITECTURE.md" in map_body
+        assert ".specify/project-map/root/ARCHITECTURE.md" in map_body
         assert 'choose_execution_strategy(command_name="map-codebase"' in map_body
         assert "run `/sp-map-codebase`" in map_body
         assert "complete-refresh" in map_body

@@ -13,7 +13,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "specify learning start --command fast --format json" in content
     assert "specify learning capture --command fast" in content
     assert "read `project-handbook.md`" in content
-    assert ".specify/project-map/status.json" in content
+    assert ".specify/project-map/index/status.json" in content
     assert "project-map freshness helper" in content
     assert "freshness is `missing` or `stale`" in content
     assert "freshness is `possibly_stale`" in content
@@ -37,7 +37,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-codebase` before the final report" in content
     assert "if that refresh would break the fast-path scope" in content
-    assert "mark `.specify/project-map/status.json` dirty" in content
+    assert "mark `.specify/project-map/index/status.json` dirty" in content
     assert "highest-signal" in content
 
 

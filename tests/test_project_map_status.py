@@ -56,13 +56,13 @@ def test_missing_canonical_project_map_paths_lists_required_outputs(tmp_path):
     normalized = [str(path).replace("\\", "/") for path in missing]
     assert normalized == [
         f"{tmp_path.as_posix()}/PROJECT-HANDBOOK.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/ARCHITECTURE.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/STRUCTURE.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/CONVENTIONS.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/INTEGRATIONS.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/WORKFLOWS.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/TESTING.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/OPERATIONS.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/ARCHITECTURE.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/STRUCTURE.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/CONVENTIONS.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/INTEGRATIONS.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/WORKFLOWS.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/TESTING.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/root/OPERATIONS.md",
     ]
 
 
@@ -245,8 +245,8 @@ def test_classify_changed_path_matches_shell_contract():
     mod = _load_module()
 
     assert mod.classify_changed_path("PROJECT-HANDBOOK.md") == "stale"
-    assert mod.classify_changed_path(".specify/project-map/ARCHITECTURE.md") == "stale"
-    assert mod.classify_changed_path(".specify/project-map/status.json") == "ignore"
+    assert mod.classify_changed_path(".specify/project-map/root/ARCHITECTURE.md") == "stale"
+    assert mod.classify_changed_path(".specify/project-map/index/status.json") == "ignore"
     assert mod.classify_changed_path("src/routes/api.ts") == "stale"
     assert mod.classify_changed_path("src/components/button.tsx") == "possibly_stale"
     assert mod.classify_changed_path("notes/changelog.txt") == "ignore"
@@ -271,7 +271,7 @@ def test_suggested_topics_for_changed_path_maps_high_value_surfaces():
         "OPERATIONS.md",
         "TESTING.md",
     ]
-    assert mod.suggested_topics_for_changed_path(".specify/project-map/status.json") == []
+    assert mod.suggested_topics_for_changed_path(".specify/project-map/index/status.json") == []
 
 
 def test_refresh_plan_for_changed_path_splits_must_refresh_from_review():
@@ -289,7 +289,7 @@ def test_refresh_plan_for_changed_path_splits_must_refresh_from_review():
         "must_refresh_topics": ["INTEGRATIONS.md", "OPERATIONS.md"],
         "review_topics": ["TESTING.md"],
     }
-    assert mod.refresh_plan_for_changed_path(".specify/project-map/status.json") == {
+    assert mod.refresh_plan_for_changed_path(".specify/project-map/index/status.json") == {
         "must_refresh_topics": [],
         "review_topics": [],
     }

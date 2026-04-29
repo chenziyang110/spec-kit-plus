@@ -159,7 +159,7 @@ def classify_changed_path(path: str) -> str:
         "docker-compose.yaml",
         "makefile",
     }
-    if lower == ".specify/project-map/status.json":
+    if lower == ".specify/project-map/index/status.json":
         return "ignore"
     if lower in high_impact_exact:
         return "stale"

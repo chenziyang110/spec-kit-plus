@@ -17,7 +17,7 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "specify learning start --command quick --format json" in content
     assert "specify learning capture --command quick" in content
     assert "read `project-handbook.md`" in content
-    assert ".specify/project-map/status.json" in content
+    assert ".specify/project-map/index/status.json" in content
     assert "project-map freshness helper" in content
     assert "freshness is `missing` or `stale`" in content
     assert "freshness is `possibly_stale`" in content
@@ -198,7 +198,7 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-codebase` before marking the quick task `resolved`" in content
     assert "if you cannot complete that refresh in the current pass" in content
-    assert "mark `.specify/project-map/status.json` dirty" in content
+    assert "mark `.specify/project-map/index/status.json` dirty" in content
 
 
 def test_quick_template_requires_constitution_before_status_and_delegation() -> None:

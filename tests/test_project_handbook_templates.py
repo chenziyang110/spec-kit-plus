@@ -22,8 +22,8 @@ def test_project_handbook_template_exists_and_routes_to_project_map():
     assert "## Low-Confidence Areas" in content
     assert "## Where To Read Next" in content
     assert "## Topic Map" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/OPERATIONS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/OPERATIONS.md" in content
 
 
 def test_project_map_templates_share_metadata_contract():

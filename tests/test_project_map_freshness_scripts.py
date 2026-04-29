@@ -107,7 +107,7 @@ def test_bash_project_map_freshness_lifecycle(git_repo: Path):
     _commit_seeded_map(git_repo)
     refreshed = _run_bash(git_repo, "record-refresh", "manual")
     assert refreshed["freshness"] == "fresh"
-    assert refreshed["status_path"].endswith(".specify/project-map/status.json")
+    assert refreshed["status_path"].endswith(".specify/project-map/index/status.json")
 
     dirty = _run_bash(git_repo, "mark-dirty", "shared_surface_changed")
     assert dirty["freshness"] == "stale"

@@ -594,7 +594,7 @@ class TestInitIntegrationFlag:
         status_payload = json.loads(status_result.output)
         check_payload = json.loads(check_result.output)
         assert status_payload["freshness"] == "missing"
-        assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-map/status.json")
+        assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-map/index/status.json")
         assert check_payload["freshness"] == "possibly_stale"
         assert check_payload["reasons"] == ["git baseline unavailable for project-map freshness"]
 

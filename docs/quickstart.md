@@ -110,7 +110,7 @@ Generated project navigation now follows the handbook system:
 
 - Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
 - Deep project knowledge lives under `.specify/project-map/`.
-- `.specify/project-map/status.json` records the current handbook freshness baseline and dirty state.
+- `.specify/project-map/index/status.json` records the current handbook freshness baseline and dirty state.
 - After a successful `map-codebase` run, use `project-map complete-refresh` as the standard completion hook to record the fresh baseline.
 - Any code change that alters navigation meaning must update the handbook system.
 
@@ -124,7 +124,7 @@ Use support skills when they solve a specific gap:
 - `/speckit.analyze` should also flag delegated packet failures through `DP1`, `DP2`, and `DP3` when worker packets or worker results lose required rule-carrying evidence
 - `/speckit.explain` when you want the current spec, plan, or tasks state restated in plain language
 
-If you're starting from an existing codebase, run `/speckit.map-codebase` first so the brownfield navigation artifacts are fresh before requirement, planning, or implementation work continues. Downstream workflows use `.specify/project-map/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
+If you're starting from an existing codebase, run `/speckit.map-codebase` first so the brownfield navigation artifacts are fresh before requirement, planning, or implementation work continues. Downstream workflows use `.specify/project-map/index/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
 
 Use the lightweight routing rules consistently:
 

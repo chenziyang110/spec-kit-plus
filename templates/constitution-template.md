@@ -125,7 +125,7 @@ The system MUST make failures easy to detect, explain, and reproduce.
   operations. Use progressive disclosure through `Topic Map` to load the
   smallest relevant topical documents first. Use the generated
   `map-codebase` workflow to create or refresh the navigation system when it
-  is missing or stale, treat `.specify/project-map/status.json` as the
+  is missing or stale, treat `.specify/project-map/index/status.json` as the
   freshness baseline for downstream workflow checks, and keep the handbook,
   topical map, and freshness state in sync whenever navigation meaning
   changes. If the navigation system is missing, generate it before structural work

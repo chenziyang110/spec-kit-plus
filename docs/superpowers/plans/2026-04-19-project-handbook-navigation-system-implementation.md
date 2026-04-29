@@ -68,13 +68,13 @@
 - Add: `.specify/templates/project-map/TESTING.md`
 - Add: `.specify/templates/project-map/OPERATIONS.md`
 - Modify: `.specify/templates/constitution-template.md`
-- Add: `.specify/project-map/ARCHITECTURE.md`
-- Add: `.specify/project-map/STRUCTURE.md`
-- Add: `.specify/project-map/CONVENTIONS.md`
-- Add: `.specify/project-map/INTEGRATIONS.md`
-- Add: `.specify/project-map/WORKFLOWS.md`
-- Add: `.specify/project-map/TESTING.md`
-- Add: `.specify/project-map/OPERATIONS.md`
+- Add: `.specify/project-map/root/ARCHITECTURE.md`
+- Add: `.specify/project-map/root/STRUCTURE.md`
+- Add: `.specify/project-map/root/CONVENTIONS.md`
+- Add: `.specify/project-map/root/INTEGRATIONS.md`
+- Add: `.specify/project-map/root/WORKFLOWS.md`
+- Add: `.specify/project-map/root/TESTING.md`
+- Add: `.specify/project-map/root/OPERATIONS.md`
 - Modify: `项目技术文档.md`
 - Modify: `.specify/memory/constitution.md`
 
@@ -133,8 +133,8 @@ def test_project_handbook_template_exists_and_routes_to_project_map():
     assert "## Shared Surfaces" in content
     assert "## Risky Coordination Points" in content
     assert "## Topic Map" in content
-    assert ".specify/project-map/ARCHITECTURE.md" in content
-    assert ".specify/project-map/OPERATIONS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" in content
+    assert ".specify/project-map/root/OPERATIONS.md" in content
 
 
 def test_project_map_templates_share_metadata_contract():
@@ -160,9 +160,9 @@ Update `tests/test_alignment_templates.py` so `specify`, `plan`, `tasks`, and `i
 
 ```python
 assert "PROJECT-HANDBOOK.md" in content
-assert ".specify/project-map/ARCHITECTURE.md" in content
-assert ".specify/project-map/STRUCTURE.md" in content
-assert ".specify/project-map/WORKFLOWS.md" in content
+assert ".specify/project-map/root/ARCHITECTURE.md" in content
+assert ".specify/project-map/root/STRUCTURE.md" in content
+assert ".specify/project-map/root/WORKFLOWS.md" in content
 assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" in content
 assert "Use `Topic Map` to choose the smallest relevant topical documents" in content
 ```
@@ -286,13 +286,13 @@ Add `templates/project-handbook-template.md` with this exact skeleton:
 
 ## Topic Map
 
-- `.specify/project-map/ARCHITECTURE.md` — layers, abstractions, truth ownership
-- `.specify/project-map/STRUCTURE.md` — where code lives and where to add new code
-- `.specify/project-map/CONVENTIONS.md` — naming, imports, error handling, style
-- `.specify/project-map/INTEGRATIONS.md` — external tools, env, runtime dependencies
-- `.specify/project-map/WORKFLOWS.md` — user flows, maintainer flows, workflow risks
-- `.specify/project-map/TESTING.md` — test layers and smallest meaningful checks
-- `.specify/project-map/OPERATIONS.md` — startup, recovery, troubleshooting, operator notes
+- `.specify/project-map/root/ARCHITECTURE.md` — layers, abstractions, truth ownership
+- `.specify/project-map/root/STRUCTURE.md` — where code lives and where to add new code
+- `.specify/project-map/root/CONVENTIONS.md` — naming, imports, error handling, style
+- `.specify/project-map/root/INTEGRATIONS.md` — external tools, env, runtime dependencies
+- `.specify/project-map/root/WORKFLOWS.md` — user flows, maintainer flows, workflow risks
+- `.specify/project-map/root/TESTING.md` — test layers and smallest meaningful checks
+- `.specify/project-map/root/OPERATIONS.md` — startup, recovery, troubleshooting, operator notes
 
 ## Update Triggers
 
@@ -434,7 +434,7 @@ becomes:
 
 ```markdown
 - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
-- Check whether `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` exist.
+- Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
 - If the navigation system is missing, analyze the repository and create it before continuing.
 - Treat `PROJECT-HANDBOOK.md` as the root navigation artifact and use `Topic Map` to choose the smallest relevant topical documents for the touched area.
 ```
@@ -463,7 +463,7 @@ Use exact read-contract language like:
 
 ```markdown
 - Read `PROJECT-HANDBOOK.md`.
-- Read the smallest relevant combination of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/STRUCTURE.md`, `.specify/project-map/CONVENTIONS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md`.
+- Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
 - If the topical coverage for the touched area is missing, stale, or too broad, inspect the minimum live files needed to replace guesswork with evidence.
 ```
 
@@ -492,7 +492,7 @@ Update `templates/commands/debug.md` under `Required Context Inputs`:
 
 ```markdown
 - Read `PROJECT-HANDBOOK.md` before root-cause analysis so the investigation starts from the current system map.
-- Read whichever of `.specify/project-map/ARCHITECTURE.md`, `.specify/project-map/WORKFLOWS.md`, `.specify/project-map/INTEGRATIONS.md`, `.specify/project-map/TESTING.md`, and `.specify/project-map/OPERATIONS.md` map to the failing area.
+- Read whichever of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` map to the failing area.
 - Use the navigation system to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
 ```
 
@@ -539,8 +539,8 @@ Change `tests/test_extension_skills.py` so skill-mirror expectations use the new
 
 ```python
 assert "PROJECT-HANDBOOK.md" in body
-assert ".specify/project-map/ARCHITECTURE.md" in body
-assert ".specify/project-map/WORKFLOWS.md" in body
+assert ".specify/project-map/root/ARCHITECTURE.md" in body
+assert ".specify/project-map/root/WORKFLOWS.md" in body
 assert "Topic Map" in body
 ```
 
@@ -620,13 +620,13 @@ git commit -m "feat: align generated skills with handbook navigation system"
 - Create: `.specify/templates/project-map/TESTING.md`
 - Create: `.specify/templates/project-map/OPERATIONS.md`
 - Modify: `.specify/templates/constitution-template.md`
-- Create: `.specify/project-map/ARCHITECTURE.md`
-- Create: `.specify/project-map/STRUCTURE.md`
-- Create: `.specify/project-map/CONVENTIONS.md`
-- Create: `.specify/project-map/INTEGRATIONS.md`
-- Create: `.specify/project-map/WORKFLOWS.md`
-- Create: `.specify/project-map/TESTING.md`
-- Create: `.specify/project-map/OPERATIONS.md`
+- Create: `.specify/project-map/root/ARCHITECTURE.md`
+- Create: `.specify/project-map/root/STRUCTURE.md`
+- Create: `.specify/project-map/root/CONVENTIONS.md`
+- Create: `.specify/project-map/root/INTEGRATIONS.md`
+- Create: `.specify/project-map/root/WORKFLOWS.md`
+- Create: `.specify/project-map/root/TESTING.md`
+- Create: `.specify/project-map/root/OPERATIONS.md`
 - Modify: `项目技术文档.md`
 - Modify: `.specify/memory/constitution.md`
 - Modify: `README.md`
@@ -682,9 +682,9 @@ Replace the current long-form content with a short bridge page:
 
 优先读取：
 - `PROJECT-HANDBOOK.md`
-- `.specify/project-map/ARCHITECTURE.md`
-- `.specify/project-map/STRUCTURE.md`
-- `.specify/project-map/WORKFLOWS.md`
+- `.specify/project-map/root/ARCHITECTURE.md`
+- `.specify/project-map/root/STRUCTURE.md`
+- `.specify/project-map/root/WORKFLOWS.md`
 ```
 
 Do not keep parallel technical truth in this file.

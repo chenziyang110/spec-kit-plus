@@ -333,7 +333,7 @@ class MarkdownIntegrationTests:
         files.append(".specify/memory/constitution.md")
         files.append(".specify/memory/project-learnings.md")
         files.append(".specify/memory/project-rules.md")
-        files.append(".specify/project-map/status.json")
+        files.append(".specify/project-map/index/status.json")
         return sorted(files)
 
     def test_complete_file_inventory_sh(self, tmp_path):

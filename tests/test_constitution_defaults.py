@@ -43,7 +43,7 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "preserve the file's existing character encoding and BOM behavior" in content
     assert "PROJECT-HANDBOOK.md" in content
     assert ".specify/project-map/" in content
-    assert ".specify/project-map/status.json" in content
+    assert ".specify/project-map/index/status.json" in content
     assert "progressive disclosure" in content.lower()
     assert "generate it before structural work" in content
     assert "[PROJECT_NAME]" not in content

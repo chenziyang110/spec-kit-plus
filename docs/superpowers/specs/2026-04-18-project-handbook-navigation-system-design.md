@@ -149,13 +149,13 @@ This file must stay concise enough for fast-path workflows.
 
 The initial fixed set is:
 
-- `.specify/project-map/ARCHITECTURE.md`
-- `.specify/project-map/STRUCTURE.md`
-- `.specify/project-map/CONVENTIONS.md`
-- `.specify/project-map/INTEGRATIONS.md`
-- `.specify/project-map/WORKFLOWS.md`
-- `.specify/project-map/TESTING.md`
-- `.specify/project-map/OPERATIONS.md`
+- `.specify/project-map/root/ARCHITECTURE.md`
+- `.specify/project-map/root/STRUCTURE.md`
+- `.specify/project-map/root/CONVENTIONS.md`
+- `.specify/project-map/root/INTEGRATIONS.md`
+- `.specify/project-map/root/WORKFLOWS.md`
+- `.specify/project-map/root/TESTING.md`
+- `.specify/project-map/root/OPERATIONS.md`
 
 These files are shared project artifacts, not feature artifacts.
 
