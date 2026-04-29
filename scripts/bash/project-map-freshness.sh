@@ -43,7 +43,7 @@ ensure_canonical_map_files() {
 
     echo "Cannot record a fresh project-map baseline because canonical map files are missing:" >&2
     printf ' - %s\n' "${missing[@]}" >&2
-    echo "Run map-codebase first so PROJECT-HANDBOOK.md and .specify/project-map/*.md exist." >&2
+    echo "Run map-scan, then map-build first so PROJECT-HANDBOOK.md and .specify/project-map/*.md exist." >&2
     return 1
 }
 
@@ -760,7 +760,7 @@ case "$COMMAND" in
         ;;
     record-refresh|complete-refresh)
         if [[ "$COMMAND" == "complete-refresh" && -z "$REASON" ]]; then
-            REASON="map-codebase"
+            REASON="map-build"
         fi
         record_refresh
         ;;
