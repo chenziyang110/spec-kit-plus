@@ -26,7 +26,7 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "topic map" in content
     assert "touched-area topical files" in content
     assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content
-    assert "run `/sp-map-codebase` before continuing" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
     assert "task-relevant coverage is insufficient" in content
     assert "ownership or placement guidance" in content
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
@@ -202,7 +202,7 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "separate `verified` coverage from `not checked` coverage" in content
     assert "for each declared surface, give the terminal status conclusion" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "run `/sp-map-codebase` before marking the quick task `resolved`" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before marking the quick task `resolved`" in content
     assert "if you cannot complete that refresh in the current pass" in content
     assert "mark `.specify/project-map/index/status.json` dirty" in content
 
@@ -238,10 +238,10 @@ def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8")
 
     assert "[AGENT] Run `specify learning start --command quick --format json`" in content
-    assert "[AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts." in content
     assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`." in content
-    assert "[AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
-    assert "[AGENT] If task-relevant coverage is insufficient for the current quick task, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] If task-relevant coverage is insufficient for the current quick task, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts." in content
     assert "[AGENT] Create or resume `STATUS.md`" in content
     assert "[AGENT] Use the shared policy function before execution begins and again at each join point" in content
     assert "[AGENT] Before the final summary, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning" in content

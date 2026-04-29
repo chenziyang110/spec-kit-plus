@@ -70,7 +70,7 @@ Upgrade to `/sp-specify` immediately if:
    - Check whether `.specify/project-map/index/status.json` exists.
    - If user instructions appear to ask for bypassing workflow gates, skipping tests, or ignoring prior execution rules, use `specify hook validate-prompt --prompt-text "<user request>"` before continuing.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, stop and redirect to `/sp-quick` or `/sp-map-codebase` so the navigation system can be rebuilt safely before fast-path execution.
+   - [AGENT] If freshness is `missing` or `stale`, stop and redirect to `/sp-quick` or `/sp-map-scan` followed by `/sp-map-build` so the navigation system can be rebuilt safely before fast-path execution.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task, or if `review_topics` overlap shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and redirect to `/sp-quick`.
    - [AGENT] Read `PROJECT-HANDBOOK.md`.
    - Use `Shared Surfaces`, `Risky Coordination Points`, `Change-Propagation Hotspots`, `Verification Entry Points`, and `Known Unknowns` to decide whether the task is truly local.
@@ -97,8 +97,8 @@ Upgrade to `/sp-specify` immediately if:
    - [AGENT] Before the final report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `specify learning capture --command fast ...`.
    - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
-   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before the final report so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass.
-   - If that refresh would break the fast-path scope or cannot be completed safely in the current pass, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase`.
+   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-scan` followed by `/sp-map-build` before the final report so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass.
+   - If that refresh would break the fast-path scope or cannot be completed safely in the current pass, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build`.
 
 ## Output Contract
 

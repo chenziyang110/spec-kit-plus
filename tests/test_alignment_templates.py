@@ -93,7 +93,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" in content
     assert "Use `Topic Map` to choose the smallest relevant topical documents" in content
-    assert "run `/sp-map-codebase` before continuing" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
     assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md" in content
     assert "primary brownfield testing-program input" in content
     assert "module priority waves" in content
@@ -263,7 +263,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "explicit pre-release check" in lowered
     assert "without needing `/sp.clarify`" in content
     assert "mark `.specify/project-map/index/status.json` dirty" in lowered
-    assert "recommend `/sp-map-codebase`" in content
+    assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in content
     assert "`Capability 1 / 3 | Question 2`" in content
     assert "SPECIFY SESSION - Capability 1 / 3 | Question 2" in content
     assert "SPECIFY SESSION - 2 / 5" not in content
@@ -279,7 +279,7 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "specify learning start --command constitution --format json" in content
     assert "PROJECT-HANDBOOK.md" in content
     assert ".specify/project-map/index/status.json" in content
-    assert "/sp-map-codebase" in content
+    assert "`/sp-map-scan` followed by `/sp-map-build`" in content
     assert "workflow-state.md" in content
     assert "/sp-plan" in content
     assert "/sp-tasks" in content
@@ -333,7 +333,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
     assert ".specify/project-map/root/WORKFLOWS.md" in content
-    assert "run `/sp-map-codebase` before continuing" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -384,7 +384,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
     assert "recommended follow-up quality check: `/sp.checklist`" in content
     assert "mark `.specify/project-map/index/status.json` dirty" in lowered
-    assert "recommend `/sp-map-codebase`" in content
+    assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in content
     assert "specify team" not in lowered
     assert "specify -> clarify -> plan" not in lowered
 
@@ -458,7 +458,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
     assert ".specify/project-map/root/WORKFLOWS.md" in content
-    assert "run `/sp-map-codebase` before continuing" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -493,7 +493,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "before writing `tasks.md`" in content
     assert "before emitting canonical parallel batches and join points" in lowered
     assert "mark `.specify/project-map/index/status.json` dirty" in lowered
-    assert "recommend `/sp-map-codebase`" in content
+    assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in content
     assert "specify team" not in lowered
 
 
@@ -535,7 +535,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
     assert ".specify/project-map/root/WORKFLOWS.md" in content
-    assert "run `/sp-map-codebase` before continuing" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -756,7 +756,7 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
     assert "default rescue lane" in lowered
     assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
     assert "mark `.specify/project-map/index/status.json` dirty" in lowered
-    assert "recommend `/sp-map-codebase`" in content
+    assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in content
 
 
 def test_spec_template_defines_scope_boundaries_without_open_clarification_examples():
@@ -934,7 +934,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
     assert ".specify/project-map/root/WORKFLOWS.md" in content
-    assert "run `/sp-map-codebase` before continuing" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -994,7 +994,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "native-supported" in lowered
     assert "native-missing" in lowered
     assert "do not silently switch this workflow onto a coordinated runtime surface" in lowered
-    assert "run `/sp-map-codebase` before final completion reporting" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before final completion reporting" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
     assert "if you cannot complete that refresh in the current pass" in lowered
@@ -1188,7 +1188,7 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "specify learning capture --command checklist" in lowered
     assert "project-handbook.md" in lowered
     assert ".specify/project-map/index/status.json" in lowered
-    assert "run `/sp-map-codebase` before continuing" in lowered
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in lowered
     assert "if the checklist reveals planning-critical requirement gaps" in lowered
     assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered
     assert "recommend `/sp-plan`" in lowered

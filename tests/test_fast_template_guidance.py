@@ -41,7 +41,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "do the work directly" in content
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "run `/sp-map-codebase` before the final report" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before the final report" in content
     assert "if that refresh would break the fast-path scope" in content
     assert "mark `.specify/project-map/index/status.json` dirty" in content
     assert "highest-signal" in content
@@ -75,7 +75,7 @@ def test_fast_template_marks_learning_and_fail_closed_routing_gates_with_agent_m
     content = read_template("templates/commands/fast.md")
 
     assert "[AGENT] Run `specify learning start --command fast --format json`" in content
-    assert "[AGENT] If freshness is `missing` or `stale`, stop and redirect to `/sp-quick` or `/sp-map-codebase`" in content
+    assert "[AGENT] If freshness is `missing` or `stale`, stop and redirect to `/sp-quick` or `/sp-map-scan` followed by `/sp-map-build`" in content
     assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`." in content
     assert "[AGENT] If `PROJECT-HANDBOOK.md` or `.specify/project-map/` is missing, stop and redirect to `/sp-quick`" in content
     assert "[AGENT] If the requested change touches a shared surface, risky coordination point, propagation hotspot, non-trivial verification entry point, or known-unknown-heavy area, stop and redirect to `/sp-quick`." in content

@@ -49,7 +49,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "truth ownership" in content
     assert "read whichever of `architecture.md`, `workflows.md`, `integrations.md`, `testing.md`, and `operations.md` map to the failing area" in content
     assert "if the handbook navigation system is missing" in content
-    assert "run `/sp-map-codebase` before root-cause analysis continues" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before root-cause analysis continues" in content
     assert "task-relevant coverage is insufficient" in content
     assert "ownership or placement guidance" in content
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
@@ -95,7 +95,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "native delegation surface" in content
     assert "coordinated runtime surface" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "run `/sp-map-codebase` before moving to `awaiting_human_verify` or `resolved`" in content
+    assert "run `/sp-map-scan` followed by `/sp-map-build` before moving to `awaiting_human_verify` or `resolved`" in content
     assert "mark `.specify/project-map/index/status.json` dirty" in content
     assert "if you cannot complete that refresh in the current pass" in content
     assert "highest-signal" in content

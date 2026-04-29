@@ -115,10 +115,10 @@ def test_test_template_requires_professional_unit_test_system_request_artifact()
 def test_test_template_uses_handbook_and_project_map_gates():
     content = _read("templates/commands/test.md")
 
-    assert "[AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts." in content
     assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`." in content
-    assert "[AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
-    assert "[AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts." in content
+    assert "[AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts." in content
     assert "[AGENT] Read `PROJECT-HANDBOOK.md`." in content
     assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" in content
 
