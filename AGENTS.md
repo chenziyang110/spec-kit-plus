@@ -579,12 +579,12 @@ When adding new agents:
 - `plan.md` under the active feature directory is the implementation design source of truth once planning begins.
 - `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.
 - `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain implementation and debugging when present.
-- `.specify/project-map/status.json` determines whether handbook/project-map coverage can be trusted as fresh.
+- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh.
 
 ## Map Maintenance
 
 - If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.
-- If that refresh cannot happen in the current pass, mark `.specify/project-map/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.
+- If that refresh cannot happen in the current pass, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.
 - Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.
 
 - Preserve content outside this managed block.

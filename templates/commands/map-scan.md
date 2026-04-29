@@ -312,7 +312,7 @@ Each `scan-packets/<lane-id>.md` must use this structure:
 
 The scan is not complete until all checks pass:
 
-- any project-relevant row is categorized
+- every project-relevant row is categorized
 - no row remains `unknown` without a blocker
 - every critical row has a scan packet
 - every critical or important row has an atlas target

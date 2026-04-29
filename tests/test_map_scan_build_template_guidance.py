@@ -31,6 +31,7 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "`critical`" in content
     assert "`important`" in content
     assert "`low-risk`" in content
+    assert "every project-relevant row is categorized" in lowered
     assert "scan-packets/<lane-id>.md" in content
     assert "Coverage Classification" in content
     assert "Criticality Scoring" in content
