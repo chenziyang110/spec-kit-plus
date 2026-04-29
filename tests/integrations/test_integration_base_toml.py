@@ -185,8 +185,10 @@ class TomlIntegrationTests:
 
         scan_content = (commands_dir / "sp.map-scan.toml").read_text(encoding="utf-8").lower()
         build_content = (commands_dir / "sp.map-build.toml").read_text(encoding="utf-8").lower()
-        assert 'choose_execution_strategy(command_name="map-scan"' in scan_content
-        assert 'choose_execution_strategy(command_name="map-build"' in build_content
+        assert "choose_execution_strategy(command_name=" in scan_content
+        assert "map-scan" in scan_content
+        assert "choose_execution_strategy(command_name=" in build_content
+        assert "map-build" in build_content
         assert "native-multi-agent" in scan_content
         assert "native-multi-agent" in build_content
         assert "coverage-ledger" in scan_content

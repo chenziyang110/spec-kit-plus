@@ -341,7 +341,7 @@ def test_team_auto_dispatch_blocks_when_project_map_is_dirty(tmp_path: Path):
 
     assert result.exit_code != 0
     assert "Project-map freshness is stale" in result.output
-    assert "map-scan, then map-build" in result.output
+    assert "/sp-map-scan, then /sp-map-build" in result.output
 
 
 def test_team_auto_dispatch_blocks_when_baseline_build_is_known_blocked(tmp_path: Path):
