@@ -669,34 +669,46 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
     assert "Run /sp.deep-research before planning" in plan
 
 
-def test_map_codebase_template_generates_handbook_navigation_system() -> None:
-    content = _read("templates/commands/map-codebase.md")
+def test_map_scan_template_generates_complete_build_package() -> None:
+    content = _read("templates/commands/map-scan.md")
     lowered = content.lower()
 
-    assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/root/ARCHITECTURE.md" in content
-    assert ".specify/project-map/root/STRUCTURE.md" in content
-    assert ".specify/project-map/root/CONVENTIONS.md" in content
-    assert ".specify/project-map/root/INTEGRATIONS.md" in content
-    assert ".specify/project-map/root/WORKFLOWS.md" in content
-    assert ".specify/project-map/root/TESTING.md" in content
-    assert ".specify/project-map/root/OPERATIONS.md" in content
-    assert 'choose_execution_strategy(command_name="map-codebase"' in content
+    assert ".specify/project-map/map-scan.md" in content
+    assert ".specify/project-map/coverage-ledger.md" in content
+    assert ".specify/project-map/coverage-ledger.json" in content
+    assert ".specify/project-map/scan-packets/<lane-id>.md" in content
+    assert 'choose_execution_strategy(command_name="map-scan"' in content
     assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
-    assert "support skills" not in lowered
-    assert "refresh the handbook/project-map navigation system" in lowered
-    assert "atlas-style technical encyclopedia" in lowered
+    assert "full project-relevant inventory" in lowered
+    assert "coverage classification" in lowered
+    assert "criticality scoring" in lowered
+    assert "reading depth" in lowered
+    assert "project shape and stack" in lowered
+    assert "module dependency graph" in lowered
+    assert "entry and api surfaces" in lowered
+    assert "data and state flows" in lowered
+    assert "template and generated-surface propagation" in lowered
+    assert "coverage reverse index" in lowered
+
+
+def test_map_build_template_generates_handbook_navigation_system_from_scan_package() -> None:
+    content = _read("templates/commands/map-build.md")
+    lowered = content.lower()
+
+    assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/index/*.json" in content
+    assert ".specify/project-map/root/*.md" in content
+    assert ".specify/project-map/modules/<module-id>/*.md" in content
+    assert 'choose_execution_strategy(command_name="map-build"' in content
+    assert "single-lane" in lowered
+    assert "native-multi-agent" in lowered
+    assert "sidecar-runtime" in lowered
+    assert "atlas output contract" in lowered
     assert "complete-refresh" in content
-    assert "do not create `.planning/codebase/`" in content
-    assert "Treat the map as a coverage system, not just a navigation summary." in content
-    assert "what owns it" in content
-    assert "where the truth lives" in content
-    assert "what other surfaces consume it or feed it" in content
-    assert "what minimum verification evidence proves the mapped surface still works" in content
-    assert "what important unknowns, assumptions, or stale coverage remain" in content
-    assert "for each high-value capability, core module, or critical workflow, emit at least one capability card" in lowered
+    assert "do not create `.planning/codebase/`" in lowered
+    assert "capability cards must capture" in lowered
     assert "purpose" in lowered
     assert "owner" in lowered
     assert "truth lives" in lowered
@@ -706,126 +718,26 @@ def test_map_codebase_template_generates_handbook_navigation_system() -> None:
     assert "failure modes" in lowered
     assert "confidence" in lowered
     assert "confidence must use only: verified, inferred, or unknown-stale" in lowered
-    assert "when a capability card is marked inferred or unknown-stale, summarize that gap again in known unknowns, low-confidence areas, or both" in lowered
-    assert "task-relevant coverage" in lowered
-    assert "ownership or placement guidance" in lowered
-    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
-    assert "runtime units, execution surfaces, and major capability surfaces" in lowered
-    assert "key consumer surfaces and shared coordination surfaces" in lowered
-    assert "change-propagation hotspots, validation entry points, and known unknowns" in lowered
-    assert "evidence that reveals propagation paths" in lowered
-    assert "change propagation paths" in lowered
-    assert "what shared or consumer surfaces exist" in lowered
-    assert "recovery paths" in lowered
-    assert "verification entry points" in lowered
-    assert "known runtime unknowns" in lowered
-    assert "change-propagation hotspots" in lowered
-    assert "\u9879\u76ee\u6280\u672f\u6587\u6863.md" not in content
-    assert "`status.json` must preserve the current freshness contract" in content
-    assert "`global`" in content
-    assert "`modules`" in content
-    assert "deep_status" in content
-    assert "component and module dependency graph" in lowered
-    assert "runtime data and event flows" in lowered
-    assert "state lifecycle" in lowered
-    assert "deployment and runtime topology" in lowered
-    assert "build and release pipeline dependencies" in lowered
-    assert "configuration and feature-control surfaces" in lowered
-    assert "observability design" in lowered
-    assert "failure-mode and recovery model" in lowered
-    assert "security boundaries and permission model" in lowered
-    assert "decision history and architecture evolution context" in lowered
 
 
-def test_map_codebase_template_preserves_full_detail_through_layering() -> None:
-    content = _read("templates/commands/map-codebase.md")
+def test_map_build_template_preserves_full_detail_and_reverse_coverage() -> None:
+    content = _read("templates/commands/map-build.md")
     lowered = content.lower()
 
-    assert "Layering exists so map consumers can read detail on demand instead of re-reading one monolithic technical document." in content
-    assert "Do not treat layering as permission to discard technical detail." in content
-    assert "without relying on any older monolithic technical writeup" in lowered
-    assert "high-value contract or implementation detail" in lowered
-    assert "external or exported api contracts" in lowered
-    assert "core data models, state semantics, and handoff fields" in lowered
-    assert "ipc, bridge, native-host, message, pipe, or protocol seams" in lowered
-    assert "build, packaging, toolchain, platform, architecture, and runtime invariants" in lowered
-    assert "key components whose responsibilities, inputs/outputs, or downstream effects" in lowered
-    assert "do not collapse those details into vague summaries" in lowered
+    assert "do not stop at repository shape" in lowered
     assert "do not stop at naming a file family or subsystem" in lowered
-    assert "record the responsibility, important inputs/outputs or fields, adjacent dependencies, compatibility constraints, and minimum verification route" in lowered
-    assert "`PROJECT-HANDBOOK.md` must stay concise and index-first" in content
-    assert "the topical documents must carry the deeper detail" in lowered
+    assert "high-value contracts must preserve concrete signatures, fields, return shapes, handoff data, compatibility rules, or protocol semantics" in lowered
+    assert "`project-handbook.md` must stay concise and index-first" in lowered
+    assert "root docs carry cross-module truth; module docs carry module-local truth" in lowered
     assert "method families, parameter semantics, return shapes, error fields, state transitions, compatibility notes, or invariants" in lowered
-    assert "if the repository is too large to card every capability, prioritize the capabilities that are most central, most risky to change, shared by multiple workflows, or exposed at external boundaries" in lowered
-    assert "macro scan and architecture identification" in lowered
-    assert "directory structure deep analysis" in lowered
-    assert "dependency relationships and module analysis" in lowered
-    assert "core code element review" in lowered
-    assert "data flow and api surface mapping" in lowered
-    assert "patterns and conventions synthesis" in lowered
-    assert "project type, technology stack, and build tooling" in lowered
-    assert "top-level architecture pattern and deployment shape" in lowered
-    assert "major directories and representative subdirectories" in lowered
-    assert "import/require relationships, core modules, utility modules, and strong-coupling hotspots" in lowered
-    assert "core classes, abstract classes, interfaces, enums, and major functions" in lowered
-    assert "key business flows from entry to exit" in lowered
-    assert "data lineage, event choreography, and runtime fan-out paths" in lowered
-    assert "entity lifecycle, state-machine transitions, and persistence or cache checkpoints" in lowered
-    assert "route definitions, controllers, exported endpoints, or command surfaces" in lowered
-    assert "design patterns, naming rules, directory customs, configuration management, and utility locations" in lowered
-    assert "the generated navigation system should collectively cover the equivalent of these seven technical-document chapters" in lowered
-    assert "project architecture overview" in lowered
-    assert "directory structure and responsibilities" in lowered
-    assert "key module dependency relationships" in lowered
-    assert "core classes and interfaces" in lowered
-    assert "core data flows" in lowered
-    assert "api inventory" in lowered
-    assert "common patterns and conventions" in lowered
-    assert "capability-card prioritization does not waive area coverage" in lowered
-    assert "when an area does not receive a full capability card" in lowered
-    assert "a maintainer should be able to answer what breaks, what blocks, what propagates, and what proves the change safe" in lowered
-
-
-def test_map_codebase_template_requires_fixed_topic_structure_and_handbook_routing() -> None:
-    content = _read("templates/commands/map-codebase.md")
-    lowered = content.lower()
-
-    assert "every topical document should begin with a metadata block" in lowered
-    assert "**last updated:** yyyy-mm-dd" in lowered
-    assert "**coverage scope:** [what area this document covers]" in lowered
-    assert "**primary evidence:** [main files, directories, commands, or tests used]" in lowered
-    assert "**update when:** [what changes should trigger edits here]" in lowered
-    assert "if local templates are absent, default to these section sets instead of free-form prose" in lowered
-    assert "pattern overview" in lowered
-    assert "directory responsibilities" in lowered
-    assert "external services and tools" in lowered
-    assert "core user flows" in lowered
-    assert "smallest meaningful checks" in lowered
-    assert "startup and execution paths" in lowered
-    assert "deployment and runtime topology" in lowered
-    assert "observability design" in lowered
-    assert "failure modes and recovery playbooks" in lowered
-    assert "do not put code blocks, api inventories, or the only precise explanation in `project-handbook.md`" in lowered
-    assert "each subsystem or topic-map item in the handbook should stay to one short paragraph" in lowered
-    assert "end with an explicit route to the relevant topical file" in lowered
-
-
-def test_map_codebase_template_requires_detail_acceptance_checklist() -> None:
-    content = _read("templates/commands/map-codebase.md")
-    lowered = content.lower()
-
-    assert "detail acceptance checklist" in lowered
-    assert "before reporting completion" in lowered
-    assert "no critical topic document stops at directory names or file-family names without explaining responsibilities" in lowered
-    assert "high-value contracts keep concrete signatures, fields, return shapes, handoff data, or compatibility rules when those facts exist" in lowered
-    assert "workflow and integration sections preserve protocol seams, bridge semantics, or runtime invariants when those facts govern behavior" in lowered
-    assert "build, packaging, runtime, and recovery instructions remain actionable instead of being reduced to generic prose" in lowered
-    assert "the handbook stays index-first and points to the topic docs instead of duplicating them" in lowered
-    assert "high-value capabilities include owner, truth lives, extension guidance, change propagation, minimum verification, failure modes, and confidence" in lowered
-    assert "capability cards use the canonical confidence levels verified, inferred, or unknown-stale" in lowered
-    assert "each major directory has at least one responsibility statement and one placement cue" in lowered
-    assert "each major api or command surface lists an entrypoint, owner, consumer, and verification route" in lowered
-    assert "each high-value workflow or capability records a runnable minimum verification path or the explicit marker `missing runnable verification`" in lowered
+    assert "every `critical` row appears in at least one final atlas target" in lowered
+    assert "every `important` row appears in a final atlas target" in lowered
+    assert "every scan packet is consumed" in lowered
+    assert "every accepted packet result has paths read and confidence" in lowered
+    assert "owner, consumer, change propagation, and verification" in lowered
+    assert "known unknowns" in lowered
+    assert "low-confidence areas" in lowered
+    assert "deep_stale" in content
 
 
 def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
