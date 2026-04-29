@@ -232,6 +232,11 @@ Passive project learning layer:
 - `specify hook inject-learning --command <workflow> --type <type> --summary "..."`
 - Use `specify learning aggregate` when you want a grouped, promotion-oriented summary of candidate, confirmed, and promoted learning patterns before deciding what should become a shared learning or rule.
 - This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across every `sp-*` workflow, with `review-learning` acting as the terminal learning gate and `capture-learning` preserving structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
+- Durable eval helpers turn promoted rules into local regression checks:
+  - `specify eval create --recurrence-key <key> ...`
+  - `specify eval status --format json`
+  - `specify eval run --format json`
+- Use `specify eval create` after a rule or learning becomes stable enough that the repository should keep proving it, not just remember it.
 
 First-party workflow quality hooks:
 

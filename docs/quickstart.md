@@ -208,6 +208,10 @@ Passive project learning layer:
   - `specify hook inject-learning --command <workflow> --type <type> --summary "..."`
 - `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
 - Treat this as an internal/runtime helper surface, not as a separate daily slash workflow. `review-learning` is the terminal learning gate, and `capture-learning` preserves structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
+- Durable eval helpers exist once a rule should become executable proof instead of only remembered guidance:
+  - `specify eval create --recurrence-key <key> ...`
+  - `specify eval status --format json`
+  - `specify eval run --format json`
 
 First-party workflow quality hooks:
 

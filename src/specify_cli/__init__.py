@@ -84,8 +84,12 @@ from specify_cli.codex_team.runtime_bridge import (
 )
 from specify_cli.execution import (
     build_result_handoff_path,
+    normalize_worker_task_result_payload,
+    worker_task_result_payload,
     write_normalized_result_handoff,
 )
+from specify_cli.eval_runner import run_eval_suite
+from specify_cli.evals import create_eval_case, eval_status_payload
 from specify_cli.learning_aggregate import (
     aggregate_learning_state,
     write_learning_aggregate_report,
@@ -489,6 +493,12 @@ learning_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(learning_app, name="learning")
+eval_app = typer.Typer(
+    name="eval",
+    help="Durable eval case helper commands",
+    add_completion=False,
+)
+app.add_typer(eval_app, name="eval")
 
 def show_banner():
     """Display the ASCII art banner."""
@@ -1513,6 +1523,93 @@ def learning_aggregate_command(
     if "report_path" in payload:
         rows.append(("Report", f"[dim]{payload['report_path']}[/dim]"))
     console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Aggregate", border_style="cyan"))
+
+
+@eval_app.command("create")
+def eval_create_command(
+    recurrence_key: str = typer.Option(..., "--recurrence-key", help="Stable recurrence key or eval subject id"),
+    summary: str | None = typer.Option(None, "--summary", help="One-line eval summary"),
+    verification_method: str | None = typer.Option(None, "--verification-method", help="Verification method: file-check, rule-check, grep-check, or command-check"),
+    target: str | None = typer.Option(None, "--target", help="Target file path or glob"),
+    contains: str | None = typer.Option(None, "--contains", help="String that must exist for rule-check"),
+    pattern: str | None = typer.Option(None, "--pattern", help="Regex pattern for grep-check"),
+    command: str | None = typer.Option(None, "--command", help="Command for command-check"),
+    expect: str | None = typer.Option(None, "--expect", help="Expected result such as found, exists, pass, or fail"),
+    recovery_action: str = typer.Option("", "--recovery-action", help="What to do if the eval fails"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Create a durable eval case under .specify/evals/."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = create_eval_case(
+        project_root,
+        recurrence_key=recurrence_key,
+        summary=summary,
+        verification_method=verification_method,
+        target=target,
+        contains=contains,
+        pattern=pattern,
+        command=command,
+        expect=expect,
+        recovery_action=recovery_action,
+    )
+    response = {
+        "case": payload["case"].to_payload(),
+        "case_path": str(payload["case_path"]),
+        "paths": payload["paths"].to_dict(),
+    }
+    if output_format.lower() == "json":
+        print(json.dumps(response, ensure_ascii=False, indent=2))
+        return
+    rows = [
+        ("Eval Id", response["case"]["id"]),
+        ("Recurrence Key", response["case"]["recurrence_key"]),
+        ("Method", response["case"]["verification_method"]),
+        ("Case File", f"[dim]{response['case_path']}[/dim]"),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Eval Created", border_style="cyan"))
+
+
+@eval_app.command("status")
+def eval_status_command(
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Inspect the durable eval store without mutating it."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = eval_status_payload(project_root)
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+    rows = [
+        ("Cases", str(payload["counts"]["cases"])),
+        ("Passed", str(payload["counts"]["passed"])),
+        ("Failed", str(payload["counts"]["failed"])),
+        ("Skipped", str(payload["counts"]["skipped"])),
+        ("Pending", str(payload["counts"]["pending"])),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Eval Status", border_style="cyan"))
+
+
+@eval_app.command("run")
+def eval_run_command(
+    recurrence_key: str | None = typer.Option(None, "--recurrence-key", help="Optional recurrence key filter"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Run durable eval cases and update their last_result state."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = run_eval_suite(project_root, recurrence_key=recurrence_key)
+    if output_format.lower() == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+    rows = [
+        ("Total", str(payload["counts"]["total"])),
+        ("Passed", str(payload["counts"]["passed"])),
+        ("Failed", str(payload["counts"]["failed"])),
+        ("Skipped", str(payload["counts"]["skipped"])),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Eval Run", border_style="cyan"))
 
 def check_tool(tool: str, tracker: StepTracker = None) -> bool:
     """Check if a tool is installed. Optionally update tracker.
