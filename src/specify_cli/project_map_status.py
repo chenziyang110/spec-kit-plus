@@ -688,10 +688,10 @@ def complete_project_map_refresh(project_root: Path) -> ProjectMapStatus:
         project_root,
         head_commit=git_head_commit(project_root),
         branch=git_branch_name(project_root),
-        reason="map-codebase",
+        reason="map-build",
         refresh_topics=list(TOPIC_FILES),
         refresh_scope="full",
-        refresh_basis="map-codebase",
+        refresh_basis="map-build",
         changed_files_basis=[],
     )
 

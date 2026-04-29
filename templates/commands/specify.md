@@ -117,11 +117,11 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 4. Ensure repository navigation system exists.
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
+   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, run `/sp-map-scan` followed by `/sp-map-build` before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
-   - [AGENT] If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If the navigation system is missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
    - Task-relevant coverage is insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - Treat task-relevant coverage as a coverage-model check, not just a file-presence check. Coverage is also insufficient when the handbook/project-map set cannot yet tell you:
      - owning surfaces and truth locations
@@ -129,7 +129,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
      - change-propagation hotspots
      - verification entry points
      - known unknowns or stale evidence boundaries
-   - [AGENT] If task-relevant coverage is insufficient for the current request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If task-relevant coverage is insufficient for the current request, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
    - Treat `PROJECT-HANDBOOK.md` as the root navigation artifact and use `Topic Map` to choose the smallest relevant topical documents for the touched area.
 
 5. Load context.
@@ -146,7 +146,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Extract module priority waves, `small / medium / large` policy, scenario matrix expectations, allowed testability refactors, coverage goals, and CI gate expectations from it.
    - From the handbook navigation system, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
-   - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
+   - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
    - Read user-supplied references, examples, or linked material when they materially affect the requirement package.
@@ -720,7 +720,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - release decision
     - readiness for the next phase (`/sp.plan` for the mainline, `/sp.clarify` when deeper analysis is still needed, or `/sp.deep-research` when feasibility must be proven first)
     - recommended review follow-up: `/sp.clarify` when the user wants one more targeted repair pass over the written spec package before planning
-    - if this pass reveals that the current atlas is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current handbook/project-map does not yet capture, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield execution work proceeds
+    - if this pass reveals that the current atlas is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current handbook/project-map does not yet capture, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield execution work proceeds
     - [AGENT] before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `specify learning capture --command specify ...`
     - keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence
     - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or a repeated recurrence that should become shared project memory

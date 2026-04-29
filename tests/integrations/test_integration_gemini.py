@@ -397,7 +397,8 @@ def test_gemini_runtime_commands_hard_gate_project_map_reads(tmp_path):
         assert "crucial first step" in content
         assert "project-handbook.md" in content
         assert ".specify/project-map/*.md" in content
-        assert "/sp-map-codebase" in content
+        assert "/sp-map-scan" in content
+        assert "/sp-map-build" in content
 
 
 def test_gemini_question_driven_commands_prefer_ask_user_with_fallback(tmp_path):

@@ -242,10 +242,10 @@ def test_bash_complete_refresh_uses_map_codebase_reason(git_repo: Path):
     assert refreshed["freshness"] == "fresh"
     status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
     payload = json.loads(status_path.read_text(encoding="utf-8"))
-    assert payload["last_refresh_reason"] == "map-codebase"
+    assert payload["last_refresh_reason"] == "map-build"
     assert payload["last_refresh_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md"]
     assert payload["last_refresh_scope"] == "full"
-    assert payload["last_refresh_basis"] == "map-codebase"
+    assert payload["last_refresh_basis"] == "map-build"
     assert payload["last_refresh_changed_files_basis"] == []
 
 

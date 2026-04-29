@@ -88,15 +88,15 @@ workflow_contract:
    - Confirm the repository root and treat this workflow as project-level rather than feature-level.
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If the testing surfaces are stale or weak, run `/sp-map-codebase` before continuing. Otherwise review the relevant topic files before trusting the current map.
-   - [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If the testing surfaces are stale or weak, run `/sp-map-scan` followed by `/sp-map-build` before continuing. Otherwise review the relevant topic files before trusting the current map.
+   - [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
    - Treat testing-surface coverage as insufficient when the current handbook/project-map set cannot yet tell you:
      - which modules or packages own the main truth-bearing logic
      - which test frameworks and conventions already govern those modules
      - which workflows or integration seams are regression-sensitive
      - which startup, CI, or operator commands are required to run tests safely
-   - [AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
    - [AGENT] Read `PROJECT-HANDBOOK.md`.
    - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.

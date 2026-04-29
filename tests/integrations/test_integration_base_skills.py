@@ -282,18 +282,22 @@ class SkillsIntegrationTests:
         assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content
         assert "sidecar-runtime" in quick_content
 
-    def test_map_codebase_skill_requires_native_explorer_lanes_when_selected(self, tmp_path):
+    def test_map_scan_build_skills_require_native_explorer_lanes_when_selected(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         i.setup(tmp_path, m)
 
-        content = (i.skills_dest(tmp_path) / "sp-map-codebase" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert 'choose_execution_strategy(command_name="map-codebase"' in content
-        assert "if the selected strategy is `native-multi-agent`, dispatch bounded explorer subagents" in content
-        assert "do not continue with broad sequential exploration after selecting `native-multi-agent`" in content
-        assert "launch at least three independent explorer subagents" in content
-        assert "explorer subagents are read-only evidence collectors" in content
-        assert "the leader must wait for every dispatched explorer lane" in content
+        skills_dir = i.skills_dest(tmp_path)
+        assert not (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
+
+        scan_content = (skills_dir / "sp-map-scan" / "SKILL.md").read_text(encoding="utf-8").lower()
+        build_content = (skills_dir / "sp-map-build" / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert 'choose_execution_strategy(command_name="map-scan"' in scan_content
+        assert 'choose_execution_strategy(command_name="map-build"' in build_content
+        assert "native-multi-agent" in scan_content
+        assert "native-multi-agent" in build_content
+        assert "coverage-ledger" in scan_content
+        assert "route back to `/sp-map-scan`" in build_content
 
     def test_question_driven_skills_define_native_tool_preference_with_fallback(self, tmp_path):
         i = get_integration(self.KEY)

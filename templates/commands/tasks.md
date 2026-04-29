@@ -100,13 +100,13 @@ scripts:
 2. **Ensure repository navigation system exists**:
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task-generation request, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topic files before generating task batches.
+   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task-generation request, run `/sp-map-scan` followed by `/sp-map-build` before continuing. If only `review_topics` are non-empty, review those topic files before generating task batches.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
-   - [AGENT] If the navigation system is missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If the navigation system is missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
    - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-   - [AGENT] If task-relevant coverage is insufficient for the current task-generation request, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If task-relevant coverage is insufficient for the current task-generation request, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
 
 3. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
@@ -123,7 +123,7 @@ scripts:
    - **If `.planning/learnings/candidates.md` exists**: inspect only the entries relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
    - **Required**: [AGENT] Read `PROJECT-HANDBOOK.md`
    - **Required**: Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`
-   - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: run `/sp-map-codebase` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
+   - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
@@ -221,7 +221,7 @@ scripts:
     - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
     - workflow-state path
     - Recommended next command: `/sp.analyze`
-    - if the decomposition exposes new shared surfaces, new workflow joins, new validation entry points, or other atlas facts that the current handbook/project-map does not yet capture well enough for downstream execution, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before later brownfield implementation proceeds
+    - if the decomposition exposes new shared surfaces, new workflow joins, new validation entry points, or other atlas facts that the current handbook/project-map does not yet capture well enough for downstream execution, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield implementation proceeds
     - If the current ready batch strategy is `single-lane` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`

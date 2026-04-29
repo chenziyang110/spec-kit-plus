@@ -66,8 +66,8 @@ def test_execution_templates_reference_state_checkpoint_and_delegation_hook_help
     assert "specify hook validate-read-path --target-path" in fast
 
 
-def test_map_codebase_template_references_refresh_hook_helpers() -> None:
-    content = read_template("templates/commands/map-codebase.md")
+def test_map_build_template_references_refresh_hook_helpers() -> None:
+    content = read_template("templates/commands/map-build.md")
 
-    assert "specify hook checkpoint --command map-codebase" in content
+    assert "specify hook checkpoint --command map-build" in content
     assert "specify hook complete-refresh" in content

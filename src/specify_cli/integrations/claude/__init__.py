@@ -37,7 +37,8 @@ ARGUMENT_HINTS: dict[str, str] = {
     "test": "Optional testing-system routing hint; leave blank to choose scan or build from repository state",
     "test-scan": "Optional module, package, or risk area to emphasize during the read-only testing-system scan",
     "test-build": "Optional wave, lane, or module filter for building from the existing test scan",
-    "map-codebase": "Optional subsystem or workflow area to emphasize while mapping",
+    "map-scan": "Optional subsystem, directory, or workflow area to emphasize while scanning",
+    "map-build": "Optional scan package or atlas area to emphasize while building the project map",
     "taskstoissues": "Optional filter or label for GitHub issues",
 }
 

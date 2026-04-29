@@ -39,7 +39,8 @@ def test_guidance_docs_explain_skill_groups():
     assert "`analyze`" in readme
     assert "`debug`" in readme
     assert "`explain`" in readme
-    assert "`map-codebase`" in readme
+    assert "`map-scan`" in readme
+    assert "`map-build`" in readme
     assert "`sp-teams`" in readme
 
     assert "Core workflow skills" in quickstart
@@ -51,7 +52,8 @@ def test_guidance_docs_explain_skill_groups():
     assert "/speckit.checklist" in quickstart
     assert "/speckit.analyze" in quickstart
     assert "/speckit.debug" in quickstart
-    assert "/speckit.map-codebase" in quickstart
+    assert "/speckit.map-scan" in quickstart
+    assert "/speckit.map-build" in quickstart
 
 
 def test_guidance_docs_explain_optional_codex_teams_mcp_refresh():
@@ -101,13 +103,14 @@ def test_guidance_docs_explain_handbook_navigation_system():
         assert "Any code change that alters navigation meaning must update the handbook system." in content
 
 
-def test_guidance_docs_position_map_codebase_for_existing_projects():
+def test_guidance_docs_position_map_scan_build_for_existing_projects():
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
 
     assert "Already have code?" in readme
-    assert "Run `map-codebase` first" in readme
-    assert "/speckit.map-codebase" in quickstart
+    assert "Run `map-scan`, then `map-build` first" in readme
+    assert "/speckit.map-scan" in quickstart
+    assert "/speckit.map-build" in quickstart
     assert "existing codebase" in quickstart.lower()
     assert "required brownfield gate" in readme.lower()
     assert "required brownfield gate" in quickstart.lower()
@@ -122,7 +125,7 @@ def test_guidance_docs_explain_that_spec_workflows_do_not_refresh_map_content_di
 
     for content in (readme, quickstart):
         assert "mark `.specify/project-map/index/status.json` dirty" in content or "mark `.specify/project-map/index/status.json` dirty" in _read("AGENTS.md").lower()
-        assert "run `map-codebase` first" in content or "run `/speckit.map-codebase`" in content
+        assert "map-scan" in content and "map-build" in content
 
 
 def test_guidance_docs_expand_explain_to_handbook_and_project_map_views():

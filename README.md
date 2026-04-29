@@ -165,14 +165,14 @@ specify -> deep-research -> plan
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- Support skills: `map-codebase`, `test`, `test-scan`, `test-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
+- Support skills: `map-scan`, `map-build`, `test`, `test-scan`, `test-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
 - Codex-only runtime: `sp-teams`
 
 Conditional gates and follow-up commands:
 
-- `map-codebase` is the required brownfield gate for an existing codebase; generate or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before specification, planning, task generation, or implementation continues
+- `map-scan` followed by `map-build` is the required brownfield gate for an existing codebase; generate the complete scan package first, then refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before specification, planning, task generation, or implementation continues
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
-- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `map-codebase` as the follow-up refresh workflow
+- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `map-scan` followed by `map-build` as the follow-up refresh workflow
 - `test` as the backward-compatible router for project-level testing work; it routes to `test-scan` when evidence or build lanes are missing and to `test-build` when scan artifacts are ready for execution
 - `test-scan` to run a deep, read-only testing-system scan using leader-managed scout subagents, then write `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, and `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`
 - `test-build` to consume scan-approved lanes, coordinate leader/subagent test-building waves, update tests/fixtures/config as authorized by lane packets, bootstrap or refresh bundled language testing skills, establish a coverage baseline, capture manual validation evidence, and write the durable testing contract plus standard test/coverage playbook
@@ -187,7 +187,7 @@ Conditional gates and follow-up commands:
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing subagent validation evidence)
 
-Already have code? Run `map-codebase` first and treat it as the required brownfield gate before deeper specification, planning, task generation, or implementation work.
+Already have code? Run `map-scan`, then `map-build` first and treat that two-step flow as the required brownfield gate before deeper specification, planning, task generation, or implementation work.
 Generated projects also track handbook freshness in `.specify/project-map/index/status.json`, so brownfield workflows can decide whether the current atlas baseline is fresh, possibly stale, or stale before proceeding.
 
 Routing guide for lightweight work:
@@ -208,7 +208,7 @@ Required action markers:
 - `[AGENT]` marks a required AI action and is independent from `[P]`.
 - `[P]` still means parallel-safe work; `[AGENT]` does not imply parallelism, subagent dispatch, or runtime routing by itself.
 - Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file append or replacement.
-- First-wave `[AGENT]` coverage started with `sp-fast`, `sp-quick`, and `sp-map-codebase`; the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows now use the same marker for hard gates and required state updates.
+- First-wave `[AGENT]` coverage started with `sp-fast`, `sp-quick`, `sp-map-scan`, and `sp-map-build`; the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows now use the same marker for hard gates and required state updates.
 
 Passive project learning layer:
 
@@ -355,7 +355,7 @@ Skills-based projects now install two layers into the same skills directory:
 Current orchestration status in this fork:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
-- `specify`, `plan`, `tasks`, `test`, `map-codebase`, `explain`, `debug`, and `quick` surface `single-lane`, `native-multi-agent`, and `sidecar-runtime` in user-facing workflow guidance
+- `specify`, `plan`, `tasks`, `test`, `map-scan`, `map-build`, `explain`, `debug`, and `quick` surface `single-lane`, `native-multi-agent`, and `sidecar-runtime` in user-facing workflow guidance
 - `implement` now surfaces `single-lane` and `native-multi-agent`; when subagent dispatch is unavailable or low-confidence, it stays on the leader path with an explicit fallback reason
 - `single-lane` is the topology label for one safe execution lane, not a synonym for either subagent execution or leader-local execution
 - in execution-oriented workflows, prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
@@ -516,7 +516,7 @@ Navigation and technical truth are now handbook-first:
 - Deep project knowledge lives under `.specify/project-map/`.
 - Treat the combined handbook/project-map surface as an atlas-style technical encyclopedia for dependency graph, runtime flows, state lifecycle, and change-impact view.
 - `.specify/project-map/index/status.json` records the last successful map refresh and dirty state for freshness checks.
-- After a successful `map-codebase` refresh, use `project-map complete-refresh` as the standard completion hook to record the new fresh baseline.
+- After a successful `map-build` refresh, use `project-map complete-refresh` as the standard completion hook to record the new fresh baseline.
 - Any code change that alters navigation meaning must update the handbook system.
 
 ## Documentation

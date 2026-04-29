@@ -59,7 +59,7 @@ missing, copy the template first.
   navigation artifact and use `.specify/project-map/index/status.json` to assess
   freshness before trusting topical project-map files.
 - If the navigation system is missing or stale for an existing codebase, run
-  `/sp-map-codebase` before continuing or mark the refresh as a blocking
+  `/sp-map-scan` followed by `/sp-map-build` before continuing or mark the refresh as a blocking
   follow-up rather than fabricating repository context.
 - If the amendment changes structure, ownership, workflows, testing strategy, integrations, or operator expectations, mark the related handbook/project-map surface for refresh in the Sync Impact Report even if the constitution update itself is complete. Use this exact framing: mark the related handbook/project-map surface for refresh.
 

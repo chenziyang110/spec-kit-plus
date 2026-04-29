@@ -168,18 +168,31 @@ class CodexIntegration(SkillsIntegration):
             created,
             project_root,
             manifest,
-            skills_dir / "sp-map-codebase" / "SKILL.md",
+            skills_dir / "sp-map-scan" / "SKILL.md",
             f"## {agent_name} Native Multi-Agent Execution",
             (
                 "\n"
                 f"## {agent_name} Native Multi-Agent Execution\n\n"
-                f"When running `sp-map-codebase` in {agent_name}, you **MUST** dispatch explorer subagents whenever the selected strategy is `native-multi-agent`.\n"
-                f"- If the selected strategy is `native-multi-agent`, dispatch bounded explorer subagents before doing broad leader-local scouting.\n"
-                f"- Use `spawn_agent` for bounded explorer subagents such as architecture/structure mapping, conventions/testing mapping, integrations/runtime mapping, and workflows/operations mapping.\n"
-                f"- For a full repository refresh with no narrow focus, launch at least three independent explorer subagents; use four when architecture, workflow, integration, and testing/operations areas can be separated safely.\n"
-                f"- Do not continue broad leader-local scouting after selecting `native-multi-agent` unless you record the concrete fallback reason and re-select the strategy.\n"
-                f"- Explorer subagents are read-only evidence collectors and must not write `PROJECT-HANDBOOK.md` or `.specify/project-map/*` artifacts directly.\n"
-                f"- Use `wait_agent` only at the documented join points before writing `PROJECT-HANDBOOK.md` and before the final consistency pass.\n"
+                f"When running `sp-map-scan` in {agent_name}, dispatch subagents whenever the selected strategy is `native-multi-agent`.\n"
+                f"- Use `spawn_agent` for bounded scan lanes such as repository tree inventory, source/runtime surfaces, testing/operations surfaces, and generated/cache exclusion review.\n"
+                f"- Keep each subagent responsible for scan evidence only; the leader owns the coverage ledger, reverse coverage closure, and final completeness decision.\n"
+                f"- Use `wait_agent` only at the documented join points before finalizing `coverage-ledger.md`, `coverage-ledger.json`, and `scan-packets/<lane-id>.md`.\n"
+                f"- Use `close_agent` after integrating finished subagent results.\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-map-build" / "SKILL.md",
+            f"## {agent_name} Native Multi-Agent Execution",
+            (
+                "\n"
+                f"## {agent_name} Native Multi-Agent Execution\n\n"
+                f"When running `sp-map-build` in {agent_name}, dispatch subagents whenever the selected strategy is `native-multi-agent`.\n"
+                f"- Use `spawn_agent` for bounded atlas synthesis lanes such as root architecture/structure, conventions/testing, integrations/runtime, and workflow/operations mapping.\n"
+                f"- Use the scan package as the subagent input contract; do not let subagents invent unscanned coverage or skip reverse coverage checks.\n"
+                f"- Use `wait_agent` only at the documented join points before writing `PROJECT-HANDBOOK.md`, before updating `.specify/project-map/`, and before the final consistency pass.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )

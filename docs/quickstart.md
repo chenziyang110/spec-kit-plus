@@ -125,7 +125,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `/speckit.constitution`, `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`
-- **Support skills**: `/speckit.map-codebase`, `/speckit.auto`, `/speckit.clarify`, `/speckit.deep-research` (`/speckit.research` alias), `/speckit.checklist`, `/speckit.analyze`, `/speckit.debug`, `/speckit.explain`
+- **Support skills**: `/speckit.map-scan`, `/speckit.map-build`, `/speckit.auto`, `/speckit.clarify`, `/speckit.deep-research` (`/speckit.research` alias), `/speckit.checklist`, `/speckit.analyze`, `/speckit.debug`, `/speckit.explain`
 - **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -147,15 +147,15 @@ Generated project navigation now follows the handbook system:
 - Deep project knowledge lives under `.specify/project-map/`.
 - Treat the combined handbook/project-map surface as an atlas-style technical encyclopedia for dependency graph, runtime flows, state lifecycle, and change-impact view.
 - `.specify/project-map/index/status.json` records the current handbook freshness baseline and dirty state.
-- After a successful `map-codebase` run, use `project-map complete-refresh` as the standard completion hook to record the fresh baseline.
+- After a successful `map-build` run, use `project-map complete-refresh` as the standard completion hook to record the fresh baseline.
 - Any code change that alters navigation meaning must update the handbook system.
 
 Use support skills when they solve a specific gap:
 
-- `/speckit.map-codebase` as the required brownfield gate when you are working in an existing codebase; generate or refresh the handbook/project-map navigation system before deeper workflow steps
+- `/speckit.map-scan` followed by `/speckit.map-build` as the required brownfield gate when you are working in an existing codebase; generate the complete scan package first, then refresh the handbook/project-map navigation system before deeper workflow steps
 - `/speckit.auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
-- `/speckit.specify`, `/speckit.clarify`, `/speckit.deep-research`, `/speckit.plan`, and `/speckit.tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `/speckit.map-codebase` as the follow-up refresh workflow
+- `/speckit.specify`, `/speckit.clarify`, `/speckit.deep-research`, `/speckit.plan`, and `/speckit.tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `/speckit.map-scan` followed by `/speckit.map-build` as the follow-up refresh workflow
 - `/speckit.clarify` when an existing spec still needs deeper analysis before planning
 - `/speckit.deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `/speckit.plan`; `/speckit.research` is only its compatibility alias
 - `/speckit.checklist` when you want to audit requirement quality after planning
@@ -166,7 +166,7 @@ Use support skills when they solve a specific gap:
 - `/speckit.analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
 - `/speckit.explain` when you want the current spec, plan, task, implement, or handbook/project-map atlas artifact restated in plain language
 
-If you're starting from an existing codebase, `/speckit.map-codebase` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use `.specify/project-map/index/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
+If you're starting from an existing codebase, `/speckit.map-scan` followed by `/speckit.map-build` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use `.specify/project-map/index/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
 
 Use the lightweight routing rules consistently:
 
@@ -184,7 +184,7 @@ Required action markers:
 - `[AGENT]` marks a required AI action and is independent from `[P]`.
 - `[P]` still means parallel-safe work; `[AGENT]` does not imply parallelism or delegation by itself.
 - Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file replacement.
-- `/speckit.fast`, `/speckit.quick`, and `/speckit.map-codebase` are the first-wave `[AGENT]` workflows, and the shared `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`, and `/speckit.debug` workflows now use the same marker for hard gates.
+- `/speckit.fast`, `/speckit.quick`, `/speckit.map-scan`, and `/speckit.map-build` are the first-wave `[AGENT]` workflows, and the shared `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`, and `/speckit.debug` workflows now use the same marker for hard gates.
 
 Passive project learning layer:
 

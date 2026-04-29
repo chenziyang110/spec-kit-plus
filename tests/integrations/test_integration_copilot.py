@@ -242,7 +242,8 @@ class TestCopilotIntegration:
             assert "crucial first step" in content
             assert "project-handbook.md" in content
             assert ".specify/project-map/*.md" in content
-            assert "/sp-map-codebase" in content
+            assert "/sp-map-scan" in content
+            assert "/sp-map-build" in content
 
     def test_complete_file_inventory_sh(self, tmp_path):
         """Every file produced by specify init --integration copilot --script sh."""

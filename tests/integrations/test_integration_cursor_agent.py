@@ -83,4 +83,5 @@ def test_cursor_runtime_commands_hard_gate_project_map_reads(tmp_path):
         assert "crucial first step" in content
         assert "project-handbook.md" in content
         assert ".specify/project-map/*.md" in content
-        assert "/sp-map-codebase" in content
+        assert "/sp-map-scan" in content
+        assert "/sp-map-build" in content

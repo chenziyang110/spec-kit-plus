@@ -17,13 +17,13 @@ Route project-level testing-system work into the right phase: `/sp-test-scan` fo
 - Inspect user intent and existing testing artifacts.
 - Route to `/sp-test-scan` when evidence, risk ranking, or build-ready lanes are missing or stale.
 - Route to `/sp-test-build` when scan/build-plan artifacts are ready and the user intends actual repository changes.
-- Route to `/sp-map-codebase` first when brownfield navigation evidence is too stale or missing for a reliable testing-system decision.
+- Route to `/sp-map-scan` followed by `/sp-map-build` first when brownfield navigation evidence is too stale or missing for a reliable testing-system decision.
 - Persist the chosen route in `.specify/testing/testing-state.md`.
 
 ## Output Contract
 
 - Write only routing state in `.specify/testing/testing-state.md`.
-- Report exactly one next command: `/sp-test-scan`, `/sp-test-build`, or `/sp-map-codebase`.
+- Report exactly one next command: `/sp-test-scan`, `/sp-test-build`, or `/sp-map-scan` followed by `/sp-map-build`.
 - Preserve compatibility for users who still invoke `/sp-test` while making the two-phase lifecycle explicit.
 
 ## Guardrails

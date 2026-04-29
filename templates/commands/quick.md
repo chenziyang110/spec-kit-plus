@@ -32,17 +32,17 @@ scripts:
 - [AGENT] Prefer `specify hook capture-learning --command quick ...` for structured path learning when the run exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
 - Check whether `.specify/project-map/index/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-- [AGENT] If freshness is `missing` or `stale`, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
-- [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the touched area, run `/sp-map-codebase` before continuing. If only `review_topics` are non-empty, review those topical files before proceeding and refresh the map if they still look insufficient for the quick task.
+- [AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+- [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the touched area, run `/sp-map-scan` followed by `/sp-map-build` before continuing. If only `review_topics` are non-empty, review those topical files before proceeding and refresh the map if they still look insufficient for the quick task.
 - [AGENT] Read `PROJECT-HANDBOOK.md` after the constitution gate and before any broad repository analysis.
-- [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+- [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - Treat quick-task routing as a coverage-model check, not just a presence check. Coverage is also insufficient when the handbook/project-map set cannot yet tell you:
   - owning or truth-owning surfaces
   - change-propagation hotspots
   - verification entry points
   - known unknowns or stale evidence boundaries for the touched area
-- [AGENT] If task-relevant coverage is insufficient for the current quick task, run `/sp-map-codebase` before continuing, then reload the generated navigation artifacts.
+- [AGENT] If task-relevant coverage is insufficient for the current quick task, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
 - Use `Topic Map` to choose only the touched-area topical files needed for the current quick task.
 - Use the loaded handbook/project-map coverage to name the touched area's owning surfaces, change-propagation hotspots, verification entry points, and known unknowns before choosing the quick-task lane shape.
 - Do not load the full topical map unless the task expands beyond its bounded quick-task scope.
@@ -298,8 +298,8 @@ resume_decision: [resume here | blocked waiting | resolved]
   - any unverified surface or remaining gap is called out explicitly instead of being implied away
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
-- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-codebase` before marking the quick task `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass.
-- If you cannot complete that refresh in the current pass, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-codebase` before the next brownfield workflow proceeds.
+- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-scan` followed by `/sp-map-build` before marking the quick task `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass.
+- If you cannot complete that refresh in the current pass, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before the next brownfield workflow proceeds.
 
 ## Propagating Change Rule
 

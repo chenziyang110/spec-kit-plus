@@ -16,7 +16,7 @@ before any complementary gate or learning layer runs.
 - `spec-kit-project-map-gate` is the hard brownfield context gate. Workflow routing
   handles route selection into the right active `sp-*` workflow, while the map gate
   decides whether an existing-code task can continue or must detour through
-  `sp-map-codebase` first.
+  `sp-map-scan -> sp-map-build` first.
 - `spec-kit-project-learning` is the shared memory layer that applies after routing.
   Once the active workflow is selected, that complementary skill defines the
   workflow-specific learning-start and learning-capture behavior instead of leaving
@@ -50,7 +50,7 @@ before any complementary gate or learning layer runs.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` only after tasks are ready and execution should begin.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
-- Use `sp-map-codebase` before other workflow steps when handbook or project-map
+- Use `sp-map-scan -> sp-map-build` before other workflow steps when handbook or project-map
   context for an existing codebase is missing, stale, or too broad.
 - Use `sp-analyze` for drift, consistency, or readiness checks across existing
   spec/plan/tasks artifacts.

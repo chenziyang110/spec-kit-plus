@@ -39,10 +39,18 @@ workflow_contract:
    - Confirm the repository root and treat this command as project-level.
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, route to `/sp-map-codebase` before testing-system routing continues.
-   - [AGENT] If freshness is `possibly_stale`, inspect `must_refresh_topics` and `review_topics`; if testing or workflow topics are stale, route to `/sp-map-codebase`.
-   - [AGENT] Read `PROJECT-HANDBOOK.md` when present.
-   - Read the smallest relevant `.specify/project-map/*.md` files when present.
+   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If the testing surfaces are stale or weak, run `/sp-map-scan` followed by `/sp-map-build` before continuing. Otherwise review the relevant topic files before trusting the current map.
+   - [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+   - Treat testing-surface coverage as insufficient when the current handbook/project-map set cannot yet tell you:
+     - which modules or packages own the main truth-bearing logic
+     - which test frameworks and conventions already govern those modules
+     - which workflows or integration seams are regression-sensitive
+     - which startup, CI, or operator commands are required to run tests safely
+   - [AGENT] If testing-surface coverage is insufficient for the current repository, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] Read `PROJECT-HANDBOOK.md`.
+   - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
+   - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.
 
 2. **Inspect testing-system artifacts**
    - Check for `.specify/testing/TEST_SCAN.md`.
@@ -72,7 +80,7 @@ workflow_contract:
      - a build plan exists
      - at least one lane is `ready`
      - the user requested actual testing-system construction or refresh
-   - Route to `/sp-map-codebase` first when brownfield context is missing or stale enough that scan/build routing would be guesswork.
+   - Route to `/sp-map-scan` followed by `/sp-map-build` first when brownfield context is missing or stale enough that scan/build routing would be guesswork.
 
 5. **Persist the route**
    - Update `TESTING_STATE_FILE` with:

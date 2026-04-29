@@ -409,7 +409,9 @@ class TestInitIntegrationFlag:
         assert "$sp-analyze" in result.output
         assert "$sp-auto" in result.output
         assert "$sp-explain" in result.output
-        assert "$sp-map-codebase" in result.output
+        assert "$sp-map-scan" in result.output
+        assert "$sp-map-build" in result.output
+        assert "$sp-map-codebase" not in result.output
         assert "$sp-clarify" in result.output
         assert "$sp-deep-research" in result.output
         assert "$sp-teams" in result.output
@@ -475,7 +477,9 @@ class TestInitIntegrationFlag:
         assert "seeded default constitution" in result.output.lower()
         assert "project-specific changes" in result.output.lower()
         assert "/sp-explain" in result.output
-        assert "/sp-map-codebase" in result.output
+        assert "/sp-map-scan" in result.output
+        assert "/sp-map-build" in result.output
+        assert "/sp-map-codebase" not in result.output
         assert "/sp-clarify" in result.output
         assert "/sp-deep-research" in result.output
         assert "required for existing code" in result.output
@@ -537,7 +541,9 @@ class TestInitIntegrationFlag:
         assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
         assert (skills_dir / "sp-deep-research" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
-        assert (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
+        assert (skills_dir / "sp-map-scan" / "SKILL.md").exists()
+        assert (skills_dir / "sp-map-build" / "SKILL.md").exists()
+        assert not (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
 
         specify_fm = self._frontmatter(skills_dir / "sp-specify" / "SKILL.md")
@@ -545,26 +551,30 @@ class TestInitIntegrationFlag:
         deep_research_fm = self._frontmatter(skills_dir / "sp-deep-research" / "SKILL.md")
         plan_fm = self._frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         explain_fm = self._frontmatter(skills_dir / "sp-explain" / "SKILL.md")
-        map_codebase_fm = self._frontmatter(skills_dir / "sp-map-codebase" / "SKILL.md")
+        map_scan_fm = self._frontmatter(skills_dir / "sp-map-scan" / "SKILL.md")
+        map_build_fm = self._frontmatter(skills_dir / "sp-map-build" / "SKILL.md")
 
         assert isinstance(specify_fm["description"], str) and specify_fm["description"].strip()
         assert isinstance(spec_extend_fm["description"], str) and spec_extend_fm["description"].strip()
         assert isinstance(deep_research_fm["description"], str) and deep_research_fm["description"].strip()
         assert isinstance(plan_fm["description"], str) and plan_fm["description"].strip()
         assert isinstance(explain_fm["description"], str) and explain_fm["description"].strip()
-        assert isinstance(map_codebase_fm["description"], str) and map_codebase_fm["description"].strip()
+        assert isinstance(map_scan_fm["description"], str) and map_scan_fm["description"].strip()
+        assert isinstance(map_build_fm["description"], str) and map_build_fm["description"].strip()
 
         assert specify_fm["description"].startswith("Use when")
         assert spec_extend_fm["description"].startswith("Use when")
         assert plan_fm["description"].startswith("Use when")
         assert explain_fm["description"].startswith("Use when")
-        assert map_codebase_fm["description"].startswith("Use when")
+        assert map_scan_fm["description"].startswith("Use when")
+        assert map_build_fm["description"].startswith("Use when")
         assert "guided requirement discovery" in specify_fm["description"].lower()
         assert "planning-ready specification package" in specify_fm["description"].lower()
         assert "planning-critical gaps" in spec_extend_fm["description"].lower()
         assert "implementation planning" in plan_fm["description"].lower()
         assert "plain language" in explain_fm["description"].lower()
-        assert "handbook/project-map coverage" in map_codebase_fm["description"].lower()
+        assert "handbook/project-map coverage" in map_scan_fm["description"].lower()
+        assert "map-scan" in map_build_fm["description"].lower()
         assert "clarify" in result.output.lower()
         assert "clarify" in result.output
         assert "explain" in result.output
@@ -743,9 +753,10 @@ class TestInitIntegrationFlag:
         lowered = refresh_result.output.lower()
         assert "canonical map files" in lowered
         assert "are missing" in lowered
-        assert "map-codebase" in refresh_result.output.lower()
+        assert "map-scan" in refresh_result.output.lower()
+        assert "map-build" in refresh_result.output.lower()
 
-    def test_project_map_complete_refresh_records_map_codebase_reason(self, tmp_path):
+    def test_project_map_complete_refresh_records_map_build_reason(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
 
@@ -810,7 +821,7 @@ class TestInitIntegrationFlag:
         refresh_payload = json.loads(refresh_result.output)
         status_payload = json.loads(status_result.output)
         assert refresh_payload["freshness"] == "possibly_stale"
-        assert status_payload["last_refresh_reason"] == "map-codebase"
+        assert status_payload["last_refresh_reason"] == "map-build"
 
     def test_init_installs_shared_worker_prompt_templates(self, tmp_path):
         from typer.testing import CliRunner

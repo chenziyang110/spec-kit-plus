@@ -1,6 +1,6 @@
 ---
 name: spec-kit-project-map-gate
-description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require PROJECT-HANDBOOK.md and relevant .specify/project-map context first, or route to sp-map-codebase when that context is missing or stale."
+description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require PROJECT-HANDBOOK.md and relevant .specify/project-map context first, or route to sp-map-scan -> sp-map-build when that context is missing or stale."
 origin: spec-kit-plus
 ---
 
@@ -33,7 +33,7 @@ judgment in an established Spec Kit Plus repository:
 ## Missing Or Stale Context
 
 - If the handbook, module docs, or root docs do not exist, are stale, or are too broad
-  for the touched area, use `sp-map-codebase` before continuing.
+  for the touched area, use `sp-map-scan -> sp-map-build` before continuing.
 - Treat `deep_stale` as a real warning: if the current task needs deep module detail and the module status says `deep_stale`, refresh or manually rebuild the required deep docs before trusting them.
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
   repository map should be the source of truth.

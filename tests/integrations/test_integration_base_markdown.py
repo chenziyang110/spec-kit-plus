@@ -136,20 +136,25 @@ class MarkdownIntegrationTests:
             assert "crucial first step" in content
             assert "project-handbook.md" in content
             assert ".specify/project-map/*.md" in content
-            assert "/sp-map-codebase" in content
+            assert "/sp-map-scan" in content
+            assert "/sp-map-build" in content
 
-    def test_map_codebase_command_requires_native_explorer_lanes_when_selected(self, tmp_path):
+    def test_map_scan_build_commands_require_native_explorer_lanes_when_selected(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         i.setup(tmp_path, m)
 
-        content = (i.commands_dest(tmp_path) / "sp.map-codebase.md").read_text(encoding="utf-8").lower()
-        assert 'choose_execution_strategy(command_name="map-codebase"' in content
-        assert "if the selected strategy is `native-multi-agent`, dispatch bounded explorer subagents" in content
-        assert "do not continue with broad sequential exploration after selecting `native-multi-agent`" in content
-        assert "launch at least three independent explorer subagents" in content
-        assert "explorer subagents are read-only evidence collectors" in content
-        assert "the leader must wait for every dispatched explorer lane" in content
+        commands_dir = i.commands_dest(tmp_path)
+        assert not (commands_dir / "sp.map-codebase.md").exists()
+
+        scan_content = (commands_dir / "sp.map-scan.md").read_text(encoding="utf-8").lower()
+        build_content = (commands_dir / "sp.map-build.md").read_text(encoding="utf-8").lower()
+        assert 'choose_execution_strategy(command_name="map-scan"' in scan_content
+        assert 'choose_execution_strategy(command_name="map-build"' in build_content
+        assert "native-multi-agent" in scan_content
+        assert "native-multi-agent" in build_content
+        assert "coverage-ledger" in scan_content
+        assert "route back to `/sp-map-scan`" in build_content
 
     def test_implement_command_has_shared_leader_gate(self, tmp_path):
         i = get_integration(self.KEY)

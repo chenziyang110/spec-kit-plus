@@ -48,7 +48,7 @@ function Assert-CanonicalMapFiles {
         return
     }
 
-    Write-Error "Cannot record a fresh project-map baseline because canonical map files are missing:`n - $($missing -join "`n - ")`nRun /sp-map-codebase first so PROJECT-HANDBOOK.md and .specify/project-map/*.md exist."
+    Write-Error "Cannot record a fresh project-map baseline because canonical map files are missing:`n - $($missing -join "`n - ")`nRun /sp-map-scan, then /sp-map-build first so PROJECT-HANDBOOK.md and .specify/project-map/*.md exist."
     exit 1
 }
 
@@ -468,7 +468,7 @@ switch ($Command) {
         Invoke-Check
     }
     "complete-refresh" {
-        $why = if ($Reason) { $Reason } else { "map-codebase" }
+        $why = if ($Reason) { $Reason } else { "map-build" }
         Assert-CanonicalMapFiles
         Write-Status -LastMappedCommit (Get-HeadCommit) -LastMappedAt (Get-IsoNow) -LastMappedBranch (Get-BranchName) -Freshness "fresh" -LastRefreshReason $why -LastRefreshTopics @("ARCHITECTURE.md","STRUCTURE.md","CONVENTIONS.md","INTEGRATIONS.md","OPERATIONS.md","WORKFLOWS.md","TESTING.md") -LastRefreshScope "full" -LastRefreshBasis $why -LastRefreshChangedFilesBasis @() -Dirty $false -DirtyReasons @()
         Invoke-Check

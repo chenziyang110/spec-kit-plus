@@ -32,7 +32,8 @@ def test_project_map_gate_references_routing_and_learning_roles() -> None:
     assert "spec-kit-project-learning" in content
     assert "route selection" in content
     assert "shared memory capture layer" in content
-    assert "sp-map-codebase" in content
+    assert "sp-map-scan" in content
+    assert "sp-map-build" in content
 
 
 def test_project_learning_focuses_on_memory_triggers_storage_and_promotion() -> None:

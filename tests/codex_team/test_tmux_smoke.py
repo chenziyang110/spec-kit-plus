@@ -112,4 +112,4 @@ def test_team_command_dispatch_blocks_when_project_map_is_dirty(monkeypatch, cod
 
     assert result.exit_code != 0
     assert "Project-map freshness is stale" in result.output
-    assert "map-codebase" in result.output
+    assert "map-scan, then map-build" in result.output

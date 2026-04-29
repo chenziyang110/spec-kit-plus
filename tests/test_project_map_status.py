@@ -142,11 +142,11 @@ def test_complete_project_map_refresh_uses_map_codebase_reason(tmp_path):
 
     status = mod.complete_project_map_refresh(tmp_path)
 
-    assert status.last_refresh_reason == "map-codebase"
+    assert status.last_refresh_reason == "map-build"
     assert status.freshness == "fresh"
     assert status.last_refresh_topics == ["ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md"]
     assert status.last_refresh_scope == "full"
-    assert status.last_refresh_basis == "map-codebase"
+    assert status.last_refresh_basis == "map-build"
     assert status.last_refresh_changed_files_basis == []
 
 
