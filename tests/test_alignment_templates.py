@@ -45,7 +45,8 @@ def test_core_sp_templates_use_learning_review_hooks():
         "debug": "templates/commands/debug.md",
         "quick": "templates/commands/quick.md",
         "fast": "templates/commands/fast.md",
-        "map-codebase": "templates/commands/map-codebase.md",
+        "map-scan": "templates/commands/map-scan.md",
+        "map-build": "templates/commands/map-build.md",
     }
 
     for command_name, template_path in command_templates.items():
@@ -618,7 +619,9 @@ def test_new_analysis_workflow_command_templates_exist():
     command_dir = PROJECT_ROOT / "templates" / "commands"
     template_stems = {path.stem for path in command_dir.glob("*.md")}
 
-    assert "map-codebase" in template_stems
+    assert "map-scan" in template_stems
+    assert "map-build" in template_stems
+    assert "map-codebase" not in template_stems
     assert "clarify" in template_stems
     assert "deep-research" in template_stems
     assert "explain" in template_stems
