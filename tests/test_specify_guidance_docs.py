@@ -410,6 +410,23 @@ def test_guidance_docs_explain_resumable_quick_management():
         assert "specify quick archive" in content
 
 
+def test_tasks_shell_requires_enriched_subagent_fields():
+    """tasks shell.md must require agent, scope, context nav, verify commands, and handoff format."""
+    tasks_shell = (PROJECT_ROOT / "templates" / "command-partials" / "tasks" / "shell.md").read_text(encoding="utf-8")
+    required_terms = [
+        "agent",
+        "write_scope",
+        "read_scope",
+        "forbidden",
+        "context nav",
+        "verify",
+        "handoff",
+        "escalation",
+    ]
+    for term in required_terms:
+        assert term.lower() in tasks_shell.lower(), f"Missing required enriched field term: {term}"
+
+
 def test_repo_docs_share_same_workflow_guidance():
     readme = _read("README.md").lower()
     agents = _read("AGENTS.md").lower()

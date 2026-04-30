@@ -65,6 +65,7 @@ Durable testing artifacts live under `.specify/testing/` when generated:
 - `sp-fast`: trivial local fixes only; escalate when the work expands, touches shared surfaces, or needs tests/research.
 - `sp-quick`: bounded non-trivial work with `.planning/quick/<id>-<slug>/STATUS.md`.
 - `sp-debug`: investigation-first flow for unknown root cause; must prove reproduction and fix path before changing behavior.
+- `sp-tasks`: generates enriched subagent-ready task contracts with agent role assignment, context navigation, scope boundaries, verify commands, and escalation strategy for `sp-implement` dispatch.
 - `sp-implement`: leader + subagents execution path over generated tasks and milestone state; uses shared subagents-first dispatch vocabulary and worker packet/result contracts.
 
 ## Entry Points, Contracts, and Handoffs

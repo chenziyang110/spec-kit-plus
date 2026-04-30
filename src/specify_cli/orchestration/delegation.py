@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from specify_cli.execution import describe_result_handoff_template
@@ -94,3 +94,106 @@ def describe_delegation_surface(
         ),
         structured_results_expected=structured_results_expected,
     )
+
+
+@dataclass(slots=True, frozen=True)
+class TaskContractValidation:
+    """Result of validating a single task contract before dispatch."""
+    task_id: str
+    valid: bool
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    auto_corrections: dict[str, str] = field(default_factory=dict)
+
+
+KNOWN_AGENT_ROLES = frozenset({
+    "security-reviewer",
+    "test-engineer",
+    "style-reviewer",
+    "performance-reviewer",
+    "quality-reviewer",
+    "api-reviewer",
+    "debugger",
+    "code-simplifier",
+    "build-fixer",
+    "git-master",
+    "executor",
+})
+
+
+def validate_task_contract(
+    *,
+    task_id: str,
+    agent: str,
+    write_scope: list[str] | None = None,
+    depends_on: list[str] | None = None,
+    project_root: str = ".",
+) -> TaskContractValidation:
+    """Validate a task contract has the minimum fields for safe subagent dispatch."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    corrections: dict[str, str] = {}
+
+    # 1. agent_exists
+    resolved_agent = agent.strip().lower() if agent else ""
+    if not resolved_agent:
+        corrections["agent"] = "executor"
+        resolved_agent = "executor"
+    elif resolved_agent not in KNOWN_AGENT_ROLES:
+        warnings.append(f"agent '{agent}' not in known role pool, using 'executor'")
+        corrections["agent"] = "executor"
+        resolved_agent = "executor"
+
+    # 2. deps_acyclic — simple self-reference check
+    if depends_on:
+        for dep in depends_on:
+            if dep.strip() == task_id.strip():
+                errors.append(f"task {task_id} depends on itself")
+                break
+
+    # 3. forbidden_safe — ensure sensitive paths are covered
+    write_paths = write_scope or []
+    sensitive_patterns = {".env", "credentials", "secrets", "secret", ".key", ".pem"}
+    for path in write_paths:
+        path_lower = path.lower()
+        for pattern in sensitive_patterns:
+            if pattern in path_lower:
+                warnings.append(
+                    f"write_scope includes potentially sensitive path '{path}'"
+                )
+                break
+
+    valid = len(errors) == 0
+    return TaskContractValidation(
+        task_id=task_id,
+        valid=valid,
+        errors=errors,
+        warnings=warnings,
+        auto_corrections=corrections,
+    )
+
+
+def validate_batch_isolation(
+    tasks: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Check a batch of tasks for write-set isolation. Returns list of conflicts."""
+    conflicts: list[dict[str, object]] = []
+    for i, task_a in enumerate(tasks):
+        write_a = set(
+            str(p) for p in (task_a.get("write_scope") or [])
+        )
+        if not write_a:
+            continue
+        for j in range(i + 1, len(tasks)):
+            task_b = tasks[j]
+            write_b = set(
+                str(p) for p in (task_b.get("write_scope") or [])
+            )
+            overlap = write_a & write_b
+            if overlap:
+                conflicts.append({
+                    "task_a": str(task_a.get("task_id", i)),
+                    "task_b": str(task_b.get("task_id", j)),
+                    "overlapping_paths": sorted(overlap),
+                })
+    return conflicts

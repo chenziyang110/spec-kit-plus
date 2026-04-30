@@ -70,6 +70,13 @@ class WorkerTaskPacket:
     platform_guardrails: list[str] = field(default_factory=list)
     intent: ExecutionIntent = field(default_factory=ExecutionIntent)
     dispatch_policy: DispatchPolicy = field(default_factory=DispatchPolicy)
+    # Subagent-ready task contract fields (optional — populated when tasks.md is enriched)
+    agent_role: str = ""
+    context_nav: list[dict[str, str]] = field(default_factory=list)
+    anti_goals: list[str] = field(default_factory=list)
+    verify_commands: list[str] = field(default_factory=list)
+    escalation_role: str = "debugger"
+    retry_max: int = 2
     packet_version: int = 2
 
 

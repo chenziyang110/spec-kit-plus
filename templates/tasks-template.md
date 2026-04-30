@@ -35,13 +35,16 @@ description: "Task list template for feature implementation"
 - Delegated workers may still break a task into smaller 2-5 minute atomic internal steps, but `tasks.md` should stop at the smallest unit worth explicit orchestration.
 - Stop decomposition once the current executable window is atomic.
 - Leave later phases at the coarser story or phase level when their exact shape depends on earlier join points, then refine them after the checkpoint instead of guessing too early.
+- Every task MUST carry the enriched subagent contract fields defined in the `sp-tasks` shell output contract: agent, depends_on, parallel_safe, context navigation table, scope boundaries (write_scope / read_scope / forbidden), expected outputs, anti_goals, acceptance criteria, verify commands, handoff format, and failure handling (retry_max, escalation).
+- Before finalizing a task, confirm the independent-executability gate: a single subagent, reading only this task body plus the pointed-to context files, can complete the work without asking the leader for clarification. If not, refine the task until it passes.
 
-## Format: `[ID] [P?] [Story] Description`
+## Format: `[ID] [P?] [Story] [Agent?] Description`
 
 - **[P]**: Can run in parallel only when the task has an isolated write set, no incomplete dependencies, stable upstream inputs, and its own verification path
 - **[AGENT]**: Marks a task or guardrail action the AI must explicitly execute; it is independent from `[P]`
-- **Write set**: Include all files and shared coordination surfaces the task will modify, including routers, registries, export barrels, schema indexes, and dependency injection containers
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
+- **[Agent]**: Role from the agent-teams pool assigned to this task. Write as `[Agent: <role>]`. Choose from: `security-reviewer`, `test-engineer`, `style-reviewer`, `performance-reviewer`, `quality-reviewer`, `api-reviewer`, `debugger`, `code-simplifier`, `build-fixer`, `git-master`, `executor`. Default to `executor` when no specialist role matches.
+- **Write set**: Include all files and shared coordination surfaces the task will modify, including routers, registries, export barrels, schema indexes, and dependency injection containers
 - Include exact file paths in descriptions
 
 ## Path Conventions
@@ -122,8 +125,8 @@ Examples of foundational tasks (adjust based on your project):
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
 **Parallel Batch 1.1**: Independent failing tests with non-overlapping write sets
-- [ ] T012 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T013 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T012 [P] [US1] [Agent: test-engineer] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T013 [P] [US1] [Agent: test-engineer] Integration test for [user journey] in tests/integration/test_[name].py
 **Join Point 1.1**: Confirm both tests fail for the expected reasons before writing production code
 Join Point Validation:
 - Validation target: failing contract and integration tests for User Story 1
@@ -133,17 +136,17 @@ Join Point Validation:
 ### Implementation for User Story 1
 
 **Parallel Batch 1.2**: Independent models or DTOs with isolated write sets
-- [ ] T014 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T015 [P] [US1] Create [Entity2] model in src/models/[entity2].py
+- [ ] T014 [P] [US1] [Agent: executor] Create [Entity1] model in src/models/[entity1].py
+- [ ] T015 [P] [US1] [Agent: executor] Create [Entity2] model in src/models/[entity2].py
 **Join Point 1.2**: Resolve any shared exports, registrations, or schema indexes before service work
 Join Point Validation:
 - Validation target: shared exports, registrations, or schema indexes updated after the parallel model batch
 - Validation command: [Smallest trustworthy command or review check for the touched shared surface]
 - Pass condition: downstream service work sees one canonical shared surface update with no conflicting registrations or missing exports
-- [ ] T016 [US1] Implement [Service] in src/services/[service].py (depends on T014, T015)
-- [ ] T017 [US1] Implement [endpoint/feature] in src/[location]/[file].py while preserving the established boundary/framework pattern named in `plan.md`
-- [ ] T018 [US1] Add validation and error handling
-- [ ] T019 [US1] Add logging for user story 1 operations
+- [ ] T016 [US1] [Agent: executor] Implement [Service] in src/services/[service].py (depends on T014, T015)
+- [ ] T017 [US1] [Agent: security-reviewer] Implement [endpoint/feature] in src/[location]/[file].py while preserving the established boundary/framework pattern named in `plan.md`
+- [ ] T018 [US1] [Agent: executor] Add validation and error handling
+- [ ] T019 [US1] [Agent: executor] Add logging for user story 1 operations
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -332,6 +335,76 @@ With multiple developers:
    - Developer C: User Story 3
 3. Within each story, developers or agents take one parallel batch at a time and merge at each join point
 4. Stories complete and integrate independently
+
+---
+
+## Enriched Task Reference Example
+
+Below is a complete enriched task showing every required subagent contract field. Generated `tasks.md` files must use this shape for every implementation task.
+
+```markdown
+## T017: Implement JWT auth middleware
+
+### Identity
+| Field | Value |
+|-------|-------|
+| agent | security-reviewer |
+| depends_on | [T015: AuthService interface, T016: JWT utility functions] |
+| parallel_safe | true |
+
+### Context Navigation
+| Need | Find it at |
+|------|-----------|
+| JWT payload structure | data-model.md#AuthPayload |
+| Token expiry strategy | plan.md#token-expiry-strategy |
+| Protected route list | contracts/auth-api.md |
+| Standard error response format | contracts/error-response.md |
+| Reference implementation | src/middleware/ratelimit.ts（same middleware pattern） |
+
+### Scope Boundaries
+| Field | Value |
+|-------|-------|
+| write_scope | [src/middleware/auth.ts, tests/auth/middleware.test.ts] |
+| read_scope | [src/auth/types.ts, contracts/auth-api.md, contracts/error-response.md] |
+| forbidden | [src/db/, .env, src/config/] |
+
+### Expected Outputs
+- src/middleware/auth.ts （新建）
+- tests/auth/middleware.test.ts （新建，>=80% coverage）
+
+### Anti-Goals
+- Do not introduce new npm dependencies
+- Do not access the database directly（use AuthService interface）
+- Do not modify existing public types in src/auth/types.ts
+
+### Acceptance Criteria
+- [ ] Valid token -> inject AuthPayload into req.context, continue chain
+- [ ] Expired token -> return 401 with standard error format
+- [ ] Missing Authorization header -> return 401
+- [ ] Malformed token -> return 400
+- [ ] Whitelist paths pass through untouched
+- [ ] Security lint is clean
+
+### Verify Commands
+```
+npx jest tests/auth/middleware.test.ts --coverage
+npx eslint src/middleware/auth.ts
+npx tsc --noEmit
+```
+
+### Handoff Format
+- status: success | failed | blocked
+- changed_files: ["src/middleware/auth.ts", "tests/auth/middleware.test.ts"]
+- validation_output: {"jest": "PASS", "eslint": "clean", "tsc": "clean"}
+- concerns: [] | ["specific concern"]
+- recovery_hints: [] | ["suggested recovery direction"]
+
+### Failure Handling
+| Field | Value |
+|-------|-------|
+| retry_max | 2 |
+| escalation | debugger（escalate for diagnosis after retries exhausted） |
+```
 
 ---
 
