@@ -464,6 +464,34 @@ Use `execution_surface: native-subagents`.
     - [AGENT] before final completion text, capture any new `workflow_gap`, `project_constraint`, or `decision_debt` learning through `specify learning capture --command deep-research ...`
     - Use the user's current language for explanatory text while preserving literal command names, file paths, and fixed status values exactly as written.
 
+## Readiness Refusal Rules
+
+Before writing final `deep-research.md` and recommending `/sp.plan`, run every
+check below. If **any** check fails, refuse handoff, produce a gap report, and
+set `next_command` to `/sp.clarify` or mark the phase as blocked.
+
+- [ ] Every CAP has at least one PH-ID assigned
+- [ ] Every PH-ID traces to at least one evidence ID (`EVD-###`, `SPK-###`, or live repository path)
+- [ ] No CAP remains `blocked` without an explicit user force-accept recorded in `alignment.md`
+- [ ] No `proven` CAP still has unresolved unknown links in its implementation chain
+- [ ] Every dispatched subagent returned an accepted evidence packet; rejected packets were retried or escalated
+- [ ] `dispatch_shape: subagent-blocked` is recorded with a concrete block reason and escalation path
+- [ ] Every spike with a defined hypothesis was run and has a captured pass/fail result
+
+When refusal happens, output a gap report inline before the refusal decision:
+
+```markdown
+## Readiness Refusal Report
+
+| Check | Status | Affected IDs | Missing / Reason |
+|-------|--------|-------------|-------------------|
+| All CAPs have PH | FAIL | CAP-003 | No PH assigned |
+| All PHs trace to evidence | FAIL | PH-005 | No EVD/SPK/repo path |
+| ... | PASS | — | — |
+
+**Decision**: Handoff refused. Next command: `/sp.clarify`
+```
+
 ## Rules
 
 - Use this command to produce research evidence and a planning handoff, not to design the full architecture.
