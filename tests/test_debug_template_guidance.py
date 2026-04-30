@@ -9,6 +9,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_debug_template_documents_capability_aware_investigation() -> None:
     content = read_template("templates/commands/debug.md").lower()
 
+    assert "all substantive tasks in ordinary `sp-*` workflows default to and must use subagents" in content
+    assert "the leader orchestrates:" in content
+    assert "before dispatch, every subagent lane needs a task contract" in content
+    assert "structured handoff" in content
+    assert "execution_model: subagent-mandatory" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in content
+    assert "execution_surface: native-subagents" in content
     assert "observer framing" in content
     assert "compressed observer framing" in content
     assert "full observer framing" in content
@@ -29,7 +36,6 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "compressed framing still requires the full observer framing section" in content
     assert "you are not the default evidence worker for every lane" in content
     assert "route, integrate, and decide rather than manually performing every lane sequentially" in content
-    assert "stay on the leader path only when the decision is `leader-inline-fallback`" in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
@@ -58,16 +64,13 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "control state is not observation state" in content
     assert "debug the loop, not just the point" in content
     assert "escalate diagnostics when the loop is still ambiguous" in content
-    assert "execution_model: subagents-first" in content
-    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
-    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
+    assert "execution_model: subagent-mandatory" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in content
+    assert "execution_surface: native-subagents" in content
     assert "one-subagent" in content
     assert "parallel-subagents" in content
     assert "native-subagents" in content
-    assert "managed-team" in content
-    assert "leader-inline-fallback" in content
     assert "dispatch that single subagent only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality" in content
-    assert "if that subagent-readiness bar is not met, keep the lane on the leader path" in content
     assert 'choose_subagent_dispatch(command_name="debug"' in content
     assert "leader-led" in content
     assert "debug file" in content

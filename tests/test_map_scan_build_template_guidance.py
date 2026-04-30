@@ -8,6 +8,23 @@ def _read(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
 
 
+def _assert_mandatory_subagent_guidance(content: str) -> None:
+    lowered = content.lower()
+
+    assert "all substantive tasks in ordinary `sp-*` workflows default to and must use subagents" in lowered
+    assert "the leader orchestrates:" in lowered
+    assert "before dispatch, every subagent lane needs a task contract" in lowered
+    assert "structured handoff" in lowered
+    assert "execution_model: subagent-mandatory" in lowered
+    assert "dispatch_shape: one-subagent | parallel-subagents" in lowered
+    assert "execution_surface: native-subagents" in lowered
+
+
+def test_map_scan_and_build_templates_require_mandatory_subagent_guidance() -> None:
+    _assert_mandatory_subagent_guidance(_read("templates/commands/map-scan.md"))
+    _assert_mandatory_subagent_guidance(_read("templates/commands/map-build.md"))
+
+
 def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     content = _read("templates/commands/map-scan.md")
     lowered = content.lower()
@@ -55,9 +72,7 @@ def test_map_scan_template_prefers_native_subagent_inventory_with_structured_han
     assert "choose_subagent_dispatch(command_name=\"map-scan\"" in lowered
     assert "one-subagent" in lowered
     assert "parallel-subagents" in lowered
-    assert "leader-inline-fallback" in lowered
     assert "native-subagents" in lowered
-    assert "managed-team" in lowered
     assert "validated `mapscanpacket`" in lowered
     assert "raw inventory notes or raw chat summaries are not sufficient" in lowered
     assert "structured handoff" in lowered

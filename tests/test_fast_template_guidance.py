@@ -9,6 +9,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def test_fast_template_exists_and_defines_scope_gate() -> None:
     content = read_template("templates/commands/fast.md").lower()
 
+    assert "all substantive tasks in ordinary `sp-*` workflows default to and must use subagents" in content
+    assert "the leader orchestrates:" in content
+    assert "before dispatch, every subagent lane needs a task contract" in content
+    assert "structured handoff" in content
+    assert "execution_model: subagent-mandatory" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in content
+    assert "execution_surface: native-subagents" in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
@@ -31,14 +38,15 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "if `project-handbook.md` or `.specify/project-map/` is missing" in content
     assert "redirect to `/sp-quick` so the navigation system can be rebuilt safely" in content
     assert "## workflow contract summary" in content
-    assert "apply the smallest direct change" in content
-    assert "execute a trivial, low-risk task directly" in content
+    assert "prepare the smallest task contract" in content
+    assert "dispatch one subagent" in content
+    assert "wait for the structured handoff" in content
+    assert "allowed write scope local and explicit" in content
     assert "scope gate" in content
     assert "at most 3 files" in content or "no more than 3 files" in content
     assert "no new dependencies" in content
     assert "no architecture changes" in content or "no api changes" in content
     assert "use `/sp.quick`" in content or "use `/sp-quick`" in content or "use `/sp.quick`" in content
-    assert "do the work directly" in content
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-scan` followed by `/sp-map-build` before the final report" in content
@@ -47,12 +55,13 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "highest-signal" in content
 
 
-def test_fast_template_stays_lightweight() -> None:
+def test_fast_template_uses_lightweight_subagent_contract() -> None:
     content = read_template("templates/commands/fast.md").lower()
 
-    assert "do not create spec.md" in content or "no spec.md" in content
+    assert "no spec.md" in content or "do not create spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
-    assert "do not spawn" in content or "no subagents" in content
+    assert "subagent" in content
+    assert "task contract" in content
 
 
 def test_fast_template_defines_explicit_upgrade_triggers() -> None:

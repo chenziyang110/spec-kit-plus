@@ -10,6 +10,24 @@ def _read(rel_path: str) -> str:
     return read_template(rel_path)
 
 
+def _assert_mandatory_subagent_guidance(content: str) -> None:
+    lowered = content.lower()
+
+    assert "all substantive tasks in ordinary `sp-*` workflows default to and must use subagents" in lowered
+    assert "the leader orchestrates:" in lowered
+    assert "before dispatch, every subagent lane needs a task contract" in lowered
+    assert "structured handoff" in lowered
+    assert "execution_model: subagent-mandatory" in lowered
+    assert "dispatch_shape: one-subagent | parallel-subagents" in lowered
+    assert "execution_surface: native-subagents" in lowered
+
+
+def test_testing_workflow_templates_require_mandatory_subagent_guidance():
+    _assert_mandatory_subagent_guidance(_read("templates/commands/test.md"))
+    _assert_mandatory_subagent_guidance(_read("templates/commands/test-scan.md"))
+    _assert_mandatory_subagent_guidance(_read("templates/commands/test-build.md"))
+
+
 def test_test_template_routes_to_scan_or_build():
     content = _read("templates/commands/test.md")
     lowered = content.lower()
@@ -62,12 +80,11 @@ def test_test_scan_template_requires_read_only_subagent_evidence():
     lowered = content.lower()
 
     assert 'choose_subagent_dispatch(command_name="test-scan"' in lowered
-    assert "execution_model: subagents-first" in lowered
-    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in lowered
-    assert "execution_surface: native-subagents | managed-team | leader-inline" in lowered
+    assert "execution_model: subagent-mandatory" in lowered
+    assert "dispatch_shape: one-subagent | parallel-subagents" in lowered
+    assert "execution_surface: native-subagents" in lowered
     assert "one-subagent" in lowered
     assert "parallel-subagents" in lowered
-    assert "leader-inline-fallback" in lowered
     assert "testscanpacket" in lowered
     assert "mode: read_only" in content
     assert "dispatch read-only scan subagents" in lowered
@@ -84,7 +101,6 @@ def test_test_scan_template_prefers_native_scout_subagents_with_handoffs():
 
     assert "current-runtime native subagents are the default" in lowered
     assert "for `one-subagent`, dispatch one read-only scout" in lowered
-    assert "keep it leader-inline only while the packet is incomplete or dispatch is unavailable" in lowered
     assert "validated `testscanpacket`" in lowered
     assert "raw scan notes or raw chat summaries are not sufficient" in lowered
     assert "structured handoff" in lowered
