@@ -58,7 +58,7 @@ def test_execution_decision_has_canonical_fields_defaults_and_values():
     assert decision.reason == "default"
     assert decision.fallback_from is None
     assert decision.execution_surface == "native-subagents"
-    assert decision.execution_model == "subagents-first"
+    assert decision.execution_model == "subagent-mandatory"
     assert datetime.fromisoformat(decision.created_at).utcoffset().total_seconds() == 0
     assert field_names == [
         "command_name",
@@ -100,28 +100,14 @@ def test_session_batch_and_lane_have_utc_defaults():
 
 
 def test_dispatch_shape_and_execution_surface_literals_are_canonical():
-    assert get_args(SubagentExecutionModel) == ("subagents-first",)
+    assert get_args(SubagentExecutionModel) == ("subagent-mandatory",)
     assert get_args(DispatchShape) == (
         "one-subagent",
         "parallel-subagents",
-        "leader-inline-fallback",
     )
     assert get_args(ExecutionSurface) == (
         "native-subagents",
-        "managed-team",
-        "leader-inline",
     )
-
-
-def test_execution_decision_derives_debug_inline_fallback_as_leader_inline():
-    decision = ExecutionDecision(
-        command_name="debug",
-        dispatch_shape="leader-inline-fallback",
-        reason="no-safe-batch",
-    )
-
-    assert decision.execution_surface == "leader-inline"
-    assert decision.execution_model == "subagents-first"
 
 
 def test_execution_decision_rejects_legacy_single_agent_alias() -> None:
@@ -137,27 +123,31 @@ def test_execution_decision_rejects_legacy_single_agent_alias() -> None:
         raise AssertionError("legacy dispatch shape should be rejected")
 
 
-def test_execution_decision_can_record_managed_team_surface() -> None:
-    decision = ExecutionDecision(
-        command_name="debug",
-        dispatch_shape="parallel-subagents",
-        reason="native-unavailable",
-        fallback_from="parallel-subagents",
-        execution_surface="managed-team",
-    )
-
-    assert decision.dispatch_shape == "parallel-subagents"
-    assert decision.fallback_from == "parallel-subagents"
-    assert decision.execution_surface == "managed-team"
-
-
-def test_one_subagent_attempt_default_is_command_specific():
-    assert should_attempt_one_subagent("implement") is True
-    assert should_attempt_one_subagent("quick") is True
-    assert should_attempt_one_subagent("test-build") is True
-    assert should_attempt_one_subagent("debug") is False
-    assert should_attempt_one_subagent("tasks") is False
-    assert should_attempt_one_subagent("specify") is False
+def test_one_subagent_attempt_default_applies_to_ordinary_sp_commands():
+    for command_name in (
+        "analyze",
+        "auto",
+        "checklist",
+        "clarify",
+        "constitution",
+        "debug",
+        "deep-research",
+        "explain",
+        "fast",
+        "implement",
+        "map-build",
+        "map-scan",
+        "plan",
+        "quick",
+        "research",
+        "specify",
+        "tasks",
+        "taskstoissues",
+        "test",
+        "test-build",
+        "test-scan",
+    ):
+        assert should_attempt_one_subagent(command_name) is True
 
 
 def test_review_gate_policy_has_canonical_fields_and_defaults():

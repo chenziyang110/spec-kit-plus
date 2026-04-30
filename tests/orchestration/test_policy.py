@@ -8,81 +8,8 @@ from specify_cli.orchestration.policy import (
 )
 
 
-def test_choose_subagent_dispatch_blocks_delegation_when_batch_is_not_safe() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 0,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.command_name == "implement"
-    assert decision.dispatch_shape == "leader-inline-fallback"
-    assert decision.reason == "no-safe-delegated-lane"
-    assert decision.fallback_from == "one-subagent"
-    assert decision.execution_surface == "leader-inline"
-    assert decision.execution_model == "subagents-first"
-
-
-def test_choose_subagent_dispatch_prefers_parallel_native_subagents_when_available() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 2,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.dispatch_shape == "parallel-subagents"
-    assert decision.reason == "safe-parallel-subagents"
-    assert decision.execution_surface == "native-subagents"
-
-
-def test_choose_subagent_dispatch_prefers_native_for_codex_implement_when_available() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="codex",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 2,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.dispatch_shape == "parallel-subagents"
-    assert decision.reason == "safe-parallel-subagents"
-    assert decision.fallback_from is None
-    assert decision.execution_surface == "native-subagents"
-
-
-def test_choose_subagent_dispatch_falls_back_for_sp_implement_when_native_is_missing() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="codex",
-        native_subagents=False,
-        managed_team_supported=True,
-    )
+def test_choose_subagent_dispatch_routes_one_ready_lane_to_one_native_subagent() -> None:
+    snapshot = CapabilitySnapshot(integration_key="codex", native_subagents=True)
 
     decision = choose_subagent_dispatch(
         command_name="implement",
@@ -94,180 +21,15 @@ def test_choose_subagent_dispatch_falls_back_for_sp_implement_when_native_is_mis
         },
     )
 
-    assert decision.dispatch_shape == "leader-inline-fallback"
-    assert decision.reason == "runtime-no-subagents"
-    assert decision.fallback_from == "one-subagent"
-    assert decision.execution_surface == "leader-inline"
-
-
-def test_choose_subagent_dispatch_uses_managed_team_for_non_implement_low_confidence() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=True,
-        delegation_confidence="low",
-        runtime_probe_succeeded=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="plan",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 2,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.dispatch_shape == "parallel-subagents"
-    assert decision.reason == "managed-team-supported"
-    assert decision.fallback_from == "parallel-subagents"
-    assert decision.execution_surface == "managed-team"
-
-
-def test_choose_subagent_dispatch_falls_back_when_native_confidence_is_low_and_no_managed_team() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=False,
-        delegation_confidence="low",
-        runtime_probe_succeeded=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 2,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.dispatch_shape == "leader-inline-fallback"
-    assert decision.reason == "low-delegation-confidence"
-    assert decision.fallback_from == "parallel-subagents"
-    assert decision.execution_surface == "leader-inline"
-
-
-def test_choose_subagent_dispatch_uses_safe_subagent_lanes_over_legacy_safe_alias() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 0,
-            "safe_parallel_batch": True,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.dispatch_shape == "leader-inline-fallback"
-    assert decision.reason == "no-safe-delegated-lane"
-    assert decision.execution_surface == "leader-inline"
-
-
-def test_choose_subagent_dispatch_treats_non_empty_overlap_collections_as_conflicts() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 2,
-            "packet_ready": True,
-            "overlapping_write_sets": {"src/specify_cli/__init__.py"},
-        },
-    )
-
-    assert decision.dispatch_shape == "leader-inline-fallback"
-    assert decision.reason == "unsafe-write-sets"
-    assert decision.fallback_from == "parallel-subagents"
-    assert decision.execution_surface == "leader-inline"
-
-
-def test_choose_subagent_dispatch_treats_empty_overlap_collections_as_no_conflict() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 2,
-            "packet_ready": True,
-            "overlapping_write_sets": [],
-        },
-    )
-
-    assert decision.dispatch_shape == "parallel-subagents"
-    assert decision.reason == "safe-parallel-subagents"
+    assert decision.command_name == "implement"
+    assert decision.dispatch_shape == "one-subagent"
+    assert decision.reason == "mandatory-one-subagent"
     assert decision.execution_surface == "native-subagents"
+    assert decision.execution_model == "subagent-mandatory"
 
 
-def test_choose_subagent_dispatch_treats_boolean_lane_counts_as_unset() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": True,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.dispatch_shape == "leader-inline-fallback"
-    assert decision.reason == "no-safe-delegated-lane"
-    assert decision.execution_surface == "leader-inline"
-
-
-def test_choose_subagent_dispatch_supports_specify_command_name() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="specify",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 2,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.command_name == "specify"
-    assert decision.dispatch_shape == "parallel-subagents"
-    assert decision.reason == "safe-parallel-subagents"
-    assert decision.execution_surface == "native-subagents"
-
-
-def test_choose_subagent_dispatch_supports_plan_managed_team_when_native_missing() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="codex",
-        native_subagents=False,
-        managed_team_supported=True,
-    )
+def test_choose_subagent_dispatch_routes_multiple_ready_lanes_to_parallel_native_subagents() -> None:
+    snapshot = CapabilitySnapshot(integration_key="claude", native_subagents=True)
 
     decision = choose_subagent_dispatch(
         command_name="plan",
@@ -281,122 +43,36 @@ def test_choose_subagent_dispatch_supports_plan_managed_team_when_native_missing
 
     assert decision.command_name == "plan"
     assert decision.dispatch_shape == "parallel-subagents"
-    assert decision.reason == "managed-team-supported"
-    assert decision.fallback_from == "parallel-subagents"
-    assert decision.execution_surface == "managed-team"
-
-
-def test_choose_subagent_dispatch_keeps_non_implement_codex_commands_on_shared_policy() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="codex",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="plan",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 2,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.dispatch_shape == "parallel-subagents"
-    assert decision.reason == "safe-parallel-subagents"
+    assert decision.reason == "mandatory-parallel-subagents"
     assert decision.execution_surface == "native-subagents"
+    assert decision.execution_model == "subagent-mandatory"
 
 
-def test_choose_subagent_dispatch_supports_tasks_command_name() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
+def test_choose_subagent_dispatch_uses_one_subagent_for_ordinary_sp_commands() -> None:
+    snapshot = CapabilitySnapshot(integration_key="claude", native_subagents=True)
 
-    decision = choose_subagent_dispatch(
-        command_name="tasks",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 2,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
-        },
-    )
+    for command_name in (
+        "specify",
+        "tasks",
+        "explain",
+        "debug",
+        "quick",
+        "test-scan",
+        "map-build",
+    ):
+        decision = choose_subagent_dispatch(
+            command_name=command_name,
+            snapshot=snapshot,
+            workload_shape={
+                "safe_subagent_lanes": 1,
+                "packet_ready": True,
+                "overlapping_write_sets": False,
+            },
+        )
 
-    assert decision.command_name == "tasks"
-    assert decision.dispatch_shape == "parallel-subagents"
-    assert decision.reason == "safe-parallel-subagents"
-    assert decision.execution_surface == "native-subagents"
-
-
-def test_choose_subagent_dispatch_supports_explain_command_name() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="claude",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="explain",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 0,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.command_name == "explain"
-    assert decision.dispatch_shape == "leader-inline-fallback"
-    assert decision.reason == "no-safe-delegated-lane"
-    assert decision.fallback_from is None
-    assert decision.execution_surface == "leader-inline"
-
-
-def test_choose_subagent_dispatch_requires_packet_for_one_subagent_commands() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="codex",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 1,
-            "packet_ready": False,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.dispatch_shape == "leader-inline-fallback"
-    assert decision.reason == "packet-not-ready"
-    assert decision.fallback_from == "one-subagent"
-    assert decision.execution_surface == "leader-inline"
-
-
-def test_choose_subagent_dispatch_routes_one_safe_lane_to_one_native_subagent() -> None:
-    snapshot = CapabilitySnapshot(
-        integration_key="codex",
-        native_subagents=True,
-        managed_team_supported=True,
-    )
-
-    decision = choose_subagent_dispatch(
-        command_name="implement",
-        snapshot=snapshot,
-        workload_shape={
-            "safe_subagent_lanes": 1,
-            "packet_ready": True,
-            "overlapping_write_sets": False,
-        },
-    )
-
-    assert decision.dispatch_shape == "one-subagent"
-    assert decision.reason == "safe-one-subagent"
-    assert decision.execution_surface == "native-subagents"
+        assert decision.dispatch_shape == "one-subagent"
+        assert decision.reason == "mandatory-one-subagent"
+        assert decision.execution_surface == "native-subagents"
 
 
 def test_classify_batch_execution_policy_marks_low_risk_preparation_as_mixed_tolerance() -> None:
