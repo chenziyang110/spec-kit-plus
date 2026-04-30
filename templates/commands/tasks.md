@@ -104,6 +104,23 @@ scripts:
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 4. **Execute task generation workflow**:
+    - [AGENT] Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="tasks", snapshot, workload_shape)`
+    - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
+    - The chosen dispatch shape applies to the **current ready batch**, not automatically to the entire feature or task graph.
+    - Primary decomposition goal: maximize safe native-subagent throughput for later `sp-implement` runs by isolating write sets and turning ready work into a dispatch-ready lane packet instead of a vague checklist.
+    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
+    - Decision order is fixed:
+      - One safe validated lane -> `one-subagent` on `native-subagents` when available.
+      - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.
+      - No safe lane, overlapping writes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason.
+    - If collaboration is justified, keep `tasks` lanes limited to:
+      - story and phase decomposition
+      - dependency graph analysis
+      - write-set and parallel-safety analysis
+    - Required join points:
+      - before writing `tasks.md`
+      - before emitting canonical parallel batches and join points
+    - Record the chosen strategy, reason, any blocked dispatch or escalation decision, selected lanes, and join points in the generated report and implementation strategy section.
     - Load plan.md and extract tech stack, libraries, project structure
     - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
     - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
@@ -120,6 +137,7 @@ scripts:
     - If the testing contract names required regression or coverage work for an affected module, preserve that requirement explicitly in the task list
     - If the touched area lacks a reliable automated test surface, add explicit bootstrap tasks to establish the smallest runnable test surface first before implementation tasks for that slice
     - Top-level tasks should fit one bounded implementation slice: roughly 10-20 minutes, one stable objective, one isolated write set, and one verification path
+    - A subagent can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks
     - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence
     - If later work still depends on upstream evidence, add a refinement checkpoint instead of guessing detailed downstream tasks too early
     - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
@@ -130,13 +148,16 @@ scripts:
     - Group ready tasks into each phase's parallel batches using those write sets
     - Grouped parallelism is the default when multiple ready tasks have isolated write sets and do not depend on each other's outputs
     - Prefer moving shared registrations, export barrels, schema indexes, router tables, and other coordination edits into explicit serial join tasks so the surrounding feature work can stay parallel-ready
-    - Pipeline is preferred when outputs flow linearly from one bounded lane to the next
-    - Every pipeline stage needs an explicit checkpoint before downstream stages continue
+    - Pipeline is preferred when outputs flow linearly from one bounded lane to the next, for example transform -> generate -> validate
+    - Every pipeline stage still needs an explicit checkpoint before downstream stages continue so stale assumptions do not propagate silently
+    - If `classify_review_gate_policy(workload_shape)` requires a review gate, add an explicit high-risk review checkpoint before downstream tasks continue
+    - High-risk review gates are usually required for shared registration surfaces, schema or migration changes, protocol seams, native/plugin bridges, or generated API surfaces
+    - If a peer-review lane is available and the review can stay read-only, recommend one peer-review lane for the batch; otherwise make the leader responsible only for acceptance criteria, review coordination, and the checkpoint decision
     - Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
-    - For every join point, include a validation target, a validation command or concrete manual check, and a pass condition
+    - For every explicit join point, include a validation target, a validation command or concrete manual check, and a pass condition
     - Create parallel execution examples per user story
     - Validate task completeness (each user story has all needed tasks, independently testable)
-    - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly
+    - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly instead of silently dropping it
 
     **Feature delivery shape**: Classify the whole task graph in plain language (e.g., `serial phases with intra-phase parallel batches`, `mostly sequential`, `pipeline-heavy`, `parallel-ready after foundational work`). If later batches are parallelizable but the current batch is not, state that explicitly.
 

@@ -32,6 +32,9 @@ direction it must preserve.
   the chain.
 - Synthesize research-agent findings and spike results into planning decisions,
   rejected options, risks, and a concrete `/sp.plan` handoff.
+- Run reverse coverage validation before handoff: every CAP → PH → Evidence chain must close.
+- Run readiness refusal checks; refuse handoff with a gap report when checks fail.
+- Run the Planning Handoff Readiness Checklist; do not recommend `/sp.plan` until all items pass.
 
 ## Output Contract
 
@@ -54,6 +57,7 @@ direction it must preserve.
   `spike-required.md`.
 - Report which capabilities are proven, constrained, blocked, or no longer worth
   planning.
+- Persist accepted evidence packets as `FEATURE_DIR/research-evidence/<EVD-###>.json`.
 
 ## Guardrails
 
@@ -72,3 +76,8 @@ direction it must preserve.
 - Feasibility claims based only on documentation citations without live repository path reads are not sufficient for planning.
 - Subagent evidence packets without `paths_read` must be rejected; do not accept or synthesize them.
 - A structural-only refresh (reformatting findings without new evidence) is a failed pass.
+- Treat `context.md` Locked Decisions as immutable constraints during research.
+  Do not research alternatives that contradict a locked decision unless the
+  research explicitly proves the locked decision is infeasible, in which case
+  mark the affected CAP as `blocked` and escalate; do not silently replace the
+  locked decision.

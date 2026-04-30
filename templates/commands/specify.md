@@ -310,6 +310,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Route to `/sp.deep-research` before `/sp.plan` when a capability depends on an unproven API, library, algorithm, platform behavior, data volume, permission boundary, external integration, native/plugin bridge, generated-code workflow, performance envelope, or other unknown where planning would otherwise guess.
     - Prefer `/sp.deep-research` when the real question is "can this work?" and a small disposable demo under `FEATURE_DIR/research-spikes/` would prove the path.
     - Treat `/sp.deep-research` as a research-to-plan handoff path: its `deep-research.md` must preserve findings, demo evidence, rejected options, constraints, and a `Planning Handoff` that `/sp.plan` can consume.
+    - If the requirements are clear but a planning-critical implementation chain remains unproven, recommend `/sp.deep-research` as the next command instead of `/sp.plan`.
     - Do not require `/sp.deep-research` for minor adjustments to capabilities that already exist in the project and have a clear implementation path.
     - Record feasibility status in `alignment.md` as `Not needed`, `Needed before plan`, `Completed`, or `Blocked`.
     - If feasibility risk is actually a requirement ambiguity, keep it in `sp-specify` or route to `/sp.clarify` instead of treating it as research.
@@ -444,6 +445,17 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Do not turn this into a freeform brainstorming workflow.
     - each clarification turn should contain at most one short checkpoint or one grouped recap, plus one question block.
 
+17. Apply a current-understanding or confirmation gate before release.
+    - Before releasing `Aligned: ready for plan`, provide a grouped recap that covers goal, users and roles, scope boundaries, locked decisions, technical constraints or assumptions, and outstanding questions.
+    - Explicitly ask the user to confirm or correct the current understanding before `Aligned: ready for plan`.
+    - Treat this as an explicit pre-release check rather than a courtesy recap.
+    - If the user corrects the recap, update the active understanding and continue clarification.
+    - If planning-critical gaps remain after the recap, do not release `Aligned: ready for plan`.
+    - common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify` when this gate passes and no planning-critical ambiguity remains.
+    - keep this path inside `sp-specify`, without needing `/sp.clarify`.
+    - If planning-critical gaps remain but the spec package is still salvageable, recommend `/sp.clarify` as the next command instead of `/sp.plan`.
+
+    Use this open question block structure in the user's current language when rendering the textual fallback block.
     Use this fallback open question block structure when the native structured question tool is unavailable:
 
     ```text
@@ -531,6 +543,23 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - revise current artifacts
     - continue analysis with `/sp.clarify`
     - prove feasibility with `/sp.deep-research`
+
+26. Run an artifact review gate before handoff.
+    - Review the written artifact set before handoff, not just the conversational understanding.
+    - Run a self-review across `spec.md`, `alignment.md`, and `context.md` for:
+      - placeholders/TODOs
+      - contradictions or capability drift
+      - missing capability checkpoints
+      - requirement-vs-implementation drift
+    - If the selected strategy supports collaboration and the workload justified it, use one read-only reviewer lane to inspect the draft artifact set for the same failure modes.
+    - If the review finds planning-critical issues, revise current artifacts, re-run validation, and repeat the artifact review gate.
+    - Ask the user to review the written artifact set before handoff and make the next path explicit:
+      - proceed to `/sp.plan`
+      - revise current artifacts
+      - continue analysis with `/sp.clarify`
+      - prove feasibility with `/sp.deep-research`
+    - If the user requests changes, update the artifact set, re-run validation, and repeat the artifact review gate.
+    - Do not present `/sp.plan` as ready until the written artifact set passes this gate.
 
     Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions. Do not release for cross-boundary or event-driven features when trigger source, contract identifiers, lifecycle/retention, failure path, or configuration semantics are still fuzzy.
 
