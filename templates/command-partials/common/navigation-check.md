@@ -1,3 +1,5 @@
+> **Note:** Commands that include `context-loading-gradient.md` use layered loading and should NOT also include this file. This file is retained for commands not yet migrated to the layered model.
+
 - Check whether `.specify/project-map/index/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
