@@ -181,8 +181,8 @@ When refusal happens, write or report a scan gap report that names:
 
 Explorer subagents are read-only evidence collectors. They must not write
 `PROJECT-HANDBOOK.md` or `.specify/project-map/**` artifacts directly.
-In `subagent-blocked`, the leader must perform the same packet reads
-directly and record why dispatch was unavailable; skipping subagents does not skip packet execution.
+In `subagent-blocked`, record the block reason in `MAP_STATE_FILE`, stop for escalation or recovery, and do not continue substantive map-build packet
+execution inline. The leader must not perform packet reads directly.
 
 Every explorer result must include:
 

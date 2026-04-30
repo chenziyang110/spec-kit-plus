@@ -83,6 +83,7 @@ def test_ordinary_templates_do_not_allow_leader_or_team_fallback_for_subagent_wo
 def test_mandatory_subagent_templates_block_remaining_leader_path_fallbacks() -> None:
     targeted_commands = (
         "debug",
+        "map-build",
         "map-scan",
         "quick",
         "test-build",
@@ -101,6 +102,8 @@ def test_mandatory_subagent_templates_block_remaining_leader_path_fallbacks() ->
         "on the leader path before dispatch",
         "on the leader path until",
         "on the leader path and finish compiling",
+        "the leader must perform the same packet reads",
+        "perform the same packet reads directly",
     )
 
     for command_name in targeted_commands:
