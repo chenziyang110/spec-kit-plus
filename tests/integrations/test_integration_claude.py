@@ -1539,19 +1539,18 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
 
     content = (target / ".claude" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
 
-    assert "## claude dispatch-first gate" in content
-    assert "attempt native subagent execution before leader-inline fallback" in content
-    assert "use claude's native subagent path for `one-subagent` and `parallel-subagents`" in content
-    assert "prefer subagent fan-out over local deep-dive execution" in content
-    assert "do not begin concrete implementation on the leader path while an untried native subagent path is available" in content
-    assert "only use `leader-inline-fallback` after recording the concrete fallback reason" in content
     assert "/sp-implement-teams" not in content
-    assert "## claude code leader gate".lower() in content
-    assert "you are the **leader**, not the concrete implementer" in content
+    assert "## orchestration model" in content
+    assert "leader and orchestrator" in content
+    assert "not the concrete implementer" in content
     assert "autonomous blocker recovery" in content
-    assert "missed_agent_dispatch" in content
     assert "delegation surface contract" in content
-    assert "leader-inline-fallback" in content
+    assert "claude code subagent result contract" in content
+    assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in content
+    assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
+    assert "dispatch only from validated `workertaskpacket`" in content
+    assert "## claude dispatch-first gate" not in content
+    assert "attempt native subagent execution before leader-inline fallback" not in content
 
 
 def test_claude_generated_sp_implement_description_prefers_subagent_dispatch(tmp_path):

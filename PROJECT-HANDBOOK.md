@@ -73,7 +73,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 ## Verification Entry Points
 
 - Focused map regression: `pytest tests/test_map_scan_build_template_guidance.py tests/test_project_map_layered_contract.py tests/test_project_map_status.py -q`
-- Full Python regression: `pytest -q`
+- Full Python regression: `uv run --extra test pytest -q -n auto`
 - Integration surface: `pytest tests/integrations -q`
 - Hooks/execution/orchestration: `pytest tests/hooks tests/execution tests/orchestration -q`
 - Codex team runtime: `pytest tests/codex_team tests/contract/test_codex_team_cli_surface.py tests/test_teams_mcp_server.py -q`

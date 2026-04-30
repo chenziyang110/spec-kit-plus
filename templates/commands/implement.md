@@ -12,31 +12,48 @@ scripts:
 
 {{spec-kit-include: ../command-partials/implement/shell.md}}
 
-## Mandatory Subagent Execution
+## Orchestration Model
 
-All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+This section is **mandatory**. Every `sp-implement` run MUST follow this model — deviation is not permitted.
 
-The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+### Leader Responsibilities
 
-Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+You are the workflow **leader and orchestrator** for this run, not the concrete implementer.
 
-Use `execution_model: subagent-mandatory`.
-Use `dispatch_shape: one-subagent | parallel-subagents`.
-Use `execution_surface: native-subagents`.
+- Own routing, task splitting, task contracts, dispatch, join points, integration, verification, and state updates
+- Subagents own the substantive task lanes assigned through task contracts
+- Recover context, choose the current ready batch, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation
+- Use `execution_model: subagent-mandatory` for ready implementation batches
+- Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready; dispatch `parallel-subagents` when multiple validated packets have isolated write sets
+- Use `execution_surface: native-subagents`
+- If the subagent-readiness bar is not met, compile the missing context, hard rules, validation gates, or handoff requirements before dispatch
+- Treat non-empty `$ARGUMENTS` as first-class implementation context, not disposable chat-only guidance
 
+### Subagent Mandate
 
-Treat non-empty `$ARGUMENTS` as first-class implementation context for the current feature execution, not as disposable chat-only guidance.
+All substantive implementation work defaults to and MUST use subagents. The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
 
-## Leader Role
+- Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format
+- Use `dispatch_shape: one-subagent | parallel-subagents`
+- **HARD RULE**: dispatch only from validated `WorkerTaskPacket` — never from raw task text alone
+- [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution
+- Idle subagent is not an accepted result
+- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success
+- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly
 
-- You are the workflow leader and orchestrator.
-- You own routing, task splitting, task contracts, dispatch, join points, integration, verification, and state updates.
-- Subagents own the substantive task lanes assigned through task contracts.
-- You are the implementation leader for this run. Your job is to recover context, choose the current ready batch, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation.
-- Use `execution_model: subagent-mandatory` for ready implementation batches.
-- Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready; dispatch `parallel-subagents` when multiple validated packets have isolated write sets.
-- Use `execution_surface: native-subagents`.
-- If that subagent-readiness bar is not met, compile the missing context, hard rules, validation gates, or handoff requirements before dispatch.
+### Autonomous Blocker Recovery (Hard Rule)
+
+If technical blockers arise (build errors, missing toolchain components, environment mismatches), you **MUST** attempt autonomous escalation to a specialist subagent **BEFORE** asking the user for intervention.
+
+- Only stop and ask the user if the specialist lane confirms that manual human action is the ONLY remaining path
+
+### Integrity Rules
+
+- **Hard rule:** The leader must not edit implementation files directly while subagent execution is active
+- Do **not** fall through from subagent dispatch into local self-execution just because the implementation looks feasible
+- Do not dispatch a low-context subagent just to satisfy a routing preference — compile the missing contract first
+- Do not bypass tracker truth, result handoffs, or verification gates
+- Do not declare completion because tasks look checked off if the implementation contract is not actually satisfied
 
 ## Pre-Execution Checks
 
@@ -258,9 +275,7 @@ human_needed_checks:
     - **REQUIRED FOR SUBAGENT EXECUTION**: Preserve `reported_status` when normalizing subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state
     - **REQUIRED FOR SUBAGENT EXECUTION**: Idle subagent is not an accepted result.
     - **REQUIRED FOR SUBAGENT EXECUTION**: [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
-    - **HARD RULE**: dispatch only from validated `WorkerTaskPacket`
-    - **HARD RULE**: Do not dispatch from raw task text alone
-    - **HARD RULE**: must not dispatch from raw task text alone
+    - **HARD RULE**: dispatch only from validated `WorkerTaskPacket` — never from raw task text alone
 
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:

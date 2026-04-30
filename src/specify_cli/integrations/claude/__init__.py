@@ -366,6 +366,10 @@ class ClaudeIntegration(SkillsIntegration):
         merged_skipped = [*pre_skipped, *[path for path in skipped if path not in pre_skipped]]
         return merged_removed, merged_skipped
 
+    def _runtime_capability_snapshot(self) -> CapabilitySnapshot:
+        """Runtime capability adapter — used by the base class delegation surface."""
+        return self._claude_capability_snapshot()
+
     def _claude_capability_snapshot(self) -> CapabilitySnapshot:
         return CapabilitySnapshot(
             integration_key=self.key,
@@ -385,7 +389,7 @@ class ClaudeIntegration(SkillsIntegration):
         content: str,
         skill_name: str,
     ) -> str:
-        marker = "## Claude Subagent Result Contract"
+        marker = "## Claude Code Subagent Result Contract"
         if marker in content:
             return content
 
@@ -395,7 +399,7 @@ class ClaudeIntegration(SkillsIntegration):
         )
         addendum = (
             "\n"
-            "## Claude Subagent Result Contract\n\n"
+            "## Claude Code Subagent Result Contract\n\n"
             f"- Preferred result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
             "- Normalize subagent-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
@@ -719,10 +723,9 @@ class ClaudeIntegration(SkillsIntegration):
                     content=content,
                     description="Execute the implementation plan by dispatching subagents and integrating their results",
                 )
-                content = self._append_dispatch_first_gate(content=content)
             content = self._append_delegation_surface_contract(
                 content=content,
-                agent_name="Claude",
+                agent_name="Claude Code",
                 command_name=command_name,
                 snapshot=snapshot,
                 heading="Subagent Dispatch Contract",

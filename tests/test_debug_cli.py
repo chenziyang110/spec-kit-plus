@@ -2,7 +2,6 @@ import pytest
 from typer.testing import CliRunner
 from specify_cli import app
 from pathlib import Path
-import shutil
 import os
 import re
 from specify_cli.debug.schema import DebugStatus
@@ -12,14 +11,13 @@ from specify_cli.debug.schema import DebugGraphState, ObserverCauseCandidate, Su
 runner = CliRunner()
 
 @pytest.fixture
-def clean_debug_dir():
-    debug_dir = Path.cwd() / ".planning" / "debug"
-    if debug_dir.exists():
-        shutil.rmtree(debug_dir)
+def clean_debug_dir(tmp_path, monkeypatch):
+    project_root = tmp_path / "debug-cli-project"
+    project_root.mkdir()
+    monkeypatch.chdir(project_root)
+    debug_dir = project_root / ".planning" / "debug"
     debug_dir.mkdir(parents=True, exist_ok=True)
     yield debug_dir
-    # Clean up after test if needed
-    # shutil.rmtree(debug_dir)
 
 
 @pytest.fixture(autouse=True)

@@ -231,16 +231,14 @@ class SkillsIntegrationTests:
         implement_path = i.skills_dest(tmp_path) / "sp-implement" / "SKILL.md"
         content = implement_path.read_text(encoding="utf-8")
         lowered = content.lower()
-        agent_name = i.config["name"].replace(" CLI", "")
 
-        assert f"## {agent_name} Leader Gate" in content
-        assert "you are the **leader**, not the concrete implementer" in lowered
+        assert "## Orchestration Model" in content
+        assert "leader and orchestrator" in lowered
+        assert "not the concrete implementer" in lowered
         assert "autonomous blocker recovery" in lowered
-        assert "missed_agent_dispatch" in lowered
         assert "Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready" in content
         assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
         assert "delegation surface contract" in lowered
-        assert "leader-inline-fallback" in lowered
         assert "dispatch only from validated `workertaskpacket`" in lowered
         assert "must not edit implementation files directly while subagent execution is active" in lowered
 
