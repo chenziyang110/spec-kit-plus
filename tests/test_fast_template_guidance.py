@@ -72,6 +72,8 @@ def test_fast_template_defines_explicit_upgrade_triggers() -> None:
     assert "shared surface" in content
     assert "change-propagation hotspot" in content
     assert "known unknowns" in content
+    assert "known unknowns that make direct execution unsafe" not in content
+    assert "safe packetized delegation unavailable" in content
     assert "needs research" in content or "research or clarification" in content
     assert "upgrade to `/sp-specify` immediately if" in content
     assert "unit test system program" in content or "testing-system program" in content

@@ -51,7 +51,7 @@ If the task is a bug fix or regression but the root cause is still unknown:
 Upgrade to `/sp-quick` immediately if:
 - The work expands to more than 3 files.
 - The change touches a shared surface such as a router table, registration file, export barrel, template registry, or other coordination point.
-- The handbook says the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make direct execution unsafe.
+- The handbook says the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make safe packetized delegation unavailable.
 - The requested work comes from `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and is larger than one tiny harness, command, fixture, or helper repair.
 - The task stops being obvious and needs research or clarification to proceed safely.
 - The task needs multiple subagent lanes, resumable tracking, or a written quick-task summary artifact.
