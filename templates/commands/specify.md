@@ -46,6 +46,18 @@ scripts:
 - [AGENT] Prefer `specify learning capture-auto --command specify --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command specify ...` when the durable state does not capture the reusable lesson cleanly.
 - Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
 
+{{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+
+**This command tier: heavy.** Load:
+1. `.specify/project-map/QUICK-NAV.md` — route to all affected modules
+2. `root/ARCHITECTURE.md` — all Layer 2 summary cards
+3. All affected module `OVERVIEW.md` files — full content
+4. `root/CONVENTIONS.md` — full
+5. `index/relations.json` — full dependency graph
+6. `index/status.json` — freshness gate (enforce; stale → scoped rescan)
+
+**Freshness enforcement**: Compare `status.json` commit_hash with HEAD. If stale on target module Layer 3, run scoped rescan of affected module only (not global rebuild).
+
 ## Workflow Phase Lock
 
 - [AGENT] Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known.
@@ -64,6 +76,10 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
 1. Parse the user description.
    - If empty: ERROR "No feature description provided".
+
+{{spec-kit-include: ../command-partials/common/pre-analysis-protocol.md}}
+
+Generate the pre-analysis output as the first section of `context.md`.
 
 2. Generate a concise short name (2-4 words) for the branch.
    - Keep it descriptive and action-oriented when possible.
@@ -676,6 +692,8 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - `spec-lint` exit code 0 = all [lint] checks pass; exit code 1 = failures present
     - For tier selection: light (small bug fix, local change), standard (new capability, cross-module), deep (new system, protocol boundary, security-sensitive)
     ```
+
+{{spec-kit-include: ../command-partials/common/gate-self-check.md}}
 
 25. Re-run validation after edits. Normal completion must pass all required checks.
 
