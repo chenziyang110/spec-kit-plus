@@ -9,6 +9,19 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/test-scan/shell.md}}
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+
 ## Passive Project Learning Layer
 
 - [AGENT] Run `specify learning start --command test-scan --format json` when available so passive learning files exist, the scan sees relevant shared project memory, and repeated testing-system candidates can be auto-promoted at start.
@@ -71,14 +84,12 @@ workflow_contract:
 
 4. **Choose the scan dispatch shape**
    - [AGENT] Before repository fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="test-scan", snapshot, workload_shape)`.
-   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
+   - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - Decision order is fixed:
      - One safe validated scan lane -> `one-subagent` on `native-subagents` when available.
-     - Two or more safe read-only testing scan lanes -> `parallel-subagents` on `native-subagents` when available.
-     - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
-     - No safe lane, missing packet, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
+     - Two or more safe read-only testing scan lanes -> `parallel-subagents` on `native-subagents` when available.     - No safe lane, missing packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
    - Current-runtime native subagents are the default when safe read-only testing scan lanes exist.
-   - For `one-subagent`, dispatch one read-only scout once a validated `TestScanPacket` or equivalent scan contract exists; keep it leader-inline only while the packet is incomplete or dispatch is unavailable.
+   - For `one-subagent`, dispatch one read-only scout once a validated `TestScanPacket` or equivalent scan contract exists; keep it leader path only while the packet is incomplete or dispatch is unavailable.
    - If collaboration is justified, keep `sp-test-scan` lanes read-only and limited to:
      - module test-surface scouting
      - framework/config evidence collection

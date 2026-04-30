@@ -20,6 +20,19 @@ scripts:
 
 {{spec-kit-include: ../command-partials/specify/shell.md}}
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+
 ## Pre-Execution Checks
 
 **Check for extension hooks (before specification)**:
@@ -197,12 +210,10 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Lightweight mode for local, context-rich changes.
    - Deep mode for greenfield, multi-capability, or materially ambiguous work.
    - [AGENT] Before decomposition begins, assess the current workload shape and agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="specify", snapshot, workload_shape)`.
-   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
+   - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - Decision order is fixed:
      - One safe validated lane -> `one-subagent` on `native-subagents` when available.
-     - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.
-     - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
-     - No safe lane, overlapping writes, missing contract, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
+     - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.     - No safe lane, overlapping writes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason.
    - If collaboration is justified, keep `specify` lanes limited to:
      - repository and local context analysis
      - external references and supporting material analysis

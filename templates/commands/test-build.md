@@ -9,6 +9,19 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/test-build/shell.md}}
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+
 ## Pre-Execution Checks
 
 **Check for extension hooks (before testing build)**:
@@ -152,12 +165,10 @@ workflow_contract:
 
 6. **Choose an execution dispatch shape before broad test-system work begins**
    - [AGENT] Before repository fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="test-build", snapshot, workload_shape)`.
-   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
+   - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - Decision order is fixed:
      - One safe validated test-build lane -> `one-subagent` on `native-subagents` when available.
-     - Two or more safe isolated test-build lanes -> `parallel-subagents` on `native-subagents` when available.
-     - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
-     - No safe lane, overlapping writes, missing packet, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
+     - Two or more safe isolated test-build lanes -> `parallel-subagents` on `native-subagents` when available.     - No safe lane, overlapping writes, missing packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
    - If collaboration is justified, keep `sp-test-build` lanes limited to:
      - bounded module test additions
      - local fixtures/helpers authorized by a lane packet
@@ -208,8 +219,8 @@ workflow_contract:
 
 8. **Dispatch subagents and join results**
    - The invoking runtime acts as the test-build leader. It selects the current wave, dispatches bounded lanes, integrates results, and owns validation.
-   - For `parallel-subagents`, dispatch subagents for all safe lanes in the current wave before doing leader-inline implementation.
-   - For `one-subagent`, dispatch one subagent when the lane has a validated `TestBuildPacket` and enough context; keep it leader-inline only when the packet is not yet safe or subagent dispatch is unavailable.
+   - For `parallel-subagents`, dispatch subagents for all safe lanes in the current wave before doing local implementation.
+   - For `one-subagent`, dispatch one subagent when the lane has a validated `TestBuildPacket` and enough context; keep it leader path only when the packet is not yet safe or subagent dispatch is unavailable.
    - Subagents must return a structured handoff with:
      - `lane_id`
      - `reported_status: done | done_with_concerns | blocked | needs_context`

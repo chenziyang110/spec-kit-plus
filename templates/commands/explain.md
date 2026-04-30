@@ -19,6 +19,19 @@ scripts:
 
 {{spec-kit-include: ../command-partials/explain/shell.md}}
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+
 ## Outline
 
 Goal: Read the current stage artifact or atlas artifact and explain it in plain language so the user can understand what the system currently believes, what is decided, what is still open, and what the next phase or next relevant atlas view will do.
@@ -45,7 +58,7 @@ Goal: Read the current stage artifact or atlas artifact and explain it in plain 
    - If present, also read `.specify/memory/constitution.md` so the explanation honors the project constitution and its constraints on the current stage artifact.
 
 4. Before translating the artifact, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="explain", snapshot, workload_shape)`.
-   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
+   - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - Default to leader explanation for small artifacts. Dispatch a cross-check subagent only when an independent verification lane would materially improve correctness.
    - If collaboration is justified, keep `explain` lanes limited to:
      - primary artifact reading

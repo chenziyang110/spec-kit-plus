@@ -12,15 +12,29 @@ scripts:
 
 {{spec-kit-include: ../command-partials/quick/shell.md}}
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+
 ## Leader Role
 
-- You are the quick-task leader. You own scope control, `STATUS.md`, lane selection, join points, validation, and the final summary artifact.
-- You are not the default implementer for the quick task. Once scope is locked and a subagent path is available, dispatch the lane instead of continuing leader-inline implementation work.
-- Use `execution_model: subagents-first` once the quick task has a bounded execution lane.
+- You are the workflow leader and orchestrator.
+- You own routing, task splitting, task contracts, dispatch, join points, integration, verification, and state updates.
+- Subagents own the substantive task lanes assigned through task contracts.
+- You are the quick-task leader. You own scope control, `STATUS.md`, lane selection, validation, and the final summary artifact.
+- You are not the default implementer for the quick task; substantive task work belongs on subagent lanes once scope and contracts are locked.
+- Use `execution_model: subagent-mandatory` once the quick task has a bounded execution lane.
 - Dispatch `one-subagent` for one safe delegated lane and `parallel-subagents` for isolated lanes that can run concurrently.
-- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.
-- If that subagent-readiness bar is not met, keep the lane on the leader path until the missing context, constraints, validation target, or handoff expectations are explicit.
-- Use `leader-inline-fallback` only through the documented exception path and record the fallback reason in `STATUS.md`.
+- Compile a validated `WorkerTaskPacket` or equivalent execution contract before dispatch.
 
 ## Required Context Inputs
 
@@ -113,18 +127,16 @@ The following flags are available and composable:
 - Before the first subagent is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first subagent path.
 - Before implementation work starts, identify whether the quick task is best handled by one bounded subagent or by two or more independent subagents that can safely proceed in parallel.
 - [AGENT] Use the shared policy function before execution begins and again at each join point: `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)`.
-- Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
-- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for the current subagent path. If confidence is `low`, prefer the managed team workflow or explicit fallback over fragile dispatch.
+- Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
+- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for the current subagent path. If confidence is `low`, prefer the native subagent workflow or explicit fallback over fragile dispatch.
 - Decision order:
   - One safe validated lane -> `one-subagent` on `native-subagents` when available.
-  - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.
-  - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
-  - No safe lane, overlapping writes, missing contract, low confidence, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
+  - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.  - No safe lane, overlapping writes, missing contract, low confidence, or unavailable delegation -> `subagent-blocked` with a recorded reason.
 - Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that readiness bar is not met, keep the lane on the leader path until the missing contract is compiled.
 - If two or more independent subagent lanes can safely run in parallel and that fan-out materially improves throughput, dispatch multiple subagents instead of serial execution.
-- `leader-inline-fallback` is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through subagents or the managed team workflow.
-- If leader-inline fallback is used, record the concrete reason in `STATUS.md`, including which subagent path was unavailable or blocked for the current batch.
-- The first actionable execution step after scope lock is to dispatch the first subagent or managed team batch, not to continue local deep-dive analysis.
+- `subagent-blocked` is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through subagents or the native subagent workflow.
+- If subagent-blocked status is used, record the concrete reason in `STATUS.md`, including which subagent path was unavailable or blocked for the current batch.
+- The first actionable execution step after scope lock is to dispatch the first subagent batch, not to continue local deep-dive analysis.
 - Use `.specify/templates/worker-prompts/quick-worker.md` as the default contract for quick-task subagents so the subagent returns enough state for the leader to keep `STATUS.md` accurate.
 - Prefer structured subagent results compatible with the shared `WorkerTaskResult` contract when the current runtime supports them.
 - If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized subagent result envelope to `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`
@@ -170,9 +182,9 @@ slug: [quick-task slug]
 title: [short quick-task title]
 status: gathering | planned | executing | validating | blocked | resolved
 trigger: "[verbatim user input]"
-execution_model: subagents-first
-dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback
-execution_surface: native-subagents | managed-team | leader-inline
+execution_model: subagent-mandatory
+dispatch_shape: one-subagent | parallel-subagents
+execution_surface: native-subagents
 created: [ISO timestamp]
 updated: [ISO timestamp]
 ---
@@ -199,7 +211,7 @@ success_evidence:
 active_lane: [single lane name or current batch]
 join_point: [empty if none]
 files_or_surfaces: [primary files, modules, or shared surfaces in play]
-execution_fallback: [none by default; if leader-inline-fallback, record why native subagents and managed-team paths were unavailable]
+execution_fallback: [none by default; if subagent-blocked, record why native subagent dispatch was unavailable or unsafe]
 blockers: [empty if none]
 recovery_action: [next self-recovery step before asking for help]
 retry_attempts: [0 if none]
@@ -244,7 +256,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 - Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that readiness bar is not met, keep the lane on the leader path and finish compiling the missing contract first.
 - After `STATUS.md` is initialized and the first lane is defined, dispatch that subagent path before doing any further local repository deep dive.
 - If multiple safe subagent lanes exist and they can improve throughput without creating write conflicts, dispatch them in parallel instead of artificially serializing the work.
-- Use `leader-inline-fallback` only after subagent execution is concretely unavailable for the current batch and the managed team workflow is also unavailable or unsuitable.
+- Use `subagent-blocked` only after subagent execution is concretely unavailable for the current batch and the native subagent workflow is also unavailable or unsuitable.
 - Re-evaluate after every join point, recovery step, and validation result instead of assuming the first plan still holds.
 - A quick task reaches a terminal state only when `STATUS.md` shows either `resolved` or `blocked`.
 
@@ -258,10 +270,10 @@ resume_decision: [resume here | blocked waiting | resolved]
   - make one focused repair attempt that matches the evidence
   - if uncertainty remains high, use `--research`-style focused investigation for the narrow blocker rather than abandoning the task immediately
 - Record each recovery step in `STATUS.md` under `recovery_action` and increment `retry_attempts`.
-- If subagent execution is failing, attempt the next safe path before switching to leader-inline fallback:
+- If subagent execution is failing, attempt the next safe path before switching to subagent-blocked status:
   - retry the bounded subagent lane when the failure looks transient
-  - use the managed team workflow when subagent dispatch is unavailable for the current batch
-  - only then consider leader-inline fallback if no subagent path is currently available
+  - use the native subagent workflow when subagent dispatch is unavailable for the current batch
+  - only then consider subagent-blocked status if no subagent path is currently available
 - Escalate to `blocked` only when:
   - required credentials, services, permissions, or external systems are unavailable
   - the requirement remains high-impact ambiguous after the minimum safe clarification pass
@@ -351,7 +363,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 4. **Lightweight planning**
    - Produce only the plan needed to execute this ad-hoc task safely.
    - Keep the work atomic and self-contained.
-   - Keep local planning shallow until the first subagent or managed team batch has been launched.
+   - Keep local planning shallow until the first subagent batch has been launched.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` is the upstream source, record which single module, risk tranche, or coverage wave this quick-task pass is consuming before implementation starts.
    - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
 - For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
@@ -366,11 +378,11 @@ resume_decision: [resume here | blocked waiting | resolved]
 5. **Execution**
    - Execute the current quick-task lane or ready batch through the selected dispatch shape and execution surface.
    - For `one-subagent`, dispatch one subagent once the subagent-readiness bar is satisfied; otherwise finish compiling the missing contract on the leader path before dispatch.
-   - The first concrete execution action should normally be dispatching that subagent or managed team batch, not continuing leader-inline repository analysis.
+   - The first concrete execution action should normally be dispatching that subagent batch, not continuing local repository analysis.
    - If multiple subagent lanes are safe and useful, dispatch them in parallel as the current ready batch instead of holding back fan-out without a concrete coordination reason.
    - Keep changes tightly scoped to the quick-task goal.
    - Re-evaluate dispatch at each join point instead of assuming the first choice remains correct.
-   - Only use `leader-inline-fallback` after subagent execution and the managed team workflow are unavailable or blocked for the current batch, and record that fallback explicitly in `STATUS.md`.
+   - Only use `subagent-blocked` after subagent execution and the native subagent workflow are unavailable or blocked for the current batch, and record that fallback explicitly in `STATUS.md`.
    - Continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
    - If execution hits friction, attempt the smallest safe recovery step before declaring the task blocked.
 
@@ -400,5 +412,5 @@ resume_decision: [resume here | blocked waiting | resolved]
 - Preserve a lightweight planning and validation path rather than skipping discipline entirely.
 - Keep quick tasks atomic and self-contained.
 - Keep leader responsibilities explicit: scope, strategy selection, join points, validation, and summary stay on the leader path.
-- Keep concrete execution on subagent lanes whenever possible. `leader-inline-fallback` is the last fallback, not the default path.
+- Keep concrete execution on subagent lanes whenever possible. `subagent-blocked` is the last fallback, not the default path.
 - Quick-task state must be resumable from `STATUS.md` without depending on chat history.

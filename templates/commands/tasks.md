@@ -17,6 +17,19 @@ scripts:
 
 {{spec-kit-include: ../command-partials/tasks/shell.md}}
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+
 ## Pre-Execution Checks
 
 **Check for extension hooks (before tasks generation)**:
@@ -132,12 +145,10 @@ scripts:
     - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
     - The chosen dispatch shape applies to the **current ready batch**, not automatically to the entire feature or task graph.
     - Primary decomposition goal: maximize safe native-subagent throughput for later `sp-implement` runs by isolating write sets and turning ready work into a dispatch-ready lane packet instead of a vague checklist.
-    - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
+    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - Decision order is fixed:
      - One safe validated lane -> `one-subagent` on `native-subagents` when available.
-     - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.
-     - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
-     - No safe lane, overlapping writes, missing contract, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
+     - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.     - No safe lane, overlapping writes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason.
    - If collaboration is justified, keep `tasks` lanes limited to:
      - story and phase decomposition
      - dependency graph analysis
@@ -222,7 +233,7 @@ scripts:
     - workflow-state path
     - Recommended next command: `/sp.analyze`
     - if the decomposition exposes new shared surfaces, new workflow joins, new validation entry points, or other atlas facts that the current handbook/project-map does not yet capture well enough for downstream execution, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield implementation proceeds
-    - If the current ready batch uses `leader-inline-fallback` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
+    - If the current ready batch uses `subagent-blocked` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`

@@ -12,6 +12,19 @@ scripts:
 
 {{spec-kit-include: ../command-partials/fast/shell.md}}
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+
 ## Scope Gate
 
 Before changing anything, decide whether this task is truly fast-path work.
@@ -24,7 +37,7 @@ Use `sp-fast` only when all of these are true:
 - No API changes are required.
 - No architecture, API, template system, roadmap, or spec workflow changes are required.
 - No research or deep design work is needed.
-- No subagents or parallel execution are needed.
+- The lane can be handled by one tightly scoped subagent contract without broader planning artifacts.
 
 If any of those checks fail:
 - Use `/sp-quick` for small but non-trivial work.
@@ -41,7 +54,7 @@ Upgrade to `/sp-quick` immediately if:
 - The handbook says the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make direct execution unsafe.
 - The requested work comes from `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and is larger than one tiny harness, command, fixture, or helper repair.
 - The task stops being obvious and needs research or clarification to proceed safely.
-- The task needs subagent execution, resumable tracking, or a written quick-task summary artifact.
+- The task needs multiple subagent lanes, resumable tracking, or a written quick-task summary artifact.
 - The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a truly local repair. In that case, route to `/sp-debug`.
 
 Upgrade to `/sp-specify` immediately if:
@@ -78,14 +91,17 @@ Upgrade to `/sp-specify` immediately if:
    - [AGENT] If `PROJECT-HANDBOOK.md` or `.specify/project-map/` is missing, stop and redirect to `/sp-quick` so the navigation system can be rebuilt safely.
    - [AGENT] If the requested change touches a shared surface, risky coordination point, propagation hotspot, non-trivial verification entry point, or known-unknown-heavy area, stop and redirect to `/sp-quick`.
 
-3. **Execute inline**
-   - Read the relevant file(s).
+3. **Dispatch the fast lane**
+   - Prepare the smallest task contract for the fast-path lane.
+   - Keep the allowed write scope local and explicit.
    - Before reading any non-obvious path, prefer `specify hook validate-read-path --target-path "<candidate path>"` when you are unsure whether the path stays inside the repository or whether it may be a sensitive file.
    - If the task is behavior-changing rather than docs-only, write a failing targeted test or failing repro check before editing production code.
+   - The task contract must include that RED gate before production edits.
    - Do not use manual sanity checks as a substitute for red when behavior changes.
    - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-test` (which routes to `/sp-test-scan`) or `/sp-quick` instead of hand-waving the verification gap.
-   - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
-   - Do the work directly in the current context.
+   - For bug fixes and regressions, the task contract must record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
+   - Dispatch one subagent for the lane.
+   - Wait for the structured handoff before verification.
    - Keep the change as small and local as possible.
 
 4. **Verify**
@@ -111,6 +127,6 @@ Upgrade to `/sp-specify` immediately if:
 - No spec.md creation.
 - No plan.md creation.
 - No tasks.md creation.
-- Do not spawn subagents.
+- Use one fast-path subagent lane only; if more lanes are needed, route to `/sp-quick`.
 - Do not add planning artifacts just to satisfy process formality.
 - If the task grows while working, stop and redirect to `/sp-quick`.

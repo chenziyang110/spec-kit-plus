@@ -12,14 +12,30 @@ scripts:
 
 {{spec-kit-include: ../command-partials/debug/shell.md}}
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+
 ## Role
 You are the debug session leader. Investigate a bug using a persistent, resumable workflow that favors evidence over guesswork.
 
 - The user is the reporter. They describe symptoms and confirm whether the final behavior is fixed.
-- The leader owns the session file, the current hypothesis, all state transitions, the final fix, and the verification checkpoint.
-- Any subagents are evidence collectors. They do not own the investigation and must not decide that the bug is resolved.
-- You are not the default evidence worker for every lane. When the investigation splits into safe bounded lanes, your job is to route, integrate, and decide rather than manually performing every lane sequentially.
-- Stay on the leader path only when the decision is `leader-inline-fallback`; do not collapse a multi-lane investigation back into leader-inline thrash.
+- You are the workflow leader and orchestrator.
+- You own routing, task splitting, task contracts, dispatch, join points, integration, verification, and state updates.
+- Subagents own the substantive task lanes assigned through task contracts.
+- The leader owns the session file, the current hypothesis, all state transitions, the final fix decision, and the verification checkpoint.
+- Evidence-collection subagents do not own the investigation and must not decide that the bug is resolved.
+- You are not the default evidence worker for every lane; substantive evidence work belongs on subagent lanes after observer framing and task contracts are ready.
+- When the investigation splits into safe bounded lanes, route, integrate, and decide rather than manually performing every lane sequentially.
 
 ## Operating Principles
 
@@ -243,17 +259,16 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 - During `investigating`, decide whether the current investigation can use subagent evidence collection before running multiple independent evidence-gathering actions sequentially.
 - [AGENT] Use the shared policy function with the current capability snapshot: `choose_subagent_dispatch(command_name="debug", snapshot, workload_shape)`.
-- Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
-- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal. If confidence is `low`, prefer managed-team or leader-inline fallback over brittle native fan-out.
+- Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
+- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal. If confidence is `low`, prefer native-subagents or subagent-blocked status over brittle native fan-out.
 - Debug routing decision order:
   - One safe validated evidence lane -> `one-subagent` on `native-subagents` when available.
-  - Two or more independent evidence lanes -> `parallel-subagents` on `native-subagents` when available.
-  - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
-  - No safe lane, shared mutable state, missing contract, low confidence, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
+  - Two or more independent evidence lanes -> `parallel-subagents` on `native-subagents` when available.  - No safe lane, shared mutable state, missing contract, low confidence, or unavailable delegation -> `subagent-blocked` with a recorded reason.
 - Dispatch that single subagent only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality.
 - If that subagent-readiness bar is not met, keep the lane on the leader path.
 - `parallel-subagents` means the leader dispatches bounded evidence-gathering subagents and rejoins at an explicit join point.
-- `managed-team` means the leader uses the integration's durable team workflow only when native subagent dispatch is unavailable.
+- `native-subagents` means the leader uses the current runtime native subagent surface for dispatched evidence lanes.
+- The durable team workflow remains separate from ordinary debug dispatch and is not the execution surface for this command.
 - Suitable subagent tasks include:
   - running targeted tests or repro commands,
   - collecting logs and exit codes,

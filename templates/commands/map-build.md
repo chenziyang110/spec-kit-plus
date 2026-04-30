@@ -9,6 +9,19 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/map-build/shell.md}}
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+
 `sp-map-build` begins with validation, not writing.
 
 This workflow is the explicit brownfield atlas construction entrypoint. It must
@@ -114,7 +127,7 @@ confirmed from those reads, report the build as blocked instead of successful.
 
 ## Compile And Validate MapBuildPacket Inputs
 
-- [AGENT] Compile a `MapBuildPacket` from each accepted scan packet before dispatch or leader-inline fallback.
+- [AGENT] Compile a `MapBuildPacket` from each accepted scan packet before dispatch or subagent-blocked status.
 - A valid `MapBuildPacket` must include:
   - `lane_id`
   - `mode: read_only`
@@ -154,12 +167,10 @@ When refusal happens, write or report a scan gap report that names:
 ## Execution Dispatch
 
 - [AGENT] Before explorer packet dispatch begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="map-build", snapshot, workload_shape)`.
-- Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
+- Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
 - Decision order is fixed:
   - One safe validated build packet -> `one-subagent` on `native-subagents` when available.
-  - Two or more safe explorer packets -> `parallel-subagents` on `native-subagents` when available.
-  - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
-  - No safe lane, missing packet, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
+  - Two or more safe explorer packets -> `parallel-subagents` on `native-subagents` when available.  - No safe lane, missing packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
 - If collaboration is justified, dispatch read-only explorer subagents for the scan packets declared in `.specify/project-map/scan-packets/`.
 - Required join points:
   - before writing final atlas documents
@@ -170,7 +181,7 @@ When refusal happens, write or report a scan gap report that names:
 
 Explorer subagents are read-only evidence collectors. They must not write
 `PROJECT-HANDBOOK.md` or `.specify/project-map/**` artifacts directly.
-In `leader-inline-fallback`, the leader must perform the same packet reads
+In `subagent-blocked`, the leader must perform the same packet reads
 directly and record why dispatch was unavailable; skipping subagents does not skip packet execution.
 
 Every explorer result must include:

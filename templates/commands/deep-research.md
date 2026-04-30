@@ -17,6 +17,19 @@ scripts:
 
 {{spec-kit-include: ../command-partials/deep-research/shell.md}}
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+
 ## Pre-Execution Checks
 
 **Check for extension hooks (before deep research)**:
@@ -106,7 +119,7 @@ scripts:
   - `spike_artifacts` when applicable
 - [AGENT] Join all subagent results before writing final conclusions. Resolve contradictions by preferring runnable spike evidence, current repository evidence, primary documentation, then secondary sources in that order. Mark conflicts that remain unresolved instead of hiding them.
 - [AGENT] The coordinator must convert subagent packets into `Research Agent Findings`, `Synthesis Decisions`, and `Planning Handoff`; do not paste raw subagent output as the final artifact.
-- [AGENT] If subagent dispatch is unavailable or unsafe, perform the same track decomposition sequentially and record the decision as `leader-inline-fallback` with a reason.
+- [AGENT] If subagent dispatch is unavailable or unsafe, perform the same track decomposition sequentially and record the decision as `subagent-blocked` with a reason.
 
 ## Traceability and Evidence Quality Contract
 
@@ -200,12 +213,10 @@ scripts:
 
 6. **Select the research dispatch shape**:
    - [AGENT] Before research fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="deep-research", snapshot, workload_shape)`.
-   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
+   - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - Decision order is fixed:
      - One safe validated track -> `one-subagent` on `native-subagents` when available.
-     - Two or more safe isolated tracks -> `parallel-subagents` on `native-subagents` when available.
-     - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
-     - No safe lane, overlapping write scopes, missing contract, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
+     - Two or more safe isolated tracks -> `parallel-subagents` on `native-subagents` when available.     - No safe lane, overlapping write scopes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason.
    - For `deep-research`, safe fan-out means at least two independent research tracks with disjoint write scopes. Research-only tracks return evidence packets; demo tracks write only under their assigned `FEATURE_DIR/research-spikes/<track-slug>/`.
    - Required join points:
      - before final conflict resolution
@@ -306,10 +317,10 @@ scripts:
 
    ## Research Orchestration
 
-   - **Execution model**: subagents-first
-   - **Dispatch shape**: [one-subagent | parallel-subagents | leader-inline-fallback]
-   - **Execution surface**: [native-subagents | managed-team | leader-inline]
-   - **Reason**: [safe-one-subagent | safe-parallel-subagents | managed-team-supported | no-safe-delegated-lane | unsafe-write-sets | packet-not-ready | runtime-no-subagents | low-delegation-confidence]
+   - **Execution model**: subagent-mandatory
+   - **Dispatch shape**: [one-subagent | parallel-subagents | subagent-blocked]
+   - **Execution surface**: native-subagents
+   - **Reason**: [safe-one-subagent | safe-parallel-subagents | native-subagents-supported | no-safe-delegated-lane | unsafe-write-sets | packet-not-ready | runtime-no-subagents | low-delegation-confidence]
    - **Selected tracks**:
      - [track] -> [research-only evidence packet | demo spike write scope]
    - **Join points**:
@@ -321,7 +332,7 @@ scripts:
 
    | Track ID | Agent / Mode | Question | Evidence IDs | Confidence | Exit State | Planning Implication |
    | --- | --- | --- | --- | --- | --- | --- |
-   | TRK-001 | [child agent name or leader-inline fallback] | [Question] | EVD-001, SPK-001 | [high / medium / low] | [enough-to-plan / constrained-but-plannable / blocked / not-viable / user-decision-required] | [What `/sp.plan` must use] |
+   | TRK-001 | [child agent name or subagent-blocked status] | [Question] | EVD-001, SPK-001 | [high / medium / low] | [enough-to-plan / constrained-but-plannable / blocked / not-viable / user-decision-required] | [What `/sp.plan` must use] |
 
    ## Evidence Quality Rubric
 
