@@ -191,7 +191,7 @@ Use `execution_surface: native-subagents`.
    - Required join points:
      - before final constitution and risk re-check
      - before writing the consolidated implementation plan
-   - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in the planning artifacts you generate.
+   - Record the chosen strategy, reason, any blocked dispatch or escalation decision, selected lanes, and join points in the planning artifacts you generate.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
 6. **Execute the plan workflow** using the IMPL_PLAN template:

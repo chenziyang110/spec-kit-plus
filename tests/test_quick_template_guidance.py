@@ -121,7 +121,7 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "intent_constraints:" in content
     assert "success_evidence:" in content
     assert "## execution" in content
-    assert "execution_fallback:" in content
+    assert "blocked_dispatch:" in content
     assert "## validation" in content
     assert "## summary pointer" in content
 

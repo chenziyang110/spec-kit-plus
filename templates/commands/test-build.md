@@ -179,7 +179,7 @@ Use `execution_surface: native-subagents`.
      - after every parallel wave
      - before accepting a subagent result
      - before writing the consolidated `.specify/testing/*` artifacts
-   - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in `TESTING_STATE_FILE`.
+   - Record the chosen strategy, reason, any blocked dispatch or escalation decision, selected lanes, and join points in `TESTING_STATE_FILE`.
 
 7. **Compile and validate `TestBuildPacket` inputs**
    - [AGENT] Compile a `TestBuildPacket` for each executable subagent lane before dispatch.

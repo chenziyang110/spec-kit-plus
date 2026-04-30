@@ -175,7 +175,7 @@ When refusal happens, write or report a scan gap report that names:
 - Required join points:
   - before writing final atlas documents
   - before reverse coverage validation
-- The leader must wait for every dispatched explorer lane at the documented join point, integrate the returned evidence, and note any missing lane or fallback reason in the build summary.
+- The leader must wait for every dispatched explorer lane at the documented join point, integrate the returned evidence, and note any missing lane, blocked dispatch reason, or escalation decision in the build summary.
 
 ## Explorer Packet Dispatch
 

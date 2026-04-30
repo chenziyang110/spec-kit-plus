@@ -156,13 +156,13 @@ Use `execution_surface: native-subagents`.
    - Required join points:
      - before writing `tasks.md`
      - before emitting canonical parallel batches and join points
-   - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in the generated report and implementation strategy section.
+   - Record the chosen strategy, reason, any blocked dispatch or escalation decision, selected lanes, and join points in the generated report and implementation strategy section.
    - Separately classify the **feature delivery shape** for the whole task graph using plain language, for example:
      - `serial phases with intra-phase parallel batches`
      - `mostly sequential`
      - `pipeline-heavy`
      - `parallel-ready after foundational work`
-   - If any future or later-phase batch is parallelizable but the **current ready batch** is not, state that explicitly instead of collapsing the entire feature into a blanket fallback label.
+   - If any future or later-phase batch is parallelizable but the **current ready batch** is not, state that explicitly instead of collapsing the entire feature into a blanket blocked label.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
    - Load plan.md and extract tech stack, libraries, project structure
    - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present

@@ -113,3 +113,29 @@ def test_mandatory_subagent_templates_block_remaining_leader_path_fallbacks() ->
         assert "stop for escalation or recovery" in content, command_name
         for phrase in forbidden_phrases:
             assert phrase not in content, f"{command_name}: {phrase}"
+
+
+def test_ordinary_templates_do_not_record_subagent_blocks_as_fallbacks() -> None:
+    targeted_commands = (
+        "map-build",
+        "plan",
+        "quick",
+        "specify",
+        "tasks",
+        "test-build",
+    )
+    forbidden_phrases = (
+        "execution fallback",
+        "execution_fallback:",
+        "record that fallback explicitly",
+        "`subagent-blocked` is the last fallback",
+        "fallback if any",
+        "fallback reason",
+        "blanket fallback label",
+    )
+
+    for command_name in targeted_commands:
+        content = _read_command(command_name).lower()
+
+        for phrase in forbidden_phrases:
+            assert phrase not in content, f"{command_name}: {phrase}"

@@ -221,7 +221,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
    - Required join points:
      - before capability decomposition
      - before writing `spec.md`, `alignment.md`, and `context.md`
-   - Record the chosen strategy, reason, fallback if any, selected lanes, and join points in `alignment.md`.
+   - Record the chosen strategy, reason, any blocked dispatch or escalation decision, selected lanes, and join points in `alignment.md`.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
 10. Decomposition gate.

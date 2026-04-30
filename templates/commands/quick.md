@@ -161,7 +161,7 @@ The following flags are available and composable:
   - execution strategy
   - active lane or batch
   - join point, if any
-  - execution fallback, if any
+  - blocked dispatch or escalation state, if any
   - next action
   - recovery action
   - retry attempts
@@ -211,7 +211,7 @@ success_evidence:
 active_lane: [single lane name or current batch]
 join_point: [empty if none]
 files_or_surfaces: [primary files, modules, or shared surfaces in play]
-execution_fallback: [none by default; if subagent-blocked, record why native subagent dispatch was unavailable or unsafe]
+blocked_dispatch: [none by default; if subagent-blocked, record why native subagent dispatch was unavailable or unsafe]
 blockers: [empty if none]
 recovery_action: [next self-recovery step before asking for help]
 retry_attempts: [0 if none]
@@ -382,7 +382,7 @@ resume_decision: [resume here | blocked waiting | resolved]
    - If multiple subagent lanes are safe and useful, dispatch them in parallel as the current ready batch instead of holding back fan-out without a concrete coordination reason.
    - Keep changes tightly scoped to the quick-task goal.
    - Re-evaluate dispatch at each join point instead of assuming the first choice remains correct.
-   - Only use `subagent-blocked` after subagent execution and the native subagent workflow are unavailable or blocked for the current batch, and record that fallback explicitly in `STATUS.md`.
+   - Only use `subagent-blocked` after subagent execution and the native subagent workflow are unavailable or blocked for the current batch, and record the blocked dispatch reason explicitly in `STATUS.md`.
    - Continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
    - If execution hits friction, attempt the smallest safe recovery step before declaring the task blocked.
 
@@ -412,5 +412,5 @@ resume_decision: [resume here | blocked waiting | resolved]
 - Preserve a lightweight planning and validation path rather than skipping discipline entirely.
 - Keep quick tasks atomic and self-contained.
 - Keep leader responsibilities explicit: scope, strategy selection, join points, validation, and summary stay on the leader path.
-- Keep concrete execution on subagent lanes whenever possible. `subagent-blocked` is the last fallback, not the default path.
+- Keep concrete execution on subagent lanes whenever possible. `subagent-blocked` is the final blocked status after recovery options are exhausted, not the default path.
 - Quick-task state must be resumable from `STATUS.md` without depending on chat history.
