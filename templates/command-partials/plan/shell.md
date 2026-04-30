@@ -28,3 +28,4 @@ Translate the approved specification package into explicit implementation design
 - Do not implement code, edit tests, or start execution from `sp-plan`.
 - Do not leave locked planning decisions implicit or scattered only in prose.
 - Do not trust stale navigation coverage when handbook/project-map context should be the source of truth.
+- Use anchorable section headings (`## Section Name`) in all output artifacts so that downstream task generation can produce precise `file#section` context pointers.
