@@ -20,17 +20,7 @@ scripts:
 
 {{spec-kit-include: ../command-partials/specify/shell.md}}
 
-## Mandatory Subagent Execution
-
-All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
-
-The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
-
-Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
-
-Use `execution_model: subagent-mandatory`.
-Use `dispatch_shape: one-subagent | parallel-subagents`.
-Use `execution_surface: native-subagents`.
+{{spec-kit-include: ../command-partials/common/subagent-execution.md}}
 
 
 ## Pre-Execution Checks
@@ -38,34 +28,7 @@ Use `execution_surface: native-subagents`.
 **Check for extension hooks (before specification)**:
 - Check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_specify` key.
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally.
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable.
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation.
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
-    ```
-    ## Extension Hooks
-
-    **Optional Pre-Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
-
-    Prompt: {prompt}
-    To execute: `/{command}`
-    ```
-  - **Mandatory hook** (`optional: false`):
-    ```
-    ## Extension Hooks
-
-    **Automatic Pre-Hook**: {extension}
-    Executing: `/{command}`
-    EXECUTE_COMMAND: {command}
-
-    Wait for the result of the hook command before proceeding to the Outline.
-    ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently.
+{{spec-kit-include: ../command-partials/common/extension-hooks-body.md}}
 
 **Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
 - Use `specify hook preflight --command specify --feature-dir "$FEATURE_DIR"` before deeper workflow execution so the shared product guardrail layer can block stale or invalid entry conditions.
@@ -481,24 +444,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - Do not turn this into a freeform brainstorming workflow.
     - each clarification turn should contain at most one short checkpoint or one grouped recap, plus one question block.
 
-17. Apply a current-understanding or confirmation gate before release.
-    - Before releasing `Aligned: ready for plan`, provide a grouped recap that covers goal, users and roles, scope boundaries, locked decisions, technical constraints or assumptions, and outstanding questions.
-    - Explicitly ask the user to confirm or correct the current understanding before `Aligned: ready for plan`.
-    - Treat this as an explicit pre-release check rather than a courtesy recap.
-    - If the user corrects the recap, update the active understanding and continue clarification.
-    - If planning-critical gaps remain after the recap, do not release `Aligned: ready for plan`.
-
-18. Apply a release readiness gate.
-    - If the requirement package has enough clarity to plan safely inside `sp-specify`, release `Aligned: ready for plan`.
-    - If common docs/config/process-change flows or bounded feature work can reach planning-ready alignment inside `sp-specify`, do so without needing `/sp.clarify`.
-    - If planning-critical gaps remain but the spec package is still salvageable, recommend `/sp.clarify` as the next command instead of `/sp.plan`.
-    - If the requirements are clear but a planning-critical implementation chain remains unproven, recommend `/sp.deep-research` as the next command instead of `/sp.plan`.
-    - Only use `Force proceed with known risks` when the user accepts that unresolved planning risk will be carried into downstream work.
-    - Make the closeout explicit: if ambiguity remains, ask whether the user wants to continue exploring or move to the next step with the documented risks.
-    - Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions in place of concrete behavior, boundary handling, compatibility impact, or acceptance proof.
-    - Do not release `Aligned: ready for plan` for a cross-boundary or event-driven feature when the trigger source, contract identifiers, lifecycle/retention, failure path, or configuration semantics are still fuzzy.
-
-    Use this open question block structure in the user's current language when rendering the textual fallback block:
+    Use this fallback open question block structure when the native structured question tool is unavailable:
 
     ```text
     Stage header
@@ -527,6 +473,22 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
     Reply naturally, for example: "A", "选 C", "我选推荐项"
     ```
+
+17. Final Validation & Release.
+    This single gate replaces the old multi-step release sequence. Complete all three sub-checks before reporting completion.
+
+    **A. Artifact Self-Review**: Review the written `spec.md`, `alignment.md`, and `context.md` for:
+    - placeholders, TODOs, or `[NEEDS CLARIFICATION]` markers
+    - contradictions or capability drift between artifacts
+    - missing capability checkpoints or weak acceptance proof
+    - requirement-vs-implementation language drift
+    - If the selected strategy supports collaboration and the workload justified it, use one read-only reviewer lane to inspect the draft artifact set for the same failure modes.
+    - If planning-critical issues are found, revise current artifacts, re-run validation (Step 25), and repeat this self-review.
+
+    **B. User Confirmation**: Present a grouped recap covering goal, users and roles, scope boundaries, locked decisions, technical constraints, and outstanding questions.
+    - Explicitly ask the user to confirm or correct the current understanding.
+    - If the user corrects the recap, update the active understanding and continue clarification.
+    - If planning-critical gaps remain after the recap, do not release.
 
     Use this grouped recap structure in the user's current language:
 
@@ -559,30 +521,18 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - [Open question / confirmation still needed]
     ```
 
-19. Alignment decision gate.
-    Decide exactly one:
-    - `Aligned: ready for plan`
-      Use only when:
-      - mandatory clarity gates are sufficiently resolved
-      - the whole-feature analysis is complete
-      - capability decomposition is bounded enough to plan
-      - no unresolved high-impact ambiguity remains
-      - the spec can be written as a bounded, testable document
-      - no `[NEEDS CLARIFICATION]` markers are needed
-    - `Force proceed with known risks`
-      Use only when:
-      - unresolved high-impact ambiguity remains
-      - the user explicitly chooses to continue anyway
+    **C. Release Decision**: Decide exactly one:
+    - `Aligned: ready for plan` — use when: mandatory clarity gates are resolved, capability decomposition is bounded, no unresolved high-impact ambiguity remains, no `[NEEDS CLARIFICATION]` markers exist, the spec can be planned and tested coherently.
+    - `Force proceed with known risks` — use only when the user explicitly accepts that unresolved planning risk will be carried into downstream work.
+    - If neither condition is met, continue clarification.
 
-    Before `Aligned: ready for plan`, run a current-understanding or confirmation gate.
-    - Present the grouped current understanding as an explicit pre-release check.
-    - Ask the user to confirm or correct the current understanding before `Aligned: ready for plan`.
-    - common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify` when this gate passes and no planning-critical ambiguity remains.
-    - keep this path inside `sp-specify`, without needing `/sp.clarify`.
+    After the release decision is made, ask the user to review the written artifact set and make the next path explicit:
+    - proceed to `/sp.plan`
+    - revise current artifacts
+    - continue analysis with `/sp.clarify`
+    - prove feasibility with `/sp.deep-research`
 
-    If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, keep the workflow in clarification until it is resolved or the user explicitly chooses `Force proceed with known risks`.
-
-    If neither condition is met, continue clarification.
+    Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions. Do not release for cross-boundary or event-driven features when trigger source, contract identifiers, lifecycle/retention, failure path, or configuration semantics are still fuzzy.
 
 20. Write `spec.md` to `SPEC_FILE` using the template structure.
     Requirements:
@@ -702,23 +652,7 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
 
 25. Re-run validation after edits. Normal completion must pass all required checks.
 
-26. Run an artifact review gate before handoff.
-    - Review the written artifact set before handoff, not just the conversational understanding.
-    - Run a self-review across `spec.md`, `alignment.md`, and `context.md` for:
-      - placeholders/TODOs
-      - contradictions or capability drift
-      - missing capability checkpoints
-      - weak acceptance proof
-      - requirement-vs-implementation drift
-    - If the selected strategy supports collaboration and the workload justified it, use one read-only reviewer lane to inspect the draft artifact set for the same failure modes.
-    - If the review finds planning-critical issues, revise current artifacts, re-run validation, and repeat the artifact review gate.
-    - Ask the user to review the written artifact set before handoff and make the next path explicit:
-      - proceed to `/sp.plan`
-      - revise current artifacts
-      - continue analysis with `/sp.clarify`
-      - prove feasibility with `/sp.deep-research`
-    - If the user requests changes, update the artifact set, re-run validation, and repeat the artifact review gate.
-    - Do not present `/sp.plan` as ready until the written artifact set passes this gate.
+26. Re-run the Final Validation & Release self-review (Step 17A) if artifacts were edited. Normal completion must pass all required checks.
 
 27. Report completion with:
     - branch name

@@ -3,7 +3,7 @@ description: Use when the current specification package is ready for implementat
 workflow_contract:
   when_to_use: The current spec package is ready for design work, but implementation should not start until explicit planning artifacts exist.
   primary_objective: Produce the planning artifact set that turns specification intent into an implementation-ready architecture and execution approach.
-  primary_outputs: '`plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, and `workflow-state.md` under the active `FEATURE_DIR`.'
+  primary_outputs: '`plan.md`, `research.md`, `quickstart.md`, and `workflow-state.md` under the active `FEATURE_DIR`, plus `data-model.md` and `contracts/` when the feature scope demands them.'
   default_handoff: /sp-tasks for decomposition, optionally /sp-checklist for quality checks on the resulting plan package.
 handoffs:
   - label: Create Tasks
@@ -23,17 +23,7 @@ agent_scripts:
 
 {{spec-kit-include: ../command-partials/plan/shell.md}}
 
-## Mandatory Subagent Execution
-
-All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
-
-The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
-
-Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
-
-Use `execution_model: subagent-mandatory`.
-Use `dispatch_shape: one-subagent | parallel-subagents`.
-Use `execution_surface: native-subagents`.
+{{spec-kit-include: ../command-partials/common/subagent-execution.md}}
 
 
 ## Pre-Execution Checks
@@ -41,34 +31,7 @@ Use `execution_surface: native-subagents`.
 **Check for extension hooks (before planning)**:
 - Check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_plan` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
-    ```
-    ## Extension Hooks
-
-    **Optional Pre-Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
-
-    Prompt: {prompt}
-    To execute: `/{command}`
-    ```
-  - **Mandatory hook** (`optional: false`):
-    ```
-    ## Extension Hooks
-
-    **Automatic Pre-Hook**: {extension}
-    Executing: `/{command}`
-    EXECUTE_COMMAND: {command}
-
-    Wait for the result of the hook command before proceeding to the Outline.
-    ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+{{spec-kit-include: ../command-partials/common/extension-hooks-body.md}}
 
 **Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
 - Use `specify hook preflight --command plan --feature-dir "$FEATURE_DIR"` before deeper planning execution so stale brownfield routing or invalid workflow entry is caught by the shared product guardrail layer.
@@ -245,32 +208,7 @@ Use `execution_surface: native-subagents`.
 
 8. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_plan` key
-   - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
-   - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-   - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-     - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-     - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-   - For each executable hook, output the following based on its `optional` flag:
-     - **Optional hook** (`optional: true`):
-       ```
-       ## Extension Hooks
-
-       **Optional Hook**: {extension}
-       Command: `/{command}`
-       Description: {description}
-
-       Prompt: {prompt}
-       To execute: `/{command}`
-       ```
-     - **Mandatory hook** (`optional: false`):
-       ```
-       ## Extension Hooks
-
-       **Automatic Hook**: {extension}
-       Executing: `/{command}`
-       EXECUTE_COMMAND: {command}
-       ```
-   - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+{{spec-kit-include: ../command-partials/common/extension-hooks-after-body.md}}
 
 ## Phases
 
@@ -313,11 +251,12 @@ Use `execution_surface: native-subagents`.
 
 **Prerequisites:** `research.md` complete
 
-1. Extract entities from the feature spec -> `data-model.md`
-2. Define interface contracts if the project exposes external interfaces -> `contracts/`
-3. Run `{AGENT_SCRIPT}` to update agent-specific context
+1. **Conditional: `data-model.md`** — Required only when the spec introduces new entities, data structures, state transitions, or persistence concerns. For pure logic changes, bug fixes, or config-only work, skip and note the reason in plan.md.
+2. **Conditional: `contracts/`** — Required only when the feature defines new external interfaces, APIs, cross-service contracts, or protocol boundaries. For internal-only changes, skip and note the reason.
+3. **`quickstart.md`** — Generate for every feature. Keep it focused on the smallest integration scenario that validates the feature works end-to-end.
+4. Run `{AGENT_SCRIPT}` to update agent-specific context.
 
-**Output**: `data-model.md`, `contracts/*`, `quickstart.md`, agent-specific file
+**Output**: `research.md` (required), `quickstart.md` (required), plus `data-model.md` and `contracts/*` when the feature scope demands them. Note skipped conditional artifacts in plan.md.
 
 ## Input Risks From Alignment
 
