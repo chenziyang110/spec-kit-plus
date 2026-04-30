@@ -189,6 +189,12 @@ Use `execution_surface: native-subagents`.
    - `.specify/memory/project-learnings.md` if present
    - `PROJECT-HANDBOOK.md` if present
    - the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`
+   - From `FEATURE_DIR/alignment.md`, extract:
+     - `Feasibility / Deep Research Gate` status per capability
+     - `Planning Gate Recommendation`
+     - Capabilities marked `Needed before plan` → these are the research targets
+     - Capabilities marked `Not needed` or `Completed` → skip, do not research
+     - Capabilities marked `Blocked` → preserve blocker, record reason, do not research unless unblocked
    - targeted live files only when the handbook/project-map cannot prove the current implementation pattern
    - external docs, API references, release notes, examples, or research material when they materially affect feasibility
 
@@ -198,11 +204,23 @@ Use `execution_surface: native-subagents`.
    - Continue when any capability depends on an unproven API, library, algorithm, platform behavior, data volume, permission boundary, external integration, performance envelope, generated-code workflow, native/plugin bridge, or other path where planning would otherwise guess.
    - If the uncertainty is a requirement gap rather than feasibility risk, recommend `/sp.clarify` and update `workflow-state.md` with that route reason.
 
-5. **Build a capability feasibility matrix**:
+5. **Build a capability feasibility matrix from the spec's capability decomposition**:
+   - Start from the capability list in `spec.md`. Each spec capability maps to one CAP-###.
+   - Do not invent new capability names; use the spec's decomposition as the source of truth.
+   - If a spec capability is too broad for focused research, split it into sub-capabilities (CAP-001a, CAP-001b) and note the split in `alignment.md`.
+   - For each capability, read its feasibility status from `alignment.md` and take action:
+
+   | Alignment Status | Action |
+   |-----------------|--------|
+   | `Needed before plan` | Create research track, assign TRK-### |
+   | `Not needed` | Mark `proven` or `not needed`, skip |
+   | `Completed` | Preserve existing evidence, skip |
+   | `Blocked` | Record blocker, do not research |
+
    For each capability or module slice, record:
-   - stable capability ID (`CAP-###`)
-   - capability name
-   - desired outcome
+   - stable capability ID (`CAP-###`) — mapped from spec capability name
+   - capability name (from spec.md)
+   - desired outcome (from spec.md)
    - current evidence from the repository
    - unknown implementation-chain link
    - research questions
@@ -210,6 +228,18 @@ Use `execution_surface: native-subagents`.
    - whether a disposable demo is required
    - proof target: what evidence would be enough to plan safely
    - result status: `proven`, `constrained`, `not viable`, `blocked`, or `not needed`
+
+   Before finalizing the matrix, check each CAP against the preset research dimensions.
+   At minimum, confirm or mark "not applicable" for:
+   - permissions / auth boundary
+   - data volume / performance envelope
+   - error / exception / rollback flow
+   - concurrency / consistency
+   - logging / observability
+   - migration / compatibility
+   - external dependency SLO / failure mode
+   - template / generated-code propagation
+   - minimum verifiable test path
 
 6. **Select the research dispatch shape**:
    - [AGENT] Before research fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="deep-research", snapshot, workload_shape)`.
@@ -412,11 +442,33 @@ Use `execution_surface: native-subagents`.
    - **Decisions already proven by research**:
      - PH-### -> [decision; trace to CAP/TRK/EVD/SPK IDs]
 
+   ## Capability Cards
+
+   For each high-value or planning-critical capability, emit a capability card:
+
+   ### CAP-001: [Capability Name]
+
+   | Field | Detail |
+   |-------|--------|
+   | **Purpose** | [What this capability achieves] |
+   | **Owner** | [Owning module / service / surface] |
+   | **Truth lives** | [Code path, data table, config, or external service] |
+   | **Entry points** | [CLI command, API route, event handler, hook] |
+   | **Downstream consumers** | [What depends on this capability] |
+   | **Extend here** | [Safe extension points] |
+   | **Do not extend here** | [Fragile or contract-locked areas] |
+   | **Key contracts** | [Input shape, output shape, side effects, invariants] |
+   | **Change propagation** | [What breaks when this changes] |
+   | **Minimum verification** | [Command or check that proves this works] |
+   | **Failure modes** | [Known ways this can fail] |
+   | **Confidence** | [Verified / Inferred / Unknown-Stale] |
+
    ## Planning Traceability Index
 
-   | Handoff ID | Plan Consumer | Supported By | Evidence Quality | Required Plan Action |
-   | --- | --- | --- | --- | --- |
-   | PH-001 | [architecture / module boundary / data model / validation / risk] | CAP-001, TRK-001, EVD-001, SPK-001 | [highest relevant confidence and plan impact] | [what `/sp.plan` must include] |
+   | PH ID | CAP ID | TRK ID | Evidence IDs | Evidence Quality | Plan Consumer | Required Plan Action | Mandatory? |
+   |-------|--------|--------|-------------|-------------------|---------------|----------------------|------------|
+   | PH-001 | CAP-001 | TRK-001 | EVD-001, SPK-001 | HIGH / blocking | architecture | Use pattern X | mandatory |
+   | PH-002 | CAP-001 | TRK-002 | EVD-003 | MEDIUM / constraining | data-model | Consider limit Y | optional |
 
    ## Sources
 
