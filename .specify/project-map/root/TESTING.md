@@ -36,7 +36,7 @@
 - `tests/hooks/`: hook event behavior and guardrails.
 - `tests/orchestration/`: subagents-first dispatch policy, scheduling, state store, review loop.
 - `tests/codex_team/`: team runtime state, dispatch, sync-back, watch, doctor, API surface.
-- Generated-surface tests should assert `subagents-first`, `one-subagent`, `parallel-subagents`, `leader-inline-fallback`, `native-subagents`, `managed-team`, and `leader-inline` where active workflow guidance describes execution dispatch.
+- Generated-surface tests should assert `subagent-mandatory`, `one-subagent`, `parallel-subagents`, `subagent-blocked`, and `native-subagents` where active workflow guidance describes execution dispatch.
 
 ## Build, Runtime, and Recovery Verification
 

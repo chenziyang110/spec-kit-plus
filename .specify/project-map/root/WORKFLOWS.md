@@ -90,11 +90,11 @@ Durable testing artifacts live under `.specify/testing/` when generated:
 - Project-map status can be `missing`, `fresh`, `possibly_stale`, or `stale`.
 - Dirty status overrides git-diff-based freshness and maps reasons to affected topics.
 - Uncommitted canonical atlas file changes are still considered changed by freshness inspection until committed, even after a complete-refresh writes fresh status metadata.
-- Execution-oriented workflows record `execution_model: subagents-first`.
-- Dispatch shape is `one-subagent`, `parallel-subagents`, or `leader-inline-fallback`.
-- Execution surface is `native-subagents`, `managed-team`, or `leader-inline`.
-- `managed-team` is reserved for durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst.
-- `leader-inline-fallback` requires a recorded reason before local execution.
+- Execution-oriented workflows record `execution_model: subagent-mandatory`.
+- Dispatch shape is `one-subagent`, `parallel-subagents`, or `subagent-blocked`.
+- Execution surface is `native-subagents`.
+- `sp-teams` is reserved for durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst.
+- `subagent-blocked` requires a recorded reason before stopping for escalation or recovery.
 
 ## Failure and Recovery Flows
 
@@ -108,7 +108,7 @@ Durable testing artifacts live under `.specify/testing/` when generated:
 
 1. Initialize a project with one integration.
 2. Generate specs/plans/tasks through shared workflow contracts.
-3. Implement through leader + subagents by default, with `leader-inline-fallback` only when delegation is unavailable, unsafe, or not packetized.
+3. Implement through leader + subagents by default, with `subagent-blocked` only when delegation is unavailable, unsafe, low-confidence, or not packetized.
 4. Keep atlas/testing/learning state fresh as repository truth changes.
 5. Verify generated surfaces and packaging before release.
 

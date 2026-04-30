@@ -35,14 +35,13 @@ def _assert_contains_any(text: str, *needles: str) -> None:
 def _assert_subagent_dispatch_contract(text: str, command_name: str) -> None:
     assert f'choose_subagent_dispatch(command_name="{command_name}"' in text
     lowered = text.lower()
-    assert "execution_model: subagents-first" in lowered
-    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in lowered
-    assert "execution_surface: native-subagents | managed-team | leader-inline" in lowered
+    assert "execution_model: subagent-mandatory" in lowered
+    assert "dispatch_shape: one-subagent | parallel-subagents" in lowered
+    assert "execution_surface: native-subagents" in lowered
     assert "one-subagent" in lowered
     assert "parallel-subagents" in lowered
-    assert "leader-inline-fallback" in lowered
+    assert "subagent-blocked" in lowered
     assert "native-subagents" in lowered
-    assert "managed-team" in lowered
 
 
 def test_core_sp_templates_use_learning_review_hooks():
@@ -509,7 +508,7 @@ def test_explain_template_documents_conservative_routing_contract():
 
     assert ".specify/memory/constitution.md" in content
     _assert_subagent_dispatch_contract(content, "explain")
-    assert "default to leader explanation" in lowered
+    assert "leader may render the explanation directly" in lowered
     assert "primary artifact reading" in lowered
     assert "supporting artifact cross-check" in lowered
     assert "before rendering the final explanation" in lowered
@@ -775,7 +774,7 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
 
     assert "closing planning-critical gaps" in lowered
     assert "`FEATURE_DIR/context.md` if present" in content
-    assert "- update `context.md`" in content
+    assert "The subagent updates `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` as needed." in content
     assert "Existing Code Insights" in content
     assert "unresolved gray areas that still change plan structure" in lowered
     assert "missing locked decisions, canonical references, or deferred-scope notes" in lowered
@@ -1015,17 +1014,17 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "failed assumption" in lowered
     assert "smallest safe recovery step" in lowered
     assert "subagent dispatch" in lowered
-    assert "execution_model: subagents-first" in lowered
+    assert "execution_model: subagent-mandatory" in lowered
     assert "one-subagent" in lowered
     assert "parallel-subagents" in lowered
     assert "native-subagents" in lowered
     assert "delegation_confidence" in lowered
-    assert "low confidence -> `leader-inline-fallback`" in lowered
+    assert "low confidence -> `subagent-blocked`" in lowered
     assert "multiple safe validated packets" in lowered
     assert "no safe delegated lane" in lowered
     assert "one safe validated packet is ready" in lowered
     assert "multiple safe validated packets have isolated write sets" in lowered
-    assert "use `leader-inline-fallback` and record the fallback reason" in lowered
+    assert "`subagent-blocked` with a recorded reason" in lowered
     assert "run `/sp-map-scan` followed by `/sp-map-build` before final completion reporting" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
@@ -1038,12 +1037,12 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     no_safe_batch = step_6.find("no safe delegated lane")
     one_subagent = step_6.find("one safe validated packet")
     parallel_subagents = step_6.find("multiple safe validated packets")
-    managed_team = step_6.find("managed-team")
+    subagent_blocked = step_6.find("subagent-blocked")
 
     assert no_safe_batch != -1
     assert one_subagent != -1
     assert parallel_subagents != -1
-    assert managed_team != -1
+    assert subagent_blocked != -1
     assert no_safe_batch < one_subagent < parallel_subagents
 
 
@@ -1051,14 +1050,14 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
 
-    assert "## Leader Role" in content
-    assert "you are the implementation leader for this run" in lowered
-    assert "you are not the default implementer for the current batch" in lowered
-    assert "use `execution_model: subagents-first` for ready implementation batches" in lowered
+    assert "## Orchestration Model" in content
+    assert "leader and orchestrator" in lowered
+    assert "not the concrete implementer" in lowered
+    assert "use `execution_model: subagent-mandatory` for ready implementation batches" in lowered
     assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in lowered
     assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in lowered
-    assert "prefer `execution_surface: native-subagents`" in lowered
-    assert "record the reason in `implement-tracker.md`" in lowered
+    assert "use `execution_surface: native-subagents`" in lowered
+    assert "record the blocker in `implement-tracker.md`" in lowered
     assert "invoking runtime acts as the leader" in lowered
     assert "subagent execution" in lowered
     assert "next executable phase" in lowered

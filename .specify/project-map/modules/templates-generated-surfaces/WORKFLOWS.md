@@ -14,20 +14,20 @@
 
 ## Main Flows
 
-### Subagents-First Execution Guidance
+### Mandatory Subagent Execution Guidance
 
 Execution-oriented generated workflows teach a leader + subagents model:
 
-- `execution_model: subagents-first`
-- `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`
-- `execution_surface: native-subagents | managed-team | leader-inline`
+- `execution_model: subagent-mandatory`
+- `dispatch_shape: one-subagent | parallel-subagents | subagent-blocked`
+- `execution_surface: native-subagents`
 
 `one-subagent` is valid when one bounded delegated lane is safe and packetized.
 `parallel-subagents` is used for independent lanes with isolated write sets.
-`managed-team` is reserved for durable team state, explicit join-point tracking,
+`subagent-blocked` is a recorded blocked state when native subagent dispatch is unavailable,
+unsafe, low-confidence, or not packetized.
+`sp-teams` remains the separate durable orchestration surface for explicit team state,
 result files, or lifecycle control beyond one in-session subagent burst.
-`leader-inline-fallback` is a recorded exception path, not the default execution
-shape.
 
 ### Template Generation
 

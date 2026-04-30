@@ -295,17 +295,17 @@ Task: "Create [Entity2] model in src/models/[entity2].py"
 
 ### Current Ready Batch Dispatch
 
-- Record the subagents-first dispatch decision for the **next executable batch only**:
-  - `execution_model: subagents-first`
-  - `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`
-  - `execution_surface: native-subagents | managed-team | leader-inline`
+- Record the mandatory subagent dispatch decision for the **next executable batch only**:
+  - `execution_model: subagent-mandatory`
+  - `dispatch_shape: one-subagent | parallel-subagents | subagent-blocked`
+  - `execution_surface: native-subagents`
 - Also record the policy reason code, for example:
   - `safe-one-subagent`
   - `safe-parallel-subagents`
-  - `managed-team-supported`
   - `no-safe-delegated-lane`
   - `packet-not-ready`
   - `runtime-no-subagents`
+  - `low-delegation-confidence`
 - If later batches are parallelizable but the current batch is not, say that explicitly instead of implying the whole feature has no parallelism.
 
 ### First Release Candidate
