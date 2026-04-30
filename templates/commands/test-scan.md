@@ -69,7 +69,7 @@ Use `execution_surface: native-subagents`.
 2. **Run the canonical inventory seed**
    - Run `specify testing inventory --format json` from the repository root.
    - Treat the command output as the seed inventory for `module_root`, `module_name`, `module_kind`, `language`, `manifest_path`, `selected_skill`, `framework`, `framework_confidence`, `canonical_test_path`, `canonical_test_command`, `coverage_command`, `state`, and `classification_reason`.
-   - If the command returns no modules, fall back to direct repository inspection and record the gap explicitly.
+   - If the command returns no modules, record the inventory gap, create a safe read-only recovery scan lane when one can be packetized, or stop with `subagent-blocked` for escalation instead of inventing fake module boundaries.
    - Record the raw inventory source and initial module list in `TESTING_STATE_FILE`.
 
 3. **Select scan depth and module priority**

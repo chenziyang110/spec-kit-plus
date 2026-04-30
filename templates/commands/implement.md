@@ -326,7 +326,7 @@ human_needed_checks:
       - If overlapping write sets, no safe delegated lane, missing packet, unavailable runtime, or low confidence -> `subagent-blocked` with a recorded reason.
       - If one safe validated packet is ready and native subagents are available -> `one-subagent` on `native-subagents`.
       - If multiple safe validated packets have isolated write sets and native subagents are available -> `parallel-subagents` on `native-subagents`.
-      - If native subagents are unavailable -> `subagent-blocked` with a recorded reason; durable team orchestration is a separate workflow surface reserved for durable team state, not an ordinary implement fallback.
+      - If native subagents are unavailable -> `subagent-blocked` with a recorded reason; durable orchestration is a separate workflow surface reserved for durable team state, not an ordinary implement recovery path.
    - For implementation work, prefer subagent execution only when the lane already has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader quality.
    - If that subagent-readiness bar is not met, do not dispatch a low-context lane just to satisfy a routing preference; compile the missing packet contract first, then dispatch or mark the batch `subagent-blocked`.
    - If subagent dispatch is unavailable or low-confidence for the current batch, use `subagent-blocked`, record the blocker in `implement-tracker.md`, and stop before substantive implementation until the blocker is resolved or explicitly escalated.
@@ -388,7 +388,7 @@ human_needed_checks:
    - Blocked subagent results must include a concrete blocker summary, the failed assumption or dependency, and the smallest safe recovery step before the leader accepts the result.
    - Persist completed work, failed work, blocker evidence, `retry_attempts`, `recovery_action`, and `next_action` in `implement-tracker.md` as soon as they change
    - Before declaring the feature blocked, attempt the smallest safe recovery step that matches the evidence:
-     - read the most relevant local implementation context for the failing area
+     - read the nearest implementation context for the failing area
      - run the smallest meaningful repro, failing test, or validation command
      - inspect immediate logs or error output
      - make one focused repair attempt when the evidence is clear

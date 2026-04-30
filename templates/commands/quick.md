@@ -118,7 +118,7 @@ The following flags are available and composable:
 - `--validate`: Add plan checking and post-execution verification.
 - `--full`: Equivalent to `--discuss --research --validate`.
 
-## Leader Execution Model
+## Coordinator Model
 
 - The invoking runtime is the leader for the quick task. It owns scope decisions, the lightweight plan, execution strategy selection, join-point handling, validation, and the final summary artifact.
 - The leader should not blur planning, execution, and validation into a long conversational loop when the task can be dispatched through a bounded subagent.
@@ -411,6 +411,6 @@ resume_decision: [resume here | blocked waiting | resolved]
 - Keep quick-task tracking under `.planning/quick/`.
 - Preserve a lightweight planning and validation path rather than skipping discipline entirely.
 - Keep quick tasks atomic and self-contained.
-- Keep leader responsibilities explicit: scope, strategy selection, join points, validation, and summary stay on the leader path.
+- Keep leader responsibilities explicit: the leader owns scope, strategy selection, join points, validation, and summary while substantive task work remains packetized for subagent lanes.
 - Keep concrete execution on subagent lanes whenever possible. `subagent-blocked` is the final blocked status after recovery options are exhausted, not the default path.
 - Quick-task state must be resumable from `STATUS.md` without depending on chat history.

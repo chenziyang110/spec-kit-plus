@@ -103,7 +103,7 @@ Use `execution_surface: native-subagents`.
   - data shape, migration, permission, performance, or integration constraints
   - alternative approach comparison
   - disposable demo/spike validation
-- [AGENT] Dispatch subagents when independent tracks can run in parallel and that materially improves evidence quality or speed. Keep work local when the next coordinator decision is blocked on a single tightly coupled fact.
+- [AGENT] Dispatch subagents when independent tracks can run in parallel and that materially improves evidence quality or speed. When the next coordinator decision is blocked on a single tightly coupled fact, either create one safe packetized evidence lane for that fact or stop for escalation/recovery with the blocker recorded.
 - [AGENT] Give each subagent one bounded track, one expected output shape, and one write scope. Research-only subagents should return evidence packets in their final response. Demo/spike subagents may write only under `FEATURE_DIR/research-spikes/<track-slug>/`.
 - [AGENT] Do not duplicate work across subagents. If two tracks overlap, assign one owner and ask the other to focus on a distinct risk or alternative.
 - [AGENT] Require every subagent to return an evidence packet with:

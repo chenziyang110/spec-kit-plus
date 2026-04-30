@@ -146,7 +146,7 @@ Use `execution_surface: native-subagents`.
      - `coverage_command`
      - `state`
      - `classification_reason`
-   - If the command returns no modules, fall back to direct repository inspection and record the gap explicitly instead of inventing fake module boundaries.
+   - If the command returns no modules, record the inventory gap, create a safe read-only recovery scan lane when one can be packetized, or stop with `subagent-blocked` for escalation instead of inventing fake module boundaries.
    - Record the inventory in `TESTING_STATE_FILE`.
 
 4. **Choose the run mode**

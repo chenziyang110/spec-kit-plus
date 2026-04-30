@@ -142,23 +142,33 @@ def test_ordinary_templates_do_not_record_subagent_blocks_as_fallbacks() -> None
 
 
 def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> None:
-    forbidden_by_command = {
-        "test-build": (
-            "before doing local implementation",
-            "local implementation",
-        ),
-        "implement": (
-            "only discuss a fallback after dispatch has concretely failed",
-            "discuss a fallback",
-        ),
-        "tasks": (
-            "keep the review gate on the leader path",
-            "leader path",
-        ),
-    }
+    forbidden_phrases = (
+        "before doing local implementation",
+        "local implementation",
+        "keep work local",
+        "work local",
+        "direct repository inspection",
+        "direct leader",
+        "leader execution",
+        "leader-inline",
+        "managed-team",
+        "sp-teams",
+        "only discuss a fallback after dispatch has concretely failed",
+        "discuss a fallback",
+        "keep the review gate on the leader path",
+        "leader path",
+        "keep it leader path",
+        "keep the lane on the leader path",
+        "keep it on the leader path",
+        "keep the lane on leader path",
+        "keep the batch on the leader path",
+    )
 
-    for command_name, forbidden_phrases in forbidden_by_command.items():
+    for command_name in ORDINARY_COMMANDS:
         content = _read_command(command_name).lower()
 
         for phrase in forbidden_phrases:
             assert phrase not in content, f"{command_name}: {phrase}"
+
+    for team_command in TEAM_COMMANDS:
+        assert (PROJECT_ROOT / "templates" / "commands" / f"{team_command}.md").exists()

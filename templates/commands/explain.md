@@ -61,7 +61,7 @@ Goal: Read the current stage artifact or atlas artifact and explain it in plain 
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - If repository inspection, artifact reading beyond already-provided context, or evidence cross-checking is needed, dispatch a bounded subagent lane before final explanation.
    - If the artifact is fully provided in the current prompt and no repository inspection is needed, the leader may render the explanation directly because no substantive repository task is being executed.
-   - If required subagent dispatch is unavailable, record `subagent-blocked` and stop with the missing capability or packet requirement instead of treating leader execution as the ordinary path.
+   - If required subagent dispatch is unavailable, record `subagent-blocked` and stop with the missing capability or packet requirement instead of treating coordinator-authored substantive work as the ordinary path.
    - If collaboration is justified, keep `explain` lanes limited to:
      - primary artifact reading
      - supporting artifact cross-check
@@ -99,7 +99,7 @@ The explanation must remain stage-aware:
 ## Rules
 
 - Keep the explanation grounded in the actual artifact on disk.
-- Use subagent lanes for explanation work that needs repository inspection or artifact cross-checking; direct leader rendering is limited to fully supplied prompt context with no substantive repository task.
+- Use subagent lanes for explanation work that needs repository inspection or artifact cross-checking; leader synthesis is limited to fully supplied prompt context with no substantive repository task.
 - If a supporting cross-check lane is used, converge back to one final render step before presenting the explanation.
 - Use the user's current language for user-visible output unless literal command names, file paths, or fixed status values must remain unchanged.
 - Prefer clarity over jargon.
