@@ -154,6 +154,10 @@ class MarkdownIntegrationTests:
         assert "native-multi-agent" in scan_content
         assert "native-multi-agent" in build_content
         assert "coverage-ledger" in scan_content
+        assert "map-state.md" in scan_content
+        assert "mapscanpacket" in scan_content
+        assert "mapbuildpacket" in build_content
+        assert "worker-results" in build_content
         assert "route back to `/sp-map-scan`" in build_content
 
     def test_implement_command_has_shared_leader_gate(self, tmp_path):

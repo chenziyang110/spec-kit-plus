@@ -1,25 +1,88 @@
 ---
-description: "Use when executing implementation plans, working on independent tasks, or when asked to dispatch subagents. Enforces the use of sp-tasks and sp-implement over manual subagent management."
+description: "Use when executing implementation plans, working on independent tasks, or when asked to dispatch subagents. Routes through sp-* workflows and dispatches native subagents from validated execution packets."
 ---
 
-# Task-Driven Execution (Spec Kit Plus)
+# Subagent-Driven Development (Spec Kit Plus)
 
-In the Spec Kit Plus ecosystem, we do not manually dispatch ad-hoc subagents for implementation. Instead, we rely on the formal `sp-tasks` and `sp-implement` workflows to maintain state, context isolation, and verification.
+Spec Kit Plus keeps workflow state in `sp-*` artifacts, but it should still use
+native subagents aggressively once the work is safely packetized. Subagents are
+not a competing workflow; they are the execution workers behind `sp-quick`,
+`sp-debug`, `sp-test-build`, `sp-map-scan`, `sp-map-build`, and `sp-implement`.
 
-## The Process
+## Core Rule
 
-1. **Task Generation (`sp-tasks`)**: If you have a plan but no discrete tasks, do not improvise. Use `sp-tasks` to break the plan down into independent, executable units within the `.specify/` state surface.
-2. **Task Execution (`sp-implement`)**: Once tasks are defined, use `sp-implement` to execute them. The `sp-implement` workflow is designed to provide the necessary context isolation and step-by-step verification that subagents would otherwise provide.
-3. **Verification**: Each `sp-implement` cycle naturally incorporates spec compliance and code quality reviews based on the project's explicit rules.
+Route first, packetize second, dispatch third.
+
+- Route into the smallest correct `sp-*` workflow before implementation or
+  investigation begins.
+- Compile and validate a `WorkerTaskPacket` or equivalent execution contract
+  before any subagent work begins.
+- Dispatch native subagents by default for independent bounded lanes when the
+  current runtime supports them.
+- `sp-teams` only when Codex work needs durable team state, explicit join-point
+  tracking, result files, or lifecycle control beyond one in-session subagent
+  burst.
+
+## Process
+
+1. **Select the owning workflow**: Use `sp-tasks` when a plan lacks executable
+   task packets. Use `sp-implement` for planned feature execution, `sp-quick`
+   for lightweight tracked work, `sp-debug` for root-cause work, and the
+   relevant map/test workflow for project-map or testing-system lanes.
+2. **Build the execution packet**: Every lane needs a validated
+   `WorkerTaskPacket` or equivalent with task text, relevant artifacts, write
+   set, shared surfaces, forbidden drift, acceptance checks, and verification
+   commands.
+3. **Dispatch in the current runtime**: Use native subagents such as Codex
+   `spawn_agent`, Claude Task, or the active CLI's equivalent. The leader owns
+   packet quality, lane selection, and integration, but should not implement the
+   lane locally while subagent execution is active.
+4. **Join on evidence**: Wait for every subagent's structured handoff. The
+   handoff must name changed files, verification run, failures, open risks, and
+   any spec or plan gaps. An idle or silent subagent is not completed work.
+5. **Review in order**: Run spec compliance review first. Run code quality
+   review after spec compliance passes. Then run the workflow's required
+   validation commands and update the tracker/state artifacts.
+
+## Dispatch Prompt Contract
+
+A subagent prompt must include:
+
+- The owning `sp-*` workflow and lane identifier.
+- The validated `WorkerTaskPacket` or equivalent packet summary.
+- Exact write set and paths the worker must not touch.
+- Source artifacts that are truth for the lane, including spec, plan, tasks,
+  workflow state, project-map entries, and memory rules when present.
+- Required RED/GREEN or diagnosis evidence.
+- Required structured handoff format.
+
+The leader must not dispatch from raw task text alone. If the packet is missing,
+ambiguous, or does not describe boundaries and verification, create or repair the
+packet before dispatch.
 
 ## Routing Rules
 
-- If the user asks to "execute the plan" or "start building" -> Route to `sp-implement` (or `sp-tasks` if tasks are not yet generated).
-- If the user asks to "dispatch an agent" for a specific task -> Route to `sp-fast`, `sp-quick`, or `sp-implement` depending on the scope.
-- **Do not** use `invoke_agent` or manually orchestrate subagents for code changes when an `sp-*` workflow applies.
+- If the user says "execute the plan", "start building", "implement tasks", or
+  equivalent, route to `sp-implement`, or to `sp-tasks` first if tasks are not
+  generated.
+- If the user asks to "dispatch agents", "split this up", or "run subagents",
+  route to the workflow that owns the state, then dispatch native subagents from
+  validated packets.
+- If the current workflow finds 2+ independent lanes, pair this skill with
+  `dispatching-parallel-agents`.
+- If the task is truly trivial and tightly coupled, `sp-fast` may stay inline.
+  Do not use "small" as a reason to skip routing for non-trivial work.
 
 ## Red Flags
 
-- Starting implementation without a finalized plan and tasks.
-- Trying to execute multiple complex tasks in a single unstructured session instead of using `sp-implement` iteratively.
-- Ignoring the `.specify/` state surface in favor of chat memory.
+- Doing leader-local implementation because the task looks "small" after an
+  `sp-quick`, `sp-debug`, or `sp-implement` route selected an executable lane.
+- Dispatching raw task text without a validated `WorkerTaskPacket`.
+- Asking the user to open separate terminals when native subagents are available
+  in the current runtime.
+- Treating an idle subagent as done work.
+- Accepting a handoff that lacks verification evidence or changed-file summary.
+- Skipping spec compliance review.
+- Running code quality review before spec compliance review.
+- Updating `tasks.md`, quick status, or workflow state as complete before the
+  structured handoff and validation evidence exist.

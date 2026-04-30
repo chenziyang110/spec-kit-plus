@@ -551,6 +551,12 @@ When adding new agents:
 - Use `clarify` only when an existing spec needs deeper analysis before planning.
 - Use `deep-research` only when requirements are clear but feasibility or the implementation chain must be proven before planning; its research findings, demo evidence, and Planning Handoff become inputs to `plan`.
 
+## Workflow Activation Discipline
+
+- If there is even a 1% chance an `sp-*` workflow or passive skill applies, route before any response or action, including a clarifying question, file read, shell command, repository inspection, code edit, test run, or summary.
+- Do not inspect first outside the workflow; repository inspection belongs inside the selected workflow.
+- Name the selected workflow or passive skill in one concise line, then continue under that contract.
+
 ## Brownfield Context Gate
 
 - `PROJECT-HANDBOOK.md` is the root navigation artifact.
@@ -574,6 +580,14 @@ When adding new agents:
 - Use `sp-test` as the compatibility router for project-level testing work.
 - Use `sp-test-scan` when testing-system coverage needs read-only evidence, risk tiering, module-by-module gap analysis, or build-ready lanes.
 - Use `sp-test-build` when scan-approved lanes should construct or refresh the unit testing system through leader/subagent execution.
+
+## Delegated Execution Defaults
+
+- Dispatch native subagents by default for independent, bounded lanes when parallel work materially improves speed, quality, or verification confidence.
+- Use a validated `WorkerTaskPacket` or equivalent execution contract before subagent work begins.
+- Do not dispatch from raw task text alone.
+- Wait for each subagent's structured handoff before integrating or marking work complete; idle status is not completion evidence.
+- Use `sp-teams` only when Codex work needs durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst.
 
 ## Artifact Priority
 

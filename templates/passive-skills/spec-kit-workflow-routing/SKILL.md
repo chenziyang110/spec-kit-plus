@@ -11,6 +11,19 @@ This passive skill exists to route ambiguous requests into the right active work
 instead of improvising a custom flow. Use it to route into the right active `sp-*` workflow
 before any complementary gate or learning layer runs.
 
+## Workflow Activation Discipline
+
+If there is even a 1% chance that a user request belongs to an `sp-*` workflow,
+route to the right workflow before any response or action. "Action" includes a
+clarifying question, file read, shell command, repository inspection, code edit,
+test run, or design summary.
+
+Do not first "take a quick look" outside the workflow. Repository inspection is
+part of the selected workflow, not a pre-routing exception. State the selected
+workflow or passive skill in one concise line, then continue under that contract.
+If the user already invoked the correct `sp-*` skill, treat this routing check as
+complete and proceed.
+
 ## Complementary Passive Skills
 
 - `spec-kit-project-map-gate` is the hard brownfield context gate. Workflow routing
@@ -57,6 +70,19 @@ before any complementary gate or learning layer runs.
 - Use `sp-explain` when the user needs a plain-language explanation of current
   artifacts or runtime state.
 
+## Subagent Routing
+
+- If a routed workflow discovers 2+ independent lanes, engage
+  `dispatching-parallel-agents` and `subagent-driven-development` instead of
+  silently collapsing the work into leader-local execution.
+- `sp-fast` is the main inline-only route; use it only when the work is trivial,
+  local, low risk, and does not benefit from parallel verification.
+- For `sp-quick`, `sp-debug`, `sp-test-build`, `sp-map-scan`, `sp-map-build`, and
+  `sp-implement`, native subagents are the default execution mechanism for
+  independent bounded lanes when the current runtime supports them.
+- Use `sp-teams` only when Codex work needs durable team state, explicit join-point
+  tracking, or lifecycle control beyond one in-session subagent burst.
+
 ## Behavioral Rules
 
 - Do not replace a matching `sp-*` workflow with ad hoc implementation.
@@ -67,3 +93,13 @@ before any complementary gate or learning layer runs.
 - Keep `sp-*` workflows as the visible daily surface. This passive skill should guide
   into them, not become a competing workflow.
 - If the user is already invoking the correct `sp-*` skill, do not redirect.
+
+## Red Flags
+
+- You are about to ask a clarifying question before selecting a workflow.
+- You are about to run a file read, search, or shell command before selecting a workflow.
+- The request mentions planning, debugging, implementation, tests, or code changes,
+  but no `sp-*` workflow has been named yet.
+- You are treating "small" as a reason to skip routing instead of checking `sp-fast`
+  or `sp-quick`.
+- You found independent lanes but have not considered native subagents.

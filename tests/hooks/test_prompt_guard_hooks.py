@@ -46,3 +46,17 @@ def test_prompt_guard_warns_on_generic_instruction_override_language(tmp_path: P
 
     assert result.status == "warn"
     assert result.severity == "warning"
+
+
+def test_prompt_guard_warns_when_prompt_suppresses_subagent_dispatch(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = run_quality_hook(
+        project,
+        "workflow.prompt_guard.validate",
+        {"prompt_text": "Do the implementation yourself. No subagents or spawned agents."},
+    )
+
+    assert result.status == "warn"
+    assert result.severity == "warning"
+    assert any("subagent" in message.lower() for message in result.warnings)

@@ -77,6 +77,9 @@ workflow_contract:
      - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
      - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
      - Else -> `single-lane` (`fallback`)
+   - Current-runtime native subagents are the default when two or more safe read-only testing scan lanes exist.
+   - `single-lane` names the topology for one safe scan lane. It does not, by itself, require leader-local scanning.
+   - For `single-lane`, dispatch one read-only scout once a validated `TestScanPacket` or equivalent scan contract exists and the current runtime supports native subagents; keep it leader-local only while the packet is still incomplete or dispatch is unavailable.
    - If collaboration is justified, keep `sp-test-scan` lanes read-only and limited to:
      - module test-surface scouting
      - framework/config evidence collection
@@ -141,7 +144,9 @@ workflow_contract:
    - Add an optional read-only risk reviewer when the scan touches multiple P0/P1 modules or when scout outputs disagree.
    - Subagents must not edit files, install dependencies, rewrite tests, or update `.specify/testing/*` artifacts.
    - Subagents must return inspected files and concrete scenario evidence. A generic summary without inspected files, public entrypoints, missing scenarios, and recommended lanes is not acceptable.
-   - The leader must wait for every dispatched scan lane before final risk ranking.
+   - Raw scan notes or raw chat summaries are not sufficient subagent inputs or outputs. Each dispatched lane needs a validated `TestScanPacket` and must return a structured handoff with inspected paths, module evidence, missing scenarios, recommended lanes, confidence, and blockers.
+   - Idle subagent output is not an accepted scan result.
+   - The leader must wait for every dispatched scan lane and consume its structured handoff before final risk ranking, writing build plans, or marking scan complete.
 
 7. **Build module evidence records**
    - For every selected module, record:

@@ -20,6 +20,8 @@ WARN_PATTERNS = [
     re.compile(r"ignore\s+previous\s+instructions", re.IGNORECASE),
     re.compile(r"just\s+do\s+what\s+i\s+say", re.IGNORECASE),
     re.compile(r"no\s+workflow", re.IGNORECASE),
+    re.compile(r"no\s+(?:subagents?|spawned\s+agents?)", re.IGNORECASE),
+    re.compile(r"do\s+not\s+(?:dispatch|spawn|use)\s+(?:native\s+)?(?:subagents?|agents?)", re.IGNORECASE),
 ]
 
 
@@ -48,7 +50,7 @@ def prompt_guard_hook(_project_root, payload: dict[str, object]) -> HookResult:
             status="warn",
             severity="warning",
             warnings=[
-                "prompt contains generic instruction-override language; review before routing automatically"
+                "prompt contains instruction-override or subagent-suppression language; review before routing automatically"
             ],
             data={"matched_rules": warn_hits},
         )

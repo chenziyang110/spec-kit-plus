@@ -13,6 +13,17 @@ User-facing workflow skill:
 /sp-implement-teams
 ```
 
+## Team Bootstrap Gate
+
+This gate is mandatory and precedes all broad implementation-context recovery.
+
+1. After `{SCRIPT}` resolves `FEATURE_DIR` and confirms `tasks.md` exists, the first non-prerequisite action is creating or resuming the Claude Agent Team.
+2. Do not read `plan.md`, `tasks.md` beyond the minimum existence/status check, `PROJECT-HANDBOOK.md`, `.specify/project-map/*`, implementation files, or test files before this gate passes.
+3. Do not run validation, edit files, or inspect broad implementation context before this gate passes.
+4. If a Claude Agent Team for the same feature slug already exists, resume that team and inspect only its ledger and shared task list until the leader has confirmed the team state.
+5. If `TeamCreate`, team resume, shared task records, or native teammate launch is unavailable, stop and report that Claude Agent Teams is unavailable for this `/sp-implement-teams` run.
+6. Do not fall back to `/sp-implement`, ordinary subagents, ordinary `Agent` tool calls, or leader-local implementation from this gate.
+
 ## Boundary
 
 1. Claude-only

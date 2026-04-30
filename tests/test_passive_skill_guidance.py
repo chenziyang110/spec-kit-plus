@@ -25,6 +25,42 @@ def test_workflow_routing_references_map_gate_and_project_learning_roles() -> No
     assert "recommended next step" in content or "continue without naming the exact workflow" in content
 
 
+def test_workflow_routing_forces_route_selection_before_any_action() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md").lower()
+
+    assert "1% chance" in content
+    assert "before any response or action" in content
+    assert "clarifying question" in content
+    assert "file read" in content
+    assert "shell command" in content
+    assert "red flags" in content
+
+
+def test_subagent_driven_development_prefers_native_dispatch_contract() -> None:
+    content = _read("templates/passive-skills/subagent-driven-development/SKILL.md").lower()
+
+    assert "native subagents" in content
+    assert "validated `workertaskpacket`" in content
+    assert "must not dispatch from raw task text" in content
+    assert "structured handoff" in content
+    assert "spec compliance review" in content
+    assert "code quality review" in content
+    assert "`sp-teams` only" in content
+    assert "we do not manually dispatch ad-hoc subagents" not in content
+
+
+def test_dispatching_parallel_agents_uses_current_runtime_before_external_sessions() -> None:
+    content = _read("templates/passive-skills/dispatching-parallel-agents/SKILL.md").lower()
+
+    assert "2+ independent lanes" in content
+    assert "current runtime" in content
+    assert "native subagents" in content
+    assert "write-set" in content
+    assert "structured handoff" in content
+    assert "separate terminal" in content
+    assert "advise the user to run multiple parallel instances" not in content
+
+
 def test_project_map_gate_references_routing_and_learning_roles() -> None:
     content = _read("templates/passive-skills/spec-kit-project-map-gate/SKILL.md").lower()
 

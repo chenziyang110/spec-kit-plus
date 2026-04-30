@@ -25,6 +25,7 @@ def test_layered_project_map_template_files_exist():
         "templates/project-map/index/atlas-index.json",
         "templates/project-map/index/modules.json",
         "templates/project-map/index/relations.json",
+        "templates/project-map/map-state-template.md",
         "templates/project-map/root/ARCHITECTURE.md",
         "templates/project-map/root/STRUCTURE.md",
         "templates/project-map/root/CONVENTIONS.md",

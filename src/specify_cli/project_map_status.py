@@ -192,7 +192,10 @@ def classify_changed_path(path: str) -> str:
     if lower in {
         ".specify/project-map/status.json",
         ".specify/project-map/index/status.json",
+        ".specify/project-map/map-state.md",
     }:
+        return "ignore"
+    if lower.startswith(".specify/project-map/worker-results/"):
         return "ignore"
     if lower in high_impact_exact:
         return "stale"

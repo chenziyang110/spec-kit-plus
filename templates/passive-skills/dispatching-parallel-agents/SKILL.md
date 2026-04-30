@@ -1,36 +1,73 @@
 ---
-description: "Use when facing multiple independent test failures, bugs, or tasks that can be worked on without shared state. Guides parallelization into the sp-* CLI workflows."
+description: "Use when facing 2+ independent test failures, bugs, research questions, map lanes, or implementation tasks that can run without shared write state. Dispatch native subagents through the owning sp-* workflow."
 ---
 
-# Parallel Execution (Spec Kit Plus)
+# Dispatching Parallel Agents (Spec Kit Plus)
 
-When you have multiple unrelated failures (e.g., different test files, different subsystems, distinct bugs), investigating them sequentially in a single session wastes time and context.
+Use this skill when there are 2+ independent lanes: unrelated failing tests,
+separate bugs, distinct modules, read-only evidence lanes, testing-system build
+lanes, map scan/build lanes, or implementation tasks with non-overlapping
+write-sets.
 
-In Spec Kit Plus, we handle parallel independent domains by scoping our `sp-*` workflows tightly, rather than relying on ad-hoc internal subagents.
+The stable default is current-runtime dispatch. Do not turn parallel work into a
+user coordination problem when native subagents are available.
 
 ## When to Use
 
-- 3+ test files failing with different root causes.
-- Multiple subsystems broken independently.
-- Each problem can be understood and fixed without context from the others.
+- 2+ independent lanes can be understood or changed without waiting on each
+  other.
+- Each lane has a clear owner, scope, and verification target.
+- Write-set overlap is absent or can be explicitly sequenced at a join point.
+- Running the lanes in parallel materially improves throughput, evidence quality,
+  or verification confidence.
 
-## Integration with sp-* Workflows
+## Process
 
-Instead of a single unstructured AI session trying to fix everything at once:
+1. **Route first**: Select the owning `sp-*` workflow before dispatch. Common
+   routes are `sp-quick`, `sp-debug`, `sp-test-scan`, `sp-test-build`,
+   `sp-map-scan`, `sp-map-build`, and `sp-implement`.
+2. **Split lanes**: Name each lane, purpose, read context, write-set, forbidden
+   paths, shared surfaces, and verification target.
+3. **Check conflicts**: Do not dispatch two writers to the same file or shared
+   state unless one lane is explicitly read-only or the workflow defines a safe
+   join point.
+4. **Packetize**: Use the workflow's validated `WorkerTaskPacket` or equivalent
+   execution packet. Raw task text is not enough.
+5. **Dispatch native subagents**: Use the current runtime's native subagents
+   first, such as Codex `spawn_agent`/`wait_agent`, Claude Task, or the active
+   CLI's equivalent. Keep the leader focused on integration and conflict
+   resolution.
+6. **Join on structured handoff**: Each worker must report changed files,
+   verification run, failures, open risks, and whether its acceptance target is
+   met. Integrate only after the handoff is specific enough to review.
 
-1. **Identify Independent Domains**: Group the failures or tasks by subsystem. Ensure there is no shared state or overlapping files.
-2. **Parallel CLI Invocation**: Advise the user to run multiple parallel instances of the appropriate `sp-*` workflow in separate terminal windows.
-   - Example for bugs: Run `specify sp-debug --issue="Fix subsystem A"` in one terminal, and `specify sp-debug --issue="Fix subsystem B"` in another.
-   - Example for tasks: Run `specify sp-implement` for independent tasks in separate branches/terminals if supported by the project conventions.
-3. **Scope Guarding**: If you are currently inside an `sp-quick` or `sp-debug` session, explicitly refuse to fix out-of-scope independent issues. Instruct the user to open a new `sp-*` session for the unrelated issues.
+## Fallbacks
+
+- Use `sp-teams` only when Codex work needs durable team state, result files,
+  explicit join tracking, or lifecycle control beyond one in-session burst.
+- Use a separate terminal only when the current runtime has no native subagents
+  and no managed sidecar or durable workflow path can safely represent the lanes.
+- If lanes share write state or one fix may resolve the others, keep the work in
+  one sequential workflow run until the dependency is clarified.
 
 ## Behavioral Rules
 
-- **Do NOT** try to fix multiple independent systems in one `sp-quick` or `sp-debug` run. Scope each run to a single domain.
-- **Do NOT** dispatch agents that will modify the same shared state or files concurrently.
-- If the failures are related (fixing one might fix the others), keep them in a single sequential `sp-debug` session.
+- Do not fix unrelated systems in one leader-local pass when current-runtime
+  native subagents can handle independent bounded lanes.
+- Do not dispatch agents that will modify the same write-set concurrently.
+- Do not ask the user to manually coordinate parallel terminals as the first
+  option.
+- Do not mark a lane complete from silence, idle status, or a vague summary.
+- If the first split reveals hidden coupling, stop parallel execution and move
+  the coupled work behind one owner or join point.
 
 ## Red Flags
 
-- "Fix all the failing tests" (Too broad; requires splitting).
-- Fixing unrelated bugs in a single `sp-fast` command.
+- "Fix all failing tests" with failures spread across unrelated modules.
+- Multiple implementation tasks touch different write-sets, but the leader is
+  about to execute them serially without checking native subagents.
+- A worker prompt does not include a write-set, forbidden paths, or verification
+  target.
+- A handoff says "done" without file paths and command output summary.
+- The fallback plan starts with "open another separate terminal" even though the
+  current runtime supports native subagents.

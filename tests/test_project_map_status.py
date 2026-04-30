@@ -253,6 +253,8 @@ def test_classify_changed_path_matches_shell_contract():
     assert mod.classify_changed_path("PROJECT-HANDBOOK.md") == "stale"
     assert mod.classify_changed_path(".specify/project-map/root/ARCHITECTURE.md") == "stale"
     assert mod.classify_changed_path(".specify/project-map/index/status.json") == "ignore"
+    assert mod.classify_changed_path(".specify/project-map/map-state.md") == "ignore"
+    assert mod.classify_changed_path(".specify/project-map/worker-results/SCAN-core.json") == "ignore"
     assert mod.classify_changed_path("src/routes/api.ts") == "stale"
     assert mod.classify_changed_path("src/components/button.tsx") == "possibly_stale"
     assert mod.classify_changed_path("notes/changelog.txt") == "ignore"
@@ -278,6 +280,8 @@ def test_suggested_topics_for_changed_path_maps_high_value_surfaces():
         "TESTING.md",
     ]
     assert mod.suggested_topics_for_changed_path(".specify/project-map/index/status.json") == []
+    assert mod.suggested_topics_for_changed_path(".specify/project-map/map-state.md") == []
+    assert mod.suggested_topics_for_changed_path(".specify/project-map/worker-results/SCAN-core.json") == []
 
 
 def test_refresh_plan_for_changed_path_splits_must_refresh_from_review():
@@ -296,6 +300,10 @@ def test_refresh_plan_for_changed_path_splits_must_refresh_from_review():
         "review_topics": ["TESTING.md"],
     }
     assert mod.refresh_plan_for_changed_path(".specify/project-map/index/status.json") == {
+        "must_refresh_topics": [],
+        "review_topics": [],
+    }
+    assert mod.refresh_plan_for_changed_path(".specify/project-map/map-state.md") == {
         "must_refresh_topics": [],
         "review_topics": [],
     }

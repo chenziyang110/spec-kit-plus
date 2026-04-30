@@ -186,7 +186,9 @@ classify_path() {
 
     case "$lower" in
         .specify/project-map/status.json|\
-        .specify/project-map/index/status.json)
+        .specify/project-map/index/status.json|\
+        .specify/project-map/map-state.md|\
+        .specify/project-map/worker-results/*)
             echo "ignore"
             return 0
             ;;

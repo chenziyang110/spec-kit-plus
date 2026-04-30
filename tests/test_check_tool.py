@@ -5,9 +5,10 @@ Covers issue https://github.com/github/spec-kit/issues/550:
   installed via npm-local (the default `claude` installer path).
 """
 
+import os
 from unittest.mock import patch, MagicMock
 
-from specify_cli import check_tool
+from specify_cli import check_tool, _command_path_candidates
 
 
 class TestCheckToolClaude:
@@ -94,3 +95,26 @@ class TestCheckToolOther:
 
         with patch("shutil.which", side_effect=fake_which):
             assert check_tool("kiro-cli") is True
+
+
+class TestSpecifyPathDiagnostics:
+    """Detect duplicate specify executables that can shadow newer installs."""
+
+    def test_command_path_candidates_finds_duplicate_executables(self, tmp_path, monkeypatch):
+        first = tmp_path / "conda" / "Scripts"
+        second = tmp_path / "uv" / "bin"
+        first.mkdir(parents=True)
+        second.mkdir(parents=True)
+        executable_name = "specify.exe" if os.name == "nt" else "specify"
+        (first / executable_name).write_text("", encoding="utf-8")
+        (second / executable_name).write_text("", encoding="utf-8")
+
+        monkeypatch.setenv("PATH", f"{first}{os.pathsep}{second}")
+        monkeypatch.setenv("PATHEXT", ".EXE;.BAT;.CMD")
+
+        candidates = _command_path_candidates("specify")
+
+        assert candidates == [
+            str((first / executable_name).resolve()),
+            str((second / executable_name).resolve()),
+        ]

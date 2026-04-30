@@ -576,6 +576,58 @@ def run_command(cmd: list[str], check_return: bool = True, capture: bool = False
         return None
 
 
+def _command_path_candidates(command_name: str) -> list[str]:
+    """Return every executable candidate for a command found on PATH."""
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    path_exts = [""]
+    if os.name == "nt":
+        raw_exts = os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD")
+        path_exts = [ext.lower() for ext in raw_exts.split(os.pathsep) if ext]
+        if "" not in path_exts:
+            path_exts.insert(0, "")
+
+    command_path = Path(command_name)
+    names = [command_name]
+    if os.name == "nt" and not command_path.suffix:
+        names.extend(f"{command_name}{ext}" for ext in path_exts if ext)
+
+    for path_entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not path_entry:
+            continue
+        path_dir = Path(path_entry)
+        for name in names:
+            candidate = path_dir / name
+            try:
+                resolved = str(candidate.resolve())
+            except OSError:
+                resolved = str(candidate)
+            if resolved in seen or not candidate.is_file():
+                continue
+            seen.add(resolved)
+            candidates.append(resolved)
+
+    return candidates
+
+
+def _current_specify_entrypoint() -> str:
+    """Best-effort path for the specify executable that launched this process."""
+    argv0 = Path(sys.argv[0])
+    if argv0.name.lower().startswith("specify"):
+        try:
+            if argv0.exists():
+                return str(argv0.resolve())
+        except OSError:
+            return str(argv0)
+
+    first_on_path = shutil.which("specify")
+    if first_on_path:
+        return first_on_path
+
+    return sys.executable
+
+
 def _render_project_map_freshness(result: dict[str, Any]) -> None:
     rows = [
         ("Freshness", f"[cyan]{result['freshness']}[/cyan]"),
@@ -758,6 +810,12 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Use `clarify` only when an existing spec needs deeper analysis before planning.",
             "- Use `deep-research` only when requirements are clear but feasibility or the implementation chain must be proven before planning; its research findings, demo evidence, and Planning Handoff become inputs to `plan`.",
             "",
+            "## Workflow Activation Discipline",
+            "",
+            "- If there is even a 1% chance an `sp-*` workflow or passive skill applies, route before any response or action, including a clarifying question, file read, shell command, repository inspection, code edit, test run, or summary.",
+            "- Do not inspect first outside the workflow; repository inspection belongs inside the selected workflow.",
+            "- Name the selected workflow or passive skill in one concise line, then continue under that contract.",
+            "",
             "## Brownfield Context Gate",
             "",
             "- `PROJECT-HANDBOOK.md` is the root navigation artifact.",
@@ -780,6 +838,14 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.",
             "- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.",
             "- Use `sp-test` as the compatibility router for project-level testing work; it routes to `sp-test-scan` for evidence and build planning, or `sp-test-build` for leader-managed testing-system construction.",
+            "",
+            "## Delegated Execution Defaults",
+            "",
+            "- Dispatch native subagents by default for independent, bounded lanes when parallel work materially improves speed, quality, or verification confidence.",
+            "- Use a validated `WorkerTaskPacket` or equivalent execution contract before subagent work begins.",
+            "- Do not dispatch from raw task text alone.",
+            "- Wait for each subagent's structured handoff before integrating or marking work complete; idle status is not completion evidence.",
+            "- Use `sp-teams` only when Codex work needs durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst.",
             "",
             "## Artifact Priority",
             "",
@@ -4351,6 +4417,25 @@ def check():
 
     console.print(tracker.render())
 
+    specify_candidates = _command_path_candidates("specify")
+    if specify_candidates:
+        console.print()
+        rows = [("Active", f"[dim]{_current_specify_entrypoint()}[/dim]")]
+        rows.append(("Module", f"[dim]{Path(__file__).resolve()}[/dim]"))
+        if len(specify_candidates) > 1:
+            rows.append(("PATH Entries", f"[yellow]{len(specify_candidates)} found[/yellow]"))
+        else:
+            rows.append(("PATH Entries", "1 found"))
+        console.print(_cli_panel(_labeled_grid(rows), title="Specify CLI Path", border_style="cyan"))
+
+        if len(specify_candidates) > 1:
+            console.print("[yellow]Warning:[/yellow] Multiple `specify` executables are on PATH. A stale copy can shadow the latest install.")
+            for candidate in specify_candidates:
+                console.print(f"- [dim]{candidate}[/dim]")
+            console.print(
+                "[dim]Clean old pip/conda installs or reorder PATH, then verify `specify --help` shows the expected commands.[/dim]"
+            )
+
     console.print("\n[bold green]Specify CLI is ready to use![/bold green]")
 
     if not git_ok:
@@ -4393,6 +4478,13 @@ def version():
     info_table.add_row("Platform", platform.system())
     info_table.add_row("Architecture", platform.machine())
     info_table.add_row("OS Version", platform.version())
+    info_table.add_row("", "")
+    info_table.add_row("Executable", _current_specify_entrypoint())
+    info_table.add_row("Module Path", str(Path(__file__).resolve()))
+
+    specify_candidates = _command_path_candidates("specify")
+    if specify_candidates:
+        info_table.add_row("PATH Entries", str(len(specify_candidates)))
 
     panel = Panel(
         info_table,
@@ -4402,6 +4494,13 @@ def version():
     )
 
     console.print(panel)
+    if len(specify_candidates) > 1:
+        console.print("[yellow]Warning:[/yellow] Multiple `specify` executables are on PATH:")
+        for candidate in specify_candidates:
+            console.print(f"- [dim]{candidate}[/dim]")
+        console.print(
+            "[dim]If a new workflow command is missing, remove stale pip/conda/uv tool installs or move the latest entry earlier on PATH.[/dim]"
+        )
     console.print()
 
 

@@ -18,8 +18,18 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert ".specify/project-map/coverage-ledger.md" in content
     assert ".specify/project-map/coverage-ledger.json" in content
     assert ".specify/project-map/scan-packets/<lane-id>.md" in content
+    assert ".specify/project-map/map-state.md" in content
+    assert "Project Map State Protocol" in content
+    assert "MAP_STATE_FILE=.specify/project-map/map-state.md" in content
+    assert "MapScanPacket" in content
+    assert "`mode: read_only`" in content
+    assert "`result_handoff_path`" in content
     assert "full project-relevant inventory" in lowered
     assert "nested directories" in lowered
+    assert "scan packets are executable read instructions" in lowered
+    assert "not final" in lowered
+    assert "atlas evidence" in lowered
+    assert "must still execute the packet reads" in lowered
     assert "rg --files" in content
     assert "Git-tracked files" in content
     assert "excluded_from_deep_read" in content
@@ -35,6 +45,20 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "scan-packets/<lane-id>.md" in content
     assert "Coverage Classification" in content
     assert "Criticality Scoring" in content
+
+
+def test_map_scan_template_prefers_native_subagent_inventory_with_structured_handoffs() -> None:
+    content = _read("templates/commands/map-scan.md")
+    lowered = content.lower()
+
+    assert "current-runtime native subagents are the default" in lowered
+    assert "single-lane` names the topology for one safe scan lane" in lowered
+    assert "does not, by itself, require leader-local inventory" in lowered
+    assert "validated `mapscanpacket`" in lowered
+    assert "raw inventory notes or raw chat summaries are not sufficient" in lowered
+    assert "structured handoff" in lowered
+    assert "idle subagent output is not an accepted scan result" in lowered
+    assert "must wait for every dispatched scan lane" in lowered
 
 
 def test_map_scan_template_preserves_required_scan_dimensions() -> None:
@@ -72,10 +96,22 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "scan-packets" in content
     assert "begins with validation, not writing" in lowered
     assert "must not guess and continue" in lowered
+    assert "Project Map State Protocol" in content
+    assert "Validate Scan Inputs Before Execution" in content
+    assert "Compile And Validate MapBuildPacket Inputs" in content
+    assert "do not rebuild the scan from chat memory" in lowered
+    assert "coverage-ledger.json` as the machine-readable row source" in content
+    assert "MapBuildPacket" in content
+    assert "raw scan prose or raw Markdown checklist items alone" in content
+    assert ".specify/project-map/worker-results/<packet-id>.json" in content
     assert "scan gap report" in lowered
     assert "packet results without paths read" in lowered
     assert "packet results that only summarize without evidence" in lowered
     assert "unresolved critical rows" in lowered
+    assert "not a scaffold, migration, or file-moving command" in lowered
+    assert "inputs, not evidence" in lowered
+    assert "packet evidence intake" in lowered
+    assert "structural-only refresh is a failed build" in lowered
     assert "reverse coverage validation" in lowered
     assert "complete-refresh" in content
     assert "PROJECT-HANDBOOK.md" in content
@@ -93,6 +129,9 @@ def test_map_build_template_requires_reverse_coverage_closure() -> None:
         "every `important` row appears in a final atlas target",
         "every scan packet is consumed",
         "every accepted packet result has paths read and confidence",
+        "every final atlas target is backed by at least one accepted packet evidence row",
+        "no final report claims success for a structural-only refresh",
+        "`map_state_file` records accepted packet results",
         "owner, consumer, change propagation, and verification",
         "known unknowns",
         "low-confidence areas",

@@ -3,7 +3,7 @@ description: Use when handbook/project-map coverage is missing, stale, or insuff
 workflow_contract:
   when_to_use: A workflow needs reliable handbook/project-map coverage and the current navigation artifacts are missing, stale, or too weak for the touched area.
   primary_objective: Generate a complete project-relevant inventory, coverage ledger, and scan packet set for `sp-map-build`.
-  primary_outputs: '`.specify/project-map/map-scan.md`, `.specify/project-map/coverage-ledger.md`, `.specify/project-map/coverage-ledger.json`, and `.specify/project-map/scan-packets/*.md`.'
+  primary_outputs: '`.specify/project-map/map-scan.md`, `.specify/project-map/coverage-ledger.md`, `.specify/project-map/coverage-ledger.json`, `.specify/project-map/scan-packets/*.md`, and `.specify/project-map/map-state.md`.'
   default_handoff: /sp-map-build after the scan package passes readiness checks.
 ---
 
@@ -28,6 +28,32 @@ coherent for all project-relevant surfaces.
   - `.specify/project-map/coverage-ledger.md`
   - `.specify/project-map/coverage-ledger.json`
   - `.specify/project-map/scan-packets/<lane-id>.md`
+  - `.specify/project-map/map-state.md`
+- Scan packets are executable read instructions for `sp-map-build`, not final
+  atlas evidence. `sp-map-scan` may identify what must be read and where the
+  result should land, but `sp-map-build` must still execute the packet reads
+  against the live repository before writing atlas truth.
+
+## Project Map State Protocol
+
+- `MAP_STATE_FILE=.specify/project-map/map-state.md` is the resumable scan/build state surface for `sp-map-scan` and `sp-map-build`.
+- [AGENT] Create or resume `MAP_STATE_FILE` before substantial scan work.
+- Read `.specify/templates/project-map/map-state-template.md` when available.
+- If `MAP_STATE_FILE` exists with `active_command: sp-map-scan` and non-terminal scan state, resume from it instead of rebuilding intent from chat memory.
+- Track at least:
+  - `active_command: sp-map-scan`
+  - `status: scanning | synthesizing | blocked | ready-for-build`
+  - `scan_status: pending | scanning | blocked | complete`
+  - `build_status`
+  - `focus`
+  - `selected_modules`
+  - `selected_topics`
+  - `current_packet`
+  - `scan_artifacts`
+  - `next_action`
+  - `next_command`
+  - `handoff_reason`
+  - `open_gaps`
 
 ## Passive Project Learning Layer
 
@@ -44,6 +70,7 @@ The only canonical outputs for this command are:
 - `.specify/project-map/coverage-ledger.md`
 - `.specify/project-map/coverage-ledger.json`
 - `.specify/project-map/scan-packets/<lane-id>.md`
+- `.specify/project-map/map-state.md`
 
 Do not create `.planning/codebase/`, a second mapping tree, or any alternate
 source-of-truth document. The scan package is a task package for
@@ -66,6 +93,9 @@ source-of-truth document. The scan package is a task package for
      - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
      - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
      - Else -> `single-lane` (`fallback`)
+   - Current-runtime native subagents are the default when two or more safe read-only inventory lanes exist.
+   - `single-lane` names the topology for one safe scan lane. It does not, by itself, require leader-local inventory.
+   - For `single-lane`, dispatch one read-only scout once a validated `MapScanPacket` or equivalent scan contract exists and the current runtime supports native subagents; keep it leader-local only while the packet is still incomplete or dispatch is unavailable.
    - If collaboration is justified, keep `map-scan` lanes read-only and limited to inventory, classification, and packet drafting.
    - Recommended scan lanes:
      - source, architecture, and module boundaries
@@ -77,6 +107,8 @@ source-of-truth document. The scan package is a task package for
      - before finalizing `coverage-ledger.json`
      - before writing `scan-packets/*.md`
    - The leader owns final ledger normalization and packet quality even when subagents help with inventory.
+   - Raw inventory notes or raw chat summaries are not sufficient subagent inputs or outputs. Each dispatched lane needs a validated `MapScanPacket` and must return a structured handoff with inspected paths, coverage rows touched, findings, confidence, blockers, and recommended packet updates.
+   - Idle subagent output is not an accepted scan result. The leader must wait for every dispatched scan lane and consume its structured handoff before finalizing the ledger, writing scan packets, or marking the scan complete.
 
 3. **Perform full project-relevant inventory**
    - [AGENT] Enumerate the project-relevant repository tree, including nested directories.
@@ -137,17 +169,23 @@ source-of-truth document. The scan package is a task package for
 
 7. **Generate scan packets**
    - [AGENT] Generate `scan-packets/<lane-id>.md` files that `sp-map-build` can execute directly.
+   - Treat each scan packet as a `MapScanPacket` contract. The packet may be Markdown, but it must expose the required fields clearly enough for `sp-map-build` to compile a validated `MapBuildPacket`.
    - Each packet must include:
-     - lane ID and title
-     - scope and owned ledger row IDs
-     - required files/directories to inspect
-     - intentionally excluded paths and reasons
-     - required questions to answer
-     - expected evidence format
-     - final atlas target documents
-     - join points and dependencies
-     - minimum verification route
-     - blocked conditions
+     - `lane_id`
+     - `mode: read_only`
+     - `scope`
+     - `ledger_row_ids`
+     - `required_reads`
+     - `excluded_paths`
+     - `required_questions`
+     - `expected_outputs`
+     - `atlas_targets`
+     - `forbidden_actions`
+     - `result_handoff_path`
+     - `join_points`
+     - `minimum_verification`
+     - `blocked_conditions`
+   - Record packet paths, selected strategy, join points, and build handoff readiness in `MAP_STATE_FILE`.
 
 ## Required Scan Dimensions
 
@@ -257,8 +295,33 @@ The JSON contract should stay simple enough for tests and hooks:
 
 Each `scan-packets/<lane-id>.md` must use this structure:
 
-```markdown
+````markdown
 # SCAN-<id>: <title>
+
+## MapScanPacket
+
+```json
+{
+  "lane_id": "SCAN-<id>",
+  "mode": "read_only",
+  "scope": ["<path or subsystem>"],
+  "ledger_row_ids": ["SURF-001"],
+  "required_reads": ["<path or glob>"],
+  "excluded_paths": ["<path or glob> - reason - when to revisit"],
+  "required_questions": ["What owns this surface?"],
+  "expected_outputs": [
+    "paths_read",
+    "key_facts",
+    "confidence",
+    "unknowns",
+    "minimum_verification",
+    "recommended_atlas_updates"
+  ],
+  "atlas_targets": [".specify/project-map/root/ARCHITECTURE.md"],
+  "forbidden_actions": ["edit files", "install dependencies", "rewrite atlas docs"],
+  "result_handoff_path": ".specify/project-map/worker-results/SCAN-<id>.json"
+}
+```
 
 ## Scope
 
@@ -294,6 +357,7 @@ Each `scan-packets/<lane-id>.md` must use this structure:
 - unknowns:
 - minimum_verification:
 - recommended_atlas_updates:
+- result_handoff_path:
 
 ## Atlas Targets
 
@@ -306,7 +370,7 @@ Each `scan-packets/<lane-id>.md` must use this structure:
 ## Blocked Conditions
 
 - <condition that must route back to sp-map-scan>
-```
+````
 
 ## Build Readiness Checklist
 

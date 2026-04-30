@@ -152,6 +152,8 @@ function Classify-Path {
     switch -Regex ($lower) {
         '^\.specify/project-map/status\.json$' { return "ignore" }
         '^\.specify/project-map/index/status\.json$' { return "ignore" }
+        '^\.specify/project-map/map-state\.md$' { return "ignore" }
+        '^\.specify/project-map/worker-results/' { return "ignore" }
         '^project-handbook\.md$' { return "stale" }
         '^\.specify/project-map/' { return "stale" }
         '^\.specify/templates/project-map/' { return "stale" }

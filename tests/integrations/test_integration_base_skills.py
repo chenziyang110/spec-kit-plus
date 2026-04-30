@@ -297,6 +297,10 @@ class SkillsIntegrationTests:
         assert "native-multi-agent" in scan_content
         assert "native-multi-agent" in build_content
         assert "coverage-ledger" in scan_content
+        assert "map-state.md" in scan_content
+        assert "mapscanpacket" in scan_content
+        assert "mapbuildpacket" in build_content
+        assert "worker-results" in build_content
         assert "route back to `/sp-map-scan`" in build_content
 
     def test_question_driven_skills_define_native_tool_preference_with_fallback(self, tmp_path):

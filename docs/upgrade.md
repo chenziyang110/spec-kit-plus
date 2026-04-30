@@ -8,7 +8,7 @@
 
 | What to Upgrade | Command | When to Use |
 |----------------|---------|-------------|
-| **CLI Tool Only** | `uv tool install specify-cli --force --from git+https://github.com/github/spec-kit.git@vX.Y.Z` | Get latest CLI features without touching project files |
+| **CLI Tool Only** | `python -m pip uninstall -y specify-cli` then `uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git` | Get latest CLI features without touching project files |
 | **Project Files** | `specify init --here --force --ai <your-agent>` | Update slash commands, templates, and scripts in your project |
 | **Both** | Run CLI upgrade, then project update | Recommended for major version updates |
 
@@ -20,27 +20,36 @@ The CLI tool (`specify`) is separate from your project files. Upgrade it to get 
 
 ### If you installed with `uv tool install`
 
-Upgrade to a specific release (check [Releases](https://github.com/github/spec-kit/releases) for the latest tag):
+Upgrade to the latest Spec Kit Plus fork. On Windows, Conda and pip installs can
+leave an older `specify.exe` earlier on PATH, so remove those first:
 
-```bash
-uv tool install specify-cli --force --from git+https://github.com/github/spec-kit.git@vX.Y.Z
+```powershell
+python -m pip uninstall -y specify-cli
+uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
+Get-Command specify -All
 ```
 
 ### If you use one-shot `uvx` commands
 
-Specify the desired release tag:
+Use `--refresh` when testing the latest fork without relying on whatever
+`specify` is installed on PATH:
 
-```bash
-uvx --from git+https://github.com/github/spec-kit.git@vX.Y.Z specify init --here --ai copilot
+```powershell
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify --help
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify testing inventory --format json
 ```
 
 ### Verify the upgrade
 
-```bash
+```powershell
 specify check
+specify --help
 ```
 
-This shows installed tools and confirms the CLI is working.
+This shows installed tools and confirms the CLI is working. Do not rely only on
+`specify version` for development builds: multiple commits can report the same
+`0.5.1.dev0` version string. If a command such as `testing` is missing from
+`specify --help`, an old executable is still being used.
 
 ---
 

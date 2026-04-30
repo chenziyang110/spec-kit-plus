@@ -692,11 +692,17 @@ def test_map_scan_template_generates_complete_build_package() -> None:
     assert ".specify/project-map/coverage-ledger.md" in content
     assert ".specify/project-map/coverage-ledger.json" in content
     assert ".specify/project-map/scan-packets/<lane-id>.md" in content
+    assert ".specify/project-map/map-state.md" in content
     assert 'choose_execution_strategy(command_name="map-scan"' in content
     assert "single-lane" in lowered
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
     assert "full project-relevant inventory" in lowered
+    assert "scan packets are executable read instructions" in lowered
+    assert "must still execute the packet reads" in lowered
+    assert "project map state protocol" in lowered
+    assert "mapscanpacket" in lowered
+    assert "result_handoff_path" in content
     assert "coverage classification" in lowered
     assert "criticality scoring" in lowered
     assert "reading depth" in lowered
@@ -721,6 +727,16 @@ def test_map_build_template_generates_handbook_navigation_system_from_scan_packa
     assert "native-multi-agent" in lowered
     assert "sidecar-runtime" in lowered
     assert "atlas output contract" in lowered
+    assert ".specify/project-map/map-state.md" in content
+    assert ".specify/project-map/worker-results/*.json" in content
+    assert "validate scan inputs before execution" in lowered
+    assert "compile and validate mapbuildpacket inputs" in lowered
+    assert "machine-readable row source" in lowered
+    assert "raw scan prose or raw markdown checklist items alone" in lowered
+    assert "not a scaffold, migration, or file-moving command" in lowered
+    assert "inputs, not evidence" in lowered
+    assert "packet evidence intake" in lowered
+    assert "structural-only refresh is a failed build" in lowered
     assert "complete-refresh" in content
     assert "do not create `.planning/codebase/`" in lowered
     assert "capability cards must capture" in lowered
@@ -749,6 +765,9 @@ def test_map_build_template_preserves_full_detail_and_reverse_coverage() -> None
     assert "every `important` row appears in a final atlas target" in lowered
     assert "every scan packet is consumed" in lowered
     assert "every accepted packet result has paths read and confidence" in lowered
+    assert "every final atlas target is backed by at least one accepted packet evidence row" in lowered
+    assert "no final report claims success for a structural-only refresh" in lowered
+    assert "`map_state_file` records accepted packet results" in lowered
     assert "owner, consumer, change propagation, and verification" in lowered
     assert "known unknowns" in lowered
     assert "low-confidence areas" in lowered

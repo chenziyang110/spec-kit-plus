@@ -9,6 +9,17 @@ import yaml
 from .test_integration_base_skills import SkillsIntegrationTests
 
 
+def _assert_stable_subagent_contract(content: str) -> None:
+    lower = content.lower()
+
+    assert "1% chance" in lower
+    assert "before any response or action" in lower
+    assert "native subagents" in lower
+    assert "validated `workertaskpacket`" in lower
+    assert "structured handoff" in lower
+    assert "`sp-teams` only" in lower
+
+
 class TestCodexIntegration(SkillsIntegrationTests):
     KEY = "codex"
     FOLDER = ".codex/"
@@ -51,6 +62,8 @@ class TestCodexAutoPromote:
         assert (target / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
         assert (target / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
         assert (target / ".specify" / "project-map" / "status.json").exists()
+
+        _assert_stable_subagent_contract((target / "AGENTS.md").read_text(encoding="utf-8"))
 
 
 def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_path):
@@ -134,6 +147,47 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "check-prerequisites.sh --json --require-tasks --include-tasks" in lower
     assert "parse `feature_dir` and `available_docs` list" in lower
     assert "all paths must be absolute" in lower
+
+
+def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contract(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-passive-dispatch"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    skills_dir = target / ".codex" / "skills"
+    routing = (skills_dir / "spec-kit-workflow-routing" / "SKILL.md").read_text(encoding="utf-8").lower()
+    subagent = (skills_dir / "subagent-driven-development" / "SKILL.md").read_text(encoding="utf-8").lower()
+    parallel = (skills_dir / "dispatching-parallel-agents" / "SKILL.md").read_text(encoding="utf-8").lower()
+
+    assert "1% chance" in routing
+    assert "before any response or action" in routing
+    assert "clarifying question" in routing
+    assert "file read" in routing
+    assert "red flags" in routing
+
+    assert "native subagents" in subagent
+    assert "validated `workertaskpacket`" in subagent
+    assert "must not dispatch from raw task text" in subagent
+    assert "spec compliance review" in subagent
+    assert "code quality review" in subagent
+    assert "`sp-teams` only" in subagent
+
+    assert "2+ independent lanes" in parallel
+    assert "current runtime" in parallel
+    assert "native subagents" in parallel
+    assert "write-set" in parallel
+    assert "structured handoff" in parallel
+    assert "separate terminal" in parallel
+    assert "advise the user to run multiple parallel instances" not in parallel
 
 
 def test_codex_implement_teams_template_keeps_only_backend_specific_guidance():
@@ -426,6 +480,8 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert ".specify/project-map/coverage-ledger.md" in scan_content
     assert ".specify/project-map/coverage-ledger.json" in scan_content
     assert ".specify/project-map/scan-packets/<lane-id>.md" in scan_content
+    assert ".specify/project-map/map-state.md" in scan_content
+    assert "mapscanpacket" in scan_content
     assert 'choose_execution_strategy(command_name="map-scan"' in scan_content
     assert "rg --files" in scan_content
     assert "git-tracked files" in scan_content
@@ -441,6 +497,8 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert ".specify/project-map/modules/<module-id>/overview.md" in build_content
     assert 'choose_execution_strategy(command_name="map-build"' in build_content
     assert "route back to `/sp-map-scan`" in build_content
+    assert "mapbuildpacket" in build_content
+    assert ".specify/project-map/worker-results/<packet-id>.json" in build_content
     assert "spawn_agent" in build_content
     assert "wait_agent" in build_content
     assert "close_agent" in build_content

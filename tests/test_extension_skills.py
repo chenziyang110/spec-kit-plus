@@ -442,14 +442,21 @@ class TestBuiltInSkillGeneration:
         assert "exact workflow re-entry path" in analyze_body
 
         scan_body = _body_without_frontmatter(skills_dir / "sp-map-scan" / "SKILL.md")
+        scan_lower = scan_body.lower()
         assert ".specify/project-map/map-scan.md" in scan_body
         assert ".specify/project-map/coverage-ledger.md" in scan_body
         assert ".specify/project-map/coverage-ledger.json" in scan_body
         assert ".specify/project-map/scan-packets/<lane-id>.md" in scan_body
+        assert ".specify/project-map/map-state.md" in scan_body
         assert 'choose_execution_strategy(command_name="map-scan"' in scan_body
         assert "rg --files" in scan_body
         assert "Git-tracked files" in scan_body
-        assert "coverage reverse index" in scan_body.lower()
+        assert "scan packets are executable read instructions" in scan_lower
+        assert "must still execute the packet reads" in scan_lower
+        assert "project map state protocol" in scan_lower
+        assert "mapscanpacket" in scan_lower
+        assert "result_handoff_path" in scan_body
+        assert "coverage reverse index" in scan_lower
 
         build_body = _body_without_frontmatter(skills_dir / "sp-map-build" / "SKILL.md")
         assert "PROJECT-HANDBOOK.md" in build_body
@@ -463,6 +470,14 @@ class TestBuiltInSkillGeneration:
         assert "Root docs carry cross-module truth; module docs carry module-local truth." in build_body
         assert "deep_stale" in build_body
         assert "`PROJECT-HANDBOOK.md` must stay concise and index-first" in build_body
+        assert "not a scaffold, migration, or file-moving command" in build_body
+        assert "Existing `PROJECT-HANDBOOK.md` and `.specify/project-map/**` documents are" in build_body
+        assert "packet evidence intake" in build_body
+        assert "A structural-only refresh is a failed build." in build_body
+        assert "Project Map State Protocol" in build_body
+        assert "Validate Scan Inputs Before Execution" in build_body
+        assert "Compile And Validate MapBuildPacket Inputs" in build_body
+        assert ".specify/project-map/worker-results/<packet-id>.json" in build_body
 
         test_body = _body_without_frontmatter(skills_dir / "sp-test" / "SKILL.md")
         assert "compatibility router" in test_body.lower()

@@ -133,6 +133,22 @@ def _read_utf8_without_bom(path: Path) -> str:
     return raw.decode("utf-8")
 
 
+def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
+    lower = content.lower()
+
+    assert "## workflow activation discipline" in lower
+    assert "1% chance" in lower
+    assert "before any response or action" in lower
+    assert "clarifying question" in lower
+    assert "file read" in lower
+    assert "## delegated execution defaults" in lower
+    assert "native subagents" in lower
+    assert "validated `workertaskpacket`" in lower
+    assert "raw task text" in lower
+    assert "structured handoff" in lower
+    assert "`sp-teams` only" in lower
+
+
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
 def test_bash_script_inserts_managed_block_without_overwriting_user_content(
     tmp_path: Path,
@@ -369,6 +385,7 @@ def test_bash_script_updates_existing_non_agents_file_with_managed_guidance(
     assert "Planning Handoff" in content
     assert "## Map Maintenance" in content
     assert ".specify/project-map/index/status.json" in content
+    _assert_managed_block_has_stable_subagent_routing(content)
 
 
 def test_powershell_script_updates_existing_non_agents_file_with_managed_guidance(
@@ -402,6 +419,7 @@ def test_powershell_script_updates_existing_non_agents_file_with_managed_guidanc
     assert "Planning Handoff" in content
     assert "## Map Maintenance" in content
     assert ".specify/project-map/index/status.json" in content
+    _assert_managed_block_has_stable_subagent_routing(content)
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")

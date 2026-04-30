@@ -19,11 +19,21 @@ Install the CLI from this repository:
 uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git
 ```
 
-Upgrade to the latest version from this fork:
+Upgrade to the latest version from this fork. If a machine previously installed
+`specify-cli` through `pip`, Conda, or another `uv tool` location, remove the old
+entry first so a stale `specify.exe` does not shadow the new one:
 
-```bash
+```powershell
+python -m pip uninstall -y specify-cli
 uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
+Get-Command specify -All
+specify --help
 ```
+
+`specify version` reports the package version, but development installs can share
+the same `0.5.1.dev0` version string across commits. Use `specify --help` to
+confirm newly added commands such as `testing` are present, and use
+`Get-Command specify -All` on Windows to detect duplicate old entrypoints.
 
 ### One-time use without installing
 

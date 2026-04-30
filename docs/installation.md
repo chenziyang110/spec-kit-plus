@@ -10,6 +10,23 @@
 
 ## Installation
 
+### Install or Upgrade This Fork
+
+For Spec Kit Plus, install from this fork rather than the upstream Spec Kit
+repository:
+
+```powershell
+python -m pip uninstall -y specify-cli
+uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
+Get-Command specify -All
+specify --help
+```
+
+The uninstall step is intentional. Windows, Conda, and previous pip installs can
+leave an older `specify.exe` earlier on PATH, while development builds may still
+report the same `0.5.1.dev0` version string. `specify --help` should show the
+current command surface, including commands such as `testing`.
+
 ### Initialize a New Project
 
 The easiest way to get started is to initialize a new project. Pin a specific release tag for stability (check [Releases](https://github.com/github/spec-kit/releases) for the latest):

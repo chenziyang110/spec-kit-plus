@@ -1412,6 +1412,17 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
 
     content = skill_path.read_text(encoding="utf-8")
     lower = content.lower()
+    team_bootstrap_idx = content.find("## Team Bootstrap Gate")
+    shared_contract_idx = content.find("## Shared Contract With `/sp-implement`")
+    execution_contract_idx = content.find("## Execution Contract")
+
+    assert team_bootstrap_idx != -1
+    assert shared_contract_idx != -1
+    assert execution_contract_idx != -1
+    assert team_bootstrap_idx < shared_contract_idx < execution_contract_idx
+    assert "the first non-prerequisite action is creating or resuming the claude agent team" in lower
+    assert "do not read `plan.md`, `tasks.md` beyond the minimum existence/status check" in lower
+    assert "do not run validation, edit files, or inspect broad implementation context before this gate passes" in lower
     assert "claude code agent teams" in lower
     assert "teamcreate" in lower
     assert "taskcreate" in lower
@@ -1515,6 +1526,10 @@ def test_claude_implement_teams_template_keeps_only_backend_specific_guidance():
     assert "scripts:" in template
     assert "--require-tasks --include-tasks" in template
     assert "Run `{SCRIPT}` from repo root and parse `FEATURE_DIR` and `AVAILABLE_DOCS` list." in template
+    assert "## Team Bootstrap Gate" in template
+    assert "the first non-prerequisite action is creating or resuming the Claude Agent Team" in template
+    assert "Do not read `plan.md`, `tasks.md` beyond the minimum existence/status check" in template
+    assert "Do not run validation, edit files, or inspect broad implementation context before this gate passes" in template
     assert "`claude_code_subagent_model`" in lower
     assert "do not derive teammate model from `anthropic_model`" in lower
     assert "prompt-only specialization is acceptable" in lower

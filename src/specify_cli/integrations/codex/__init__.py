@@ -176,7 +176,7 @@ class CodexIntegration(SkillsIntegration):
                 f"When running `sp-map-scan` in {agent_name}, dispatch subagents whenever the selected strategy is `native-multi-agent`.\n"
                 f"- Use `spawn_agent` for bounded scan lanes such as repository tree inventory, source/runtime surfaces, testing/operations surfaces, and generated/cache exclusion review.\n"
                 f"- Keep each subagent responsible for scan evidence only; the leader owns the coverage ledger, reverse coverage closure, and final completeness decision.\n"
-                f"- Use `wait_agent` only at the documented join points before finalizing `coverage-ledger.md`, `coverage-ledger.json`, and `scan-packets/<lane-id>.md`.\n"
+                f"- Use `wait_agent` only at the documented join points before finalizing `coverage-ledger.md`, `coverage-ledger.json`, `scan-packets/<lane-id>.md`, and `map-state.md`.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )
@@ -192,7 +192,7 @@ class CodexIntegration(SkillsIntegration):
                 f"When running `sp-map-build` in {agent_name}, dispatch subagents whenever the selected strategy is `native-multi-agent`.\n"
                 f"- Use `spawn_agent` for bounded atlas synthesis lanes such as root architecture/structure, conventions/testing, integrations/runtime, and workflow/operations mapping.\n"
                 f"- Use the scan package as the subagent input contract; do not let subagents invent unscanned coverage or skip reverse coverage checks.\n"
-                f"- Use `wait_agent` only at the documented join points before writing `PROJECT-HANDBOOK.md`, before updating `.specify/project-map/`, and before the final consistency pass.\n"
+                f"- Use `wait_agent` only at the documented join points before writing `PROJECT-HANDBOOK.md`, before updating `.specify/project-map/`, and before the final packet evidence and consistency pass.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )

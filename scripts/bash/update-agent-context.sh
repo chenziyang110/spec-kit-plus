@@ -151,6 +151,12 @@ render_speckit_managed_block() {
 - Use `clarify` only when an existing spec needs deeper analysis before planning.
 - Use `deep-research` only when requirements are clear but feasibility or the implementation chain must be proven before planning; its research findings, demo evidence, and Planning Handoff become inputs to `plan`.
 
+## Workflow Activation Discipline
+
+- If there is even a 1% chance an `sp-*` workflow or passive skill applies, route before any response or action, including a clarifying question, file read, shell command, repository inspection, code edit, test run, or summary.
+- Do not inspect first outside the workflow; repository inspection belongs inside the selected workflow.
+- Name the selected workflow or passive skill in one concise line, then continue under that contract.
+
 ## Brownfield Context Gate
 
 - `PROJECT-HANDBOOK.md` is the root navigation artifact.
@@ -161,16 +167,28 @@ render_speckit_managed_block() {
 ## Project Memory
 
 - Passive project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`.
+- Shared project memory is always available to later work in this repository, not just when a `sp-*` workflow is active.
 - Prefer generated project-local Spec Kit workflows, skills, and commands over ad-hoc execution when they fit the task.
 
 ## Workflow Routing
 
 - Use `sp-fast` only for trivial, low-risk local changes that do not need planning artifacts.
 - Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.
+- Use `sp-auto` when repository state already records the recommended next step and the user wants one continue entrypoint instead of naming the exact workflow manually.
 - Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.
 - Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.
 - Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
-- Use `sp-test` when the project-level testing contract or testing system coverage needs bootstrap, refresh, or audit work.
+- Use `sp-test` as the compatibility router for project-level testing work.
+- Use `sp-test-scan` when testing-system coverage needs read-only evidence, risk tiering, module-by-module gap analysis, or build-ready lanes.
+- Use `sp-test-build` when scan-approved lanes should construct or refresh the unit testing system through leader/subagent execution.
+
+## Delegated Execution Defaults
+
+- Dispatch native subagents by default for independent, bounded lanes when parallel work materially improves speed, quality, or verification confidence.
+- Use a validated `WorkerTaskPacket` or equivalent execution contract before subagent work begins.
+- Do not dispatch from raw task text alone.
+- Wait for each subagent's structured handoff before integrating or marking work complete; idle status is not completion evidence.
+- Use `sp-teams` only when Codex work needs durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst.
 
 ## Artifact Priority
 
@@ -180,14 +198,14 @@ render_speckit_managed_block() {
 - `deep-research.md`, its traceable `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence IDs, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.
 - `plan.md` under the active feature directory is the implementation design source of truth once planning begins.
 - `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.
-- `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain implementation and debugging when present.
+- `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, and `.specify/testing/testing-state.md` constrain testing-system construction and brownfield testing-program routing when present.
 - `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh.
 
 ## Map Maintenance
 
 - If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.
 - If that refresh cannot happen in the current pass, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.
-- Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the navigation system current.
+- Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.
 
 - Preserve content outside this managed block.
 <!-- SPEC-KIT:END -->

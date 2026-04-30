@@ -193,6 +193,27 @@ def test_powershell_project_map_freshness_detects_git_changes(git_repo: Path):
     assert stale["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
 
 
+def test_project_map_runtime_state_changes_do_not_mark_atlas_stale(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+
+    _run_bash(git_repo, "record-refresh", "manual")
+    state_file = git_repo / ".specify" / "project-map" / "map-state.md"
+    worker_result = git_repo / ".specify" / "project-map" / "worker-results" / "SCAN-core.json"
+    worker_result.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text("# state\n", encoding="utf-8")
+    worker_result.write_text('{"status":"done"}\n', encoding="utf-8")
+    subprocess.run(["git", "add", ".specify/project-map/map-state.md", ".specify/project-map/worker-results/SCAN-core.json"], cwd=git_repo, check=True)
+
+    bash_result = _run_bash(git_repo, "check")
+    assert bash_result["freshness"] == "fresh"
+    assert bash_result["reasons"] == []
+
+    powershell_result = _run_powershell(git_repo, "check")
+    assert powershell_result["freshness"] == "fresh"
+    assert powershell_result["reasons"] == []
+
+
 def test_powershell_check_reads_legacy_project_map_status(git_repo: Path):
     _seed_legacy_status(git_repo)
 

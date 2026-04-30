@@ -75,6 +75,20 @@ def test_test_scan_template_requires_read_only_subagent_evidence():
     assert "before marking scan complete" in lowered
 
 
+def test_test_scan_template_prefers_native_scout_subagents_with_handoffs():
+    content = _read("templates/commands/test-scan.md")
+    lowered = content.lower()
+
+    assert "current-runtime native subagents are the default" in lowered
+    assert "single-lane` names the topology for one safe scan lane" in lowered
+    assert "does not, by itself, require leader-local scanning" in lowered
+    assert "validated `testscanpacket`" in lowered
+    assert "raw scan notes or raw chat summaries are not sufficient" in lowered
+    assert "structured handoff" in lowered
+    assert "idle subagent output is not an accepted scan result" in lowered
+    assert "must wait for every dispatched scan lane" in lowered
+
+
 def test_test_build_template_consumes_scan_and_dispatches_build_packets():
     content = _read("templates/commands/test-build.md")
     lowered = content.lower()
