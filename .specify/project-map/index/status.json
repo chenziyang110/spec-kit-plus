@@ -6,6 +6,12 @@
     "last_refresh_at": "2026-04-30T06:11:44Z",
     "last_refresh_branch": "main",
     "last_refresh_reason": "subagents-first-workflow-refactor",
+    "commit_hash": "WORKTREE-subagents-first-refactor",
+    "doc_status_summary": {
+      "documented": 3,
+      "indexed_only": 0,
+      "gap": 0
+    },
     "last_refresh_topics": [
       "ARCHITECTURE.md",
       "STRUCTURE.md",
