@@ -190,3 +190,11 @@ def test_test_build_template_delegates_shared_and_high_risk_serial_lanes() -> No
     )
     for phrase in forbidden_phrases:
         assert phrase not in content, phrase
+
+
+def test_implement_template_does_not_reintroduce_optional_subagent_wording() -> None:
+    content = _read_command("implement").lower()
+
+    assert "substantive implementation lanes must be delegated" in content
+    assert "leader owns sequencing, review, and acceptance" in content
+    assert "for implementation work, prefer subagent execution only when" not in content
