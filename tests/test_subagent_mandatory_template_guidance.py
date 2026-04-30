@@ -78,3 +78,35 @@ def test_ordinary_templates_do_not_allow_leader_or_team_fallback_for_subagent_wo
     implement_content = _read_command("implement").lower()
     assert "sp-teams" not in implement_content
     assert "managed-team" not in implement_content
+
+
+def test_mandatory_subagent_templates_block_remaining_leader_path_fallbacks() -> None:
+    targeted_commands = (
+        "debug",
+        "map-scan",
+        "quick",
+        "test-build",
+        "test-scan",
+    )
+    forbidden_phrases = (
+        "keep it leader path",
+        "keep the lane on the leader path",
+        "keep it on the leader path",
+        "keep the lane on leader path",
+        "keep the batch on the leader path",
+        "keep it leader execution",
+        "keep it leader-only",
+        "leader path only while",
+        "leader path only when",
+        "on the leader path before dispatch",
+        "on the leader path until",
+        "on the leader path and finish compiling",
+    )
+
+    for command_name in targeted_commands:
+        content = _read_command(command_name).lower()
+
+        assert "subagent-blocked" in content, command_name
+        assert "stop for escalation or recovery" in content, command_name
+        for phrase in forbidden_phrases:
+            assert phrase not in content, f"{command_name}: {phrase}"

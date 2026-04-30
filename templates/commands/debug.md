@@ -265,7 +265,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
   - One safe validated evidence lane -> `one-subagent` on `native-subagents` when available.
   - Two or more independent evidence lanes -> `parallel-subagents` on `native-subagents` when available.  - No safe lane, shared mutable state, missing contract, low confidence, or unavailable delegation -> `subagent-blocked` with a recorded reason.
 - Dispatch that single subagent only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality.
-- If that subagent-readiness bar is not met, keep the lane on the leader path.
+- If that subagent-readiness bar is not met, compile the missing evidence-lane contract before dispatch; if the lane cannot be made safe, record `subagent-blocked` and stop for escalation or recovery.
 - `parallel-subagents` means the leader dispatches bounded evidence-gathering subagents and rejoins at an explicit join point.
 - `native-subagents` means the leader uses the current runtime native subagent surface for dispatched evidence lanes.
 - The durable team workflow remains separate from ordinary debug dispatch and is not the execution surface for this command.

@@ -105,7 +105,7 @@ source-of-truth document. The scan package is a task package for
      - One safe validated scan lane -> `one-subagent` on `native-subagents` when available.
      - Two or more safe read-only inventory lanes -> `parallel-subagents` on `native-subagents` when available.     - No safe lane, missing packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
    - Current-runtime native subagents are the default when safe read-only inventory lanes exist.
-   - For `one-subagent`, dispatch one read-only scout once a validated `MapScanPacket` or equivalent scan contract exists; keep it leader path only while the packet is incomplete or dispatch is unavailable.
+   - For `one-subagent`, dispatch one read-only scout once a validated `MapScanPacket` or equivalent scan contract exists. If the packet is incomplete, compile the missing packet fields before dispatch; if dispatch is unavailable, record `subagent-blocked` with the blocker and stop for escalation or recovery before broad inventory begins.
    - If collaboration is justified, keep `map-scan` lanes read-only and limited to inventory, classification, and packet drafting.
    - Recommended scan lanes:
      - source, architecture, and module boundaries
