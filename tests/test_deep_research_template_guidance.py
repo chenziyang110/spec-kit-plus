@@ -62,18 +62,24 @@ def test_deep_research_template_has_readiness_refusal_rules() -> None:
     lowered = content.lower()
     assert "readiness refusal" in lowered
     assert "gap report" in lowered
+    assert "refuse handoff" in lowered or "handoff refused" in lowered
 
 
 def test_deep_research_template_has_reverse_coverage_validation() -> None:
     content = _read("templates/commands/deep-research.md")
     lowered = content.lower()
     assert "reverse coverage validation" in lowered
+    assert "every cap" in lowered
+    assert "every ph" in lowered
 
 
 def test_deep_research_template_has_readiness_checklist() -> None:
     content = _read("templates/commands/deep-research.md")
+    lowered = content.lower()
     assert "Planning Handoff Readiness Checklist" in content
-    assert "exit status" in content.lower()
+    assert "exit status" in lowered
+    assert "Reverse Coverage Validation passed" in content or "reverse coverage" in lowered
+    assert "Readiness Refusal Rules all PASS" in content or "readiness refusal" in lowered
 
 
 def test_deep_research_template_has_capability_cards() -> None:
@@ -154,3 +160,4 @@ def test_deep_research_shell_partial_defines_guardrails() -> None:
     lowered = content.lower()
     assert "guardrails" in lowered
     assert "Do not edit production source files" in content
+    assert "Locked Decisions" in content or "locked decision" in lowered

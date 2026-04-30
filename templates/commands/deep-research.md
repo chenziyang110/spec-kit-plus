@@ -91,6 +91,12 @@ Use `execution_surface: native-subagents`.
   - `allowed_artifact_writes: deep-research.md, research-spikes/, alignment.md, context.md, references.md, workflow-state.md`
   - `forbidden_actions: edit production source code, edit tests, fix build/tooling, implement behavior, commit prototype code as production`
   - `authoritative_files: spec.md, alignment.md, context.md, references.md, deep-research.md`
+  - `track_exit_states`: per TRK-### exit state
+  - `evidence_packet_acceptance`: accepted and rejected packet lists with reasons
+  - `failed_readiness_checks`: list of check IDs that failed
+  - `open_gaps`: gap ID, description, severity, and linked CAP/TRK IDs
+  - `entry_source`: `sp-specify` | `sp-clarify` (which command routed here)
+  - `research_mode`: `full-research` | `supplement-research`
 - Do not edit production code, production tests, migrations, release config, or implementation artifacts from `sp-deep-research`.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
@@ -117,8 +123,30 @@ Use `execution_surface: native-subagents`.
   - `rejected_options`
   - `residual_risks`
   - `spike_artifacts` when applicable
+- [AGENT] After each subagent returns, apply the evidence packet acceptance protocol:
+  - **ACCEPT** when: `paths_read` is non-empty, `finding` is specific and evidence-backed, core question is answered, and no production files were edited.
+  - **REJECT** when: `paths_read` is empty or missing, `finding` is empty or only speculative, core question is unanswered, or the subagent edited production source files.
+  - Record every acceptance and rejection in `workflow-state.md`.
+  - For rejected packets: retry once with clarified instructions. If the retry also fails, mark the track as `blocked`, record `subagent-blocked` with the rejection reason, and escalate.
+  - Do not silently ignore or synthesize rejected evidence packets.
+
+  ```markdown
+  ## Evidence Packet Acceptance
+
+  | Track | Subagent | Status | Reason if Rejected | Action |
+  |-------|----------|--------|--------------------|--------|
+  | TRK-001 | agent-1 | ACCEPTED | — | — |
+  | TRK-002 | agent-2 | REJECTED | No paths_read | Retry once |
+  | TRK-003 | agent-3 | REJECTED | Edited source file | BLOCKED, escalate |
+  ```
 - [AGENT] Join all subagent results before writing final conclusions. Resolve contradictions by preferring runnable spike evidence, current repository evidence, primary documentation, then secondary sources in that order. Mark conflicts that remain unresolved instead of hiding them.
 - [AGENT] The coordinator must convert subagent packets into `Research Agent Findings`, `Synthesis Decisions`, and `Planning Handoff`; do not paste raw subagent output as the final artifact.
+- [AGENT] After accepting a subagent evidence packet, persist it as
+  `FEATURE_DIR/research-evidence/<EVD-###>.json` with the full evidence packet
+  fields plus the evidence quality rubric. This enables:
+  - independent audit without re-parsing `deep-research.md`
+  - direct citation by `/sp.plan` via evidence ID
+  - safe context-compaction recovery
 - [AGENT] If subagent dispatch is unavailable or unsafe, record the decision as `subagent-blocked` with the concrete reason, preserve the decomposed tracks as blocked work, and stop for escalation or recovery instead of continuing as coordinator-only execution.
 
 ## Traceability and Evidence Quality Contract
@@ -144,6 +172,7 @@ Use `execution_surface: native-subagents`.
   - `blocked`
   - `not-viable`
   - `user-decision-required`
+  - `stale-needs-revalidation` — prior evidence may no longer be valid due to dependency or platform changes
 - Do not continue researching a track once it has enough evidence to support a planning decision. Convert the result into a handoff item and move on.
 - For every spike, record the reproducibility contract:
   - hypothesis
@@ -171,6 +200,16 @@ Use `execution_surface: native-subagents`.
 2. **Create or resume the workflow state**:
    - Read `templates/workflow-state-template.md`.
    - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
+   - Determine entry source:
+     - If the prior `active_command` in `workflow-state.md` was `sp-specify` →
+       `entry_source: sp-specify`, `research_mode: full-research`
+     - If the prior `active_command` was `sp-clarify` →
+       `entry_source: sp-clarify`, `research_mode: supplement-research`
+     - If undetermined → default to `full-research`
+   - In `supplement-research` mode, preserve existing evidence and only research
+     newly added or changed capabilities.
+   - Record entry source and research mode in `deep-research.md` Research
+     Orchestration section.
    - Persist at least:
      - `active_command: sp-deep-research`
      - `phase_mode: research-only`
@@ -197,6 +236,27 @@ Use `execution_surface: native-subagents`.
      - Capabilities marked `Blocked` → preserve blocker, record reason, do not research unless unblocked
    - targeted live files only when the handbook/project-map cannot prove the current implementation pattern
    - external docs, API references, release notes, examples, or research material when they materially affect feasibility
+
+3b. **Detect staleness and prior evidence**:
+    - If `FEATURE_DIR/deep-research.md` already exists from a prior run, compare
+      new findings against prior conclusions.
+    - For each CAP with prior evidence, check whether dependencies (library
+      versions, API endpoints, platform behavior) have changed since the last
+      research pass.
+    - Mark CAPs with potentially stale evidence as `stale-needs-revalidation`
+      and prioritize their research tracks.
+    - Record staleness triggers (version bumps, deprecation notices, etc.) in
+      the track description.
+
+    ```markdown
+    ## Differential Evidence Analysis
+
+    | CAP ID | Previous Conclusion | Previous Evidence | New Evidence | Status Change |
+    |--------|--------------------|--------------------|--------------|---------------|
+    | CAP-001 | proven | EVD-001 | EVD-005 confirms | Unchanged |
+    | CAP-002 | constrained | EVD-002 | SPK-003 disproves | **OVERTURNED** → blocked |
+    | CAP-003 | proven (2026-03) | EVD-004 | lib X v3→v4 | **STALE** → revalidate |
+    ```
 
 4. **Decide whether this gate is needed**:
    - Skip deep research and recommend `/sp.plan` when all target capabilities already have a known implementation path in the repository or the work is only a minor adjustment to existing behavior.
@@ -287,6 +347,8 @@ Use `execution_surface: native-subagents`.
 9. **Synthesize research into planning decisions**:
    - Compare evidence packets across tracks.
    - Resolve conflicts and record why one source or demo result won over another.
+   - Record every conflict and its resolution in the `Contradiction Resolution Log`.
+   - Unresolved conflicts must be marked `BLOCKED` and escalated; do not hide them.
    - Identify the recommended approach, rejected approaches, and constraints `/sp.plan` must preserve.
    - Translate demo observations into planning implications rather than leaving them as raw logs.
    - Identify module boundaries, API/library choices, data flow notes, operational constraints, and validation implications that planning must account for.
@@ -375,9 +437,9 @@ Use `execution_surface: native-subagents`.
 
    ## Evidence Quality Rubric
 
-   | Evidence ID | Supports | Source Tier | Source / Path | Reproduced Locally | Recency / Version | Confidence | Plan Impact | Limitations |
-   | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-   | EVD-001 | CAP-001 / PH-001 | [repo-evidence / runnable-spike / primary-docs / official-example / standard / secondary-source / inference] | [URL, file path, or spike path] | [yes / no / not applicable] | [date/version/not time-sensitive] | [high / medium / low] | [blocking / constraining / informative] | [what this does not prove] |
+   | Evidence ID | Supports | Source Tier | Source / Path | Reproduced Locally | Recency / Version | Confidence | Plan Impact | Limitations | Persisted |
+   | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+   | EVD-001 | CAP-001 / PH-001 | [repo-evidence / runnable-spike / primary-docs / official-example / standard / secondary-source / inference] | [URL, file path, or spike path] | [yes / no / not applicable] | [date/version/not time-sensitive] | [high / medium / low] | [blocking / constraining / informative] | [what this does not prove] | research-evidence/EVD-001.json |
 
    ## Implementation Chain Evidence
 
@@ -425,6 +487,16 @@ Use `execution_surface: native-subagents`.
    - **Plan constraints**:
      - PH-### -> [constraint `/sp.plan` must preserve]
 
+   ## Contradiction Resolution Log
+
+   When two or more evidence items produce conflicting findings, record the
+   resolution. Unresolved contradictions must be marked `BLOCKED` and escalated.
+
+   | Conflict | Evidence A | Evidence B | Resolution | Priority Basis | Suppressed Reason |
+   |----------|-----------|-----------|------------|----------------|-------------------|
+   | [e.g. API version] | EVD-002: v3 | EVD-005: v2 | v3 accepted | spike > docs | EVD-005 was outdated |
+   | [unresolved] | EVD-007: pattern A | SPK-003: pattern B | **BLOCKED** | — | Contradictory runnable evidence |
+
    ## Planning Handoff
 
    - **Handoff IDs**: PH-001, PH-002, ...
@@ -441,6 +513,14 @@ Use `execution_surface: native-subagents`.
      - PH-### -> [risk; trace to CAP/TRK/EVD/SPK IDs]
    - **Decisions already proven by research**:
      - PH-### -> [decision; trace to CAP/TRK/EVD/SPK IDs]
+
+   - **PH consumption contract**:
+     - `mandatory` — `/sp.plan` must consume this PH; omitting it is a plan error.
+     - `optional` — `/sp.plan` may defer if the plan does not need it.
+     - `user-decision` — `/sp.plan` must ask the user before consuming or deferring.
+
+     Each PH item in the Traceability Index must carry its consumption contract in
+     the `Mandatory?` column.
 
    ## Capability Cards
 
@@ -462,6 +542,17 @@ Use `execution_surface: native-subagents`.
    | **Minimum verification** | [Command or check that proves this works] |
    | **Failure modes** | [Known ways this can fail] |
    | **Confidence** | [Verified / Inferred / Unknown-Stale] |
+
+   ## Research Exclusions
+
+   Areas, surfaces, or dimensions intentionally not researched in this pass.
+
+   | Excluded Area | Reason | Revisit Condition | Recorded By |
+   |---------------|--------|-------------------|-------------|
+   | [e.g. performance profiling] | [Not in feature scope] | [Before production deploy] | [Coordinator / TRK-###] |
+
+   Every unverified dimension from the preset research checklist that was marked
+   "not applicable" or "deferred" must appear here with a revisit condition.
 
    ## Planning Traceability Index
 
