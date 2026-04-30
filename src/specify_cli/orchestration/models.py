@@ -6,15 +6,37 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal, cast
 
-SubagentExecutionModel = Literal["subagents-first"]
-DispatchShape = Literal["one-subagent", "parallel-subagents", "leader-inline-fallback"]
-ExecutionSurface = Literal["native-subagents", "managed-team", "leader-inline"]
+SubagentExecutionModel = Literal["subagent-mandatory"]
+DispatchShape = Literal["one-subagent", "parallel-subagents"]
+ExecutionSurface = Literal["native-subagents"]
 NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
 DelegationConfidence = Literal["low", "medium", "high"]
-_CANONICAL_DISPATCH_SHAPES = frozenset(
-    {"one-subagent", "parallel-subagents", "leader-inline-fallback"}
+_CANONICAL_DISPATCH_SHAPES = frozenset({"one-subagent", "parallel-subagents"})
+_ORDINARY_SP_COMMANDS = frozenset(
+    {
+        "analyze",
+        "auto",
+        "checklist",
+        "clarify",
+        "constitution",
+        "debug",
+        "deep-research",
+        "explain",
+        "fast",
+        "implement",
+        "map-build",
+        "map-scan",
+        "plan",
+        "quick",
+        "research",
+        "specify",
+        "tasks",
+        "taskstoissues",
+        "test",
+        "test-build",
+        "test-scan",
+    }
 )
-_ONE_SUBAGENT_ATTEMPT_COMMANDS = frozenset({"implement", "quick", "test-build"})
 
 
 def utc_now() -> str:
@@ -40,12 +62,7 @@ class CapabilitySnapshot:
 
 @dataclass(slots=True)
 class ExecutionDecision:
-    """Persisted decision that selects how a command should execute.
-
-    The command remains leader-owned. ``dispatch_shape`` captures whether the
-    next safe lane goes to one subagent, parallel subagents, or leader-inline
-    fallback; ``execution_surface`` captures the runtime used for that shape.
-    """
+    """Persisted decision selecting the subagent shape for an ordinary sp-* command."""
 
     command_name: str
     dispatch_shape: DispatchShape
@@ -53,7 +70,7 @@ class ExecutionDecision:
     fallback_from: DispatchShape | None = None
     created_at: str = field(default_factory=utc_now)
     execution_surface: ExecutionSurface | None = None
-    execution_model: SubagentExecutionModel = "subagents-first"
+    execution_model: SubagentExecutionModel = "subagent-mandatory"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -62,17 +79,8 @@ class ExecutionDecision:
             _normalize_dispatch_shape(self.dispatch_shape),
         )
         if self.fallback_from is not None:
-            object.__setattr__(
-                self,
-                "fallback_from",
-                _normalize_dispatch_shape(self.fallback_from),
-            )
-        if self.execution_surface is None:
-            object.__setattr__(
-                self,
-                "execution_surface",
-                _derive_execution_surface(self.dispatch_shape),
-            )
+            object.__setattr__(self, "fallback_from", _normalize_dispatch_shape(self.fallback_from))
+        object.__setattr__(self, "execution_surface", "native-subagents")
 
 
 @dataclass(slots=True)
@@ -161,9 +169,9 @@ utc_now_iso = utc_now
 
 
 def should_attempt_one_subagent(command_name: str) -> bool:
-    """Return whether one safe lane should prefer one subagent over leader-inline work."""
+    """Return whether an ordinary sp-* command should dispatch one subagent for one ready lane."""
 
-    return command_name.strip().lower() in _ONE_SUBAGENT_ATTEMPT_COMMANDS
+    return command_name.strip().lower() in _ORDINARY_SP_COMMANDS
 
 
 def _normalize_dispatch_shape(dispatch_shape: str) -> DispatchShape:
@@ -173,6 +181,5 @@ def _normalize_dispatch_shape(dispatch_shape: str) -> DispatchShape:
 
 
 def _derive_execution_surface(dispatch_shape: DispatchShape) -> ExecutionSurface:
-    if dispatch_shape in {"one-subagent", "parallel-subagents"}:
-        return "native-subagents"
-    return "leader-inline"
+    _normalize_dispatch_shape(dispatch_shape)
+    return "native-subagents"

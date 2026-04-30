@@ -9,19 +9,12 @@ from .models import (
     CapabilitySnapshot,
     ExecutionDecision,
     ReviewGatePolicy,
-    should_attempt_one_subagent,
 )
 
 _SAFE_SUBAGENT_LANE_COUNT_KEYS = (
     "safe_subagent_lanes",
     "subagent_lane_count",
     "ready_subagent_lanes",
-)
-_PACKET_READY_KEYS = (
-    "packet_ready",
-    "packets_ready",
-    "has_validated_packet",
-    "has_validated_packets",
 )
 _OVERLAPPING_WRITE_SET_KEYS = (
     "overlapping_write_sets",
@@ -99,92 +92,18 @@ def choose_subagent_dispatch(
     snapshot: CapabilitySnapshot,
     workload_shape: dict[str, object],
 ) -> ExecutionDecision:
-    """Choose the dispatch shape using the shared subagents-first policy."""
+    """Choose the mandatory subagent dispatch shape for ordinary sp-* commands."""
 
-    command = command_name.strip().lower()
     shape = workload_shape if isinstance(workload_shape, Mapping) else {}
     safe_lanes = _get_shape_int(shape, _SAFE_SUBAGENT_LANE_COUNT_KEYS) or 0
-    fallback_shape = "parallel-subagents" if safe_lanes > 1 else "one-subagent"
-    has_overlapping_write_sets = _get_shape_flag(
-        shape,
-        _OVERLAPPING_WRITE_SET_KEYS,
-        default=False,
-    )
-
-    if has_overlapping_write_sets:
-        return ExecutionDecision(
-            command_name=command_name,
-            dispatch_shape="leader-inline-fallback",
-            reason="unsafe-write-sets",
-            fallback_from=fallback_shape,
-            execution_surface="leader-inline",
-        )
-
-    if safe_lanes <= 0:
-        return ExecutionDecision(
-            command_name=command_name,
-            dispatch_shape="leader-inline-fallback",
-            reason="no-safe-delegated-lane",
-            fallback_from="one-subagent" if should_attempt_one_subagent(command) else None,
-            execution_surface="leader-inline",
-        )
-
-    packet_ready = _get_shape_flag(shape, _PACKET_READY_KEYS, default=False)
-    if should_attempt_one_subagent(command) and not packet_ready:
-        return ExecutionDecision(
-            command_name=command_name,
-            dispatch_shape="leader-inline-fallback",
-            reason="packet-not-ready",
-            fallback_from=fallback_shape,
-            execution_surface="leader-inline",
-        )
-
-    low_confidence = (
-        snapshot.native_subagents
-        and snapshot.runtime_probe_succeeded
-        and snapshot.delegation_confidence == "low"
-    )
-    if low_confidence:
-        if command != "implement" and snapshot.managed_team_supported and safe_lanes > 1:
-            return ExecutionDecision(
-                command_name=command_name,
-                dispatch_shape="parallel-subagents",
-                reason="managed-team-supported",
-                fallback_from="parallel-subagents",
-                execution_surface="managed-team",
-            )
-        return ExecutionDecision(
-            command_name=command_name,
-            dispatch_shape="leader-inline-fallback",
-            reason="low-delegation-confidence",
-            fallback_from=fallback_shape,
-            execution_surface="leader-inline",
-        )
-
-    if snapshot.native_subagents:
-        dispatch_shape = "parallel-subagents" if safe_lanes > 1 else "one-subagent"
-        return ExecutionDecision(
-            command_name=command_name,
-            dispatch_shape=dispatch_shape,
-            reason="safe-parallel-subagents" if safe_lanes > 1 else "safe-one-subagent",
-            execution_surface="native-subagents",
-        )
-
-    if command != "implement" and snapshot.managed_team_supported and safe_lanes > 1:
-        return ExecutionDecision(
-            command_name=command_name,
-            dispatch_shape="parallel-subagents",
-            reason="managed-team-supported",
-            fallback_from="parallel-subagents",
-            execution_surface="managed-team",
-        )
+    dispatch_shape = "parallel-subagents" if safe_lanes > 1 else "one-subagent"
+    reason = "mandatory-parallel-subagents" if safe_lanes > 1 else "mandatory-one-subagent"
 
     return ExecutionDecision(
         command_name=command_name,
-        dispatch_shape="leader-inline-fallback",
-        reason="runtime-no-subagents",
-        fallback_from=fallback_shape,
-        execution_surface="leader-inline",
+        dispatch_shape=dispatch_shape,
+        reason=reason,
+        execution_surface="native-subagents",
     )
 
 
