@@ -127,7 +127,7 @@ Use `execution_surface: native-subagents`.
      - `validation_command`
      - `done_condition`
    - Treat lanes marked `needs-leader-review`, `needs-research`, or `blocked` as non-executable until the leader resolves the missing decision and records the resolution in `TESTING_STATE_FILE`.
-   - If a lane requests shared config, global fixture, CI, dependency, or production-code changes, treat that work as a leader-owned coordination gate and convert it into a serial join lane before any parallel subagent work starts.
+   - If a lane requests shared config, global fixture, CI, dependency, or production-code changes, the leader owns only the coordination, sequencing, review, and acceptance gate. When the change is safe, packetize it as a validated serial subagent lane that runs before any parallel subagent work starts. If a safe serial dispatch cannot be made, record `subagent-blocked` with the escalation or recovery reason and stop instead of making the edit directly.
    - Record the selected `current_wave`, `current_lane`, executable lanes, skipped lanes, and gate failures in `TESTING_STATE_FILE`.
 
 3. **Inventory the current testing surface**
@@ -197,7 +197,7 @@ Use `execution_surface: native-subagents`.
      - `result_handoff_path`
    - Hard rule: do not dispatch from raw scan prose or raw Markdown checklist items alone.
    - Hard rule: a subagent may only edit files inside its `write_set`.
-   - Hard rule: shared config, global fixtures, CI/presubmit, dependency, and production-code edits are leader-owned unless the packet explicitly grants a serial lane that cannot run in parallel.
+   - Hard rule: shared config, global fixtures, CI/presubmit, dependency, and production-code edits must be delegated through an explicit validated serial `TestBuildPacket` when safe. The leader owns coordination, review, and acceptance only. If the serial lane cannot be safely packetized or dispatched, record `subagent-blocked` and stop for escalation or recovery.
    - Store packet paths or packet summaries in `TESTING_STATE_FILE` before dispatch.
    - Use this packet shape when no runtime-specific packet schema exists:
 

@@ -121,7 +121,9 @@ def test_test_build_template_consumes_scan_and_dispatches_build_packets():
     assert "testbuildpacket" in lowered
     assert "validated `testbuildpacket`" in lowered
     assert "a subagent may only edit files inside its `write_set`" in lowered
-    assert "shared config, global fixtures, ci/presubmit, dependency, and production-code edits are leader-owned" in lowered
+    assert "shared config, global fixtures, ci/presubmit, dependency, and production-code edits must be delegated through an explicit validated serial `testbuildpacket`" in lowered
+    assert "the leader owns coordination, review, and acceptance only" in lowered
+    assert "if the serial lane cannot be safely packetized or dispatched, record `subagent-blocked` and stop for escalation or recovery" in lowered
     assert "reported_status: done | done_with_concerns | blocked | needs_context" in lowered
     assert "idle subagent is not an accepted result" in lowered
     assert "test-quality review lane" in lowered

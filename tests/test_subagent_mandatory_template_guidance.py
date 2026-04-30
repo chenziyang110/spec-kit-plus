@@ -172,3 +172,21 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
 
     for team_command in TEAM_COMMANDS:
         assert (PROJECT_ROOT / "templates" / "commands" / f"{team_command}.md").exists()
+
+
+def test_test_build_template_delegates_shared_and_high_risk_serial_lanes() -> None:
+    content = _read_command("test-build").lower()
+
+    assert "packetize it as a validated serial subagent lane" in content
+    assert "leader owns only the coordination, sequencing, review, and acceptance gate" in content
+    assert "the leader owns coordination, review, and acceptance only" in content
+    assert "record `subagent-blocked` with the escalation or recovery reason and stop instead of making the edit directly" in content
+    assert "record `subagent-blocked` and stop for escalation or recovery" in content
+
+    forbidden_phrases = (
+        "treat that work as a leader-owned coordination gate",
+        "production-code edits are leader-owned",
+        "leader-owned unless the packet explicitly grants a serial lane",
+    )
+    for phrase in forbidden_phrases:
+        assert phrase not in content, phrase
