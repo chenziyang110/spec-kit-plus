@@ -193,6 +193,27 @@ def test_test_build_template_delegates_shared_and_high_risk_serial_lanes() -> No
         assert phrase not in content, phrase
 
 
+def test_clarify_template_delegates_artifact_update_lanes() -> None:
+    content = _read_command("clarify").lower()
+
+    assert "validated artifact-update subagent lane" in content
+    assert "packetize the artifact update as a validated subagent lane" in content
+    assert "delegate artifact enhancements through a validated subagent lane" in content
+    assert "the leader owns coordination, packet validation, user-question decisions, structured-handoff review, acceptance, final status, and state consistency" in content
+    assert "if the artifact update lane cannot be safely packetized or delegated, record `subagent-blocked` in `workflow-state.md` with the escalation or recovery reason and stop instead of making the artifact edits" in content
+
+    forbidden_phrases = (
+        "can be improved directly from current context",
+        "prefer updating the artifacts directly",
+        "apply enhancements directly to the artifact set",
+        "making the edit directly",
+        "leader-authored direct edits",
+        "leader-authored artifact edits",
+    )
+    for phrase in forbidden_phrases:
+        assert phrase not in content, phrase
+
+
 def test_implement_template_does_not_reintroduce_optional_subagent_wording() -> None:
     content = _read_command("implement").lower()
 

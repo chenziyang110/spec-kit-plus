@@ -122,14 +122,14 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 
 5. Classify findings by severity:
    - high-impact gaps that require user confirmation
-   - lower-risk gaps that can be improved directly from current context
+   - lower-risk gaps that can be safely converted into a validated artifact-update subagent lane from current context
 
 6. Clarification loop for high-impact gaps:
    - Ask only the minimum number of questions required to make planning reliable again.
    - Present exactly one unresolved high-impact question at a time.
    - Prefer questions that lock behavior, boundary handling, compatibility, or acceptance proof rather than reopening broad ideation.
    - Use the user's current language for user-visible questions and confirmations.
-   - If repository evidence or retained references can answer the gap safely, prefer updating the artifacts directly instead of asking the user to restate codebase facts.
+   - If repository evidence or retained references can answer the gap safely, packetize the artifact update as a validated subagent lane instead of asking the user to restate codebase facts.
 
 7. When justified, use multi-agent research or analysis to deepen the spec:
    - parallelize only when the work naturally separates into independent research tracks
@@ -143,15 +143,17 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - Record that `/sp.deep-research` must return a `Planning Handoff` with findings, demo evidence, constraints, rejected options, and recommended approach for `/sp.plan`.
    - Do not require `/sp.deep-research` for minor changes to existing capabilities that already have a clear implementation path in the repository.
 
-8. Apply enhancements directly to the artifact set:
-   - update `spec.md`
-   - update `alignment.md`
-   - update `context.md`
-   - update `references.md`
-   - strengthen `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` when relevant
-   - strengthen `Locked Decisions For Planning`, `Outstanding Questions`, and `Planning Gate Recommendation` in `alignment.md`
-   - strengthen feasibility / deep research gate status when an implementation-chain proof is needed before planning
-   - strengthen `Locked Decisions`, `Claude Discretion`, `Canonical References`, `Existing Code Insights`, `Specific User Signals`, and `Outstanding Questions` in `context.md`
+8. Delegate artifact enhancements through a validated subagent lane:
+   - Build one bounded `WorkerTaskPacket` for the artifact update lane when the write scope is safe and packetized.
+   - Allowed writes are limited to `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` inside `FEATURE_DIR`.
+   - The packet must list authoritative inputs, exact artifact sections to strengthen, allowed writes, forbidden actions, acceptance checks, verification evidence, and structured handoff format.
+   - The subagent updates `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` as needed.
+   - The subagent strengthens `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` when relevant.
+   - The subagent strengthens `Locked Decisions For Planning`, `Outstanding Questions`, and `Planning Gate Recommendation` in `alignment.md`.
+   - The subagent strengthens feasibility / deep research gate status when an implementation-chain proof is needed before planning.
+   - The subagent strengthens `Locked Decisions`, `Claude Discretion`, `Canonical References`, `Existing Code Insights`, `Specific User Signals`, and `Outstanding Questions` in `context.md`.
+   - The leader owns coordination, packet validation, user-question decisions, structured-handoff review, acceptance, final status, and state consistency.
+   - If the artifact update lane cannot be safely packetized or delegated, record `subagent-blocked` in `workflow-state.md` with the escalation or recovery reason and stop instead of making the artifact edits.
 
 9. Maintain a clean output contract:
    - preserve confirmed facts
