@@ -1,5 +1,6 @@
 """Tests for ClaudeIntegration."""
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -15,6 +16,17 @@ from specify_cli.integrations.claude import ARGUMENT_HINTS
 from specify_cli.integrations.manifest import IntegrationManifest
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
+
+
+def _load_claude_hook_dispatch_module():
+    repo_root = Path(__file__).resolve().parents[2]
+    hook_path = repo_root / "src" / "specify_cli" / "integrations" / "claude" / "hooks" / "claude-hook-dispatch.py"
+    spec = importlib.util.spec_from_file_location("claude_hook_dispatch_for_tests", hook_path)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 class TestClaudeIntegration:
@@ -252,6 +264,47 @@ class TestClaudeIntegration:
         refreshed = hook_script.read_text(encoding="utf-8")
         assert "# stale managed hook" not in refreshed
         assert "def _handle_stop_monitor" in refreshed
+
+    def test_claude_hook_adapter_respects_event_specific_output_schema(self):
+        module = _load_claude_hook_dispatch_module()
+        blocked = {
+            "status": "blocked",
+            "errors": ["blocked reason"],
+            "warnings": ["warning context"],
+            "actions": ["action context"],
+        }
+        warned = {
+            "status": "warn",
+            "errors": [],
+            "warnings": ["warning context"],
+            "actions": [],
+        }
+
+        pre_tool = module._shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=blocked)
+        assert pre_tool == {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": "blocked reason",
+            }
+        }
+
+        prompt = module._shared_to_claude_output(hook_event_name="UserPromptSubmit", shared_payload=blocked)
+        assert prompt["decision"] == "block"
+        assert prompt["reason"] == "blocked reason"
+        assert "hookSpecificOutput" not in prompt
+
+        post_tool = module._shared_to_claude_output(hook_event_name="PostToolUse", shared_payload=blocked)
+        post_tool_output = post_tool["hookSpecificOutput"]
+        assert post_tool_output["hookEventName"] == "PostToolUse"
+        assert "blocked reason" in post_tool_output["additionalContext"]
+        assert "permissionDecision" not in post_tool_output
+        assert "permissionDecisionReason" not in post_tool_output
+
+        pre_tool_warning = module._shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=warned)
+        assert pre_tool_warning == {"systemMessage": "warning context"}
+
+        assert module._stop_system_message("stop context") == {"systemMessage": "stop context"}
 
     def test_setup_merges_existing_settings_json_without_overwriting_user_values(self, tmp_path):
         integration = get_integration("claude")

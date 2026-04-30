@@ -178,23 +178,35 @@ def _shared_to_claude_output(
     errors = [str(item) for item in shared_payload.get("errors", []) if str(item).strip()]
     warnings = [str(item) for item in shared_payload.get("warnings", []) if str(item).strip()]
     actions = [str(item) for item in shared_payload.get("actions", []) if str(item).strip()]
+    advisory = " ".join([*warnings, *actions]).strip()
 
     if status == "blocked":
         reason = errors[0] if errors else (warnings[0] if warnings else "shared quality hook blocked the action")
-        output = {
-            "hookSpecificOutput": {
-                "hookEventName": hook_event_name,
-                "permissionDecision": "deny",
-                "permissionDecisionReason": reason,
+        if hook_event_name == "PreToolUse":
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": hook_event_name,
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": reason,
+                }
             }
-        }
-        extra = " ".join([*warnings, *actions]).strip()
-        if extra:
-            output["hookSpecificOutput"]["additionalContext"] = extra
-        return output
+        if hook_event_name == "UserPromptSubmit":
+            output = {"decision": "block", "reason": reason}
+            if advisory and advisory != reason:
+                output["systemMessage"] = advisory
+            return output
+        if hook_event_name == "PostToolUse":
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": hook_event_name,
+                    "additionalContext": " ".join([reason, advisory]).strip(),
+                }
+            }
+        return {"decision": "block", "reason": reason}
 
-    advisory = " ".join([*warnings, *actions]).strip()
     if status == "warn" and advisory:
+        if hook_event_name == "PreToolUse":
+            return {"systemMessage": advisory}
         return {
             "hookSpecificOutput": {
                 "hookEventName": hook_event_name,
@@ -483,6 +495,13 @@ def _learning_signal_context(project_root: Path, context: dict[str, str], hook_e
     return str(output.get("hookSpecificOutput", {}).get("additionalContext") or "").strip()
 
 
+def _stop_system_message(message: str) -> dict[str, Any] | None:
+    message = message.strip()
+    if not message:
+        return None
+    return {"systemMessage": message}
+
+
 def _handle_user_prompt_submit(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
     prompt = _extract_prompt_text(payload)
     if not prompt:
@@ -620,10 +639,7 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
         }
         extra = " ".join([*warnings, *actions]).strip()
         if extra:
-            output["hookSpecificOutput"] = {
-                "hookEventName": "Stop",
-                "additionalContext": extra,
-            }
+            output["systemMessage"] = extra
         return output
 
     if status == "warn":
@@ -637,21 +653,11 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
         if signal_context:
             extra = f"{extra} {signal_context}".strip()
         if extra:
-            return {
-                "hookSpecificOutput": {
-                    "hookEventName": "Stop",
-                    "additionalContext": extra,
-                }
-            }
+            return _stop_system_message(extra)
 
     signal_context = _learning_signal_context(project_root, context, "Stop")
     if signal_context:
-        return {
-            "hookSpecificOutput": {
-                "hookEventName": "Stop",
-                "additionalContext": signal_context,
-            }
-        }
+        return _stop_system_message(signal_context)
 
     return None
 
