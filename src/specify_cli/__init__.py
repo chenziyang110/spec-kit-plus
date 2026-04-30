@@ -3072,6 +3072,14 @@ def init(
     console.print(tracker.render())
     console.print("\n[bold green]Spec Kit Plus project ready.[/bold green]")
 
+    # Pre-fetch spec-lint binary in the background so `specify lint` works
+    # immediately without a download pause on first use.  Non-fatal.
+    try:
+        from specify_cli.lint import ensure_binary as _ensure_lint
+        _ensure_lint()
+    except Exception:
+        pass  # spec-lint download is best-effort during init
+
     # Show git error details if initialization failed
     if git_error_message:
         console.print()
