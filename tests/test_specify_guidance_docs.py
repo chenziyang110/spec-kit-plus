@@ -11,17 +11,17 @@ def _read(rel_path: str) -> str:
 def test_quickstart_teaches_specify_to_plan_mainline():
     quickstart = _read("docs/quickstart.md")
 
-    assert "move directly from `/speckit.specify` to `/speckit.plan`" in quickstart
-    assert "`/speckit.specify` to `/speckit.plan`" in quickstart or "`/speckit.specify` and `/speckit.plan`" in quickstart
+    assert "move directly from `/sp-specify` to `/sp-plan`" in quickstart
+    assert "`/sp-specify` to `/sp-plan`" in quickstart or "`/sp-specify` and `/sp-plan`" in quickstart
     assert "`specify -> plan` as the default path" in quickstart
-    assert "/speckit.specify` -> `/speckit.deep-research` -> `/speckit.plan" in quickstart
+    assert "/sp-specify` -> `/sp-deep-research` -> `/sp-plan" in quickstart
 
 
 def test_quickstart_positions_clarify_correctly():
     quickstart = _read("docs/quickstart.md")
     lowered = quickstart.lower()
 
-    assert "/speckit.clarify" in quickstart
+    assert "/sp-clarify" in quickstart
     assert "repair lane" in lowered or "needs deeper analysis before planning" in lowered
 
 
@@ -46,14 +46,14 @@ def test_guidance_docs_explain_skill_groups():
     assert "Core workflow skills" in quickstart
     assert "Support skills" in quickstart
     assert "Codex-only runtime" in quickstart
-    assert "/speckit.auto" in quickstart
-    assert "/speckit.clarify" in quickstart
-    assert "/speckit.deep-research" in quickstart
-    assert "/speckit.checklist" in quickstart
-    assert "/speckit.analyze" in quickstart
-    assert "/speckit.debug" in quickstart
-    assert "/speckit.map-scan" in quickstart
-    assert "/speckit.map-build" in quickstart
+    assert "/sp-auto" in quickstart
+    assert "/sp-clarify" in quickstart
+    assert "/sp-deep-research" in quickstart
+    assert "/sp-checklist" in quickstart
+    assert "/sp-analyze" in quickstart
+    assert "/sp-debug" in quickstart
+    assert "/sp-map-scan" in quickstart
+    assert "/sp-map-build" in quickstart
 
 
 def test_guidance_docs_explain_optional_codex_teams_mcp_refresh():
@@ -109,8 +109,8 @@ def test_guidance_docs_position_map_scan_build_for_existing_projects():
 
     assert "Already have code?" in readme
     assert "Run `map-scan`, then `map-build` first" in readme
-    assert "/speckit.map-scan" in quickstart
-    assert "/speckit.map-build" in quickstart
+    assert "/sp-map-scan" in quickstart
+    assert "/sp-map-build" in quickstart
     assert "existing codebase" in quickstart.lower()
     assert "required brownfield gate" in readme.lower()
     assert "required brownfield gate" in quickstart.lower()
@@ -141,7 +141,7 @@ def test_guidance_docs_frame_analyze_as_pre_implement_gate():
     quickstart = _read("docs/quickstart.md").lower()
 
     assert "tasks -> analyze -> implement" in readme
-    assert "before implementation, run `/speckit.analyze`" in quickstart
+    assert "before implementation, run `/sp-analyze`" in quickstart
     assert "default pre-implementation gate" in readme
     assert "required gate before implementation once `tasks.md` exists" in quickstart
 
@@ -151,7 +151,7 @@ def test_guidance_docs_position_auto_as_state_driven_resume_lane():
     quickstart = _read("docs/quickstart.md").lower()
 
     for content in (readme, quickstart):
-        assert "sp-auto" in content or "/speckit.auto" in content
+        assert "sp-auto" in content or "/sp-auto" in content
         assert "recommended next" in content
         assert "current repository state" in content or "current state" in content
 
@@ -164,15 +164,15 @@ def test_guidance_docs_explain_fast_quick_specify_routing():
     quickstart = _read("docs/quickstart.md").lower()
 
     for content in (readme, quickstart):
-        assert "sp-fast" in content or "/speckit.fast" in content
-        assert "sp-quick" in content or "/speckit.quick" in content
+        assert "sp-fast" in content or "/sp-fast" in content
+        assert "sp-quick" in content or "/sp-quick" in content
         assert "more than 3 files" in content
         assert "shared surface" in content
         assert "multiple independent capabilities" in content
         assert "compatibility" in content
         assert "acceptance criteria" in content
         assert "root cause" in content
-        assert "sp-debug" in content or "/speckit.debug" in content
+        assert "sp-debug" in content or "/sp-debug" in content
         assert "symptom" in content
 
 
@@ -199,10 +199,10 @@ def test_guidance_docs_explain_failing_test_first_execution_rule():
 
     for content in (readme, quickstart):
         assert "failing test first" in content
-        assert "sp-fast" in content or "/speckit.fast" in content
-        assert "sp-quick" in content or "/speckit.quick" in content
-        assert "sp-implement" in content or "/speckit.implement" in content
-        assert "sp-debug" in content or "/speckit.debug" in content
+        assert "sp-fast" in content or "/sp-fast" in content
+        assert "sp-quick" in content or "/sp-quick" in content
+        assert "sp-implement" in content or "/sp-implement" in content
+        assert "sp-debug" in content or "/sp-debug" in content
 
 
 def test_guidance_docs_explain_passive_project_learning_layer():

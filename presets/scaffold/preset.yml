@@ -61,21 +61,21 @@ provides:
     # Command overrides (AI agent workflow prompts)
     # Presets can override both core and extension commands.
     # Commands are automatically registered into all detected agent
-    # directories (.claude/commands/, .gemini/commands/, etc.)
+    # directories (.claude/skills/, .gemini/commands/, etc.)
 
     # Override a core command:
     - type: "command"
-      name: "speckit.specify"
-      file: "commands/speckit.specify.md"
+      name: "sp.specify"
+      file: "commands/sp.specify.md"
       description: "Custom specification command"
-      replaces: "speckit.specify"
+      replaces: "sp.specify"
 
     # Override an extension command (e.g. from the "myext" extension):
     - type: "command"
-      name: "speckit.myext.myextcmd"
-      file: "commands/speckit.myext.myextcmd.md"
+      name: "sp.myext.myextcmd"
+      file: "commands/sp.myext.myextcmd.md"
       description: "Override myext's myextcmd command with custom workflow"
-      replaces: "speckit.myext.myextcmd"
+      replaces: "sp.myext.myextcmd"
 
     # Script templates (reserved for future use)
     # - type: "script"

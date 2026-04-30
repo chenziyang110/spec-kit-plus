@@ -50,16 +50,16 @@ flowchart TD
     A["specify preset add my-preset"] --> B{Preset has type: command?}
     B -- No --> Z["done (templates only)"]
     B -- Yes --> C{Extension command?}
-    C -- "speckit.myext.cmd\n(3+ dot segments)" --> D{Extension installed?}
+    C -- "sp.myext.cmd\n(3+ dot segments)" --> D{Extension installed?}
     D -- No --> E["skip (extension not active)"]
     D -- Yes --> F["register command"]
-    C -- "speckit.specify\n(core command)" --> F
+    C -- "sp.specify\n(core command)" --> F
     F --> G["detect agent directories"]
-    G --> H[".claude/commands/"]
+    G --> H[".claude/skills/"]
     G --> I[".gemini/commands/"]
     G --> J[".github/agents/"]
     G --> K["... (17+ agents)"]
-    H --> L["write .md (Markdown format)"]
+    H --> L["write SKILL.md"]
     I --> M["write .toml (TOML format)"]
     J --> N["write .agent.md + .prompt.md"]
 
@@ -71,9 +71,9 @@ flowchart TD
 
 ### Extension safety check
 
-Command names follow the pattern `speckit.<ext-id>.<cmd-name>`. When a command has 3+ dot segments, the system extracts the extension ID and checks if `.specify/extensions/<ext-id>/` exists. If the extension isn't installed, the command is skipped — preventing orphan files referencing non-existent extensions.
+Command names follow the pattern `sp.<ext-id>.<cmd-name>`. When a command has 3+ dot segments, the system extracts the extension ID and checks if `.specify/extensions/<ext-id>/` exists. If the extension isn't installed, the command is skipped — preventing orphan files referencing non-existent extensions.
 
-Core commands (e.g. `speckit.specify`, with only 2 segments) are always registered.
+Core commands (e.g. `sp.specify`, with only 2 segments) are always registered.
 
 ### Agent format rendering
 
@@ -81,7 +81,8 @@ The `CommandRegistrar` renders commands differently per agent:
 
 | Agent | Format | Extension | Arg placeholder |
 |-------|--------|-----------|-----------------|
-| Claude, Cursor, opencode, Windsurf, etc. | Markdown | `.md` | `$ARGUMENTS` |
+| Claude | Skill | `/SKILL.md` | `$ARGUMENTS` |
+| Cursor, opencode, Windsurf, etc. | Markdown | `.md` | `$ARGUMENTS` |
 | Copilot | Markdown | `.agent.md` + `.prompt.md` | `$ARGUMENTS` |
 | Gemini, Qwen, Tabnine | TOML | `.toml` | `{{args}}` |
 
@@ -126,15 +127,15 @@ presets/
 │   ├── preset.yml                          # Example manifest
 │   ├── README.md                           # Guide for customizing the scaffold
 │   ├── commands/
-│   │   ├── speckit.specify.md              # Core command override example
-│   │   └── speckit.myext.myextcmd.md       # Extension command override example
+│   │   ├── sp.specify.md                   # Core command override example
+│   │   └── sp.myext.myextcmd.md            # Extension command override example
 │   └── templates/
 │       ├── spec-template.md                # Core template override example
 │       └── myext-template.md               # Extension template override example
 └── self-test/                              # Self-test preset (overrides all core templates)
     ├── preset.yml
     ├── commands/
-    │   └── speckit.specify.md
+    │   └── sp.specify.md
     └── templates/
         ├── alignment-template.md
         ├── spec-template.md

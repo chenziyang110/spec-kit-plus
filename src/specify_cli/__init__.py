@@ -2201,9 +2201,12 @@ def _install_shared_infra(
     Returns ``True`` on success.
     """
     from .integrations.manifest import IntegrationManifest
+    from .launcher import write_project_specify_launcher_config
 
     core = _locate_core_pack()
     manifest = IntegrationManifest("speckit", project_path, version=get_speckit_version())
+    preexisting_config = project_path / ".specify" / "config.json"
+    config_existed = preexisting_config.exists()
 
     # Scripts
     if core and (core / "scripts").is_dir():
@@ -2309,6 +2312,10 @@ def _install_shared_infra(
             "The following shared files already exist and were not overwritten:\n%s",
             "\n".join(f"  {f}" for f in skipped_files),
         )
+
+    launcher_config = write_project_specify_launcher_config(project_path)
+    if launcher_config is not None and not config_existed:
+        manifest.record_existing(launcher_config.relative_to(project_path).as_posix())
 
     manifest.save()
     return True

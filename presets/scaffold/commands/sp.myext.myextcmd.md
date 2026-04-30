@@ -2,7 +2,7 @@
 description: "Override of the myext extension's myextcmd command"
 ---
 
-<!-- Preset override for speckit.myext.myextcmd -->
+<!-- Preset override for sp.myext.myextcmd -->
 
 You are following a customized version of the myext extension's myextcmd command.
 

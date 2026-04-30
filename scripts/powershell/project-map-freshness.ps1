@@ -483,7 +483,8 @@ switch ($Command) {
                 $dirtyReasons.Add([string]$item)
             }
         }
-        $why = Normalize-DirtyReason -Reason (if ($Reason) { $Reason } else { "project-map-dirty" })
+        $rawReason = if ($Reason) { $Reason } else { "project-map-dirty" }
+        $why = Normalize-DirtyReason -Reason $rawReason
         if ($dirtyReasons -notcontains $why) {
             $dirtyReasons.Add($why)
         }

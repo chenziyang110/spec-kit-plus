@@ -38,13 +38,13 @@ confirm newly added commands such as `testing` are present, and use
 ### One-time use without installing
 
 ```bash
-uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init my-project --ai codex
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init my-project --ai codex
 ```
 
 Initialize the current directory with the latest fork version, without relying on whatever `specify` is currently on your `PATH`:
 
 ```bash
-uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init . --ai codex
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init . --ai codex
 ```
 
 ### Local editable install for development

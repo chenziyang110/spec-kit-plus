@@ -10,8 +10,10 @@ Python hook engine instead of being duplicated inside standalone scripts.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -63,7 +65,7 @@ def _read_stdin_payload() -> dict[str, Any]:
 
 
 def _project_root(payload: dict[str, Any]) -> Path:
-    env_root = str(__import__("os").environ.get("CLAUDE_PROJECT_DIR") or "").strip()
+    env_root = str(os.environ.get("CLAUDE_PROJECT_DIR") or "").strip()
     if env_root:
         return Path(env_root).resolve()
 
@@ -74,16 +76,66 @@ def _project_root(payload: dict[str, Any]) -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _run_shared_hook(project_root: Path, args: list[str]) -> dict[str, Any] | None:
+def _argv_from_env(name: str) -> tuple[str, ...] | None:
+    raw_json = os.environ.get(f"{name}_ARGV", "").strip()
+    if raw_json:
+        try:
+            parsed = json.loads(raw_json)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, list) and parsed and all(isinstance(item, str) and item for item in parsed):
+            return tuple(parsed)
+
+    raw_command = os.environ.get(f"{name}_COMMAND", "").strip()
+    if raw_command:
+        try:
+            parsed_command = shlex.split(raw_command, posix=os.name != "nt")
+        except ValueError:
+            parsed_command = []
+        if parsed_command:
+            return tuple(parsed_command)
+
+    return None
+
+
+def _argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
+    config_path = project_root / ".specify" / "config.json"
+    try:
+        loaded = json.loads(config_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(loaded, dict):
+        return None
+
+    launcher = loaded.get("specify_launcher") or loaded.get("hook_launcher")
+    if not isinstance(launcher, dict):
+        return None
+    argv = launcher.get("argv")
+    if isinstance(argv, list) and argv and all(isinstance(item, str) and item for item in argv):
+        return tuple(argv)
+    return None
+
+
+def _shared_hook_commands(project_root: Path, args: list[str]) -> list[list[str]]:
     commands: list[list[str]] = []
+    for launcher_argv in (
+        _argv_from_env("SPECIFY_HOOK"),
+        _argv_from_project_config(project_root),
+    ):
+        if launcher_argv:
+            commands.append([*launcher_argv, "hook", *args])
+
+    commands.append([sys.executable, "-m", "specify_cli", "hook", *args])
     if shutil.which("specify"):
         commands.append(["specify", "hook", *args])
-    commands.append([sys.executable, "-m", "specify_cli", "hook", *args])
     if shutil.which("py"):
         commands.append(["py", "-m", "specify_cli", "hook", *args])
+    return commands
 
+
+def _run_shared_hook(project_root: Path, args: list[str]) -> dict[str, Any] | None:
     seen: set[tuple[str, ...]] = set()
-    for command in commands:
+    for command in _shared_hook_commands(project_root, args):
         key = tuple(command)
         if key in seen:
             continue

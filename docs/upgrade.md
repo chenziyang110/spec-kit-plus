@@ -9,7 +9,7 @@
 | What to Upgrade | Command | When to Use |
 |----------------|---------|-------------|
 | **CLI Tool Only** | `python -m pip uninstall -y specify-cli` then `uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git` | Get latest CLI features without touching project files |
-| **Project Files** | `specify init --here --force --ai <your-agent>` | Update slash commands, templates, and scripts in your project |
+| **Project Files** | `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai <your-agent>` | Update slash commands, templates, and scripts in your project without using a stale PATH executable |
 | **Both** | Run CLI upgrade, then project update | Recommended for major version updates |
 
 ---
@@ -61,7 +61,7 @@ When Spec Kit releases new features (like new slash commands or updated template
 
 Running `specify init --here --force` will update:
 
-- ✅ **Slash command files** (`.claude/commands/`, `.github/prompts/`, etc.)
+- ✅ **Workflow command files** (`.claude/skills/`, `.github/prompts/`, etc.)
 - ✅ **Script files** (`.specify/scripts/`)
 - ✅ **Template files** (`.specify/templates/`)
 - ✅ **Shared memory files** (`.specify/memory/`) - **⚠️ See warnings below**
@@ -79,10 +79,12 @@ The `specs/` directory is completely excluded from template packages and will ne
 
 ### Update command
 
-Run this inside your project directory:
+Run this inside your project directory. Prefer the `uvx --refresh` form when you
+want the latest fork commit and do not want to depend on whichever `specify`
+executable is currently first on PATH:
 
 ```bash
-specify init --here --force --ai <your-agent>
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai <your-agent>
 ```
 
 Replace `<your-agent>` with your AI assistant. Refer to this list of [Supported AI Agents](../README.md#-supported-ai-agents)
@@ -90,7 +92,7 @@ Replace `<your-agent>` with your AI assistant. Refer to this list of [Supported 
 **Example:**
 
 ```bash
-specify init --here --force --ai copilot
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai copilot
 ```
 
 ### Understanding the `--force` flag
@@ -176,7 +178,8 @@ Restart your IDE to refresh the command list.
 
 ```bash
 # Upgrade CLI (if using persistent install)
-uv tool install specify-cli --force --from git+https://github.com/github/spec-kit.git
+python -m pip uninstall -y specify-cli
+uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
 
 # Update project files to get new commands
 specify init --here --force --ai copilot
@@ -193,7 +196,8 @@ cp .specify/memory/constitution.md /tmp/constitution-backup.md
 cp -r .specify/templates /tmp/templates-backup
 
 # 2. Upgrade CLI
-uv tool install specify-cli --force --from git+https://github.com/github/spec-kit.git
+python -m pip uninstall -y specify-cli
+uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
 
 # 3. Update project
 specify init --here --force --ai copilot
@@ -299,7 +303,7 @@ This tells Spec Kit which feature directory to use when creating specs, plans, a
 2. **For CLI-based agents**, verify files exist:
 
    ```bash
-   ls -la .claude/commands/      # Claude Code
+   ls -la .claude/skills/        # Claude Code
    ls -la .gemini/commands/      # Gemini
    ls -la .cursor/commands/      # Cursor
    ls -la .pi/prompts/           # Pi Coding Agent
@@ -345,7 +349,7 @@ This warning appears when you run `specify init --here` (or `specify init .`) in
 
 Only Spec Kit infrastructure files:
 
-- Agent command files (`.claude/commands/`, `.github/prompts/`, etc.)
+- Agent command files (`.claude/skills/`, `.github/prompts/`, etc.)
 - Scripts in `.specify/scripts/`
 - Templates in `.specify/templates/`
 - Memory files in `.specify/memory/` (including constitution)
@@ -395,7 +399,27 @@ If not found, reinstall:
 
 ```bash
 uv tool uninstall specify-cli
-uv tool install specify-cli --from git+https://github.com/github/spec-kit.git
+uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git
+```
+
+### "Claude or Gemini hooks still seem to call an old specify"
+
+Projects initialized from a git direct-url install now record a source-bound
+launcher in `.specify/config.json` under `specify_launcher`. Claude and Gemini
+native hooks read that before falling back to `specify` on PATH.
+
+For custom environments, set one of these before starting the agent:
+
+```bash
+SPECIFY_HOOK_ARGV='["uvx","--refresh","--from","git+https://github.com/chenziyang110/spec-kit-plus.git","specify"]'
+SPECIFY_HOOK_COMMAND='uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify'
+```
+
+PowerShell:
+
+```powershell
+$env:SPECIFY_HOOK_ARGV = '["uvx","--refresh","--from","git+https://github.com/chenziyang110/spec-kit-plus.git","specify"]'
+$env:SPECIFY_HOOK_COMMAND = 'uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify'
 ```
 
 ### "Do I need to run specify every time I open my project?"
@@ -410,7 +434,7 @@ The `specify` CLI tool is used for:
 - **Upgrades:** `specify init --here --force` to update templates and commands
 - **Diagnostics:** `specify check` to verify tool installation
 
-Once you've run `specify init`, the slash commands (like `/speckit.specify`, `/speckit.plan`, etc.) are **permanently installed** in your project's agent folder (`.claude/`, `.github/prompts/`, `.pi/prompts/`, etc.). Your AI assistant reads these command files directly—no need to run `specify` again.
+Once you've run `specify init`, the workflow commands are **permanently installed** in your project's agent folder (`.claude/skills/`, `.github/prompts/`, `.pi/prompts/`, etc.). Your AI assistant reads these command files directly—no need to run `specify` again until you upgrade.
 
 **If your agent isn't recognizing slash commands:**
 
@@ -421,7 +445,7 @@ Once you've run `specify init`, the slash commands (like `/speckit.specify`, `/s
    ls -la .github/prompts/
 
    # For Claude
-   ls -la .claude/commands/
+   ls -la .claude/skills/
 
    # For Pi
    ls -la .pi/prompts/
@@ -453,7 +477,7 @@ Spec Kit follows semantic versioning for major releases. The CLI and project fil
 
 After upgrading:
 
-- **Test new slash commands:** Run `/speckit.constitution` or another command to verify everything works
-- **Review release notes:** Check [GitHub Releases](https://github.com/github/spec-kit/releases) for new features and breaking changes
+- **Test new workflow commands:** Run `sp-constitution` or another generated command to verify everything works
+- **Review release notes:** Check [GitHub Releases](https://github.com/chenziyang110/spec-kit-plus/releases) for new features and breaking changes
 - **Update workflows:** If new commands were added, update your team's development workflows
 - **Check documentation:** Visit [github.io/spec-kit](https://github.github.io/spec-kit/) for updated guides

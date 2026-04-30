@@ -237,6 +237,65 @@ class TestGeminiIntegration(TomlIntegrationTests):
         assert payload["decision"] == "deny"
         assert "conventional commit" in payload["reason"].lower()
 
+    def test_gemini_hook_dispatch_prefers_project_launcher_config(self, tmp_path):
+        integration = get_integration("gemini")
+        manifest = IntegrationManifest("gemini", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        seen_args = tmp_path / "seen-args.json"
+        fake_specify = tmp_path / "fake_specify.py"
+        fake_specify.write_text(
+            "\n".join(
+                [
+                    "import json",
+                    "import sys",
+                    "from pathlib import Path",
+                    "Path(sys.argv[1]).write_text(json.dumps(sys.argv[2:]), encoding='utf-8')",
+                    "print(json.dumps({'status': 'blocked', 'errors': ['configured launcher used'], 'warnings': [], 'actions': []}))",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        config_path = tmp_path / ".specify" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(
+                {
+                    "specify_launcher": {
+                        "command": "configured fake specify",
+                        "argv": [sys.executable, str(fake_specify), str(seen_args)],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        env["GEMINI_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "before-agent"],
+            input=json.dumps({"prompt": "continue"}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        assert payload["decision"] == "deny"
+        assert payload["reason"] == "configured launcher used"
+        assert json.loads(seen_args.read_text(encoding="utf-8")) == [
+            "hook",
+            "validate-prompt",
+            "--prompt-text",
+            "continue",
+        ]
+
     def test_gemini_hook_dispatch_adds_statusline_context_on_session_start(self, tmp_path):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)

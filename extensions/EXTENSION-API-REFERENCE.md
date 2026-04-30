@@ -101,9 +101,9 @@ defaults:                # Optional, default configuration values
 - **Type**: string
 - **Pattern**: `^speckit\.[a-z0-9-]+\.[a-z0-9-]+$`
 - **Description**: Namespaced command name
-- **Format**:  `speckit.{extension-id}.{command-name}`
-- **Examples**: `speckit.jira.specstoissues`, `speckit.linear.sync`
-- **Invalid**: `jira.specstoissues`, `speckit.command`, `speckit.jira.CreateIssues`
+- **Format**:  `sp.{extension-id}.{command-name}`
+- **Examples**: `sp.jira.specstoissues`, `sp.linear.sync`
+- **Invalid**: `jira.specstoissues`, `sp.command`, `sp.jira.CreateIssues`
 
 #### `hooks`
 
@@ -191,7 +191,7 @@ is_installed = registry.is_installed(extension_id: str)  # bool
       "source": "catalog",
       "manifest_hash": "sha256...",
       "enabled": true,
-      "registered_commands": ["speckit.jira.specstoissues", ...],
+      "registered_commands": ["sp.jira.specstoissues", ...],
       "installed_at": "2026-01-28T..."
     }
   }
@@ -331,12 +331,12 @@ Each extension dict returned by `search()` and `get_extension_info()` includes:
 ```yaml
 catalogs:
   - name: "default"
-    url: "https://raw.githubusercontent.com/github/spec-kit/main/extensions/catalog.json"
+    url: "https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/extensions/catalog.json"
     priority: 1
     install_allowed: true
     description: "Built-in catalog of installable extensions"
   - name: "community"
-    url: "https://raw.githubusercontent.com/github/spec-kit/main/extensions/catalog.community.json"
+    url: "https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/extensions/catalog.community.json"
     priority: 2
     install_allowed: false
     description: "Community-contributed extensions (discovery only)"
@@ -540,7 +540,7 @@ Examples:
 ```yaml
 hooks:
   after_tasks:
-    command: "speckit.jira.specstoissues"
+    command: "sp.jira.specstoissues"
     optional: true
     prompt: "Create Jira issues from tasks?"
     description: "Automatically create Jira hierarchy"
@@ -570,7 +570,7 @@ Standard events (defined by core):
 hooks:
   after_tasks:
     - extension: jira
-      command: speckit.jira.specstoissues
+      command: sp.jira.specstoissues
       enabled: true
       optional: true
       prompt: "Create Jira issues from tasks?"
@@ -812,7 +812,7 @@ satisfied = version_satisfies("1.2.3", ">=1.0.0,<2.0.0")  # bool
 
 .claude/
 └── commands/
-    └── speckit.{ext}.{cmd}.md  # Registered commands
+    └── sp.{ext}.{cmd}.md       # Registered commands
 ```
 
 ---

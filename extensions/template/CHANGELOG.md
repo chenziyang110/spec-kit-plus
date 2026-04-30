@@ -18,7 +18,7 @@ and this project adheres to  [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Added
 
 - Initial release of extension
-- Command: `/speckit.my-extension.example` - Example command functionality
+- Command: `/sp.my-extension.example` - Example command functionality
 - Configuration system with template
 - Documentation and examples
 

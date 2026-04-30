@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-This guide will help you get started with Spec-Driven Development using Spec Kit.
+This guide will help you get started with Spec-Driven Development using Spec Kit Plus.
 
 > [!NOTE]
 > All automation scripts now provide both Bash (`.sh`) and PowerShell (`.ps1`) variants. The `specify` CLI auto-selects based on OS unless you pass `--script sh|ps`.
@@ -16,28 +16,28 @@ This guide will help you get started with Spec-Driven Development using Spec Kit
 
 ```bash
 # Create a new project directory
-uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME>
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME>
 
 # OR initialize in the current directory
-uvx --from git+https://github.com/github/spec-kit.git specify init .
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init .
 ```
 
 Pick script type explicitly (optional):
 
 ```bash
-uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME> --script ps  # Force PowerShell
-uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME> --script sh  # Force POSIX shell
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME> --script ps  # Force PowerShell
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME> --script sh  # Force POSIX shell
 ```
 
 ### Step 2: Define Your Constitution
 
-`specify init` seeds a default constitution into `.specify/memory/constitution.md`. In your AI agent's chat interface, use the `/speckit.constitution` slash command when that default constitution needs project-specific changes or when you need to establish or revise project principles before downstream planning work continues.
+`specify init` seeds a default constitution into `.specify/memory/constitution.md`. In your AI agent's chat interface, use the `/sp-constitution` slash command when that default constitution needs project-specific changes or when you need to establish or revise project principles before downstream planning work continues.
 
 If the repository needs a different built-in baseline, pick a constitution
 profile during init:
 
 ```bash
-uvx --from git+https://github.com/github/spec-kit.git specify init <PROJECT_NAME> --constitution-profile library
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME> --constitution-profile library
 ```
 
 Built-in profiles:
@@ -48,62 +48,62 @@ Built-in profiles:
 - `regulated` for security, privacy, or audit-heavy repositories
 
 ```markdown
-/speckit.constitution This project follows a "Library-First" approach. All features must be implemented as standalone libraries first. We use TDD strictly. We prefer functional programming patterns.
+/sp-constitution This project follows a "Library-First" approach. All features must be implemented as standalone libraries first. We use TDD strictly. We prefer functional programming patterns.
 ```
 
 ### Step 3: Create the Spec
 
-**In the chat**, use the `/speckit.specify` slash command to describe what you want to build. Focus on the **what** and **why**, not the tech stack.
+**In the chat**, use the `/sp-specify` slash command to describe what you want to build. Focus on the **what** and **why**, not the tech stack.
 
 ```markdown
-/speckit.specify Build an application that can help me organize my photos in separate photo albums. Albums are grouped by date and can be re-organized by dragging and dropping on the main page. Albums are never in other nested albums. Within each album, photos are previewed in a tile-like interface.
+/sp-specify Build an application that can help me organize my photos in separate photo albums. Albums are grouped by date and can be re-organized by dragging and dropping on the main page. Albums are never in other nested albums. Within each album, photos are previewed in a tile-like interface.
 ```
 
 ### Step 4: Plan the Implementation
 
-**In the chat**, move directly from `/speckit.specify` to `/speckit.plan` once the spec is planning-ready. This is the mainline workflow:
+**In the chat**, move directly from `/sp-specify` to `/sp-plan` once the spec is planning-ready. This is the mainline workflow:
 
 ```bash
-/speckit.plan The application uses Vite with minimal number of libraries. Use vanilla HTML, CSS, and JavaScript as much as possible. Images are not uploaded anywhere and metadata is stored in a local SQLite database.
+/sp-plan The application uses Vite with minimal number of libraries. Use vanilla HTML, CSS, and JavaScript as much as possible. Images are not uploaded anywhere and metadata is stored in a local SQLite database.
 ```
 
-Use `/speckit.clarify` only when an existing spec needs deeper analysis before planning.
-Use `/speckit.deep-research` only when the requirements are clear but feasibility still needs proof before planning, for example an unproven API, library, integration, algorithm, performance envelope, or platform behavior. It can coordinate parallel research tracks and disposable demo spikes, then writes a traceable `Planning Handoff` with evidence IDs that `/speckit.plan` must consume. Skip it for minor changes to an existing capability that already has a clear implementation path.
-Use `/speckit.research` only as a compatibility alias for `/speckit.deep-research`; it should route into the same gate and must not create separate workflow artifacts.
-When `/speckit.specify` records an unproven implementation chain, the recommended pre-planning branch is `/speckit.specify` -> `/speckit.deep-research` -> `/speckit.plan`.
+Use `/sp-clarify` only when an existing spec needs deeper analysis before planning.
+Use `/sp-deep-research` only when the requirements are clear but feasibility still needs proof before planning, for example an unproven API, library, integration, algorithm, performance envelope, or platform behavior. It can coordinate parallel research tracks and disposable demo spikes, then writes a traceable `Planning Handoff` with evidence IDs that `/sp-plan` must consume. Skip it for minor changes to an existing capability that already has a clear implementation path.
+Use `/sp-research` only as a compatibility alias for `/sp-deep-research`; it should route into the same gate and must not create separate workflow artifacts.
+When `/sp-specify` records an unproven implementation chain, the recommended pre-planning branch is `/sp-specify` -> `/sp-deep-research` -> `/sp-plan`.
 
 ### Step 5: Break Down and Implement
 
-**In the chat**, use the `/speckit.tasks` slash command to create an actionable task list.
+**In the chat**, use the `/sp-tasks` slash command to create an actionable task list.
 
 ```markdown
-/speckit.tasks
+/sp-tasks
 ```
 
-Before implementation, run `/speckit.analyze`. Treat it as the required gate before implementation once `tasks.md` exists. If it flags upstream issues, resolve them through the re-entry path below before proceeding:
+Before implementation, run `/sp-analyze`. Treat it as the required gate before implementation once `tasks.md` exists. If it flags upstream issues, resolve them through the re-entry path below before proceeding:
 
 ```markdown
-/speckit.analyze
+/sp-analyze
 ```
 
-Then, use the `/speckit.implement` slash command to execute the plan.
+Then, use the `/sp-implement` slash command to execute the plan.
 
 ```markdown
-/speckit.implement
+/sp-implement
 ```
 
-When you want one state-driven resume lane instead of naming the next workflow manually, use `/speckit.auto`. It reads the current repository state and resumes the recommended next step under that workflow's existing contract.
+When you want one state-driven resume lane instead of naming the next workflow manually, use `/sp-auto`. It reads the current repository state and resumes the recommended next step under that workflow's existing contract.
 
 When the feature touches an established boundary pattern in the target project, make that constraint explicit before coding starts:
 
-- `/speckit.plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
+- `/sp-plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
 - Use `Implementation Constitution` for architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus.
-- `/speckit.tasks` should turn those rules into explicit implementation guardrails before setup or feature work begins.
-- `/speckit.tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when subagent work needs task-local rule inheritance.
-- `/speckit.implement` should treat those guardrails as binding execution constraints and confirm the owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
+- `/sp-tasks` should turn those rules into explicit implementation guardrails before setup or feature work begins.
+- `/sp-tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when subagent work needs task-local rule inheritance.
+- `/sp-implement` should treat those guardrails as binding execution constraints and confirm the owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
 - Delegated execution should not rely on raw task text when architecture or quality rules matter.
-- `/speckit.plan` should provide `Dispatch Compilation Hints`.
-- `/speckit.implement` should compile and validate a `WorkerTaskPacket` before dispatching subagents; if subagent dispatch is unavailable or low-confidence, it should stay on the leader path with an explicit fallback reason.
+- `/sp-plan` should provide `Dispatch Compilation Hints`.
+- `/sp-implement` should compile and validate a `WorkerTaskPacket` before dispatching subagents; if subagent dispatch is unavailable or low-confidence, it should stay on the leader path with an explicit fallback reason.
 - Subagent packets should carry platform guardrails when the lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
 - If the active integration exposes a runtime-managed result channel, subagents should use it. Otherwise they should write normalized result envelopes to the workflow-specific worker-results path.
 - When the local `specify` CLI is available and no runtime-managed result channel exists, subagents should prefer `specify result path` and `specify result submit` instead of inventing ad-hoc result locations or payload shapes.
@@ -124,8 +124,8 @@ When the feature touches an established boundary pattern in the target project, 
 
 After initialization, treat the generated commands as three groups:
 
-- **Core workflow skills**: `/speckit.constitution`, `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`
-- **Support skills**: `/speckit.map-scan`, `/speckit.map-build`, `/speckit.auto`, `/speckit.clarify`, `/speckit.deep-research` (`/speckit.research` alias), `/speckit.checklist`, `/speckit.analyze`, `/speckit.debug`, `/speckit.explain`
+- **Core workflow skills**: `/sp-constitution`, `/sp-specify`, `/sp-plan`, `/sp-tasks`, `/sp-implement`
+- **Support skills**: `/sp-map-scan`, `/sp-map-build`, `/sp-auto`, `/sp-clarify`, `/sp-deep-research` (`/sp-research` alias), `/sp-checklist`, `/sp-analyze`, `/sp-debug`, `/sp-explain`
 - **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -152,39 +152,39 @@ Generated project navigation now follows the handbook system:
 
 Use support skills when they solve a specific gap:
 
-- `/speckit.map-scan` followed by `/speckit.map-build` as the required brownfield gate when you are working in an existing codebase; generate the complete scan package first, then refresh the handbook/project-map navigation system before deeper workflow steps
-- `/speckit.auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
+- `/sp-map-scan` followed by `/sp-map-build` as the required brownfield gate when you are working in an existing codebase; generate the complete scan package first, then refresh the handbook/project-map navigation system before deeper workflow steps
+- `/sp-auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
-- `/speckit.specify`, `/speckit.clarify`, `/speckit.deep-research`, `/speckit.plan`, and `/speckit.tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `/speckit.map-scan` followed by `/speckit.map-build` as the follow-up refresh workflow
-- `/speckit.clarify` when an existing spec still needs deeper analysis before planning
-- `/speckit.deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `/speckit.plan`; `/speckit.research` is only its compatibility alias
-- `/speckit.checklist` when you want to audit requirement quality after planning
-- `/speckit.analyze` as the required gate before implementation once `tasks.md` exists
-- `/speckit.debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
-- When you run `/speckit.analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
-- `/speckit.analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
-- `/speckit.analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
-- `/speckit.explain` when you want the current spec, plan, task, implement, or handbook/project-map atlas artifact restated in plain language
+- `/sp-specify`, `/sp-clarify`, `/sp-deep-research`, `/sp-plan`, and `/sp-tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `/sp-map-scan` followed by `/sp-map-build` as the follow-up refresh workflow
+- `/sp-clarify` when an existing spec still needs deeper analysis before planning
+- `/sp-deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `/sp-plan`; `/sp-research` is only its compatibility alias
+- `/sp-checklist` when you want to audit requirement quality after planning
+- `/sp-analyze` as the required gate before implementation once `tasks.md` exists
+- `/sp-debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
+- When you run `/sp-analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
+- `/sp-analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
+- `/sp-analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
+- `/sp-explain` when you want the current spec, plan, task, implement, or handbook/project-map atlas artifact restated in plain language
 
-If you're starting from an existing codebase, `/speckit.map-scan` followed by `/speckit.map-build` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use `.specify/project-map/index/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
+If you're starting from an existing codebase, `/sp-map-scan` followed by `/sp-map-build` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use `.specify/project-map/index/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
 
 Use the lightweight routing rules consistently:
 
-- `/speckit.fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
-- Upgrade to `/speckit.quick` when the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
-- `/speckit.quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
-- If the work is a bug fix or regression and the root cause is still unknown, route to `/speckit.debug` instead of using `/speckit.quick` for a symptom-only patch.
+- `/sp-fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
+- Upgrade to `/sp-quick` when the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
+- `/sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
+- If the work is a bug fix or regression and the root cause is still unknown, route to `/sp-debug` instead of using `/sp-quick` for a symptom-only patch.
 - Quick workspaces live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the source of truth and `.planning/quick/index.json` as a derived management index.
-- Invoking `/speckit.quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
+- Invoking `/sp-quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
 - Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage quick tasks. `specify quick list` defaults to unfinished quick tasks.
-- Upgrade to `/speckit.specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
+- Upgrade to `/sp-specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 Required action markers:
 
 - `[AGENT]` marks a required AI action and is independent from `[P]`.
 - `[P]` still means parallel-safe work; `[AGENT]` does not imply parallelism or delegation by itself.
 - Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file replacement.
-- `/speckit.fast`, `/speckit.quick`, `/speckit.map-scan`, and `/speckit.map-build` are the first-wave `[AGENT]` workflows, and the shared `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`, and `/speckit.debug` workflows now use the same marker for hard gates.
+- `/sp-fast`, `/sp-quick`, `/sp-map-scan`, and `/sp-map-build` are the first-wave `[AGENT]` workflows, and the shared `/sp-specify`, `/sp-plan`, `/sp-tasks`, `/sp-implement`, and `/sp-debug` workflows now use the same marker for hard gates.
 
 Passive project learning layer:
 
@@ -270,10 +270,10 @@ Here's a complete example of building a team productivity platform:
 Initialize the project's constitution to set ground rules:
 
 ```markdown
-/speckit.constitution Taskify is a "Security-First" application. All user inputs must be validated. We use a microservices architecture. Code must be fully documented.
+/sp-constitution Taskify is a "Security-First" application. All user inputs must be validated. We use a microservices architecture. Code must be fully documented.
 ```
 
-### Step 2: Define Requirements with `/speckit.specify`
+### Step 2: Define Requirements with `/sp-specify`
 
 ```text
 Develop Taskify, a team productivity platform. It should allow users to create projects, add team members,
@@ -287,64 +287,64 @@ first testing thing to ensure that our basic features are set up.
 
 ### Step 3: Define the Plan
 
-Once `/speckit.specify` reaches planning-ready alignment, move directly to `/speckit.plan`.
+Once `/sp-specify` reaches planning-ready alignment, move directly to `/sp-plan`.
 
 ```bash
-/speckit.plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
+/sp-plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
 ```
 
-If an existing spec needs deeper analysis first, use `/speckit.clarify`.
+If an existing spec needs deeper analysis first, use `/sp-clarify`.
 
 ```bash
-/speckit.clarify Add sharper reporting requirements and cross-team notification expectations before planning.
+/sp-clarify Add sharper reporting requirements and cross-team notification expectations before planning.
 ```
 
-If the spec is clear but feasibility is still uncertain, use `/speckit.deep-research`
+If the spec is clear but feasibility is still uncertain, use `/sp-deep-research`
 before planning so research findings, demo evidence, rejected options, and
 constraints become plan inputs.
 
 ```bash
-/speckit.deep-research Prove whether the notification provider can support the required retry and audit trail behavior with a small disposable spike, and produce a Planning Handoff for /speckit.plan.
+/sp-deep-research Prove whether the notification provider can support the required retry and audit trail behavior with a small disposable spike, and produce a Planning Handoff for /sp-plan.
 ```
 
-`/speckit.research` is accepted only as a compatibility alias for the same workflow.
+`/sp-research` is accepted only as a compatibility alias for the same workflow.
 
 ### Step 4: Validate the Spec
 
-Validate the specification checklist using the `/speckit.checklist` command:
+Validate the specification checklist using the `/sp-checklist` command:
 
 ```bash
-/speckit.checklist
+/sp-checklist
 ```
 
 ### Step 5: Define Tasks
 
-Generate an actionable task list using the `/speckit.tasks` command:
+Generate an actionable task list using the `/sp-tasks` command:
 
 ```bash
-/speckit.tasks
+/sp-tasks
 ```
 
 ### Step 6: Validate and Implement
 
-Have your AI agent audit the implementation plan using `/speckit.analyze`:
+Have your AI agent audit the implementation plan using `/sp-analyze`:
 
 ```bash
-/speckit.analyze
+/sp-analyze
 ```
 
-If `/speckit.analyze` finds issues, do not treat the report as informational only:
+If `/sp-analyze` finds issues, do not treat the report as informational only:
 
-- If the problem is in `spec.md` or `context.md`, return to `/speckit.clarify`, then rerun `/speckit.plan`, `/speckit.tasks`, and `/speckit.analyze`.
-- If the problem is in `plan.md`, return to `/speckit.plan`, then rerun `/speckit.tasks` and `/speckit.analyze`.
-- If the problem is only in `tasks.md`, rerun `/speckit.tasks`, then `/speckit.analyze`.
-- If the problem is execution-only with no upstream artifact drift, continue in `/speckit.implement` or route into `/speckit.debug`.
+- If the problem is in `spec.md` or `context.md`, return to `/sp-clarify`, then rerun `/sp-plan`, `/sp-tasks`, and `/sp-analyze`.
+- If the problem is in `plan.md`, return to `/sp-plan`, then rerun `/sp-tasks` and `/sp-analyze`.
+- If the problem is only in `tasks.md`, rerun `/sp-tasks`, then `/sp-analyze`.
+- If the problem is execution-only with no upstream artifact drift, continue in `/sp-implement` or route into `/sp-debug`.
 - If analysis happens after implementation has already started or finished, treat the current implementation as provisional until the highest invalid stage has been repaired and downstream artifacts have been regenerated.
 
 Finally, implement the solution:
 
 ```bash
-/speckit.implement
+/sp-implement
 ```
 
 > [!TIP]
@@ -363,6 +363,6 @@ Finally, implement the solution:
 
 ## Next Steps
 
-- Read the [complete methodology](https://github.com/github/spec-kit/blob/main/spec-driven.md) for in-depth guidance
-- Check out [more examples](https://github.com/github/spec-kit/tree/main/templates) in the repository
-- Explore the [source code on GitHub](https://github.com/github/spec-kit)
+- Read the [complete methodology](https://github.com/chenziyang110/spec-kit-plus/blob/main/spec-driven.md) for in-depth guidance
+- Check out [more examples](https://github.com/chenziyang110/spec-kit-plus/tree/main/templates) in the repository
+- Explore the [source code on GitHub](https://github.com/chenziyang110/spec-kit-plus)

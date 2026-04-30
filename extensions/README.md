@@ -1,6 +1,6 @@
-# Spec Kit Extensions
+# Spec Kit Plus Extensions
 
-Extension system for [Spec Kit](https://github.com/github/spec-kit) - add new functionality without bloating the core framework.
+Extension system for [Spec Kit Plus](https://github.com/chenziyang110/spec-kit-plus) - add new functionality without bloating the core framework.
 
 ## Extension Catalogs
 
@@ -8,18 +8,18 @@ Spec Kit provides two catalog files with different purposes:
 
 ### Your Catalog (`catalog.json`)
 
-- **Purpose**: Default upstream catalog of extensions used by the Spec Kit CLI
-- **Default State**: Empty by design in the upstream project - you or your organization populate a fork/copy with extensions you trust
-- **Location (upstream)**: `extensions/catalog.json` in the GitHub-hosted spec-kit repo
-- **CLI Default**: The `specify extension` commands use the upstream catalog URL by default, unless overridden
-- **Org Catalog**: Point `SPECKIT_CATALOG_URL` at your organization's fork or hosted catalog JSON to use it instead of the upstream default
+- **Purpose**: Default curated catalog of extensions used by the Spec Kit Plus CLI
+- **Default State**: Empty by design - you or your organization populate a fork/copy with extensions you trust
+- **Location**: `extensions/catalog.json` in this repository
+- **CLI Default**: The `specify extension` commands use this fork's catalog URL by default, unless overridden
+- **Org Catalog**: Point `SPECKIT_CATALOG_URL` at your organization's fork or hosted catalog JSON to use it instead of the default catalog
 - **Customization**: Copy entries from the community catalog into your org catalog, or add your own extensions directly
 
 **Example override:**
 ```bash
-# Override the default upstream catalog with your organization's catalog
+# Override the default catalog with your organization's catalog
 export SPECKIT_CATALOG_URL="https://your-org.com/spec-kit/catalog.json"
-specify extension search  # Now uses your organization's catalog instead of the upstream default
+specify extension search  # Now uses your organization's catalog instead of the default
 ```
 
 ### Community Reference Catalog (`catalog.community.json`)

@@ -182,7 +182,7 @@ cp .specify/extensions/my-extension/config-template.yml \
 
 # Run with default configuration
 >
-> /speckit.my-extension.example
+> /sp.my-extension.example
 ``
 
 ### Example 2: With Environment Override
@@ -192,7 +192,7 @@ cp .specify/extensions/my-extension/config-template.yml \
 # Override configuration with environment variable
 
 export SPECKIT_MY_EXTENSION_KEY="custom-value"
-> /speckit.my-extension.example
+> /sp.my-extension.example
 ``
 
 ### Example 3: After Core Command
@@ -201,8 +201,8 @@ export SPECKIT_MY_EXTENSION_KEY="custom-value"
 
 # Use as part of a workflow
 >
-> /speckit.tasks
-> /speckit.my-extension.example
+> /sp-tasks
+> /sp.my-extension.example
 ``
 
 ---

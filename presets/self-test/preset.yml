@@ -5,8 +5,8 @@ preset:
   name: "Self-Test Preset"
   version: "1.0.0"
   description: "A preset that overrides all core templates for testing purposes"
-  author: "github"
-  repository: "https://github.com/github/spec-kit"
+  author: "spec-kit-plus"
+  repository: "https://github.com/chenziyang110/spec-kit-plus"
   license: "MIT"
 
 requires:

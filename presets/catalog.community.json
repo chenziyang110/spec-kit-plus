@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "updated_at": "2026-04-06T06:30:00Z",
-  "catalog_url": "https://raw.githubusercontent.com/github/spec-kit/main/presets/catalog.community.json",
+  "catalog_url": "https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/presets/catalog.community.json",
   "presets": {
     "aide-in-place": {
       "name": "AIDE In-Place Migration",

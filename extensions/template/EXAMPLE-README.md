@@ -65,7 +65,7 @@ Description of what this command does.
 
 ```bash
 # In Claude Code
-> /speckit.my-extension.example
+> /sp.my-extension.example
 ```
 
 **Prerequisites**:
@@ -114,13 +114,13 @@ export SPECKIT_MY_EXTENSION_CONNECTION_API_KEY="custom-key"
 
 ```bash
 # Step 1: Create specification
-> /speckit.spec
+> /sp-specify
 
 # Step 2: Generate tasks
-> /speckit.tasks
+> /sp-tasks
 
 # Step 3: Use extension
-> /speckit.my-extension.example
+> /sp.my-extension.example
 ```
 
 ## Troubleshooting
@@ -146,7 +146,7 @@ MIT License - see LICENSE file
 ## Support
 
 - **Issues**: <https://github.com/your-org/spec-kit-my-extension/issues>
-- **Spec Kit Docs**: <https://github.com/statsperform/spec-kit>
+- **Spec Kit Plus Docs**: <https://github.com/chenziyang110/spec-kit-plus>
 
 ## Changelog
 

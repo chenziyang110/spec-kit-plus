@@ -1137,8 +1137,8 @@ class PresetCatalog:
     mirroring the extension catalog system.
     """
 
-    DEFAULT_CATALOG_URL = "https://raw.githubusercontent.com/github/spec-kit/main/presets/catalog.json"
-    COMMUNITY_CATALOG_URL = "https://raw.githubusercontent.com/github/spec-kit/main/presets/catalog.community.json"
+    DEFAULT_CATALOG_URL = "https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/presets/catalog.json"
+    COMMUNITY_CATALOG_URL = "https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/presets/catalog.community.json"
     CACHE_DURATION = 3600  # 1 hour in seconds
 
     def __init__(self, project_root: Path):

@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-import importlib.metadata as importlib_metadata
 import json
-import os
+from pathlib import Path
 import re
-import subprocess
 import shutil
 from typing import Any
+
+from specify_cli.launcher import (
+    SpecifyLauncherSpec,
+    resolve_specify_launcher_spec,
+)
 
 from .state_paths import codex_team_state_root
 
@@ -24,15 +26,6 @@ CODEX_TEAM_INSTALL_STATE_FILE = ".specify/teams/install-state.json"
 TEAM_NOTIFY_TOML_TOKENS = ("sp-teams", "notify-hook")
 SPECIFY_TEAMS_MCP_SERVER_NAME = "specify_teams"
 SPECIFY_TEAMS_MCP_COMMAND = "specify-teams-mcp"
-SPECIFY_PACKAGE_NAME = "specify-cli"
-
-
-@dataclass(frozen=True)
-class SpecifyLauncherSpec:
-    """Command forms that invoke the current specify install source."""
-
-    command: str
-    argv: tuple[str, ...]
 
 __all__ = [
     "CODEX_TEAM_HELPER_FILES",
@@ -91,62 +84,6 @@ def _load_json_object(path: Path) -> dict[str, Any]:
 
 def _json_text(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
-
-
-def _render_command(argv: tuple[str, ...]) -> str:
-    if os.name == "nt":
-        return subprocess.list2cmdline(list(argv))
-    return " ".join(argv)
-
-
-def _default_specify_launcher_spec() -> SpecifyLauncherSpec:
-    argv = ("specify",)
-    return SpecifyLauncherSpec(command=_render_command(argv), argv=argv)
-
-
-def resolve_specify_launcher_spec() -> SpecifyLauncherSpec:
-    """Return the best available launcher for the current specify install source."""
-
-    default = _default_specify_launcher_spec()
-
-    try:
-        distribution = importlib_metadata.distribution(SPECIFY_PACKAGE_NAME)
-    except importlib_metadata.PackageNotFoundError:
-        return default
-
-    try:
-        direct_url_text = distribution.read_text("direct_url.json")
-    except FileNotFoundError:
-        return default
-
-    if not direct_url_text:
-        return default
-
-    try:
-        payload = json.loads(direct_url_text)
-    except json.JSONDecodeError:
-        return default
-
-    if not isinstance(payload, dict):
-        return default
-
-    vcs_info = payload.get("vcs_info")
-    url = payload.get("url")
-    if not isinstance(vcs_info, dict) or not isinstance(url, str):
-        return default
-    if vcs_info.get("vcs") != "git" or not url.strip():
-        return default
-
-    commit_id = str(vcs_info.get("commit_id", "")).strip()
-    source = url if url.startswith("git+") else f"git+{url}"
-    if commit_id:
-        source = f"{source}@{commit_id}"
-
-    if not shutil.which("uvx"):
-        return default
-
-    argv = ("uvx", "--from", source, "specify")
-    return SpecifyLauncherSpec(command=_render_command(argv), argv=argv)
 
 
 def _escape_toml_string(value: str) -> str:

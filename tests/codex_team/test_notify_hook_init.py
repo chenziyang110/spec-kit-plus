@@ -33,11 +33,11 @@ def test_resolve_specify_launcher_spec_prefers_uvx_for_git_direct_url(monkeypatc
             return (self._path / filename).read_text(encoding="utf-8")
 
     monkeypatch.setattr(
-        "specify_cli.codex_team.installer.importlib_metadata.distribution",
+        "specify_cli.launcher.importlib_metadata.distribution",
         lambda name: _FakeDistribution(dist_info_dir),
     )
     monkeypatch.setattr(
-        "specify_cli.codex_team.installer.shutil.which",
+        "specify_cli.launcher.shutil.which",
         lambda name: f"/fake/{name}" if name == "uvx" else None,
     )
 

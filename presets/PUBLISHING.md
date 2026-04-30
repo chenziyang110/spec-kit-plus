@@ -46,7 +46,7 @@ your-preset/
 │   └── ...
 │
 └── commands/                  # Command overrides (optional)
-    └── speckit.specify.md
+    └── sp.specify.md
 ```
 
 Start from the [scaffold](scaffold/) if you're creating a new preset.
@@ -91,7 +91,7 @@ tags:                              # 2-5 relevant tags
 - ✅ `repository` URL is valid and public
 - ✅ All template and command files exist in the preset directory
 - ✅ Template names are lowercase with hyphens only
-- ✅ Command names use dot notation (e.g. `speckit.specify`)
+- ✅ Command names use dot notation (e.g. `sp.specify`)
 - ✅ Tags are lowercase and descriptive
 
 ### 3. Test Locally
@@ -116,14 +116,14 @@ specify preset remove your-preset
 If your preset includes command overrides, verify they appear in the agent directories:
 
 ```bash
-# Check Claude commands (if using Claude)
-ls .claude/commands/speckit.*.md
+# Check Claude skills (if using Claude)
+ls .claude/skills/sp-*/SKILL.md
 
 # Check Copilot commands (if using Copilot)
-ls .github/agents/speckit.*.agent.md
+ls .github/agents/sp.*.agent.md
 
 # Check Gemini commands (if using Gemini)
-ls .gemini/commands/speckit.*.toml
+ls .gemini/commands/sp.*.toml
 ```
 
 ### 4. Create GitHub Release
@@ -178,7 +178,7 @@ Edit `presets/catalog.community.json` and add your preset.
 {
   "schema_version": "1.0",
   "updated_at": "2026-03-10T00:00:00Z",
-  "catalog_url": "https://raw.githubusercontent.com/github/spec-kit/main/presets/catalog.community.json",
+  "catalog_url": "https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/presets/catalog.community.json",
   "presets": {
     "your-preset": {
       "name": "Your Preset Name",
