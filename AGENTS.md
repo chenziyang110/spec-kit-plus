@@ -619,11 +619,13 @@ When adding new agents:
 | **standard** | New capability, cross-module change | light + change-propagation, non-functional, error-contract, config-effective-when, test-strategy |
 | **deep** | Greenfield, protocol boundary, security-sensitive | standard + quantified NFR thresholds, full error contracts |
 
-Usage: `spec-lint -dir <FEATURE_DIR> -tier light|standard|deep`
+Usage: `specify lint -dir <FEATURE_DIR> -tier light|standard|deep`
+
+When installed via `uv tool install`, `specify lint` auto-downloads the spec-lint binary on first run (cached at `~/.specify/bin/`). No separate install step needed.
 
 The full quality gate specification lives in `templates/spec-quality-gate.md`. The checklist embedded in `FEATURE_DIR/checklists/requirements.md` maps to the same 8 dimensions with `[lint]` markers on machine-checkable items.
 
-### Installing spec-lint
+### Installing spec-lint standalone (without specify CLI)
 
 ```bash
 # Linux / macOS

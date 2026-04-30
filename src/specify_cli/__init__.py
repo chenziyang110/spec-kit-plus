@@ -4511,6 +4511,29 @@ def version():
     console.print()
 
 
+@app.command()
+def lint(
+    dir: str = typer.Option(".", "--dir", help="Feature directory path (containing spec.md, alignment.md, etc.)"),
+    tier: str = typer.Option("standard", "--tier", help="Check tier: light, standard, deep"),
+    show_version: bool = typer.Option(False, "--version", help="Print spec-lint version and exit"),
+    force_download: bool = typer.Option(False, "--force-download", help="Re-download spec-lint binary even if cached"),
+):
+    """Run spec quality gate checks on a feature directory.
+
+    Downloads the spec-lint binary on first run (cached at ~/.specify/bin/).
+    """
+    from specify_cli.lint import run as run_lint
+
+    args = []
+    if show_version:
+        args.append("--version")
+    else:
+        args.extend(["-dir", dir, "-tier", tier])
+
+    ec = run_lint(args, force=force_download)
+    raise typer.Exit(code=ec)
+
+
 # ===== Extension Commands =====
 
 extension_app = typer.Typer(
