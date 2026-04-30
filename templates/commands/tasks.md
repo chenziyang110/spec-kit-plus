@@ -17,17 +17,7 @@ scripts:
 
 {{spec-kit-include: ../command-partials/tasks/shell.md}}
 
-## Mandatory Subagent Execution
-
-All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
-
-The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
-
-Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
-
-Use `execution_model: subagent-mandatory`.
-Use `dispatch_shape: one-subagent | parallel-subagents`.
-Use `execution_surface: native-subagents`.
+{{spec-kit-include: ../command-partials/common/subagent-execution.md}}
 
 
 ## Pre-Execution Checks
@@ -35,34 +25,7 @@ Use `execution_surface: native-subagents`.
 **Check for extension hooks (before tasks generation)**:
 - Check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_tasks` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
-    ```
-    ## Extension Hooks
-
-    **Optional Pre-Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
-
-    Prompt: {prompt}
-    To execute: `/{command}`
-    ```
-  - **Mandatory hook** (`optional: false`):
-    ```
-    ## Extension Hooks
-
-    **Automatic Pre-Hook**: {extension}
-    Executing: `/{command}`
-    EXECUTE_COMMAND: {command}
-    
-    Wait for the result of the hook command before proceeding to the Outline.
-    ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+{{spec-kit-include: ../command-partials/common/extension-hooks-body.md}}
 
 **Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
 - Use `specify hook preflight --command tasks --feature-dir "$FEATURE_DIR"` before decomposition continues so stale project-map or invalid workflow-entry state is blocked by the shared product guardrail layer.
@@ -141,65 +104,41 @@ Use `execution_surface: native-subagents`.
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 4. **Execute task generation workflow**:
-    - [AGENT] Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="tasks", snapshot, workload_shape)`
-    - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
-    - The chosen dispatch shape applies to the **current ready batch**, not automatically to the entire feature or task graph.
-    - Primary decomposition goal: maximize safe native-subagent throughput for later `sp-implement` runs by isolating write sets and turning ready work into a dispatch-ready lane packet instead of a vague checklist.
-    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
-   - Decision order is fixed:
-     - One safe validated lane -> `one-subagent` on `native-subagents` when available.
-     - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.     - No safe lane, overlapping writes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason.
-   - If collaboration is justified, keep `tasks` lanes limited to:
-     - story and phase decomposition
-     - dependency graph analysis
-     - write-set and parallel-safety analysis
-   - Required join points:
-     - before writing `tasks.md`
-     - before emitting canonical parallel batches and join points
-   - Record the chosen strategy, reason, any blocked dispatch or escalation decision, selected lanes, and join points in the generated report and implementation strategy section.
-   - Separately classify the **feature delivery shape** for the whole task graph using plain language, for example:
-     - `serial phases with intra-phase parallel batches`
-     - `mostly sequential`
-     - `pipeline-heavy`
-     - `parallel-ready after foundational work`
-   - If any future or later-phase batch is parallelizable but the **current ready batch** is not, state that explicitly instead of collapsing the entire feature into a blanket blocked label.
-   - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
-   - Load plan.md and extract tech stack, libraries, project structure
-   - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
-   - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
-   - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
-   - If `.specify/memory/constitution.md` exists: treat its MUST/SHOULD principles as task-shaping constraints and preserve them explicitly in execution ordering, validation tasks, or phase notes instead of assuming downstream agents will rediscover them
-   - If references.md exists: use it to preserve source-driven constraints and reusable examples while generating tasks
-   - If data-model.md exists: Extract entities and map to user stories
-   - If contracts/ exists: Map interface contracts to user stories
-   - If research.md exists: Extract decisions for setup tasks
+    - Load plan.md and extract tech stack, libraries, project structure
+    - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
+    - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
+    - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
+    - If `.specify/memory/constitution.md` exists: treat its MUST/SHOULD principles as task-shaping constraints and preserve them explicitly in execution ordering, validation tasks, or phase notes
+    - If references.md exists: use it to preserve source-driven constraints and reusable examples while generating tasks
+    - If data-model.md exists: Extract entities and map to user stories
+    - If contracts/ exists: Map interface contracts to user stories
+    - If research.md exists: Extract decisions for setup tasks
     - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
+    - **Missing design artifacts**: If plan.md's expected artifacts (data-model.md, contracts/, research.md) are absent and the feature would benefit from them, stop and recommend re-running `/sp.plan` instead of generating tasks from incomplete design context.
     - Generate tasks organized by user story (see Task Generation Rules below)
-    - Whether or not `.specify/testing/TESTING_CONTRACT.md` exists, treat tests as default deliverables for behavior changes, bug fixes, and refactors instead of leaving them globally optional
+    - Whether or not `.specify/testing/TESTING_CONTRACT.md` exists, treat tests as default deliverables for behavior changes, bug fixes, and refactors
     - If the testing contract names required regression or coverage work for an affected module, preserve that requirement explicitly in the task list
     - If the touched area lacks a reliable automated test surface, add explicit bootstrap tasks to establish the smallest runnable test surface first before implementation tasks for that slice
-    - Top-level tasks should usually fit one bounded implementation slice: roughly 10-20 minutes, one stable objective, one isolated write set, and one verification path.
-    - A subagent can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks.
-    - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence.
-    - If later work still depends on upstream evidence, add a refinement checkpoint instead of guessing detailed downstream tasks too early.
+    - Top-level tasks should fit one bounded implementation slice: roughly 10-20 minutes, one stable objective, one isolated write set, and one verification path
+    - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence
+    - If later work still depends on upstream evidence, add a refinement checkpoint instead of guessing detailed downstream tasks too early
     - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
-    - [AGENT] Add a `Task Guardrail Index` or equivalent task-to-guardrail mapping when subagent execution needs task-local hard rules, required references, forbidden drift, or validation gates compiled into task packets
-    - For every `[P]` task or explicit parallel batch, emit the dispatch-ready lane packet inputs the leader will need later: objective, write set, required references, forbidden drift, validation command, and done condition.
+    - **Task Guardrail Index**: Add task-to-guardrail mapping when tasks inherit execution rules from plan.md or constitution.md. Keep the mapping compact so downstream execution can resolve applicable hard rules per task.
+    - For every `[P]` task or parallel batch, include: objective, write set, required references, forbidden drift, validation command, and done condition — the information downstream execution needs to dispatch work safely
     - Generate dependency graph showing user story completion order
     - Derive a write set for each task (files or shared registration surfaces it will modify)
     - Group ready tasks into each phase's parallel batches using those write sets
-    - Grouped parallelism is the default when multiple ready tasks have isolated write sets and do not depend on each other's outputs.
-    - Prefer moving shared registrations, export barrels, schema indexes, router tables, and other coordination edits into explicit serial join tasks so the surrounding feature work can stay parallel-ready.
-   - Pipeline is preferred when outputs flow linearly from one bounded lane to the next, for example transform -> generate -> validate.
-   - Every pipeline stage still needs an explicit checkpoint before downstream stages continue so stale assumptions do not propagate silently.
-   - If `classify_review_gate_policy(workload_shape)` requires a review gate, add an explicit high-risk review checkpoint before downstream tasks continue.
-   - High-risk review gates are usually required for shared registration surfaces, schema or migration changes, protocol seams, native/plugin bridges, or generated API surfaces.
-   - If a peer-review lane is available and the review can stay read-only, recommend one peer-review lane for the batch; otherwise make the leader responsible only for acceptance criteria, review coordination, and the checkpoint decision.
-   - [AGENT] Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
-   - [AGENT] For every explicit join point, include a validation target, a validation command or concrete manual check, and a pass condition so later implementation does not need to guess what makes the join point safe to cross
-   - Create parallel execution examples per user story
-   - Validate task completeness (each user story has all needed tasks, independently testable)
-   - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly instead of silently dropping it
+    - Grouped parallelism is the default when multiple ready tasks have isolated write sets and do not depend on each other's outputs
+    - Prefer moving shared registrations, export barrels, schema indexes, router tables, and other coordination edits into explicit serial join tasks so the surrounding feature work can stay parallel-ready
+    - Pipeline is preferred when outputs flow linearly from one bounded lane to the next
+    - Every pipeline stage needs an explicit checkpoint before downstream stages continue
+    - Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
+    - For every join point, include a validation target, a validation command or concrete manual check, and a pass condition
+    - Create parallel execution examples per user story
+    - Validate task completeness (each user story has all needed tasks, independently testable)
+    - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly
+
+    **Feature delivery shape**: Classify the whole task graph in plain language (e.g., `serial phases with intra-phase parallel batches`, `mostly sequential`, `pipeline-heavy`, `parallel-ready after foundational work`). If later batches are parallelizable but the current batch is not, state that explicitly.
 
 5. **Generate tasks.md**: Use `templates/tasks-template.md` as structure, fill with:
    - Correct feature name from plan.md
@@ -223,17 +162,14 @@ Use `execution_surface: native-subagents`.
     - Total task count
     - Task count per user story
     - Feature delivery shape (whole task graph)
-    - Current ready batch strategy (scoped to the next executable batch only)
-   - Current ready batch strategy reason code
-   - Parallel opportunities identified
-   - Parallel batch count and the join points that gate downstream work
-   - Independent test criteria for each story
-   - Suggested first release scope (based on the smallest coherent release slice, not automatically limited to just User Story 1)
+    - Parallel opportunities identified
+    - Parallel batch count and the join points that gate downstream work
+    - Independent test criteria for each story
+    - Suggested first release scope (based on the smallest coherent release slice, not automatically limited to just User Story 1)
     - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
     - workflow-state path
     - Recommended next command: `/sp.analyze`
-    - if the decomposition exposes new shared surfaces, new workflow joins, new validation entry points, or other atlas facts that the current handbook/project-map does not yet capture well enough for downstream execution, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield implementation proceeds
-    - If the current ready batch uses `subagent-blocked` but later batches are parallelizable, say so explicitly in the report instead of implying that the full feature has no meaningful parallelism.
+    - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the handbook/project-map, mark `.specify/project-map/index/status.json` dirty and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield implementation proceeds.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`
@@ -244,32 +180,7 @@ Use `execution_surface: native-subagents`.
 
 7. **Check for extension hooks**: After tasks.md is generated, check if `.specify/extensions.yml` exists in the project root.
    - If it exists, read it and look for entries under the `hooks.after_tasks` key
-   - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
-   - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-   - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-     - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-     - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-   - For each executable hook, output the following based on its `optional` flag:
-     - **Optional hook** (`optional: true`):
-       ```
-       ## Extension Hooks
-
-       **Optional Hook**: {extension}
-       Command: `/{command}`
-       Description: {description}
-
-       Prompt: {prompt}
-       To execute: `/{command}`
-       ```
-     - **Mandatory hook** (`optional: false`):
-       ```
-       ## Extension Hooks
-
-       **Automatic Hook**: {extension}
-       Executing: `/{command}`
-       EXECUTE_COMMAND: {command}
-       ```
-   - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+{{spec-kit-include: ../command-partials/common/extension-hooks-after-body.md}}
 
 Context for task generation: {ARGS}
 

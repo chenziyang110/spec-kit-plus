@@ -41,8 +41,10 @@
 
 ## Locked Decisions For Planning
 
-- [Decision planners must preserve from clarification or repository evidence]
-- [Compatibility, workflow, rollout, or validation decision that cannot be silently dropped]
+> **Source of truth**: `spec.md#decision-capture`. This section records the process that produced those decisions, not a duplicate copy.
+
+- [How each locked decision in spec.md was reached: user confirmation, repository evidence, or explicit force-carry]
+- [Link to the clarifying Q&A that resolved each decision, if any]
 
 ## Engineering Closure For Planning
 
@@ -82,8 +84,9 @@
 
 ## Confirmed Decisions
 
-- [Final decision or explicit commitment that planners must preserve]
-- [Adopted default, phased boundary, or escalation choice that should not be re-litigated]
+> These are the decisions that reached closure during alignment. The authoritative, planner-ready form of each decision lives in `spec.md#decision-capture`.
+
+- [Final decision or explicit commitment — reference the corresponding entry in spec.md]
 - [Decision that resolved a prior ambiguity and changed downstream planning shape]
 
 ## Clarification Summary

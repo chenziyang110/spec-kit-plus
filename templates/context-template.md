@@ -11,19 +11,21 @@
 
 ## Locked Decisions
 
-- [Decision planners, task generators, and implementers must preserve]
-- [Compatibility, rollout, validation, or workflow decision that cannot be silently dropped]
+> **Source of truth**: `spec.md#decision-capture`. Planners, task generators, and implementers must preserve every locked decision recorded there. This section may summarize the decisions most relevant to downstream implementation, but must not contradict or silently drop any.
+
+- [Implementation-critical decision carried forward from spec.md — reference the exact spec.md decision, do not rephrase]
 
 ## Capability Checkpoints
 
-- **[Capability Name]**: [Purpose / outcome that downstream work must preserve]
-- **Boundary and non-goals**: [What stays inside this capability versus adjacent ones]
-- **Acceptance proof**: [Evidence or validation signal that must stay true]
+> **Source of truth**: `alignment.md#capability-checkpoints`. This section carries forward only the checkpoints that materially affect implementation sequencing or validation.
+
+- [Capability whose checkpoint changes downstream implementation order or verification scope]
 
 ## Decision Fork Outcomes
 
-- **[Decision Fork]**: [Chosen direction]
-- **Planning significance**: [Why this fork changes downstream planning, validation, or compatibility handling]
+> **Source of truth**: `alignment.md#high-impact-decision-forks`. Record only the planning-significant consequences that implementers must preserve — the options considered and rationale live in alignment.md.
+
+- [Chosen direction and its downstream planning impact]
 
 ## Claude Discretion
 
