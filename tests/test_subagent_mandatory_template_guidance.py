@@ -139,3 +139,26 @@ def test_ordinary_templates_do_not_record_subagent_blocks_as_fallbacks() -> None
 
         for phrase in forbidden_phrases:
             assert phrase not in content, f"{command_name}: {phrase}"
+
+
+def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> None:
+    forbidden_by_command = {
+        "test-build": (
+            "before doing local implementation",
+            "local implementation",
+        ),
+        "implement": (
+            "only discuss a fallback after dispatch has concretely failed",
+            "discuss a fallback",
+        ),
+        "tasks": (
+            "keep the review gate on the leader path",
+            "leader path",
+        ),
+    }
+
+    for command_name, forbidden_phrases in forbidden_by_command.items():
+        content = _read_command(command_name).lower()
+
+        for phrase in forbidden_phrases:
+            assert phrase not in content, f"{command_name}: {phrase}"

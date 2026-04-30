@@ -219,7 +219,7 @@ Use `execution_surface: native-subagents`.
 
 8. **Dispatch subagents and join results**
    - The invoking runtime acts as the test-build leader. It selects the current wave, dispatches bounded lanes, integrates results, and owns validation.
-   - For `parallel-subagents`, dispatch subagents for all safe lanes in the current wave before doing local implementation.
+   - For `parallel-subagents`, dispatch subagents for all safe lanes in the current wave before any test-build work begins; if dispatch cannot cover the safe wave, record `subagent-blocked` with the blocker and stop for escalation or recovery.
    - For `one-subagent`, dispatch one subagent when the lane has a validated `TestBuildPacket` and enough context. If the packet is not yet safe, complete the packet before dispatch; if subagent dispatch is unavailable, record `subagent-blocked` with the blocker and stop for escalation or recovery before test-build implementation begins.
    - Subagents must return a structured handoff with:
      - `lane_id`

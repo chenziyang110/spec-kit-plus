@@ -194,7 +194,7 @@ Use `execution_surface: native-subagents`.
    - Every pipeline stage still needs an explicit checkpoint before downstream stages continue so stale assumptions do not propagate silently.
    - If `classify_review_gate_policy(workload_shape)` requires a review gate, add an explicit high-risk review checkpoint before downstream tasks continue.
    - High-risk review gates are usually required for shared registration surfaces, schema or migration changes, protocol seams, native/plugin bridges, or generated API surfaces.
-   - If a peer-review lane is available and the review can stay read-only, recommend one peer-review lane for the batch; otherwise keep the review gate on the leader path.
+   - If a peer-review lane is available and the review can stay read-only, recommend one peer-review lane for the batch; otherwise make the leader responsible only for acceptance criteria, review coordination, and the checkpoint decision.
    - [AGENT] Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
    - [AGENT] For every explicit join point, include a validation target, a validation command or concrete manual check, and a pass condition so later implementation does not need to guess what makes the join point safe to cross
    - Create parallel execution examples per user story
