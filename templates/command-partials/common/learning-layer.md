@@ -1,5 +1,22 @@
 ## Passive Project Learning Layer
 
+Learning capture is proportional to command complexity:
+
+| Tier | Learning Behavior |
+|------|-------------------|
+| trivial | Skip all learning hooks. No capture. |
+| light | Auto-capture on resolution only. No review, no signal. |
+| heavy | Full learning: start → signal on friction → review → capture-auto |
+
+### Tier: trivial
+- Do not run `specify learning start`.
+- Do not read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, or `.specify/memory/project-learnings.md`.
+- Do not review `.planning/learnings/candidates.md`.
+- Do not invoke any learning hooks.
+
+### Tier: light
+
+### Tier: heavy
 - [AGENT] Run `specify learning start --command {COMMAND} --format json` when available so passive learning files exist, the current run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains relevant candidate learnings after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
