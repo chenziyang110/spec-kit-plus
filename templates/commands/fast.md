@@ -2,8 +2,8 @@
 description: Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.
 workflow_contract:
   when_to_use: The work is genuinely local and low-risk enough to stay on the fast path.
-  primary_objective: Apply the smallest direct change and run the smallest meaningful verification without opening the full planning workflow.
-  primary_outputs: A tightly scoped local change plus a concise report of what changed, what was verified, and any remaining risk.
+  primary_objective: Packetize the smallest safe low-risk change, delegate it through one subagent lane, and run the smallest meaningful verification without opening the full planning workflow.
+  primary_outputs: A tightly scoped delegated change plus a concise report of what changed, what was verified, and any remaining risk.
   default_handoff: Upgrade immediately to /sp-quick if scope, coupling, or uncertainty expands.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json

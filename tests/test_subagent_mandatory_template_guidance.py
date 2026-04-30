@@ -220,3 +220,18 @@ def test_implement_template_does_not_reintroduce_optional_subagent_wording() -> 
     assert "substantive implementation lanes must be delegated" in content
     assert "leader owns sequencing, review, and acceptance" in content
     assert "for implementation work, prefer subagent execution only when" not in content
+
+
+def test_fast_and_debug_templates_do_not_frame_fixes_as_direct_leader_implementation() -> None:
+    fast_content = _read_command("fast").lower()
+    debug_content = _read_command("debug").lower()
+
+    assert "apply the smallest direct change" not in fast_content
+    assert "packetize the smallest safe low-risk change" in fast_content
+    assert "delegate it through one subagent lane" in fast_content
+    assert "a tightly scoped delegated change" in fast_content
+
+    assert "apply the smallest fix that addresses the confirmed root cause" not in debug_content
+    assert "packetize the smallest safe fix that addresses the confirmed root cause" in debug_content
+    assert "delegate it through a validated subagent lane" in debug_content
+    assert "record `subagent-blocked` with the escalation or recovery reason instead of making the fix directly" in debug_content

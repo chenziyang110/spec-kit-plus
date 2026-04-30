@@ -101,7 +101,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
    - Append every disproven theory to `Eliminated`.
 
 4. **Fix and Verify**
-   - Apply the smallest fix that addresses the confirmed root cause.
+   - Packetize the smallest safe fix that addresses the confirmed root cause and delegate it through a validated subagent lane.
+   - If the fix lane cannot be safely packetized or dispatched, record `subagent-blocked` with the escalation or recovery reason instead of making the fix directly.
    - Verify with the reproduction steps and relevant tests.
 
 5. **Human Verification**
