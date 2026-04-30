@@ -103,6 +103,10 @@ scripts:
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
+{{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+
+**This command tier: heavy.** Load Layer 1 + Layer 2 summary. Reads only the plan artifacts for task breakdown (Layer 3 docs are for sp-implement).
+
 4. **Execute task generation workflow**:
     - Load plan.md and extract tech stack, libraries, project structure
     - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
