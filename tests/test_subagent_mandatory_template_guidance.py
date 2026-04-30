@@ -162,6 +162,7 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
         "keep it on the leader path",
         "keep the lane on leader path",
         "keep the batch on the leader path",
+        "prefer subagent execution only when",
     )
 
     for command_name in ORDINARY_COMMANDS:
