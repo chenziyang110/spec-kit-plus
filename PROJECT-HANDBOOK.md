@@ -31,12 +31,22 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 ## How To Read This Project
 
 - Start here for orientation.
+- **First stop for any task**: open `.specify/project-map/QUICK-NAV.md` — a ≤50-line decision matrix that answers "which document should I open?"
 - The handbook is the index-first entrypoint.
 - Read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` before broad brownfield work.
 - Treat the combined handbook/project-map set as an atlas-style technical encyclopedia.
 - The root topical docs explain cross-module architecture, workflows, integrations, testing, operations, structure, and conventions.
 - Module docs explain module-local ownership and drill-down routes.
 - Fall back to live code reads only when topical coverage is missing, stale, too broad, or marked low confidence.
+
+## Quick Navigation (Layer 1)
+
+For task-based routing, open `.specify/project-map/QUICK-NAV.md` first — it is a ≤50-line decision matrix that answers "which document should I open?" for 12 common task types. The handbook and project-map together form a four-layer atlas:
+
+- **Layer 1 (routing)**: `QUICK-NAV.md` — task→document mapping
+- **Layer 2 (summary)**: `root/ARCHITECTURE.md` capability cards — module-at-a-glance
+- **Layer 3 (detail)**: `modules/<name>/OVERVIEW.md` — full technical detail
+- **Layer 4 (source)**: Live code — when docs are missing or stale
 
 ## Shared Surfaces
 
