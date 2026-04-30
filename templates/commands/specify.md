@@ -605,14 +605,17 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     ```markdown
     # Specification Quality Checklist: [FEATURE NAME]
 
-    **Purpose**: Validate specification completeness and alignment before planning
+    **Purpose**: Validate specification completeness and engineering readiness before planning
     **Created**: [DATE]
     **Feature**: [Link to spec.md]
     **Alignment Report**: [Link to alignment.md]
+    **Tier**: light | standard | deep (choose based on task classification and boundary sensitivity)
 
     ## Content Quality
 
-    - [ ] No implementation details (languages, frameworks, APIs)
+    - [ ] No implementation choice locked as sole path (technical context for grounding is allowed)
+    - [ ] No framework/library version pinning in spec
+    - [ ] No technology choice used as acceptance criterion
     - [ ] Focused on user value and business needs
     - [ ] Written for non-technical stakeholders
     - [ ] All mandatory sections completed
@@ -627,8 +630,29 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     - [ ] Edge cases are identified
     - [ ] Dependencies and assumptions identified
     - [ ] Capability decomposition is planning-ready
-    - [ ] Confirmed vs inferred vs unresolved states are recorded
+    - [ ] Confirmed vs inferred vs unresolved states are recorded per capability (min 80% coverage)
     - [ ] Boundary-sensitive features record trigger source, contract boundary, lifecycle/retention, failure semantics, and configuration surface
+
+    ## Specification Engineering Completeness
+
+    Run `spec-lint -dir <FEATURE_DIR> -tier <tier>` to mechanically verify items marked with [lint].
+
+    ### Scout & Context (light+)
+    - [ ] [lint] Scout summary covers >= 3/6 topics: ownership, reusable assets, change-propagation, integration, verification, known unknowns
+    - [ ] [lint] Each capability labeled confirmed / inferred / unresolved
+    - [ ] [lint] Execution model recorded in workflow-state.md or alignment.md (subagent-mandatory or single-agent with rationale)
+
+    ### Impact & Quality (standard+)
+    - [ ] [lint] Change-propagation matrix present in context.md (table: change surface → direct consumers → indirect consumers → risk)
+    - [ ] [lint] Non-functional dimensions probed: performance, security, reliability, observability (min 2/4)
+    - [ ] Error/failure paths include user-visible behavior descriptions (what the end user sees, not just internal state)
+    - [ ] [lint] Configuration items declare effective-when (immediate, next session, after restart, etc.)
+    - [ ] [lint] Test strategy note per capability (test type, platform coverage)
+
+    ### Deep-Only (deep)
+    - [ ] Non-functional requirements quantified with specific thresholds (not just mentioned)
+    - [ ] All error paths have explicit user-visible behavior contracts
+    - [ ] All configuration items have effective-when declarations
 
     ## Alignment Readiness
 
@@ -648,6 +672,9 @@ The text the user typed after `/sp.specify` is the starting point, not the finis
     ## Notes
 
     - Items marked incomplete require spec updates before `/sp.plan`
+    - Items marked [lint] can be verified automatically with `spec-lint`
+    - `spec-lint` exit code 0 = all [lint] checks pass; exit code 1 = failures present
+    - For tier selection: light (small bug fix, local change), standard (new capability, cross-module), deep (new system, protocol boundary, security-sensitive)
     ```
 
 25. Re-run validation after edits. Normal completion must pass all required checks.
