@@ -1297,6 +1297,12 @@ def test_project_map_freshness_scripts_exist_and_share_status_contract():
     assert "git baseline unavailable for project-map freshness" in ps_freshness
 
 
+def test_plan_shell_requires_anchorable_headings():
+    """plan shell.md must require anchorable section headings for downstream context pointers."""
+    plan_shell = (PROJECT_ROOT / "templates" / "command-partials" / "plan" / "shell.md").read_text(encoding="utf-8")
+    assert "anchorable" in plan_shell.lower()
+
+
 def test_create_new_feature_scripts_scaffold_and_report_context():
     ps_create = _read("scripts/powershell/create-new-feature.ps1")
     sh_create = _read("scripts/bash/create-new-feature.sh")
