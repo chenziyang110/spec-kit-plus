@@ -580,6 +580,7 @@ When adding new agents:
 - Use `sp-test` as the compatibility router for project-level testing work.
 - Use `sp-test-scan` when testing-system coverage needs read-only evidence, risk tiering, module-by-module gap analysis, or build-ready lanes.
 - Use `sp-test-build` when scan-approved lanes should construct or refresh the unit testing system through leader/subagent execution.
+- Use `sp-tasks` to produce enriched task contracts with agent assignment, context navigation, scope boundaries, and verify commands — enabling subagents to execute without asking the leader for clarification.
 
 ## Delegated Execution Defaults
 
