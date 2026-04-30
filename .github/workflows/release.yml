@@ -74,18 +74,18 @@ jobs:
 
           ### spec-lint (spec quality checker)
 
-          **Linux / macOS:**
+          **Primary:** Use \`specify lint\` (auto-downloads on first run):
           \`\`\`bash
+          specify lint -dir ./specs/001-xxx/ -tier standard
+          \`\`\`
+
+          **Standalone install:**
+          \`\`\`bash
+          # Linux / macOS
           curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/spec-lint/install.sh | bash
-          \`\`\`
-
-          **Windows (PowerShell):**
-          \`\`\`powershell
+          # Windows (PowerShell)
           irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/spec-lint/install.ps1 | iex
-          \`\`\`
-
-          **Go users:**
-          \`\`\`bash
+          # Go users
           go install github.com/chenziyang110/spec-kit-plus/tools/spec-lint@${VERSION}
           \`\`\`
 
