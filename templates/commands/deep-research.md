@@ -290,6 +290,13 @@ Use `execution_surface: native-subagents`.
    - **Reason**: [Why no feasibility evidence or spike is required]
    - **Constraints `/sp.plan` must preserve**: [Existing boundary, behavior, or constraint]
 
+   ## Planning Handoff Readiness Checklist
+
+   - [ ] All capabilities have proven implementation chains in repository
+   - [ ] `alignment.md` updated with `Not needed` feasibility status
+   - [ ] `context.md` updated
+   - [ ] `workflow-state.md` updated with `next_command: /sp.plan`
+
    ## Next Command
 
    - `/sp.plan`
@@ -414,6 +421,20 @@ Use `execution_surface: native-subagents`.
 
    - [Source title](URL) -> [why it matters]
 
+   ## Planning Handoff Readiness Checklist
+
+   - [ ] All CAPs have explicit exit status (`proven` / `constrained` / `blocked` / `not-viable`)
+   - [ ] All PH items trace to evidence (EVD/SPK/repo path)
+   - [ ] All spike results recorded with pass/fail outcome
+   - [ ] All residual risks explicitly linked to evidence IDs
+   - [ ] All research exclusions have revisit conditions
+   - [ ] `alignment.md` updated with feasibility result and Planning Gate Recommendation
+   - [ ] `context.md` updated with implementation-chain evidence, constraints, rejected options
+   - [ ] `references.md` updated with external sources
+   - [ ] `workflow-state.md` updated with exit criteria and `next_command`
+   - [ ] Reverse Coverage Validation passed (all CAP→PH→Evidence chains closed)
+   - [ ] Readiness Refusal Rules all PASS
+
    ## Next Command
 
    - [`/sp.plan` | `/sp.clarify` | stop with blocker]
@@ -440,6 +461,25 @@ Use `execution_surface: native-subagents`.
       - production-code edits from the research phase
       - feasibility risks not reflected in the Planning Gate Recommendation
     - If issues remain, revise the artifacts before handoff.
+
+12b. **Run reverse coverage validation**:
+    - Prove every CAP has at least one PH-ID.
+    - Prove every PH-ID traces back to at least one evidence item (`EVD-###`, `SPK-###`, or live repository path).
+    - Prove every `proven` CAP has no remaining unresolved unknown links.
+    - Prove every `blocked` CAP has a concrete block reason and next action.
+    - Prove every accepted evidence packet was consumed by at least one PH or explicitly deferred.
+    - If any check fails, refuse handoff and write gaps back to `workflow-state.md`.
+
+    ```markdown
+    ## Reverse Coverage Validation
+
+    | CAP ID | Has PH? | PH IDs | Has Evidence? | Evidence IDs | Proven / Clean? |
+    |--------|---------|--------|---------------|-------------|-----------------|
+    | CAP-001 | PASS | PH-001, PH-002 | PASS | EVD-001, SPK-001 | PASS |
+    | CAP-002 | FAIL | — | — | — | FAIL: No PH assigned |
+
+    **Decision**: [PASS / FAIL — if FAIL, refuse handoff]
+    ```
 
 13. **Write or update `WORKFLOW_STATE_FILE`**:
     - Record:
