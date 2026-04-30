@@ -55,3 +55,26 @@ def test_team_commands_keep_team_surface_separate() -> None:
         assert "all substantive tasks in ordinary `sp-*` workflows default to and must use subagents" not in content, command_name
         assert "the leader orchestrates:" not in content, command_name
         assert "before dispatch, every subagent lane needs a task contract" not in content, command_name
+
+
+def test_ordinary_templates_do_not_allow_leader_or_team_fallback_for_subagent_work() -> None:
+    forbidden_phrases = (
+        "keep the batch on the leader path",
+        "keep the lane on the leader path",
+        "default to leader explanation",
+        "perform the same track decomposition sequentially",
+        "run the tracks sequentially",
+        "if native subagents are unavailable and a durable team path is supported",
+        "fallback reason",
+    )
+
+    for command_name in ("implement", "explain", "deep-research"):
+        content = _read_command(command_name).lower()
+
+        assert "subagent-blocked" in content, command_name
+        for phrase in forbidden_phrases:
+            assert phrase not in content, f"{command_name}: {phrase}"
+
+    implement_content = _read_command("implement").lower()
+    assert "sp-teams" not in implement_content
+    assert "managed-team" not in implement_content

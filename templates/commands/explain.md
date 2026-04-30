@@ -59,13 +59,15 @@ Goal: Read the current stage artifact or atlas artifact and explain it in plain 
 
 4. Before translating the artifact, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="explain", snapshot, workload_shape)`.
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
-   - Default to leader explanation for small artifacts. Dispatch a cross-check subagent only when an independent verification lane would materially improve correctness.
+   - If repository inspection, artifact reading beyond already-provided context, or evidence cross-checking is needed, dispatch a bounded subagent lane before final explanation.
+   - If the artifact is fully provided in the current prompt and no repository inspection is needed, the leader may render the explanation directly because no substantive repository task is being executed.
+   - If required subagent dispatch is unavailable, record `subagent-blocked` and stop with the missing capability or packet requirement instead of treating leader execution as the ordinary path.
    - If collaboration is justified, keep `explain` lanes limited to:
      - primary artifact reading
      - supporting artifact cross-check
    - Required join point:
      - before rendering the final explanation
-   - Report the chosen strategy, reason, fallback if any, and whether supporting cross-check lanes were used.
+   - Report the chosen strategy, reason, any `subagent-blocked` condition, and whether supporting cross-check lanes were used.
 
 5. Translate the artifact into plain language:
    - what this stage is trying to accomplish
@@ -97,7 +99,7 @@ The explanation must remain stage-aware:
 ## Rules
 
 - Keep the explanation grounded in the actual artifact on disk.
-- Default to leader explanation for small artifacts unless the artifact genuinely benefits from a supporting cross-check lane.
+- Use subagent lanes for explanation work that needs repository inspection or artifact cross-checking; direct leader rendering is limited to fully supplied prompt context with no substantive repository task.
 - If a supporting cross-check lane is used, converge back to one final render step before presenting the explanation.
 - Use the user's current language for user-visible output unless literal command names, file paths, or fixed status values must remain unchanged.
 - Prefer clarity over jargon.

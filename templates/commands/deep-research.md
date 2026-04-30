@@ -119,7 +119,7 @@ Use `execution_surface: native-subagents`.
   - `spike_artifacts` when applicable
 - [AGENT] Join all subagent results before writing final conclusions. Resolve contradictions by preferring runnable spike evidence, current repository evidence, primary documentation, then secondary sources in that order. Mark conflicts that remain unresolved instead of hiding them.
 - [AGENT] The coordinator must convert subagent packets into `Research Agent Findings`, `Synthesis Decisions`, and `Planning Handoff`; do not paste raw subagent output as the final artifact.
-- [AGENT] If subagent dispatch is unavailable or unsafe, perform the same track decomposition sequentially and record the decision as `subagent-blocked` with a reason.
+- [AGENT] If subagent dispatch is unavailable or unsafe, record the decision as `subagent-blocked` with the concrete reason, preserve the decomposed tracks as blocked work, and stop for escalation or recovery instead of continuing as coordinator-only execution.
 
 ## Traceability and Evidence Quality Contract
 
@@ -216,20 +216,21 @@ Use `execution_surface: native-subagents`.
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - Decision order is fixed:
      - One safe validated track -> `one-subagent` on `native-subagents` when available.
-     - Two or more safe isolated tracks -> `parallel-subagents` on `native-subagents` when available.     - No safe lane, overlapping write scopes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason.
+     - Two or more safe isolated tracks -> `parallel-subagents` on `native-subagents` when available.
+     - No safe lane, overlapping write scopes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason.
    - For `deep-research`, safe fan-out means at least two independent research tracks with disjoint write scopes. Research-only tracks return evidence packets; demo tracks write only under their assigned `FEATURE_DIR/research-spikes/<track-slug>/`.
    - Required join points:
      - before final conflict resolution
      - before writing `Synthesis Decisions`
      - before writing `Planning Handoff`
-   - Record the chosen strategy, reason, fallback if any, selected research tracks, write scopes, and join points in `deep-research.md`.
+   - Record the chosen strategy, reason, any `subagent-blocked` condition, selected research tracks, write scopes, and join points in `deep-research.md`.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
 7. **Plan and run coordinated research**:
    - Create research tracks from the capability matrix before searching broadly.
    - For each track, assign a stable track ID (`TRK-###`) and define the exact question, evidence target, likely sources, whether a spike is needed, and how the result will affect `/sp.plan`.
    - If two or more tracks are independent and subagent dispatch is available, dispatch bounded subagents according to the Multi-Agent Research Orchestration contract.
-   - If subagent dispatch is unavailable or low-value, run the tracks sequentially and still write evidence packets.
+   - If subagent dispatch is unavailable or low-confidence, record `subagent-blocked`, capture which tracks could not be dispatched, and stop before substantive research until the block is resolved or explicitly escalated.
    - Search and read only sources that answer a named feasibility question.
    - Prefer primary docs, official examples, standards, changelogs, release notes, library docs, code examples from the dependency itself, and current repository evidence.
    - Cite external sources in `references.md` and summarize how each source affects the implementation chain.

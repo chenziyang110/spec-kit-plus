@@ -321,15 +321,15 @@ human_needed_checks:
    - Use the shared policy function before each batch with the current agent capability snapshot: `choose_subagent_dispatch(command_name="implement", snapshot, workload_shape)`
    - Also classify whether the current batch needs a review gate before the join point: `classify_review_gate_policy(workload_shape)`
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
-   - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for subagent dispatch. If confidence is `low`, keep the batch on the leader path instead of forcing fragile subagent fan-out.
+   - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for subagent dispatch. If confidence is `low`, record `subagent-blocked` with concrete evidence and stop the batch for escalation or recovery; do not execute the substantive work inline.
    - Decision order (must match policy):
       - If overlapping write sets, no safe delegated lane, missing packet, unavailable runtime, or low confidence -> `subagent-blocked` with a recorded reason.
       - If one safe validated packet is ready and native subagents are available -> `one-subagent` on `native-subagents`.
       - If multiple safe validated packets have isolated write sets and native subagents are available -> `parallel-subagents` on `native-subagents`.
-      - If native subagents are unavailable and a durable team path is supported -> `parallel-subagents` on `native-subagents`.
+      - If native subagents are unavailable -> `subagent-blocked` with a recorded reason; durable team orchestration is a separate workflow surface reserved for durable team state, not an ordinary implement fallback.
    - For implementation work, prefer subagent execution only when the lane already has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader quality.
-   - If that subagent-readiness bar is not met, do not dispatch a low-context lane just to satisfy a routing preference; compile the missing packet contract first or keep the lane on the leader path until the contract is complete.
-   - If subagent dispatch is unavailable or low-confidence for the current batch, use `subagent-blocked` and record the fallback reason in `implement-tracker.md`.
+   - If that subagent-readiness bar is not met, do not dispatch a low-context lane just to satisfy a routing preference; compile the missing packet contract first, then dispatch or mark the batch `subagent-blocked`.
+   - If subagent dispatch is unavailable or low-confidence for the current batch, use `subagent-blocked`, record the blocker in `implement-tracker.md`, and stop before substantive implementation until the blocker is resolved or explicitly escalated.
    - Re-evaluate subagent dispatch at every new parallel batch or join point instead of choosing once for the whole feature
    - Refine only the current executable window after each join point. Do not pre-expand later batches when their exact shape depends on current batch evidence.
    - Grouped parallelism is the default when multiple ready tasks have isolated write sets and stable upstream inputs.
