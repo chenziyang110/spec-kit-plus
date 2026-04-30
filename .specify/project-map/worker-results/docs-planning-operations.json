@@ -1,0 +1,54 @@
+{
+  "packet_id": "docs-planning-operations",
+  "reported_status": "done",
+  "owned_ledger_row_ids": ["L013", "L014", "L015"],
+  "paths_read": [
+    "README.md",
+    "docs/quickstart.md",
+    "docs/local-development.md",
+    "docs/installation.md",
+    "docs/upgrade.md",
+    ".planning/PROJECT.md",
+    ".planning/STATE.md",
+    ".planning/ROADMAP.md",
+    ".planning/MILESTONES.md",
+    "docs/superpowers/specs/2026-04-29-map-scan-build-design.md",
+    "docs/superpowers/plans/2026-04-29-map-scan-build-implementation.md",
+    "extensions/README.md",
+    "extensions/EXTENSION-DEVELOPMENT-GUIDE.md",
+    "extensions/EXTENSION-API-REFERENCE.md",
+    "extensions/EXTENSION-PUBLISHING-GUIDE.md",
+    "extensions/EXTENSION-USER-GUIDE.md",
+    "presets/README.md",
+    "presets/ARCHITECTURE.md",
+    ".github/workflows/RELEASE-PROCESS.md"
+  ],
+  "key_facts": [
+    "README teaches the generated workflow sequence `constitution`, `specify`, `plan`, `tasks`, `implement`, `auto`, with `specify -> plan` as mainline and `specify -> deep-research -> plan` as optional feasibility branch.",
+    "README names `map-scan` followed by `map-build` as the required brownfield gate before deeper existing-code work.",
+    "README describes `test` as a compatibility router to `test-scan` or `test-build` and records the durable testing artifacts produced by those workflows.",
+    "`.planning/STATE.md` says v1.3 is archived, there is no active phase or milestone plan, and the next planning step is to start a new milestone.",
+    "`docs/superpowers/plans/2026-04-29-map-scan-build-implementation.md` records the intended breaking change from one-step map-codebase to two-step map-scan/map-build and lists the modified shared surfaces.",
+    "Extension and preset docs/catalogs are product surfaces for optional add-ons, not generated cache."
+  ],
+  "recommended_atlas_updates": [
+    "Document `.planning/*` as historical/current product planning state, with v1.3 complete and no active milestone.",
+    "Document map-scan/map-build implementation history as recent structural change.",
+    "Document extension and preset surfaces in operations/integrations."
+  ],
+  "atlas_targets_updated_or_confirmed": [
+    "PROJECT-HANDBOOK.md",
+    ".specify/project-map/root/WORKFLOWS.md",
+    ".specify/project-map/root/OPERATIONS.md",
+    ".specify/project-map/root/INTEGRATIONS.md",
+    ".specify/project-map/root/CONVENTIONS.md"
+  ],
+  "confidence": "Verified",
+  "minimum_verification": [
+    "pytest tests/test_specify_guidance_docs.py tests/test_runtime_story_docs.py tests/test_packaging_assets.py -q"
+  ],
+  "unknowns": [
+    "Older planning artifacts are historical unless current `.planning/STATE.md` reactivates them."
+  ],
+  "blockers": []
+}

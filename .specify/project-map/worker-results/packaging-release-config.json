@@ -1,0 +1,51 @@
+{
+  "packet_id": "packaging-release-config",
+  "reported_status": "done",
+  "owned_ledger_row_ids": ["L001", "L006", "L015"],
+  "paths_read": [
+    "pyproject.toml",
+    "uv.lock",
+    ".github/workflows/test.yml",
+    ".github/workflows/release.yml",
+    ".github/workflows/docs.yml",
+    ".github/workflows/codeql.yml",
+    ".github/dependabot.yml",
+    ".github/CODEOWNERS",
+    ".devcontainer/devcontainer.json",
+    ".devcontainer/post-create.sh",
+    "extensions/catalog.json",
+    "extensions/catalog.community.json",
+    "presets/catalog.json",
+    "presets/catalog.community.json",
+    "presets/PUBLISHING.md",
+    "scripts/sync-ecc-to-codex.sh",
+    "scripts/powershell/sync-ecc-to-codex.ps1"
+  ],
+  "key_facts": [
+    "`pyproject.toml` force-includes templates, command partials, passive skills, project-map/testing templates, worker prompts, scripts, and the agent-teams engine source/prompts/skills/crates into the wheel.",
+    "CI test workflow runs Ruff on `src/` and pytest on Python 3.11, 3.12, and 3.13 using `uv sync --extra test` then `uv run pytest`.",
+    "Release workflow triggers on `v*` tags, generates release notes from recent commits, and creates a GitHub release; wheel publishing is not shown in the sampled release workflow.",
+    "Devcontainer post-create installs many agent CLIs plus uv and docfx; it is operational setup code and should be kept in sync with supported-agent claims.",
+    "Extension and preset catalog files plus their managers under `src/specify_cli/extensions.py` and `src/specify_cli/presets.py` validate schemas, compatibility, safe paths, and installable surfaces."
+  ],
+  "recommended_atlas_updates": [
+    "Document force-included bundled assets and the wheel packaging blast radius.",
+    "Document CI/test matrix and release trigger behavior.",
+    "Document devcontainer setup as convenience, not the only supported local development path."
+  ],
+  "atlas_targets_updated_or_confirmed": [
+    ".specify/project-map/root/STRUCTURE.md",
+    ".specify/project-map/root/INTEGRATIONS.md",
+    ".specify/project-map/root/OPERATIONS.md",
+    ".specify/project-map/root/TESTING.md"
+  ],
+  "confidence": "Verified",
+  "minimum_verification": [
+    "pytest tests/test_packaging_assets.py tests/test_extensions.py tests/test_presets.py -q",
+    "uv build"
+  ],
+  "unknowns": [
+    "Release packaging sequence beyond GitHub release creation is lightly sampled; verify before changing distribution automation."
+  ],
+  "blockers": []
+}

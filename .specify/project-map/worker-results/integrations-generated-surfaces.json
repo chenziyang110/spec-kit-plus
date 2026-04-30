@@ -1,0 +1,55 @@
+{
+  "packet_id": "integrations-generated-surfaces",
+  "reported_status": "done",
+  "owned_ledger_row_ids": ["L004", "L005", "L006"],
+  "paths_read": [
+    "src/specify_cli/integrations/__init__.py",
+    "src/specify_cli/integrations/base.py",
+    "src/specify_cli/integrations/codex/__init__.py",
+    "src/specify_cli/integrations/claude/__init__.py",
+    "src/specify_cli/integrations/copilot/__init__.py",
+    "src/specify_cli/integrations/forge/__init__.py",
+    "src/specify_cli/integrations/manifest.py",
+    "templates/commands/map-scan.md",
+    "templates/commands/map-build.md",
+    "templates/command-partials/map-scan/shell.md",
+    "templates/command-partials/map-build/shell.md",
+    "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+    "templates/passive-skills/spec-kit-project-map-gate/SKILL.md",
+    "templates/passive-skills/subagent-driven-development/SKILL.md",
+    "templates/project-map/map-state-template.md",
+    "scripts/bash/update-agent-context.sh",
+    "scripts/powershell/update-agent-context.ps1"
+  ],
+  "key_facts": [
+    "`INTEGRATION_REGISTRY` is populated in `src/specify_cli/integrations/__init__.py` by registering built-in `IntegrationBase` subclasses alphabetically.",
+    "`MarkdownIntegration`, `TomlIntegration`, and `SkillsIntegration` in `base.py` are the main generation families; they process shared command templates, append runtime project-map gates, append delegation/result contracts for selected workflows, and install integration scripts.",
+    "Codex, Claude, Kimi, and Antigravity use skills-style surfaces; Codex also includes `team.md` and `implement-teams.md` and injects Codex-native multi-agent guidance into map/test/spec/plan/task/implement/debug skills.",
+    "Copilot is custom: it writes `.agent.md` files, companion `.prompt.md` files, and VS Code settings instead of using the standard Markdown base directly.",
+    "Forge is custom: it replaces `$ARGUMENTS` with `{{parameters}}`, strips incompatible `handoffs` frontmatter, and injects a `name` field.",
+    "`templates/commands/map-scan.md` and `templates/commands/map-build.md` now define the brownfield two-step scan/build contract with state, packet, evidence, and reverse coverage requirements.",
+    "Generated update-context scripts and shared scripts are product code because changes propagate into downstream initialized repositories."
+  ],
+  "recommended_atlas_updates": [
+    "Document integration key conventions and the no-shorthand CLI-tool-name rule.",
+    "Document the shared template-to-agent propagation chain and special adapter exceptions.",
+    "Document map-scan/map-build as generated workflow contracts, not implementation code."
+  ],
+  "atlas_targets_updated_or_confirmed": [
+    ".specify/project-map/root/CONVENTIONS.md",
+    ".specify/project-map/root/INTEGRATIONS.md",
+    ".specify/project-map/root/WORKFLOWS.md",
+    ".specify/project-map/modules/specify-cli-core/ARCHITECTURE.md",
+    ".specify/project-map/modules/templates-generated-surfaces/OVERVIEW.md",
+    ".specify/project-map/modules/templates-generated-surfaces/STRUCTURE.md",
+    ".specify/project-map/modules/templates-generated-surfaces/WORKFLOWS.md"
+  ],
+  "confidence": "Verified",
+  "minimum_verification": [
+    "pytest tests/integrations tests/test_map_scan_build_template_guidance.py tests/test_passive_skill_guidance.py -q"
+  ],
+  "unknowns": [
+    "Real external CLI behavior for each agent can drift independently of generated adapter assumptions."
+  ],
+  "blockers": []
+}

@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "generated_at": "2026-04-30",
+  "modules": [
+    {
+      "id": "specify-cli-core",
+      "name": "Specify CLI Core",
+      "owned_roots": [
+        "src/specify_cli",
+        "tests",
+        "pyproject.toml"
+      ],
+      "tags": ["python", "cli", "integration-registry", "hooks", "orchestration", "codex-team-control-plane"],
+      "docs": {
+        "overview": ".specify/project-map/modules/specify-cli-core/OVERVIEW.md",
+        "architecture": ".specify/project-map/modules/specify-cli-core/ARCHITECTURE.md",
+        "structure": ".specify/project-map/modules/specify-cli-core/STRUCTURE.md",
+        "workflows": ".specify/project-map/modules/specify-cli-core/WORKFLOWS.md",
+        "testing": ".specify/project-map/modules/specify-cli-core/TESTING.md"
+      },
+      "freshness": "fresh",
+      "deep_status": "current",
+      "confidence": "Verified"
+    },
+    {
+      "id": "templates-generated-surfaces",
+      "name": "Templates And Generated Surfaces",
+      "owned_roots": [
+        "templates",
+        "scripts",
+        "src/specify_cli/integrations/*/scripts"
+      ],
+      "tags": ["templates", "passive-skills", "generated-surfaces", "scripts", "project-map", "testing-workflows"],
+      "docs": {
+        "overview": ".specify/project-map/modules/templates-generated-surfaces/OVERVIEW.md",
+        "architecture": ".specify/project-map/modules/templates-generated-surfaces/ARCHITECTURE.md",
+        "structure": ".specify/project-map/modules/templates-generated-surfaces/STRUCTURE.md",
+        "workflows": ".specify/project-map/modules/templates-generated-surfaces/WORKFLOWS.md",
+        "testing": ".specify/project-map/modules/templates-generated-surfaces/TESTING.md"
+      },
+      "freshness": "fresh",
+      "deep_status": "current",
+      "confidence": "Verified"
+    },
+    {
+      "id": "agent-teams-engine",
+      "name": "Agent Teams Engine",
+      "owned_roots": [
+        "extensions/agent-teams/engine"
+      ],
+      "tags": ["node", "typescript", "rust", "codex-team", "tmux", "psmux", "native-hooks"],
+      "docs": {
+        "overview": ".specify/project-map/modules/agent-teams-engine/OVERVIEW.md",
+        "architecture": ".specify/project-map/modules/agent-teams-engine/ARCHITECTURE.md",
+        "structure": ".specify/project-map/modules/agent-teams-engine/STRUCTURE.md",
+        "workflows": ".specify/project-map/modules/agent-teams-engine/WORKFLOWS.md",
+        "testing": ".specify/project-map/modules/agent-teams-engine/TESTING.md"
+      },
+      "freshness": "fresh",
+      "deep_status": "sampled",
+      "confidence": "Inferred"
+    }
+  ]
+}
