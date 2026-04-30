@@ -55,6 +55,35 @@ If technical blockers arise (build errors, missing toolchain components, environ
 - Do not bypass tracker truth, result handoffs, or verification gates
 - Do not declare completion because tasks look checked off if the implementation contract is not actually satisfied
 
+## Pre-Dispatch Validation
+
+Before dispatching any subagent, the leader MUST validate each task contract:
+
+### Required Checks (BLOCK on failure)
+
+1. **agent_exists**: Confirm the task's `agent` role exists in the agent-teams role pool: security-reviewer, test-engineer, style-reviewer, performance-reviewer, quality-reviewer, api-reviewer, debugger, code-simplifier, build-fixer, executor. If missing, auto-correct to the closest matching role or `executor`.
+
+2. **deps_acyclic**: Confirm `depends_on` does not form a cycle. Walk the dependency chain; if a cycle is detected, stop and require tasks.md correction before dispatch.
+
+### Advisory Checks (WARN but continue)
+
+3. **scope_paths_exist**: Confirm each path in `write_scope` and `read_scope` exists in the repository or will be created by this task. Missing paths that are not created by earlier tasks should be flagged.
+
+4. **context_nav_valid**: Spot-check context navigation pointers — verify the pointed-to files exist and the referenced sections are present. Missing pointers should be noted but do not block dispatch.
+
+5. **forbidden_safe**: Verify that `forbidden` includes `.env`, credential files, secrets directories, and other sensitive paths. If missing, auto-append the default forbidden patterns before dispatch.
+
+### Parallel Safety Check
+
+6. **write_set_isolation**: For any two tasks in the same parallel batch, confirm their `write_scope` sets have zero overlap. Tasks with overlapping write sets MUST be serialized even if both are marked `[P]`.
+
+### Validation Output
+
+After checks complete, record results in `implement-tracker.md`:
+- `pre_dispatch_validation`: pass | warnings | blocked
+- `validation_warnings`: [list of advisory warnings]
+- `auto_corrections`: [list of fields auto-corrected]
+
 ## Pre-Execution Checks
 
 **Check for extension hooks (before implementation)**:
@@ -329,8 +358,12 @@ human_needed_checks:
    - **Parallel batches**: Ready tasks that can execute together without write-set conflicts
    - **Join points**: Synchronization steps that must complete before downstream work starts
    - **Execution flow**: Order and dependency requirements
+   - **REQUIRED**: Run pre-dispatch validation (see Pre-Dispatch Validation section) on every task in the current ready batch before compiling WorkerTaskPacket.
+   - **IF VALIDATION BLOCKS**: Record the blocking issue in `implement-tracker.md` under `blockers`, set `next_action` to the required fix, and stop the batch.
+   - **IF VALIDATION WARNS**: Record warnings in `implement-tracker.md` and continue dispatch.
 
 6. Select subagent dispatch for each ready batch before writing code:
+   - **Agent routing**: When a task specifies an `agent` role, dispatch to that role's subagent type. When no agent is specified, default to a general executor lane. Do not route security-sensitive tasks to general-purpose agents when a matching specialist exists.
    - The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.
    - The shared implement template is the primary source of truth for this leader-owned milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
    - Use the shared policy function before each batch with the current agent capability snapshot: `choose_subagent_dispatch(command_name="implement", snapshot, workload_shape)`
