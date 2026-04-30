@@ -67,3 +67,8 @@ direction it must preserve.
 - Do not let research subagents edit production files; they must either
   return evidence packets or write only to their assigned disposable spike
   directory.
+- A research pass without runnable evidence (spike result or repo path trace) is a failed pass.
+- Coordinator-only execution without subagent dispatch justification and recorded `subagent-blocked` reason is a failed pass.
+- Feasibility claims based only on documentation citations without live repository path reads are not sufficient for planning.
+- Subagent evidence packets without `paths_read` must be rejected; do not accept or synthesize them.
+- A structural-only refresh (reformatting findings without new evidence) is a failed pass.

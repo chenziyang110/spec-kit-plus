@@ -286,9 +286,10 @@ Use `execution_surface: native-subagents`.
    ## Planning Handoff
 
    - **Handoff IDs**: Not needed
+   - **Status**: All capabilities have proven implementation chains in repository
    - **Recommended approach**: [Existing implementation path `/sp.plan` should use]
-   - **Reason**: [Why no feasibility evidence or spike is required]
    - **Constraints `/sp.plan` must preserve**: [Existing boundary, behavior, or constraint]
+   - **PH items**: None (all capabilities proven — no research-generated handoff items)
 
    ## Planning Handoff Readiness Checklist
 
