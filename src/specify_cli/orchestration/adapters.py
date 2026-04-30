@@ -96,8 +96,8 @@ def _infer_delegation_confidence(
 def build_capability_snapshot(
     *,
     integration_key: str,
-    native_multi_agent: bool,
-    sidecar_runtime_supported: bool,
+    native_subagents: bool,
+    managed_team_supported: bool,
     structured_results: bool,
     durable_coordination: bool,
     native_worker_surface: str,
@@ -118,10 +118,10 @@ def build_capability_snapshot(
             resolved_notes.append(
                 f"Runtime probe backends available: {', '.join(available_backends)}."
             )
-        elif sidecar_runtime_supported:
-            sidecar_runtime_supported = False
+        elif managed_team_supported:
+            managed_team_supported = False
             resolved_notes.append(
-                "Runtime probe found no available orchestration backends; disabling sidecar runtime support for this session."
+                "Runtime probe found no available orchestration backends; disabling managed team support for this session."
             )
     except Exception as exc:  # pragma: no cover - defensive path
         resolved_notes.append(f"Runtime probe failed: {exc}")
@@ -139,8 +139,8 @@ def build_capability_snapshot(
 
     return CapabilitySnapshot(
         integration_key=integration_key,
-        native_multi_agent=native_multi_agent,
-        sidecar_runtime_supported=sidecar_runtime_supported,
+        native_subagents=native_subagents,
+        managed_team_supported=managed_team_supported,
         structured_results=structured_results,
         durable_coordination=durable_coordination,
         native_worker_surface=native_worker_surface,

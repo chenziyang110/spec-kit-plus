@@ -5,15 +5,14 @@ from typing import get_args
 from specify_cli.orchestration.models import (
     Batch,
     CapabilitySnapshot,
-    ExecutionStrategy,
+    DispatchShape,
     ExecutionSurface,
     ExecutionDecision,
     Lane,
-    LaneTopology,
     ReviewGatePolicy,
     Session,
-    prefers_single_lane_label,
-    single_worker_delegation_default,
+    SubagentExecutionModel,
+    should_attempt_one_subagent,
     utc_now,
 )
 
@@ -23,8 +22,8 @@ def test_capability_snapshot_has_canonical_fields_and_defaults():
     field_names = [item.name for item in fields(CapabilitySnapshot)]
 
     assert snapshot.integration_key == "claude"
-    assert snapshot.native_multi_agent is False
-    assert snapshot.sidecar_runtime_supported is False
+    assert snapshot.native_subagents is False
+    assert snapshot.managed_team_supported is False
     assert snapshot.structured_results is False
     assert snapshot.durable_coordination is False
     assert snapshot.native_worker_surface == "unknown"
@@ -34,8 +33,8 @@ def test_capability_snapshot_has_canonical_fields_and_defaults():
     assert snapshot.notes == []
     assert field_names == [
         "integration_key",
-        "native_multi_agent",
-        "sidecar_runtime_supported",
+        "native_subagents",
+        "managed_team_supported",
         "structured_results",
         "durable_coordination",
         "native_worker_surface",
@@ -49,26 +48,26 @@ def test_capability_snapshot_has_canonical_fields_and_defaults():
 def test_execution_decision_has_canonical_fields_defaults_and_values():
     decision = ExecutionDecision(
         command_name="implement",
-        strategy="single-lane",
+        dispatch_shape="one-subagent",
         reason="default",
     )
     field_names = [item.name for item in fields(ExecutionDecision)]
 
     assert decision.command_name == "implement"
-    assert decision.strategy == "single-lane"
+    assert decision.dispatch_shape == "one-subagent"
     assert decision.reason == "default"
     assert decision.fallback_from is None
-    assert decision.lane_topology == "single-lane"
-    assert decision.execution_surface == "native-delegation"
+    assert decision.execution_surface == "native-subagents"
+    assert decision.execution_model == "subagents-first"
     assert datetime.fromisoformat(decision.created_at).utcoffset().total_seconds() == 0
     assert field_names == [
         "command_name",
-        "strategy",
+        "dispatch_shape",
         "reason",
         "fallback_from",
         "created_at",
-        "lane_topology",
         "execution_surface",
+        "execution_model",
     ]
 
 
@@ -100,55 +99,65 @@ def test_session_batch_and_lane_have_utc_defaults():
     ]
 
 
-def test_execution_strategy_literal_values_are_canonical():
-    assert get_args(ExecutionStrategy) == (
-        "single-lane",
-        "native-multi-agent",
-        "sidecar-runtime",
+def test_dispatch_shape_and_execution_surface_literals_are_canonical():
+    assert get_args(SubagentExecutionModel) == ("subagents-first",)
+    assert get_args(DispatchShape) == (
+        "one-subagent",
+        "parallel-subagents",
+        "leader-inline-fallback",
     )
-
-
-def test_lane_topology_and_execution_surface_literals_are_canonical():
-    assert get_args(LaneTopology) == ("single-lane", "multi-lane")
     assert get_args(ExecutionSurface) == (
-        "native-delegation",
-        "sidecar-runtime",
-        "leader-local",
+        "native-subagents",
+        "managed-team",
+        "leader-inline",
     )
 
 
-def test_execution_decision_derives_debug_single_lane_as_leader_local():
+def test_execution_decision_derives_debug_inline_fallback_as_leader_inline():
     decision = ExecutionDecision(
         command_name="debug",
-        strategy="single-lane",
+        dispatch_shape="leader-inline-fallback",
         reason="no-safe-batch",
     )
 
-    assert decision.lane_topology == "single-lane"
-    assert decision.execution_surface == "leader-local"
+    assert decision.execution_surface == "leader-inline"
+    assert decision.execution_model == "subagents-first"
 
 
-def test_execution_decision_normalizes_legacy_single_agent_alias_for_debug() -> None:
+def test_execution_decision_rejects_legacy_single_agent_alias() -> None:
+    try:
+        ExecutionDecision(
+            command_name="debug",
+            dispatch_shape="single-agent",  # type: ignore[arg-type]
+            reason="legacy-persisted-state",
+        )
+    except ValueError as exc:
+        assert "Unsupported dispatch shape" in str(exc)
+    else:
+        raise AssertionError("legacy dispatch shape should be rejected")
+
+
+def test_execution_decision_can_record_managed_team_surface() -> None:
     decision = ExecutionDecision(
         command_name="debug",
-        strategy="single-agent",
-        reason="legacy-persisted-state",
+        dispatch_shape="parallel-subagents",
+        reason="native-unavailable",
+        fallback_from="parallel-subagents",
+        execution_surface="managed-team",
     )
 
-    assert decision.strategy == "single-lane"
-    assert decision.lane_topology == "single-lane"
-    assert decision.execution_surface == "leader-local"
+    assert decision.dispatch_shape == "parallel-subagents"
+    assert decision.fallback_from == "parallel-subagents"
+    assert decision.execution_surface == "managed-team"
 
 
-def test_single_lane_label_preference_is_command_specific():
-    assert prefers_single_lane_label("implement") is True
-    assert prefers_single_lane_label("quick") is True
-    assert prefers_single_lane_label("debug") is True
-    assert prefers_single_lane_label("tasks") is True
-    assert prefers_single_lane_label("specify") is True
-    assert single_worker_delegation_default("implement") is True
-    assert single_worker_delegation_default("quick") is True
-    assert single_worker_delegation_default("debug") is False
+def test_one_subagent_attempt_default_is_command_specific():
+    assert should_attempt_one_subagent("implement") is True
+    assert should_attempt_one_subagent("quick") is True
+    assert should_attempt_one_subagent("test-build") is True
+    assert should_attempt_one_subagent("debug") is False
+    assert should_attempt_one_subagent("tasks") is False
+    assert should_attempt_one_subagent("specify") is False
 
 
 def test_review_gate_policy_has_canonical_fields_and_defaults():

@@ -10,7 +10,7 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "## leader role" in content
     assert "you are the quick-task leader" in content
     assert "you are not the default implementer for the quick task" in content
-    assert "dispatch the lane instead of continuing leader-local implementation work" in content
+    assert "dispatch the lane instead of continuing leader-inline implementation work" in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
@@ -70,18 +70,20 @@ def test_quick_template_preserves_quality_guardrails() -> None:
 def test_quick_template_defines_capability_aware_execution_strategy() -> None:
     content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
 
-    assert "choose_execution_strategy" in content
-    assert "single-lane" in content
-    assert "single-lane" in content
-    assert "native-multi-agent" in content
-    assert "sidecar-runtime" in content
+    assert "choose_subagent_dispatch" in content
+    assert "execution_model: subagents-first" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
+    assert "one-subagent" in content
+    assert "parallel-subagents" in content
+    assert "leader-inline-fallback" in content
+    assert "native-subagents" in content
+    assert "managed-team" in content
     assert "leader" in content
     assert "join point" in content
-    assert "`single-lane` names the topology" in content
-    assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
     assert "prefer subagent execution only when a validated `workertaskpacket` or equivalent execution contract preserves quality" in content
     assert "if that subagent-readiness bar is not met, keep the lane on the leader path" in content
-    assert "leader-local execution is an exception path" in content
+    assert "leader-inline-fallback` is an exception path" in content
     assert "only when the current quick-task batch cannot proceed through subagents or the managed team workflow" in content
     assert "the first actionable execution step after scope lock is to dispatch the first subagent" in content
     assert "if two or more independent subagent lanes can safely run in parallel" in content
@@ -109,7 +111,9 @@ def test_quick_template_includes_concrete_status_template() -> None:
     assert "id: [quick-task id]" in content
     assert "slug: [quick-task slug]" in content
     assert "status: gathering | planned | executing | validating | blocked | resolved" in content
-    assert "strategy: single-lane | native-multi-agent | sidecar-runtime" in content
+    assert "execution_model: subagents-first" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
     assert "## current focus" in content
     assert "## execution intent" in content
     assert "intent_outcome:" in content
@@ -156,7 +160,7 @@ def test_quick_template_requires_self_recovery_before_blocking() -> None:
     assert "attempt the smallest safe recovery step before declaring the task blocked" in content
     assert "read additional local context" in content
     assert "run the smallest meaningful verification or repro command" in content
-    assert "if subagent execution is failing, attempt the next safe path before switching to leader-local work" in content
+    assert "use `leader-inline-fallback` only after subagent execution is concretely unavailable" in content
     assert "use `--research`-style focused investigation" in content or "focused investigation" in content
     assert "retry_attempts" in content
     assert "recovery_action" in content

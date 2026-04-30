@@ -329,8 +329,9 @@ Boundary-sensitive implementation rule:
 Current `sp-implement` runtime model in this fork:
 
 - `sp-implement` acts as a milestone-level orchestration leader rather than the direct executor
-- concrete implementation runs through subagents when the selected strategy and packet are ready, and otherwise stays on the leader path with an explicit fallback reason
-- durable teams/runtime execution is an explicit alternate surface (`sp-implement-teams` / `sp-teams`), not an internal fallback hidden inside `sp-implement`
+- concrete implementation uses `subagents-first` execution when the packet is ready, with `one-subagent` for one safe delegated lane and `parallel-subagents` for independent safe lanes
+- `leader-inline-fallback` is allowed only after recording why delegation is unavailable, unsafe, or not packetized
+- durable teams/runtime execution is the `managed-team` surface (`sp-implement-teams` / `sp-teams`) for durable state or lifecycle needs, not an internal fallback hidden inside `sp-implement`
 - subagents should execute from compiled `WorkerTaskPacket` contracts rather than rediscovering rules from background context
 - subagent result handoff should use the runtime-managed result channel when one exists; otherwise subagents should write normalized result envelopes to the declared filesystem handoff path for the current workflow
 - implementation lanes without a runtime-managed channel should use `FEATURE_DIR/worker-results/<task-id>.json`
@@ -365,17 +366,16 @@ Skills-based projects now install two layers into the same skills directory:
 
 `sp-*` remains the primary user-facing workflow surface. Passive skills keep their template names and exist to improve automatic routing, guardrails, and bundled capabilities inside Spec Kit Plus repositories, not to replace the explicit workflow commands.
 
-## Multi-CLI Orchestration (Milestones 1-2)
+## Multi-CLI Orchestration
 
 Current orchestration status in this fork:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
-- `specify`, `plan`, `tasks`, `test`, `map-scan`, `map-build`, `explain`, `debug`, and `quick` surface `single-lane`, `native-multi-agent`, and `sidecar-runtime` in user-facing workflow guidance
-- `implement` now surfaces `single-lane` and `native-multi-agent`; when subagent dispatch is unavailable or low-confidence, it stays on the leader path with an explicit fallback reason
-- `single-lane` is the topology label for one safe execution lane, not a synonym for either subagent execution or leader-local execution
-- in execution-oriented workflows, prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
+- `sp-*` execution-oriented workflows use a leader + subagents model: `subagents-first` execution, `one-subagent` or `parallel-subagents` dispatch, and `leader-inline-fallback` only when delegation is unavailable, unsafe, or not packetized
+- execution decisions use `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, and `execution_surface: native-subagents | managed-team | leader-inline`
+- in execution-oriented workflows, use subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
-- `sp-teams` remains the Codex runtime-heavy execution surface
+- `sp-teams` remains the Codex `managed-team` execution surface for durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst
 - Claude, Gemini, and Copilot ship first-release adapter skeletons (alongside Codex) for native-first capability reporting
 - durable runtime maturity for `implement` and `debug`, plus wider integration rollout, remain future work
 

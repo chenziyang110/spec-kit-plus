@@ -29,21 +29,20 @@ def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert ".specify/memory/constitution.md" in content
-    assert "single-lane" in content
-    assert "single-lane" in content
-    assert "native-multi-agent" in content
-    assert "sidecar-runtime" in content
+    assert "execution_model: subagents-first" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
     assert "cursor leader gate" in content
     assert "cursor subagent execution" in content
-    assert "`single-lane` names the topology for one safe execution lane" in content
-    assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
+    assert "dispatch `one-subagent` or `parallel-subagents` before broad leader-inline repository analysis" in content
+    assert "use `leader-inline-fallback` only after native subagents and the managed-team path" in content
     assert "read `.specify/memory/constitution.md` first if it exists" in content
     assert "do **not** perform broad repository analysis" in content
-    assert "if cursor can dispatch subagents" in content
+    assert "use cursor's native subagent path for bounded lanes when available" in content
     assert "the next concrete action must be dispatch" in content
     assert "materially improve throughput" in content
-    assert "use the managed team workflow before doing concrete implementation work yourself" in content
-    assert "local execution is the last fallback" in content
+    assert "managed-team" in content
+    assert "leader-inline-fallback" in content
     assert "use cursor's native subagent path" in content
     assert "status.md" in content
     assert "execution_fallback" in content

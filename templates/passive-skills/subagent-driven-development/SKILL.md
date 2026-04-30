@@ -17,8 +17,13 @@ Route first, packetize second, dispatch third.
   investigation begins.
 - Compile and validate a `WorkerTaskPacket` or equivalent execution contract
   before any subagent work begins.
-- Dispatch native subagents by default for independent bounded lanes when the
-  current runtime supports them.
+- Use subagents-first execution for bounded delegated work.
+- Dispatch `one-subagent` when one safe lane is ready.
+- Dispatch `parallel-subagents` when two or more independent lanes can run
+  concurrently.
+- Use `leader-inline-fallback` only after recording why delegation is
+  unavailable, unsafe, or not packetized.
+- Do not use old strategy labels as routing choices.
 - `sp-teams` only when Codex work needs durable team state, explicit join-point
   tracking, result files, or lifecycle control beyond one in-session subagent
   burst.
@@ -33,10 +38,12 @@ Route first, packetize second, dispatch third.
    `WorkerTaskPacket` or equivalent with task text, relevant artifacts, write
    set, shared surfaces, forbidden drift, acceptance checks, and verification
    commands.
-3. **Dispatch in the current runtime**: Use native subagents such as Codex
-   `spawn_agent`, Claude Task, or the active CLI's equivalent. The leader owns
-   packet quality, lane selection, and integration, but should not implement the
-   lane locally while subagent execution is active.
+3. **Dispatch in the current runtime**: Use the `native-subagents` surface such
+   as Codex `spawn_agent`, Claude Task, or the active CLI's equivalent. The
+   leader owns packet quality, lane selection, and integration, but should not
+   implement the lane locally while subagent execution is active. Use
+   `managed-team` only for durable team state or lifecycle control, and use
+   `leader-inline` only as a recorded fallback.
 4. **Join on evidence**: Wait for every subagent's structured handoff. The
    handoff must name changed files, verification run, failures, open risks, and
    any spec or plan gaps. An idle or silent subagent is not completed work.
@@ -75,8 +82,9 @@ packet before dispatch.
 
 ## Red Flags
 
-- Doing leader-local implementation because the task looks "small" after an
-  `sp-quick`, `sp-debug`, or `sp-implement` route selected an executable lane.
+- Doing leader-inline implementation because the task looks "small" after an
+  `sp-quick`, `sp-debug`, or `sp-implement` route selected an executable lane,
+  without recording a `leader-inline-fallback` reason.
 - Dispatching raw task text without a validated `WorkerTaskPacket`.
 - Asking the user to open separate terminals when native subagents are available
   in the current runtime.

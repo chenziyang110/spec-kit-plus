@@ -22,7 +22,7 @@ This gate is mandatory and precedes all broad implementation-context recovery.
 3. Do not run validation, edit files, or inspect broad implementation context before this gate passes.
 4. If a Claude Agent Team for the same feature slug already exists, resume that team and inspect only its ledger and shared task list until the leader has confirmed the team state.
 5. If `TeamCreate`, team resume, shared task records, or native teammate launch is unavailable, stop and report that Claude Agent Teams is unavailable for this `/sp-implement-teams` run.
-6. Do not fall back to `/sp-implement`, ordinary subagents, ordinary `Agent` tool calls, or leader-local implementation from this gate.
+6. Do not fall back to `/sp-implement`, ordinary subagents, ordinary `Agent` tool calls, or leader-inline implementation from this gate.
 
 ## Boundary
 
@@ -36,7 +36,7 @@ This gate is mandatory and precedes all broad implementation-context recovery.
 
 Use this when:
 
-1. `/sp-implement` would otherwise run a `single-lane` or native delegated flow
+1. `/sp-implement` would otherwise run a `leader-inline-fallback` or native subagent flow
 2. you want durable coordinated execution with a shared task list and explicit teammate messaging
 3. the implementation work is already decomposed into task-ready execution slices
 

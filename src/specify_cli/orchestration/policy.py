@@ -1,4 +1,4 @@
-"""Shared execution-strategy policy for orchestration-aware commands."""
+"""Shared subagent-dispatch policy for orchestration-aware commands."""
 
 from __future__ import annotations
 
@@ -9,19 +9,19 @@ from .models import (
     CapabilitySnapshot,
     ExecutionDecision,
     ReviewGatePolicy,
-    single_worker_delegation_default,
+    should_attempt_one_subagent,
 )
 
-_PARALLEL_BATCH_COUNT_KEYS = (
-    "parallel_batches",
-    "ready_parallel_batches",
-    "parallel_batch_count",
+_SAFE_SUBAGENT_LANE_COUNT_KEYS = (
+    "safe_subagent_lanes",
+    "subagent_lane_count",
+    "ready_subagent_lanes",
 )
-_SAFE_PARALLEL_BATCH_KEYS = (
-    "safe_parallel_batch",
-    "has_safe_parallel_batch",
-    "ready_parallel_batch",
-    "has_ready_parallel_batch",
+_PACKET_READY_KEYS = (
+    "packet_ready",
+    "packets_ready",
+    "has_validated_packet",
+    "has_validated_packets",
 )
 _OVERLAPPING_WRITE_SET_KEYS = (
     "overlapping_write_sets",
@@ -93,119 +93,98 @@ def _get_shape_int(
     return None
 
 
-def choose_execution_strategy(
+def choose_subagent_dispatch(
     *,
     command_name: str,
     snapshot: CapabilitySnapshot,
     workload_shape: dict[str, object],
 ) -> ExecutionDecision:
-    """Choose the execution strategy using the shared first-release policy."""
+    """Choose the dispatch shape using the shared subagents-first policy."""
 
+    command = command_name.strip().lower()
     shape = workload_shape if isinstance(workload_shape, Mapping) else {}
-    single_worker_delegates = single_worker_delegation_default(command_name)
-    single_worker_strategy = "single-lane"
-    parallel_batches = _get_shape_int(shape, _PARALLEL_BATCH_COUNT_KEYS)
-    if parallel_batches is None:
-        # Backward compatibility: derive batch count from older boolean surfaces.
-        has_safe_parallel_batch = _get_shape_flag(
-            shape,
-            _SAFE_PARALLEL_BATCH_KEYS,
-            default=False,
-        )
-        parallel_batches = 1 if has_safe_parallel_batch else 0
-
+    safe_lanes = _get_shape_int(shape, _SAFE_SUBAGENT_LANE_COUNT_KEYS) or 0
+    fallback_shape = "parallel-subagents" if safe_lanes > 1 else "one-subagent"
     has_overlapping_write_sets = _get_shape_flag(
         shape,
         _OVERLAPPING_WRITE_SET_KEYS,
         default=False,
     )
 
-    if parallel_batches <= 0 or has_overlapping_write_sets:
-        if single_worker_delegates:
-            if (
-                snapshot.native_multi_agent
-                and not (
-                    snapshot.runtime_probe_succeeded
-                    and snapshot.delegation_confidence == "low"
-                )
-            ):
-                return ExecutionDecision(
-                    command_name=command_name,
-                    strategy=single_worker_strategy,
-                    reason="no-safe-batch",
-                    lane_topology="single-lane",
-                    execution_surface="native-delegation",
-                )
-            if command_name != "implement" and snapshot.sidecar_runtime_supported:
-                return ExecutionDecision(
-                    command_name=command_name,
-                    strategy="sidecar-runtime",
-                    reason="no-safe-batch",
-                    lane_topology="single-lane",
-                    execution_surface="sidecar-runtime",
-                )
+    if has_overlapping_write_sets:
         return ExecutionDecision(
             command_name=command_name,
-            strategy=single_worker_strategy,
-            reason="no-safe-batch",
-            lane_topology="single-lane",
-            execution_surface="leader-local",
+            dispatch_shape="leader-inline-fallback",
+            reason="unsafe-write-sets",
+            fallback_from=fallback_shape,
+            execution_surface="leader-inline",
         )
 
-    if (
-        snapshot.native_multi_agent
+    if safe_lanes <= 0:
+        return ExecutionDecision(
+            command_name=command_name,
+            dispatch_shape="leader-inline-fallback",
+            reason="no-safe-delegated-lane",
+            fallback_from="one-subagent" if should_attempt_one_subagent(command) else None,
+            execution_surface="leader-inline",
+        )
+
+    packet_ready = _get_shape_flag(shape, _PACKET_READY_KEYS, default=False)
+    if should_attempt_one_subagent(command) and not packet_ready:
+        return ExecutionDecision(
+            command_name=command_name,
+            dispatch_shape="leader-inline-fallback",
+            reason="packet-not-ready",
+            fallback_from=fallback_shape,
+            execution_surface="leader-inline",
+        )
+
+    low_confidence = (
+        snapshot.native_subagents
         and snapshot.runtime_probe_succeeded
         and snapshot.delegation_confidence == "low"
-    ):
-        if command_name != "implement" and snapshot.sidecar_runtime_supported:
+    )
+    if low_confidence:
+        if command != "implement" and snapshot.managed_team_supported and safe_lanes > 1:
             return ExecutionDecision(
                 command_name=command_name,
-                strategy="sidecar-runtime",
-                reason="native-low-confidence",
-                lane_topology="multi-lane",
-                execution_surface="sidecar-runtime",
+                dispatch_shape="parallel-subagents",
+                reason="managed-team-supported",
+                fallback_from="parallel-subagents",
+                execution_surface="managed-team",
             )
         return ExecutionDecision(
             command_name=command_name,
-            strategy=single_worker_strategy,
-            reason="fallback-low-confidence",
-            lane_topology="single-lane",
-            execution_surface="leader-local",
+            dispatch_shape="leader-inline-fallback",
+            reason="low-delegation-confidence",
+            fallback_from=fallback_shape,
+            execution_surface="leader-inline",
         )
 
-    if snapshot.native_multi_agent:
+    if snapshot.native_subagents:
+        dispatch_shape = "parallel-subagents" if safe_lanes > 1 else "one-subagent"
         return ExecutionDecision(
             command_name=command_name,
-            strategy="native-multi-agent",
-            reason="native-supported",
-            lane_topology="multi-lane",
-            execution_surface="native-delegation",
+            dispatch_shape=dispatch_shape,
+            reason="safe-parallel-subagents" if safe_lanes > 1 else "safe-one-subagent",
+            execution_surface="native-subagents",
         )
 
-    if command_name == "implement":
+    if command != "implement" and snapshot.managed_team_supported and safe_lanes > 1:
         return ExecutionDecision(
             command_name=command_name,
-            strategy=single_worker_strategy,
-            reason="native-missing",
-            lane_topology="single-lane",
-            execution_surface="leader-local",
-        )
-
-    if snapshot.sidecar_runtime_supported:
-        return ExecutionDecision(
-            command_name=command_name,
-            strategy="sidecar-runtime",
-            reason="native-missing",
-            lane_topology="multi-lane",
-            execution_surface="sidecar-runtime",
+            dispatch_shape="parallel-subagents",
+            reason="managed-team-supported",
+            fallback_from="parallel-subagents",
+            execution_surface="managed-team",
         )
 
     return ExecutionDecision(
         command_name=command_name,
-        strategy=single_worker_strategy,
-        reason="fallback",
-        lane_topology="single-lane",
-        execution_surface="leader-local",
+        dispatch_shape="leader-inline-fallback",
+        reason="runtime-no-subagents",
+        fallback_from=fallback_shape,
+        execution_surface="leader-inline",
     )
 
 

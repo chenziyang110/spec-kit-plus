@@ -1,4 +1,4 @@
-"""Roadmap-aware milestone scheduling helpers for leader-local execution."""
+"""Roadmap-aware milestone scheduling helpers for leader-inline execution."""
 
 from __future__ import annotations
 

@@ -103,7 +103,7 @@ When the feature touches an established boundary pattern in the target project, 
 - `/sp-implement` should treat those guardrails as binding execution constraints and confirm the owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
 - Delegated execution should not rely on raw task text when architecture or quality rules matter.
 - `/sp-plan` should provide `Dispatch Compilation Hints`.
-- `/sp-implement` should compile and validate a `WorkerTaskPacket` before dispatching subagents; if subagent dispatch is unavailable or low-confidence, it should stay on the leader path with an explicit fallback reason.
+- `/sp-implement` should compile and validate a `WorkerTaskPacket` before dispatching subagents; if delegation is unavailable, unsafe, or not packetized, it should use `leader-inline-fallback` with an explicit recorded reason.
 - Subagent packets should carry platform guardrails when the lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
 - If the active integration exposes a runtime-managed result channel, subagents should use it. Otherwise they should write normalized result envelopes to the workflow-specific worker-results path.
 - When the local `specify` CLI is available and no runtime-managed result channel exists, subagents should prefer `specify result path` and `specify result submit` instead of inventing ad-hoc result locations or payload shapes.
@@ -135,7 +135,8 @@ For Codex team-mode execution, use the runtime surface deliberately:
 - If agent automation should use the optional MCP facade, install it with `pip install "specify-cli[mcp]"` and refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`.
 - Use `sp-teams result-template --request-id <id>` and `sp-teams submit-result --print-schema` instead of inventing handoff JSON by guesswork. The generated result template is a `pending placeholder` and must be replaced with a real success, blocked, or failed result before submission.
 - Use `sp-teams sync-back` after managed team execution when the canonical code changes landed under `.specify/teams/worktrees/<session>/...` and need to be promoted back to the main workspace.
-- In execution-oriented workflows, treat `single-lane` as the topology label for one safe execution lane, not as permission for leader-local execution.
+- In execution-oriented workflows, use the leader + subagents model: `subagents-first` execution, `one-subagent` or `parallel-subagents` dispatch, and `leader-inline-fallback` only when delegation is unavailable, unsafe, or not packetized.
+- Use `native-subagents` when the active integration supports in-session subagents, `managed-team` only when durable state or lifecycle control is needed, and `leader-inline` only as the recorded fallback surface.
 - Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.
 - Interpret `DONE_WITH_CONCERNS` as lane-local completion with follow-up concerns, not silent success.
 - Treat lane-local completion and repo-global verification separately: a batch can be complete while `doctor` still reports repo verification blocked by baseline debt.

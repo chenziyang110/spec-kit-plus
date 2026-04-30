@@ -41,7 +41,7 @@
 - `codex_team/`: team runtime state, dispatch, result handling, installer, watcher, doctor.
 - `execution/`: packet/result schemas and validators.
 - `hooks/`: first-party workflow quality hook implementations.
-- `orchestration/`: strategy decisions, state store, scheduler, review loop.
+- `orchestration/`: subagents-first dispatch decisions, state store, scheduler, review loop.
 - `extensions.py`, `presets.py`: extension/preset manifest validation and installation.
 
 ### Generated Surfaces

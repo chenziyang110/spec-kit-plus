@@ -20,7 +20,7 @@ def test_dispatch_runtime_task_writes_record(monkeypatch, codex_team_project_roo
         packet_path="F:/tmp/packets/req-3.json",
         packet_summary={"task_id": "T002", "write_scope": ["src/t002.py"]},
         delegation_metadata={
-            "native_surface": "spawn_agent",
+            "native_subagent_surface": "spawn_agent",
             "result_contract": "WorkerTaskResult contract",
             "structured_results_expected": True,
         },
@@ -32,7 +32,7 @@ def test_dispatch_runtime_task_writes_record(monkeypatch, codex_team_project_roo
     assert stored["target_worker"] == "worker-a"
     assert stored["packet_path"] == "F:/tmp/packets/req-3.json"
     assert stored["packet_summary"]["task_id"] == "T002"
-    assert stored["delegation_metadata"]["native_surface"] == "spawn_agent"
+    assert stored["delegation_metadata"]["native_subagent_surface"] == "spawn_agent"
     assert stored["delegation_metadata"]["structured_results_expected"] is True
     assert session["status"] == "running"
 

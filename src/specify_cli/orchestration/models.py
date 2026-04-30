@@ -1,4 +1,4 @@
-"""Canonical orchestration models shared by strategy selection and runtime state."""
+"""Canonical orchestration models shared by dispatch selection and runtime state."""
 
 from __future__ import annotations
 
@@ -6,32 +6,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal, cast
 
-ExecutionStrategy = Literal["single-lane", "native-multi-agent", "sidecar-runtime"]
-LaneTopology = Literal["single-lane", "multi-lane"]
-ExecutionSurface = Literal["native-delegation", "sidecar-runtime", "leader-local"]
-# Backward-compatible alias for early Task 1 references.
-Strategy = ExecutionStrategy
+SubagentExecutionModel = Literal["subagents-first"]
+DispatchShape = Literal["one-subagent", "parallel-subagents", "leader-inline-fallback"]
+ExecutionSurface = Literal["native-subagents", "managed-team", "leader-inline"]
 NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
 DelegationConfidence = Literal["low", "medium", "high"]
-_CANONICAL_EXECUTION_STRATEGIES = frozenset(
-    {"single-lane", "native-multi-agent", "sidecar-runtime"}
+_CANONICAL_DISPATCH_SHAPES = frozenset(
+    {"one-subagent", "parallel-subagents", "leader-inline-fallback"}
 )
-_SINGLE_LANE_LABEL_COMMANDS = frozenset(
-    {
-        "debug",
-        "explain",
-        "implement",
-        "map-scan",
-        "map-build",
-        "plan",
-        "quick",
-        "specify",
-        "tasks",
-        "test",
-        "test-scan",
-        "test-build",
-    }
-)
+_ONE_SUBAGENT_ATTEMPT_COMMANDS = frozenset({"implement", "quick", "test-build"})
 
 
 def utc_now() -> str:
@@ -41,11 +24,11 @@ def utc_now() -> str:
 
 @dataclass(slots=True)
 class CapabilitySnapshot:
-    """Captured integration/runtime capabilities used for execution strategy decisions."""
+    """Captured integration/runtime capabilities used for subagent dispatch decisions."""
 
     integration_key: str
-    native_multi_agent: bool = False
-    sidecar_runtime_supported: bool = False
+    native_subagents: bool = False
+    managed_team_supported: bool = False
     structured_results: bool = False
     durable_coordination: bool = False
     native_worker_surface: NativeWorkerSurface = "unknown"
@@ -59,42 +42,36 @@ class CapabilitySnapshot:
 class ExecutionDecision:
     """Persisted decision that selects how a command should execute.
 
-    `strategy` names the lane topology and routing class. It does not, by
-    itself, guarantee whether concrete work stays on the leader path or is
-    delegated; that is captured separately by `execution_surface`.
+    The command remains leader-owned. ``dispatch_shape`` captures whether the
+    next safe lane goes to one subagent, parallel subagents, or leader-inline
+    fallback; ``execution_surface`` captures the runtime used for that shape.
     """
 
     command_name: str
-    strategy: ExecutionStrategy
+    dispatch_shape: DispatchShape
     reason: str
-    fallback_from: ExecutionStrategy | None = None
+    fallback_from: DispatchShape | None = None
     created_at: str = field(default_factory=utc_now)
-    lane_topology: LaneTopology | None = None
     execution_surface: ExecutionSurface | None = None
+    execution_model: SubagentExecutionModel = "subagents-first"
 
     def __post_init__(self) -> None:
         object.__setattr__(
             self,
-            "strategy",
-            _normalize_execution_strategy(self.strategy),
+            "dispatch_shape",
+            _normalize_dispatch_shape(self.dispatch_shape),
         )
         if self.fallback_from is not None:
             object.__setattr__(
                 self,
                 "fallback_from",
-                _normalize_execution_strategy(self.fallback_from),
-            )
-        if self.lane_topology is None:
-            object.__setattr__(
-                self,
-                "lane_topology",
-                _derive_lane_topology(self.command_name, self.strategy),
+                _normalize_dispatch_shape(self.fallback_from),
             )
         if self.execution_surface is None:
             object.__setattr__(
                 self,
                 "execution_surface",
-                _derive_execution_surface(self.command_name, self.strategy),
+                _derive_execution_surface(self.dispatch_shape),
             )
 
 
@@ -180,45 +157,22 @@ class Lane:
     created_at: str = field(default_factory=utc_now)
 
 
-# Backward-compatible alias for early Task 1 references.
 utc_now_iso = utc_now
 
 
-def prefers_single_lane_label(command_name: str) -> bool:
-    """Return whether the command should prefer the user-visible `single-lane` label."""
+def should_attempt_one_subagent(command_name: str) -> bool:
+    """Return whether one safe lane should prefer one subagent over leader-inline work."""
 
-    return command_name in _SINGLE_LANE_LABEL_COMMANDS
-
-
-def single_worker_delegation_default(command_name: str) -> bool:
-    """Return whether a single worker lane should still prefer delegated execution."""
-
-    return command_name in {"implement", "quick", "test-build"}
+    return command_name.strip().lower() in _ONE_SUBAGENT_ATTEMPT_COMMANDS
 
 
-def _normalize_execution_strategy(strategy: str) -> ExecutionStrategy:
-    if strategy == "single-agent":
-        return "single-lane"
-    if strategy in _CANONICAL_EXECUTION_STRATEGIES:
-        return cast(ExecutionStrategy, strategy)
-    raise ValueError(f"Unsupported execution strategy: {strategy}")
+def _normalize_dispatch_shape(dispatch_shape: str) -> DispatchShape:
+    if dispatch_shape in _CANONICAL_DISPATCH_SHAPES:
+        return cast(DispatchShape, dispatch_shape)
+    raise ValueError(f"Unsupported dispatch shape: {dispatch_shape}")
 
 
-def _derive_lane_topology(command_name: str, strategy: ExecutionStrategy) -> LaneTopology:
-    if strategy == "native-multi-agent":
-        return "multi-lane"
-    if strategy == "sidecar-runtime":
-        return "multi-lane"
-    return "single-lane"
-
-
-def _derive_execution_surface(command_name: str, strategy: ExecutionStrategy) -> ExecutionSurface:
-    if strategy == "sidecar-runtime":
-        return "sidecar-runtime"
-    if strategy == "native-multi-agent":
-        return "native-delegation"
-    if strategy == "single-lane":
-        if single_worker_delegation_default(command_name):
-            return "native-delegation"
-        return "leader-local"
-    return "leader-local"
+def _derive_execution_surface(dispatch_shape: DispatchShape) -> ExecutionSurface:
+    if dispatch_shape in {"one-subagent", "parallel-subagents"}:
+        return "native-subagents"
+    return "leader-inline"

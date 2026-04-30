@@ -583,11 +583,13 @@ When adding new agents:
 
 ## Delegated Execution Defaults
 
-- Dispatch native subagents by default for independent, bounded lanes when parallel work materially improves speed, quality, or verification confidence.
+- Use subagents-first execution for independent, bounded work when delegation preserves quality.
+- Dispatch one subagent for one safe delegated lane; dispatch parallel subagents for independent safe lanes.
 - Use a validated `WorkerTaskPacket` or equivalent execution contract before subagent work begins.
 - Do not dispatch from raw task text alone.
 - Wait for each subagent's structured handoff before integrating or marking work complete; idle status is not completion evidence.
-- Use `sp-teams` only when Codex work needs durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst.
+- Use leader-inline fallback only after recording why delegation is unavailable, unsafe, or not packetized.
+- Use `sp-teams` only when durable team state, explicit join-point tracking, result files, or lifecycle control are needed beyond one in-session subagent burst.
 
 ## Artifact Priority
 

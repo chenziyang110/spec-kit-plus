@@ -114,7 +114,7 @@ confirmed from those reads, report the build as blocked instead of successful.
 
 ## Compile And Validate MapBuildPacket Inputs
 
-- [AGENT] Compile a `MapBuildPacket` from each accepted scan packet before dispatch or leader-local execution.
+- [AGENT] Compile a `MapBuildPacket` from each accepted scan packet before dispatch or leader-inline fallback.
 - A valid `MapBuildPacket` must include:
   - `lane_id`
   - `mode: read_only`
@@ -151,15 +151,15 @@ When refusal happens, write or report a scan gap report that names:
 - missing packet or atlas target
 - smallest safe `sp-map-scan` repair
 
-## Execution Strategy
+## Execution Dispatch
 
-- [AGENT] Before explorer packet dispatch begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="map-build", snapshot, workload_shape)`.
-- Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`.
+- [AGENT] Before explorer packet dispatch begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="map-build", snapshot, workload_shape)`.
+- Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
 - Decision order is fixed:
-  - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
-  - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
-  - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-  - Else -> `single-lane` (`fallback`)
+  - One safe validated build packet -> `one-subagent` on `native-subagents` when available.
+  - Two or more safe explorer packets -> `parallel-subagents` on `native-subagents` when available.
+  - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
+  - No safe lane, missing packet, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
 - If collaboration is justified, dispatch read-only explorer subagents for the scan packets declared in `.specify/project-map/scan-packets/`.
 - Required join points:
   - before writing final atlas documents
@@ -170,8 +170,8 @@ When refusal happens, write or report a scan gap report that names:
 
 Explorer subagents are read-only evidence collectors. They must not write
 `PROJECT-HANDBOOK.md` or `.specify/project-map/**` artifacts directly.
-In `single-lane` execution, the leader must perform the same packet reads
-directly; skipping subagents does not skip packet execution.
+In `leader-inline-fallback`, the leader must perform the same packet reads
+directly and record why dispatch was unavailable; skipping subagents does not skip packet execution.
 
 Every explorer result must include:
 

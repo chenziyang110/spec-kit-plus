@@ -52,8 +52,12 @@ def test_map_scan_template_prefers_native_subagent_inventory_with_structured_han
     lowered = content.lower()
 
     assert "current-runtime native subagents are the default" in lowered
-    assert "single-lane` names the topology for one safe scan lane" in lowered
-    assert "does not, by itself, require leader-local inventory" in lowered
+    assert "choose_subagent_dispatch(command_name=\"map-scan\"" in lowered
+    assert "one-subagent" in lowered
+    assert "parallel-subagents" in lowered
+    assert "leader-inline-fallback" in lowered
+    assert "native-subagents" in lowered
+    assert "managed-team" in lowered
     assert "validated `mapscanpacket`" in lowered
     assert "raw inventory notes or raw chat summaries are not sufficient" in lowered
     assert "structured handoff" in lowered

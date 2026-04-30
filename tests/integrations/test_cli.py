@@ -125,9 +125,9 @@ class TestInitIntegrationFlag:
         implement_skill = project / ".claude" / "skills" / "sp-implement" / "SKILL.md"
         assert implement_skill.exists()
         content = implement_skill.read_text(encoding="utf-8")
-        assert "single-lane" in content
-        assert "single-lane" in content
-        assert "native-multi-agent" in content
+        assert "execution_model: subagents-first" in content
+        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+        assert "execution_surface: native-subagents | managed-team | leader-inline" in content
         assert "project-handbook.md" in content.lower()
         assert ".specify/project-map/root/architecture.md" in content.lower()
         assert ".specify/project-map/root/operations.md" in content.lower()
@@ -166,9 +166,9 @@ class TestInitIntegrationFlag:
         skills_dir = project / ".claude" / "skills"
         for skill_name in ("sp-specify", "sp-plan", "sp-test-scan", "sp-test-build", "sp-tasks", "sp-explain", "sp-debug"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
-            assert "single-lane" in content
-            assert "native-multi-agent" in content
-            assert "sidecar-runtime" in content
+            assert "execution_model: subagents-first" in content
+            assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+            assert "execution_surface: native-subagents | managed-team | leader-inline" in content
             assert "specify team" not in content
 
         test_router = (skills_dir / "sp-test" / "SKILL.md").read_text(encoding="utf-8").lower()
@@ -177,7 +177,7 @@ class TestInitIntegrationFlag:
         assert "/sp-test-build" in test_router
 
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert 'choose_execution_strategy(command_name="debug"' in debug_content
+        assert 'choose_subagent_dispatch(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
         assert "project-handbook.md" in debug_content
         assert ".specify/project-map/root/architecture.md" in debug_content

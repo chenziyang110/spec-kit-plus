@@ -23,7 +23,7 @@ The repo is a Python CLI monolith with bundled generated assets and an optional 
 - `src/specify_cli/project_map_status.py`: owns canonical and legacy status paths, dirty/fresh state, changed-path classification, topic refresh plans, and complete-refresh metadata.
 - `src/specify_cli/execution/packet_schema.py` and `result_schema.py`: own worker packet and worker result data contracts.
 - `src/specify_cli/hooks/`: owns first-party validation helpers for preflight, state, artifacts, delegation, learning, project-map, read/prompt guards, boundaries, checkpoints, and commit checks.
-- `src/specify_cli/orchestration/`: owns strategy vocabulary, capability snapshots, state files, event logs, scheduler decisions, and review-loop helpers.
+- `src/specify_cli/orchestration/`: owns the subagents-first dispatch vocabulary, capability snapshots, state files, event logs, scheduler decisions, and review-loop helpers.
 - `src/specify_cli/codex_team/`: owns Codex-only team runtime state, dispatch, result submission, installer, sync-back, watcher, doctor, and API facade.
 
 ## Internal Boundaries and Critical Seams
@@ -96,12 +96,12 @@ src/specify_cli/codex_team
 - Truth lives: `src/specify_cli/execution/`, `src/specify_cli/hooks/`, `src/specify_cli/orchestration/`
 - Entry points: `specify hook *`, generated workflow prompts, Codex team dispatch/result surfaces
 - Downstream consumers: `sp-implement`, `sp-debug`, `sp-quick`, `sp-test-*`, `sp-map-*`, Codex team runtime
-- Extend here: packet schema, result schema, hook implementations, strategy policy, state store
+- Extend here: packet schema, result schema, hook implementations, subagent dispatch policy, state store
 - Do not extend here: do not invent command-local packet shapes that bypass shared schemas
-- Key contracts: `WorkerTaskPacket`, `WorkerTaskResult`, `choose_execution_strategy`, hook JSON payloads
+- Key contracts: `WorkerTaskPacket`, `WorkerTaskResult`, `choose_subagent_dispatch`, hook JSON payloads
 - Change propagation: generated prompts, tests/execution, tests/hooks, tests/orchestration, contract tests
 - Minimum verification: `pytest tests/execution tests/hooks tests/orchestration -q`
-- Failure modes: packet/result mismatch, hook false positives, strategy overclaiming runtime capability
+- Failure modes: packet/result mismatch, hook false positives, dispatch policy overclaiming runtime capability
 - Confidence: Verified
 
 ### Capability: Codex Team Runtime

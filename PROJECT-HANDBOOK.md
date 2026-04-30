@@ -22,7 +22,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - **Project initialization and generated agent surfaces**: `specify init` resolves `--ai` or `--integration`, installs command/skill/workflow files, copies scripts/templates, and records integration manifests. Read `.specify/project-map/root/INTEGRATIONS.md` and `modules/specify-cli-core/ARCHITECTURE.md`.
 - **Workflow contract generation**: `templates/commands/`, `templates/command-partials/`, and `templates/passive-skills/` define `sp-*` behavior for downstream agents. Read `.specify/project-map/root/WORKFLOWS.md` and `modules/templates-generated-surfaces/WORKFLOWS.md`.
 - **Brownfield atlas lifecycle**: `map-scan -> map-build` is the required stale/missing context gate. It produces scan packets, worker-result evidence, layered root/module docs, and freshness metadata. Read `.specify/project-map/root/OPERATIONS.md`.
-- **Delegated execution contracts**: `src/specify_cli/execution/`, `src/specify_cli/hooks/`, and `src/specify_cli/orchestration/` define packet/result schemas, quality hooks, strategy selection, and state surfaces. Read `.specify/project-map/root/ARCHITECTURE.md`.
+- **Delegated execution contracts**: `src/specify_cli/execution/`, `src/specify_cli/hooks/`, and `src/specify_cli/orchestration/` define packet/result schemas, quality hooks, subagents-first dispatch selection, and state surfaces. Read `.specify/project-map/root/ARCHITECTURE.md`.
 - **Codex team runtime**: `src/specify_cli/codex_team/`, `src/specify_cli/mcp/`, and `extensions/agent-teams/engine/` provide optional Codex team orchestration, state, MCP facade, and bundled engine assets. Read `.specify/project-map/modules/agent-teams-engine/OVERVIEW.md`.
 - **Testing and verification**: Python pytest layers, integration/template contract tests, Codex-team tests, and engine build checks protect generated behavior. Read `.specify/project-map/root/TESTING.md`.
 
@@ -42,7 +42,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - `src/specify_cli/integrations/base.py` and `src/specify_cli/integrations/__init__.py`: integration registry, shared generation bases, template processing, passive skill installation, manifest behavior.
 - `templates/`: command templates, command partials, passive skills, project-map/testing templates, worker prompts, constitution/spec/plan/tasks artifacts.
 - `scripts/bash/` and `scripts/powershell/`: generated helper layer and freshness/context-update scripts.
-- `src/specify_cli/execution/`, `src/specify_cli/hooks/`, `src/specify_cli/orchestration/`: packet/result schemas, workflow hooks, strategy/state/review helpers.
+- `src/specify_cli/execution/`, `src/specify_cli/hooks/`, `src/specify_cli/orchestration/`: packet/result schemas, workflow hooks, subagents-first dispatch/state/review helpers.
 - `src/specify_cli/codex_team/` and `extensions/agent-teams/engine/`: optional Codex team runtime and bundled engine.
 
 ## Risky Coordination Points
@@ -57,6 +57,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 
 - Agent registration metadata propagates into CLI help, integration generation tests, README guidance, generated file paths, and tool checks.
 - Template wording propagates into every generated agent surface and template assertion tests.
+- Subagents-first dispatch vocabulary propagates into orchestration tests, generated workflow tests, integration tests, README/quickstart guidance, context scripts, and project-map docs.
 - Packet/result schema changes propagate into execution helpers, hooks, Codex team runtime, generated workflow prompts, and contract tests.
 - Project-map freshness changes propagate into Python helpers, Bash/PowerShell scripts, hook commands, and brownfield gates.
 - Engine packaging changes propagate through `pyproject.toml` force-includes, `extensions/agent-teams/engine/`, Codex team installer/runtime tests, and release artifacts.

@@ -18,8 +18,10 @@
 
 ## Research Orchestration
 
-- **Strategy**: single-lane
-- **Reason**: no-safe-batch
+- **Execution model**: subagents-first
+- **Dispatch shape**: one-subagent
+- **Execution surface**: native-subagents
+- **Reason**: safe-one-subagent
 - **Selected tracks**:
   - TRK-001 -> disposable spike write scope `research-spikes/webhook-retry-backoff/`
 - **Join points**:
@@ -31,7 +33,7 @@
 
 | Track ID | Agent / Mode | Question | Evidence IDs | Confidence | Exit State | Planning Implication |
 | --- | --- | --- | --- | --- | --- | --- |
-| TRK-001 | single-lane spike | Can the scheduler express capped exponential retry timing with acceptable drift? | SPK-001, EVD-001 | medium | constrained-but-plannable | Use PH-001 and PH-002 to preserve scheduler constraints |
+| TRK-001 | one-subagent spike | Can the scheduler express capped exponential retry timing with acceptable drift? | SPK-001, EVD-001 | medium | constrained-but-plannable | Use PH-001 and PH-002 to preserve scheduler constraints |
 
 ## Evidence Quality Rubric
 

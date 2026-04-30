@@ -12,6 +12,16 @@ write-sets.
 The stable default is current-runtime dispatch. Do not turn parallel work into a
 user coordination problem when native subagents are available.
 
+Current routing vocabulary:
+
+- Use subagents-first execution for bounded delegated work.
+- Dispatch `one-subagent` when one safe lane is ready.
+- Dispatch `parallel-subagents` when two or more independent lanes can run
+  concurrently.
+- Use `leader-inline-fallback` only after recording why delegation is
+  unavailable, unsafe, or not packetized.
+- Do not use old strategy labels as routing choices.
+
 ## When to Use
 
 - 2+ independent lanes can be understood or changed without waiting on each
@@ -33,10 +43,10 @@ user coordination problem when native subagents are available.
    join point.
 4. **Packetize**: Use the workflow's validated `WorkerTaskPacket` or equivalent
    execution packet. Raw task text is not enough.
-5. **Dispatch native subagents**: Use the current runtime's native subagents
-   first, such as Codex `spawn_agent`/`wait_agent`, Claude Task, or the active
-   CLI's equivalent. Keep the leader focused on integration and conflict
-   resolution.
+5. **Dispatch native subagents**: Use `parallel-subagents` on the
+   `native-subagents` surface first, such as Codex `spawn_agent`/`wait_agent`,
+   Claude Task, or the active CLI's equivalent. Keep the leader focused on
+   integration and conflict resolution.
 6. **Join on structured handoff**: Each worker must report changed files,
    verification run, failures, open risks, and whether its acceptance target is
    met. Integrate only after the handoff is specific enough to review.
@@ -46,13 +56,13 @@ user coordination problem when native subagents are available.
 - Use `sp-teams` only when Codex work needs durable team state, result files,
   explicit join tracking, or lifecycle control beyond one in-session burst.
 - Use a separate terminal only when the current runtime has no native subagents
-  and no managed sidecar or durable workflow path can safely represent the lanes.
+  and no managed-team path can safely represent the lanes.
 - If lanes share write state or one fix may resolve the others, keep the work in
   one sequential workflow run until the dependency is clarified.
 
 ## Behavioral Rules
 
-- Do not fix unrelated systems in one leader-local pass when current-runtime
+- Do not fix unrelated systems in one leader-inline pass when current-runtime
   native subagents can handle independent bounded lanes.
 - Do not dispatch agents that will modify the same write-set concurrently.
 - Do not ask the user to manually coordinate parallel terminals as the first

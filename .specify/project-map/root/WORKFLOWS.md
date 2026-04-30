@@ -65,7 +65,7 @@ Durable testing artifacts live under `.specify/testing/` when generated:
 - `sp-fast`: trivial local fixes only; escalate when the work expands, touches shared surfaces, or needs tests/research.
 - `sp-quick`: bounded non-trivial work with `.planning/quick/<id>-<slug>/STATUS.md`.
 - `sp-debug`: investigation-first flow for unknown root cause; must prove reproduction and fix path before changing behavior.
-- `sp-implement`: leader/worker execution path over generated tasks and milestone state; uses shared strategy vocabulary and worker packet/result contracts.
+- `sp-implement`: leader + subagents execution path over generated tasks and milestone state; uses shared subagents-first dispatch vocabulary and worker packet/result contracts.
 
 ## Entry Points, Contracts, and Handoffs
 
@@ -89,8 +89,11 @@ Durable testing artifacts live under `.specify/testing/` when generated:
 - Project-map status can be `missing`, `fresh`, `possibly_stale`, or `stale`.
 - Dirty status overrides git-diff-based freshness and maps reasons to affected topics.
 - Uncommitted canonical atlas file changes are still considered changed by freshness inspection until committed, even after a complete-refresh writes fresh status metadata.
-- `single-lane` can mean leader-local or one delegated lane depending on runtime capability and authorization.
-- `native-multi-agent` and `sidecar-runtime` require concrete support; do not claim them by wording alone.
+- Execution-oriented workflows record `execution_model: subagents-first`.
+- Dispatch shape is `one-subagent`, `parallel-subagents`, or `leader-inline-fallback`.
+- Execution surface is `native-subagents`, `managed-team`, or `leader-inline`.
+- `managed-team` is reserved for durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst.
+- `leader-inline-fallback` requires a recorded reason before local execution.
 
 ## Failure and Recovery Flows
 
@@ -104,11 +107,11 @@ Durable testing artifacts live under `.specify/testing/` when generated:
 
 1. Initialize a project with one integration.
 2. Generate specs/plans/tasks through shared workflow contracts.
-3. Implement through leader/worker or local execution based on strategy support.
+3. Implement through leader + subagents by default, with `leader-inline-fallback` only when delegation is unavailable, unsafe, or not packetized.
 4. Keep atlas/testing/learning state fresh as repository truth changes.
 5. Verify generated surfaces and packaging before release.
 
 ## Known Workflow Unknowns
 
-- Native multi-agent support differs by runtime; generated prompts describe desired behavior but external runtime availability must be detected.
+- Native subagent support differs by runtime; generated prompts describe desired behavior but external runtime availability must be detected.
 - Historical `.planning/**` files are not an active roadmap unless `.planning/STATE.md` says so.

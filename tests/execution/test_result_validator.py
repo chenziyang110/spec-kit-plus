@@ -46,7 +46,7 @@ def sample_packet() -> WorkerTaskPacket:
             ContextBundleItem(
                 path=".specify/project-map/root/WORKFLOWS.md",
                 kind="project_map",
-                purpose="Describe when to use teams and when to fall back to leader-local closure",
+                purpose="Describe when to use managed teams and when to record leader-inline fallback",
                 required_for=["workflow_boundary", "runtime_constraints"],
                 read_order=2,
                 must_read=True,

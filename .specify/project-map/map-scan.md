@@ -6,8 +6,10 @@
 - generated_at: 2026-04-30
 - repository: F:\github\spec-kit-plus
 - focus: full brownfield atlas refresh after map-scan/map-build workflow changes
-- strategy: single-lane
-- strategy_reason: leader-local execution in this session; no explicit native subagent dispatch authorization was present, but the scan package is structured for packet execution.
+- execution_model: subagents-first
+- dispatch_shape: leader-inline-fallback
+- execution_surface: leader-inline
+- dispatch_reason: no-safe-delegated-lane in this historical scan session; the scan package is structured for packet execution.
 - build_handoff: sp-map-build
 
 ## Repository Scope And Exclusions
@@ -34,14 +36,14 @@ Excluded from deep read but listed in the ledger:
 - `dist/`, `.tmp-dist/`, `.tmp-agent-teams-smoke/`, `runtime-test-output.log`: generated outputs; revisit only for packaging or smoke-test failure triage.
 - `.worktrees/`: generated worktree state; revisit only when a task explicitly uses a worktree.
 
-## Scan Strategy And Subagent Use
+## Scan Dispatch And Subagent Use
 
-Selected strategy: `single-lane`.
+Selected dispatch shape: `leader-inline-fallback`.
 
 Reasoning:
 
-- The scan found multiple safe read-only lanes, but this runtime invocation did not include explicit permission to spawn native subagents.
-- The leader therefore produced scan packets and will execute them leader-locally during `sp-map-build`.
+- The scan found multiple safe read-only lanes, but this historical runtime invocation did not include explicit permission to spawn native subagents.
+- The leader therefore produced scan packets and executed them on the leader-inline path during `sp-map-build`.
 - The packet structure still preserves `MapScanPacket` fields so a future runtime with explicit dispatch can fan out the same lanes.
 
 Join points:

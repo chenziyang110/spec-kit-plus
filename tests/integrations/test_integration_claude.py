@@ -238,6 +238,21 @@ class TestClaudeIntegration:
         assert ".claude/hooks/claude-hook-dispatch.py" in tracked
         assert ".claude/settings.json" in tracked
 
+    def test_setup_refreshes_existing_managed_hook_asset(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        hook_script.write_text("# stale managed hook\n", encoding="utf-8")
+
+        manifest_second = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest_second, script_type="sh")
+
+        refreshed = hook_script.read_text(encoding="utf-8")
+        assert "# stale managed hook" not in refreshed
+        assert "def _handle_stop_monitor" in refreshed
+
     def test_setup_merges_existing_settings_json_without_overwriting_user_values(self, tmp_path):
         integration = get_integration("claude")
         claude_dir = tmp_path / ".claude"
@@ -337,10 +352,9 @@ class TestClaudeIntegration:
 
         assert result.returncode == 0, result.stderr
         payload = json.loads(result.stdout.strip())
-        hook_output = payload["hookSpecificOutput"]
-        assert hook_output["hookEventName"] == "UserPromptSubmit"
-        assert hook_output["permissionDecision"] == "deny"
-        assert "guardrails" in hook_output["permissionDecisionReason"].lower()
+        assert "hookSpecificOutput" not in payload
+        assert payload["decision"] == "block"
+        assert "guardrails" in payload["reason"].lower()
 
     def test_claude_hook_dispatch_blocks_sensitive_read_via_shared_engine(self, tmp_path):
         integration = get_integration("claude")
@@ -372,6 +386,7 @@ class TestClaudeIntegration:
         assert hook_output["hookEventName"] == "PreToolUse"
         assert hook_output["permissionDecision"] == "deny"
         assert ".env" in hook_output["permissionDecisionReason"]
+        assert "additionalContext" not in hook_output
 
     def test_claude_hook_dispatch_blocks_invalid_commit_message_via_shared_engine(self, tmp_path):
         integration = get_integration("claude")
@@ -403,6 +418,7 @@ class TestClaudeIntegration:
         assert hook_output["hookEventName"] == "PreToolUse"
         assert hook_output["permissionDecision"] == "deny"
         assert "conventional commit" in hook_output["permissionDecisionReason"].lower()
+        assert "additionalContext" not in hook_output
 
     def test_claude_hook_dispatch_prefers_project_launcher_config(self, tmp_path):
         integration = get_integration("claude")
@@ -454,8 +470,9 @@ class TestClaudeIntegration:
 
         assert result.returncode == 0, result.stderr
         payload = json.loads(result.stdout.strip())
-        hook_output = payload["hookSpecificOutput"]
-        assert hook_output["permissionDecisionReason"] == "configured launcher used"
+        assert "hookSpecificOutput" not in payload
+        assert payload["decision"] == "block"
+        assert payload["reason"] == "configured launcher used"
         assert json.loads(seen_args.read_text(encoding="utf-8")) == [
             "hook",
             "validate-prompt",
@@ -698,6 +715,62 @@ class TestClaudeIntegration:
         payload = json.loads(result.stdout.strip())
         assert payload["decision"] == "block"
         assert "implement-tracker.md is missing" in payload["reason"]
+        assert "hookSpecificOutput" not in payload
+
+    def test_claude_hook_dispatch_surfaces_stop_checkpoint_warning_as_system_message(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-plan`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `design-only`",
+                    "",
+                    "## Next Action",
+                    "",
+                    "- run manual scenarios from quickstart.md to validate all user stories",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "stop-monitor"],
+            input=json.dumps({}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        assert "hookSpecificOutput" not in payload
+        assert payload["systemMessage"].startswith("checkpoint recommended before further work continues")
+        assert "Resume cue: run manual scenarios from quickstart.md to validate all user stories." in payload["systemMessage"]
 
     def test_claude_hook_dispatch_surfaces_learning_signal_on_stop(self, tmp_path):
         integration = get_integration("claude")
@@ -747,10 +820,9 @@ class TestClaudeIntegration:
 
         assert result.returncode == 0, result.stderr
         payload = json.loads(result.stdout.strip())
-        hook_output = payload["hookSpecificOutput"]
-        assert hook_output["hookEventName"] == "Stop"
-        assert "learning pain score" in hook_output["additionalContext"]
-        assert "review-learning --command plan" in hook_output["additionalContext"]
+        assert "hookSpecificOutput" not in payload
+        assert "learning pain score" in payload["systemMessage"]
+        assert "review-learning --command plan" in payload["systemMessage"]
 
     def test_uninstall_preserves_user_settings_while_removing_managed_hooks(self, tmp_path):
         integration = get_integration("claude")
@@ -1379,7 +1451,7 @@ def test_claude_generated_runtime_facing_skills_include_native_subagent_contract
     for skill_name in ("sp-implement", "sp-debug", "sp-quick"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "subagent dispatch contract" in content
-        assert "native dispatch surface" in content
+        assert "delegation surface contract" in content
         assert "result contract" in content
         assert "result handoff path" in content
         assert "wait for every subagent's structured handoff" in content
@@ -1415,18 +1487,18 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
     content = (target / ".claude" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
 
     assert "## claude dispatch-first gate" in content
-    assert "attempt subagent execution before leader-local implementation" in content
-    assert "treat `single-lane` as the topology for one safe execution lane" in content
-    assert "if multiple safe subagent lanes exist for the current batch, dispatch them in parallel" in content
-    assert "do not begin concrete implementation on the leader path while an untried subagent path is available" in content
-    assert "only fall back to leader-local execution after recording a concrete fallback reason" in content
+    assert "attempt native subagent execution before leader-inline fallback" in content
+    assert "use claude's native subagent path for `one-subagent` and `parallel-subagents`" in content
+    assert "prefer subagent fan-out over local deep-dive execution" in content
+    assert "do not begin concrete implementation on the leader path while an untried native subagent path is available" in content
+    assert "only use `leader-inline-fallback` after recording the concrete fallback reason" in content
     assert "/sp-implement-teams" not in content
     assert "## claude code leader gate".lower() in content
     assert "you are the **leader**, not the concrete implementer" in content
     assert "autonomous blocker recovery" in content
     assert "missed_agent_dispatch" in content
-    assert "dispatch subagents first" in content
-    assert "keep `sp-implement` on the leader path and record the fallback reason" in content
+    assert "delegation surface contract" in content
+    assert "leader-inline-fallback" in content
 
 
 def test_claude_generated_sp_implement_description_prefers_subagent_dispatch(tmp_path):
@@ -1545,9 +1617,9 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "canonical implementation workflow" in lower
     assert "implement-tracker.md" in lower
     assert "workertaskpacket" in lower
-    assert "single-lane" in lower
-    assert "single-lane" in lower
-    assert "native-multi-agent" in lower
+    assert "execution_model" in lower
+    assert "dispatch_shape" in lower
+    assert "execution_surface" in lower
     assert "join point" in lower
     assert "worker-results" in lower
     assert "subagent result contract" not in lower

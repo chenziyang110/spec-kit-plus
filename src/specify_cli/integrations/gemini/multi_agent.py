@@ -19,8 +19,8 @@ class GeminiMultiAgentAdapter:
     def detect_capabilities(self):
         return build_capability_snapshot(
             integration_key=self.integration_key,
-            native_multi_agent=False,
-            sidecar_runtime_supported=False,
+            native_subagents=False,
+            managed_team_supported=False,
             structured_results=True,
             durable_coordination=False,
             native_worker_surface="none",

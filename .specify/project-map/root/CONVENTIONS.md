@@ -18,7 +18,9 @@
 - Treat `deep-research` as an optional feasibility branch, not a mandatory stage.
 - Treat `map-scan -> map-build` as the required brownfield context gate when atlas coverage is missing, stale, or too broad.
 - Treat `test` as a compatibility router; `test-scan` and `test-build` own actual testing-system scan/build work.
-- Do not claim equal multi-agent capability across runtimes. Use `single-lane`, `native-multi-agent`, and `sidecar-runtime` vocabulary accurately.
+- Do not claim equal multi-agent capability across runtimes. Current execution-oriented workflows use `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, and `execution_surface: native-subagents | managed-team | leader-inline`.
+- Use `managed-team` only when durable team state, explicit join-point tracking, result files, or lifecycle control are needed beyond one in-session subagent burst.
+- Use `leader-inline-fallback` only after recording why delegation is unavailable, unsafe, or not packetized.
 
 ## State and Data Semantics
 

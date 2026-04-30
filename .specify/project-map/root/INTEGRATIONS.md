@@ -54,6 +54,8 @@
 - Skills-based integrations keep `sp-*` workflow skill names and passive skill directory names.
 - `map-scan` and `map-build` are breaking replacements for the former one-step map-codebase guidance.
 - Generated surfaces should not overpromise runtime-native subagents where the integration cannot support them.
+- Execution-oriented generated guidance uses `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, and `execution_surface: native-subagents | managed-team | leader-inline`.
+- Adapter-specific addenda may name concrete native subagent tools, but `managed-team` remains reserved for durable team state or lifecycle needs and `leader-inline-fallback` must record its reason.
 
 ## Security and Trust Boundaries
 

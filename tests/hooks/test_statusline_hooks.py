@@ -20,7 +20,8 @@ def _write_quick_status(workspace: Path) -> None:
                 'slug: "demo-quick-task"',
                 'title: "Demo quick task"',
                 'status: "executing"',
-                'strategy: "single-lane"',
+                'dispatch_shape: "one-subagent"',
+                'execution_surface: "native-subagents"',
                 "---",
                 "",
                 "## Current Focus",
@@ -101,4 +102,3 @@ def test_statusline_renders_implement_summary(tmp_path: Path):
     assert "implement:validating" in line
     assert "batch:batch-b" in line
     assert "retry:1" in line
-

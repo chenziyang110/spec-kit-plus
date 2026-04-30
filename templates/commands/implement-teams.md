@@ -32,7 +32,7 @@ sp-implement-teams
 
 Use this when:
 
-1. `sp-implement` would otherwise run a `single-lane` or ad hoc implementation flow
+1. `sp-implement` would otherwise need `leader-inline-fallback` or an ad hoc implementation flow
 2. you want the current feature implemented through durable coordinated team lanes
 3. the work has already been decomposed into task-ready execution slices
 

@@ -279,7 +279,7 @@ Task: "Create [Entity2] model in src/models/[entity2].py"
 
 ---
 
-## Implementation Strategy
+## Implementation Dispatch
 
 ### Feature Delivery Shape
 
@@ -290,17 +290,19 @@ Task: "Create [Entity2] model in src/models/[entity2].py"
   - parallel-ready after foundational work
 - Do not use the current batch execution strategy as a blanket label for the whole feature.
 
-### Current Ready Batch Strategy
+### Current Ready Batch Dispatch
 
-- Record the strategy for the **next executable batch only**:
-  - `single-lane`
-  - `native-multi-agent`
-  - `sidecar-runtime`
+- Record the subagents-first dispatch decision for the **next executable batch only**:
+  - `execution_model: subagents-first`
+  - `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`
+  - `execution_surface: native-subagents | managed-team | leader-inline`
 - Also record the policy reason code, for example:
-  - `no-safe-batch`
-  - `native-supported`
-  - `native-missing`
-  - `fallback`
+  - `safe-one-subagent`
+  - `safe-parallel-subagents`
+  - `managed-team-supported`
+  - `no-safe-delegated-lane`
+  - `packet-not-ready`
+  - `runtime-no-subagents`
 - If later batches are parallelizable but the current batch is not, say that explicitly instead of implying the whole feature has no parallelism.
 
 ### First Release Candidate

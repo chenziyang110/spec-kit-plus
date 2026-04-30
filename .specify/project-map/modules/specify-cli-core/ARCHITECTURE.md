@@ -31,7 +31,7 @@ The module is a Python Typer CLI with registry-driven integration adapters and f
 | `verification.py` | Command result summaries for workflow verification |
 | `execution/*` | Worker packet/result schemas, validators, renderers, and handoff helpers |
 | `hooks/*` | Preflight, artifact/state, delegation, project-map, learning, read/prompt, boundary, commit, and checkpoint helpers |
-| `orchestration/*` | Strategy policy, capability snapshots, scheduler, state store, and review loop |
+| `orchestration/*` | Subagents-first dispatch policy, capability snapshots, scheduler, state store, and review loop |
 | `codex_team/*` | Team install, dispatch, result, sync, status, doctor, watcher, state paths, runtime bridge |
 | `mcp/teams_server.py` | Optional MCP tool/resource facade over Codex team state and operations |
 

@@ -19,7 +19,7 @@ def test_claude_adapter_capability_snapshot():
 
     assert isinstance(snapshot, CapabilitySnapshot)
     assert snapshot.integration_key == "claude"
-    assert snapshot.native_multi_agent is True
+    assert snapshot.native_subagents is True
     assert snapshot.native_worker_surface == "native-cli"
     assert snapshot.delegation_confidence == "medium"
     assert snapshot.runtime_probe_succeeded is True
@@ -31,8 +31,8 @@ def test_codex_adapter_capability_snapshot():
 
     assert isinstance(snapshot, CapabilitySnapshot)
     assert snapshot.integration_key == "codex"
-    assert snapshot.native_multi_agent is True
-    assert snapshot.sidecar_runtime_supported is True
+    assert snapshot.native_subagents is True
+    assert snapshot.managed_team_supported is True
     assert snapshot.native_worker_surface == "spawn_agent"
     assert snapshot.delegation_confidence == "high"
     assert snapshot.durable_coordination is True
@@ -43,8 +43,8 @@ def test_gemini_adapter_capability_snapshot():
     snapshot = GeminiMultiAgentAdapter().detect_capabilities()
 
     assert snapshot.integration_key == "gemini"
-    assert snapshot.native_multi_agent is False
-    assert snapshot.sidecar_runtime_supported is False
+    assert snapshot.native_subagents is False
+    assert snapshot.managed_team_supported is False
     assert snapshot.native_worker_surface == "none"
     assert snapshot.delegation_confidence == "low"
     assert any("no native subagent" in note.lower() for note in snapshot.notes)
@@ -55,8 +55,8 @@ def test_copilot_adapter_capability_snapshot():
     snapshot = CopilotMultiAgentAdapter().detect_capabilities()
 
     assert snapshot.integration_key == "copilot"
-    assert snapshot.native_multi_agent is False
-    assert snapshot.sidecar_runtime_supported is True
+    assert snapshot.native_subagents is False
+    assert snapshot.managed_team_supported is True
     assert snapshot.durable_coordination is False
     assert snapshot.native_worker_surface == "none"
     assert snapshot.runtime_probe_succeeded is True

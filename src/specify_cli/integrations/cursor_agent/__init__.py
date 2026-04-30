@@ -29,8 +29,8 @@ class CursorAgentIntegration(MarkdownIntegration):
     def _cursor_capability_snapshot(self) -> CapabilitySnapshot:
         return CapabilitySnapshot(
             integration_key=self.key,
-            native_multi_agent=True,
-            sidecar_runtime_supported=True,
+            native_subagents=True,
+            managed_team_supported=True,
             structured_results=True,
             durable_coordination=False,
             native_worker_surface="native-cli",
@@ -94,17 +94,15 @@ class CursorAgentIntegration(MarkdownIntegration):
                 "- Read `.specify/memory/constitution.md` first if it exists. This gate comes before `STATUS.md`, clarification, lane selection, delegation, or any repository analysis.\n"
                 "- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<slug>/STATUS.md` if this quick task is new.\n"
                 "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first subagent lane is selected.\n"
-                "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"
-                "- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.\n"
-                "- If Cursor can dispatch subagents for the current batch, you **MUST** use them before considering any leader-local fallback.\n"
-                "- If two or more safe subagent lanes would materially improve throughput, you **MUST** launch them in parallel instead of serializing them without a concrete coordination reason.\n"
-                "- After the first lane is defined, the next concrete action must be dispatch, not additional leader-local repo exploration.\n"
+                "- Define the smallest safe delegated lane or ready batch.\n"
+                "- Dispatch `one-subagent` or `parallel-subagents` before broad leader-inline repository analysis.\n"
+                "- Use Cursor's native subagent path when available.\n"
+                "- If two or more safe subagent lanes would materially improve throughput, launch them in parallel instead of serializing them without a concrete coordination reason.\n"
+                "- After the first lane is defined, the next concrete action must be dispatch, not additional leader-inline repo exploration.\n"
                 "- If a subagent lane is active, use the current join point to integrate results back into `STATUS.md` before selecting the next action.\n"
-                "- If subagent execution is concretely unavailable for the current batch, use the managed team workflow before doing concrete implementation work yourself.\n"
-                "- Leader-local execution is allowed only when subagent execution and the managed team workflow are both unavailable or unsuitable.\n"
-                "- When leader-local fallback is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
+                "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and record the fallback reason in `STATUS.md`.\n"
                 "\n"
-                "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active. Local execution is the last fallback, not the default reading of `single-lane`.\n"
+                "**Hard rule:** The leader must keep scope control, dispatch-shape selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active. Local execution is the last fallback.\n"
             )
             if "## Process" in content:
                 content = content.replace("## Process", gate_addendum + "\n## Process", 1)
@@ -119,23 +117,20 @@ class CursorAgentIntegration(MarkdownIntegration):
         addendum = (
             "\n"
             "## Cursor Subagent Execution\n\n"
-            "When running `sp-quick` in Cursor, prefer subagent execution whenever the selected quick-task strategy is `single-lane` or `native-multi-agent`.\n"
-            "- Treat `single-lane` as the topology for one safe execution lane. Prefer subagent execution only when the lane already has enough context and validation shape to preserve quality.\n"
+            "When running `sp-quick` in Cursor, use subagents-first execution after `STATUS.md` exists.\n"
+            "- Define the smallest safe delegated lane or ready batch.\n"
+            "- Dispatch `one-subagent` or `parallel-subagents` before broad leader-inline repository analysis.\n"
             "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists and the first subagent lane is selected.\n"
-            "- If Cursor can dispatch subagents for the current batch, you **MUST** use them before considering any leader-local fallback.\n"
             f"- Use Cursor's native subagent path for bounded lanes when available. {descriptor.native_dispatch_hint}\n"
-            "- After the first lane is defined, the next concrete action must be dispatch, not additional leader-local repo exploration.\n"
-            "- Once the first lane is chosen, dispatch it before continuing any leader-local deep-dive analysis of the repository.\n"
+            "- After the first lane is defined, the next concrete action must be dispatch, not additional leader-inline repo exploration.\n"
+            "- Once the first lane is chosen, dispatch it before continuing any leader-inline deep-dive analysis of the repository.\n"
             "- If multiple safe subagent lanes exist and they materially improve throughput, dispatch them in parallel instead of defaulting to serial execution.\n"
-            "- Keep `.planning/quick/<slug>/STATUS.md` as the leader-owned source of truth with current focus, execution strategy, active lane or batch, join point, next action, and blockers.\n"
+            "- Keep `.planning/quick/<slug>/STATUS.md` as the leader-owned source of truth with current focus, `dispatch_shape`, active lane or batch, join point, next action, and blockers.\n"
             "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
             f"- Join subagent lanes through the integration-native join point: {descriptor.native_join_hint}\n"
-            "- Interpret `native-multi-agent` as Cursor's delegated multi-lane path when available.\n"
-            "- Interpret `sidecar-runtime` as the managed team workflow used only after subagent execution is unavailable or unsuitable for the current quick-task batch.\n"
-            "- If subagent execution is concretely unavailable for the current batch, use the managed team workflow before doing concrete implementation work yourself.\n"
+            "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and record the fallback reason in `STATUS.md`.\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- Use leader-local execution only after subagent execution and the managed team workflow are both concretely unavailable for the current batch, and record that fallback explicitly in `STATUS.md`.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
             "- Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.\n"
         )

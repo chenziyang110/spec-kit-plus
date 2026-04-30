@@ -34,7 +34,7 @@
 
 ### Delegated Execution
 
-1. A workflow decides execution strategy using shared policy and runtime capability.
+1. A workflow decides subagents-first dispatch using shared policy and runtime capability.
 2. Worker packets use `WorkerTaskPacket`.
 3. Workers return `WorkerTaskResult`.
 4. Hook/result validators confirm changed files, validation results, blockers, concerns, and rule acknowledgement.

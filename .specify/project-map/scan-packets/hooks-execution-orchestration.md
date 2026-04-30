@@ -23,7 +23,7 @@
 
 - What is the worker packet contract and result handoff contract?
 - Which hooks enforce workflow, artifact, project-map, learning, read-path, prompt, and commit rules?
-- How does shared strategy selection choose `single-lane`, `native-multi-agent`, or `sidecar-runtime`?
+- How does shared subagents-first dispatch choose `one-subagent`, `parallel-subagents`, `managed-team`, or `leader-inline-fallback`?
 - What state files and event logs are used by orchestration?
 
 ## expected_outputs
@@ -63,4 +63,4 @@
 ## blocked_conditions
 
 - Packet schema or hook engine files are unreadable.
-- Strategy selection cannot be tied to source code.
+- Subagent dispatch selection cannot be tied to source code.

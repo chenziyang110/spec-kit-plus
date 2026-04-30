@@ -18,10 +18,11 @@ Treat non-empty `$ARGUMENTS` as first-class implementation context for the curre
 
 - You are the implementation leader for this run. Your job is to recover context, choose the current ready batch, dispatch subagents when useful, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation.
 - You are not the default implementer for the current batch. When a subagent path is available for the selected batch, do not personally execute that batch just because it looks easy.
-- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.
-- Prefer subagent execution only when the lane already has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader-local quality.
+- Use `execution_model: subagents-first` for ready implementation batches.
+- Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready; dispatch `parallel-subagents` when multiple validated packets have isolated write sets.
+- Prefer `execution_surface: native-subagents`; use `managed-team` only when the integration owns that durable path.
 - If that subagent-readiness bar is not met, keep the lane on the leader path until the missing context, hard rules, validation gates, or handoff requirements are compiled.
-- Use leader-local execution only when the workflow's explicit fallback conditions are met and the fallback reason is recorded in `implement-tracker.md`.
+- Use `leader-inline-fallback` only when delegation is unavailable, unsafe, low-confidence, or not packetized, and record the reason in `implement-tracker.md`.
 
 ## Pre-Execution Checks
 
@@ -300,22 +301,22 @@ human_needed_checks:
    - **Join points**: Synchronization steps that must complete before downstream work starts
    - **Execution flow**: Order and dependency requirements
 
-6. Select an execution strategy for each ready batch before writing code:
+6. Select subagent dispatch for each ready batch before writing code:
    - The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.
    - The shared implement template is the primary source of truth for this leader-owned milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
-   - Use the shared policy function before each batch with the current agent capability snapshot: `choose_execution_strategy(command_name="implement", snapshot, workload_shape)`
+   - Use the shared policy function before each batch with the current agent capability snapshot: `choose_subagent_dispatch(command_name="implement", snapshot, workload_shape)`
    - Also classify whether the current batch needs a review gate before the join point: `classify_review_gate_policy(workload_shape)`
-   - For `sp-implement`, strategy names are `single-lane` and `native-multi-agent`.
+   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
    - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for subagent dispatch. If confidence is `low`, keep the batch on the leader path instead of forcing fragile subagent fan-out.
    - Decision order (must match policy):
-      - If `parallel_batches <= 0` or overlapping write sets -> `single-lane` (`no-safe-batch`)
-      - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
-   - Else -> `single-lane` (`native-missing` or `fallback-low-confidence`)
-   - `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.
-   - For implementation work, prefer subagent execution only when the lane already has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader-local quality.
+      - If overlapping write sets, no safe delegated lane, missing packet, unavailable runtime, or low confidence -> `leader-inline-fallback` with a recorded reason.
+      - If one safe validated packet is ready and native subagents are available -> `one-subagent` on `native-subagents`.
+      - If multiple safe validated packets have isolated write sets and native subagents are available -> `parallel-subagents` on `native-subagents`.
+      - If native subagents are unavailable and a durable team path is supported -> `parallel-subagents` on `managed-team`.
+   - For implementation work, prefer subagent execution only when the lane already has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader quality.
    - If that subagent-readiness bar is not met, do not dispatch a low-context lane just to satisfy a routing preference; compile the missing packet contract first or keep the lane on the leader path until the contract is complete.
-   - If subagent dispatch is unavailable or low-confidence for the current batch, keep `sp-implement` on the leader path and record the fallback reason in `implement-tracker.md`.
-   - Re-evaluate the execution strategy at every new parallel batch or join point instead of choosing once for the whole feature
+   - If subagent dispatch is unavailable or low-confidence for the current batch, use `leader-inline-fallback` and record the fallback reason in `implement-tracker.md`.
+   - Re-evaluate subagent dispatch at every new parallel batch or join point instead of choosing once for the whole feature
    - Refine only the current executable window after each join point. Do not pre-expand later batches when their exact shape depends on current batch evidence.
    - Grouped parallelism is the default when multiple ready tasks have isolated write sets and stable upstream inputs.
    - Pipeline execution is preferred when outputs flow stage-by-stage from one bounded task to the next and each stage becomes the next stage's input.
@@ -337,8 +338,8 @@ human_needed_checks:
     - **Phase-by-phase execution**: Complete each phase before moving to the next
     - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
-   - **Capability-aware execution**: After selecting the strategy, execute the current ready batch through `native-multi-agent` when selected by policy; otherwise execute via `single-lane` while preserving join-point semantics through the current lane owner.
-   - Once a `single-lane` batch clears the subagent-readiness bar, do not stop to ask the user whether the `single-lane` batch should switch to subagent execution; dispatch the subagent by default and only discuss a fallback after dispatch has concretely failed.
+   - **Capability-aware execution**: After selecting dispatch, execute the current ready batch through `one-subagent`, `parallel-subagents`, or `managed-team` when selected by policy; otherwise use `leader-inline-fallback` while preserving join-point semantics.
+   - Once a batch clears the subagent-readiness bar, do not stop to ask the user whether it should switch to subagent execution; dispatch by default and only discuss a fallback after dispatch has concretely failed.
     - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
     - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
     - Do not stop after a single completed batch just because one subagent, assignee, or lane has gone idle; if ready work still exists for the milestone, keep selecting the next batch and continue.

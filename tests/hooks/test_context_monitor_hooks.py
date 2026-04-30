@@ -20,7 +20,8 @@ def _write_quick_status(workspace: Path) -> None:
                 'slug: "demo-quick-task"',
                 'title: "Demo quick task"',
                 'status: "executing"',
-                'strategy: "native-multi-agent"',
+                'dispatch_shape: "parallel-subagents"',
+                'execution_surface: "native-subagents"',
                 "---",
                 "",
                 "## Current Focus",
@@ -126,4 +127,3 @@ def test_context_monitor_stays_ok_when_pressure_is_low(tmp_path: Path):
 
     assert result.status == "ok"
     assert result.data["should_checkpoint"] is False
-

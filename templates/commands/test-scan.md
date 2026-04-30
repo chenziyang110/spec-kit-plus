@@ -69,17 +69,16 @@ workflow_contract:
    - Register `P2` and `P3` with rationale, but avoid spending equal effort on low-risk surfaces unless the repository has no higher-risk modules or the user explicitly requests full coverage.
    - Record why each module is included, deferred, or out of scope.
 
-4. **Choose the scan execution strategy**
-   - [AGENT] Before repository fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="test-scan", snapshot, workload_shape)`.
-   - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`.
+4. **Choose the scan dispatch shape**
+   - [AGENT] Before repository fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="test-scan", snapshot, workload_shape)`.
+   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
    - Decision order is fixed:
-     - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
-     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
-     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-     - Else -> `single-lane` (`fallback`)
-   - Current-runtime native subagents are the default when two or more safe read-only testing scan lanes exist.
-   - `single-lane` names the topology for one safe scan lane. It does not, by itself, require leader-local scanning.
-   - For `single-lane`, dispatch one read-only scout once a validated `TestScanPacket` or equivalent scan contract exists and the current runtime supports native subagents; keep it leader-local only while the packet is still incomplete or dispatch is unavailable.
+     - One safe validated scan lane -> `one-subagent` on `native-subagents` when available.
+     - Two or more safe read-only testing scan lanes -> `parallel-subagents` on `native-subagents` when available.
+     - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
+     - No safe lane, missing packet, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
+   - Current-runtime native subagents are the default when safe read-only testing scan lanes exist.
+   - For `one-subagent`, dispatch one read-only scout once a validated `TestScanPacket` or equivalent scan contract exists; keep it leader-inline only while the packet is incomplete or dispatch is unavailable.
    - If collaboration is justified, keep `sp-test-scan` lanes read-only and limited to:
      - module test-surface scouting
      - framework/config evidence collection
@@ -138,7 +137,7 @@ workflow_contract:
 
 6. **Dispatch read-only scan subagents**
    - The invoking runtime acts as the scan leader. It selects lanes, dispatches read-only scouts, integrates results, resolves conflicts, and writes final artifacts.
-   - If the selected strategy is `native-multi-agent`, dispatch bounded read-only subagents before continuing broad leader-local analysis.
+   - If the selected dispatch shape is `one-subagent` or `parallel-subagents`, dispatch bounded read-only subagents before continuing broad leader analysis.
    - For a multi-module repository, prefer one scout per module, package, service, adapter group, or language boundary.
    - Add an optional framework scout when the testing framework, coverage command, or CI/presubmit path is unclear.
    - Add an optional read-only risk reviewer when the scan touches multiple P0/P1 modules or when scout outputs disagree.

@@ -150,14 +150,14 @@ workflow_contract:
    - When reporting the selection, explicitly tell the user which bundled skill was selected for each module and that the mapping comes from the bundled passive `*-testing` skills shipped with Spec Kit Plus.
    - Record the final module -> skill mapping in `TESTING_STATE_FILE`, including any override reason when the runtime selection differs from the inventory payload.
 
-6. **Choose an execution strategy before broad test-system work begins**
-   - [AGENT] Before repository fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="test-build", snapshot, workload_shape)`.
-   - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`.
+6. **Choose an execution dispatch shape before broad test-system work begins**
+   - [AGENT] Before repository fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="test-build", snapshot, workload_shape)`.
+   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
    - Decision order is fixed:
-     - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
-     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
-     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-     - Else -> `single-lane` (`fallback`)
+     - One safe validated test-build lane -> `one-subagent` on `native-subagents` when available.
+     - Two or more safe isolated test-build lanes -> `parallel-subagents` on `native-subagents` when available.
+     - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
+     - No safe lane, overlapping writes, missing packet, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
    - If collaboration is justified, keep `sp-test-build` lanes limited to:
      - bounded module test additions
      - local fixtures/helpers authorized by a lane packet
@@ -208,8 +208,8 @@ workflow_contract:
 
 8. **Dispatch subagents and join results**
    - The invoking runtime acts as the test-build leader. It selects the current wave, dispatches bounded lanes, integrates results, and owns validation.
-   - For `native-multi-agent`, dispatch subagents for all safe lanes in the current wave before doing leader-local implementation.
-   - For `single-lane`, dispatch one subagent when the lane has a validated `TestBuildPacket` and enough context; keep it leader-local only when the packet is not yet safe or subagent dispatch is unavailable.
+   - For `parallel-subagents`, dispatch subagents for all safe lanes in the current wave before doing leader-inline implementation.
+   - For `one-subagent`, dispatch one subagent when the lane has a validated `TestBuildPacket` and enough context; keep it leader-inline only when the packet is not yet safe or subagent dispatch is unavailable.
    - Subagents must return a structured handoff with:
      - `lane_id`
      - `reported_status: done | done_with_concerns | blocked | needs_context`

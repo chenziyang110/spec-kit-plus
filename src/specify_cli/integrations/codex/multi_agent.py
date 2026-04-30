@@ -19,8 +19,8 @@ class CodexMultiAgentAdapter:
     def detect_capabilities(self):
         return build_capability_snapshot(
             integration_key=self.integration_key,
-            native_multi_agent=True,
-            sidecar_runtime_supported=True,
+            native_subagents=True,
+            managed_team_supported=True,
             structured_results=False,
             durable_coordination=True,
             native_worker_surface="spawn_agent",

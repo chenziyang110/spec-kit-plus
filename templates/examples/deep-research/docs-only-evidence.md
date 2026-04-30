@@ -18,8 +18,10 @@
 
 ## Research Orchestration
 
-- **Strategy**: single-lane
-- **Reason**: no-safe-batch
+- **Execution model**: subagents-first
+- **Dispatch shape**: one-subagent
+- **Execution surface**: native-subagents
+- **Reason**: safe-one-subagent
 - **Selected tracks**:
   - TRK-001 -> docs and repository evidence packet
 - **Join points**:
@@ -31,7 +33,7 @@
 
 | Track ID | Agent / Mode | Question | Evidence IDs | Confidence | Exit State | Planning Implication |
 | --- | --- | --- | --- | --- | --- | --- |
-| TRK-001 | single-lane research | Can callback signatures be validated inside the existing adapter boundary? | EVD-001, EVD-002 | high | enough-to-plan | Use PH-001 to keep validation inside the provider adapter |
+| TRK-001 | one-subagent research | Can callback signatures be validated inside the existing adapter boundary? | EVD-001, EVD-002 | high | enough-to-plan | Use PH-001 to keep validation inside the provider adapter |
 
 ## Evidence Quality Rubric
 

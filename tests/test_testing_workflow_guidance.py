@@ -61,10 +61,13 @@ def test_test_scan_template_requires_read_only_subagent_evidence():
     content = _read("templates/commands/test-scan.md")
     lowered = content.lower()
 
-    assert 'choose_execution_strategy(command_name="test-scan"' in lowered
-    assert "single-lane" in lowered
-    assert "native-multi-agent" in lowered
-    assert "sidecar-runtime" in lowered
+    assert 'choose_subagent_dispatch(command_name="test-scan"' in lowered
+    assert "execution_model: subagents-first" in lowered
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in lowered
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in lowered
+    assert "one-subagent" in lowered
+    assert "parallel-subagents" in lowered
+    assert "leader-inline-fallback" in lowered
     assert "testscanpacket" in lowered
     assert "mode: read_only" in content
     assert "dispatch read-only scan subagents" in lowered
@@ -80,8 +83,8 @@ def test_test_scan_template_prefers_native_scout_subagents_with_handoffs():
     lowered = content.lower()
 
     assert "current-runtime native subagents are the default" in lowered
-    assert "single-lane` names the topology for one safe scan lane" in lowered
-    assert "does not, by itself, require leader-local scanning" in lowered
+    assert "for `one-subagent`, dispatch one read-only scout" in lowered
+    assert "keep it leader-inline only while the packet is incomplete or dispatch is unavailable" in lowered
     assert "validated `testscanpacket`" in lowered
     assert "raw scan notes or raw chat summaries are not sufficient" in lowered
     assert "structured handoff" in lowered
@@ -98,7 +101,7 @@ def test_test_build_template_consumes_scan_and_dispatches_build_packets():
     assert ".specify/testing/TEST_BUILD_PLAN.md".lower() in lowered
     assert ".specify/testing/TEST_BUILD_PLAN.json".lower() in lowered
     assert "stop and route to `/sp-test-scan`" in lowered
-    assert 'choose_execution_strategy(command_name="test-build"' in lowered
+    assert 'choose_subagent_dispatch(command_name="test-build"' in lowered
     assert "testbuildpacket" in lowered
     assert "validated `testbuildpacket`" in lowered
     assert "a subagent may only edit files inside its `write_set`" in lowered

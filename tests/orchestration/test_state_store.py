@@ -29,7 +29,7 @@ def test_canonical_record_paths_are_under_orchestration_root(tmp_path: Path):
 
 def test_write_json_creates_parent_directories_and_trailing_newline(tmp_path: Path):
     path = session_path(tmp_path, "session-2")
-    payload = {"session_id": "session-2", "strategy": "single-lane"}
+    payload = {"session_id": "session-2", "dispatch_shape": "one-subagent"}
 
     written = write_json(path, payload)
 

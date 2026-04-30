@@ -40,11 +40,12 @@ def test_codex_guidance_calls_out_routing_choices(tmp_path: Path) -> None:
     content = _read_sp_implement(project)
     lower = content.lower()
 
-    assert "single-lane" in lower
+    assert "execution_model: subagents-first" in lower
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in lower
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in lower
     assert "native subagents" in lower
     assert "spawn_agent" in lower
     assert "sp-teams" not in lower
-    assert "sidecar-runtime" not in lower
 
 
 def test_sp_implement_includes_native_first_escalation_language(tmp_path: Path) -> None:
@@ -54,8 +55,8 @@ def test_sp_implement_includes_native_first_escalation_language(tmp_path: Path) 
     lower = content.lower()
 
     assert "spawn_agent" in lower
-    assert "leader path" in lower or "leader-local" in lower
-    assert "prefer `native-multi-agent`" in content
+    assert "leader-inline-fallback" in lower
+    assert "execution_surface: native-subagents" in lower
     assert "sp-teams" not in lower
 
 

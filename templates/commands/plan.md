@@ -165,13 +165,13 @@ agent_scripts:
    - Treat `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` as active planning inputs, not descriptive appendix material
    - Treat `context.md` as the primary implementation-context artifact that captures downstream planning decisions explicitly
    - Do not introduce a separate clarification command as the normal next step for routine planning readiness
-   - [AGENT] Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="plan", snapshot, workload_shape)`
-   - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`
+   - [AGENT] Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="plan", snapshot, workload_shape)`
+   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
    - Decision order is fixed:
-     - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
-     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
-     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-     - Else -> `single-lane` (`fallback`)
+     - One safe validated lane -> `one-subagent` on `native-subagents` when available.
+     - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.
+     - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
+     - No safe lane, overlapping writes, missing contract, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
    - If collaboration is justified, keep `plan` lanes limited to:
      - research
      - data model

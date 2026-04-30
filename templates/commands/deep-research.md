@@ -106,7 +106,7 @@ scripts:
   - `spike_artifacts` when applicable
 - [AGENT] Join all subagent results before writing final conclusions. Resolve contradictions by preferring runnable spike evidence, current repository evidence, primary documentation, then secondary sources in that order. Mark conflicts that remain unresolved instead of hiding them.
 - [AGENT] The coordinator must convert subagent packets into `Research Agent Findings`, `Synthesis Decisions`, and `Planning Handoff`; do not paste raw subagent output as the final artifact.
-- [AGENT] If subagent dispatch is unavailable or unsafe, perform the same track decomposition sequentially and record that orchestration mode as `single-lane research`.
+- [AGENT] If subagent dispatch is unavailable or unsafe, perform the same track decomposition sequentially and record the decision as `leader-inline-fallback` with a reason.
 
 ## Traceability and Evidence Quality Contract
 
@@ -198,15 +198,14 @@ scripts:
    - proof target: what evidence would be enough to plan safely
    - result status: `proven`, `constrained`, `not viable`, `blocked`, or `not needed`
 
-6. **Select the research orchestration strategy**:
-   - [AGENT] Before research fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="deep-research", snapshot, workload_shape)`.
-   - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`.
+6. **Select the research dispatch shape**:
+   - [AGENT] Before research fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="deep-research", snapshot, workload_shape)`.
+   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
    - Decision order is fixed:
-     - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
-     - Else if tracks have overlapping write scopes -> `single-lane` (`overlapping-write-sets`)
-     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
-     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-     - Else -> `single-lane` (`fallback`)
+     - One safe validated track -> `one-subagent` on `native-subagents` when available.
+     - Two or more safe isolated tracks -> `parallel-subagents` on `native-subagents` when available.
+     - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
+     - No safe lane, overlapping write scopes, missing contract, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
    - For `deep-research`, safe fan-out means at least two independent research tracks with disjoint write scopes. Research-only tracks return evidence packets; demo tracks write only under their assigned `FEATURE_DIR/research-spikes/<track-slug>/`.
    - Required join points:
      - before final conflict resolution
@@ -307,8 +306,10 @@ scripts:
 
    ## Research Orchestration
 
-   - **Strategy**: [single-lane | native-multi-agent | sidecar-runtime]
-   - **Reason**: [no-safe-batch | overlapping-write-sets | native-supported | native-missing | fallback]
+   - **Execution model**: subagents-first
+   - **Dispatch shape**: [one-subagent | parallel-subagents | leader-inline-fallback]
+   - **Execution surface**: [native-subagents | managed-team | leader-inline]
+   - **Reason**: [safe-one-subagent | safe-parallel-subagents | managed-team-supported | no-safe-delegated-lane | unsafe-write-sets | packet-not-ready | runtime-no-subagents | low-delegation-confidence]
    - **Selected tracks**:
      - [track] -> [research-only evidence packet | demo spike write scope]
    - **Join points**:
@@ -320,7 +321,7 @@ scripts:
 
    | Track ID | Agent / Mode | Question | Evidence IDs | Confidence | Exit State | Planning Implication |
    | --- | --- | --- | --- | --- | --- | --- |
-   | TRK-001 | [child agent name or single-lane research] | [Question] | EVD-001, SPK-001 | [high / medium / low] | [enough-to-plan / constrained-but-plannable / blocked / not-viable / user-decision-required] | [What `/sp.plan` must use] |
+   | TRK-001 | [child agent name or leader-inline fallback] | [Question] | EVD-001, SPK-001 | [high / medium / low] | [enough-to-plan / constrained-but-plannable / blocked / not-viable / user-decision-required] | [What `/sp.plan` must use] |
 
    ## Evidence Quality Rubric
 

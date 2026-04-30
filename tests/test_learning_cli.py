@@ -1126,7 +1126,7 @@ def test_learning_capture_auto_quick_extracts_fallback_constraint(tmp_path: Path
                 "next_action: wait for runtime recovery",
                 "",
                 "## Execution",
-                "active_lane: leader-local",
+                "active_lane: leader-inline-fallback",
                 "join_point:",
                 "files_or_surfaces: src/specify_cli/__init__.py",
                 "execution_fallback: native worker runtime unavailable",
@@ -1163,7 +1163,7 @@ def test_learning_capture_auto_quick_extracts_fallback_constraint(tmp_path: Path
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     keys = [entry["recurrence_key"] for entry in payload["captured"]]
-    assert "quick.leader-local-fallback-preserves-runtime-unavailability-reason" in keys
+    assert "quick.leader-inline-fallback-preserves-runtime-unavailability-reason" in keys
 
 
 def test_learning_capture_auto_test_extracts_followup_route_and_validation_gaps(tmp_path: Path) -> None:

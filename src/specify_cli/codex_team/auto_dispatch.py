@@ -882,8 +882,8 @@ def route_ready_parallel_batch(
     batch_id = _batch_id_for(session_id, batch.batch_name)
     codex_snapshot = CapabilitySnapshot(
         integration_key="codex",
-        native_multi_agent=True,
-        sidecar_runtime_supported=True,
+        native_subagents=True,
+        managed_team_supported=True,
         structured_results=False,
         durable_coordination=True,
         native_worker_surface="spawn_agent",
@@ -961,10 +961,10 @@ def route_ready_parallel_batch(
                     "summary": render_packet_summary(packet),
                 },
                 delegation_metadata={
-                    "native_surface": delegation_descriptor.native_surface,
+                    "native_subagent_surface": delegation_descriptor.native_subagent_surface,
                     "native_dispatch_hint": delegation_descriptor.native_dispatch_hint,
                     "native_join_hint": delegation_descriptor.native_join_hint,
-                    "sidecar_surface_hint": delegation_descriptor.sidecar_surface_hint,
+                    "managed_team_hint": delegation_descriptor.managed_team_hint,
                     "result_contract_hint": delegation_descriptor.result_contract_hint,
                     "structured_results_expected": delegation_descriptor.structured_results_expected,
                     "executor_mode": executor["mode"],

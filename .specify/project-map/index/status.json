@@ -2,10 +2,10 @@
   "version": 2,
   "global": {
     "freshness": "fresh",
-    "last_refresh_commit": "cea6ea88b98285cb04f5a7e044260e4c8c6a6fb7",
-    "last_refresh_at": "2026-04-30T04:37:35Z",
+    "last_refresh_commit": "WORKTREE-subagents-first-refactor",
+    "last_refresh_at": "2026-04-30T06:11:44Z",
     "last_refresh_branch": "main",
-    "last_refresh_reason": "map-build",
+    "last_refresh_reason": "subagents-first-workflow-refactor",
     "last_refresh_topics": [
       "ARCHITECTURE.md",
       "STRUCTURE.md",
@@ -16,19 +16,26 @@
       "TESTING.md"
     ],
     "last_refresh_scope": "full",
-    "last_refresh_basis": "map-build",
-    "last_refresh_changed_files_basis": [],
+    "last_refresh_basis": "manual-implementation-refresh",
+    "last_refresh_changed_files_basis": [
+      "src/specify_cli/orchestration/models.py",
+      "src/specify_cli/orchestration/policy.py",
+      "templates/commands/implement.md",
+      "src/specify_cli/integrations/base.py",
+      "AGENTS.md",
+      "PROJECT-HANDBOOK.md"
+    ],
     "dirty": false,
     "dirty_reasons": [],
     "stale_reasons": [],
     "affected_root_docs": []
   },
   "modules": {},
-  "last_mapped_commit": "cea6ea88b98285cb04f5a7e044260e4c8c6a6fb7",
-  "last_mapped_at": "2026-04-30T04:37:35Z",
+  "last_mapped_commit": "WORKTREE-subagents-first-refactor",
+  "last_mapped_at": "2026-04-30T06:11:44Z",
   "last_mapped_branch": "main",
   "freshness": "fresh",
-  "last_refresh_reason": "map-build",
+  "last_refresh_reason": "subagents-first-workflow-refactor",
   "last_refresh_topics": [
     "ARCHITECTURE.md",
     "STRUCTURE.md",
@@ -39,8 +46,15 @@
     "TESTING.md"
   ],
   "last_refresh_scope": "full",
-  "last_refresh_basis": "map-build",
-  "last_refresh_changed_files_basis": [],
+  "last_refresh_basis": "manual-implementation-refresh",
+  "last_refresh_changed_files_basis": [
+    "src/specify_cli/orchestration/models.py",
+    "src/specify_cli/orchestration/policy.py",
+    "templates/commands/implement.md",
+    "src/specify_cli/integrations/base.py",
+    "AGENTS.md",
+    "PROJECT-HANDBOOK.md"
+  ],
   "dirty": false,
   "dirty_reasons": [],
   "stale_reasons": [],

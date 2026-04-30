@@ -205,7 +205,7 @@ current_focus: validate the recovery result
 next_action: close after validation
 
 ## Execution
-active_lane: single-lane
+active_lane: one-subagent
 join_point:
 files_or_surfaces: scripts/powershell/quick-state.ps1
 execution_fallback: none

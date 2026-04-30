@@ -117,9 +117,9 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "workertaskpacket" in lower
     assert "sp-teams doctor" in lower
     assert "sp-teams live-probe" in lower
-    assert "single-lane" in lower
-    assert "native-multi-agent" in lower
-    assert "sidecar-runtime" in lower
+    assert "execution_model" in lower
+    assert "dispatch_shape" in lower
+    assert "execution_surface" in lower
     assert "join point" in lower
     assert "subagent result contract" in lower
     assert "result file handoff path" in lower
@@ -221,7 +221,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     content = skill_path.read_text(encoding="utf-8")
     leader_gate_idx = content.find("## Codex Leader Gate")
     outline_idx = content.find("## Outline")
-    auto_parallel_idx = content.find("## Codex Auto-Parallel Execution")
+    auto_parallel_idx = content.find("## Codex Subagents-First Execution")
 
     assert leader_gate_idx != -1
     assert outline_idx != -1
@@ -240,11 +240,12 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
-    assert "single-lane" in content
-    assert "native-multi-agent" in content
+    assert "execution_model: subagents-first" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
     assert "invoking runtime acts as the leader" in content
-    assert "`single-lane` names the topology for one safe execution lane" in content
-    assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
+    assert "Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready" in content
+    assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
     assert "selects the next executable phase and ready batch" in content
     assert "run `/sp-map-scan` followed by `/sp-map-build` before final completion reporting" in content.lower()
     assert "verification is truthfully green and no explicit blocker prevents completion" in content.lower()
@@ -253,15 +254,14 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "join point" in content.lower()
     assert "retry-pending" in content.lower() or "retry pending" in content.lower()
     assert "blocker" in content.lower()
-    assert "once a `single-lane` batch clears the subagent-readiness bar" in content.lower()
+    assert "once one safe lane clears the subagent-readiness bar" in content.lower()
     assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
     assert "`research_gap`" in content
     assert "`plan_gap`" in content
     assert "`spec_gap`" in content
     assert "subagent execution" in content.lower()
-    assert "prefer `native-multi-agent`" in content
+    assert "prefer `execution_surface: native-subagents`" in content or "spawn_agent" in content
     assert "sp-teams" not in content.lower()
-    assert "sidecar-runtime" not in content.lower()
     assert "must not edit implementation files directly while subagent execution is active" in content.lower()
     assert "wait for every subagent's structured handoff" in content.lower()
     assert "do not treat an idle subagent as done work" in content.lower()
@@ -284,9 +284,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     skills_dir = target / ".codex" / "skills"
     for skill_name in ("sp-specify", "sp-plan", "sp-test-scan", "sp-test-build", "sp-tasks"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "single-lane" in content
-        assert "native-multi-agent" in content
-        assert "sidecar-runtime" in content
+        assert "execution_model: subagents-first" in content
+        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+        assert "execution_surface: native-subagents | managed-team | leader-inline" in content
         assert "spawn_agent" in content
         assert "wait_agent" in content
         assert "project-handbook.md" in content
@@ -297,12 +297,12 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert ".planning/learnings/candidates.md" in content
 
     implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "single-lane" in implement_content
-    assert "native-multi-agent" in implement_content
+    assert "execution_model: subagents-first" in implement_content
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in implement_content
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in implement_content
     assert "spawn_agent" in implement_content
     assert "wait_agent" in implement_content
     assert "close_agent" in implement_content
-    assert "sidecar-runtime" not in implement_content
     assert "sp-teams" not in implement_content
 
     shared_skills = ("sp-specify", "sp-plan", "sp-tasks")
@@ -324,7 +324,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
 
     test_scan_content = (skills_dir / "sp-test-scan" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert "testscanpacket" in test_scan_content
-    assert "read-only scout subagents" in test_scan_content
+    assert "read-only scout work" in test_scan_content
     assert "spawn_agent" in test_scan_content
     assert "wait_agent" in test_scan_content
     assert "test_build_plan.json" in test_scan_content
@@ -482,7 +482,7 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert ".specify/project-map/scan-packets/<lane-id>.md" in scan_content
     assert ".specify/project-map/map-state.md" in scan_content
     assert "mapscanpacket" in scan_content
-    assert 'choose_execution_strategy(command_name="map-scan"' in scan_content
+    assert 'choose_subagent_dispatch(command_name="map-scan"' in scan_content
     assert "rg --files" in scan_content
     assert "git-tracked files" in scan_content
     assert "reverse coverage" in scan_content
@@ -495,7 +495,7 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert ".specify/project-map/index/atlas-index.json" in build_content
     assert ".specify/project-map/root/architecture.md" in build_content
     assert ".specify/project-map/modules/<module-id>/overview.md" in build_content
-    assert 'choose_execution_strategy(command_name="map-build"' in build_content
+    assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
     assert "route back to `/sp-map-scan`" in build_content
     assert "mapbuildpacket" in build_content
     assert ".specify/project-map/worker-results/<packet-id>.json" in build_content
@@ -530,7 +530,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
-    assert "codex native multi-agent investigation" in content
+    assert "codex subagent evidence collection" in content
     assert "project-handbook.md" in content
     assert ".specify/project-map/root/architecture.md" in content
     assert ".specify/project-map/root/workflows.md" in content
@@ -652,22 +652,21 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "lightweight" in content
     assert "summary.md" in content or "summary artifact" in content
     assert "codex leader gate" in content
-    assert "codex native multi-agent execution" in content
+    assert "codex quick-task subagent execution" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
-    assert "sp-teams" in content
-    assert "single-lane" in content
-    assert "single-lane" in content
-    assert "native-multi-agent" in content
-    assert "sidecar-runtime" in content
-    assert "`single-lane` names the topology for one safe execution lane" in content
+    assert "managed-team" in content
+    assert "execution_model: subagents-first" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
+    assert "for `one-subagent`, dispatch one subagent once the subagent-readiness bar is satisfied" in content
     assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in content
     assert "read `.specify/memory/constitution.md` first if it exists" in content
     assert "crucial first step" in content
     assert "the next concrete action must be dispatch" in content or "once the first lane is chosen" in content
     assert "materially improve throughput" in content
-    assert "local execution is the last fallback" in content
+    assert "leader-inline-fallback" in content
     assert "execution_fallback" in content
     assert "join point" in content
     assert "leader" in content
@@ -684,7 +683,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "resolved/" in content
     assert "status.md template" in content
     assert "status: gathering | planned | executing | validating | blocked | resolved" in content
-    assert "strategy: single-lane | native-multi-agent | sidecar-runtime" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
     assert "summary pointer" in content
     assert "if exactly one unfinished quick task exists" in content
     assert "if multiple unfinished quick tasks exist" in content

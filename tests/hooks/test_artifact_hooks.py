@@ -23,7 +23,7 @@ def _valid_deep_research_artifact() -> str:
 
 | Track ID | Agent / Mode | Question | Evidence IDs | Confidence | Exit State | Planning Implication |
 | --- | --- | --- | --- | --- | --- | --- |
-| TRK-001 | single-lane research | Can it work? | EVD-001, SPK-001 | high | enough-to-plan | Use PH-001 |
+| TRK-001 | one-subagent research | Can it work? | EVD-001, SPK-001 | high | enough-to-plan | Use PH-001 |
 
 ## Evidence Quality Rubric
 

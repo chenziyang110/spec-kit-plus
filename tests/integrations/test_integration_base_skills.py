@@ -237,10 +237,10 @@ class SkillsIntegrationTests:
         assert "you are the **leader**, not the concrete implementer" in lowered
         assert "autonomous blocker recovery" in lowered
         assert "missed_agent_dispatch" in lowered
-        assert "`single-lane` names the topology for one safe execution lane" in content
-        assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
-        assert "dispatch subagents first" in lowered
-        assert "keep `sp-implement` on the leader path and record the fallback reason" in lowered
+        assert "Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready" in content
+        assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
+        assert "delegation surface contract" in lowered
+        assert "leader-inline-fallback" in lowered
         assert "dispatch only from validated `workertaskpacket`" in lowered
         assert "must not edit implementation files directly while subagent execution is active" in lowered
 
@@ -271,16 +271,17 @@ class SkillsIntegrationTests:
         assert f"## {agent_name} Leader Gate".lower() in debug_content
         assert "you are the **leader**, not a freeform debugger" in debug_content
         assert "investigation routing contract" in debug_content
-        assert "single-lane" in debug_content
-        assert "native-multi-agent" in debug_content
-        assert "sidecar-runtime" in debug_content
+        assert "execution_model: subagents-first" in debug_content
+        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in debug_content
+        assert "execution_surface: native-subagents | managed-team | leader-inline" in debug_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
-        assert "single-lane" in quick_content
+        assert "execution_model: subagents-first" in quick_content
+        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in quick_content
+        assert "execution_surface: native-subagents | managed-team | leader-inline" in quick_content
         assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content
-        assert "sidecar-runtime" in quick_content
 
     def test_map_scan_build_skills_require_native_explorer_lanes_when_selected(self, tmp_path):
         i = get_integration(self.KEY)
@@ -292,10 +293,14 @@ class SkillsIntegrationTests:
 
         scan_content = (skills_dir / "sp-map-scan" / "SKILL.md").read_text(encoding="utf-8").lower()
         build_content = (skills_dir / "sp-map-build" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert 'choose_execution_strategy(command_name="map-scan"' in scan_content
-        assert 'choose_execution_strategy(command_name="map-build"' in build_content
-        assert "native-multi-agent" in scan_content
-        assert "native-multi-agent" in build_content
+        assert 'choose_subagent_dispatch(command_name="map-scan"' in scan_content
+        assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
+        assert "execution_model: subagents-first" in scan_content
+        assert "execution_model: subagents-first" in build_content
+        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in scan_content
+        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in build_content
+        assert "execution_surface: native-subagents | managed-team | leader-inline" in scan_content
+        assert "execution_surface: native-subagents | managed-team | leader-inline" in build_content
         assert "coverage-ledger" in scan_content
         assert "map-state.md" in scan_content
         assert "mapscanpacket" in scan_content

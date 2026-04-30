@@ -19,7 +19,7 @@
 | `src/specify_cli/integrations/` | integration registry, base classes, adapter packages, manifests |
 | `src/specify_cli/execution/` | packet/result contracts, validation, rendering, handoff helpers |
 | `src/specify_cli/hooks/` | workflow helper and validation command implementations |
-| `src/specify_cli/orchestration/` | execution strategy and resumable orchestration state |
+| `src/specify_cli/orchestration/` | subagents-first dispatch and resumable orchestration state |
 | `src/specify_cli/codex_team/` | Codex team control-plane commands, state, install, runtime bridge |
 | `src/specify_cli/mcp/` | MCP facade for team state and operations |
 | `src/specify_cli/project_map_status.py` | atlas freshness model |

@@ -409,14 +409,18 @@ class IntegrationBase(ABC):
             command_name=command_name,
             snapshot=snapshot,
         )
+        managed_team_hint = descriptor.managed_team_hint
         addendum = (
             "\n"
             f"## {agent_name} {heading}\n\n"
+            "- Execution model: `subagents-first`\n"
+            "- Dispatch shape: `one-subagent`, `parallel-subagents`, or `leader-inline-fallback`\n"
+            "- Execution surface: `native-subagents`, `managed-team`, or `leader-inline`\n"
             "- Delegation surface contract: preserve the native dispatch, fallback, worker result contract, and handoff path below.\n"
-            f"- Native dispatch surface: {descriptor.native_dispatch_hint}\n"
-            f"- Subagent dispatch: {descriptor.native_dispatch_hint}\n"
+            f"- Native subagent dispatch: {descriptor.native_dispatch_hint}\n"
             f"- Join behavior: {descriptor.native_join_hint}\n"
-            f"- Fallback path: {descriptor.sidecar_surface_hint}\n"
+            f"- Managed-team fallback: {managed_team_hint}\n"
+            "- Leader-inline fallback: record the reason before local execution.\n"
             f"- Worker result contract: {descriptor.result_contract_hint}\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
             f"- Result handoff path: {descriptor.result_handoff_hint}\n"
@@ -490,8 +494,8 @@ class IntegrationBase(ABC):
 
         return build_capability_snapshot(
             integration_key=self.key,
-            native_multi_agent=False,
-            sidecar_runtime_supported=False,
+            native_subagents=False,
+            managed_team_supported=False,
             structured_results=False,
             durable_coordination=False,
             native_worker_surface="unknown",
@@ -530,17 +534,16 @@ class IntegrationBase(ABC):
             "- When the local CLI is available, use `specify hook validate-state --command implement --feature-dir \"$FEATURE_DIR\"` and `specify hook validate-session-state --command implement --feature-dir \"$FEATURE_DIR\"` before choosing the next batch so shared product checks verify the execution state.\n"
             "- **Audit Missed Dispatches**: If you find tasks in the tracker that you performed yourself but could have been delegated, record them under a `missed_agent_dispatch` field in the tracker as a recovery debt.\n"
             "- If `$ARGUMENTS` is non-empty, extract the important execution constraints or recovery hints from it and persist them under `## User Execution Notes` in `FEATURE_DIR/implement-tracker.md` before dispatching work.\n"
-            "- Read `tasks.md`, identify the current ready batch, and choose the execution strategy for that batch.\n"
+            "- Read `tasks.md`, identify the current ready batch, and choose the `subagents-first` dispatch shape for that batch.\n"
+            "- Use subagents by default when the current batch can be delegated safely.\n"
+            "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready.\n"
+            "- Dispatch `parallel-subagents` when multiple validated packets have isolated write sets.\n"
+            "- Use the current runtime's `native-subagents` path first when `delegation_confidence` makes subagent execution safe.\n"
+            "- Use `leader-inline-fallback` only after recording why delegation is unavailable, unsafe, or not packetized in `FEATURE_DIR/implement-tracker.md`.\n"
             "- Before any subagent implementation work starts, compile and validate the packet for the current task or batch item.\n"
             "- Before subagent dispatch, prefer `specify hook validate-packet --packet-file <packet-json>` when the current runtime has written the packet to disk.\n"
-            "- Dispatch subagents first when the selected strategy and `delegation_confidence` make subagent execution safe.\n"
-            "- Use the current runtime's native subagent path first when the selected strategy and `delegation_confidence` make subagent execution safe.\n"
-            "- If the selected strategy is `native-multi-agent`, you **MUST** dispatch subagents for the concrete work before considering any fallback path.\n"
-            "- If subagent dispatch is low-confidence or unavailable for the current batch, keep `sp-implement` on the leader path and record the fallback reason in `FEATURE_DIR/implement-tracker.md`.\n"
             "- Do **not** fall through from subagent dispatch into local self-execution just because the implementation looks feasible.\n"
-            "- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.\n"
-            "- Prefer subagent execution only when the lane already has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader-local quality.\n"
-            "- If that subagent-readiness bar is not met, keep the lane on the leader path until the missing context, hard rules, validation gates, or handoff requirements are compiled. Do not dispatch a low-context subagent just to satisfy a routing preference.\n"
+            "- If the subagent-readiness bar is not met, use `leader-inline-fallback` until the missing context, hard rules, validation gates, or handoff requirements are compiled. Do not dispatch a low-context subagent just to satisfy a routing preference.\n"
             "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
             "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
@@ -611,8 +614,8 @@ class IntegrationBase(ABC):
             "- Read the current debug session state and identify whether the investigation has two or more independent evidence-gathering lanes.\n"
             "- If the current stage is `investigating` and there are two or more bounded evidence-gathering lanes, you **MUST** dispatch subagents before continuing with more sequential evidence collection yourself.\n"
             "- Rejoin only at the current investigation join point, then integrate returned results on the leader path.\n"
-            "- If subagent evidence collection is unavailable or unsuitable, record the fallback and use the managed team workflow before widening leader-local investigation work.\n"
-            "- Do **not** skip subagents just because the evidence tasks look easy; use the lighter `single-lane` path only when the current investigation does not have safe parallel lanes.\n"
+            "- If subagent evidence collection is unavailable or unsuitable, record `leader-inline-fallback` and use the managed team workflow before widening leader-inline investigation work.\n"
+            "- Do **not** skip subagents just because the evidence tasks look easy; use `leader-inline-fallback` only when the current investigation does not have safe parallel lanes.\n"
             "\n"
             "**Hard rule:** During `investigating`, the leader must not let subagents mutate the debug file, declare the root cause final, or advance the session state.\n"
         )
@@ -638,13 +641,16 @@ class IntegrationBase(ABC):
             command_name="debug",
             snapshot=snapshot,
         )
+        managed_team_hint = descriptor.managed_team_hint
         addendum = (
             "\n"
             f"## {agent_name} Investigation Routing Contract\n\n"
-            f"When running `sp-debug` in {agent_name}, treat the `investigating` stage as a leader-led routing decision between `single-lane`, `native-multi-agent`, and `sidecar-runtime`.\n"
+            f"When running `sp-debug` in {agent_name}, treat the `investigating` stage as a leader-led `subagents-first` routing decision.\n"
+            "- Dispatch shape: `parallel-subagents` for independent evidence lanes, or `leader-inline-fallback` with a recorded reason when delegation is unavailable or unsafe.\n"
+            "- Execution surface: `native-subagents` first, `managed-team` only when durable team state is needed, and `leader-inline` only as fallback.\n"
             f"- Subagent dispatch: {descriptor.native_dispatch_hint}\n"
             f"- Integration-native join point: {descriptor.native_join_hint}\n"
-            f"- Fallback path: {descriptor.sidecar_surface_hint}\n"
+            f"- Fallback path: {managed_team_hint}\n"
             "- If there are two or more independent evidence-gathering lanes, dispatch subagents whenever the current runtime can support it safely.\n"
             "- Suitable subagent tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and gathering evidence after diagnostic logging has been added.\n"
             "- Read `diagnostic_profile` from the debug session before choosing subagent lanes.\n"
@@ -676,20 +682,18 @@ class IntegrationBase(ABC):
             "- Read `.specify/memory/constitution.md` first if it exists.\n"
             "- Read `STATUS.md` for the active quick-task workspace, or create it if this quick task is new.\n"
             "- When the local CLI is available, use `specify hook validate-state --command quick --workspace <quick-workspace>` and `specify hook validate-session-state --command quick --workspace <quick-workspace>` before choosing the next lane so shared product checks verify quick-task resume truth.\n"
-            "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"
-            "- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.\n"
-            "- If the selected strategy is `native-multi-agent`, you **MUST** dispatch subagents for the concrete work before considering any fallback path.\n"
-            "- If the selected strategy is `single-lane`, prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
-            "- If that subagent-readiness bar is met, dispatch exactly one subagent before considering any leader-local fallback.\n"
+            "- Define the smallest safe delegated lane or ready batch, and choose the `subagents-first` dispatch shape for that batch.\n"
+            "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
+            "- Dispatch `parallel-subagents` when two or more safe subagent lanes would materially improve throughput.\n"
+            "- Use the current runtime's `native-subagents` path before considering any fallback path.\n"
             "- If that bar is not met, keep the lane on the leader path until the missing context, constraints, validation target, or handoff expectations are explicit.\n"
-            "- If two or more safe subagent lanes would materially improve throughput, you **MUST** launch them in parallel.\n"
             "- Use the current integration's join point to integrate returned results before choosing the next action.\n"
             "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
             "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
-            "- If the selected strategy is `sidecar-runtime`, or if subagent dispatch proves concretely unavailable for the current batch, you **MUST** use the managed team workflow before doing concrete implementation work yourself.\n"
-            "- Leader-local execution is allowed only when subagent dispatch and the managed team workflow are both unavailable.\n"
-            "- When leader-local fallback is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
+            "- Use `managed-team` only when durable team state is needed beyond one in-session subagent burst.\n"
+            "- Use `leader-inline-fallback` only when subagent dispatch and the managed team workflow are both unavailable or unsafe.\n"
+            "- When `leader-inline-fallback` is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
             "\n"
             "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active.\n"
         )
@@ -715,23 +719,23 @@ class IntegrationBase(ABC):
             command_name="quick",
             snapshot=snapshot,
         )
+        managed_team_hint = descriptor.managed_team_hint
         addendum = (
             "\n"
             f"## {agent_name} Quick Execution Routing\n\n"
-            f"When running `sp-quick` in {agent_name}, dispatch subagents whenever the selected quick-task strategy is `native-multi-agent`.\n"
+            f"When running `sp-quick` in {agent_name}, use `subagents-first` execution after `STATUS.md` exists.\n"
+            "- Dispatch shape: `one-subagent`, `parallel-subagents`, or `leader-inline-fallback`.\n"
+            "- Execution surface: `native-subagents`, `managed-team`, or `leader-inline`.\n"
             f"- Subagent dispatch: {descriptor.native_dispatch_hint}\n"
             f"- Integration-native join point: {descriptor.native_join_hint}\n"
-            f"- Fallback path: {descriptor.sidecar_surface_hint}\n"
-            "- Once the first lane is chosen, dispatch it before continuing any leader-local deep-dive analysis of the repository.\n"
+            f"- Fallback path: {managed_team_hint}\n"
+            "- Once the first lane is chosen, dispatch it before continuing any leader-inline deep-dive analysis of the repository.\n"
             "- If multiple safe subagent lanes exist and they materially improve throughput, dispatch them in parallel.\n"
             "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth.\n"
             "- Before compaction-risk transitions or join points, prefer `specify hook monitor-context --command quick --workspace <quick-workspace>` and follow checkpoint recommendations with `specify hook checkpoint --command quick --workspace <quick-workspace>`.\n"
             "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
-            f"- Decision order for {agent_name} `sp-quick`: `no-safe-batch` -> `native-preferred` -> `sidecar-fallback` -> `fallback`.\n"
-            "- Interpret `single-lane` as the topology for one safe execution lane, not a hard-coded executor choice.\n"
+            f"- Decision order for {agent_name} `sp-quick`: safe packetized subagents -> `managed-team` when durable state is needed -> `leader-inline-fallback` with reason.\n"
             "- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
-            "- Interpret `native-multi-agent` as subagent dispatch.\n"
-            "- Interpret `sidecar-runtime` as the managed team workflow used only after subagent dispatch is unavailable or unsuitable.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
         )
         return content + addendum
@@ -1451,6 +1455,18 @@ class SkillsIntegration(IntegrationBase):
         )
 
     @staticmethod
+    def _can_augment_generated_file(skill_path: Path, project_root: Path) -> bool:
+        """Return True when an integration post-processing target is safe to edit."""
+
+        if not skill_path.is_file():
+            return False
+        try:
+            skill_path.resolve().relative_to(project_root.resolve())
+        except ValueError:
+            return False
+        return True
+
+    @staticmethod
     def _parse_skill_frontmatter(raw: str) -> dict[str, Any]:
         """Parse YAML frontmatter from a skill template."""
         frontmatter_text, _ = IntegrationBase._split_frontmatter(raw)
@@ -1712,7 +1728,7 @@ class SkillsIntegration(IntegrationBase):
         addendum: str,
     ) -> None:
         """Append an integration-specific addendum to a shared skill if it matches the marker."""
-        if skill_path not in created or not skill_path.is_file():
+        if not self._can_augment_generated_file(skill_path, project_root):
             return
         content = skill_path.read_text(encoding="utf-8")
         if marker in content:
@@ -1727,8 +1743,8 @@ class SkillsIntegration(IntegrationBase):
         implement_skill: Path,
         snapshot: CapabilitySnapshot | None = None,
     ) -> None:
-        """Inject Leader Gate and Auto-Parallel guidance into the implement skill."""
-        if implement_skill not in created or not implement_skill.is_file():
+        """Inject Leader Gate and subagents-first guidance into the implement skill."""
+        if not self._can_augment_generated_file(implement_skill, project_root):
             return
 
         content = implement_skill.read_text(encoding="utf-8")
@@ -1740,31 +1756,32 @@ class SkillsIntegration(IntegrationBase):
             agent_name=agent_name,
         )
 
-        marker = f"## {agent_name} Auto-Parallel Execution"
+        marker = f"## {agent_name} Subagents-First Execution"
         if marker not in content:
             addendum = (
                 "\n"
-                f"## {agent_name} Auto-Parallel Execution\n\n"
-                f"When running `sp-implement` in {agent_name}, treat Step 6's unified execution strategy selection as a runtime-aware escalation.\n"
+                f"## {agent_name} Subagents-First Execution\n\n"
+                f"When running `sp-implement` in {agent_name}, use the `subagents-first` dispatch model.\n"
                 "\n"
                 "**Standard Dispatch Scenarios**:\n"
-                "1. **Parallel Creation**: If current batch has [P] markers or creates >3 new files -> Use `native-multi-agent`.\n"
-                "2. **Build/Compile Failures**: If commands return non-zero exit codes -> Dispatch `cpp-build-resolver` or specialist agent.\n"
-                "3. **Testing Tasks**: If paths involve `tests/` or `*_test.*` -> Dispatch `tdd-guide` or build specialist.\n"
-                "4. **Cross-module Dependency**: If task affects >2 different directories -> dispatch one subagent per module when packet context is ready.\n"
+                "1. **One Ready Lane**: If one validated `WorkerTaskPacket` is ready -> dispatch `one-subagent` on `native-subagents`.\n"
+                "2. **Parallel Creation**: If multiple packetized lanes have isolated write sets -> dispatch `parallel-subagents` on `native-subagents`.\n"
+                "3. **Durable Team State**: If durable coordination is required beyond one in-session wave -> use `managed-team`.\n"
+                "4. **Fallback**: If delegation is unavailable, unsafe, or not packetized -> record `leader-inline-fallback` and execute on `leader-inline`.\n"
+                "5. **Build/Compile Failures**: If commands return non-zero exit codes -> dispatch `cpp-build-resolver` or specialist agent.\n"
+                "6. **Testing Tasks**: If paths involve `tests/` or `*_test.*` -> dispatch `tdd-guide` or build specialist.\n"
+                "7. **Cross-module Dependency**: If task affects >2 different directories -> dispatch one subagent per module when packet context is ready.\n"
                 "\n"
                 "For each ready parallel batch:\n"
                 "- The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.\n"
-                f"- Keep the shared strategy names and workload-safety checks, but for {agent_name} `sp-implement` prefer `native-multi-agent` whenever `snapshot.native_multi_agent` is true.\n"
+                f"- Keep the shared workload-safety checks, but for {agent_name} `sp-implement` prefer `execution_surface: native-subagents` whenever `snapshot.native_subagents` is true.\n"
                 f"- Use `spawn_agent` to dispatch disjoint subagents for the current batch, `wait_agent` to join them, and `close_agent` after integrating results.\n"
-                "- Interpret `single-lane` as the topology for one safe execution lane, not a hard-coded executor choice.\n"
-                "- Prefer subagent execution only when the lane already has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader-local quality.\n"
-                "- Interpret `native-multi-agent` as the native subagents path.\n"
-                f"- Decision order for {agent_name} `sp-implement` must stay fixed: `no-safe-batch` -> `native-preferred` -> `leader-fallback`.\n"
-                "- If subagent dispatch is unavailable or low-confidence for the current batch, keep `sp-implement` on the leader path, record the fallback reason, and preserve the same join-point discipline locally.\n"
+                "- Prefer subagent execution only when the lane already has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader-inline quality.\n"
+                f"- Decision order for {agent_name} `sp-implement` must stay fixed: safe packetized subagents -> `managed-team` only when durable team state is required -> `leader-inline-fallback` with reason.\n"
+                "- If subagent dispatch is unavailable or low-confidence for the current batch, use `leader-inline-fallback`, record the fallback reason, and preserve the same join-point discipline locally.\n"
                 "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
                 "- The leader dispatches subagents rather than executing the implementation itself when the batch is ready for subagent work.\n"
-                "- Once a `single-lane` batch clears the subagent-readiness bar, do **not** ask the user whether it should switch to subagent execution; dispatch the subagent by default and only discuss fallback after dispatch concretely fails.\n"
+                "- Once one safe lane clears the subagent-readiness bar, do **not** ask the user whether it should switch to subagent execution; dispatch the subagent by default and only discuss fallback after dispatch concretely fails.\n"
                 "- After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.\n"
             )
             content += addendum
@@ -1789,7 +1806,7 @@ class SkillsIntegration(IntegrationBase):
         snapshot: CapabilitySnapshot | None = None,
     ) -> None:
         """Inject Leader Gate and evidence collection guidance into the debug skill."""
-        if debug_skill not in created or not debug_skill.is_file():
+        if not self._can_augment_generated_file(debug_skill, project_root):
             return
 
         content = debug_skill.read_text(encoding="utf-8")
@@ -1809,7 +1826,7 @@ class SkillsIntegration(IntegrationBase):
                 "- Read the current debug session state and identify whether the investigation has two or more independent evidence-gathering lanes.\n"
                 f"- If the current stage is `investigating` and there are two or more bounded evidence-gathering lanes, you **MUST** dispatch subagents through `spawn_agent` before continuing with more sequential evidence collection yourself.\n"
                 f"- Use `wait_agent` at the investigation join point, integrate returned results, and call `close_agent` for completed subagents.\n"
-                "- Do **not** skip subagents just because the evidence tasks look easy; use the lighter `single-lane` path only when the current investigation does not have safe parallel lanes.\n"
+                "- Do **not** skip subagents just because the evidence tasks look easy; use `leader-inline-fallback` only when the current investigation does not have safe parallel lanes.\n"
                 "\n"
                 "**Hard rule:** During `investigating`, the leader must not let subagents mutate the debug file, declare the root cause final, or advance the session state.\n"
             )
@@ -1818,14 +1835,16 @@ class SkillsIntegration(IntegrationBase):
             else:
                 content += gate_addendum
 
-        marker = f"## {agent_name} Native Multi-Agent Investigation"
+        marker = f"## {agent_name} Subagent Evidence Collection"
         if marker in content:
             return
 
         addendum = (
             "\n"
-            f"## {agent_name} Native Multi-Agent Investigation\n\n"
-            f"When running `sp-debug` in {agent_name}, treat the `investigating` stage as a leader-led routing decision between `single-lane` and subagent evidence collection.\n"
+            f"## {agent_name} Subagent Evidence Collection\n\n"
+            f"When running `sp-debug` in {agent_name}, treat the `investigating` stage as leader-led `subagents-first` evidence collection.\n"
+            "- Use `parallel-subagents` on `native-subagents` when there are two or more independent evidence-gathering lanes.\n"
+            "- Use `leader-inline-fallback` only after recording why evidence delegation is unavailable, unsafe, or not packetized.\n"
             f"- If there are two or more independent evidence-gathering lanes, dispatch subagents through `spawn_agent` instead of doing manual sequential investigation.\n"
             "- Suitable subagent tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and gathering evidence after diagnostic logging has been added.\n"
             "- Read `diagnostic_profile` from the debug session before choosing subagent lanes.\n"
@@ -1861,7 +1880,7 @@ class SkillsIntegration(IntegrationBase):
         snapshot: CapabilitySnapshot | None = None,
     ) -> None:
         """Inject Leader Gate and delegation guidance into the quick-task skill."""
-        if quick_skill not in created or not quick_skill.is_file():
+        if not self._can_augment_generated_file(quick_skill, project_root):
             return
 
         content = quick_skill.read_text(encoding="utf-8")
@@ -1880,20 +1899,18 @@ class SkillsIntegration(IntegrationBase):
                 "Before code edits, test edits, or implementation commands:\n"
                 "- Read `.specify/memory/constitution.md` first if it exists.\n"
                 "- Read `STATUS.md` for the active quick-task workspace, or create it if this quick task is new.\n"
-                "- Define the smallest safe execution lane or ready batch, and choose the execution strategy for that batch.\n"
-                "- `single-lane` names the topology for one safe execution lane. It does not, by itself, decide whether the leader or a subagent executes that lane.\n"
-                f"- If the selected strategy is `native-multi-agent`, you **MUST** dispatch subagents through `spawn_agent` before considering any fallback path.\n"
-                "- If the selected strategy is `single-lane`, prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
-                "- If that subagent-readiness bar is met, dispatch exactly one subagent before considering any leader-local fallback.\n"
+                "- Define the smallest safe delegated lane or ready batch, and choose the `subagents-first` dispatch shape for that batch.\n"
+                "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
+                "- Dispatch `parallel-subagents` when two or more safe subagent lanes would materially improve throughput.\n"
+                f"- Use `native-subagents` through `spawn_agent` before considering any fallback path.\n"
                 "- If that bar is not met, keep the lane on the leader path until the missing context, constraints, validation target, or handoff expectations are explicit.\n"
-                "- If two or more safe subagent lanes would materially improve throughput, you **MUST** launch them in parallel.\n"
                 f"- Use `wait_agent` only at the current join point, integrate returned results, and call `close_agent` for completed subagents.\n"
                 "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
                 "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
                 "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
-                f"- If the selected strategy is `sidecar-runtime`, or if subagent dispatch proves concretely unavailable for the current batch, you **MUST** call **`sp-teams auto-dispatch`** for the quick-task workload before doing concrete implementation work yourself.\n"
-                "- Leader-local execution is allowed only when subagent dispatch and `sp-teams` are both unavailable.\n"
-                "- When leader-local fallback is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
+                "- Use `managed-team` only when durable team state is needed beyond one in-session subagent burst.\n"
+                "- Use `leader-inline-fallback` only when subagent dispatch and `sp-teams` are both unavailable or unsafe.\n"
+                "- When `leader-inline-fallback` is used, you **MUST** write the concrete fallback reason into `STATUS.md` before executing locally.\n"
                 "\n"
                 "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active.\n"
             )
@@ -1902,7 +1919,7 @@ class SkillsIntegration(IntegrationBase):
             else:
                 content += gate_addendum
 
-        marker = f"## {agent_name} Native Multi-Agent Execution"
+        marker = f"## {agent_name} Quick-Task Subagent Execution"
         if marker in content:
             if snapshot is not None:
                 content = self._append_delegation_surface_contract(
@@ -1917,21 +1934,19 @@ class SkillsIntegration(IntegrationBase):
 
         addendum = (
             "\n"
-            f"## {agent_name} Native Multi-Agent Execution\n\n"
-            f"When running `sp-quick` in {agent_name}, dispatch subagents whenever the selected quick-task strategy is `native-multi-agent`.\n"
+            f"## {agent_name} Quick-Task Subagent Execution\n\n"
+            f"When running `sp-quick` in {agent_name}, use `subagents-first` execution after `STATUS.md` exists.\n"
+            "- Dispatch `one-subagent` or `parallel-subagents` before broad leader-inline repository analysis.\n"
+            "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and record the fallback reason in `STATUS.md`.\n"
             f"- Use `spawn_agent` for bounded lanes such as focused repository analysis, targeted implementation, regression test updates, or validation command runs.\n"
-            "- Once the first lane is chosen, dispatch it before continuing any leader-local deep-dive analysis of the repository.\n"
+            "- Once the first lane is chosen, dispatch it before continuing any leader-inline deep-dive analysis of the repository.\n"
             "- If multiple safe subagent lanes exist and they materially improve throughput, dispatch them in parallel.\n"
             f"- Use `wait_agent` only at the documented join point for the current quick-task batch.\n"
             f"- Use `close_agent` after integrating finished subagent results.\n"
             "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth.\n"
             "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
-            f"- Decision order for {agent_name} `sp-quick`: `no-safe-batch` -> `native-preferred` -> `sidecar-fallback` -> `fallback`.\n"
-            "- Interpret `single-lane` as the topology for one safe execution lane, not a hard-coded executor choice.\n"
+            f"- Decision order for {agent_name} `sp-quick`: safe packetized subagents -> `managed-team` when durable state is needed -> `leader-inline-fallback` with reason.\n"
             "- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
-            "- Interpret `native-multi-agent` as the native subagents path.\n"
-            "- Interpret `sidecar-runtime` as escalation via **`sp-teams`** only after subagent dispatch is unavailable or unsuitable.\n"
-            "- When `sidecar-runtime` is selected for a quick-task batch, call **`sp-teams auto-dispatch`** before any leader-local implementation fallback.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
         )
 
@@ -1956,7 +1971,7 @@ class SkillsIntegration(IntegrationBase):
         snapshot: CapabilitySnapshot,
     ) -> None:
         """Append the shared implement result contract to a teams-backed skill."""
-        if implement_teams_skill not in created or not implement_teams_skill.is_file():
+        if not self._can_augment_generated_file(implement_teams_skill, project_root):
             return
 
         content = implement_teams_skill.read_text(encoding="utf-8")
@@ -1982,7 +1997,7 @@ class SkillsIntegration(IntegrationBase):
         backend_label: str,
     ) -> None:
         """Append the shared sp-implement contract to a teams-backed skill."""
-        if implement_teams_skill not in created or not implement_teams_skill.is_file():
+        if not self._can_augment_generated_file(implement_teams_skill, project_root):
             return
 
         content = implement_teams_skill.read_text(encoding="utf-8")
@@ -1998,7 +2013,7 @@ class SkillsIntegration(IntegrationBase):
             f"When you use `{teams_command}`, keep the same leader-owned execution semantics that `{canonical_command}` requires:\n\n"
             "1. keep `FEATURE_DIR/implement-tracker.md` as the execution-state source of truth\n"
             "2. compile and validate a `WorkerTaskPacket` before assigning each team-managed execution task\n"
-            "3. for implementation-oriented teams flows, preserve the user-visible strategy names `single-lane`, `native-multi-agent`, `sidecar-runtime`\n"
+            "3. for implementation-oriented teams flows, preserve the user-visible fields `execution_model`, `dispatch_shape`, and `execution_surface`\n"
             "4. preserve explicit join point behavior, blocker reporting, retry-pending state, and completion checks\n"
             "5. preserve the team result contract and canonical result file handoff path\n"
             "6. preserve final-completion truthfulness: do not describe `core implementation complete`, `implementation complete`, or `ready for integration testing` as overall feature completion while required E2E, Polish, documentation, quickstart, or validation work remains\n\n"

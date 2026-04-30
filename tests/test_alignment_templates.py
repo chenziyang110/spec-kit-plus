@@ -21,7 +21,7 @@ def _read(path: str) -> str:
 
 def _extract_step_6_strategy_block(content: str) -> str:
     lowered = content.lower()
-    start = lowered.find("6. select an execution strategy for each ready batch before writing code:")
+    start = lowered.find("6. select subagent dispatch for each ready batch before writing code:")
     assert start != -1
     end = lowered.find("\n7. execute implementation following the task plan:", start)
     assert end != -1
@@ -30,6 +30,19 @@ def _extract_step_6_strategy_block(content: str) -> str:
 
 def _assert_contains_any(text: str, *needles: str) -> None:
     assert any(needle in text for needle in needles), f"Expected one of: {needles}"
+
+
+def _assert_subagent_dispatch_contract(text: str, command_name: str) -> None:
+    assert f'choose_subagent_dispatch(command_name="{command_name}"' in text
+    lowered = text.lower()
+    assert "execution_model: subagents-first" in lowered
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in lowered
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in lowered
+    assert "one-subagent" in lowered
+    assert "parallel-subagents" in lowered
+    assert "leader-inline-fallback" in lowered
+    assert "native-subagents" in lowered
+    assert "managed-team" in lowered
 
 
 def test_core_sp_templates_use_learning_review_hooks():
@@ -165,10 +178,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "If the request is already one bounded capability, say so briefly and continue inside the current spec." in content
     assert "first-release scope" in lowered
     assert "mvp scope" not in lowered
-    assert "choose_execution_strategy(command_name=\"specify\"" in content
-    assert "single-lane" in lowered
-    assert "native-multi-agent" in lowered
-    assert "sidecar-runtime" in lowered
+    _assert_subagent_dispatch_contract(content, "specify")
     assert "repository and local context analysis" in lowered
     assert "external references and supporting material analysis" in lowered
     assert "ambiguity, risk, and gap analysis" in lowered
@@ -361,10 +371,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "native bridge, plugin surface, protocol seam, generated API surface" in content
     assert "generic implementation instinct would likely drift away" in content
     assert "canonical boundary files or examples" in content
-    assert "choose_execution_strategy(command_name=\"plan\"" in content
-    assert "single-lane" in lowered
-    assert "native-multi-agent" in lowered
-    assert "sidecar-runtime" in lowered
+    _assert_subagent_dispatch_contract(content, "plan")
     assert "research" in lowered
     assert "data model" in lowered
     assert "contracts" in lowered
@@ -466,10 +473,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
 
     assert ".specify/memory/constitution.md" in content
-    assert "choose_execution_strategy(command_name=\"tasks\"" in content
-    assert "single-lane" in lowered
-    assert "native-multi-agent" in lowered
-    assert "sidecar-runtime" in lowered
+    _assert_subagent_dispatch_contract(content, "tasks")
     assert "story and phase decomposition" in lowered
     assert "dependency graph analysis" in lowered
     assert "write-set and parallel-safety analysis" in lowered
@@ -504,11 +508,8 @@ def test_explain_template_documents_conservative_routing_contract():
     lowered = content.lower()
 
     assert ".specify/memory/constitution.md" in content
-    assert "choose_execution_strategy(command_name=\"explain\"" in content
-    assert "single-lane" in lowered
-    assert "native-multi-agent" in lowered
-    assert "sidecar-runtime" in lowered
-    assert "default to `single-lane`" in lowered
+    _assert_subagent_dispatch_contract(content, "explain")
+    assert "default to leader explanation" in lowered
     assert "primary artifact reading" in lowered
     assert "supporting artifact cross-check" in lowered
     assert "before rendering the final explanation" in lowered
@@ -639,8 +640,8 @@ def test_deep_research_template_defines_feasibility_gate_contract():
     assert "deep-research.md" in content
     assert "research-spikes/" in content
     assert "Multi-Agent Research Orchestration" in content
-    assert 'choose_execution_strategy(command_name="deep-research"' in content
-    assert "Strategy names are canonical" in content
+    _assert_subagent_dispatch_contract(content, "deep-research")
+    assert "dispatch shape" in lowered
     assert "Research Orchestration" in content
     assert "before writing `Planning Handoff`" in content
     assert "Traceability and Evidence Quality Contract" in content
@@ -693,10 +694,7 @@ def test_map_scan_template_generates_complete_build_package() -> None:
     assert ".specify/project-map/coverage-ledger.json" in content
     assert ".specify/project-map/scan-packets/<lane-id>.md" in content
     assert ".specify/project-map/map-state.md" in content
-    assert 'choose_execution_strategy(command_name="map-scan"' in content
-    assert "single-lane" in lowered
-    assert "native-multi-agent" in lowered
-    assert "sidecar-runtime" in lowered
+    _assert_subagent_dispatch_contract(content, "map-scan")
     assert "full project-relevant inventory" in lowered
     assert "scan packets are executable read instructions" in lowered
     assert "must still execute the packet reads" in lowered
@@ -722,10 +720,7 @@ def test_map_build_template_generates_handbook_navigation_system_from_scan_packa
     assert ".specify/project-map/index/*.json" in content
     assert ".specify/project-map/root/*.md" in content
     assert ".specify/project-map/modules/<module-id>/*.md" in content
-    assert 'choose_execution_strategy(command_name="map-build"' in content
-    assert "single-lane" in lowered
-    assert "native-multi-agent" in lowered
-    assert "sidecar-runtime" in lowered
+    _assert_subagent_dispatch_contract(content, "map-build")
     assert "atlas output contract" in lowered
     assert ".specify/project-map/map-state.md" in content
     assert ".specify/project-map/worker-results/*.json" in content
@@ -1019,17 +1014,18 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "blocked subagent results must include" in lowered
     assert "failed assumption" in lowered
     assert "smallest safe recovery step" in lowered
-    assert "execution strategy" in lowered
-    assert "single-lane" in lowered
-    assert "single-lane" in lowered
-    assert "native-multi-agent" in lowered
+    assert "subagent dispatch" in lowered
+    assert "execution_model: subagents-first" in lowered
+    assert "one-subagent" in lowered
+    assert "parallel-subagents" in lowered
+    assert "native-subagents" in lowered
     assert "delegation_confidence" in lowered
-    assert "fallback-low-confidence" in lowered
-    assert "parallel_batches" in lowered
-    assert "no-safe-batch" in lowered
-    assert "native-supported" in lowered
-    assert "native-missing" in lowered
-    assert "keep `sp-implement` on the leader path and record the fallback reason" in lowered
+    assert "low confidence -> `leader-inline-fallback`" in lowered
+    assert "multiple safe validated packets" in lowered
+    assert "no safe delegated lane" in lowered
+    assert "one safe validated packet is ready" in lowered
+    assert "multiple safe validated packets have isolated write sets" in lowered
+    assert "use `leader-inline-fallback` and record the fallback reason" in lowered
     assert "run `/sp-map-scan` followed by `/sp-map-build` before final completion reporting" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
@@ -1039,16 +1035,16 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "auto-dispatch" not in lowered
     assert "codex runtime rule" not in lowered
 
-    no_safe_batch = step_6.find("parallel_batches <= 0")
-    native_supported = step_6.find("native_multi_agent")
-    native_missing = step_6.find("native-missing")
-    fallback = step_6.find("fallback")
+    no_safe_batch = step_6.find("no safe delegated lane")
+    one_subagent = step_6.find("one safe validated packet")
+    parallel_subagents = step_6.find("multiple safe validated packets")
+    managed_team = step_6.find("managed-team")
 
     assert no_safe_batch != -1
-    assert native_supported != -1
-    assert native_missing != -1
-    assert fallback != -1
-    assert no_safe_batch < native_supported < native_missing < fallback
+    assert one_subagent != -1
+    assert parallel_subagents != -1
+    assert managed_team != -1
+    assert no_safe_batch < one_subagent < parallel_subagents
 
 
 def test_implement_template_defines_leader_only_milestone_scheduler_contract():
@@ -1058,10 +1054,11 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "## Leader Role" in content
     assert "you are the implementation leader for this run" in lowered
     assert "you are not the default implementer for the current batch" in lowered
-    assert "`single-lane` names the topology for one safe execution lane" in content
-    assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
-    assert "prefer subagent execution only when the lane already has a validated `workertaskpacket` and enough context" in lowered
-    assert "fallback reason is recorded in `implement-tracker.md`" in lowered
+    assert "use `execution_model: subagents-first` for ready implementation batches" in lowered
+    assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in lowered
+    assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in lowered
+    assert "prefer `execution_surface: native-subagents`" in lowered
+    assert "record the reason in `implement-tracker.md`" in lowered
     assert "invoking runtime acts as the leader" in lowered
     assert "subagent execution" in lowered
     assert "next executable phase" in lowered
@@ -1069,7 +1066,7 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "join point" in lowered
     assert "retry-pending" in lowered or "retry pending" in lowered
     assert "blocker" in lowered
-    assert "do not stop to ask the user whether the `single-lane` batch should switch to subagent execution" in lowered
+    assert "do not stop to ask whether validation should start" in lowered
     assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
     assert "core implementation complete" in lowered
     assert "ready for integration testing" in lowered

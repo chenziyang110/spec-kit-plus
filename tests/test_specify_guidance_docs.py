@@ -344,7 +344,7 @@ def test_guidance_docs_explain_subagent_result_handoff_contract():
     assert "specify result submit" in quickstart
     assert "reported_status" in quickstart
     assert "pending placeholder" in quickstart
-    assert "before dispatching subagents; if subagent dispatch is unavailable or low-confidence" in quickstart
+    assert "before dispatching subagents; if delegation is unavailable, unsafe, or not packetized" in quickstart
     assert "do not submit" in readme
 
 
@@ -368,15 +368,20 @@ def test_guidance_docs_explain_task_shaping_and_fail_fast_rules():
         assert "smallest safe recovery step" in content
 
 
-def test_guidance_docs_explain_single_lane_compatibility_for_execution_workflows():
+def test_guidance_docs_explain_subagents_first_dispatch_for_execution_workflows():
     readme = _read("README.md").lower()
     quickstart = _read("docs/quickstart.md").lower()
 
-    assert "single-lane" in readme
-    assert "topology label for one safe execution lane" in readme
+    assert "subagents-first" in readme
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in readme
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in readme
     assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in readme
-    assert "single-lane" in quickstart
-    assert "topology label for one safe execution lane" in quickstart
+    assert "subagents-first" in quickstart
+    assert "one-subagent" in quickstart
+    assert "parallel-subagents" in quickstart
+    assert "leader-inline-fallback" in quickstart
+    assert "native-subagents" in quickstart
+    assert "managed-team" in quickstart
     assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quickstart
 
 

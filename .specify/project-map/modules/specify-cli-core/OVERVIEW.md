@@ -20,7 +20,7 @@ Without this module boundary, CLI behavior, generated integration setup, delegat
 - `src/specify_cli/integrations/`: adapter registry and generated file behavior for supported agents.
 - `src/specify_cli/execution/`: `WorkerTaskPacket` and `WorkerTaskResult` schemas plus validators.
 - `src/specify_cli/hooks/`: first-party validation/helper commands used by generated workflows.
-- `src/specify_cli/orchestration/`: execution strategy, state, scheduler, and review-loop helpers.
+- `src/specify_cli/orchestration/`: subagents-first dispatch policy, state, scheduler, and review-loop helpers.
 - `src/specify_cli/codex_team/` and `src/specify_cli/mcp/`: Codex team control plane and optional MCP facade.
 - `pyproject.toml`: package metadata, console scripts, dependency set, pytest config, and forced bundled assets.
 

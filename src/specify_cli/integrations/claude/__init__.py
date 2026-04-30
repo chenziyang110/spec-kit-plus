@@ -369,8 +369,8 @@ class ClaudeIntegration(SkillsIntegration):
     def _claude_capability_snapshot(self) -> CapabilitySnapshot:
         return CapabilitySnapshot(
             integration_key=self.key,
-            native_multi_agent=True,
-            sidecar_runtime_supported=True,
+            native_subagents=True,
+            managed_team_supported=True,
             structured_results=True,
             durable_coordination=False,
             native_worker_surface="native-cli",
@@ -480,13 +480,11 @@ class ClaudeIntegration(SkillsIntegration):
         addendum = (
             "\n"
             "## Claude Dispatch-First Gate\n\n"
-            "- For `sp-implement`, attempt subagent execution before leader-local implementation.\n"
-            "- Use Claude's native subagent path as the default first attempt for the current ready batch whenever the batch is safe to dispatch.\n"
-            "- Treat `single-lane` as the topology for one safe execution lane, not as permission for the leader to implement directly.\n"
-            "- If multiple safe subagent lanes exist for the current batch, dispatch them in parallel instead of defaulting to serial leader-local work.\n"
-            "- Prefer subagent fan-out over local deep-dive execution when the ready tasks have isolated write sets and stable upstream inputs.\n"
-            "- Do not begin concrete implementation on the leader path while an untried subagent path is available for the current batch.\n"
-            "- Only fall back to leader-local execution after recording a concrete fallback reason in `FEATURE_DIR/implement-tracker.md`.\n"
+            "- For `sp-implement`, attempt native subagent execution before leader-inline fallback.\n"
+            "- Use Claude's native subagent path for `one-subagent` and `parallel-subagents` dispatch shapes whenever the batch is safe to dispatch.\n"
+            "- Prefer subagent fan-out over local deep-dive execution when ready tasks have isolated write sets and stable upstream inputs.\n"
+            "- Do not begin concrete implementation on the leader path while an untried native subagent path is available for the current batch.\n"
+            "- Only use `leader-inline-fallback` after recording the concrete fallback reason in `FEATURE_DIR/implement-tracker.md`.\n"
         )
         if "## Leader Role" in content:
             return content.replace("## Leader Role", addendum + "\n## Leader Role", 1)

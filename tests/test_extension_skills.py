@@ -307,7 +307,8 @@ class TestBuiltInSkillGeneration:
         assert re.search(r"`plan`: explain .*implementation approach", explain_tui)
         assert re.search(r"`tasks`: explain .*concrete work", explain_tui)
         assert re.search(r"`implement`: explain .*progress.*current scope.*active risks", explain_tui)
-        assert "single-lane" in explain_body.lower()
+        assert "choose_subagent_dispatch" in explain_body.lower()
+        assert "leader-inline-fallback" in explain_body.lower()
         assert "supporting artifact cross-check" in explain_body.lower()
         assert "before rendering the final explanation" in explain_body.lower()
 
@@ -448,7 +449,7 @@ class TestBuiltInSkillGeneration:
         assert ".specify/project-map/coverage-ledger.json" in scan_body
         assert ".specify/project-map/scan-packets/<lane-id>.md" in scan_body
         assert ".specify/project-map/map-state.md" in scan_body
-        assert 'choose_execution_strategy(command_name="map-scan"' in scan_body
+        assert 'choose_subagent_dispatch(command_name="map-scan"' in scan_body
         assert "rg --files" in scan_body
         assert "Git-tracked files" in scan_body
         assert "scan packets are executable read instructions" in scan_lower
@@ -463,7 +464,7 @@ class TestBuiltInSkillGeneration:
         assert ".specify/project-map/index/atlas-index.json" in build_body
         assert ".specify/project-map/root/ARCHITECTURE.md" in build_body
         assert ".specify/project-map/modules/<module-id>/OVERVIEW.md" in build_body
-        assert 'choose_execution_strategy(command_name="map-build"' in build_body
+        assert 'choose_subagent_dispatch(command_name="map-build"' in build_body
         assert "route back to `/sp-map-scan`" in build_body
         assert "complete-refresh" in build_body
         assert "Root and Module Document Detail Rules" in build_body
@@ -494,8 +495,9 @@ class TestBuiltInSkillGeneration:
         assert ".specify/testing/TEST_BUILD_PLAN.md" in test_scan_body
         assert ".specify/testing/TEST_BUILD_PLAN.json" in test_scan_body
         assert "testscanpacket" in test_scan_body.lower()
-        assert 'choose_execution_strategy(command_name="test-scan"' in test_scan_body.lower()
-        assert "native-multi-agent" in test_scan_body.lower()
+        assert 'choose_subagent_dispatch(command_name="test-scan"' in test_scan_body.lower()
+        assert "parallel-subagents" in test_scan_body.lower()
+        assert "native-subagents" in test_scan_body.lower()
         assert "read-only scan subagents" in test_scan_body.lower()
         assert "if `project-handbook.md` or required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing" in test_scan_body.lower()
         assert "read `project-handbook.md`." in test_scan_body.lower()
@@ -506,10 +508,12 @@ class TestBuiltInSkillGeneration:
         assert ".specify/testing/COVERAGE_BASELINE.json" in test_build_body
         assert "bootstrap" in test_build_body.lower()
         assert "refresh" in test_build_body.lower()
-        assert 'choose_execution_strategy(command_name="test-build"' in test_build_body.lower()
-        assert "single-lane" in test_build_body.lower()
-        assert "native-multi-agent" in test_build_body.lower()
-        assert "sidecar-runtime" in test_build_body.lower()
+        assert 'choose_subagent_dispatch(command_name="test-build"' in test_build_body.lower()
+        assert "one-subagent" in test_build_body.lower()
+        assert "parallel-subagents" in test_build_body.lower()
+        assert "leader-inline-fallback" in test_build_body.lower()
+        assert "native-subagents" in test_build_body.lower()
+        assert "managed-team" in test_build_body.lower()
         assert "testbuildpacket" in test_build_body.lower()
         assert "before mutating shared repository test framework/config files" in test_build_body.lower()
         assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing" in test_build_body.lower()

@@ -488,7 +488,7 @@ def test_route_ready_parallel_batch_dispatches_each_task(monkeypatch, codex_team
     assert dispatch_payload["packet_path"]
     assert dispatch_payload["packet_summary"]["task_id"] == "T002"
     assert dispatch_payload["result_path"].endswith("default-parallel-batch-1-1-t002.json")
-    assert dispatch_payload["delegation_metadata"]["native_surface"] == "spawn_agent"
+    assert dispatch_payload["delegation_metadata"]["native_subagent_surface"] == "spawn_agent"
     task = get_task(codex_team_project_root, "T002")
     assert task.metadata["join_points"]["Join Point 1.1"]["status"] == "pending"
     assert task.metadata["join_points"]["Join Point 1.1"]["details"]["batch_name"] == "Parallel Batch 1.1"

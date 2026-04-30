@@ -19,7 +19,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - The leader owns the session file, the current hypothesis, all state transitions, the final fix, and the verification checkpoint.
 - Any subagents are evidence collectors. They do not own the investigation and must not decide that the bug is resolved.
 - You are not the default evidence worker for every lane. When the investigation splits into safe bounded lanes, your job is to route, integrate, and decide rather than manually performing every lane sequentially.
-- Stay on the leader path unless the current strategy truly remains `single-lane`; do not collapse a multi-lane investigation back into leader-local thrash.
+- Stay on the leader path only when the decision is `leader-inline-fallback`; do not collapse a multi-lane investigation back into leader-inline thrash.
 
 ## Operating Principles
 
@@ -241,21 +241,19 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ## Capability-Aware Investigation
 
-- During `investigating`, decide whether the current investigation should stay `single-lane` or switch to delegated evidence collection before running multiple independent evidence-gathering actions sequentially.
-- [AGENT] Use the shared policy function with the current capability snapshot: `choose_execution_strategy(command_name="debug", snapshot, workload_shape)`.
-- Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`.
-- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal. If confidence is `low`, prefer sidecar or leader-led investigation over brittle native fan-out.
+- During `investigating`, decide whether the current investigation can use subagent evidence collection before running multiple independent evidence-gathering actions sequentially.
+- [AGENT] Use the shared policy function with the current capability snapshot: `choose_subagent_dispatch(command_name="debug", snapshot, workload_shape)`.
+- Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
+- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal. If confidence is `low`, prefer managed-team or leader-inline fallback over brittle native fan-out.
 - Debug routing decision order:
-  - If there are fewer than 2 independent evidence-gathering lanes, or the planned evidence work would share mutable state -> `single-lane` (`no-safe-batch`)
-  - Else if `snapshot.native_multi_agent` and `snapshot.delegation_confidence` is not `low` -> `native-multi-agent` (`native-supported`)
-  - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing` or `native-low-confidence`)
-  - Else -> `single-lane` (`fallback` or `fallback-low-confidence`)
-- `single-lane` means only one investigation lane is currently safe.
-- `single-lane` does not, by itself, require leader-local work.
+  - One safe validated evidence lane -> `one-subagent` on `native-subagents` when available.
+  - Two or more independent evidence lanes -> `parallel-subagents` on `native-subagents` when available.
+  - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
+  - No safe lane, shared mutable state, missing contract, low confidence, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
 - Dispatch that single subagent only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality.
 - If that subagent-readiness bar is not met, keep the lane on the leader path.
-- `native-multi-agent` means the leader dispatches bounded evidence-gathering subagents.
-- `sidecar-runtime` means the leader uses the integration's managed team workflow only when subagent dispatch is unavailable.
+- `parallel-subagents` means the leader dispatches bounded evidence-gathering subagents and rejoins at an explicit join point.
+- `managed-team` means the leader uses the integration's durable team workflow only when native subagent dispatch is unavailable.
 - Suitable subagent tasks include:
   - running targeted tests or repro commands,
   - collecting logs and exit codes,

@@ -14,6 +14,21 @@
 
 ## Main Flows
 
+### Subagents-First Execution Guidance
+
+Execution-oriented generated workflows teach a leader + subagents model:
+
+- `execution_model: subagents-first`
+- `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`
+- `execution_surface: native-subagents | managed-team | leader-inline`
+
+`one-subagent` is valid when one bounded delegated lane is safe and packetized.
+`parallel-subagents` is used for independent lanes with isolated write sets.
+`managed-team` is reserved for durable team state, explicit join-point tracking,
+result files, or lifecycle control beyond one in-session subagent burst.
+`leader-inline-fallback` is a recorded exception path, not the default execution
+shape.
+
 ### Template Generation
 
 1. Shared command template is read from `templates/commands/`.

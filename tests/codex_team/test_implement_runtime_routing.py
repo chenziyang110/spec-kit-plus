@@ -12,7 +12,7 @@ def _read_template() -> str:
 
 def _step_6_block() -> str:
     content = _read_template().lower()
-    start = content.find("6. select an execution strategy for each ready batch before writing code:")
+    start = content.find("6. select subagent dispatch for each ready batch before writing code:")
     assert start != -1
     end = content.find("\n7. execute implementation following the task plan:", start)
     assert end != -1
@@ -22,16 +22,17 @@ def _step_6_block() -> str:
 def test_sp_implement_documents_canonical_decision_order() -> None:
     content = _step_6_block()
 
-    no_safe_batch = content.find("parallel_batches <= 0")
-    native_supported = content.find("native_multi_agent")
-    native_missing = content.find("native-missing")
-    fallback = content.find("fallback")
+    decision_order = content[content.find("decision order (must match policy):") :]
+    fallback = decision_order.find("leader-inline-fallback")
+    one_subagent = decision_order.find("one safe validated packet is ready and native subagents are available")
+    parallel_subagents = decision_order.find("multiple safe validated packets have isolated write sets")
+    managed_team = decision_order.find("native subagents are unavailable")
 
-    assert no_safe_batch != -1
-    assert native_supported != -1
-    assert native_missing != -1
     assert fallback != -1
-    assert no_safe_batch < native_supported < native_missing < fallback
+    assert one_subagent != -1
+    assert parallel_subagents != -1
+    assert managed_team != -1
+    assert fallback < one_subagent < parallel_subagents < managed_team
 
 
 def test_sp_implement_preserves_join_point_semantics() -> None:
@@ -48,8 +49,9 @@ def test_sp_implement_preserves_join_point_semantics() -> None:
 def test_sp_implement_distinguishes_execution_modes() -> None:
     content = _step_6_block()
 
-    assert "single-lane" in content
-    assert "native-multi-agent" in content
+    assert "execution_model: subagents-first" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
     assert "decision order" in content
     assert "specify team" not in content
     assert "auto-dispatch" not in content
@@ -60,8 +62,8 @@ def test_sp_implement_positions_the_runtime_as_leader_only() -> None:
 
     assert "invoking runtime acts as the leader" in content
     assert "dispatches work instead of performing concrete implementation directly" in content
-    assert "`single-lane` names the topology for one safe execution lane" in content
-    assert "does not, by itself, decide whether the leader or a subagent executes that lane" in content
+    assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in content
+    assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
 
 
 def test_sp_implement_documents_milestone_next_step_selection() -> None:

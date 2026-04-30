@@ -20,10 +20,10 @@ class DelegationSurfaceDescriptor:
     integration_key: str
     command_name: str
     intent: DelegationIntent
-    native_surface: str
+    native_subagent_surface: str
     native_dispatch_hint: str
     native_join_hint: str
-    sidecar_surface_hint: str
+    managed_team_hint: str
     result_contract_hint: str
     result_handoff_hint: str
     structured_results_expected: bool
@@ -69,24 +69,24 @@ def describe_delegation_surface(
         )
 
     if normalized_command == "implement":
-        sidecar_surface_hint = (
+        managed_team_hint = (
             "No in-command team fallback for `sp-implement`; if subagents cannot proceed safely, stay on the leader path and record why."
         )
     else:
-        sidecar_surface_hint = (
+        managed_team_hint = (
             "Use the managed team workflow when subagents are unavailable, low-confidence, or unsuitable."
-            if snapshot.sidecar_runtime_supported
-            else "No managed team workflow is currently available; use leader-local fallback only when subagents cannot proceed safely."
+            if snapshot.managed_team_supported
+            else "No managed team workflow is currently available; use leader-inline fallback only when subagents cannot proceed safely."
         )
 
     return DelegationSurfaceDescriptor(
         integration_key=snapshot.integration_key,
         command_name=command_name,
         intent=intent,
-        native_surface=snapshot.native_worker_surface,
+        native_subagent_surface=snapshot.native_worker_surface,
         native_dispatch_hint=native_dispatch_hint,
         native_join_hint=native_join_hint,
-        sidecar_surface_hint=sidecar_surface_hint,
+        managed_team_hint=managed_team_hint,
         result_contract_hint=result_contract_hint,
         result_handoff_hint=describe_result_handoff_template(
             command_name=command_name,

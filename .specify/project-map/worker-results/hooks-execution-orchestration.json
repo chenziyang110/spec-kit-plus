@@ -27,14 +27,14 @@
     "`WorkerTaskPacket` carries feature/task/story IDs, read/write scope, context bundle, required references, hard rules, forbidden drift, validation gates, done criteria, and handoff requirements.",
     "`WorkerTaskResult` carries task status, changed files, validation results, blockers, concerns, and rule acknowledgement including paths read.",
     "Hook CLI commands expose workflow preflight, state/artifact validation, checkpointing, delegation packet/result validation, context monitoring, read guard, prompt guard, workflow boundary, phase boundary, commit validation, learning, and project-map dirty/complete-refresh helpers.",
-    "`choose_execution_strategy` implements canonical strategy selection: no safe batch or overlapping write sets go to `single-lane`; otherwise native multi-agent is preferred when supported; non-implement commands may fall back to sidecar runtime; final fallback is leader-local single-lane.",
+    "`choose_subagent_dispatch` implements canonical subagents-first dispatch selection: no safe delegated lane, overlapping write sets, missing packets, low confidence, or missing native subagents route to a recorded fallback; one safe lane routes to `one-subagent`; multiple safe lanes route to `parallel-subagents`; durable team escalation uses `managed-team`; final fallback is `leader-inline-fallback`.",
     "Orchestration state writes JSON under `.specify/orchestration/` for sessions, batches, lanes, tasks, decisions, milestone state, and event logs.",
     "`assess_passive_parallelism` is a conservative decision surface and does not dispatch work by itself."
   ],
   "recommended_atlas_updates": [
     "Document execution packet/result schemas as the stable delegated-work contract.",
     "Document hooks as explicit helper surfaces, not magical enforcement in every runtime.",
-    "Document strategy vocabulary and fallback semantics."
+    "Document subagents-first dispatch vocabulary and fallback semantics."
   ],
   "atlas_targets_updated_or_confirmed": [
     ".specify/project-map/root/ARCHITECTURE.md",

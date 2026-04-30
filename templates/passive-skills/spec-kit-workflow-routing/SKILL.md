@@ -72,14 +72,18 @@ complete and proceed.
 
 ## Subagent Routing
 
-- If a routed workflow discovers 2+ independent lanes, engage
-  `dispatching-parallel-agents` and `subagent-driven-development` instead of
-  silently collapsing the work into leader-local execution.
-- `sp-fast` is the main inline-only route; use it only when the work is trivial,
-  local, low risk, and does not benefit from parallel verification.
+- Use subagents-first execution for bounded delegated work.
+- Dispatch `one-subagent` when one safe lane is ready.
+- Dispatch `parallel-subagents` when two or more independent lanes can run
+  concurrently.
+- Use `leader-inline-fallback` only after recording why delegation is
+  unavailable, unsafe, or not packetized.
+- Do not use old strategy labels as routing choices.
+- `sp-fast` is the main leader-inline route; use it only when the work is
+  trivial, local, low risk, and does not benefit from delegated verification.
 - For `sp-quick`, `sp-debug`, `sp-test-build`, `sp-map-scan`, `sp-map-build`, and
-  `sp-implement`, native subagents are the default execution mechanism for
-  independent bounded lanes when the current runtime supports them.
+  `sp-implement`, leader + subagents is the default execution shape for
+  independent bounded lanes when the current runtime supports delegation.
 - Use `sp-teams` only when Codex work needs durable team state, explicit join-point
   tracking, or lifecycle control beyond one in-session subagent burst.
 
@@ -102,4 +106,5 @@ complete and proceed.
   but no `sp-*` workflow has been named yet.
 - You are treating "small" as a reason to skip routing instead of checking `sp-fast`
   or `sp-quick`.
-- You found independent lanes but have not considered native subagents.
+- You found independent lanes but have not considered `one-subagent` or
+  `parallel-subagents` dispatch.

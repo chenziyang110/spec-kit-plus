@@ -908,8 +908,8 @@ def _suggest_quick_auto_capture(workspace: Path) -> tuple[Path, list[AutoCapture
         suggestions.append(
             AutoCaptureSuggestion(
                 learning_type="project_constraint",
-                summary="Leader-local quick-task fallback should preserve the runtime unavailability reason as a reusable execution constraint",
-                recurrence_key="quick.leader-local-fallback-preserves-runtime-unavailability-reason",
+                summary="Leader-inline quick-task fallback should preserve the runtime unavailability reason as a reusable execution constraint",
+                recurrence_key="quick.leader-inline-fallback-preserves-runtime-unavailability-reason",
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from quick STATUS.md",
                     [

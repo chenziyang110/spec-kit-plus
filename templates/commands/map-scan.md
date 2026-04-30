@@ -85,17 +85,16 @@ source-of-truth document. The scan package is a task package for
    - [AGENT] Read `PROJECT-HANDBOOK.md` and existing `.specify/project-map/root/*.md` files if present.
    - If local project-map templates exist under `.specify/templates/project-map/`, read them so scan packets target the local atlas shape.
 
-2. **Select the scan strategy**
-   - [AGENT] Before broad inventory begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_execution_strategy(command_name="map-scan", snapshot, workload_shape)`.
-   - Strategy names are canonical and must be used exactly: `single-lane`, `native-multi-agent`, `sidecar-runtime`.
+2. **Select the scan dispatch shape**
+   - [AGENT] Before broad inventory begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="map-scan", snapshot, workload_shape)`.
+   - Persist the decision fields exactly: `execution_model: subagents-first`, `dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback`, `execution_surface: native-subagents | managed-team | leader-inline`.
    - Decision order is fixed:
-     - If the work does not justify safe fan-out -> `single-lane` (`no-safe-batch`)
-     - Else if `snapshot.native_multi_agent` -> `native-multi-agent` (`native-supported`)
-     - Else if `snapshot.sidecar_runtime_supported` -> `sidecar-runtime` (`native-missing`)
-     - Else -> `single-lane` (`fallback`)
-   - Current-runtime native subagents are the default when two or more safe read-only inventory lanes exist.
-   - `single-lane` names the topology for one safe scan lane. It does not, by itself, require leader-local inventory.
-   - For `single-lane`, dispatch one read-only scout once a validated `MapScanPacket` or equivalent scan contract exists and the current runtime supports native subagents; keep it leader-local only while the packet is still incomplete or dispatch is unavailable.
+     - One safe validated scan lane -> `one-subagent` on `native-subagents` when available.
+     - Two or more safe read-only inventory lanes -> `parallel-subagents` on `native-subagents` when available.
+     - Native subagents unavailable but durable coordination supported -> `parallel-subagents` on `managed-team`.
+     - No safe lane, missing packet, or unavailable delegation -> `leader-inline-fallback` with a recorded reason.
+   - Current-runtime native subagents are the default when safe read-only inventory lanes exist.
+   - For `one-subagent`, dispatch one read-only scout once a validated `MapScanPacket` or equivalent scan contract exists; keep it leader-inline only while the packet is incomplete or dispatch is unavailable.
    - If collaboration is justified, keep `map-scan` lanes read-only and limited to inventory, classification, and packet drafting.
    - Recommended scan lanes:
      - source, architecture, and module boundaries

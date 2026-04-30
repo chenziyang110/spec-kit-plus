@@ -29,7 +29,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "compressed framing still requires the full observer framing section" in content
     assert "you are not the default evidence worker for every lane" in content
     assert "route, integrate, and decide rather than manually performing every lane sequentially" in content
-    assert "stay on the leader path unless the current strategy truly remains `single-lane`" in content
+    assert "stay on the leader path only when the decision is `leader-inline-fallback`" in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
@@ -58,13 +58,17 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "control state is not observation state" in content
     assert "debug the loop, not just the point" in content
     assert "escalate diagnostics when the loop is still ambiguous" in content
-    assert "single-lane" in content
-    assert "native-multi-agent" in content
-    assert "sidecar-runtime" in content
-    assert "`single-lane` means only one investigation lane is currently safe" in content
+    assert "execution_model: subagents-first" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
+    assert "one-subagent" in content
+    assert "parallel-subagents" in content
+    assert "native-subagents" in content
+    assert "managed-team" in content
+    assert "leader-inline-fallback" in content
     assert "dispatch that single subagent only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality" in content
     assert "if that subagent-readiness bar is not met, keep the lane on the leader path" in content
-    assert 'choose_execution_strategy(command_name="debug"' in content
+    assert 'choose_subagent_dispatch(command_name="debug"' in content
     assert "leader-led" in content
     assert "debug file" in content
     assert "evidence-gathering" in content or "evidence-gathering tasks" in content
@@ -93,7 +97,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert ".planning/debug/[slug].research.md" in content
     assert "debug-local research checkpoint" in content
     assert "dispatches bounded evidence-gathering subagents" in content
-    assert "managed team workflow" in content
+    assert "durable team workflow" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-scan` followed by `/sp-map-build` before moving to `awaiting_human_verify` or `resolved`" in content
     assert "mark `.specify/project-map/index/status.json` dirty" in content
