@@ -1,6 +1,6 @@
 # Project Handbook
 
-**Last Updated:** 2026-04-30
+**Last Updated:** 2026-05-01
 **Purpose:** Root navigation artifact for this repository.
 
 ## System Summary
@@ -41,12 +41,19 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 
 ## Quick Navigation (Layer 1)
 
-For generated projects, open `.specify/project-map/QUICK-NAV.md` first. In this repository, use `templates/project-map/QUICK-NAV.md` plus the handbook's `Where To Read Next` / `Topic Map` sections. The atlas still follows the same four-layer model:
+For generated projects, open `.specify/project-map/QUICK-NAV.md` first. In this repository, use `templates/project-map/QUICK-NAV.md` plus the handbook's `Where To Read Next` / `Topic Map` sections. Layer 1 is now a dictionary-style atlas entry surface rather than a thin route table.
 
-- **Layer 1 (routing)**: `QUICK-NAV.md` — task→document mapping
+- **Layer 1 (routing)**: `QUICK-NAV.md` — task routes, symptom routes, shared-surface hotspots, verification routes, and propagation-risk routes
 - **Layer 2 (summary)**: `root/ARCHITECTURE.md` capability cards — module-at-a-glance
 - **Layer 3 (detail)**: `modules/<name>/OVERVIEW.md` — full technical detail
 - **Layer 4 (source)**: Live code — when docs are missing or stale
+
+The entry layer should help answer:
+
+- which module most likely owns the touched area
+- which root topic should be read next
+- which verification entrypoints matter after the change
+- which shared surfaces or propagation risks make the change unsafe to treat as local
 
 ## Shared Surfaces
 
@@ -151,6 +158,8 @@ For generated projects, open `.specify/project-map/QUICK-NAV.md` first. In this 
 ## Recent Structural Changes
 
 - The layered project-map atlas now treats `QUICK-NAV.md` as the canonical Layer 1 routing surface and includes it in canonical atlas outputs and freshness requirements.
+- Layer 1 now behaves like a dictionary-style atlas entry surface with symptom routing, shared-surface hotspots, verification routes, and propagation-risk routes.
+- Ordinary `sp-*` workflows now treat atlas consumption as a hard gate before source-level work, instead of a warn-only layered hint.
 - The old one-step map-codebase path was replaced with `sp-map-scan -> sp-map-build`.
 - The layered project-map atlas now has explicit scan packets, worker-result evidence, root/module docs, reverse coverage validation, and freshness completion.
 - Testing workflow guidance now routes through `sp-test`, `sp-test-scan`, and `sp-test-build`.

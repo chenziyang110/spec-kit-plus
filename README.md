@@ -198,13 +198,14 @@ Conditional gates and follow-up commands:
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing subagent validation evidence)
 
 Already have code? Run `map-scan`, then `map-build` first and treat that two-step flow as the required brownfield gate before deeper specification, planning, task generation, or implementation work.
-Generated projects track handbook freshness in `.specify/project-map/index/status.json`, so brownfield workflows can decide whether the current atlas baseline is fresh, possibly stale, or stale before proceeding.
+Generated projects track handbook freshness in `.specify/project-map/index/status.json`, so brownfield workflows can decide whether the current atlas baseline is fresh, possibly stale, or stale before proceeding. Ordinary `sp-*` workflows should treat atlas freshness as a hard gate before source-level work rather than a warn-only hint.
 
 Routing guide for lightweight work:
 
 - `sp-fast` is only for trivial local fixes. Stay on that path only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
 - Move from `sp-fast` to `sp-quick` as soon as the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
+- Both `sp-fast` and `sp-quick` still pass the atlas hard gate first: read `PROJECT-HANDBOOK.md`, the Layer 1 atlas entry surface, freshness/index state, and the relevant root/module atlas documents before source reads continue.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
 - Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` now follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, route through `sp-test` or directly to `sp-test-scan` before continuing.
 - For brownfield repositories with weak legacy coverage, let `sp-test-scan` generate `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and treat it as the starting artifact for any testing-system program or coverage uplift program that must continue through `sp-specify`, `sp-quick`, or `sp-fast`; use `sp-test-build` only once build-ready lanes exist.
@@ -531,6 +532,7 @@ Navigation and technical truth are now handbook-first:
 - In generated projects, deep project knowledge lives under `.specify/project-map/`.
 - This repository does not treat its own root `.specify/` directory as committed source-of-truth content; repo-local `.specify/` state is disposable and may be regenerated.
 - Treat the combined handbook/project-map surface as an atlas-style technical encyclopedia for dependency graph, runtime flows, state lifecycle, and change-impact view.
+- Layer 1 (`QUICK-NAV.md`) is now a dictionary-style atlas entry surface with task routes, symptom routes, shared-surface hotspots, verification routes, and propagation-risk routes.
 - In generated projects, `.specify/project-map/index/status.json` records the last successful map refresh and dirty state for freshness checks.
 - After a successful `map-build` refresh, use `project-map complete-refresh` as the standard completion hook to record the new fresh baseline.
 - Any code change that alters navigation meaning must update the handbook system.
