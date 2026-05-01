@@ -1,6 +1,6 @@
 ## Context Loading
 
-This command is tier: `{TIER}`. Load only the layers this tier requires.
+Load only the layers this command's tier requires.
 
 ### Layer Access by Tier
 
