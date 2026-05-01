@@ -47,8 +47,9 @@ class TestInitIntegrationFlag:
         assert (project / ".codex" / "skills" / "sp-teams" / "SKILL.md").exists()
         assert (project / ".specify" / "teams" / "runtime.json").exists()
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "QUICK-NAV.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "root" / "ARCHITECTURE.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "root" / "OPERATIONS.md").exists()
         assert (project / ".specify" / "project-map" / "status.json").exists()
         assert "sp-teams" in result.output
         assert "Codex Teams Readiness" in result.output
@@ -125,9 +126,9 @@ class TestInitIntegrationFlag:
         implement_skill = project / ".claude" / "skills" / "sp-implement" / "SKILL.md"
         assert implement_skill.exists()
         content = implement_skill.read_text(encoding="utf-8")
-        assert "execution_model: subagents-first" in content
-        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
-        assert "execution_surface: native-subagents | managed-team | leader-inline" in content
+        assert "execution_model: subagent-mandatory" in content
+        assert "dispatch_shape: one-subagent | parallel-subagents" in content
+        assert "execution_surface: native-subagents" in content
         assert "project-handbook.md" in content.lower()
         assert ".specify/project-map/root/architecture.md" in content.lower()
         assert ".specify/project-map/root/operations.md" in content.lower()
@@ -166,9 +167,9 @@ class TestInitIntegrationFlag:
         skills_dir = project / ".claude" / "skills"
         for skill_name in ("sp-specify", "sp-plan", "sp-test-scan", "sp-test-build", "sp-tasks", "sp-explain", "sp-debug"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
-            assert "execution_model: subagents-first" in content
-            assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
-            assert "execution_surface: native-subagents | managed-team | leader-inline" in content
+            assert "execution_model: subagent-mandatory" in content
+            assert "dispatch_shape: one-subagent | parallel-subagents" in content
+            assert "execution_surface: native-subagents" in content
             assert "specify team" not in content
 
         test_router = (skills_dir / "sp-test" / "SKILL.md").read_text(encoding="utf-8").lower()
@@ -187,7 +188,7 @@ class TestInitIntegrationFlag:
         fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "project-handbook.md" in fast_content
         assert "shared surfaces" in fast_content
-        assert "risky coordination points" in fast_content
+        assert "change-propagation hotspot" in fast_content
 
         quick_content = (skills_dir / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert ".specify/memory/constitution.md" in quick_content
@@ -195,8 +196,8 @@ class TestInitIntegrationFlag:
         assert ".specify/memory/project-learnings.md" in quick_content
         assert ".planning/learnings/candidates.md" in quick_content
         assert "project-handbook.md" in quick_content
-        assert "topic map" in quick_content
-        assert "touched-area topical files" in quick_content
+        assert ".specify/project-map/quick-nav.md" in quick_content
+        assert "target module `overview.md`" in quick_content
         assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content
         assert "attempt the smallest safe recovery step before declaring the task blocked" in quick_content
         assert "retry_attempts" in quick_content
@@ -243,8 +244,9 @@ class TestInitIntegrationFlag:
         assert (project / ".github" / "prompts" / "sp.plan.prompt.md").exists()
         assert (project / ".specify" / "scripts" / "bash" / "common.sh").exists()
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "QUICK-NAV.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "root" / "ARCHITECTURE.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "root" / "OPERATIONS.md").exists()
         assert (project / ".specify" / "project-map" / "status.json").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
         assert (project / ".specify" / "templates" / "spec-template.md").exists()
@@ -785,6 +787,7 @@ class TestInitIntegrationFlag:
             project_map_dir = project / ".specify" / "project-map"
             index_dir = project_map_dir / "index"
             root_dir = project_map_dir / "root"
+            (project_map_dir / "QUICK-NAV.md").write_text("# Quick Navigation\n", encoding="utf-8")
             index_dir.mkdir(parents=True, exist_ok=True)
             root_dir.mkdir(parents=True, exist_ok=True)
             (index_dir / "atlas-index.json").write_text("{}\n", encoding="utf-8")
@@ -888,6 +891,7 @@ class TestInitIntegrationFlag:
             project_map_dir = project / ".specify" / "project-map"
             index_dir = project_map_dir / "index"
             root_dir = project_map_dir / "root"
+            (project_map_dir / "QUICK-NAV.md").write_text("# Quick Navigation\n", encoding="utf-8")
             index_dir.mkdir(parents=True, exist_ok=True)
             root_dir.mkdir(parents=True, exist_ok=True)
             (index_dir / "atlas-index.json").write_text("{}\n", encoding="utf-8")

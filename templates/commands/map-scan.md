@@ -35,7 +35,7 @@ coherent for all project-relevant surfaces.
 ## Hard Boundary
 
 - `sp-map-scan` must not write final atlas truth.
-- `sp-map-scan` must not edit `PROJECT-HANDBOOK.md`, `.specify/project-map/index/*.json`, `.specify/project-map/root/*.md`, or `.specify/project-map/modules/**`.
+- `sp-map-scan` must not edit `PROJECT-HANDBOOK.md`, `.specify/project-map/QUICK-NAV.md`, `.specify/project-map/index/*.json`, `.specify/project-map/root/*.md`, or `.specify/project-map/modules/**`.
 - `sp-map-scan` writes only the scan package:
   - `.specify/project-map/map-scan.md`
   - `.specify/project-map/coverage-ledger.md`
@@ -95,6 +95,7 @@ source-of-truth document. The scan package is a task package for
    - Read `.specify/memory/constitution.md` if present.
    - [AGENT] Read `.specify/project-map/index/status.json` if present to recover the current map baseline, dirty state, previous refresh metadata, and module `deep_stale` warnings.
    - [AGENT] Read `.specify/project-map/index/atlas-index.json`, `.specify/project-map/index/modules.json`, and `.specify/project-map/index/relations.json` if present.
+   - [AGENT] Read `.specify/project-map/QUICK-NAV.md` if present so the scan preserves the current Layer 1 routing contract.
    - [AGENT] Read `PROJECT-HANDBOOK.md` and existing `.specify/project-map/root/*.md` files if present.
    - If local project-map templates exist under `.specify/templates/project-map/`, read them so scan packets target the local atlas shape.
 

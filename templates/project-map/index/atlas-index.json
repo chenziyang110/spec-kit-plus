@@ -1,15 +1,63 @@
 {
   "version": 1,
   "generated_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "repository": "",
+  "summary": "",
   "modules_count": 0,
   "last_full_refresh_commit": "",
   "global_freshness": "missing",
-  "primary_root_docs": [
+  "entrypoints": [
+    "PROJECT-HANDBOOK.md",
+    ".specify/project-map/QUICK-NAV.md",
     ".specify/project-map/root/ARCHITECTURE.md",
     ".specify/project-map/root/WORKFLOWS.md",
-    ".specify/project-map/root/TESTING.md"
+    ".specify/project-map/root/TESTING.md",
+    ".specify/project-map/root/OPERATIONS.md"
   ],
   "module_registry_path": ".specify/project-map/index/modules.json",
   "relations_path": ".specify/project-map/index/relations.json",
-  "status_path": ".specify/project-map/index/status.json"
+  "status_path": ".specify/project-map/index/status.json",
+  "scan_package": {
+    "map_scan": ".specify/project-map/map-scan.md",
+    "coverage_ledger": ".specify/project-map/coverage-ledger.json",
+    "scan_packets_dir": ".specify/project-map/scan-packets",
+    "worker_results_dir": ".specify/project-map/worker-results"
+  },
+  "root_topics": [
+    {
+      "id": "architecture",
+      "path": ".specify/project-map/root/ARCHITECTURE.md",
+      "use_when": ""
+    },
+    {
+      "id": "structure",
+      "path": ".specify/project-map/root/STRUCTURE.md",
+      "use_when": ""
+    },
+    {
+      "id": "conventions",
+      "path": ".specify/project-map/root/CONVENTIONS.md",
+      "use_when": ""
+    },
+    {
+      "id": "integrations",
+      "path": ".specify/project-map/root/INTEGRATIONS.md",
+      "use_when": ""
+    },
+    {
+      "id": "workflows",
+      "path": ".specify/project-map/root/WORKFLOWS.md",
+      "use_when": ""
+    },
+    {
+      "id": "testing",
+      "path": ".specify/project-map/root/TESTING.md",
+      "use_when": ""
+    },
+    {
+      "id": "operations",
+      "path": ".specify/project-map/root/OPERATIONS.md",
+      "use_when": ""
+    }
+  ]
 }

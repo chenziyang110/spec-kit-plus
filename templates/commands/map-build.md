@@ -3,7 +3,7 @@ description: Use when `sp-map-scan` has produced a complete scan package and you
 workflow_contract:
   when_to_use: A completed scan package exists and the canonical handbook/project-map atlas must be built or refreshed from it.
   primary_objective: Validate the scan package, dispatch read-only explorer packets, write the canonical atlas, and prove reverse coverage closure.
-  primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/index/*.json`, `.specify/project-map/root/*.md`, `.specify/project-map/modules/<module-id>/*.md`, `.specify/project-map/index/status.json`, `.specify/project-map/map-state.md`, and `.specify/project-map/worker-results/*.json`.'
+  primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/QUICK-NAV.md`, `.specify/project-map/index/*.json`, `.specify/project-map/root/*.md`, `.specify/project-map/modules/<module-id>/*.md`, `.specify/project-map/index/status.json`, `.specify/project-map/map-state.md`, and `.specify/project-map/worker-results/*.json`.'
   default_handoff: Return to the blocked workflow that required fresh navigation coverage.
 ---
 
@@ -44,6 +44,7 @@ Before writing final atlas documents, read:
 - `.specify/project-map/coverage-ledger.json`
 - `.specify/project-map/scan-packets/*.md`
 - `.specify/project-map/map-state.md` if present
+- `.specify/project-map/QUICK-NAV.md` if present
 - `PROJECT-HANDBOOK.md` if present
 - `.specify/project-map/index/*.json` if present
 - `.specify/project-map/root/*.md` if present
@@ -211,6 +212,7 @@ This atlas output contract is the only final write surface for
 The only canonical outputs for this command are:
 
 - `PROJECT-HANDBOOK.md`
+- `.specify/project-map/QUICK-NAV.md`
 - `.specify/project-map/index/atlas-index.json`
 - `.specify/project-map/index/modules.json`
 - `.specify/project-map/index/relations.json`
@@ -281,6 +283,7 @@ Before reporting success, `sp-map-build` must prove reverse coverage validation:
 - every command/API/integration/runtime entrypoint has owner, consumer, change propagation, and verification
 - every low-confidence area is visible in Known Unknowns, Low-Confidence Areas, or module `deep_stale`
 - every excluded bucket has a reason and revisit condition
+- `QUICK-NAV.md` is refreshed or explicitly confirmed current as the Layer 1 routing surface
 - `PROJECT-HANDBOOK.md` stays index-first and routes to deeper topical docs
 
 If any check fails, continue mapping or route back to `/sp-map-scan`; do not

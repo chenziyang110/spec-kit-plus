@@ -43,6 +43,13 @@ sp-map-scan -> sp-map-build
 
 `sp-map-build` validates that package, executes the packets against live repository paths, writes worker-result evidence, synthesizes atlas docs, validates reverse coverage, and completes freshness.
 
+Layered atlas expectations during brownfield reads:
+
+- Layer 1: `.specify/project-map/QUICK-NAV.md`
+- Layer 2: root topical docs such as `root/ARCHITECTURE.md` and `root/WORKFLOWS.md`
+- Layer 3: module `OVERVIEW.md` and module-local docs
+- Layer 4: source only when the atlas is missing, stale, marked low confidence, or too broad
+
 ## Testing Workflow
 
 `sp-test` is a compatibility router:
@@ -64,9 +71,10 @@ Durable testing artifacts live under `.specify/testing/` when generated:
 
 - `sp-fast`: trivial local fixes only; escalate when the work expands, touches shared surfaces, or needs tests/research.
 - `sp-quick`: bounded non-trivial work with `.planning/quick/<id>-<slug>/STATUS.md`.
-- `sp-debug`: investigation-first flow for unknown root cause; must prove reproduction and fix path before changing behavior.
+- `sp-debug`: investigation-first flow for unknown root cause; begins with observer framing and may dispatch a think subagent before evidence collection, then must prove reproduction and fix path before changing behavior.
 - `sp-tasks`: generates enriched subagent-ready task contracts with agent role assignment, context navigation, scope boundaries, verify commands, and escalation strategy for `sp-implement` dispatch.
 - `sp-implement`: leader + subagents execution path over generated tasks and milestone state; uses shared subagents-first dispatch vocabulary and worker packet/result contracts.
+- `sp-deep-research`: research-first feasibility workflow that now produces traceable Planning Handoff inputs consumed by `sp-plan`.
 
 ## Entry Points, Contracts, and Handoffs
 
@@ -100,6 +108,7 @@ Durable testing artifacts live under `.specify/testing/` when generated:
 
 - Incomplete scan package: `sp-map-build` must refuse atlas writing and route back to `sp-map-scan`.
 - Structural-only atlas refresh: failed build; worker results must include `paths_read`.
+- Layered atlas drift: if Layer 1 routing, atlas index schema, or map-state canonical outputs drift from templates or live docs, refresh the atlas before later brownfield work proceeds.
 - Stale global `specify` executable: use `PYTHONPATH=src; python -m specify_cli ...` or editable install.
 - Codex team missing runtime backend: install tmux/psmux and required toolchain.
 - Hook/packet validation failure: fix the packet/result or workflow state before claiming completion.

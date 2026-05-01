@@ -14,6 +14,7 @@ STATUS_PATH="$(project_map_status_path "$REPO_ROOT")"
 LEGACY_STATUS_PATH="$(legacy_project_map_status_path "$REPO_ROOT")"
 CANONICAL_MAP_FILES=(
     "$REPO_ROOT/PROJECT-HANDBOOK.md"
+    "$REPO_ROOT/.specify/project-map/QUICK-NAV.md"
     "$REPO_ROOT/.specify/project-map/index/atlas-index.json"
     "$REPO_ROOT/.specify/project-map/index/modules.json"
     "$REPO_ROOT/.specify/project-map/index/relations.json"
@@ -56,7 +57,7 @@ ensure_canonical_map_files() {
 
     echo "Cannot record a fresh project-map baseline because canonical map files are missing:" >&2
     printf ' - %s\n' "${missing[@]}" >&2
-    echo "Run /sp-map-scan, then /sp-map-build first so PROJECT-HANDBOOK.md and .specify/project-map/*.md exist." >&2
+    echo "Run /sp-map-scan, then /sp-map-build first so PROJECT-HANDBOOK.md, .specify/project-map/QUICK-NAV.md, and the layered atlas files exist." >&2
     return 1
 }
 

@@ -25,7 +25,9 @@ and what sits clearly outside the system boundary.]
 ## How To Read This Project
 
 - Start here for orientation.
+- **First stop for any task**: open `.specify/project-map/QUICK-NAV.md` — a concise Layer 1 routing table that answers "which document should I open?"
 - The handbook is the index-first entrypoint.
+- Read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` before broad brownfield work.
 - Treat the combined handbook/project-map set as the repository's atlas-style technical encyclopedia.
 - The topical project-map documents hold the full technical detail.
 - Use `Topic Map` to choose the next topical document.
@@ -33,6 +35,15 @@ and what sits clearly outside the system boundary.]
 - Fall back to live code reads only when the topical coverage is missing, stale, or too broad.
 - Point to the topic docs instead of duplicating deep detail when the
   explanation belongs in a topical file.
+
+## Quick Navigation (Layer 1)
+
+Describe the four-layer atlas explicitly:
+
+- **Layer 1 (routing)**: `QUICK-NAV.md` — task-to-document routing
+- **Layer 2 (summary)**: `root/ARCHITECTURE.md` capability cards and root topical summaries
+- **Layer 3 (detail)**: `modules/<module-id>/OVERVIEW.md` plus module-local docs
+- **Layer 4 (source)**: live code and runtime state when the atlas is missing, stale, or too broad
 
 ## Shared Surfaces
 
@@ -86,6 +97,7 @@ and what sits clearly outside the system boundary.]
 
 ## Topic Map
 
+- `.specify/project-map/QUICK-NAV.md` - Layer 1 routing table for the four-layer atlas
 - `.specify/project-map/index/atlas-index.json` - atlas entry summary and the next machine-readable lookup step
 - `.specify/project-map/index/modules.json` - module registry, owned roots, and module document paths
 - `.specify/project-map/index/relations.json` - cross-module dependencies, shared surfaces, and expansion routes

@@ -18,6 +18,7 @@ $statusPath = Get-ProjectMapStatusPath -RepoRoot $RepoRoot
 $legacyStatusPath = Get-LegacyProjectMapStatusPath -RepoRoot $RepoRoot
 $canonicalMapFiles = @(
     (Join-Path $RepoRoot "PROJECT-HANDBOOK.md"),
+    (Join-Path $RepoRoot ".specify/project-map/QUICK-NAV.md"),
     (Join-Path $RepoRoot ".specify/project-map/index/atlas-index.json"),
     (Join-Path $RepoRoot ".specify/project-map/index/modules.json"),
     (Join-Path $RepoRoot ".specify/project-map/index/relations.json"),
@@ -48,7 +49,7 @@ function Assert-CanonicalMapFiles {
         return
     }
 
-    Write-Error "Cannot record a fresh project-map baseline because canonical map files are missing:`n - $($missing -join "`n - ")`nRun /sp-map-scan, then /sp-map-build first so PROJECT-HANDBOOK.md and .specify/project-map/*.md exist."
+    Write-Error "Cannot record a fresh project-map baseline because canonical map files are missing:`n - $($missing -join "`n - ")`nRun /sp-map-scan, then /sp-map-build first so PROJECT-HANDBOOK.md, .specify/project-map/QUICK-NAV.md, and the layered atlas files exist."
     exit 1
 }
 

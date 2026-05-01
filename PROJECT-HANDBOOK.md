@@ -71,6 +71,7 @@ For task-based routing, open `.specify/project-map/QUICK-NAV.md` first — it is
 - Agent registration metadata propagates into CLI help, integration generation tests, README guidance, generated file paths, and tool checks.
 - Template wording propagates into every generated agent surface and template assertion tests.
 - Subagents-first dispatch vocabulary propagates into orchestration tests, generated workflow tests, integration tests, README/quickstart guidance, context scripts, and project-map docs.
+- Layered atlas routing now propagates from `templates/project-handbook-template.md`, `templates/project-map/QUICK-NAV.md`, `templates/project-map/index/atlas-index.json`, and `templates/project-map/map-state-template.md` into initialized projects, map refresh helpers, and project-map tests.
 - Packet/result schema changes propagate into execution helpers, hooks, Codex team runtime, generated workflow prompts, and contract tests.
 - Project-map freshness changes propagate into Python helpers, Bash/PowerShell scripts, hook commands, and brownfield gates.
 - Engine packaging changes propagate through `pyproject.toml` force-includes, `extensions/agent-teams/engine/`, Codex team installer/runtime tests, and release artifacts.
@@ -151,6 +152,7 @@ For task-based routing, open `.specify/project-map/QUICK-NAV.md` first — it is
 
 ## Recent Structural Changes
 
+- The layered project-map atlas now treats `QUICK-NAV.md` as the canonical Layer 1 routing surface and includes it in canonical atlas outputs and freshness requirements.
 - The old one-step map-codebase path was replaced with `sp-map-scan -> sp-map-build`.
 - The layered project-map atlas now has explicit scan packets, worker-result evidence, root/module docs, reverse coverage validation, and freshness completion.
 - Testing workflow guidance now routes through `sp-test`, `sp-test-scan`, and `sp-test-build`.

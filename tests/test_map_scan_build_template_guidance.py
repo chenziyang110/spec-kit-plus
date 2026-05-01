@@ -38,6 +38,7 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert ".specify/project-map/map-state.md" in content
     assert "Project Map State Protocol" in content
     assert "MAP_STATE_FILE=.specify/project-map/map-state.md" in content
+    assert ".specify/project-map/QUICK-NAV.md" in content
     assert "MapScanPacket" in content
     assert "`mode: read_only`" in content
     assert "`result_handoff_path`" in content
@@ -134,6 +135,7 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "reverse coverage validation" in lowered
     assert "complete-refresh" in content
     assert "PROJECT-HANDBOOK.md" in content
+    assert ".specify/project-map/QUICK-NAV.md" in content
     assert ".specify/project-map/index/*.json" in content
     assert ".specify/project-map/root/*.md" in content
     assert ".specify/project-map/modules/<module-id>/*.md" in content

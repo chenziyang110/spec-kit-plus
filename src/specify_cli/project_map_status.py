@@ -79,6 +79,7 @@ def canonical_project_map_paths(project_root: Path) -> list[Path]:
     project_map_root = project_map_root_dir(project_root)
     return [
         project_root / "PROJECT-HANDBOOK.md",
+        project_map_dir(project_root) / "QUICK-NAV.md",
         project_map_index_root / "atlas-index.json",
         project_map_index_root / "modules.json",
         project_map_index_root / "relations.json",

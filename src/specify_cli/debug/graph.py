@@ -295,6 +295,8 @@ def _observer_candidates_for_profile(profile: str) -> list[ObserverCauseCandidat
     ]
 
 
+# Deprecated: use think subagent via build_think_subagent_prompt() instead.
+# Kept for backward compatibility and testing.
 def _populate_observer_framing(state: DebugGraphState) -> None:
     if state.observer_framing_completed:
         return

@@ -56,6 +56,7 @@ updated: [ISO timestamp]
 ## Atlas Outputs
 
 - handbook: PROJECT-HANDBOOK.md
+- quick_nav: .specify/project-map/QUICK-NAV.md
 - index:
   - .specify/project-map/index/atlas-index.json
   - .specify/project-map/index/modules.json

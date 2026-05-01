@@ -25,6 +25,8 @@ def test_project_handbook_template_exists_and_routes_to_project_map():
     assert "## Atlas Views" in content
     assert "## Where To Read Next" in content
     assert "## Topic Map" in content
+    assert "## Quick Navigation (Layer 1)" in content
+    assert "`.specify/project-map/QUICK-NAV.md`" in content
     assert "`.specify/project-map/index/atlas-index.json`" in content
     assert "`.specify/project-map/root/ARCHITECTURE.md`" in content
     assert "`.specify/project-map/modules/<module-id>/OVERVIEW.md`" in content
@@ -32,13 +34,13 @@ def test_project_handbook_template_exists_and_routes_to_project_map():
 
 def test_project_map_templates_share_metadata_contract():
     for rel_path in [
-        "templates/project-map/ARCHITECTURE.md",
-        "templates/project-map/STRUCTURE.md",
-        "templates/project-map/CONVENTIONS.md",
-        "templates/project-map/INTEGRATIONS.md",
-        "templates/project-map/WORKFLOWS.md",
-        "templates/project-map/TESTING.md",
-        "templates/project-map/OPERATIONS.md",
+        "templates/project-map/root/ARCHITECTURE.md",
+        "templates/project-map/root/STRUCTURE.md",
+        "templates/project-map/root/CONVENTIONS.md",
+        "templates/project-map/root/INTEGRATIONS.md",
+        "templates/project-map/root/WORKFLOWS.md",
+        "templates/project-map/root/TESTING.md",
+        "templates/project-map/root/OPERATIONS.md",
     ]:
         content = _read(rel_path)
         assert "**Last Updated:**" in content
@@ -48,12 +50,12 @@ def test_project_map_templates_share_metadata_contract():
 
 
 def test_project_map_templates_encode_coverage_model_sections():
-    architecture = _read("templates/project-map/ARCHITECTURE.md")
-    structure = _read("templates/project-map/STRUCTURE.md")
-    integrations = _read("templates/project-map/INTEGRATIONS.md")
-    workflows = _read("templates/project-map/WORKFLOWS.md")
-    testing = _read("templates/project-map/TESTING.md")
-    operations = _read("templates/project-map/OPERATIONS.md")
+    architecture = _read("templates/project-map/root/ARCHITECTURE.md")
+    structure = _read("templates/project-map/root/STRUCTURE.md")
+    integrations = _read("templates/project-map/root/INTEGRATIONS.md")
+    workflows = _read("templates/project-map/root/WORKFLOWS.md")
+    testing = _read("templates/project-map/root/TESTING.md")
+    operations = _read("templates/project-map/root/OPERATIONS.md")
 
     assert "## Change Propagation Paths" in architecture
     assert "## High-Value Capabilities" in architecture
@@ -85,13 +87,13 @@ def test_project_map_templates_encode_coverage_model_sections():
 
 
 def test_project_map_templates_require_full_detail_sections_for_high_value_facts():
-    architecture = _read("templates/project-map/ARCHITECTURE.md")
-    structure = _read("templates/project-map/STRUCTURE.md")
-    conventions = _read("templates/project-map/CONVENTIONS.md")
-    integrations = _read("templates/project-map/INTEGRATIONS.md")
-    workflows = _read("templates/project-map/WORKFLOWS.md")
-    testing = _read("templates/project-map/TESTING.md")
-    operations = _read("templates/project-map/OPERATIONS.md")
+    architecture = _read("templates/project-map/root/ARCHITECTURE.md")
+    structure = _read("templates/project-map/root/STRUCTURE.md")
+    conventions = _read("templates/project-map/root/CONVENTIONS.md")
+    integrations = _read("templates/project-map/root/INTEGRATIONS.md")
+    workflows = _read("templates/project-map/root/WORKFLOWS.md")
+    testing = _read("templates/project-map/root/TESTING.md")
+    operations = _read("templates/project-map/root/OPERATIONS.md")
 
     assert "## Key Components and Responsibilities" in architecture
     assert "## Internal Boundaries and Critical Seams" in architecture
@@ -129,6 +131,7 @@ def test_project_map_templates_require_full_detail_sections_for_high_value_facts
 def test_project_handbook_template_points_readers_to_deep_detail_layer():
     content = _read("templates/project-handbook-template.md")
 
+    assert "open `.specify/project-map/QUICK-NAV.md`" in content
     assert "The handbook is the index-first entrypoint." in content
     assert "The topical project-map documents hold the full technical detail." in content
     assert "Treat the combined handbook/project-map set as the repository's atlas-style technical encyclopedia." in content
@@ -148,13 +151,13 @@ def test_project_handbook_template_guides_architecture_level_summary_content():
 
 
 def test_project_map_templates_guide_technical_document_grade_depth():
-    architecture = _read("templates/project-map/ARCHITECTURE.md").lower()
-    structure = _read("templates/project-map/STRUCTURE.md").lower()
-    conventions = _read("templates/project-map/CONVENTIONS.md").lower()
-    integrations = _read("templates/project-map/INTEGRATIONS.md").lower()
-    workflows = _read("templates/project-map/WORKFLOWS.md").lower()
-    testing = _read("templates/project-map/TESTING.md").lower()
-    operations = _read("templates/project-map/OPERATIONS.md").lower()
+    architecture = _read("templates/project-map/root/ARCHITECTURE.md").lower()
+    structure = _read("templates/project-map/root/STRUCTURE.md").lower()
+    conventions = _read("templates/project-map/root/CONVENTIONS.md").lower()
+    integrations = _read("templates/project-map/root/INTEGRATIONS.md").lower()
+    workflows = _read("templates/project-map/root/WORKFLOWS.md").lower()
+    testing = _read("templates/project-map/root/TESTING.md").lower()
+    operations = _read("templates/project-map/root/OPERATIONS.md").lower()
 
     assert "top-level architecture pattern, deployment shape, and major module dependencies" in architecture
     assert "core classes, interfaces, abstract types, enums, or major functions" in architecture

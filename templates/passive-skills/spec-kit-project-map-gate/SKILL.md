@@ -21,6 +21,7 @@ This passive skill is the brownfield hard gate, not the route selection layer.
 Before code edits, investigation, planning against existing code, or architectural
 judgment in an established Spec Kit Plus repository:
 
+- Read `.specify/project-map/QUICK-NAV.md` first when it exists, and use it as the Layer 1 router to identify the smallest relevant root or module docs.
 - Read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` when they exist.
 - Read `PROJECT-HANDBOOK.md`.
 - Resolve the primary touched module from `.specify/project-map/index/modules.json` when that registry exists.

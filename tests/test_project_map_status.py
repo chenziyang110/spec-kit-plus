@@ -58,6 +58,7 @@ def test_missing_canonical_project_map_paths_lists_required_outputs(tmp_path):
     normalized = [str(path).replace("\\", "/") for path in missing]
     assert normalized == [
         f"{tmp_path.as_posix()}/PROJECT-HANDBOOK.md",
+        f"{tmp_path.as_posix()}/.specify/project-map/QUICK-NAV.md",
         f"{tmp_path.as_posix()}/.specify/project-map/index/atlas-index.json",
         f"{tmp_path.as_posix()}/.specify/project-map/index/modules.json",
         f"{tmp_path.as_posix()}/.specify/project-map/index/relations.json",

@@ -24,11 +24,11 @@ This command is tier: `{TIER}`. Load only the layers this tier requires.
 - Layer 2 (summary cards in ARCHITECTURE.md): changes slowly — warn only
 - Layer 3 (module OVERVIEW.md): changes faster — enforce for heavy commands
 
-Check: compare `index/status.json` → `global.commit_hash` with current HEAD.
+Check: compare `index/status.json` against current HEAD using the project-map freshness helper.
 - Same commit → fresh
 - Different, but only Layer 3 files changed → Layer 1+2 still valid
 - Different, structural files changed → all layers may be stale
 
-When stale: heavy commands run scoped rescan of affected module only (not global rebuild).
+When stale: heavy commands should prefer the smallest safe map refresh path supported by the current runtime. If scoped rescan is not implemented for the active runtime, fall back to `sp-map-scan -> sp-map-build`.
 Light commands proceed with a warning.
 Trivial commands skip freshness entirely.

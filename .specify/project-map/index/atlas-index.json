@@ -5,6 +5,7 @@
   "summary": "Layered atlas for the Spec Kit Plus Python CLI, generated workflow surfaces, and bundled Codex team runtime.",
   "entrypoints": [
     "PROJECT-HANDBOOK.md",
+    ".specify/project-map/QUICK-NAV.md",
     ".specify/project-map/root/ARCHITECTURE.md",
     ".specify/project-map/root/WORKFLOWS.md",
     ".specify/project-map/root/TESTING.md",

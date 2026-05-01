@@ -17,6 +17,7 @@
 - Preserve the `specify -> plan` mainline in user-facing workflow guidance.
 - Treat `deep-research` as an optional feasibility branch, not a mandatory stage.
 - Treat `map-scan -> map-build` as the required brownfield context gate when atlas coverage is missing, stale, or too broad.
+- Treat `.specify/project-map/QUICK-NAV.md` as the canonical Layer 1 routing surface of the atlas. Root docs are Layer 2 summaries; module docs are Layer 3 detail; source is Layer 4 fallback evidence.
 - Treat `test` as a compatibility router; `test-scan` and `test-build` own actual testing-system scan/build work.
 - Do not claim equal multi-agent capability across runtimes. Current execution-oriented workflows use `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents | subagent-blocked`, and `execution_surface: native-subagents`.
 - Use `sp-teams` only when durable team state, explicit join-point tracking, result files, or lifecycle control are needed beyond one in-session subagent burst.
@@ -25,6 +26,7 @@
 ## State and Data Semantics
 
 - Canonical project-map status lives at `.specify/project-map/index/status.json`; legacy `.specify/project-map/status.json` remains a fallback/mirror path.
+- Canonical atlas outputs now include `PROJECT-HANDBOOK.md`, `.specify/project-map/QUICK-NAV.md`, index JSON files, root docs, module docs, and any packeted deep docs.
 - `map-state.md` and `worker-results/*.json` are runtime evidence/state files and are ignored by freshness path classification.
 - Project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`.
 - Planning state under `.planning/STATE.md` is current planning status; historical milestone files are context, not necessarily active work.
@@ -40,6 +42,7 @@
 ## Development Workflow and Review Conventions
 
 - Read `PROJECT-HANDBOOK.md` and relevant project-map docs before brownfield planning/debugging/implementation.
+- For layered atlas reads, route through `QUICK-NAV.md` first and then open only the smallest relevant root/module docs.
 - If atlas coverage is stale or missing, run `sp-map-scan -> sp-map-build` before continuing.
 - Use `rg`/file-list-driven evidence before broad manual reads.
 - Keep changes scoped; do not rewrite generated surfaces without updating integration tests.

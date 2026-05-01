@@ -41,7 +41,8 @@ result files, or lifecycle control beyond one in-session subagent burst.
 
 1. `map-scan` produces coverage ledger and scan packets.
 2. `map-build` consumes those packets, reads live repository files, writes worker results, synthesizes atlas docs, and records reverse coverage.
-3. Freshness completion happens only after canonical atlas files exist.
+3. Canonical atlas outputs now include `PROJECT-HANDBOOK.md`, `QUICK-NAV.md`, index files, root docs, module docs, and packeted deep docs when needed.
+4. Freshness completion happens only after those canonical atlas files exist.
 
 ### Testing System
 

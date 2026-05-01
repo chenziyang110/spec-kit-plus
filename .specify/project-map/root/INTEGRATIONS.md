@@ -33,6 +33,7 @@
 
 - Python requires 3.11+.
 - Python packaging uses Hatchling and force-includes templates, scripts, project-map/testing assets, passive skills, worker prompts, and engine source/assets.
+- Initialized projects receive layered atlas templates under `.specify/templates/project-map/`, including `QUICK-NAV.md`, `index/*`, `root/*`, and `modules/*`.
 - The bundled engine requires Node >=20 for TypeScript build/runtime paths.
 - The Rust workspace is under `extensions/agent-teams/engine` and includes `omx-mux`, `omx-runtime-core`, and `omx-runtime`.
 - Native Windows Codex team runtime expects psmux plus codex/node/npm/cargo/git; non-Windows first-release runtime expects tmux.
@@ -53,6 +54,7 @@
 - IDE-based integrations set `requires_cli: False`.
 - Skills-based integrations keep `sp-*` workflow skill names and passive skill directory names.
 - `map-scan` and `map-build` are breaking replacements for the former one-step map-codebase guidance.
+- The layered atlas contract expects Layer 1 routing via `QUICK-NAV.md`; init/packaging/tests should not treat the older flat `templates/project-map/*.md` files as the canonical atlas source anymore.
 - Generated surfaces should not overpromise runtime-native subagents where the integration cannot support them.
 - Execution-oriented generated guidance uses `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents | subagent-blocked`, and `execution_surface: native-subagents`.
 - Adapter-specific addenda may name concrete native subagent tools, but durable `sp-teams` orchestration remains reserved for durable team state or lifecycle needs and `subagent-blocked` must record its reason.

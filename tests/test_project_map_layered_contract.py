@@ -11,6 +11,7 @@ def _read(path: str) -> str:
 def test_project_handbook_template_routes_to_index_root_and_module_layers():
     handbook = _read("templates/project-handbook-template.md")
 
+    assert "`.specify/project-map/QUICK-NAV.md`" in handbook
     assert "`.specify/project-map/index/atlas-index.json`" in handbook
     assert "`.specify/project-map/index/modules.json`" in handbook
     assert "`.specify/project-map/index/relations.json`" in handbook
@@ -26,6 +27,7 @@ def test_layered_project_map_template_files_exist():
         "templates/project-map/index/modules.json",
         "templates/project-map/index/relations.json",
         "templates/project-map/map-state-template.md",
+        "templates/project-map/QUICK-NAV.md",
         "templates/project-map/root/ARCHITECTURE.md",
         "templates/project-map/root/STRUCTURE.md",
         "templates/project-map/root/CONVENTIONS.md",

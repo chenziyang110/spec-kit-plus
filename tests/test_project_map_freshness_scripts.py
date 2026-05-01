@@ -81,8 +81,10 @@ def _run_powershell(repo: Path, *args: str) -> dict:
 def _seed_canonical_map(repo: Path) -> None:
     (repo / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
     project_map_dir = repo / ".specify" / "project-map"
+    project_map_dir.mkdir(parents=True, exist_ok=True)
     index_dir = project_map_dir / "index"
     root_dir = project_map_dir / "root"
+    (project_map_dir / "QUICK-NAV.md").write_text("# Quick Navigation\n", encoding="utf-8")
     index_dir.mkdir(parents=True, exist_ok=True)
     root_dir.mkdir(parents=True, exist_ok=True)
     (index_dir / "atlas-index.json").write_text("{}\n", encoding="utf-8")
@@ -252,6 +254,7 @@ def test_bash_record_refresh_requires_canonical_map_outputs(git_repo: Path):
 
     assert result.returncode != 0
     assert "canonical map files are missing" in result.stderr.lower()
+    assert "quick-nav.md" in result.stderr.lower()
 
 
 def test_bash_complete_refresh_uses_map_codebase_reason(git_repo: Path):

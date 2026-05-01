@@ -19,6 +19,7 @@
 | Capability | Minimum Verification |
 | --- | --- |
 | Map scan/build templates and atlas status | `pytest tests/test_map_scan_build_template_guidance.py tests/test_project_map_layered_contract.py tests/test_project_map_status.py -q` |
+| Layered atlas template/init/packaging closure | `pytest tests/test_project_handbook_templates.py tests/test_packaging_assets.py tests/integrations/test_cli.py -q` |
 | CLI/init/integration generation | `pytest tests/integrations -q` |
 | Passive skills and generated guidance | `pytest tests/test_passive_skill_guidance.py tests/test_quick_skill_mirror.py tests/test_specify_guidance_docs.py -q` |
 | Hooks/execution/orchestration | `pytest tests/hooks tests/execution tests/orchestration -q` |
@@ -31,6 +32,8 @@
 - `tests/test_map_scan_build_template_guidance.py`: scan/build prompt contract, packet evidence, reverse coverage, structural-only refresh refusal.
 - `tests/test_project_map_status.py`: Python freshness model, dirty reasons, topic mapping, complete-refresh reason.
 - `tests/test_project_map_freshness_scripts.py`: Bash/PowerShell helper parity and legacy status fallback.
+- `tests/test_project_handbook_templates.py`: handbook and atlas template structure, Layer 1 routing presence, and layered root-doc expectations.
+- `tests/test_project_map_layered_contract.py`: layered atlas file existence and handbook routing to index/root/module layers.
 - `tests/integrations/`: per-agent generated output behavior.
 - `tests/execution/`: worker packet/result schemas, validators, handoffs.
 - `tests/hooks/`: hook event behavior and guardrails.
@@ -50,6 +53,7 @@
 | Changed Surface | Focused Check | Broader Check |
 | --- | --- | --- |
 | `src/specify_cli/project_map_status.py` | `pytest tests/test_project_map_status.py tests/test_project_map_freshness_scripts.py -q` | `pytest tests/hooks/test_project_map_hooks.py -q` |
+| `templates/project-handbook-template.md`, `templates/project-map/**` | `pytest tests/test_project_handbook_templates.py tests/test_project_map_layered_contract.py tests/test_packaging_assets.py -q` | `pytest tests/integrations/test_cli.py -q` |
 | `templates/commands/*` | matching `tests/test_*template*` | `pytest tests/integrations -q` |
 | `integrations/base.py` | `pytest tests/integrations/test_integration_base_* -q` | `pytest tests/integrations -q` |
 | `execution/` | `pytest tests/execution -q` | `pytest tests/hooks tests/codex_team -q` |
