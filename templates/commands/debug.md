@@ -137,11 +137,12 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
 - Read `.specify/memory/project-learnings.md` if present before forming or validating a fix.
 - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to the failing area so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
-- During observer framing, do not read source files, test files, log files, or feature-specific planning artifacts such as `spec.md`, `plan.md`, `tasks.md`, or `context.md`.
-- During observer framing, do not read test files or test outputs; save those for the investigator phase.
-- During observer framing, do not inspect logs or runtime output; keep the analysis at the system-map level.
-- During observer framing, do not run reproduction commands, test commands, or instrumentation.
-- Use only the user report plus the current system map to reason about likely owning layers, truth owners, workflow boundaries, and possible failure loops.
+- Observer framing is performed by a **think subagent** (dispatched automatically by the graph engine at Stage 1). The constraints below apply to that subagent, not to the leader.
+- During observer framing, the think subagent must not read source files, test files, log files, or feature-specific planning artifacts such as `spec.md`, `plan.md`, `tasks.md`, or `context.md`.
+- The think subagent must not read test files or test outputs; save those for the investigator phase.
+- The think subagent must not inspect logs or runtime output; keep the analysis at the system-map level.
+- The think subagent must not run reproduction commands, test commands, or instrumentation.
+- The think subagent uses only the user report plus the current system map to reason about likely owning layers, truth owners, workflow boundaries, and possible failure loops.
 - If the user already supplied strong low-level evidence such as a full stack trace, explicit failing command, explicit failing file, explicit repro command, or precise error text with location, use **compressed observer framing** rather than skipping the observer stage.
 - If critical information is still missing during observer framing, ask at most one concise missing-information question before moving on.
 
@@ -149,37 +150,43 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ## Fast-Path Gate (before Observer Framing)
 
-Check these three conditions. If ALL are true, skip directly to Stage 3 (Reproduction Gate):
+Check these three conditions. If ALL are true, you may fast-path past the think subagent:
 
 1. **Exact error location known**: File path + line number or function name
 2. **Clear reproduction steps**: User provided or trivially inferable
 3. **Impact surface bounded**: Single module, no cross-module IPC or shared state
 
-If fast-path: record "Fast-path: error at [location], repro [steps], impact bounded to [module]." Then jump to Stage 3.
+If fast-path: manually set `observer_framing_completed: true`, fill minimal `observer_framing` fields, record `observer_mode: compressed` with `skip_observer_reason`, then re-enter GatheringNode — the graph engine will skip the think-subagent gate and proceed to Stage 3 (Reproduction Gate).
+
+Record: "Fast-path: error at [location], repro [steps], impact bounded to [module]."
 If not: proceed to Stage 1 (Observer Framing).
 
-### Stage 1: Observer Framing
-- This stage is **mandatory**. Reading code before finishing observer framing is a workflow violation, not an optimization.
-- Based on the user report plus the current system map, produce a user-visible observer analysis board before any code-level investigation begins.
-- The observer analysis board should include:
+### Stage 1: Observer Framing (Think Subagent)
+
+- This stage is **mandatory**. The graph engine (GatheringNode) will return an `await_input` containing a `think_subagent_prompt` when `observer_framing_completed` is not yet `true`.
+- **Leader's responsibility**: When you receive the `think_subagent_prompt`:
+  1. Dispatch a think subagent with the exact prompt text (use your runtime's subagent dispatch mechanism).
+  2. Wait for the subagent's structured result.
+  3. The result is hybrid: free-text analysis followed by `---` and a YAML block.
+  4. Parse the YAML block after `---` and populate the debug session fields.
+- The think subagent produces the observer analysis board based on the user report plus the current system map. It does NOT read source code, logs, or run commands.
+- The observer analysis board must include:
   - `Primary suspected loop`
-  - `Alternative cause candidates`
+  - `Alternative cause candidates` (at least 3)
   - `Why each candidate fits`
   - `Map evidence`
   - `Missing questions`
   - `Recommended first probe`
-- Generate multiple plausible causes where possible instead of collapsing immediately to one hypothesis.
-- Record the same observer framing in the debug session before moving on.
-- Keep observer framing at the architecture/workflow/truth-ownership level. Do not claim code-level certainty yet.
+- Set `observer_framing_completed: true` only after all required fields are populated.
 - This stage is not complete until the debug session contains non-empty values for `summary`, `primary_suspected_loop`, `suspected_owning_layer`, `suspected_truth_owner`, `recommended_first_probe`, and at least one `alternative_cause_candidate`.
 - If there are no meaningful missing questions, record that explicitly instead of leaving the field empty.
 - Compressed framing still requires the full Observer Framing section to be written; compression lowers certainty expectations, not delivery requirements.
 
 ### Stage 2: Transition Memo
-- Convert observer framing into an actionable investigation order.
+
+- The transition memo is produced by the think subagent as part of its YAML output (included in the `---` block).
+- **Leader's responsibility**: After parsing the subagent result, populate `transition_memo` fields: `first_candidate_to_test`, `why_first`, `evidence_unlock`, and `carry_forward_notes`.
 - Record whether this pass used `full observer framing` or `compressed observer framing`, and why.
-- Pick the first candidate to test in evidence investigation and say why it should go first.
-- Record what evidence surfaces are now unlocked: reproduction, logs, code, tests, or instrumentation.
 - After writing the transition memo, automatically continue into evidence investigation. Do not stop for confirmation unless human action is required.
 - Treat the transition memo as the bridge between the outsider view and the investigator view. The later evidence phase must carry the observer framing forward instead of discarding it.
 - If `observer_mode` is `compressed`, fill `skip_observer_reason` with the decisive low-level evidence that justified compression.

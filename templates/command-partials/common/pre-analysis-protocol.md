@@ -17,9 +17,11 @@ If a pre-analysis output already exists from a prior command (e.g., sp-specify c
 
 ### Fast-Path (debug only)
 
-When all three conditions are met, skip observer framing and proceed directly to reproduction gate:
+When all three conditions are met, observer framing can be fast-pathed:
 1. Exact error location is known (file + line or function)
 2. Clear reproduction steps are provided
 3. Impact surface is bounded (single module, no cross-module coupling)
+
+If fast-path: manually set `observer_framing_completed: true`, fill minimal `observer_framing` fields (summary, primary_suspected_loop, etc.), and record `observer_mode: compressed` with `skip_observer_reason`. The graph engine will skip the think-subagent gate and proceed directly to the reproduction gate.
 
 Record the fast-path decision with: "Fast-path: error location known, repro steps clear, impact bounded to [module]."

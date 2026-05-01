@@ -19,10 +19,10 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "observer framing" in content
     assert "compressed observer framing" in content
     assert "full observer framing" in content
-    assert "do not read source files" in content
-    assert "do not inspect logs" in content
-    assert "do not read test files" in content
-    assert "based on the user report plus the current system map" in content
+    assert "think subagent must not read source files" in content
+    assert "think subagent must not inspect logs" in content
+    assert "think subagent must not read test files" in content
+    assert "the think subagent uses only the user report plus the current system map" in content
     assert "primary suspected loop" in content
     assert "alternative cause candidates" in content
     assert "recommended first probe" in content
@@ -30,7 +30,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "automatically continue into evidence investigation" in content
     assert "skip the observer framing stage" not in content
     assert "hard gate" in content
-    assert "reading code before finishing observer framing is a workflow violation" in content
+    assert "think subagent" in content
     assert "observer_framing_completed" in content
     assert "no source-code reads, test reads, log reads, or repro commands are allowed" in content
     assert "compressed framing still requires the full observer framing section" in content
