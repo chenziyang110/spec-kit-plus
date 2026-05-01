@@ -2,16 +2,10 @@
   "version": 2,
   "global": {
     "freshness": "fresh",
-    "last_refresh_commit": "8e597a4b3258e5b08416d7af8c58086842c8cf44",
-    "last_refresh_at": "2026-04-30T06:11:44Z",
+    "last_refresh_commit": "adcde5887c7339181e9a4ad1b32ad0d0b7dd533a",
+    "last_refresh_at": "2026-05-01T03:32:48Z",
     "last_refresh_branch": "main",
-    "last_refresh_reason": "subagents-first-workflow-refactor",
-    "commit_hash": "8e597a4b3258e5b08416d7af8c58086842c8cf44",
-    "doc_status_summary": {
-      "documented": 3,
-      "indexed_only": 0,
-      "gap": 0
-    },
+    "last_refresh_reason": "map-build",
     "last_refresh_topics": [
       "ARCHITECTURE.md",
       "STRUCTURE.md",
@@ -22,26 +16,19 @@
       "TESTING.md"
     ],
     "last_refresh_scope": "full",
-    "last_refresh_basis": "manual-implementation-refresh",
-    "last_refresh_changed_files_basis": [
-      "src/specify_cli/orchestration/models.py",
-      "src/specify_cli/orchestration/policy.py",
-      "templates/commands/implement.md",
-      "src/specify_cli/integrations/base.py",
-      "AGENTS.md",
-      "PROJECT-HANDBOOK.md"
-    ],
+    "last_refresh_basis": "map-build",
+    "last_refresh_changed_files_basis": [],
     "dirty": false,
     "dirty_reasons": [],
     "stale_reasons": [],
     "affected_root_docs": []
   },
   "modules": {},
-  "last_mapped_commit": "8e597a4b3258e5b08416d7af8c58086842c8cf44",
-  "last_mapped_at": "2026-04-30T06:11:44Z",
+  "last_mapped_commit": "adcde5887c7339181e9a4ad1b32ad0d0b7dd533a",
+  "last_mapped_at": "2026-05-01T03:32:48Z",
   "last_mapped_branch": "main",
   "freshness": "fresh",
-  "last_refresh_reason": "subagents-first-workflow-refactor",
+  "last_refresh_reason": "map-build",
   "last_refresh_topics": [
     "ARCHITECTURE.md",
     "STRUCTURE.md",
@@ -52,15 +39,8 @@
     "TESTING.md"
   ],
   "last_refresh_scope": "full",
-  "last_refresh_basis": "manual-implementation-refresh",
-  "last_refresh_changed_files_basis": [
-    "src/specify_cli/orchestration/models.py",
-    "src/specify_cli/orchestration/policy.py",
-    "templates/commands/implement.md",
-    "src/specify_cli/integrations/base.py",
-    "AGENTS.md",
-    "PROJECT-HANDBOOK.md"
-  ],
+  "last_refresh_basis": "map-build",
+  "last_refresh_changed_files_basis": [],
   "dirty": false,
   "dirty_reasons": [],
   "stale_reasons": [],
