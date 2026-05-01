@@ -252,6 +252,7 @@ class CommandRegistrar:
             body = self.resolve_skill_placeholders(agent_name, frontmatter, body, project_root)
         elif agent_name in {"agy"}:
             body = self.apply_skill_invocation_conventions(agent_name, body)
+        body = self.render_invocation_placeholders(agent_name, body)
 
         description = frontmatter.get("description", f"Spec-kit workflow command: {skill_name}")
         skill_frontmatter = self.build_skill_frontmatter(
@@ -297,6 +298,42 @@ class CommandRegistrar:
             return "/skill:sp-plan"
         return None
 
+    @staticmethod
+    def project_workflow_invocation(agent_name: str, workflow_name: str) -> str:
+        """Project a workflow name to the integration's user invocation surface."""
+        normalized = workflow_name.strip().lstrip("/").removeprefix("sp.")
+        normalized = normalized.removeprefix("sp-")
+
+        if agent_name in {"codex", "agy"}:
+            return f"$sp-{normalized}"
+        if agent_name == "kimi":
+            return f"/skill:sp-{normalized}"
+        if agent_name == "claude":
+            return f"/sp-{normalized}"
+        return f"/sp.{normalized}"
+
+    @classmethod
+    def render_invocation_placeholders(cls, agent_name: str, body: str) -> str:
+        """Render ``{{invoke:<workflow>}}`` placeholders for an integration.
+
+        This intentionally only matches the explicit placeholder form so
+        canonical state tokens such as ``/sp.plan`` and ``/sp-test-scan``
+        remain untouched when templates include them alongside placeholders.
+        """
+        if not isinstance(body, str) or "{{invoke:" not in body:
+            return body
+
+        pattern = re.compile(
+            r"\{\{invoke:\s*(?P<workflow>[a-z0-9][a-z0-9.-]*)\s*\}\}"
+        )
+        return pattern.sub(
+            lambda match: cls.project_workflow_invocation(
+                agent_name,
+                match.group("workflow"),
+            ),
+            body,
+        )
+
     @classmethod
     def apply_skill_invocation_conventions(cls, agent_name: str, body: str) -> str:
         """Normalize skill-facing invocation wording for skills-backed agents.
@@ -317,15 +354,6 @@ class CommandRegistrar:
         if not invocation_example:
             return body
 
-        def project_workflow_name(name: str) -> str:
-            if agent_name in {"codex", "agy"}:
-                return f"$sp-{name}"
-            if agent_name == "claude":
-                return f"/sp-{name}"
-            if agent_name == "kimi":
-                return f"/skill:sp-{name}"
-            return f"/sp-{name}"
-
         action_patterns = (
             r"(?P<prefix>- (?:Run|Use|recommend|Recommend) )/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
             r"(?P<prefix>- (?:Run|Use|recommend|Recommend) `)/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
@@ -343,7 +371,7 @@ class CommandRegistrar:
         for pattern in action_patterns:
             body = re.sub(
                 pattern,
-                lambda match: f"{match.group('prefix')}{project_workflow_name(match.group('name'))}",
+                lambda match: f"{match.group('prefix')}{cls.project_workflow_invocation(agent_name, match.group('name'))}",
                 body,
             )
 
@@ -423,6 +451,7 @@ class CommandRegistrar:
 
         body = body.replace("{ARGS}", "$ARGUMENTS").replace("__AGENT__", agent_name)
         body = CommandRegistrar.rewrite_project_relative_paths(body)
+        body = CommandRegistrar.render_invocation_placeholders(agent_name, body)
         return CommandRegistrar.apply_skill_invocation_conventions(agent_name, body)
 
     def _convert_argument_placeholder(self, content: str, from_placeholder: str, to_placeholder: str) -> str:
@@ -508,6 +537,7 @@ class CommandRegistrar:
             body = self._convert_argument_placeholder(
                 body, "$ARGUMENTS", agent_config["args"]
             )
+            body = self.render_invocation_placeholders(agent_name, body)
 
             output_name = self._compute_output_name(agent_name, cmd_name, agent_config)
 

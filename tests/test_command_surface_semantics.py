@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 from specify_cli.agents import CommandRegistrar
+from specify_cli.integrations.base import IntegrationBase
 
 
 def test_init_generated_codex_skill_includes_invocation_note_and_projected_handoff(tmp_path: Path):
@@ -73,3 +74,44 @@ def test_apply_skill_invocation_conventions_supports_agy_surface():
 
     assert "## Invocation Syntax" in agy
     assert "- Run $sp-plan next." in agy
+
+
+def test_invoke_placeholder_projects_codex_skill_surface():
+    rendered = IntegrationBase.process_template(
+        "---\n---\nRun {{invoke:plan}} next.",
+        "codex",
+        "sh",
+    )
+
+    assert rendered.endswith("Run $sp-plan next.")
+
+
+def test_invoke_placeholder_projects_kimi_skill_surface():
+    rendered = IntegrationBase.process_template(
+        "---\n---\nRun {{invoke:test-scan}} next.",
+        "kimi",
+        "sh",
+    )
+
+    assert rendered.endswith("Run /skill:sp-test-scan next.")
+
+
+def test_invoke_placeholder_projects_markdown_command_surface():
+    rendered = IntegrationBase.process_template(
+        "---\n---\nRun {{invoke:tasks}} next.",
+        "opencode",
+        "sh",
+    )
+
+    assert rendered.endswith("Run /sp.tasks next.")
+
+
+def test_invoke_placeholder_does_not_rewrite_canonical_tokens():
+    rendered = CommandRegistrar.render_invocation_placeholders(
+        "codex",
+        "Run {{invoke:plan}} next; keep `/sp.plan` and `/sp-test-scan` unchanged.",
+    )
+
+    assert "Run $sp-plan next" in rendered
+    assert "`/sp.plan`" in rendered
+    assert "`/sp-test-scan`" in rendered

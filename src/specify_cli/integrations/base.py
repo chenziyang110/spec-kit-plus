@@ -987,6 +987,7 @@ class IntegrationBase(ABC):
         #    boundary rules stay consistent across the codebase.
         from specify_cli.agents import CommandRegistrar
         content = CommandRegistrar.rewrite_project_relative_paths(content)
+        content = CommandRegistrar.render_invocation_placeholders(agent_name, content)
 
         return content
 
