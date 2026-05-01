@@ -1837,6 +1837,35 @@ class SkillsIntegration(IntegrationBase):
             else:
                 content += gate_addendum
 
+        think_gate_marker = f"## {agent_name} Think Subagent Dispatch"
+        if think_gate_marker not in content:
+            think_addendum = (
+                "\n"
+                f"## {agent_name} Think Subagent Dispatch\n\n"
+                f"When running `sp-debug` in {agent_name}, the **Gathering** stage may return an `await_input` "
+                "containing a `think_subagent_prompt`. This prompt is a self-contained reasoning task for a "
+                "fresh subagent.\n"
+                "\n"
+                "**When you receive a think_subagent_prompt:**\n"
+                "- Spawn a subagent with the exact prompt text via `spawn_agent`.\n"
+                "- The think subagent does NOT read source code and does NOT run commands — it is a pure reasoning agent.\n"
+                "- Use `wait_agent` to wait for the think subagent's result.\n"
+                "- The result is hybrid: free-text analysis followed by `---` and a YAML block.\n"
+                "- Parse the YAML block after `---` and populate these fields in the debug state:\n"
+                "  - `observer_framing` (summary, primary_suspected_loop, suspected_owning_layer, etc.)\n"
+                "  - `transition_memo` (first_candidate_to_test, why_first, carry_forward_notes)\n"
+                "  - `alternative_cause_candidates` (list of candidate objects)\n"
+                "- Set `observer_framing_completed` to `True`.\n"
+                "- Then continue the debug session — the next GatheringNode run will skip observer framing "
+                "and proceed to gate checks.\n"
+                "- Do NOT skip the think subagent. Context isolation is the purpose of this step.\n"
+            )
+            content = content.replace(
+                "**Hard rule:** During `investigating`",
+                think_addendum + "\n**Hard rule:** During `investigating`",
+                1,
+            )
+
         marker = f"## {agent_name} Subagent Evidence Collection"
         if marker in content:
             return
