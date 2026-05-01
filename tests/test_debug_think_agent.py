@@ -1,11 +1,5 @@
 import pytest
-from specify_cli.debug.schema import (
-    DebugGraphState,
-    DebugStatus,
-    ObserverCauseCandidate,
-    ObserverFramingState,
-    TransitionMemoState,
-)
+from specify_cli.debug.schema import DebugGraphState
 from specify_cli.debug.think_agent import (
     build_think_subagent_prompt,
     parse_think_subagent_result,
