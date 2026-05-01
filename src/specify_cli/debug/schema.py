@@ -150,6 +150,9 @@ class FeatureContext(BaseModel):
     feature_id: Optional[str] = None
     feature_name: Optional[str] = None
     feature_phase: Optional[str] = None
+    summary: Optional[str] = None
+    description: Optional[str] = None
+    project_map_summary: Optional[str] = None
     spec_path: Optional[str] = None
     plan_path: Optional[str] = None
     tasks_path: Optional[str] = None
