@@ -279,6 +279,10 @@ human_needed_checks:
     - **REQUIRED FOR SUBAGENT EXECUTION**: [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
     - **HARD RULE**: dispatch only from validated `WorkerTaskPacket` — never from raw task text alone
 
+{{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+
+**This command tier: heavy.** Load task-scoped module docs. Freshness enforced on target Layer 3.
+
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:
 
@@ -418,6 +422,20 @@ human_needed_checks:
    - Provide clear error messages with context for debugging
    - Suggest next steps if implementation cannot proceed
    - **IMPORTANT** For completed tasks, make sure to mark the task off as [X] in the tasks file.
+
+{{spec-kit-include: ../command-partials/common/gate-self-check.md}}
+
+After each task completion, emit a gate self-check. After all tasks, emit a final gate self-check confirming no forbidden actions were taken.
+
+### Blocker Classification
+
+| Type | Examples | Route |
+|------|----------|-------|
+| environment | Missing toolchain, wrong Node version, pip/uv failure | Fix inline or ask user |
+| test-failure | Test fails after implementation change | Analyze locally first |
+| runtime-bug | Crash, unexpected behavior in implemented code | Route to `/sp-debug` |
+| external | Upstream API change, network dependency | Record and escalate to user |
+| scope-creep | Task expands beyond original contract | Upgrade to `/sp-plan` or `/sp-specify` |
 
 10. Completion validation:
    - Enter tracker status `validating` after the last ready implementation task is complete. `tasks.md` being fully checked off is not sufficient for completion by itself.

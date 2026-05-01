@@ -574,7 +574,7 @@ When adding new agents:
 
 - Use `sp-fast` only for trivial, low-risk local changes that do not need planning artifacts.
 - Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.
-- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.
+- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning. Before handing off to plan, run `spec-lint -dir <FEATURE_DIR>` to mechanically verify the artifact set; fix failures before proceeding.
 - Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.
 - Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
 - Use `sp-test` as the compatibility router for project-level testing work.
@@ -608,6 +608,43 @@ When adding new agents:
 - If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.
 - If that refresh cannot happen in the current pass, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.
 - Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.
+
+## Spec Quality Gate (`spec-lint`)
+
+`tools/spec-lint/` is a zero-dependency Go binary that mechanically validates spec artifact sets before they enter planning. It runs 8 checks tiered by task risk:
+
+| Tier | Trigger | Checks |
+|------|---------|--------|
+| **light** | Bug fix, docs change, local refactor | scout-summary, capability-triage, execution-mode |
+| **standard** | New capability, cross-module change | light + change-propagation, non-functional, error-contract, config-effective-when, test-strategy |
+| **deep** | Greenfield, protocol boundary, security-sensitive | standard + quantified NFR thresholds, full error contracts |
+
+Usage: `specify lint -dir <FEATURE_DIR> -tier light|standard|deep`
+
+When installed via `uv tool install`, `specify lint` auto-downloads the spec-lint binary on first run (cached at `~/.specify/bin/`). No separate install step needed.
+
+The full quality gate specification lives in `templates/spec-quality-gate.md`. The checklist embedded in `FEATURE_DIR/checklists/requirements.md` maps to the same 8 dimensions with `[lint]` markers on machine-checkable items.
+
+### Installing spec-lint standalone (without specify CLI)
+
+```bash
+# Linux / macOS
+curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/spec-lint/install.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/spec-lint/install.ps1 | iex
+
+# Go users
+go install github.com/chenziyang110/spec-kit-plus/tools/spec-lint@latest
+```
+
+### Release flow
+
+On every `v*` tag, `.github/workflows/release-spec-lint.yml` cross-compiles binaries for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, and windows/amd64, then attaches them to the GitHub Release. The install scripts download the matching binary automatically.
+
+### When spec-lint fails
+
+A non-zero exit signals that mechanical checks did not pass. Fix the spec artifacts before proceeding to `/sp.plan`. Warnings are advisory and do not block planning, but they indicate dimensions a planner will likely need to fill in.
 
 - Preserve content outside this managed block.
 <!-- SPEC-KIT:END -->

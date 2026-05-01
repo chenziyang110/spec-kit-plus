@@ -3072,6 +3072,14 @@ def init(
     console.print(tracker.render())
     console.print("\n[bold green]Spec Kit Plus project ready.[/bold green]")
 
+    # Pre-fetch spec-lint binary in the background so `specify lint` works
+    # immediately without a download pause on first use.  Non-fatal.
+    try:
+        from specify_cli.lint import ensure_binary as _ensure_lint
+        _ensure_lint()
+    except Exception:
+        pass  # spec-lint download is best-effort during init
+
     # Show git error details if initialization failed
     if git_error_message:
         console.print()
@@ -4509,6 +4517,29 @@ def version():
             "[dim]If a new workflow command is missing, remove stale pip/conda/uv tool installs or move the latest entry earlier on PATH.[/dim]"
         )
     console.print()
+
+
+@app.command()
+def lint(
+    dir: str = typer.Option(".", "--dir", help="Feature directory path (containing spec.md, alignment.md, etc.)"),
+    tier: str = typer.Option("standard", "--tier", help="Check tier: light, standard, deep"),
+    show_version: bool = typer.Option(False, "--version", help="Print spec-lint version and exit"),
+    force_download: bool = typer.Option(False, "--force-download", help="Re-download spec-lint binary even if cached"),
+):
+    """Run spec quality gate checks on a feature directory.
+
+    Downloads the spec-lint binary on first run (cached at ~/.specify/bin/).
+    """
+    from specify_cli.lint import run as run_lint
+
+    args = []
+    if show_version:
+        args.append("--version")
+    else:
+        args.extend(["-dir", dir, "-tier", tier])
+
+    ec = run_lint(args, force=force_download)
+    raise typer.Exit(code=ec)
 
 
 # ===== Extension Commands =====

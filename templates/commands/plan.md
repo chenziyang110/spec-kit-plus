@@ -109,6 +109,10 @@ agent_scripts:
    - Read `templates/workflow-state-template.md`
    - Load the copied IMPL_PLAN template
 
+{{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+
+**This command tier: heavy.** Load Layer 1 + Layer 2 full + affected module docs + data models. Freshness enforced.
+
 4. **Validate alignment status before planning**:
    - If `alignment.md` is missing:
      - ERROR "Missing alignment report. Run /sp.specify first or re-run it to complete requirement alignment."

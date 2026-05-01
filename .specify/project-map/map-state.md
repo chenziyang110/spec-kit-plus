@@ -156,6 +156,10 @@ updated: 2026-04-30
   - `pytest -q`
   - `npm --prefix extensions/agent-teams/engine run build`
 
+### Important Rows → Atlas Targets (reverse validation)
+
+[Coverage validation for important rows should be performed in a future scoped rescan. Currently only critical rows are validated.]
+
 ## Open Gaps
 
 - gap:
@@ -168,3 +172,13 @@ updated: 2026-04-30
   - affected_ledger_rows: L014
   - summary: `.specify/project-map/**` and `.specify/memory/project-*.md` are now intentionally unignored as stable project knowledge, while `.specify/runtime/**` and `.specify/teams/**` remain ignored runtime state.
   - next_action: after committing the atlas refresh, rerun `$env:PYTHONPATH='src'; python -m specify_cli project-map complete-refresh --format json` and commit the updated status files so `last_mapped_commit` points at the atlas commit.
+- gap:
+  - affected_packet: integrations-generated-surfaces
+  - affected_ledger_rows: L004, L005, L006
+  - summary: External behavior of supported third-party agent CLIs is outside repository and must be verified from upstream docs when adapter assumptions change.
+  - next_action: review upstream docs before modifying adapter assumptions for supported third-party CLIs.
+- gap:
+  - affected_packet: docs-planning-operations
+  - affected_ledger_rows: L013, L014, L015
+  - summary: Repository has many historical planning files; atlas output should summarize durable product direction and avoid treating old planning notes as current truth.
+  - next_action: prune or archive outdated planning files, or capture their disposition in the atlas.

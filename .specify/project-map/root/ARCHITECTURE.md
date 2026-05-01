@@ -62,61 +62,32 @@ src/specify_cli/codex_team
 
 ## High-Value Capabilities
 
-### Capability: Project Initialization And Integration Install
+### specify-cli-core
+- **Entry**: `src/specify_cli/__init__.py` — Typer app, command registration
+- **Truth**: `src/specify_cli/integrations/base.py` — integration registry
+- **Key deps**: templates, scripts, tests, pyproject.toml
+- **Extension point**: `src/specify_cli/integrations/` — add adapter
+- **Do not touch**: upstream agent CLI behavior, external MCP servers
+- **Test**: `uv run --extra test pytest -q -n auto`
+- **Full docs**: → `modules/specify-cli-core/OVERVIEW.md`
 
-- Owner: `specify-cli-core`
-- Truth lives: `src/specify_cli/__init__.py`, `src/specify_cli/integrations/`, `templates/`, `scripts/`
-- Entry points: `specify init`, `--ai`, `--integration`, `--constitution-profile`, `--preset`
-- Downstream consumers: generated projects, agent CLIs/IDEs, integration tests
-- Extend here: add adapter classes under `src/specify_cli/integrations/<agent>/` and register in `INTEGRATION_REGISTRY`
-- Do not extend here: do not special-case agent generation in random CLI branches when a base integration hook can own it
-- Key contracts: real CLI executable names are integration keys; generated destinations must stay inside project root; manifest records generated files
-- Change propagation: CLI help, README, integration tests, template packaging, update-context scripts
-- Minimum verification: `pytest tests/integrations tests/test_agent_config_consistency.py -q`
-- Failure modes: wrong generated path, stale help text, unsupported external CLI assumption, manifest drift
-- Confidence: Verified
+### templates-generated-surfaces
+- **Entry**: `templates/commands/` — workflow command templates
+- **Truth**: `templates/command-partials/` — shared partials
+- **Key deps**: scripts, passive-skills, worker-prompts
+- **Extension point**: add new command template + partials
+- **Do not touch**: generated output in downstream projects directly
+- **Test**: `pytest tests/integrations -q`
+- **Full docs**: → `modules/templates-generated-surfaces/OVERVIEW.md`
 
-### Capability: Brownfield Atlas Lifecycle
-
-- Owner: `specify-cli-core`
-- Truth lives: `templates/commands/map-scan.md`, `templates/commands/map-build.md`, `src/specify_cli/project_map_status.py`, `.specify/project-map/`
-- Entry points: `sp-map-scan`, `sp-map-build`, `specify project-map *`, `specify hook complete-refresh`
-- Downstream consumers: every brownfield planning/debug/implementation workflow
-- Extend here: update map templates, status helpers, freshness scripts, project-map tests
-- Do not extend here: do not hide map refresh inside unrelated workflow commands
-- Key contracts: scan writes scan package only; build executes packets and writes atlas; complete-refresh uses reason `map-build`
-- Change propagation: AGENTS managed block, generated workflow guidance, hook helpers, freshness scripts
-- Minimum verification: `pytest tests/test_map_scan_build_template_guidance.py tests/test_project_map_status.py tests/test_project_map_freshness_scripts.py -q`
-- Failure modes: structural-only refresh, missing packets, stale status, uncommitted atlas files causing freshness check to report stale
-- Confidence: Verified
-
-### Capability: Delegated Execution And Quality Hooks
-
-- Owner: `specify-cli-core`
-- Truth lives: `src/specify_cli/execution/`, `src/specify_cli/hooks/`, `src/specify_cli/orchestration/`
-- Entry points: `specify hook *`, generated workflow prompts, Codex team dispatch/result surfaces
-- Downstream consumers: `sp-implement`, `sp-debug`, `sp-quick`, `sp-test-*`, `sp-map-*`, Codex team runtime
-- Extend here: packet schema, result schema, hook implementations, subagent dispatch policy, state store
-- Do not extend here: do not invent command-local packet shapes that bypass shared schemas
-- Key contracts: `WorkerTaskPacket`, `WorkerTaskResult`, `choose_subagent_dispatch`, hook JSON payloads
-- Change propagation: generated prompts, tests/execution, tests/hooks, tests/orchestration, contract tests
-- Minimum verification: `pytest tests/execution tests/hooks tests/orchestration -q`
-- Failure modes: packet/result mismatch, hook false positives, dispatch policy overclaiming runtime capability
-- Confidence: Verified
-
-### Capability: Codex Team Runtime
-
-- Owner: `specify-cli-core` for Python control plane; `agent-teams-engine` for bundled engine
-- Truth lives: `src/specify_cli/codex_team/`, `src/specify_cli/mcp/teams_server.py`, `extensions/agent-teams/engine/`
-- Entry points: `sp-teams`, `specify-teams-mcp`, generated Codex skills, engine runtime CLI
-- Downstream consumers: Codex projects, workers, result handoff validation, team watcher
-- Extend here: Python command/API/state files for CLI behavior; engine `src/team` or `src/scripts/notify-hook` for runtime internals
-- Do not extend here: do not make non-Codex integrations depend on Codex-only runtime assets
-- Key contracts: `.specify/teams/state/*`, dispatch/result/batch records, notify hook config, MCP facade tools
-- Change propagation: pyproject force-includes, tests/codex_team, engine build, Codex integration generation
-- Minimum verification: `pytest tests/codex_team tests/contract/test_codex_team_cli_surface.py tests/test_teams_mcp_server.py -q`; `npm --prefix extensions/agent-teams/engine run build`
-- Failure modes: missing tmux/psmux, stale engine dist, missing toolchain, result schema mismatch
-- Confidence: Inferred for Rust internals; Verified for Python control plane
+### agent-teams-engine
+- **Entry**: `extensions/agent-teams/engine/src/` — Node/TypeScript
+- **Truth**: `extensions/agent-teams/engine/package.json`
+- **Key deps**: Rust crates, tmux/psmux, native hooks
+- **Extension point**: `extensions/agent-teams/engine/skills/worker/SKILL.md`
+- **Do not touch**: Rust crates without running targeted scan packet
+- **Test**: `npm --prefix extensions/agent-teams/engine run build`
+- **Full docs**: → `modules/agent-teams-engine/OVERVIEW.md`
 
 ## Ownership and Truth Map
 

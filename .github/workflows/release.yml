@@ -65,9 +65,28 @@ jobs:
           cat > release_notes.md << NOTES_EOF
           ## Install
 
+          ### specify-cli
+
           \`\`\`bash
           uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git@${VERSION}
           specify init my-project
+          \`\`\`
+
+          ### spec-lint (spec quality checker)
+
+          **Primary:** Use \`specify lint\` (auto-downloads on first run):
+          \`\`\`bash
+          specify lint -dir ./specs/001-xxx/ -tier standard
+          \`\`\`
+
+          **Standalone install:**
+          \`\`\`bash
+          # Linux / macOS
+          curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/spec-lint/install.sh | bash
+          # Windows (PowerShell)
+          irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/spec-lint/install.ps1 | iex
+          # Go users
+          go install github.com/chenziyang110/spec-kit-plus/tools/spec-lint@${VERSION}
           \`\`\`
 
           NOTES_EOF
