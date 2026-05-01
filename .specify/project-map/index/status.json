@@ -2,11 +2,11 @@
   "version": 2,
   "global": {
     "freshness": "fresh",
-    "last_refresh_commit": "WORKTREE-subagents-first-refactor",
+    "last_refresh_commit": "8e597a4b3258e5b08416d7af8c58086842c8cf44",
     "last_refresh_at": "2026-04-30T06:11:44Z",
     "last_refresh_branch": "main",
     "last_refresh_reason": "subagents-first-workflow-refactor",
-    "commit_hash": "WORKTREE-subagents-first-refactor",
+    "commit_hash": "8e597a4b3258e5b08416d7af8c58086842c8cf44",
     "doc_status_summary": {
       "documented": 3,
       "indexed_only": 0,
@@ -37,7 +37,7 @@
     "affected_root_docs": []
   },
   "modules": {},
-  "last_mapped_commit": "WORKTREE-subagents-first-refactor",
+  "last_mapped_commit": "8e597a4b3258e5b08416d7af8c58086842c8cf44",
   "last_mapped_at": "2026-04-30T06:11:44Z",
   "last_mapped_branch": "main",
   "freshness": "fresh",
