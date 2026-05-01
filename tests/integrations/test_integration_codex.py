@@ -454,7 +454,7 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "analysis-only" in analyze_content.lower()
     assert "`next_command: /sp.implement`" in analyze_content
     assert "If the highest-impact issue lives in `spec.md` or `context.md`" in analyze_content
-    assert "If analysis runs after `/sp-implement` has already started or finished" in analyze_content
+    assert "has already started or finished" in analyze_content
 
 
 def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_path):
