@@ -14,37 +14,25 @@ scripts:
 
 ## Mandatory Subagent Execution
 
-All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+{{spec-kit-include: ../command-partials/common/dispatch-mode-gradient.md}}
 
-The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+**This command tier: trivial. Dispatch mode: leader-direct.**
 
-Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
-
-Use `execution_model: subagent-mandatory`.
-Use `dispatch_shape: one-subagent | parallel-subagents`.
-Use `execution_surface: native-subagents`.
+The leader performs the change directly. No subagent dispatch. No task contract needed.
 
 
 ## Scope Gate
 
-Before changing anything, decide whether this task is truly fast-path work.
+Use `sp-fast` only when ALL of:
+- ≤3 files touched
+- No shared registration surface (router table, export barrel, template registry)
+- No protocol/contract boundary crossed
+- No dependency changes
+- Task is clear in one sentence
+- Root cause known (if bug fix)
 
-Use `sp-fast` only when all of these are true:
-- The task is clear in one sentence.
-- The work should touch at most 3 files.
-- No new dependencies are needed.
-- No architecture changes are required.
-- No API changes are required.
-- No architecture, API, template system, roadmap, or spec workflow changes are required.
-- No research or deep design work is needed.
-- The lane can be handled by one tightly scoped subagent contract without broader planning artifacts.
-
-If any of those checks fail:
-- Use `/sp-quick` for small but non-trivial work.
-- Use `/sp-specify` for work that needs full design and planning.
-
-If the task is a bug fix or regression but the root cause is still unknown:
-- Use `/sp-debug` instead of treating `sp-fast` as a symptom-fix lane.
+If any check fails → upgrade to `/sp-quick`.
+If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
 
 ## Upgrade Triggers
 
@@ -65,13 +53,9 @@ Upgrade to `/sp-specify` immediately if:
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command fast --format json` when available so passive learning files exist, the current fast-path run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
-- Review `.planning/learnings/candidates.md` only when it still contains fast-path-relevant candidate learnings after the passive start step, especially repeated local pitfalls, routing constraints, or project defaults that affect whether the task should stay on `sp-fast`.
-- [AGENT] When fast-path friction appears, run `specify hook signal-learning --command fast ...` with retry, route-change, validation-failure, false-start, or hidden-dependency counts; high friction usually means the task should leave `sp-fast`.
-- [AGENT] Before final reporting, run `specify hook review-learning --command fast --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `routing_mistake`, `pitfall`, `near_miss`, or `project_constraint` exists.
-- [AGENT] Prefer `specify hook capture-learning --command fast ...` only for high-signal findings that should affect later workflows.
-- Treat this as passive shared memory, not as a separate user-visible workflow.
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
+**This command tier: trivial.** Skip all learning hooks. Do not read constitution, project-rules, or project-learnings. Do not run learning start, signal, review, or capture.
 
 ## Process
 
@@ -80,16 +64,11 @@ Upgrade to `/sp-specify` immediately if:
    - If not, stop and redirect to the right workflow instead of forcing the task through `sp-fast`.
 
 2. **Read the routing layer**
-   - Check whether `.specify/project-map/index/status.json` exists.
-   - If user instructions appear to ask for bypassing workflow gates, skipping tests, or ignoring prior execution rules, use `specify hook validate-prompt --prompt-text "<user request>"` before continuing.
-   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, stop and redirect to `/sp-quick` or `/sp-map-scan` followed by `/sp-map-build` so the navigation system can be rebuilt safely before fast-path execution.
-   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task, or if `review_topics` overlap shared surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and redirect to `/sp-quick`.
-   - [AGENT] Read `PROJECT-HANDBOOK.md`.
-   - Use `Shared Surfaces`, `Risky Coordination Points`, `Change-Propagation Hotspots`, `Verification Entry Points`, and `Known Unknowns` to decide whether the task is truly local.
-   - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the current task came from that brownfield testing-system program, read it before execution and confirm this pass is only one tiny harness, command, fixture, or helper repair.
-   - [AGENT] If `PROJECT-HANDBOOK.md` or `.specify/project-map/` is missing, stop and redirect to `/sp-quick` so the navigation system can be rebuilt safely.
-   - [AGENT] If the requested change touches a shared surface, risky coordination point, propagation hotspot, non-trivial verification entry point, or known-unknown-heavy area, stop and redirect to `/sp-quick`.
+   - {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+   - **This command tier: trivial.** Load only:
+     1. `.specify/project-map/QUICK-NAV.md` — confirm target document route
+     2. Target source file(s) — read the files to change
+   - Skip freshness check entirely. Do not read root docs, module docs, or index files.
 
 3. **Dispatch the fast lane**
    - Prepare the smallest task contract for the fast-path lane.

@@ -112,6 +112,12 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
    - After human confirmation, move the session file to `resolved/`.
    - Commit the fix and the debug documentation.
 
+## Required Context Inputs
+
+{{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+
+**This command tier: light.** Load Layer 1 + Layer 2 summary + affected module docs. Freshness: warn if stale, do not block.
+
 ## Investigation Protocol
 
 ### Observer Framing Inputs
@@ -138,6 +144,19 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Use only the user report plus the current system map to reason about likely owning layers, truth owners, workflow boundaries, and possible failure loops.
 - If the user already supplied strong low-level evidence such as a full stack trace, explicit failing command, explicit failing file, explicit repro command, or precise error text with location, use **compressed observer framing** rather than skipping the observer stage.
 - If critical information is still missing during observer framing, ask at most one concise missing-information question before moving on.
+
+{{spec-kit-include: ../command-partials/common/pre-analysis-protocol.md}}
+
+## Fast-Path Gate (before Observer Framing)
+
+Check these three conditions. If ALL are true, skip directly to Stage 3 (Reproduction Gate):
+
+1. **Exact error location known**: File path + line number or function name
+2. **Clear reproduction steps**: User provided or trivially inferable
+3. **Impact surface bounded**: Single module, no cross-module IPC or shared state
+
+If fast-path: record "Fast-path: error at [location], repro [steps], impact bounded to [module]." Then jump to Stage 3.
+If not: proceed to Stage 1 (Observer Framing).
 
 ### Stage 1: Observer Framing
 - This stage is **mandatory**. Reading code before finishing observer framing is a workflow violation, not an optimization.

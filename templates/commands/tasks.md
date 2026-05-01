@@ -103,6 +103,10 @@ scripts:
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
+{{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+
+**This command tier: heavy.** Load Layer 1 + Layer 2 summary. Reads only the plan artifacts for task breakdown (Layer 3 docs are for sp-implement).
+
 4. **Execute task generation workflow**:
     - [AGENT] Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="tasks", snapshot, workload_shape)`
     - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`

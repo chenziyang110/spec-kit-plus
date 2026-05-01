@@ -14,15 +14,11 @@ scripts:
 
 ## Mandatory Subagent Execution
 
-All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+{{spec-kit-include: ../command-partials/common/dispatch-mode-gradient.md}}
 
-The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+**This command tier: light. Dispatch mode: subagent-preferred.**
 
-Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
-
-Use `execution_model: subagent-mandatory`.
-Use `dispatch_shape: one-subagent | parallel-subagents`.
-Use `execution_surface: native-subagents`.
+Dispatch to one subagent with a task contract. If subagent dispatch is unavailable, record reason and fall back to leader-inline.
 
 
 ## Leader Role
@@ -38,39 +34,16 @@ Use `execution_surface: native-subagents`.
 
 ## Required Context Inputs
 
-- Read `.specify/memory/constitution.md` first if present. This is the first hard gate for every quick task.
-- [AGENT] Run `specify learning start --command quick --format json` when available so passive learning files exist, the current quick-task run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
-- Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` after the constitution gate and before broader quick-task context.
-- If `.planning/learnings/candidates.md` still contains relevant entries after the passive start step, inspect only the entries relevant to the touched area so repeated pitfalls, workflow gaps, and project constraints are not rediscovered from scratch.
-- [AGENT] When quick-task friction appears, run `specify hook signal-learning --command quick ...` with retry, validation-failure, route-change, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
-- [AGENT] Before terminal `resolved` or `blocked` reporting, run `specify hook review-learning --command quick --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `pitfall`, `recovery_path`, `routing_mistake`, `verification_gap`, or `project_constraint` exists.
-- [AGENT] Prefer `specify hook capture-learning --command quick ...` for structured path learning when the run exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
-- Check whether `.specify/project-map/index/status.json` exists.
-- If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-- [AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
-- [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the touched area, run `/sp-map-scan` followed by `/sp-map-build` before continuing. If only `review_topics` are non-empty, review those topical files before proceeding and refresh the map if they still look insufficient for the quick task.
-- [AGENT] Read `PROJECT-HANDBOOK.md` after the constitution gate and before any broad repository analysis.
-- [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
-- Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-- Treat quick-task routing as a coverage-model check, not just a presence check. Coverage is also insufficient when the handbook/project-map set cannot yet tell you:
-  - owning or truth-owning surfaces
-  - change-propagation hotspots
-  - verification entry points
-  - known unknowns or stale evidence boundaries for the touched area
-- [AGENT] If task-relevant coverage is insufficient for the current quick task, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
-- Use `Topic Map` to choose only the touched-area topical files needed for the current quick task.
-- Use the loaded handbook/project-map coverage to name the touched area's owning surfaces, change-propagation hotspots, verification entry points, and known unknowns before choosing the quick-task lane shape.
-- Do not load the full topical map unless the task expands beyond its bounded quick-task scope.
-- Do not create or update `STATUS.md`, ask clarifying questions, choose lanes, dispatch subagents, or analyze repository code until the constitution has been read or confirmed absent.
-- [AGENT] Create or resume `STATUS.md` at `.planning/quick/<id>-<slug>/STATUS.md` before any substantial repository analysis, planning, or implementation work. If the workspace does not exist yet, initialize it first and then continue.
-- Read `.planning/quick/<id>-<slug>/STATUS.md` before each resumed action; treat it as the quick-task source of truth.
-- Treat `.planning/quick/index.json` as the derived quick-task index used for list, status, resume, close, and archive operations. If the index is stale or missing, rebuild it from `STATUS.md` files instead of treating it as the primary truth source.
-- Read only the minimum local context required to determine scope, safe lane shape, and the first execution strategy before dispatch.
-- If the quick task touches an existing feature area with local planning artifacts, read the most relevant nearby `spec.md`, `plan.md`, `tasks.md`, or `context.md` files when they materially constrain behavior.
-- If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the quick task is part of a broader brownfield testing-system program, read it and scope the quick task to one single module, risk tranche, or coverage wave before execution starts.
-- `sp-quick <description>` creates a new quick task.
-- Empty `sp-quick` checks for unfinished quick tasks first. If exactly one unfinished task exists, resume it automatically. If multiple unfinished tasks exist, ask the user which quick task to continue and show `id`, title, current status, and `next_action`.
-- Treat `blocked` quick tasks as resumable unfinished work for recovery routing.
+{{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
+
+**This command tier: light.** Load:
+1. `.specify/project-map/QUICK-NAV.md` — route to target module
+2. `root/ARCHITECTURE.md` — read target module's Layer 2 summary card only
+3. Target module `OVERVIEW.md` — read only sections relevant to the task
+4. `root/CONVENTIONS.md` — read only the relevant pattern section (DI, IPC, or Error)
+5. `index/relations.json` — check cross-module impact
+
+**Freshness**: Check `index/status.json` commit_hash vs HEAD. If stale, warn but proceed. Do not trigger rescan.
 
 ## First-Party Workflow Quality Hooks
 
@@ -342,6 +315,10 @@ resume_decision: [resume here | blocked waiting | resolved]
 - Produce scoped implementation changes, verification evidence, and a truthful resolved/blocked state for the quick task.
 - Preserve escalation history so it is clear why the task stayed quick or needed to grow.
 
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
+**This command tier: light.** Auto-capture learnings on resolution only. No review, no signal.
+
 ## Process
 
 1. **Scope gate**
@@ -397,13 +374,6 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Separate `verified` coverage from `not checked` coverage so readers can tell what was actually proven versus what is only expected to be safe.
    - For each declared surface, give the terminal status conclusion: `confirmed correct`, `fixed in this quick task`, or `not checked in this pass (with reason)`.
    - Make sure the final `STATUS.md` points to the summary, records the terminal state, and makes a future resume decision obvious.
-   - [AGENT] Before the final summary, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning from the quick-task closeout state.
-   - [AGENT] Closing the quick task through `specify quick close` should auto-capture retry-heavy quick-task learnings from `STATUS.md`.
-   - [AGENT] If you are finalizing outside the normal quick close path, run `specify learning capture-auto --command quick --workspace ".planning/quick/<id>-<slug>" --format json`.
-   - [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `specify learning capture --command quick ...`.
-   - [AGENT] Before the final summary, run `specify hook review-learning --command quick --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"` so the learning closeout gate cannot be skipped.
-   - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
-   - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 
 ## Guardrails
 

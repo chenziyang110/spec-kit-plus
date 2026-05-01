@@ -20,7 +20,8 @@
       },
       "freshness": "fresh",
       "deep_status": "current",
-      "confidence": "Verified"
+      "confidence": "Verified",
+      "doc_status": "documented"
     },
     {
       "id": "templates-generated-surfaces",
@@ -40,7 +41,8 @@
       },
       "freshness": "fresh",
       "deep_status": "current",
-      "confidence": "Verified"
+      "confidence": "Verified",
+      "doc_status": "documented"
     },
     {
       "id": "agent-teams-engine",
@@ -58,7 +60,8 @@
       },
       "freshness": "fresh",
       "deep_status": "sampled",
-      "confidence": "Inferred"
+      "confidence": "Inferred",
+      "doc_status": "documented"
     }
   ]
 }

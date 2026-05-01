@@ -22,6 +22,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - **Project initialization and generated agent surfaces**: `specify init` resolves `--ai` or `--integration`, installs command/skill/workflow files, copies scripts/templates, and records integration manifests. Read `.specify/project-map/root/INTEGRATIONS.md` and `modules/specify-cli-core/ARCHITECTURE.md`.
 - **Workflow contract generation**: `templates/commands/`, `templates/command-partials/`, and `templates/passive-skills/` define `sp-*` behavior for downstream agents. Read `.specify/project-map/root/WORKFLOWS.md` and `modules/templates-generated-surfaces/WORKFLOWS.md`.
 - **Enriched task contract generation**: `sp-tasks` produces subagent-ready task contracts with agent role assignment, context navigation pointers, write/read/forbidden scope boundaries, verify commands, and escalation strategy — enabling `sp-implement` to dispatch subagents directly without leader clarification.
+- **Spec quality gate (`spec-lint`)**: `tools/spec-lint/` is a zero-dependency Go binary that mechanically validates spec artifact sets against 8 tiered quality checks before `sp-plan`. Install scripts, CI cross-compilation, and the quality gate spec live alongside the tool. Read `templates/spec-quality-gate.md`.
 - **Brownfield atlas lifecycle**: `map-scan -> map-build` is the required stale/missing context gate. It produces scan packets, worker-result evidence, layered root/module docs, and freshness metadata. Read `.specify/project-map/root/OPERATIONS.md`.
 - **Delegated execution contracts**: `src/specify_cli/execution/`, `src/specify_cli/hooks/`, and `src/specify_cli/orchestration/` define packet/result schemas, quality hooks, subagents-first dispatch selection, and state surfaces. Read `.specify/project-map/root/ARCHITECTURE.md`.
 - **Codex team runtime**: `src/specify_cli/codex_team/`, `src/specify_cli/mcp/`, and `extensions/agent-teams/engine/` provide optional Codex team orchestration, state, MCP facade, and bundled engine assets. Read `.specify/project-map/modules/agent-teams-engine/OVERVIEW.md`.
@@ -30,12 +31,22 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 ## How To Read This Project
 
 - Start here for orientation.
+- **First stop for any task**: open `.specify/project-map/QUICK-NAV.md` — a ≤50-line decision matrix that answers "which document should I open?"
 - The handbook is the index-first entrypoint.
 - Read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` before broad brownfield work.
 - Treat the combined handbook/project-map set as an atlas-style technical encyclopedia.
 - The root topical docs explain cross-module architecture, workflows, integrations, testing, operations, structure, and conventions.
 - Module docs explain module-local ownership and drill-down routes.
 - Fall back to live code reads only when topical coverage is missing, stale, too broad, or marked low confidence.
+
+## Quick Navigation (Layer 1)
+
+For task-based routing, open `.specify/project-map/QUICK-NAV.md` first — it is a ≤50-line decision matrix that answers "which document should I open?" for 12 common task types. The handbook and project-map together form a four-layer atlas:
+
+- **Layer 1 (routing)**: `QUICK-NAV.md` — task→document mapping
+- **Layer 2 (summary)**: `root/ARCHITECTURE.md` capability cards — module-at-a-glance
+- **Layer 3 (detail)**: `modules/<name>/OVERVIEW.md` — full technical detail
+- **Layer 4 (source)**: Live code — when docs are missing or stale
 
 ## Shared Surfaces
 
@@ -45,6 +56,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - `scripts/bash/` and `scripts/powershell/`: generated helper layer and freshness/context-update scripts.
 - `src/specify_cli/execution/`, `src/specify_cli/hooks/`, `src/specify_cli/orchestration/`: packet/result schemas, workflow hooks, subagents-first dispatch/state/review helpers.
 - `src/specify_cli/codex_team/` and `extensions/agent-teams/engine/`: optional Codex team runtime and bundled engine.
+- `tools/spec-lint/`: spec quality gate binary, install scripts, CI cross-compilation workflow.
 
 ## Risky Coordination Points
 
@@ -78,6 +90,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - Integration surface: `pytest tests/integrations -q`
 - Hooks/execution/orchestration: `pytest tests/hooks tests/execution tests/orchestration -q`
 - Codex team runtime: `pytest tests/codex_team tests/contract/test_codex_team_cli_surface.py tests/test_teams_mcp_server.py -q`
+- spec-lint: `cd tools/spec-lint && go vet ./... && go build -o /dev/null .`
 - Packaging sanity: `uv build`
 - Bundled engine sanity: `npm --prefix extensions/agent-teams/engine run build`
 
