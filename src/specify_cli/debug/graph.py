@@ -683,9 +683,6 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         if not ctx.state.recently_modified:
             ctx.state.recently_modified = loader.get_recent_git_changes()
 
-        _refresh_diagnostic_profile(ctx.state)
-        _refresh_lane_plan(ctx.state)
-
         # 2. Observer Framing — dispatch to think subagent for isolated reasoning
         if not ctx.state.observer_framing_completed:
             prompt = build_think_subagent_prompt(ctx.state)
