@@ -1807,7 +1807,7 @@ class SkillsIntegration(IntegrationBase):
         debug_skill: Path,
         snapshot: CapabilitySnapshot | None = None,
     ) -> None:
-        """Inject Leader Gate and evidence collection guidance into the debug skill."""
+        """Inject Leader Gate, Think Subagent Dispatch, and evidence collection guidance into the debug skill."""
         if not self._can_augment_generated_file(debug_skill, project_root):
             return
 
