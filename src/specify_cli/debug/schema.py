@@ -187,3 +187,4 @@ class DebugGraphState(BaseModel):
     context: FeatureContext = Field(default_factory=FeatureContext)
     recently_modified: List[str] = Field(default_factory=list)
     execution_intent: ExecutionIntentState = Field(default_factory=ExecutionIntentState)
+    think_subagent_prompt: Optional[str] = None
