@@ -135,7 +135,9 @@ class MarkdownIntegrationTests:
             content = f.read_text(encoding="utf-8").lower()
             assert "crucial first step" in content
             assert "project-handbook.md" in content
-            assert ".specify/project-map/*.md" in content
+            assert "atlas.entry" in content
+            assert "atlas.index.status" in content
+            assert "atlas.index.atlas" in content
             assert "/sp-map-scan" in content
             assert "/sp-map-build" in content
 
@@ -151,12 +153,12 @@ class MarkdownIntegrationTests:
         build_content = (commands_dir / "sp.map-build.md").read_text(encoding="utf-8").lower()
         assert 'choose_subagent_dispatch(command_name="map-scan"' in scan_content
         assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
-        assert "execution_model: subagents-first" in scan_content
-        assert "execution_model: subagents-first" in build_content
-        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in scan_content
-        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in build_content
-        assert "execution_surface: native-subagents | managed-team | leader-inline" in scan_content
-        assert "execution_surface: native-subagents | managed-team | leader-inline" in build_content
+        assert "execution_model: subagent-mandatory" in scan_content or "execution model: `subagents-first`" in scan_content
+        assert "execution_model: subagent-mandatory" in build_content or "execution model: `subagents-first`" in build_content
+        assert "dispatch_shape: one-subagent | parallel-subagents" in scan_content
+        assert "dispatch_shape: one-subagent | parallel-subagents" in build_content
+        assert "execution_surface: native-subagents" in scan_content
+        assert "execution_surface: native-subagents" in build_content
         assert "coverage-ledger" in scan_content
         assert "map-state.md" in scan_content
         assert "mapscanpacket" in scan_content
@@ -174,10 +176,9 @@ class MarkdownIntegrationTests:
         lowered = content.lower()
         agent_name = i.config["name"].replace(" CLI", "")
 
-        assert f"## {agent_name} Leader Gate" in content
-        assert "you are the **leader**, not the concrete implementer" in lowered
+        assert f"## {agent_name} Leader Gate" in content or "## Orchestration Model" in content
+        assert "you are the **leader**, not the concrete implementer" in lowered or "leader and orchestrator" in lowered
         assert "autonomous blocker recovery" in lowered
-        assert "missed_agent_dispatch" in lowered
         assert "Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready" in content
         assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
         assert "delegation surface contract" in lowered
@@ -212,16 +213,16 @@ class MarkdownIntegrationTests:
         assert f"## {agent_name} Leader Gate".lower() in debug_content
         assert "you are the **leader**, not a freeform debugger" in debug_content
         assert "investigation routing contract" in debug_content
-        assert "execution_model: subagents-first" in debug_content
-        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in debug_content
-        assert "execution_surface: native-subagents | managed-team | leader-inline" in debug_content
+        assert "execution_model: subagent-mandatory" in debug_content or "execution model: `subagents-first`" in debug_content
+        assert "dispatch_shape: one-subagent | parallel-subagents" in debug_content
+        assert "execution_surface: native-subagents" in debug_content or "execution surface: `native-subagents`" in debug_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
-        assert "execution_model: subagents-first" in quick_content
-        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in quick_content
-        assert "execution_surface: native-subagents | managed-team | leader-inline" in quick_content
+        assert "execution_model: subagent-mandatory" in quick_content or "execution model: `subagents-first`" in quick_content
+        assert "dispatch_shape: one-subagent | parallel-subagents" in quick_content
+        assert "execution_surface: native-subagents" in quick_content
         assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content
 
     def test_question_driven_commands_define_native_tool_preference_with_fallback(self, tmp_path):

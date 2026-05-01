@@ -455,7 +455,9 @@ def test_gemini_runtime_commands_hard_gate_project_map_reads(tmp_path):
         content = (target / rel).read_text(encoding="utf-8").lower()
         assert "crucial first step" in content
         assert "project-handbook.md" in content
-        assert ".specify/project-map/*.md" in content
+        assert "atlas.entry" in content
+        assert "atlas.index.status" in content
+        assert "atlas.index.atlas" in content
         assert "/sp-map-scan" in content
         assert "/sp-map-build" in content
 

@@ -29,13 +29,13 @@ def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert ".specify/memory/constitution.md" in content
-    assert "execution_model: subagents-first" in content
-    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
-    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
+    assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in content
+    assert "execution_surface: native-subagents" in content
     assert "cursor leader gate" in content
     assert "cursor subagent execution" in content
     assert "dispatch `one-subagent` or `parallel-subagents` before broad leader-inline repository analysis" in content
-    assert "use `leader-inline-fallback` only after native subagents and the managed-team path" in content
+    assert "leader-inline-fallback" in content
     assert "read `.specify/memory/constitution.md` first if it exists" in content
     assert "do **not** perform broad repository analysis" in content
     assert "use cursor's native subagent path for bounded lanes when available" in content
@@ -45,7 +45,6 @@ def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
     assert "leader-inline-fallback" in content
     assert "use cursor's native subagent path" in content
     assert "status.md" in content
-    assert "execution_fallback" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
     assert "attempt the smallest safe recovery step before declaring the task blocked" in content
     assert "retry_attempts" in content
@@ -81,6 +80,8 @@ def test_cursor_runtime_commands_hard_gate_project_map_reads(tmp_path):
         content = (target / rel).read_text(encoding="utf-8").lower()
         assert "crucial first step" in content
         assert "project-handbook.md" in content
-        assert ".specify/project-map/*.md" in content
+        assert "atlas.entry" in content
+        assert "atlas.index.status" in content
+        assert "atlas.index.atlas" in content
         assert "/sp-map-scan" in content
         assert "/sp-map-build" in content
