@@ -1,4 +1,30 @@
+from pathlib import Path
+
+from typer.testing import CliRunner
+
+from specify_cli import app
 from specify_cli.agents import CommandRegistrar
+
+
+def test_init_generated_codex_skill_includes_invocation_note_and_projected_handoff(tmp_path: Path):
+    runner = CliRunner()
+    target = tmp_path / "codex-projection"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0
+    content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "## Invocation Syntax" in content
+    assert "`$sp-plan`-style syntax" in content
+    assert "- **Default handoff**: $sp-plan" in content
+    assert "`next_command: /sp.plan`" in content
+
+    passive = (target / ".codex" / "skills" / "python-testing" / "SKILL.md").read_text(encoding="utf-8")
+    assert "## Invocation Syntax" not in passive
 
 
 def test_apply_skill_invocation_conventions_projects_user_facing_examples_by_agent():

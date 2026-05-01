@@ -1489,6 +1489,7 @@ class SkillsIntegration(IntegrationBase):
         source: str,
         script_type: str,
         arg_placeholder: str,
+        apply_invocation_conventions: bool = False,
         template_path: Path | None = None,
     ) -> str:
         """Render a command or passive skill template into normalized ``SKILL.md``."""
@@ -1503,6 +1504,14 @@ class SkillsIntegration(IntegrationBase):
             parts = processed_body.split("---", 2)
             if len(parts) >= 3:
                 processed_body = parts[2]
+
+        from specify_cli.agents import CommandRegistrar
+
+        if apply_invocation_conventions:
+            processed_body = CommandRegistrar.apply_skill_invocation_conventions(
+                self.key,
+                processed_body,
+            )
 
         compatibility = "Requires spec-kit project structure with .specify/ directory"
         return (
@@ -1613,6 +1622,7 @@ class SkillsIntegration(IntegrationBase):
                 source=f"templates/commands/{src_file.name}",
                 script_type=script_type,
                 arg_placeholder=arg_placeholder,
+                apply_invocation_conventions=True,
                 template_path=src_file,
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
@@ -1684,6 +1694,7 @@ class SkillsIntegration(IntegrationBase):
                 source=f"templates/passive-skills/{skill_name}/SKILL.md",
                 script_type=script_type,
                 arg_placeholder=arg_placeholder,
+                apply_invocation_conventions=False,
                 template_path=template_dir / "SKILL.md",
             )
             skill_dir = skills_dir / skill_name
