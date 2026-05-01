@@ -157,6 +157,7 @@ confirmed from those reads, report the build as blocked instead of successful.
 - critical or important rows without atlas targets
 - excluded buckets without a reason and revisit condition
 - scan packets without required questions or expected evidence format
+- missing Layer 1 retrieval source material for critical workflow, verification, or shared-surface issues
 
 When refusal happens, write or report a scan gap report that names:
 
@@ -285,9 +286,26 @@ Before reporting success, `sp-map-build` must prove reverse coverage validation:
 - every excluded bucket has a reason and revisit condition
 - `QUICK-NAV.md` is refreshed or explicitly confirmed current as the Layer 1 routing surface
 - `PROJECT-HANDBOOK.md` stays index-first and routes to deeper topical docs
+- every high-frequency problem type is reachable from Layer 1
+- every critical shared surface can be discovered from Layer 1 or atlas indexes
+- every key verification entry point can be located from Layer 1 or module/index metadata
 
 If any check fails, continue mapping or route back to `/sp-map-scan`; do not
 report success.
+
+## Layer 1 Reachability Validation
+
+Before reporting success, verify that the atlas supports:
+
+- task routes
+- symptom routes
+- shared-surface hotspots
+- verification routes
+- propagation-risk routes
+
+If any of those route families cannot be backed by accepted packet evidence,
+continue mapping or route back to `/sp-map-scan` instead of declaring the atlas
+complete.
 
 ## First-Party Workflow Quality Hooks
 

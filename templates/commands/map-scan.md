@@ -198,6 +198,17 @@ source-of-truth document. The scan package is a task package for
      - `blocked_conditions`
    - Record packet paths, selected strategy, join points, and build handoff readiness in `MAP_STATE_FILE`.
 
+8. **Generate Layer 1 retrieval source material**
+   - [AGENT] Record the raw source material that `sp-map-build` will need to synthesize a dictionary-style Layer 1 entry surface.
+   - For every high-value issue cluster, capture at least:
+     - task route candidates
+     - symptom route candidates
+     - shared-surface hotspot candidates
+     - verification route candidates
+     - propagation-risk route candidates
+   - Each candidate must point back to concrete ledger rows or packet scopes instead of freeform prose.
+   - If a critical or important surface cannot yet be reached from one of those retrieval dimensions, record it as a scan gap rather than assuming `sp-map-build` will invent the route.
+
 ## Required Scan Dimensions
 
 The scan package must preserve these dimensions as required fields or packet
@@ -245,6 +256,9 @@ questions:
 14. **Coverage reverse index**
     - every critical or important surface must name the final atlas document where it will be explained
 
+15. **Layer 1 retrieval inputs**
+    - task routes, symptom routes, shared-surface hotspots, verification routes, and propagation-risk routes must all be derivable from scan outputs without ad hoc atlas writing
+
 ## `map-scan.md` Structure
 
 `map-scan.md` must include:
@@ -260,6 +274,7 @@ questions:
 9. Build readiness checklist
 10. Known scan gaps
 11. Handoff to `sp-map-build`
+12. Layer 1 retrieval candidates
 
 ## `coverage-ledger.json` Shape
 

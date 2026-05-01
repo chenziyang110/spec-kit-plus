@@ -100,6 +100,7 @@ def test_map_scan_template_preserves_required_scan_dimensions() -> None:
         "risk, security, observability, and evolution",
         "template and generated-surface propagation",
         "coverage reverse index",
+        "layer 1 retrieval inputs",
     ]
 
     for phrase in required_phrases:
@@ -158,7 +159,23 @@ def test_map_build_template_requires_reverse_coverage_closure() -> None:
         "low-confidence areas",
         "deep_stale",
         "excluded bucket has a reason and revisit condition",
+        "every high-frequency problem type is reachable from layer 1",
+        "every critical shared surface can be discovered from layer 1 or atlas indexes",
+        "every key verification entry point can be located from layer 1 or module/index metadata",
     ]
 
     for phrase in required_phrases:
         assert phrase in lowered
+
+
+def test_map_scan_and_build_templates_require_layer1_route_material() -> None:
+    scan_content = _read("templates/commands/map-scan.md").lower()
+    build_content = _read("templates/commands/map-build.md").lower()
+
+    assert "generate layer 1 retrieval source material" in scan_content
+    assert "task route candidates" in scan_content
+    assert "symptom route candidates" in scan_content
+    assert "shared-surface hotspot candidates" in scan_content
+    assert "verification route candidates" in scan_content
+    assert "propagation-risk route candidates" in scan_content
+    assert "layer 1 reachability validation" in build_content
