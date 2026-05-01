@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: The current spec package is ready for design work, but implementation should not start until explicit planning artifacts exist.
   primary_objective: Produce the planning artifact set that turns specification intent into an implementation-ready architecture and execution approach.
   primary_outputs: '`plan.md`, `research.md`, `quickstart.md`, and `workflow-state.md` under the active `FEATURE_DIR`, plus `data-model.md` and `contracts/` when the feature scope demands them.'
-  default_handoff: /sp-tasks for decomposition, optionally /sp-checklist for quality checks on the resulting plan package.
+  default_handoff: '/sp.tasks for decomposition, optionally /sp.checklist for quality checks on the resulting plan package.'
 handoffs:
   - label: Create Tasks
     agent: sp.tasks
@@ -123,9 +123,9 @@ gate.
 
 4. **Validate alignment status before planning**:
    - If `alignment.md` is missing:
-     - ERROR "Missing alignment report. Run /sp.specify first or re-run it to complete requirement alignment."
+     - ERROR "Missing alignment report. Run {{invoke:specify}} first or re-run it to complete requirement alignment."
    - If `context.md` is missing:
-     - ERROR "Missing context artifact. Run /sp.specify again or /sp.clarify to rebuild `context.md` before planning."
+     - ERROR "Missing context artifact. Run {{invoke:specify}} again or {{invoke:clarify}} to rebuild `context.md` before planning."
    - Read `Locked Decisions For Planning`, `Outstanding Questions`, `Remaining Risks`, and `Planning Gate Recommendation` from `alignment.md` when present.
    - Read `Locked Decisions`, `Claude Discretion`, `Canonical References`, `Existing Code Insights`, `Specific User Signals`, and `Outstanding Questions` from `context.md`.
    - If the alignment report status is `Aligned: ready for plan`:
@@ -135,16 +135,18 @@ gate.
    - Otherwise:
      - ERROR "Specification is not aligned enough for planning."
    - If `Planning Gate Recommendation` indicates `/sp.clarify` or the unresolved items still materially affect plan structure:
-     - ERROR "Specification still has planning-critical gaps. Run /sp.clarify or refine /sp.specify before planning."
+     - ERROR "Specification still has planning-critical gaps. Run {{invoke:clarify}} or refine {{invoke:specify}} before planning."
    - If `Planning Gate Recommendation` indicates `/sp.deep-research`, or the Feasibility / Deep Research Gate says `Needed before plan` or `Blocked`:
-     - ERROR "Specification still has unproven feasibility. Run /sp.deep-research before planning."
+     - ERROR "Specification still has unproven feasibility. Run {{invoke:deep-research}} before planning."
    - If `deep-research.md` exists but lacks a `Planning Handoff` section and the feature depends on its research conclusions:
-     - ERROR "Deep research evidence is not ready for planning. Re-run /sp.deep-research to synthesize a Planning Handoff."
+     - ERROR "Deep research evidence is not ready for planning. Re-run {{invoke:deep-research}} to synthesize a Planning Handoff."
    - If `deep-research.md` exists and includes Planning Handoff IDs (`PH-###`), preserve those IDs in plan sections that consume the research. Do not collapse traceable handoff items into unsourced prose.
 
 5. **Assume the specification package is analysis-first**:
-   - Treat `/sp.specify` as the primary pre-planning requirement-analysis entry point
-   - Treat `/sp.clarify` as the follow-up enhancement path when the spec package needs deeper analysis before planning
+   - Treat the canonical workflow token `/sp.specify` as the primary pre-planning requirement-analysis entry point.
+   - Tell the user to run `{{invoke:specify}}` when they need to start or repeat that requirement-analysis step manually.
+   - Treat the canonical workflow token `/sp.clarify` as the follow-up enhancement path when the spec package needs deeper analysis before planning.
+   - Tell the user to run `{{invoke:clarify}}` when that follow-up must be invoked manually.
    - Use capability decomposition from `spec.md` when sequencing design work
    - Use `references.md` when retained sources or reusable examples affect planning choices
    - Use `deep-research.md` when feasibility evidence, disposable demo results, research-agent findings, synthesis decisions, or implementation-chain constraints affect planning choices
@@ -204,7 +206,7 @@ gate.
     - alignment status
     - generated artifacts
     - workflow-state path
-    - recommended follow-up quality check: `/sp.checklist` for a requirements/plan package audit before moving on to decomposition
+    - recommended follow-up quality check: `{{invoke:checklist}}` for a requirements/plan package audit before moving on to decomposition
     - if the planning pass introduces or sharpens new architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current handbook/project-map does not yet encode, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield implementation proceeds
     - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
       - `active_command: sp-plan`

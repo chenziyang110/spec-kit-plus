@@ -44,6 +44,14 @@ def _assert_subagent_dispatch_contract(text: str, command_name: str) -> None:
     assert "native-subagents" in lowered
 
 
+def _assert_default_handoff_contract(content: str, expected_fragment: str) -> None:
+    match = re.search(r"(?m)^  default_handoff: (?P<value>.+)$", content)
+    assert match is not None
+    handoff = match.group("value")
+    assert expected_fragment in handoff
+    assert "{{invoke:" not in handoff
+
+
 def test_core_sp_templates_use_learning_review_hooks():
     command_templates_with_signal = {
         "specify": "templates/commands/specify.md",
@@ -72,6 +80,45 @@ def test_core_sp_templates_use_learning_review_hooks():
 
     fast_content = _read("templates/commands/fast.md")
     assert "specify learning capture --command fast" in fast_content
+
+
+def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_placeholders() -> None:
+    task3_owned_handoffs = {
+        "templates/commands/analyze.md": [
+            "/sp.clarify",
+            "/sp.deep-research",
+            "/sp.plan",
+            "/sp.tasks",
+            "/sp.debug",
+            "/sp.implement",
+        ],
+        "templates/commands/auto.md": ["`next_command`", "/sp-auto"],
+        "templates/commands/plan.md": ["/sp.tasks", "/sp.checklist"],
+        "templates/commands/quick.md": ["/sp.specify"],
+        "templates/commands/specify.md": ["/sp.plan", "/sp.clarify", "/sp.deep-research"],
+        "templates/commands/tasks.md": ["/sp.analyze", "/sp.implement"],
+        "templates/commands/test-scan.md": ["/sp-test-build", "/sp.specify", "/sp.quick", "/sp.fast"],
+        "templates/commands/test-build.md": [
+            "/sp.specify",
+            "/sp.plan",
+            "/sp.tasks",
+            "/sp.implement",
+            "/sp.debug",
+            "/sp-test-build",
+        ],
+    }
+
+    assert len(task3_owned_handoffs) == 8
+
+    for template_path, expected_fragments in task3_owned_handoffs.items():
+        content = _read(template_path)
+        for expected_fragment in expected_fragments:
+            _assert_default_handoff_contract(content, expected_fragment)
+
+    for template_path in ("templates/commands/test-scan.md", "templates/commands/test-build.md"):
+        content = _read(template_path)
+        assert "/sp.test-build" not in content
+        assert "/sp.test-scan" not in content
 
 
 def test_project_learning_skill_documents_product_level_hooks():
@@ -351,7 +398,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "Prefer prescriptive recommendations over broad option dumps" in content
     assert "What does the planner need to know to produce a high-quality implementation plan" in content
     assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
-    assert "recommended follow-up quality check: `/sp.checklist`" in content
+    assert "recommended follow-up quality check: `{{invoke:checklist}}`" in content
     assert "mark `.specify/project-map/index/status.json` dirty" in lowered
     assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in content
     assert "specify team" not in lowered
@@ -538,7 +585,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "Seen In Plan Constitution?" in content
     assert "Boundary Guardrail Gap Count" in content
     assert "If a `Boundary Guardrail Gap` exists" in content
-    assert "recommend `/sp.plan` to add `Implementation Constitution`" in content
+    assert "recommend `{{invoke:plan}}` to add `Implementation Constitution`" in content
     assert "If `BG2` exists" in content
     assert "If `BG3` exists" in content
     assert "Closed-loop requirement" in content
@@ -550,8 +597,17 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "If the highest-impact issue lives only in `tasks.md`" in content
     assert "If the constitution itself must change" in content
     assert "`next_command: /sp.constitution`" in content
-    assert "If analysis runs after `/sp-implement` has already started or finished" in content
+    assert "If analysis runs after the canonical `/sp.implement` workflow has already started or finished" in content
     assert "exact workflow re-entry path" in content
+
+
+def test_analyze_template_separates_canonical_state_token_from_manual_invocation_guidance():
+    content = _read("templates/commands/analyze.md")
+
+    assert "Preserve canonical `/sp.implement` only in workflow-state fields." in content
+    assert "When recommending manual implementation resumption to the user, tell them to run `{{invoke:implement}}`." in content
+    assert "tell the user to run `{{invoke:implement}}` while preserving canonical `/sp.implement`" not in content
+    assert "tell them to run `{{invoke:implement}}` while preserving canonical `/sp.implement`" not in content
 
 
 def test_workflow_state_template_supports_analyze_gate_phase():
@@ -627,6 +683,15 @@ def test_deep_research_template_defines_feasibility_gate_contract():
     assert "next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
 
 
+def test_specify_template_keeps_canonical_state_tokens_but_not_universal_user_invocation():
+    content = _read("templates/commands/specify.md")
+
+    assert "`next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
+    assert "Default handoff: /sp-plan" not in content
+    assert "Default handoff: /sp.plan" not in content
+    assert "{{invoke:plan}}" in content
+
+
 def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research():
     specify = _read("templates/commands/specify.md")
     plan = _read("templates/commands/plan.md")
@@ -634,7 +699,8 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
     assert "Run a feasibility and implementation-chain gate." in specify
     assert "label: Prove Feasibility Before Plan" in specify
     assert "agent: sp.deep-research" in specify
-    assert "recommend `/sp.deep-research` as the next command instead of `/sp.plan`" in specify
+    assert "record `/sp.deep-research` as the canonical next command instead of `/sp.plan`" in specify
+    assert "tell them to run `{{invoke:deep-research}}` instead of `{{invoke:plan}}`" in specify
     assert "minor adjustments to capabilities that already exist" in specify
     assert "research-to-plan handoff path" in specify
     assert "Feasibility Evidence From Deep Research" in plan
@@ -642,7 +708,7 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
     assert "Deep Research Traceability Matrix" in plan
     assert "every architecture, module-boundary, API/library, data-flow, validation, or residual-risk decision derived from deep research must cite at least one `PH-###` item" in plan
     assert "Treat the `Planning Handoff` section in `deep-research.md` as a direct planning input" in plan
-    assert "Run /sp.deep-research before planning" in plan
+    assert "Run {{invoke:deep-research}} before planning" in plan
 
 
 def test_map_scan_template_generates_complete_build_package() -> None:
@@ -1080,12 +1146,12 @@ def test_tasks_template_fail_closes_into_analyze_before_implement():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
-    assert "default_handoff: /sp-analyze" in content
+    assert "default_handoff: '/sp.analyze" in content
     assert "Implement Project" not in content
-    assert "recommended next command: `/sp.analyze`" in lowered
+    assert "recommended next command: `{{invoke:analyze}}`" in lowered
     assert "`next_command: /sp.analyze`" in content
-    assert "implementation remains blocked until `/sp-analyze`" in lowered
-    assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in lowered
+    assert "implementation remains blocked until `{{invoke:analyze}}`" in lowered
+    assert "do not hand off directly to `{{invoke:implement}}` from `sp-tasks`" in lowered
 
 
 def test_implement_template_honors_pending_analyze_gate_from_workflow_state():

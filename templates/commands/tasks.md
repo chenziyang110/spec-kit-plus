@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: Planning artifacts already exist and the remaining gap is concrete execution slicing rather than more design work.
   primary_objective: Produce `tasks.md` with dependency ordering, guardrail carry-forward, execution batches, and join points.
   primary_outputs: '`FEATURE_DIR/tasks.md` and the task decomposition metadata needed for later analysis and implementation.'
-  default_handoff: /sp-analyze for cross-artifact drift checks; only continue to /sp-implement after analyze clears upstream drift.
+  default_handoff: '/sp.analyze for cross-artifact drift checks; only continue to /sp.implement after analyze clears upstream drift.'
 handoffs: 
   - label: Analyze For Consistency
     agent: sp.analyze
@@ -54,8 +54,8 @@ scripts:
   - `phase_mode: task-generation-only`
   - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from task-generation artifacts`
 - Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution.
-- Implementation remains blocked until `/sp-analyze` confirms the current task package does not need upstream regeneration.
-- Do not hand off directly to `/sp-implement` from `sp-tasks`; the analyze gate is mandatory unless the user is explicitly resuming a previously cleared execution state.
+- Implementation remains blocked until `{{invoke:analyze}}` confirms the current task package does not need upstream regeneration.
+- Do not hand off directly to `{{invoke:implement}}` from `sp-tasks`; the analyze gate is mandatory unless the user is explicitly resuming a previously cleared execution state.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
 ## Outline
@@ -143,7 +143,7 @@ artifacts afterward, but it may not skip the atlas gate.
     - If contracts/ exists: Map interface contracts to user stories
     - If research.md exists: Extract decisions for setup tasks
     - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
-    - **Missing design artifacts**: If plan.md's expected artifacts (data-model.md, contracts/, research.md) are absent and the feature would benefit from them, stop and recommend re-running `/sp.plan` instead of generating tasks from incomplete design context.
+    - **Missing design artifacts**: If plan.md's expected artifacts (data-model.md, contracts/, research.md) are absent and the feature would benefit from them, stop and recommend re-running `{{invoke:plan}}` instead of generating tasks from incomplete design context.
     - Generate tasks organized by user story (see Task Generation Rules below)
     - Whether or not `.specify/testing/TESTING_CONTRACT.md` exists, treat tests as default deliverables for behavior changes, bug fixes, and refactors
     - If the testing contract names required regression or coverage work for an affected module, preserve that requirement explicitly in the task list
@@ -201,7 +201,7 @@ artifacts afterward, but it may not skip the atlas gate.
     - Suggested first release scope (based on the smallest coherent release slice, not automatically limited to just User Story 1)
     - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
     - workflow-state path
-    - Recommended next command: `/sp.analyze`
+    - Recommended next command: `{{invoke:analyze}}`
     - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the handbook/project-map, mark `.specify/project-map/index/status.json` dirty and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield implementation proceeds.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`

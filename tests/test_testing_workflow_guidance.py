@@ -116,7 +116,7 @@ def test_test_build_template_consumes_scan_and_dispatches_build_packets():
     assert ".specify/testing/TEST_SCAN.md".lower() in lowered
     assert ".specify/testing/TEST_BUILD_PLAN.md".lower() in lowered
     assert ".specify/testing/TEST_BUILD_PLAN.json".lower() in lowered
-    assert "stop and route to `/sp-test-scan`" in lowered
+    assert "stop and route to `{{invoke:test-scan}}`" in lowered
     assert 'choose_subagent_dispatch(command_name="test-build"' in lowered
     assert "testbuildpacket" in lowered
     assert "validated `testbuildpacket`" in lowered
@@ -206,11 +206,11 @@ def test_test_template_emits_result_driven_handoff_recommendation():
     assert "persist the recommendation in `testing_state_file`" in lowered
     assert "`next_command`" in content
     assert "resume the previous workflow" in lowered
-    assert "recommend `/sp-fast`" in content
-    assert "recommend `/sp-quick`" in content
-    assert "recommend `/sp-specify`" in content
-    assert "recommend `/sp-debug`" in content
-    assert "resume `/sp-implement`" in content
+    assert "recommend `{{invoke:fast}}`" in content
+    assert "recommend `{{invoke:quick}}`" in content
+    assert "recommend `{{invoke:specify}}`" in content
+    assert "recommend `{{invoke:debug}}`" in content
+    assert "resume `{{invoke:implement}}`" in content
     assert "single command, config, or helper repair" in lowered
     assert "single bounded module or surface" in lowered
     assert "multiple modules, multiple failure classes" in lowered

@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: '`tasks.md` is available and you need a read-only analysis pass before, during, or after implementation revalidation.'
   primary_objective: 'Identify inconsistencies, ambiguities, drift, and boundary-guardrail gaps across `spec.md`, `context.md`, `plan.md`, and `tasks.md`.'
   primary_outputs: A structured analysis report plus workflow-state gate updates. This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`.
-  default_handoff: Route into `/sp-clarify`, `/sp-deep-research`, `/sp-plan`, `/sp-tasks`, `/sp-debug`, or `/sp-implement` based on the findings; if analysis runs after implementation has started or finished, reopen the highest invalid stage and regenerate downstream artifacts before continuing.
+  default_handoff: 'Route into /sp.clarify, /sp.deep-research, /sp.plan, /sp.tasks, /sp.debug, or /sp.implement based on the findings; if analysis runs after implementation has started or finished, reopen the highest invalid stage and regenerate downstream artifacts before continuing.'
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
@@ -27,13 +27,15 @@ Use `execution_surface: native-subagents`.
 
 ## Goal
 
-Identify inconsistencies, duplications, ambiguities, and underspecified items across the core planning artifacts (`spec.md`, `context.md`, `plan.md`, `tasks.md`) before implementation, during execution, or after implementation when revalidation is needed. This command MUST run only after `/sp.tasks` has successfully produced a complete `tasks.md`.
+Identify inconsistencies, duplications, ambiguities, and underspecified items across the core planning artifacts (`spec.md`, `context.md`, `plan.md`, `tasks.md`) before implementation, during execution, or after implementation when revalidation is needed. This command MUST run only after the canonical `/sp.tasks` workflow has successfully produced a complete `tasks.md`.
 
 ## Operating Constraints
 
 **READ-ONLY FOR PLANNING ARTIFACTS**: Do **not** modify `spec.md`, `context.md`, `plan.md`, or `tasks.md`. Output a structured analysis report. This command may update `workflow-state.md` to record the cleared or blocked gate result. Offer an optional remediation plan (user must explicitly approve before any follow-up editing commands would be invoked manually).
 
-**Closed-loop requirement**: Do not present findings as a dead-end audit. The report MUST tell the user which workflow stage to reopen, which downstream artifacts must be regenerated, and whether `/sp.implement` may continue immediately or must pause until upstream remediation is complete.
+**Closed-loop requirement**: Do not present findings as a dead-end audit. The report MUST tell the user which workflow stage to reopen, which downstream artifacts must be regenerated, and whether implementation may continue immediately or must pause until upstream remediation is complete.
+Preserve canonical `/sp.implement` only in workflow-state fields.
+When recommending manual implementation resumption to the user, tell them to run `{{invoke:implement}}`.
 
 **Constitution Authority**: The project constitution (`.specify/memory/constitution.md`) is **non-negotiable** within this analysis scope. Constitution conflicts are automatically CRITICAL and require adjustment of the spec, plan, or tasks—not dilution, reinterpretation, or silent ignoring of the principle. If a principle itself needs to change, that must occur in a separate, explicit constitution update outside `/sp.analyze`.
 
@@ -234,8 +236,8 @@ Output a Markdown report (no file writes) with the following structure:
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
 | A1 | Duplication | HIGH | spec.md:L120-134 | Two similar requirements ... | Merge phrasing; keep clearer version |
-| BG1 | Boundary Guardrail Gap | HIGH | plan.md, tasks.md | Boundary-sensitive area lacks `Implementation Constitution` in the plan | Re-run `/sp.plan` to add the constitution, then `/sp.tasks` if guardrail tasks need regeneration |
-| BG2 | Boundary Guardrail Gap | HIGH | tasks.md | Plan declares a boundary-sensitive constitution rule, but tasks do not preserve it as implementation guardrails | Re-run `/sp.tasks` or edit `tasks.md` so guardrail tasks exist before setup or feature work |
+| BG1 | Boundary Guardrail Gap | HIGH | plan.md, tasks.md | Boundary-sensitive area lacks `Implementation Constitution` in the plan | Re-run `{{invoke:plan}}` to add the constitution, then `{{invoke:tasks}}` if guardrail tasks need regeneration |
+| BG2 | Boundary Guardrail Gap | HIGH | tasks.md | Plan declares a boundary-sensitive constitution rule, but tasks do not preserve it as implementation guardrails | Re-run `{{invoke:tasks}}` or edit `tasks.md` so guardrail tasks exist before setup or feature work |
 | BG3 | Boundary Guardrail Gap | HIGH | implement guidance | Execution guidance does not force boundary confirmation before code-writing work starts | Update implementation guidance so the owning framework, required references, and forbidden drift are confirmed before dispatch |
 | DP1 | Dispatch Packet Gap | HIGH | implement guidance, runtime payload | Delegated execution path is missing compiled hard rules, validation gates, or done criteria | Compile and validate a `WorkerTaskPacket` before dispatch |
 | DP2 | Dispatch Packet Gap | HIGH | plan.md, tasks.md, runtime payload | Delegated execution path is missing required references or forbidden drift | Add packet references/forbidden drift to planning artifacts, then recompile |
@@ -276,24 +278,25 @@ Output a Markdown report (no file writes) with the following structure:
 
 At end of report, output a concise Next Actions block:
 
-- If CRITICAL issues exist: Recommend resolving before `/sp.implement`
+- If CRITICAL issues exist: Recommend resolving before `{{invoke:implement}}`
 - If only LOW/MEDIUM: User may proceed, but provide improvement suggestions
-- If a `Boundary Guardrail Gap` exists: explicitly recommend `/sp.plan` to add `Implementation Constitution`, then `/sp.tasks` if task guardrails must be regenerated
+- If a `Boundary Guardrail Gap` exists: explicitly recommend `{{invoke:plan}}` to add `Implementation Constitution`, then `{{invoke:tasks}}` if task guardrails must be regenerated
 - If `BG2` exists: explicitly recommend regenerating or editing `tasks.md` before implementation starts
-- If `BG3` exists: explicitly recommend updating implementation guidance before `/sp.implement` continues
+- If `BG3` exists: explicitly recommend updating implementation guidance before `{{invoke:implement}}` continues
 - Always include one explicit `Recommended Next Command` and, when upstream remediation is required, list the downstream commands that must be rerun before implementation can resume
-- Provide explicit command suggestions: e.g., "Run /sp.specify with refinement", "Run /sp.plan to adjust architecture", "Manually edit tasks.md to add coverage for 'performance-metrics'"
+- Provide explicit command suggestions using invocation placeholders, e.g., "Run {{invoke:specify}} with refinement", "Run {{invoke:plan}} to adjust architecture", "Manually edit tasks.md to add coverage for 'performance-metrics'"
 
 ### 9. Define Workflow Re-entry
 
 After `Next Actions`, output a short `Recommended Re-entry` block that names the highest workflow stage that must be reopened and the minimum downstream regeneration path. Use this routing table:
 
-- If the highest-impact issue lives in `spec.md` or `context.md`: route to `/sp-clarify` (or a targeted manual spec/context edit), then `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
-- If the highest-impact issue is a clear requirement with an unproven implementation chain: route to `/sp-deep-research`, then `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
-- If the highest-impact issue lives in `plan.md`: route to `/sp-plan`, then `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
-- If the highest-impact issue lives only in `tasks.md`: route to `/sp-tasks`, then rerun `/sp-analyze`, then continue `/sp-implement`
-- If the issues are limited to execution evidence, subagent execution packets, runtime handoff state, or implementation-only verification gaps with no upstream artifact drift: route to `/sp-implement` or `/sp-debug` as appropriate
-- If analysis runs after `/sp-implement` has already started or finished, do not frame findings as informational only. Reopen the highest invalid stage, regenerate downstream artifacts, and treat the current implementation output as provisional until the re-entry path has been completed
+- If the highest-impact issue lives in `spec.md` or `context.md`: record canonical `/sp.clarify` (or a targeted manual spec/context edit), then `/sp.plan`, then `/sp.tasks`, then `/sp.analyze`, then `/sp.implement` as the re-entry chain.
+- If the highest-impact issue is a clear requirement with an unproven implementation chain: record canonical `/sp.deep-research`, then `/sp.plan`, then `/sp.tasks`, then `/sp.analyze`, then `/sp.implement` as the re-entry chain.
+- If the highest-impact issue lives in `plan.md`: record canonical `/sp.plan`, then `/sp.tasks`, then `/sp.analyze`, then `/sp.implement` as the re-entry chain.
+- If the highest-impact issue lives only in `tasks.md`: record canonical `/sp.tasks`, then `/sp.analyze`, then `/sp.implement` as the re-entry chain.
+- If the issues are limited to execution evidence, subagent execution packets, runtime handoff state, or implementation-only verification gaps with no upstream artifact drift: route to canonical `/sp.implement` or `/sp.debug` as appropriate
+- When presenting a manual re-entry path to the user, render those canonical routes as `{{invoke:clarify}}`, `{{invoke:deep-research}}`, `{{invoke:plan}}`, `{{invoke:tasks}}`, `{{invoke:analyze}}`, `{{invoke:implement}}`, or `{{invoke:debug}}` as appropriate.
+- If analysis runs after the canonical `/sp.implement` workflow has already started or finished, do not frame findings as informational only. Reopen the highest invalid stage, regenerate downstream artifacts, and treat the current implementation output as provisional until the re-entry path has been completed
 
 ### 9.5 Persist Workflow Gate Result
 

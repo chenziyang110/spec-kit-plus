@@ -2,9 +2,9 @@
 description: Use when you need a deep, read-only scan that turns a repository's testing gaps into a build-ready unit-test system plan.
 workflow_contract:
   when_to_use: The repository needs evidence-backed testing-system analysis, risk-tiering, module-by-module coverage gaps, or build-ready testing lanes before any test construction begins.
-  primary_objective: Coordinate read-only leader/subagent scan lanes, synthesize concrete module evidence, and produce a test-build blueprint that can drive `/sp-test-build` without rediscovering the repository.
+  primary_objective: Coordinate read-only leader/subagent scan lanes, synthesize concrete module evidence, and produce a test-build blueprint that can drive the `sp-test-build` workflow without rediscovering the repository.
   primary_outputs: '`.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, and `.specify/testing/testing-state.md`.'
-  default_handoff: /sp-test-build when one or more lanes are ready; /sp-specify, /sp-quick, or /sp-fast when the scan finds a narrower follow-up shape.
+  default_handoff: '/sp-test-build when one or more lanes are ready; /sp.specify, /sp.quick, or /sp.fast when the scan finds a narrower follow-up shape.'
 ---
 
 {{spec-kit-include: ../command-partials/test-scan/shell.md}}
@@ -175,7 +175,7 @@ Use `execution_surface: native-subagents`.
 
 8. **Compile build-ready lanes**
    - For every proposed lane, assign readiness:
-     - `ready`: can be passed directly to `/sp-test-build`
+     - `ready`: can be passed directly to the canonical `sp-test-build` workflow.
      - `needs-leader-review`: shared config, fixture, CI, dependency, production-code, or architecture decision required
      - `needs-research`: framework or command choice is not proven
      - `blocked`: dependency, environment, ownership, or path uncertainty prevents execution
@@ -208,11 +208,11 @@ Use `execution_surface: native-subagents`.
    - Validate that `TEST_BUILD_PLAN.json` can be parsed as JSON.
    - Recommend exactly one next command and persist it as `next_command`, `next_action`, and `handoff_reason` in `TESTING_STATE_FILE`.
    - Route recommendation:
-     - If one or more lanes are `ready`, recommend `/sp-test-build`.
-     - If only one tiny harness/config/helper repair is needed before build, recommend `/sp-fast`.
-     - If one bounded module needs scope refinement, recommend `/sp-quick`.
-     - If the remaining work spans multiple modules or a larger coverage program, recommend `/sp-specify` and name `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as required starting context.
-     - If command/framework behavior is broken and root cause is unclear, recommend `/sp-debug`.
+     - If one or more lanes are `ready`, recommend `{{invoke:test-build}}`.
+     - If only one tiny harness/config/helper repair is needed before build, recommend `{{invoke:fast}}`.
+     - If one bounded module needs scope refinement, recommend `{{invoke:quick}}`.
+     - If the remaining work spans multiple modules or a larger coverage program, recommend `{{invoke:specify}}` and name `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as required starting context.
+     - If command/framework behavior is broken and root cause is unclear, recommend `{{invoke:debug}}`.
    - Include selected bundled language testing skills in the final report and note that they are part of the built-in `sp-test-scan` / `sp-test-build` testing workflow surface.
    - [AGENT] Before the final completion report, capture any new `verification_gap`, `workflow_gap`, `routing_mistake`, or `project_constraint` learning through `specify learning capture --command test-scan ...`.
 

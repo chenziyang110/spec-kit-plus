@@ -62,12 +62,12 @@ Its job is to read current repository state, identify the recommended next Spec 
 Inspect the available state surfaces in this order and prefer the most specific active truth source that does not violate an upstream gate:
 
 1. Active feature `workflow-state.md`
-   - Treat `FEATURE_DIR/workflow-state.md` as the primary phase-lock and `next_command` source for feature workflows such as `/sp.plan`, `/sp.tasks`, `/sp.analyze`, `/sp.implement`, `/sp.clarify`, and `/sp.deep-research`.
+   - Treat `FEATURE_DIR/workflow-state.md` as the primary phase-lock and `next_command` source for feature workflows. Canonical state tokens include `/sp.plan`, `/sp.tasks`, `/sp.analyze`, `/sp.implement`, `/sp.clarify`, and `/sp.deep-research`.
    - If a feature-level `workflow-state.md` explicitly points upstream, obey it even when later-stage artifacts also exist.
 
 2. Active implementation execution state
    - Read `FEATURE_DIR/implement-tracker.md` together with `workflow-state.md`.
-   - If execution is still active and `workflow-state.md` allows `/sp.implement`, resume `/sp.implement`.
+   - If execution is still active and `workflow-state.md` allows `/sp.implement`, resume the canonical `/sp.implement` route.
    - If `workflow-state.md` still requires `/sp.analyze`, `/sp.plan`, `/sp.tasks`, `/sp.clarify`, or `/sp.deep-research`, obey that recorded upstream gate before resuming implementation.
 
 3. Project-level testing state
@@ -76,12 +76,12 @@ Inspect the available state surfaces in this order and prefer the most specific 
 
 4. Quick-task state
    - Read unfinished `.planning/quick/*/STATUS.md` files.
-   - If one active quick task clearly owns the next action, route to `/sp.quick`.
-   - If the recorded next command is a bounded local repair lane, `/sp.fast` is allowed only when the state explicitly justifies that smaller route.
+   - If one active quick task clearly owns the next action, route to the canonical `/sp.quick` token.
+   - If the recorded next command is a bounded local repair lane, canonical `/sp.fast` is allowed only when the state explicitly justifies that smaller route.
 
 5. Debug session state
    - Read active `.planning/debug/*.md` session files.
-   - If a live investigation owns the current next action, route to `/sp.debug`.
+   - If a live investigation owns the current next action, route to the canonical `/sp.debug` token.
 
 ## Route Resolution
 
@@ -89,7 +89,7 @@ Choose exactly one routed command.
 
 - Prefer the route that is already recorded in the highest-authority active state file.
 - If multiple state surfaces are active, prefer the more execution-proximate surface only when it does not conflict with an explicit upstream `next_command`.
-- Never bypass `/sp.clarify`, `/sp.deep-research`, `/sp.plan`, `/sp.tasks`, or `/sp.analyze` just because downstream artifacts already exist.
+- Never bypass canonical upstream gates such as `/sp.clarify`, `/sp.deep-research`, `/sp.plan`, `/sp.tasks`, or `/sp.analyze` just because downstream artifacts already exist.
 - Never treat `sp-auto` itself as the next recorded workflow step. It is only the entrypoint the user uses instead of typing the canonical command manually.
 
 ## Execution Contract
@@ -125,4 +125,5 @@ Typical canonical targets include:
 - `/sp.fast`
 - `/sp.specify`
 
-Use `/sp.specify` only when repository state or the absence of any usable downstream state makes a new or re-opened requirement-alignment pass the safest truthful next step.
+Use canonical `/sp.specify` only when repository state or the absence of any usable downstream state makes a new or re-opened requirement-alignment pass the safest truthful next step.
+When no safe route can be selected and the user must invoke that fallback manually, tell them to run `{{invoke:specify}}`.

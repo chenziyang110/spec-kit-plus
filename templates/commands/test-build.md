@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: A test-system scan has produced build-ready lanes, and the repository needs actual tests, fixtures, coverage commands, framework/config updates, or a durable testing contract.
   primary_objective: Execute the approved test-build waves with leader/subagent coordination, update repository-local test assets, and publish the testing contract, playbook, and baseline that later workflows consume automatically.
   primary_outputs: 'Updated tests/fixtures/config as authorized by `.specify/testing/TEST_BUILD_PLAN.md` or `.specify/testing/TEST_BUILD_PLAN.json`, plus `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/COVERAGE_BASELINE.json`, and `.specify/testing/testing-state.md`.'
-  default_handoff: Resume `/sp-specify`, `/sp-plan`, `/sp-tasks`, `/sp-implement`, or `/sp-debug` with the generated testing contract in force; route remaining testing-system waves through `/sp-test-build`.
+  default_handoff: 'Resume /sp.specify, /sp.plan, /sp.tasks, /sp.implement, or /sp.debug with the generated testing contract in force; route remaining testing-system waves through /sp-test-build.'
 ---
 
 {{spec-kit-include: ../command-partials/test-build/shell.md}}
@@ -116,7 +116,7 @@ Use `execution_surface: native-subagents`.
 
 2. **Validate scan/build inputs before execution**
    - [AGENT] Read `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, and `.specify/testing/TEST_BUILD_PLAN.json` before selecting work.
-   - If none of those scan/build-plan artifacts exist, stop and route to `/sp-test-scan`; do not rebuild the scan from chat memory inside `sp-test-build`.
+   - If none of those scan/build-plan artifacts exist, stop and route to `{{invoke:test-scan}}`; do not rebuild the scan from chat memory inside `sp-test-build`.
    - Treat `.specify/testing/TEST_BUILD_PLAN.json` as the machine-readable lane source when it exists. Use the Markdown plan only as human-readable context when both exist.
    - Refuse to start concrete build work unless at least one lane is `ready` and each ready lane has:
      - `lane_id`
@@ -150,7 +150,7 @@ Use `execution_surface: native-subagents`.
    - Record the inventory in `TESTING_STATE_FILE`.
 
 4. **Choose the run mode**
-   - If the user explicitly requests `audit-only`, `report-only`, or equivalent wording, stop and route to `/sp-test-scan`; `sp-test-build` is an execution workflow.
+   - If the user explicitly requests `audit-only`, `report-only`, or equivalent wording, stop and route to `{{invoke:test-scan}}`; `sp-test-build` is an execution workflow.
    - Else if `.specify/testing/TESTING_CONTRACT.md` does not exist, or major modules have no usable unit-test framework/config, set mode to `bootstrap`.
    - Else set mode to `refresh`.
 
@@ -307,14 +307,14 @@ Use `execution_surface: native-subagents`.
    - Recommend exactly one next command and persist the recommendation in `TESTING_STATE_FILE` as `next_command`, `next_action`, and `handoff_reason`.
    - Route the recommendation using this order:
      - If no actionable gaps remain and the repository now has a usable testing contract, resume the previous workflow. If no prior workflow context is recoverable, fall back to the metadata default handoff.
-     - If the remaining work is a single command, config, or helper repair with obvious local verification, recommend `/sp-fast`.
-     - If the remaining work is a single bounded module or surface, such as one failing test file, one module-specific harness pass, or one local fixture/helper repair, recommend `/sp-quick`.
-     - If the remaining work spans multiple modules, multiple failure classes, a coverage uplift program, or changes that need explicit scope and acceptance planning, recommend `/sp-specify`.
-     - If the remaining work is an execution-time regression inside an already active feature and the failure still needs diagnosis, recommend `/sp-debug`.
-     - If the remaining work is an execution-time regression inside an already active feature and the fix path is already understood and bounded, resume `/sp-implement`.
+     - If the remaining work is a single command, config, or helper repair with obvious local verification, recommend `{{invoke:fast}}`.
+     - If the remaining work is a single bounded module or surface, such as one failing test file, one module-specific harness pass, or one local fixture/helper repair, recommend `{{invoke:quick}}`.
+     - If the remaining work spans multiple modules, multiple failure classes, a coverage uplift program, or changes that need explicit scope and acceptance planning, recommend `{{invoke:specify}}`.
+     - If the remaining work is an execution-time regression inside an already active feature and the failure still needs diagnosis, recommend `{{invoke:debug}}`.
+     - If the remaining work is an execution-time regression inside an already active feature and the fix path is already understood and bounded, resume `{{invoke:implement}}`.
    - Include the recommended next command and one-line rationale in the final report so the workflow does not end in a dead-end audit summary.
-   - When recommending `/sp-specify`, explicitly name `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as required starting context for the brownfield testing-system program.
-   - When recommending `/sp-quick` or `/sp-fast`, name the single module, risk tranche, coverage wave, or tiny harness/config/helper repair that should be executed next from the request.
+   - When recommending `{{invoke:specify}}`, explicitly name `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as required starting context for the brownfield testing-system program.
+   - When recommending `{{invoke:quick}}` or `{{invoke:fast}}`, name the single module, risk tranche, coverage wave, or tiny harness/config/helper repair that should be executed next from the request.
    - [AGENT] Before the final completion report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `specify learning capture --command test-build ...`.
 
 14. **Check for extension hooks**
@@ -329,7 +329,7 @@ Use `execution_surface: native-subagents`.
 
 ## Operating Rules
 
-- Treat `audit-only`, `report-only`, and equivalent wording as scan-only requests; route them to `/sp-test-scan` before any repository-modifying build work.
+- Treat `audit-only`, `report-only`, and equivalent wording as scan-only requests; route them to `{{invoke:test-scan}}` before any repository-modifying build work.
 - Prefer extending an existing, working test system over replacing it.
 - Focus on unit-testing and unit-test-adjacent regression safety for TDD. Do not silently broaden into a large E2E migration.
 - If coverage measurement is unavailable for a module, record that explicitly in the baseline and playbook instead of inventing numbers.

@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
   primary_objective: 'Produce the specification artifact set grounded in repository reality: `spec.md`, `alignment.md`, `context.md`, and supporting references when needed.'
   primary_outputs: '`FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
-  default_handoff: /sp-plan once planning-critical ambiguity and feasibility risk are reduced far enough; otherwise stay in clarification, recommend /sp-clarify, or route uncertain implementation chains through /sp-deep-research.
+  default_handoff: '/sp.plan once planning-critical ambiguity and feasibility risk are reduced far enough; otherwise stay in clarification, recommend /sp.clarify, or route uncertain implementation chains through /sp.deep-research.'
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -80,7 +80,7 @@ continues.
 
 ## Outline
 
-The text the user typed after `/sp.specify` is the starting point, not the finished requirement package. Your responsibility is to analyze the whole feature first, decompose it into capabilities, and emit a planning-ready requirement package with confidence tracking rather than a surface summary.
+The text the user typed when invoking this workflow is the starting point, not the finished requirement package. Your responsibility is to analyze the whole feature first, decompose it into capabilities, and emit a planning-ready requirement package with confidence tracking rather than a surface summary.
 
 1. Parse the user description.
    - If empty: ERROR "No feature description provided".
@@ -331,13 +331,14 @@ Generate the pre-analysis output as the first section of `context.md`.
       - owning module, API, service, library, or integration surface
       - state/output path
       - validation evidence or acceptance proof
-    - Route to `/sp.deep-research` before `/sp.plan` when a capability depends on an unproven API, library, algorithm, platform behavior, data volume, permission boundary, external integration, native/plugin bridge, generated-code workflow, performance envelope, or other unknown where planning would otherwise guess.
-    - Prefer `/sp.deep-research` when the real question is "can this work?" and a small disposable demo under `FEATURE_DIR/research-spikes/` would prove the path.
+    - Route to the canonical workflow token `/sp.deep-research` before `/sp.plan` when a capability depends on an unproven API, library, algorithm, platform behavior, data volume, permission boundary, external integration, native/plugin bridge, generated-code workflow, performance envelope, or other unknown where planning would otherwise guess.
+    - Prefer the canonical workflow token `/sp.deep-research` when the real question is "can this work?" and a small disposable demo under `FEATURE_DIR/research-spikes/` would prove the path.
     - Treat `/sp.deep-research` as a research-to-plan handoff path: its `deep-research.md` must preserve findings, demo evidence, rejected options, constraints, and a `Planning Handoff` that `/sp.plan` can consume.
-    - If the requirements are clear but a planning-critical implementation chain remains unproven, recommend `/sp.deep-research` as the next command instead of `/sp.plan`.
+    - If the requirements are clear but a planning-critical implementation chain remains unproven, record `/sp.deep-research` as the canonical next command instead of `/sp.plan`.
+    - When giving the user a manual next-step recommendation for that route, tell them to run `{{invoke:deep-research}}` instead of `{{invoke:plan}}`.
     - Do not require `/sp.deep-research` for minor adjustments to capabilities that already exist in the project and have a clear implementation path.
     - Record feasibility status in `alignment.md` as `Not needed`, `Needed before plan`, `Completed`, or `Blocked`.
-    - If feasibility risk is actually a requirement ambiguity, keep it in `sp-specify` or route to `/sp.clarify` instead of treating it as research.
+    - If feasibility risk is actually a requirement ambiguity, keep it in `sp-specify` or record `/sp.clarify` as the canonical next command instead of treating it as research.
 
 14. Identify gray areas before concluding alignment.
    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
@@ -477,7 +478,8 @@ Generate the pre-analysis output as the first section of `context.md`.
     - If planning-critical gaps remain after the recap, do not release `Aligned: ready for plan`.
     - common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify` when this gate passes and no planning-critical ambiguity remains.
     - keep this path inside `sp-specify`, without needing `/sp.clarify`.
-    - If planning-critical gaps remain but the spec package is still salvageable, recommend `/sp.clarify` as the next command instead of `/sp.plan`.
+    - If planning-critical gaps remain but the spec package is still salvageable, record `/sp.clarify` as the canonical next command instead of `/sp.plan`.
+    - When giving the user that manual next-step recommendation, tell them to run `{{invoke:clarify}}` instead of `{{invoke:plan}}`.
 
     Use this open question block structure in the user's current language when rendering the textual fallback block.
     Use this fallback open question block structure when the native structured question tool is unavailable:
@@ -563,10 +565,10 @@ Generate the pre-analysis output as the first section of `context.md`.
     - If neither condition is met, continue clarification.
 
     After the release decision is made, ask the user to review the written artifact set and make the next path explicit:
-    - proceed to `/sp.plan`
+    - proceed with `{{invoke:plan}}`
     - revise current artifacts
-    - continue analysis with `/sp.clarify`
-    - prove feasibility with `/sp.deep-research`
+    - continue analysis with `{{invoke:clarify}}`
+    - prove feasibility with `{{invoke:deep-research}}`
 
 26. Run an artifact review gate before handoff.
     - Review the written artifact set before handoff, not just the conversational understanding.
@@ -578,12 +580,12 @@ Generate the pre-analysis output as the first section of `context.md`.
     - If the selected strategy supports collaboration and the workload justified it, use one read-only reviewer lane to inspect the draft artifact set for the same failure modes.
     - If the review finds planning-critical issues, revise current artifacts, re-run validation, and repeat the artifact review gate.
     - Ask the user to review the written artifact set before handoff and make the next path explicit:
-      - proceed to `/sp.plan`
+      - proceed with `{{invoke:plan}}`
       - revise current artifacts
-      - continue analysis with `/sp.clarify`
-      - prove feasibility with `/sp.deep-research`
+      - continue analysis with `{{invoke:clarify}}`
+      - prove feasibility with `{{invoke:deep-research}}`
     - If the user requests changes, update the artifact set, re-run validation, and repeat the artifact review gate.
-    - Do not present `/sp.plan` as ready until the written artifact set passes this gate.
+    - Do not present `{{invoke:plan}}` as ready until the written artifact set passes this gate.
 
     Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions. Do not release for cross-boundary or event-driven features when trigger source, contract identifiers, lifecycle/retention, failure path, or configuration semantics are still fuzzy.
 
@@ -716,7 +718,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - [ ] Release decision is recorded
     - [ ] Release decision is either `Aligned: ready for plan` or `Force proceed with known risks`
     - [ ] High-risk capabilities have checkpoints for purpose, boundary, and acceptance proof
-    - [ ] Feasibility gate is recorded; unproven implementation chains route to `/sp.deep-research`
+    - [ ] Feasibility gate is recorded; unproven implementation chains record canonical `/sp.deep-research` as the next workflow token
     - [ ] High-impact decision forks are resolved or explicitly force-carried
     - [ ] Locked decisions are preserved in context.md
     - [ ] workflow-state.md records `sp-specify` with planning-only restrictions
@@ -724,7 +726,7 @@ Generate the pre-analysis output as the first section of `context.md`.
 
     ## Notes
 
-    - Items marked incomplete require spec updates before `/sp.plan`
+    - Items marked incomplete require spec updates before planning.
     - Items marked [lint] can be verified automatically with `spec-lint`
     - `spec-lint` exit code 0 = all [lint] checks pass; exit code 1 = failures present
     - For tier selection: light (small bug fix, local change), standard (new capability, cross-module), deep (new system, protocol boundary, security-sensitive)
@@ -745,8 +747,8 @@ Generate the pre-analysis output as the first section of `context.md`.
     - references file path when created
     - checklist results
     - release decision
-    - readiness for the next phase (`/sp.plan` for the mainline, `/sp.clarify` when deeper analysis is still needed, or `/sp.deep-research` when feasibility must be proven first)
-    - recommended review follow-up: `/sp.clarify` when the user wants one more targeted repair pass over the written spec package before planning
+    - readiness for the next phase (`{{invoke:plan}}` for the mainline, `{{invoke:clarify}}` when deeper analysis is still needed, or `{{invoke:deep-research}}` when feasibility must be proven first)
+    - recommended review follow-up: `{{invoke:clarify}}` when the user wants one more targeted repair pass over the written spec package before planning
     - if this pass reveals that the current atlas is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current handbook/project-map does not yet capture, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield execution work proceeds
     - [AGENT] before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `specify learning capture --command specify ...`
     - keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence

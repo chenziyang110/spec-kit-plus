@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: The task is too large or risky for `sp-fast` but does not justify the full `specify -> plan -> tasks -> implement` flow.
   primary_objective: Keep the task resumable and tracked while applying only the minimum planning, research, and validation depth it needs.
   primary_outputs: '`.planning/quick/<id>-<slug>/STATUS.md`, quick-task summary artifacts, and the scoped implementation changes for the task.'
-  default_handoff: Resume the quick task until resolved, or escalate to /sp-specify if the scope grows into multi-capability or acceptance-criteria-heavy work.
+  default_handoff: 'Resume the quick task until resolved, or escalate to /sp.specify if the scope grows into multi-capability or acceptance-criteria-heavy work.'
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json
   ps: scripts/powershell/check-prerequisites.ps1 -Json
@@ -77,17 +77,17 @@ Use `sp-quick` when all of these are true:
 - The task does not require a new long-lived feature spec under `specs/<feature>/`.
 
 If the task is trivial and local:
-- Use `/sp-fast`.
+- Use `{{invoke:fast}}`.
 
 If the task changes architecture, introduces broad product decisions, or needs a durable feature specification:
-- Use `/sp-specify`.
+- Use `{{invoke:specify}}`.
 
 If the task is a bug fix or regression but the root cause is still unknown:
-- Use `/sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
+- Use `{{invoke:debug}}` instead of treating `sp-quick` as a symptom-fix lane.
 
 ## Escalation Triggers
 
-Upgrade to `/sp-specify` immediately if:
+Upgrade to `{{invoke:specify}}` immediately if:
 - The task changes architecture or introduces cross-cutting behavior across multiple modules, workflows, or shared surfaces.
 - The task touches a change-propagation hotspot, a truth-owning shared surface, or an area whose known unknowns make lightweight planning unsafe.
 - The request now spans multiple independent capabilities, release tracks, or user journeys that no longer fit one bounded quick-task workspace.
@@ -95,7 +95,7 @@ Upgrade to `/sp-specify` immediately if:
 - The work needs a new durable spec package, a long-lived feature boundary, or planning artifacts intended to survive beyond the quick task.
 - The change has rollout, migration, compatibility, or neighboring-workflow impact that must be locked before implementation.
 - The expected behavior cannot be stated with concrete acceptance criteria without first doing feature-level requirement alignment.
-- The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a bounded repair. In that case, route to `/sp-debug`.
+- The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a bounded repair. In that case, route to `{{invoke:debug}}`.
 
 ## Execution Modes
 
@@ -338,7 +338,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 1. **Scope gate**
    - Read `.specify/memory/constitution.md` first if present. Do not continue until this gate is satisfied.
    - Confirm the task is small but non-trivial.
-   - Redirect to `/sp-fast` or `/sp-specify` if the task is outside the quick-task band.
+   - Redirect to `{{invoke:fast}}` or `{{invoke:specify}}` if the task is outside the quick-task band.
 
 2. **Create lightweight quick-task context**
    - Create or resume an id-based workspace under `.planning/quick/<id>-<slug>/`.
@@ -359,8 +359,8 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
 - For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
 - Do not write production code until the RED state is captured and recorded in `STATUS.md`.
-- If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `/sp-test` or directly to `/sp-test-scan`.
-- For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
+- If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `{{invoke:test}}` or directly to `{{invoke:test-scan}}`.
+- For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `{{invoke:debug}}` instead of applying a quick symptom patch.
 - A `surface-only` or symptom-only change cannot satisfy the quick-task contract for a bug fix unless the user explicitly scoped the work to temporary mitigation.
 - Name the affected surfaces for this quick-task pass and decide how each one will be checked.
    - If multiple safe lanes would materially improve throughput, plan the first fan-out as parallel subagents instead of defaulting to serial execution.

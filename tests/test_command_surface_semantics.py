@@ -1,30 +1,58 @@
+import os
 from pathlib import Path
+import subprocess
+import sys
 
-from typer.testing import CliRunner
-
-from specify_cli import app
 from specify_cli.agents import CommandRegistrar
 from specify_cli.integrations.base import IntegrationBase
 
+from .template_utils import read_template
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 
 def test_init_generated_codex_skill_includes_invocation_note_and_projected_handoff(tmp_path: Path):
-    runner = CliRunner()
     target = tmp_path / "codex-projection"
-
-    result = runner.invoke(
-        app,
-        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(PROJECT_ROOT / "src"), env["PYTHONPATH"]]
+        if env.get("PYTHONPATH")
+        else [str(PROJECT_ROOT / "src")]
     )
 
-    assert result.exit_code == 0
-    content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path\n"
+                "from typer.testing import CliRunner\n"
+                "from specify_cli import app\n"
+                "import sys\n"
+                "target = Path(sys.argv[1])\n"
+                "result = CliRunner().invoke(app, ['init', str(target), '--ai', 'codex', '--no-git', '--ignore-agent-tools', '--script', 'sh'])\n"
+                "assert result.exit_code == 0, result.output\n"
+                "print((target / '.codex' / 'skills' / 'sp-specify' / 'SKILL.md').read_text(encoding='utf-8'))\n"
+            ),
+            str(target),
+        ],
+        cwd=PROJECT_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    content = result.stdout
 
     assert "## Invocation Syntax" in content
     assert "`$sp-plan`-style syntax" in content
-    assert "- **Default handoff**: $sp-plan" in content
+    assert "- **Default handoff**: /sp.plan" in content
+    assert "recommend /sp.clarify" in content
+    assert "through /sp.deep-research" in content
+    assert "readiness for the next phase (`$sp-plan` for the mainline" in content
     assert "`next_command: /sp.plan`" in content
 
-    passive = (target / ".codex" / "skills" / "python-testing" / "SKILL.md").read_text(encoding="utf-8")
+    passive = read_template("templates/passive-skills/python-testing/SKILL.md")
     assert "## Invocation Syntax" not in passive
 
 
