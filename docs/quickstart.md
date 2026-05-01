@@ -29,9 +29,33 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME> --script sh  # Force POSIX shell
 ```
 
+### Invocation Syntax
+
+Canonical workflow names are integration-neutral: `constitution`, `specify`,
+`plan`, `tasks`, `implement`, `analyze`, and the other workflow names in this
+guide are the stable names used by Spec Kit Plus.
+
+Invocation syntax depends on the integration:
+
+| Integration surface | Constitution | Specify | Plan | Tasks |
+| --- | --- | --- | --- | --- |
+| Codex skills | `$sp-constitution` | `$sp-specify` | `$sp-plan` | `$sp-tasks` |
+| Kimi Code skills | `/skill:sp-constitution` | `/skill:sp-specify` | `/skill:sp-plan` | `/skill:sp-tasks` |
+| Claude skills | `/sp-constitution` | `/sp-specify` | `/sp-plan` | `/sp-tasks` |
+| Slash-dot command integrations | `/sp.constitution` | `/sp.specify` | `/sp.plan` | `/sp.tasks` |
+
+`/sp-*` is not universal for skills-backed integrations. Use the syntax
+generated for the integration selected during `specify init`; for example, run
+`$sp-specify` in Codex, `/skill:sp-specify` in Kimi, `/sp-specify` in Claude, or
+`/sp.specify` in slash-dot command integrations.
+
+The concrete chat snippets below use Claude-style `/sp-*` examples for
+readability. Translate them through the matrix above when you are using Codex,
+Kimi, or a slash-dot command integration.
+
 ### Step 2: Define Your Constitution
 
-`specify init` seeds a default constitution into `.specify/memory/constitution.md`. In your AI agent's chat interface, use the `/sp-constitution` slash command when that default constitution needs project-specific changes or when you need to establish or revise project principles before downstream planning work continues.
+`specify init` seeds a default constitution into `.specify/memory/constitution.md`. In your AI agent's chat interface, run the `constitution` workflow when that default constitution needs project-specific changes or when you need to establish or revise project principles before downstream planning work continues.
 
 If the repository needs a different built-in baseline, pick a constitution
 profile during init:
@@ -53,7 +77,7 @@ Built-in profiles:
 
 ### Step 3: Create the Spec
 
-**In the chat**, use the `/sp-specify` slash command to describe what you want to build. Focus on the **what** and **why**, not the tech stack.
+**In the chat**, run the `specify` workflow to describe what you want to build. Focus on the **what** and **why**, not the tech stack.
 
 ```markdown
 /sp-specify Build an application that can help me organize my photos in separate photo albums. Albums are grouped by date and can be re-organized by dragging and dropping on the main page. Albums are never in other nested albums. Within each album, photos are previewed in a tile-like interface.
@@ -61,49 +85,49 @@ Built-in profiles:
 
 ### Step 4: Plan the Implementation
 
-**In the chat**, move directly from `/sp-specify` to `/sp-plan` once the spec is planning-ready. This is the mainline workflow:
+**In the chat**, move directly from `specify` to `plan` once the spec is planning-ready. This is the mainline workflow:
 
 ```bash
 /sp-plan The application uses Vite with minimal number of libraries. Use vanilla HTML, CSS, and JavaScript as much as possible. Images are not uploaded anywhere and metadata is stored in a local SQLite database.
 ```
 
-Use `/sp-clarify` only when an existing spec needs deeper analysis before planning.
-Use `/sp-deep-research` only when the requirements are clear but feasibility still needs proof before planning, for example an unproven API, library, integration, algorithm, performance envelope, or platform behavior. It can coordinate parallel research tracks and disposable demo spikes, then writes a traceable `Planning Handoff` with evidence IDs that `/sp-plan` must consume. Skip it for minor changes to an existing capability that already has a clear implementation path.
-Use `/sp-research` only as a compatibility alias for `/sp-deep-research`; it should route into the same gate and must not create separate workflow artifacts.
-When `/sp-specify` records an unproven implementation chain, the recommended pre-planning branch is `/sp-specify` -> `/sp-deep-research` -> `/sp-plan`.
+Use `clarify` only when an existing spec needs deeper analysis before planning.
+Use `deep-research` only when the requirements are clear but feasibility still needs proof before planning, for example an unproven API, library, integration, algorithm, performance envelope, or platform behavior. It can coordinate parallel research tracks and disposable demo spikes, then writes a traceable `Planning Handoff` with evidence IDs that `plan` must consume. Skip it for minor changes to an existing capability that already has a clear implementation path.
+Use `research` only as a compatibility alias for `deep-research`; it should route into the same gate and must not create separate workflow artifacts.
+When `specify` records an unproven implementation chain, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
 
 ### Step 5: Break Down and Implement
 
-**In the chat**, use the `/sp-tasks` slash command to create an actionable task list.
+**In the chat**, run the `tasks` workflow to create an actionable task list.
 
 ```markdown
 /sp-tasks
 ```
 
-Before implementation, run `/sp-analyze`. Treat it as the required gate before implementation once `tasks.md` exists. If it flags upstream issues, resolve them through the re-entry path below before proceeding:
+Before implementation, run `analyze`. Treat it as the required gate before implementation once `tasks.md` exists. If it flags upstream issues, resolve them through the re-entry path below before proceeding:
 
 ```markdown
 /sp-analyze
 ```
 
-Then, use the `/sp-implement` slash command to execute the plan.
+Then, run the `implement` workflow to execute the plan.
 
 ```markdown
 /sp-implement
 ```
 
-When you want one state-driven resume lane instead of naming the next workflow manually, use `/sp-auto`. It reads the current repository state and resumes the recommended next step under that workflow's existing contract.
+When you want one state-driven resume lane instead of naming the next workflow manually, use the `auto` workflow. It reads the current repository state and resumes the recommended next step under that workflow's existing contract.
 
 When the feature touches an established boundary pattern in the target project, make that constraint explicit before coding starts:
 
-- `/sp-plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
+- `plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
 - Use `Implementation Constitution` for architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus.
-- `/sp-tasks` should turn those rules into explicit implementation guardrails before setup or feature work begins.
-- `/sp-tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when subagent work needs task-local rule inheritance.
-- `/sp-implement` should treat those guardrails as binding execution constraints and confirm the owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
+- `tasks` should turn those rules into explicit implementation guardrails before setup or feature work begins.
+- `tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when subagent work needs task-local rule inheritance.
+- `implement` should treat those guardrails as binding execution constraints and confirm the owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
 - Delegated execution should not rely on raw task text when architecture or quality rules matter.
-- `/sp-plan` should provide `Dispatch Compilation Hints`.
-- `/sp-implement` should compile and validate a `WorkerTaskPacket` before dispatching subagents; if delegation is unavailable, unsafe, or not packetized, it should use `leader-inline-fallback` with an explicit recorded reason.
+- `plan` should provide `Dispatch Compilation Hints`.
+- `implement` should compile and validate a `WorkerTaskPacket` before dispatching subagents; if delegation is unavailable, unsafe, or not packetized, it should use `leader-inline-fallback` with an explicit recorded reason.
 - Subagent packets should carry platform guardrails when the lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
 - If the active integration exposes a runtime-managed result channel, subagents should use it. Otherwise they should write normalized result envelopes to the workflow-specific worker-results path.
 - When the local `specify` CLI is available and no runtime-managed result channel exists, subagents should prefer `specify result path` and `specify result submit` instead of inventing ad-hoc result locations or payload shapes.
@@ -124,8 +148,8 @@ When the feature touches an established boundary pattern in the target project, 
 
 After initialization, treat the generated commands as three groups:
 
-- **Core workflow skills**: `/sp-constitution`, `/sp-specify`, `/sp-plan`, `/sp-tasks`, `/sp-implement`
-- **Support skills**: `/sp-map-scan`, `/sp-map-build`, `/sp-auto`, `/sp-clarify`, `/sp-deep-research` (`/sp-research` alias), `/sp-checklist`, `/sp-analyze`, `/sp-debug`, `/sp-explain`
+- **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`
+- **Support skills**: `map-scan`, `map-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
 - **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -153,39 +177,39 @@ Generated project navigation now follows the handbook system:
 
 Use support skills when they solve a specific gap:
 
-- `/sp-map-scan` followed by `/sp-map-build` as the required brownfield gate when you are working in an existing codebase; generate the complete scan package first, then refresh the handbook/project-map navigation system before deeper workflow steps
-- `/sp-auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
+- `map-scan` followed by `map-build` as the required brownfield gate when you are working in an existing codebase; generate the complete scan package first, then refresh the handbook/project-map navigation system before deeper workflow steps
+- `auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
-- `/sp-specify`, `/sp-clarify`, `/sp-deep-research`, `/sp-plan`, and `/sp-tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `/sp-map-scan` followed by `/sp-map-build` as the follow-up refresh workflow
-- `/sp-clarify` when an existing spec still needs deeper analysis before planning
-- `/sp-deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `/sp-plan`; `/sp-research` is only its compatibility alias
-- `/sp-checklist` when you want to audit requirement quality after planning
-- `/sp-analyze` as the required gate before implementation once `tasks.md` exists
-- `/sp-debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
-- When you run `/sp-analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
-- `/sp-analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
-- `/sp-analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
-- `/sp-explain` when you want the current spec, plan, task, implement, or handbook/project-map atlas artifact restated in plain language
+- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `map-scan` followed by `map-build` as the follow-up refresh workflow
+- `clarify` when an existing spec still needs deeper analysis before planning
+- `deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `plan`; `research` is only its compatibility alias
+- `checklist` when you want to audit requirement quality after planning
+- `analyze` as the required gate before implementation once `tasks.md` exists
+- `debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
+- When you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
+- `analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
+- `analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
+- `explain` when you want the current spec, plan, task, implement, or handbook/project-map atlas artifact restated in plain language
 
-If you're starting from an existing codebase, `/sp-map-scan` followed by `/sp-map-build` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use `.specify/project-map/index/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
+If you're starting from an existing codebase, `map-scan` followed by `map-build` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use `.specify/project-map/index/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
 
 Use the lightweight routing rules consistently:
 
-- `/sp-fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
-- Upgrade to `/sp-quick` when the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
-- `/sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
-- If the work is a bug fix or regression and the root cause is still unknown, route to `/sp-debug` instead of using `/sp-quick` for a symptom-only patch.
+- `fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
+- Upgrade to `quick` when the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
+- `quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
+- If the work is a bug fix or regression and the root cause is still unknown, route to `debug` instead of using `quick` for a symptom-only patch.
 - Quick workspaces live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the source of truth and `.planning/quick/index.json` as a derived management index.
-- Invoking `/sp-quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
+- Invoking `quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
 - Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage quick tasks. `specify quick list` defaults to unfinished quick tasks.
-- Upgrade to `/sp-specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
+- Upgrade to `specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 Required action markers:
 
 - `[AGENT]` marks a required AI action and is independent from `[P]`.
 - `[P]` still means parallel-safe work; `[AGENT]` does not imply parallelism or delegation by itself.
 - Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file replacement.
-- `/sp-fast`, `/sp-quick`, `/sp-map-scan`, and `/sp-map-build` are the first-wave `[AGENT]` workflows, and the shared `/sp-specify`, `/sp-plan`, `/sp-tasks`, `/sp-implement`, and `/sp-debug` workflows now use the same marker for hard gates.
+- `fast`, `quick`, `map-scan`, and `map-build` are the first-wave `[AGENT]` workflows, and the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows now use the same marker for hard gates.
 
 Passive project learning layer:
 
@@ -274,7 +298,11 @@ Initialize the project's constitution to set ground rules:
 /sp-constitution Taskify is a "Security-First" application. All user inputs must be validated. We use a microservices architecture. Code must be fully documented.
 ```
 
-### Step 2: Define Requirements with `/sp-specify`
+The following Taskify snippets use Claude-style `/sp-*` invocation syntax. If
+your project was initialized for Codex, Kimi, or a slash-dot command
+integration, translate each literal command through the invocation matrix above.
+
+### Step 2: Define Requirements with `specify`
 
 ```text
 Develop Taskify, a team productivity platform. It should allow users to create projects, add team members,
@@ -288,31 +316,31 @@ first testing thing to ensure that our basic features are set up.
 
 ### Step 3: Define the Plan
 
-Once `/sp-specify` reaches planning-ready alignment, move directly to `/sp-plan`.
+Once `specify` reaches planning-ready alignment, move directly to `plan`.
 
 ```bash
 /sp-plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
 ```
 
-If an existing spec needs deeper analysis first, use `/sp-clarify`.
+If an existing spec needs deeper analysis first, use `clarify`.
 
 ```bash
 /sp-clarify Add sharper reporting requirements and cross-team notification expectations before planning.
 ```
 
-If the spec is clear but feasibility is still uncertain, use `/sp-deep-research`
+If the spec is clear but feasibility is still uncertain, use `deep-research`
 before planning so research findings, demo evidence, rejected options, and
 constraints become plan inputs.
 
 ```bash
-/sp-deep-research Prove whether the notification provider can support the required retry and audit trail behavior with a small disposable spike, and produce a Planning Handoff for /sp-plan.
+/sp-deep-research Prove whether the notification provider can support the required retry and audit trail behavior with a small disposable spike, and produce a Planning Handoff for plan.
 ```
 
-`/sp-research` is accepted only as a compatibility alias for the same workflow.
+`research` is accepted only as a compatibility alias for the same workflow.
 
 ### Step 4: Validate the Spec
 
-Validate the specification checklist using the `/sp-checklist` command:
+Validate the specification checklist using the `checklist` workflow:
 
 ```bash
 /sp-checklist
@@ -320,7 +348,7 @@ Validate the specification checklist using the `/sp-checklist` command:
 
 ### Step 5: Define Tasks
 
-Generate an actionable task list using the `/sp-tasks` command:
+Generate an actionable task list using the `tasks` workflow:
 
 ```bash
 /sp-tasks
@@ -328,18 +356,18 @@ Generate an actionable task list using the `/sp-tasks` command:
 
 ### Step 6: Validate and Implement
 
-Have your AI agent audit the implementation plan using `/sp-analyze`:
+Have your AI agent audit the implementation plan using `analyze`:
 
 ```bash
 /sp-analyze
 ```
 
-If `/sp-analyze` finds issues, do not treat the report as informational only:
+If `analyze` finds issues, do not treat the report as informational only:
 
-- If the problem is in `spec.md` or `context.md`, return to `/sp-clarify`, then rerun `/sp-plan`, `/sp-tasks`, and `/sp-analyze`.
-- If the problem is in `plan.md`, return to `/sp-plan`, then rerun `/sp-tasks` and `/sp-analyze`.
-- If the problem is only in `tasks.md`, rerun `/sp-tasks`, then `/sp-analyze`.
-- If the problem is execution-only with no upstream artifact drift, continue in `/sp-implement` or route into `/sp-debug`.
+- If the problem is in `spec.md` or `context.md`, return to `clarify`, then rerun `plan`, `tasks`, and `analyze`.
+- If the problem is in `plan.md`, return to `plan`, then rerun `tasks` and `analyze`.
+- If the problem is only in `tasks.md`, rerun `tasks`, then `analyze`.
+- If the problem is execution-only with no upstream artifact drift, continue in `implement` or route into `debug`.
 - If analysis happens after implementation has already started or finished, treat the current implementation as provisional until the highest invalid stage has been repaired and downstream artifacts have been regenerated.
 
 Finally, implement the solution:

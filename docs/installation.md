@@ -88,11 +88,23 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 
 ## Verification
 
-After initialization, you should see the following commands available in your AI agent:
+After initialization, you should see generated workflow commands or skills
+available in your AI agent. Canonical workflow names such as `specify`, `plan`,
+and `tasks` are integration-neutral, but the text you type depends on the
+selected integration.
 
-- `/sp-specify` - Create specifications in Claude skills
-- `/sp-plan` - Generate implementation plans in Claude skills
-- `/sp-tasks` - Break down into actionable tasks in Claude skills
+Invocation syntax depends on the integration:
+
+| Integration surface | Specify | Plan | Tasks |
+| --- | --- | --- | --- |
+| Codex skills | `$sp-specify` | `$sp-plan` | `$sp-tasks` |
+| Kimi Code skills | `/skill:sp-specify` | `/skill:sp-plan` | `/skill:sp-tasks` |
+| Claude skills | `/sp-specify` | `/sp-plan` | `/sp-tasks` |
+| Slash-dot command integrations | `/sp.specify` | `/sp.plan` | `/sp.tasks` |
+
+`/sp-*` is not universal for skills-backed integrations. Use the invocation
+syntax generated for your selected integration rather than copying Claude-style
+examples into Codex or Kimi projects.
 
 The `.specify/scripts` directory will contain both `.sh` and `.ps1` scripts.
 

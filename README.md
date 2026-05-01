@@ -172,6 +172,27 @@ Optional feasibility branch when `sp-specify` finds an unproven implementation c
 specify -> deep-research -> plan
 ```
 
+### Workflow invocation syntax
+
+Canonical workflow names are integration-neutral: `constitution`, `specify`,
+`plan`, `tasks`, `implement`, `analyze`, and the other workflow names below are
+the stable concepts used in docs, workflow state, and generated artifacts. The
+text a user types in their AI agent depends on the integration.
+
+Invocation syntax depends on the integration:
+
+| Integration surface | Example: specify | Example: plan | Notes |
+| --- | --- | --- | --- |
+| Codex skills | `$sp-specify` | `$sp-plan` | Skills-backed Codex projects use `$sp-*`. |
+| Kimi Code skills | `/skill:sp-specify` | `/skill:sp-plan` | Kimi exposes generated skills through `/skill:sp-*`. |
+| Claude skills | `/sp-specify` | `/sp-plan` | Claude keeps slash-style skill commands. |
+| Slash-dot command integrations | `/sp.specify` | `/sp.plan` | Gemini, Copilot, Cursor, Windsurf, Forge, and similar command/prompt integrations use slash-dot examples unless their native UI documents a different launcher. |
+
+`/sp-*` is not universal for skills-backed integrations. When these docs say to
+run the canonical workflow `plan`, use the invocation form generated for your
+selected integration, for example `$sp-plan` in Codex or `/skill:sp-plan` in
+Kimi.
+
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
