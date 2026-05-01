@@ -15,6 +15,7 @@ diagnostic_profile: scheduler-admission | cache-snapshot | ui-projection | gener
 observer_mode: full | compressed
 observer_framing_completed: [true only after observer framing and transition memo are both written and the observer gate passes]
 skip_observer_reason: [required when observer framing was compressed]
+atlas_read_completed: [true only after the atlas gate is complete]
 current_node_id: [ID of the active graph node]
 created: [ISO timestamp]
 updated: [ISO timestamp]
@@ -38,6 +39,17 @@ reproduction: [how to trigger]
 reproduction_command: [command or script if available]
 started: [when it broke / always broken]
 reproduction_verified: [true once repro confirmed]
+
+## Atlas Read Evidence
+
+atlas_paths_read:
+  - [atlas artifact actually read before source-level work]
+atlas_root_topics_read:
+  - [root topic file actually read]
+atlas_module_docs_read:
+  - [module overview or module-local doc actually read]
+atlas_status_basis: [fresh | missing | stale | possibly_stale plus the decision taken]
+atlas_blocked_reason: [why atlas gating blocked work, if it did]
 
 ## Observer Framing
 <!-- OVERWRITE/REFINE before evidence investigation - outsider view only -->

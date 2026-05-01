@@ -63,12 +63,18 @@ Upgrade to `/sp-specify` immediately if:
    - Confirm the task fits the fast-path constraints above.
    - If not, stop and redirect to the right workflow instead of forcing the task through `sp-fast`.
 
-2. **Read the routing layer**
+2. **Pass the atlas gate**
    - {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
-   - **This command tier: trivial.** Load only:
-     1. `.specify/project-map/QUICK-NAV.md` — confirm target document route
-     2. Target source file(s) — read the files to change
-   - Skip freshness check entirely. Do not read root docs, module docs, or index files.
+   - **Project-map hard gate:** you must pass an atlas gate before reading
+     implementation source, running reproduction, or preparing a fix.
+   - **This command tier: trivial.** Pass the atlas gate by reading:
+     1. `PROJECT-HANDBOOK.md`
+     2. `atlas.entry`
+     3. `atlas.index.status`
+     4. `atlas.index.atlas`
+     5. at least one relevant root topic document
+     6. at least one relevant module overview document
+   - Only after the atlas gate passes may you read the source files to change.
 
 3. **Dispatch the fast lane**
    - Prepare the smallest task contract for the fast-path lane.

@@ -111,7 +111,15 @@ agent_scripts:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**This command tier: heavy.** Load Layer 1 + Layer 2 full + affected module docs + data models. Freshness enforced.
+**Project-map hard gate:** you must pass an atlas gate before planning
+analysis, architecture synthesis, or implementation-shaping code reads begin.
+
+**This command tier: heavy.** Pass the atlas gate by reading
+`PROJECT-HANDBOOK.md`, `atlas.entry`, `atlas.index.status`,
+`atlas.index.atlas`, `atlas.index.modules`, `atlas.index.relations`, the
+relevant root topic documents, and the relevant module overview documents
+before broader planning reads continue. Freshness is enforced as a blocking
+gate.
 
 4. **Validate alignment status before planning**:
    - If `alignment.md` is missing:

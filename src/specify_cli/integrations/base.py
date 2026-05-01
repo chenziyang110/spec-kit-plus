@@ -452,8 +452,9 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"## {agent_name} Project-Map Hard Gate\n\n"
-            f"**Crucial First Step**: You MUST read `PROJECT-HANDBOOK.md` and relevant `.specify/project-map/*.md` files {command_step}.\n"
+            f"**Crucial First Step**: You MUST pass the logical atlas contract first by reading `PROJECT-HANDBOOK.md`, `atlas.entry`, `atlas.index.status`, `atlas.index.atlas`, the relevant root topic documents, and the relevant module overview documents {command_step}.\n"
             "- If the handbook or required topical documents are missing, stale, or too broad for the touched area, run `/sp-map-scan` followed by `/sp-map-build` before continuing.\n"
+            "- Treat this as a logical atlas contract, not as a hardcoded physical path contract; generated projects and this repository may resolve the atlas through different files.\n"
             "- Treat this as a hard gate, not a best-effort reminder; do not continue on chat memory or local instincts when the project map should be the source of truth.\n"
         )
 
@@ -526,7 +527,7 @@ class IntegrationBase(ABC):
             f"## {agent_name} Leader Gate\n\n"
             f"When running `sp-implement` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
             "\n"
-            "**Crucial First Step**: You MUST read `PROJECT-HANDBOOK.md` and relevant `.specify/project-map/*.md` files to understand the architectural boundaries and conventions before any implementation actions.\n"
+            "**Crucial First Step**: You MUST pass the logical atlas contract first by reading `PROJECT-HANDBOOK.md`, `atlas.entry`, `atlas.index.status`, `atlas.index.atlas`, the relevant root topic documents, and the relevant module overview documents before any implementation actions.\n"
             "\n"
             "**Autonomous Blocker Recovery (Hard Rule)**:\n"
             "- If technical blockers arise (e.g. build errors, missing toolchain components like Win32/x86, environment mismatches), you **MUST** attempt autonomous escalation to a specialist subagent (for example a build/toolchain specialist) **BEFORE** asking the user for intervention.\n"
@@ -610,7 +611,7 @@ class IntegrationBase(ABC):
             f"## {agent_name} Leader Gate\n\n"
             f"When running `sp-debug` in {agent_name}, you are the **leader**, not a freeform debugger.\n"
             "\n"
-            "**Crucial First Step**: You MUST read `PROJECT-HANDBOOK.md` and relevant `.specify/project-map/*.md` files to understand the architectural boundaries and conventions before any investigation or fixes.\n"
+            "**Crucial First Step**: You MUST pass the logical atlas contract first by reading `PROJECT-HANDBOOK.md`, `atlas.entry`, `atlas.index.status`, `atlas.index.atlas`, the relevant root topic documents, and the relevant module overview documents before any investigation or fixes.\n"
             "\n"
             "Before applying fixes or running multiple independent investigation actions yourself:\n"
             "- Read the current debug session state and identify whether the investigation has two or more independent evidence-gathering lanes.\n"
@@ -678,7 +679,7 @@ class IntegrationBase(ABC):
             f"## {agent_name} Leader Gate\n\n"
             f"When running `sp-quick` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
             "\n"
-            "**Crucial First Step**: You MUST read `PROJECT-HANDBOOK.md` and relevant `.specify/project-map/*.md` files to understand the architectural boundaries and conventions before repository analysis or implementation.\n"
+            "**Crucial First Step**: You MUST pass the logical atlas contract first by reading `PROJECT-HANDBOOK.md`, `atlas.entry`, `atlas.index.status`, `atlas.index.atlas`, the relevant root topic documents, and the relevant module overview documents before repository analysis or implementation.\n"
             "\n"
             "Before code edits, test edits, or implementation commands:\n"
             "- Read `.specify/memory/constitution.md` first if it exists.\n"

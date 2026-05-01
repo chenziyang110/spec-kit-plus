@@ -20,6 +20,14 @@ def test_project_handbook_template_routes_to_index_root_and_module_layers():
     assert "`.specify/project-map/modules/<module-id>/OVERVIEW.md`" in handbook
 
 
+def test_quick_nav_includes_symptom_and_verification_lookup_routes():
+    quick_nav = _read("templates/project-map/QUICK-NAV.md").lower()
+
+    assert "## by symptom" in quick_nav
+    assert "## verification routes" in quick_nav
+    assert "shared-surface hotspots" in quick_nav
+
+
 def test_layered_project_map_template_files_exist():
     for rel_path in [
         "templates/project-map/index/atlas-config.json",

@@ -281,7 +281,18 @@ human_needed_checks:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**This command tier: heavy.** Load task-scoped module docs. Freshness enforced on target Layer 3.
+**Project-map hard gate:** you must pass an atlas gate before packet
+compilation, subagent dispatch, or implementation-shaping code reads continue.
+
+**This command tier: heavy.** Pass the atlas gate by reading
+`PROJECT-HANDBOOK.md`, `atlas.entry`, `atlas.index.status`,
+`atlas.index.atlas`, `atlas.index.modules`, `atlas.index.relations`, the
+relevant root topic documents, and the relevant module overview documents
+before packet compilation, subagent dispatch, or implementation file reads
+begin. Freshness is enforced as a blocking gate.
+
+Do not compile packets, dispatch subagents, or inspect implementation files
+until the atlas gate has passed.
 
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:

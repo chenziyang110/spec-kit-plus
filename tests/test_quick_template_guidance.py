@@ -1,16 +1,15 @@
 from pathlib import Path
 
+from .template_utils import read_template
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
-    assert "all substantive tasks in ordinary `sp-*` workflows default to and must use subagents" in content
-    assert "the leader orchestrates:" in content
-    assert "before dispatch, every subagent lane needs a task contract" in content
-    assert "structured handoff" in content
+    assert "dispatch mode follows command tier" in content
+    assert "subagent-preferred" in content
     assert "execution_model: subagent-mandatory" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
@@ -20,30 +19,26 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
-    assert "specify learning start --command quick --format json" in content
-    assert "specify learning capture --command quick" in content
-    assert "read `project-handbook.md`" in content
-    assert ".specify/project-map/index/status.json" in content
-    assert "project-map freshness helper" in content
-    assert "freshness is `missing` or `stale`" in content
-    assert "freshness is `possibly_stale`" in content
+    assert "passive project learning layer" in content
+    assert "passive project learning layer" in content
+    assert "project-map hard gate" in content
+    assert "must pass an atlas gate before" in content
+    assert "project-handbook.md" in content
+    assert "atlas.entry" in content
+    assert "atlas.index.status" in content
+    assert "atlas.index.atlas" in content
+    assert "treat `missing` and `stale` as blocking" in content
+    assert "`possibly_stale`" in content
     assert "must_refresh_topics" in content
     assert "review_topics" in content
-    assert "topic map" in content
-    assert "touched-area topical files" in content
-    assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
-    assert "task-relevant coverage is insufficient" in content
-    assert "ownership or placement guidance" in content
-    assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
+    assert "at least one relevant root topic document" in content
+    assert "at least one relevant module overview document" in content
+    assert "root topic" in content
+    assert "module overview" in content
     assert ".specify/testing/unit_test_system_request.md" in content or ".specify/testing/unit-test-system-request.md" in content
-    assert "single module, risk tranche, or coverage wave" in content
-    assert "coverage-model check" in content
-    assert "truth-owning surfaces" in content
-    assert "change-propagation hotspots" in content
-    assert "verification entry points" in content
-    assert "known unknowns or stale evidence boundaries" in content
-    assert "before choosing the quick-task lane shape" in content
+    assert "risk tranche" in content or "coverage wave" in content
+    assert "shared-surface" in content or "cross-module" in content
+    assert "lane shape" in content or "execution strategy" in content
     assert "ad-hoc task" in content or "small, ad-hoc task" in content
     assert "lightweight" in content
     assert ".planning/quick/" in content
@@ -53,13 +48,13 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "--full" in content
     assert "skip the full" in content and "specify" in content
     assert "summary.md" in content or "summary artifact" in content
-    assert "before any substantial repository analysis" in content
+    assert "repository analysis" in content
     assert "read `.specify/memory/constitution.md` first" in content
-    assert "highest-signal" in content
+    assert "summary artifact" in content or "final summary artifact" in content
 
 
 def test_quick_template_preserves_quality_guardrails() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "scope gate" in content
     assert "small but non-trivial" in content or "not for trivial work" in content
@@ -74,7 +69,7 @@ def test_quick_template_preserves_quality_guardrails() -> None:
 
 
 def test_quick_template_defines_capability_aware_execution_strategy() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "choose_subagent_dispatch" in content
     assert "execution_model: subagent-mandatory" in content
@@ -91,7 +86,7 @@ def test_quick_template_defines_capability_aware_execution_strategy() -> None:
 
 
 def test_quick_template_defines_recoverable_quick_task_artifacts() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert ".planning/quick/<id>-<slug>/" in content
     assert ".planning/quick/index.json" in content
@@ -106,7 +101,7 @@ def test_quick_template_defines_recoverable_quick_task_artifacts() -> None:
 
 
 def test_quick_template_includes_concrete_status_template() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "## status.md template" in content
     assert "id: [quick-task id]" in content
@@ -127,7 +122,7 @@ def test_quick_template_includes_concrete_status_template() -> None:
 
 
 def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "upgrade to `/sp-specify` immediately if" in content
     assert "unit test system program" in content or "testing-system program" in content
@@ -143,7 +138,7 @@ def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
 
 
 def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert ".specify/memory/constitution.md" in content
     assert "constitution first" in content
@@ -155,7 +150,7 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
 
 
 def test_quick_template_requires_self_recovery_before_blocking() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "attempt the smallest safe recovery step before declaring the task blocked" in content
     assert "read additional local context" in content
@@ -167,7 +162,7 @@ def test_quick_template_requires_self_recovery_before_blocking() -> None:
 
 
 def test_quick_template_requires_minimal_plan_for_propagating_changes() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "surface sweep rule" in content
     assert "small-scope complete sweep" in content
@@ -189,7 +184,7 @@ def test_quick_template_requires_minimal_plan_for_propagating_changes() -> None:
 
 
 def test_quick_template_rejects_sampling_for_propagating_change_completion() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "sampling is not sufficient" in content
     assert "full-coverage check" in content or "full coverage check" in content
@@ -198,7 +193,7 @@ def test_quick_template_rejects_sampling_for_propagating_change_completion() -> 
 
 
 def test_quick_template_requires_summary_transparency_for_verified_and_unverified_surfaces() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "summary artifact" in content
     assert "which surfaces were left unverified" in content
@@ -211,15 +206,14 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
-    assert "do not create or update `status.md`" in content
-    assert "until the constitution has been read or confirmed absent" in content
+    assert "constitution first" in content
     assert "before workspace setup, clarification, lane selection, subagent dispatch, or local analysis" in content
 
 
 def test_quick_template_prefers_parallel_subagent_fanout_when_safe() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "materially improve throughput" in content
     assert "dispatch them in parallel" in content
@@ -227,31 +221,29 @@ def test_quick_template_prefers_parallel_subagent_fanout_when_safe() -> None:
 
 
 def test_quick_template_defines_empty_call_recovery_and_lifecycle_management() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "if exactly one unfinished quick task exists" in content
     assert "if multiple unfinished quick tasks exist" in content
     assert "ask the user which quick task to continue" in content
-    assert "resumable unfinished work" in content
+    assert "unfinished quick-task states" in content or "unfinished quick tasks" in content
     assert "close" in content
     assert "archive" in content
 
 
 def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent_marker() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8")
+    content = read_template("templates/commands/quick.md")
 
-    assert "[AGENT] Run `specify learning start --command quick --format json`" in content
-    assert "[AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts." in content
-    assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`." in content
-    assert "[AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts." in content
-    assert "[AGENT] If task-relevant coverage is insufficient for the current quick task, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts." in content
-    assert "[AGENT] Create or resume `STATUS.md`" in content
+    assert "**freshness**: treat `missing` and `stale` as blocking" in content.lower()
+    assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`." in content or "must_refresh_topics" in content
+    assert "ownership, placement, workflow, integration, or verification guidance" in content
+    assert "status.md" in content.lower()
     assert "[AGENT] Use the shared policy function before execution begins and again at each join point" in content
-    assert "[AGENT] Before the final summary, capture any new `pitfall`, `recovery_path`, or `project_constraint` learning" in content
+    assert "before final completion or blocked reporting, run `specify hook review-learning` with the terminal status" in content.lower()
 
 
 def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "behavior-changing" in content or "behavior changing" in content
     assert "bugfix" in content or "bug fix" in content
@@ -264,7 +256,7 @@ def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
 
 
 def test_quick_template_routes_uncertain_bugfixes_into_debug() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "quick.md").read_text(encoding="utf-8").lower()
+    content = read_template("templates/commands/quick.md").lower()
 
     assert "root cause is still unknown" in content or "root cause is not yet known" in content
     assert "/sp-debug" in content

@@ -196,8 +196,8 @@ class TestInitIntegrationFlag:
         assert ".specify/memory/project-learnings.md" in quick_content
         assert ".planning/learnings/candidates.md" in quick_content
         assert "project-handbook.md" in quick_content
-        assert ".specify/project-map/quick-nav.md" in quick_content
-        assert "target module `overview.md`" in quick_content
+        assert "atlas.entry" in quick_content
+        assert "at least one relevant module overview document" in quick_content
         assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content
         assert "attempt the smallest safe recovery step before declaring the task blocked" in quick_content
         assert "retry_attempts" in quick_content

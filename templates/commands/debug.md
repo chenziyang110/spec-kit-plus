@@ -116,7 +116,24 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**This command tier: light.** Load Layer 1 + Layer 2 summary + affected module docs. Freshness: warn if stale, do not block.
+**This command tier: light.** Pass the atlas gate before investigation moves
+into reproduction, logs, tests, or source-code reads.
+
+## Project-Map Hard Gate
+
+Before observer framing moves into reproduction, logs, tests, or source-code
+reads, pass the atlas gate by reading.
+
+You must pass an atlas gate before reproduction, log review, test inspection,
+or source-code reads begin.
+
+1. `PROJECT-HANDBOOK.md`
+2. `atlas.entry`
+3. `atlas.index.status`
+4. `atlas.index.atlas`
+5. the relevant root topic documents for workflows, testing, and operations
+6. at least one relevant module overview document
+7. `atlas.index.relations` when Layer 1 names cross-module or shared-surface risk
 
 ## Investigation Protocol
 

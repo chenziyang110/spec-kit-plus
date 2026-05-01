@@ -25,7 +25,7 @@ and what sits clearly outside the system boundary.]
 ## How To Read This Project
 
 - Start here for orientation.
-- **First stop for any task**: open `.specify/project-map/QUICK-NAV.md` — a concise Layer 1 routing table that answers "which document should I open?"
+- **First stop for any task**: open `.specify/project-map/QUICK-NAV.md` — a dictionary-style atlas entry surface that answers "which document should I open?" and "which module most likely owns the touched area?"
 - The handbook is the index-first entrypoint.
 - Read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` before broad brownfield work.
 - Treat the combined handbook/project-map set as the repository's atlas-style technical encyclopedia.
@@ -40,10 +40,14 @@ and what sits clearly outside the system boundary.]
 
 Describe the four-layer atlas explicitly:
 
-- **Layer 1 (routing)**: `QUICK-NAV.md` — task-to-document routing
+- **Layer 1 (routing)**: `QUICK-NAV.md` — task routes, symptom routes, shared-surface hotspots, verification routes, and propagation-risk routes
 - **Layer 2 (summary)**: `root/ARCHITECTURE.md` capability cards and root topical summaries
 - **Layer 3 (detail)**: `modules/<module-id>/OVERVIEW.md` plus module-local docs
 - **Layer 4 (source)**: live code and runtime state when the atlas is missing, stale, or too broad
+
+Layer 1 should behave like a dictionary-style atlas entry surface rather than a
+thin route table. It should help the reader decide which module most likely
+owns the touched area before broader code reads begin.
 
 ## Shared Surfaces
 

@@ -105,7 +105,15 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**This command tier: heavy.** Load Layer 1 + Layer 2 summary. Reads only the plan artifacts for task breakdown (Layer 3 docs are for sp-implement).
+**Project-map hard gate:** you must pass an atlas gate before task-shaping
+analysis, decomposition, or implementation-shaping code reads begin.
+
+**This command tier: heavy.** Pass the atlas gate by reading
+`PROJECT-HANDBOOK.md`, `atlas.entry`, `atlas.index.status`,
+`atlas.index.atlas`, `atlas.index.modules`, `atlas.index.relations`, the
+relevant root topic documents, and the relevant module overview documents
+before task breakdown continues. Task generation may stay focused on the plan
+artifacts afterward, but it may not skip the atlas gate.
 
 4. **Execute task generation workflow**:
     - [AGENT] Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="tasks", snapshot, workload_shape)`

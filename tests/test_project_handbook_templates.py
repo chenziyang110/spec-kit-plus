@@ -30,6 +30,9 @@ def test_project_handbook_template_exists_and_routes_to_project_map():
     assert "`.specify/project-map/index/atlas-index.json`" in content
     assert "`.specify/project-map/root/ARCHITECTURE.md`" in content
     assert "`.specify/project-map/modules/<module-id>/OVERVIEW.md`" in content
+    assert "dictionary-style atlas entry surface" in content
+    assert "task routes, symptom routes, shared-surface hotspots, verification routes, and propagation-risk routes" in content
+    assert "which module most likely owns the touched area" in content
 
 
 def test_project_map_templates_share_metadata_contract():

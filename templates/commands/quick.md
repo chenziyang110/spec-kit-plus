@@ -36,14 +36,28 @@ Dispatch to one subagent with a task contract. If subagent dispatch is unavailab
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**This command tier: light.** Load:
-1. `.specify/project-map/QUICK-NAV.md` — route to target module
-2. `root/ARCHITECTURE.md` — read target module's Layer 2 summary card only
-3. Target module `OVERVIEW.md` — read only sections relevant to the task
-4. `root/CONVENTIONS.md` — read only the relevant pattern section (DI, IPC, or Error)
-5. `index/relations.json` — check cross-module impact
+**Project-map hard gate:** you must pass an atlas gate before repository
+analysis, implementation design, or code reads continue.
 
-**Freshness**: Check `index/status.json` commit_hash vs HEAD. If stale, warn but proceed. Do not trigger rescan.
+**This command tier: light.** Pass the atlas gate by reading:
+1. `PROJECT-HANDBOOK.md`
+2. `atlas.entry`
+3. `atlas.index.status`
+4. `atlas.index.atlas`
+5. at least one relevant root topic document
+6. at least one relevant module overview document
+7. `atlas.index.relations` when Layer 1 names shared-surface or cross-module risk
+
+After the atlas gate passes, continue into any additional root-topic or
+module-local reads named by Layer 1 for the touched area.
+
+**Freshness**: Treat `missing` and `stale` as blocking; evaluate
+`possibly_stale` against `must_refresh_topics` and `review_topics` before
+continuing.
+
+Treat task-relevant coverage as insufficient when the touched area still lacks
+ownership, placement, workflow, integration, or verification guidance before
+choosing the quick-task lane shape.
 
 ## First-Party Workflow Quality Hooks
 

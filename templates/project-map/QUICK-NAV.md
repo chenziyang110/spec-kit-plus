@@ -1,46 +1,132 @@
 # Quick Navigation
 
-> Layer 1 routing table. Start here. This document answers: "I need to do X — which document should I open?"
+> Layer 1 routing table and dictionary-style atlas entry surface. Start here.
+> This document answers: "I need to do X — which document should I open?" and
+> "Which module most likely owns the touched area?"
 
 ## By Task Type
 
-| I need to | Open first | Then (if needed) |
-|-----------|-----------|-------------------|
-| See overall architecture | `root/ARCHITECTURE.md` | |
-| Change CLI internals | `modules/specify-cli-core/OVERVIEW.md` | `modules/specify-cli-core/ARCHITECTURE.md` |
-| Change workflow templates or passive skills | `root/WORKFLOWS.md` | `modules/templates-generated-surfaces/WORKFLOWS.md` |
-| Change an agent integration | `root/INTEGRATIONS.md` | `modules/specify-cli-core/ARCHITECTURE.md` |
-| Change Codex team runtime or engine | `modules/agent-teams-engine/OVERVIEW.md` | `root/OPERATIONS.md` |
-| Change hooks, packets, or orchestration | `root/ARCHITECTURE.md` | `modules/specify-cli-core/ARCHITECTURE.md` |
-| Change packaging, CI, or devcontainer | `root/STRUCTURE.md` | `root/OPERATIONS.md` |
-| Diagnose test failures | `root/TESTING.md` | module `TESTING.md` for affected area |
-| Fix a bug (location known) | module `OVERVIEW.md` for the affected area | `root/TESTING.md` for test commands |
-| Fix a bug (root cause unknown) | `root/WORKFLOWS.md` (debug workflow) | module `OVERVIEW.md` for affected area |
-| Understand IPC / RPC patterns | `root/ARCHITECTURE.md` § IPC Channels | `root/CONVENTIONS.md` § IPC Patterns |
-| Add a new service or module | `root/CONVENTIONS.md` | `root/STRUCTURE.md` § Placement Rules |
+- See overall architecture:
+  Open first: `root/ARCHITECTURE.md`
+- Change CLI internals:
+  Open first: `modules/specify-cli-core/OVERVIEW.md`
+  Then: `modules/specify-cli-core/ARCHITECTURE.md`
+- Change workflow templates or passive skills:
+  Open first: `root/WORKFLOWS.md`
+  Then: `modules/templates-generated-surfaces/WORKFLOWS.md`
+- Change an agent integration:
+  Open first: `root/INTEGRATIONS.md`
+  Then: `modules/specify-cli-core/ARCHITECTURE.md`
+- Change Codex team runtime or engine:
+  Open first: `modules/agent-teams-engine/OVERVIEW.md`
+  Then: `root/OPERATIONS.md`
+- Change hooks, packets, or orchestration:
+  Open first: `root/ARCHITECTURE.md`
+  Then: `modules/specify-cli-core/ARCHITECTURE.md`
+- Change packaging, CI, or devcontainer:
+  Open first: `root/STRUCTURE.md`
+  Then: `root/OPERATIONS.md`
+- Diagnose test failures:
+  Open first: `root/TESTING.md`
+  Then: module `TESTING.md` for the affected area
+- Fix a bug (location known):
+  Open first: module `OVERVIEW.md` for the affected area
+  Then: `root/TESTING.md`
+- Fix a bug (root cause unknown):
+  Open first: `root/WORKFLOWS.md`
+  Then: module `OVERVIEW.md` for the affected area
 
-## By Module
+## By Symptom
 
-| Module | Layer 2 Summary | Layer 3 Detail | Doc Status |
-|--------|----------------|----------------|------------|
-| specify-cli-core | `root/ARCHITECTURE.md` § specify-cli-core | `modules/specify-cli-core/OVERVIEW.md` | documented |
-| templates-generated-surfaces | `root/ARCHITECTURE.md` § templates-generated-surfaces | `modules/templates-generated-surfaces/OVERVIEW.md` | documented |
-| agent-teams-engine | `root/ARCHITECTURE.md` § agent-teams-engine | `modules/agent-teams-engine/OVERVIEW.md` | documented |
+- Workflows are no longer reading project-map:
+  Read `PROJECT-HANDBOOK.md`, `root/WORKFLOWS.md`,
+  `modules/templates-generated-surfaces/OVERVIEW.md`, and
+  `src/specify_cli/integrations/base.py`
+- Generated template behavior does not match runtime guidance:
+  Read `root/WORKFLOWS.md`, `root/CONVENTIONS.md`,
+  `modules/templates-generated-surfaces/OVERVIEW.md`, and
+  `templates/command-partials/common/*.md`
+- Freshness or dirty-state routing looks wrong:
+  Read `root/OPERATIONS.md`, `root/WORKFLOWS.md`,
+  `index/status.json`, and `src/specify_cli/project_map_status.py`
+- Subagent dispatch guidance is inconsistent across workflows:
+  Read `root/WORKFLOWS.md`,
+  `modules/templates-generated-surfaces/WORKFLOWS.md`, and
+  `templates/commands/*.md`
+
+## Shared-Surface Hotspots
+
+- `templates/command-partials/common/context-loading-gradient.md`
+  Why it matters: shared atlas-gate wording for multiple `sp-*` commands
+- `templates/commands/**`
+  Why it matters: workflow contracts and user-visible execution rules
+- `src/specify_cli/integrations/base.py`
+  Why it matters: injected runtime guidance and logical atlas-contract wording
+- `src/specify_cli/project_map_status.py`
+  Why it matters: freshness, topic routing, and blocking vs review behavior
+
+## Verification Routes
+
+- Atlas template guidance:
+  Run `pytest tests/test_fast_template_guidance.py tests/test_quick_template_guidance.py tests/test_debug_template_guidance.py -q`
+- Project-map layered contract:
+  Run `pytest tests/test_project_map_layered_contract.py tests/test_project_handbook_templates.py -q`
+- Freshness helper behavior:
+  Run `pytest tests/test_project_map_status.py -q`
+
+## Propagation-Risk Routes
+
+- Shared partial changed:
+  Review every command that includes it plus template-guidance tests
+- Handbook or root topic changed:
+  Review `Topic Map`, `atlas-index.json`, and freshness/topic-routing tests
+- Integration guidance changed:
+  Review `tests/test_extension_skills.py` and alignment/template guidance tests
+
+## Module Lookup
+
+- `specify-cli-core`
+  Layer 2 summary: `root/ARCHITECTURE.md`
+  Layer 3 detail: `modules/specify-cli-core/OVERVIEW.md`
+- `templates-generated-surfaces`
+  Layer 2 summary: `root/ARCHITECTURE.md`
+  Layer 3 detail: `modules/templates-generated-surfaces/OVERVIEW.md`
+- `agent-teams-engine`
+  Layer 2 summary: `root/ARCHITECTURE.md`
+  Layer 3 detail: `modules/agent-teams-engine/OVERVIEW.md`
+
+## Root Topic Lookup
+
+- Architecture boundaries:
+  `root/ARCHITECTURE.md`
+- Workflow and lifecycle behavior:
+  `root/WORKFLOWS.md`
+- Testing and verification entrypoints:
+  `root/TESTING.md`
+- Runtime recovery and freshness operations:
+  `root/OPERATIONS.md`
 
 ## By Index File
 
-| Index | Purpose | When to read |
-|-------|---------|-------------|
-| `index/atlas-index.json` | Machine-readable atlas summary and next-read routes | Before broad brownfield work |
-| `index/modules.json` | Module registry, owned roots, doc paths, doc status | To check if a module has Layer 3 docs |
-| `index/relations.json` | Cross-module dependency graph | To assess change impact across modules |
-| `index/status.json` | Freshness, commit binding, module coverage status | Before trusting map for heavy commands |
+- `index/atlas-index.json`
+  Purpose: machine-readable atlas summary, entrypoints, and next-read routes
+- `index/modules.json`
+  Purpose: module registry, owned roots, doc paths, and doc status
+- `index/relations.json`
+  Purpose: cross-module dependency graph and propagation expansion routes
+- `index/status.json`
+  Purpose: freshness, commit binding, and topic-routing status
 
 ## How To Use This Document
 
-1. Find your task type in the first table -> open the "Open first" document
-2. Read its Layer 2 summary section (first 10-15 lines) -> decide if you need Layer 3
-3. If Layer 3 is needed -> follow the link in the summary to the module OVERVIEW.md
-4. Only read source code when documentation is marked `gap` or is stale
+1. Identify the current task type or symptom.
+2. Open the listed root topic or module overview first.
+3. Expand into relations and neighboring surfaces only when the entry route says
+   the problem crosses shared surfaces or propagation risks.
+4. Only read source code when atlas coverage is missing, stale, or too broad
+   for the touched area.
 
-**Staleness**: Check `index/status.json` for the commit binding. If the current HEAD differs from `last_refresh_commit`, Layer 3 docs may be stale. Layer 1 (this file) is almost never stale.
+**Staleness**: Check `index/status.json`. If the current HEAD differs from the
+last refresh commit, review topic-routing guidance before trusting Layer 2 or
+Layer 3. Layer 1 is the most stable surface, but it still routes through
+freshness state rather than bypassing it.

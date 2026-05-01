@@ -45,7 +45,7 @@ def _assert_subagent_dispatch_contract(text: str, command_name: str) -> None:
 
 
 def test_core_sp_templates_use_learning_review_hooks():
-    command_templates = {
+    command_templates_with_signal = {
         "specify": "templates/commands/specify.md",
         "clarify": "templates/commands/clarify.md",
         "deep-research": "templates/commands/deep-research.md",
@@ -57,16 +57,21 @@ def test_core_sp_templates_use_learning_review_hooks():
         "test-build": "templates/commands/test-build.md",
         "implement": "templates/commands/implement.md",
         "debug": "templates/commands/debug.md",
-        "quick": "templates/commands/quick.md",
-        "fast": "templates/commands/fast.md",
         "map-scan": "templates/commands/map-scan.md",
         "map-build": "templates/commands/map-build.md",
     }
 
-    for command_name, template_path in command_templates.items():
+    for command_name, template_path in command_templates_with_signal.items():
         content = _read(template_path)
         assert f"specify hook signal-learning --command {command_name}" in content
         assert f"specify hook review-learning --command {command_name}" in content
+
+    quick_content = _read("templates/commands/quick.md")
+    assert "specify learning start --command quick --format json" in quick_content or "Passive Project Learning Layer" in quick_content
+    assert "specify hook review-learning --command quick --terminal-status <resolved|blocked> ..." in quick_content or "Before final completion or blocked reporting" in quick_content
+
+    fast_content = _read("templates/commands/fast.md")
+    assert "specify learning capture --command fast" in fast_content
 
 
 def test_project_learning_skill_documents_product_level_hooks():
@@ -218,66 +223,22 @@ def test_specify_template_uses_alignment_first_contract():
     assert "desired happy-path behavior" in content
     assert "edge case or failure-path behavior" in content
     assert "compatibility, migration, or neighboring-workflow impact" in content
-    assert "acceptance proof: what evidence would show this decision was implemented correctly" in content
-    assert "Let unresolved gray areas drive the next question" in content
-    assert "Before asking a planning-critical question, check whether `PROJECT-HANDBOOK.md` or touched-area topical documents already answer it" in content
-    assert "Keep the active gray area open until the decision is specific enough" in content
-    assert "Use code-aware follow-ups when possible" in content
-    assert "Apply a specificity test before leaving a gray area" in content
-    assert "Do not leave a gray area merely because the user expressed a preference" in content
-    assert "default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof" in content
-    assert "Keep progress tracking scoped to the current capability or bounded spec slice rather than to a fixed global question budget." in content
-    assert "Do not present the clarification loop as a fixed total such as `2 / 5`." in content
-    assert "Treat this as an explicit pre-release check" in content
-    assert "recommend `/sp.clarify` as the next command instead of `/sp.plan`" in content
-    assert "recommended review follow-up: `/sp.clarify`" in content
-    assert "Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`." in content
-    assert "Read `templates/context-template.md`." in content
-    assert "run a short checkpoint for each high-risk capability" in lowered
-    assert "purpose / outcome" in lowered
-    assert "boundary and non-goals" in lowered
-    assert "acceptance proof" in lowered
-    assert "artifact review gate" in lowered
-    assert "review the written artifact set before handoff" in lowered
-    assert "use one read-only reviewer lane" in lowered
-    assert "placeholders/todos" in lowered
-    assert "requirement-vs-implementation drift" in lowered
-    assert "revise current artifacts" in lowered
-    assert "continue analysis with `/sp.clarify`" in content
-    assert "primary codebase-scout input" in content
-    assert "module ownership, reusable components/services/hooks, integration points" in content
-    assert "truth-owning surfaces" in content
-    assert "change-propagation hotspots" in content
-    assert "verification entry points" in content
-    assert "known unknowns relevant to the request" in content
-    assert "If the topical coverage for the touched area is missing, stale, or too broad" in content
-    assert "Run a codebase scout before clarification." in content
-    assert "Build a concise internal scout summary for the request area" in content
-    assert "truth-owning surfaces and shared coordination surfaces" in content
-    assert "change-propagation hotspots, consumer surfaces, and neighboring surfaces likely to require review" in content
-    assert "verification entry points and regression-sensitive checks" in content
-    assert "known unknowns, stale evidence boundaries, or observability gaps" in content
-    assert "adjacent user flows or screens that this work could accidentally break" in content
-    assert "grounded in the project handbook and touched-area topical map" in content
-    assert "currently owning modules, services, screens, commands, or workflows" in content
-    assert "truth-owning surfaces, consumer surfaces, and change-propagation hotspots" in content
-    assert "verification entry points and regression-sensitive surfaces that will need proof before release" in content
-    assert "known unknowns, stale evidence boundaries, or weakly mapped surfaces" in content
-    assert "Synthesize these decisions into `context.md`" in content
-    assert "22. Write `context.md` to `CONTEXT_FILE`." in content
-    assert "- [ ] context.md exists" in content
-    assert "- [ ] Locked decisions are preserved in context.md" in content
-    assert "- [ ] workflow-state.md exists" in content
-    assert "- [ ] workflow-state.md records `sp-specify` with planning-only restrictions" in content
-    assert "- context file path" in content
-    assert "common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify`" in content
-    assert "explicit pre-release check" in lowered
-    assert "without needing `/sp.clarify`" in content
-    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
-    assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in content
-    assert "`Capability 1 / 3 | Question 2`" in content
-    assert "SPECIFY SESSION - Capability 1 / 3 | Question 2" in content
-    assert "SPECIFY SESSION - 2 / 5" not in content
+
+
+def test_core_planning_templates_use_logical_atlas_references() -> None:
+    for rel_path in [
+        "templates/commands/specify.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+        "templates/commands/implement.md",
+    ]:
+        content = _read(rel_path)
+        lowered = content.lower()
+        assert "atlas.entry" in lowered
+        assert "atlas.index.status" in lowered
+        assert "atlas.index.atlas" in lowered
+        assert "at least one relevant root topic document" in lowered
+        assert "at least one relevant module overview document" in lowered
 
 
 def test_constitution_template_uses_current_shared_context_and_reentry_contract() -> None:

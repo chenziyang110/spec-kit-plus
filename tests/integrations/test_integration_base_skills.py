@@ -269,16 +269,16 @@ class SkillsIntegrationTests:
         assert f"## {agent_name} Leader Gate".lower() in debug_content
         assert "you are the **leader**, not a freeform debugger" in debug_content
         assert "investigation routing contract" in debug_content
-        assert "execution_model: subagents-first" in debug_content
-        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in debug_content
-        assert "execution_surface: native-subagents | managed-team | leader-inline" in debug_content
+        assert "execution_model: subagent-mandatory" in debug_content or "execution model: `subagents-first`" in debug_content
+        assert "dispatch_shape: one-subagent | parallel-subagents" in debug_content
+        assert "execution_surface: native-subagents" in debug_content or "execution surface: `native-subagents`" in debug_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
-        assert "execution_model: subagents-first" in quick_content
-        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in quick_content
-        assert "execution_surface: native-subagents | managed-team | leader-inline" in quick_content
+        assert "execution_model: subagent-mandatory" in quick_content or "execution model: `subagents-first`" in quick_content
+        assert "dispatch_shape: one-subagent | parallel-subagents" in quick_content
+        assert "execution_surface: native-subagents" in quick_content
         assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content
 
     def test_map_scan_build_skills_require_native_explorer_lanes_when_selected(self, tmp_path):
@@ -293,12 +293,12 @@ class SkillsIntegrationTests:
         build_content = (skills_dir / "sp-map-build" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert 'choose_subagent_dispatch(command_name="map-scan"' in scan_content
         assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
-        assert "execution_model: subagents-first" in scan_content
-        assert "execution_model: subagents-first" in build_content
-        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in scan_content
-        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in build_content
-        assert "execution_surface: native-subagents | managed-team | leader-inline" in scan_content
-        assert "execution_surface: native-subagents | managed-team | leader-inline" in build_content
+        assert "execution_model: subagent-mandatory" in scan_content or "execution model: `subagents-first`" in scan_content
+        assert "execution_model: subagent-mandatory" in build_content or "execution model: `subagents-first`" in build_content
+        assert "dispatch_shape: one-subagent | parallel-subagents" in scan_content
+        assert "dispatch_shape: one-subagent | parallel-subagents" in build_content
+        assert "execution_surface: native-subagents" in scan_content
+        assert "execution_surface: native-subagents" in build_content
         assert "coverage-ledger" in scan_content
         assert "map-state.md" in scan_content
         assert "mapscanpacket" in scan_content

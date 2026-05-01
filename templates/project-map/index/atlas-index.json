@@ -6,6 +6,16 @@
   "modules_count": 0,
   "last_full_refresh_commit": "",
   "global_freshness": "missing",
+  "entry_contract": {
+    "layer_1_purpose": "dictionary-style atlas entry surface",
+    "supports": [
+      "task_routes",
+      "symptom_routes",
+      "shared_surface_hotspots",
+      "verification_routes",
+      "propagation_risk_routes"
+    ]
+  },
   "entrypoints": [
     "PROJECT-HANDBOOK.md",
     ".specify/project-map/QUICK-NAV.md",
@@ -17,6 +27,12 @@
   "module_registry_path": ".specify/project-map/index/modules.json",
   "relations_path": ".specify/project-map/index/relations.json",
   "status_path": ".specify/project-map/index/status.json",
+  "recommended_minimum_read_set": [
+    "PROJECT-HANDBOOK.md",
+    ".specify/project-map/QUICK-NAV.md",
+    ".specify/project-map/index/status.json",
+    ".specify/project-map/index/atlas-index.json"
+  ],
   "scan_package": {
     "map_scan": ".specify/project-map/map-scan.md",
     "coverage_ledger": ".specify/project-map/coverage-ledger.json",
@@ -27,37 +43,37 @@
     {
       "id": "architecture",
       "path": ".specify/project-map/root/ARCHITECTURE.md",
-      "use_when": ""
+      "use_when": "architecture boundaries, ownership, abstractions, change propagation"
     },
     {
       "id": "structure",
       "path": ".specify/project-map/root/STRUCTURE.md",
-      "use_when": ""
+      "use_when": "placement rules, shared directories, repository shape"
     },
     {
       "id": "conventions",
       "path": ".specify/project-map/root/CONVENTIONS.md",
-      "use_when": ""
+      "use_when": "coding conventions, compatibility, contract semantics"
     },
     {
       "id": "integrations",
       "path": ".specify/project-map/root/INTEGRATIONS.md",
-      "use_when": ""
+      "use_when": "external tools, adapters, protocol boundaries"
     },
     {
       "id": "workflows",
       "path": ".specify/project-map/root/WORKFLOWS.md",
-      "use_when": ""
+      "use_when": "workflow state, command routing, lifecycle behavior"
     },
     {
       "id": "testing",
       "path": ".specify/project-map/root/TESTING.md",
-      "use_when": ""
+      "use_when": "verification entrypoints, regression-sensitive surfaces"
     },
     {
       "id": "operations",
       "path": ".specify/project-map/root/OPERATIONS.md",
-      "use_when": ""
+      "use_when": "runtime recovery, freshness, deployment and troubleshooting"
     }
   ]
 }

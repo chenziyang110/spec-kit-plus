@@ -22,6 +22,18 @@
 
 - [artifact that must be re-read on resume before continuing]
 
+## Atlas Read Evidence
+
+- atlas_read_completed: `true | false`
+- atlas_paths_read:
+  - [atlas artifact actually read before source-level work]
+- atlas_root_topics_read:
+  - [root topic file actually read]
+- atlas_module_docs_read:
+  - [module overview or module-local doc actually read]
+- atlas_status_basis: [fresh | missing | stale | possibly_stale plus the decision taken]
+- atlas_blocked_reason: [why atlas gating blocked work, if it did]
+
 ## Resume Checklist
 
 - Re-read this file first after compaction or session recovery.

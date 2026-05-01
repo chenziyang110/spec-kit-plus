@@ -48,15 +48,23 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**This command tier: heavy.** Load:
-1. `.specify/project-map/QUICK-NAV.md` — route to all affected modules
-2. `root/ARCHITECTURE.md` — all Layer 2 summary cards
-3. All affected module `OVERVIEW.md` files — full content
-4. `root/CONVENTIONS.md` — full
-5. `index/relations.json` — full dependency graph
-6. `index/status.json` — freshness gate (enforce; stale → scoped rescan)
+**Project-map hard gate:** you must pass an atlas gate before repository
+analysis, planning-critical clarification, or implementation-shaping code reads
+begin.
 
-**Freshness enforcement**: Compare `status.json` commit_hash with HEAD. If stale on target module Layer 3, run scoped rescan of affected module only (not global rebuild).
+**This command tier: heavy.** Pass the atlas gate by reading:
+1. `PROJECT-HANDBOOK.md`
+2. `atlas.entry`
+3. `atlas.index.status`
+4. `atlas.index.atlas`
+5. `atlas.index.modules`
+6. `atlas.index.relations`
+7. the relevant root topic documents
+8. the relevant module overview documents
+
+Freshness enforcement stays blocking. If the atlas is missing, stale, or
+topic-insufficient for the touched area, refresh it before repository analysis
+continues.
 
 ## Workflow Phase Lock
 

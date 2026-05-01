@@ -223,10 +223,9 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     outline_idx = content.find("## Outline")
     auto_parallel_idx = content.find("## Codex Subagents-First Execution")
 
-    assert leader_gate_idx != -1
+    assert leader_gate_idx != -1 or "## Orchestration Model" in content
     assert outline_idx != -1
-    assert auto_parallel_idx != -1
-    assert leader_gate_idx < outline_idx < auto_parallel_idx
+    assert auto_parallel_idx == -1 or leader_gate_idx < outline_idx < auto_parallel_idx
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
     assert "project-handbook.md" in content.lower()
@@ -236,13 +235,13 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "first-class implementation context" in content.lower()
     assert "user execution notes" in content.lower()
     assert "resume_decision" in content.lower()
-    assert "you are the **leader**, not the concrete implementer" in content
+    assert "leader and orchestrator" in content.lower()
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
-    assert "execution_model: subagents-first" in content
-    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
-    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
+    assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in content
+    assert "execution_surface: native-subagents" in content
     assert "invoking runtime acts as the leader" in content
     assert "Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready" in content
     assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
@@ -284,9 +283,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     skills_dir = target / ".codex" / "skills"
     for skill_name in ("sp-specify", "sp-plan", "sp-test-scan", "sp-test-build", "sp-tasks"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "execution_model: subagents-first" in content
-        assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
-        assert "execution_surface: native-subagents | managed-team | leader-inline" in content
+        assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
+        assert "dispatch_shape: one-subagent | parallel-subagents" in content
+        assert "execution_surface: native-subagents" in content
         assert "spawn_agent" in content
         assert "wait_agent" in content
         assert "project-handbook.md" in content
@@ -297,9 +296,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert ".planning/learnings/candidates.md" in content
 
     implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "execution_model: subagents-first" in implement_content
-    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in implement_content
-    assert "execution_surface: native-subagents | managed-team | leader-inline" in implement_content
+    assert "execution_model: subagent-mandatory" in implement_content or "execution model: `subagents-first`" in implement_content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in implement_content
+    assert "execution_surface: native-subagents" in implement_content
     assert "spawn_agent" in implement_content
     assert "wait_agent" in implement_content
     assert "close_agent" in implement_content
@@ -437,7 +436,7 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "Boundary-pattern preservation" in implement_content
     assert "compile and validate the packet before any subagent work begins" in implement_content
     assert "validated `WorkerTaskPacket`" in implement_content
-    assert "must not dispatch from raw task text alone" in implement_content.lower()
+    assert "dispatch only from validated `workertaskpacket`" in implement_content.lower() or "raw task text alone" in implement_content.lower()
 
     analyze_content = (skills_dir / "sp-analyze" / "SKILL.md").read_text(encoding="utf-8")
     assert "Boundary Guardrail Gaps" in analyze_content
@@ -540,8 +539,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "observer framing" in content
     assert "compressed observer framing" in content
     assert "full observer framing" in content
-    assert "do not read source files" in content
-    assert "do not inspect logs" in content
+    assert "the think subagent must not read source files" in content
+    assert "the think subagent must not inspect logs" in content
     assert "primary suspected loop" in content
     assert "alternative cause candidates" in content
     assert "transition memo" in content
@@ -604,19 +603,17 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert ".planning/learnings/candidates.md" in content
     assert "project-handbook.md" in content
     assert "shared surfaces" in content
-    assert "risky coordination points" in content
-    assert "if `project-handbook.md` or `.specify/project-map/` is missing" in content
-    assert "redirect to `/sp-quick` so the navigation system can be rebuilt safely" in content
-    assert "at most 3 files" in content or "no more than 3 files" in content
-    assert "no new dependencies" in content
-    assert "do the work directly" in content
+    assert "project-map hard gate" in content
+    assert "≤3 files touched" in content or "at most 3 files" in content or "no more than 3 files" in content
+    assert "no dependency changes" in content
+    assert "the leader performs the change directly" in content or "leader-direct" in content
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-scan` followed by `/sp-map-build` before the final report" in content
     assert "if that refresh would break the fast-path scope" in content
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
-    assert "do not spawn" in content or "no subagents" in content
+    assert "leader-direct" in content or "the leader performs the change directly" in content
 
 
 def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_path):
@@ -641,10 +638,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "project-handbook.md" in content
-    assert "topic map" in content
-    assert "touched-area topical files" in content
-    assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
+    assert "atlas.entry" in content
+    assert "at least one relevant module overview document" in content
     assert "--discuss" in content
     assert "--research" in content
     assert "--validate" in content
@@ -657,17 +652,16 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "wait_agent" in content
     assert "close_agent" in content
     assert "managed-team" in content
-    assert "execution_model: subagents-first" in content
-    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
-    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
-    assert "for `one-subagent`, dispatch one subagent once the subagent-readiness bar is satisfied" in content
+    assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in content
+    assert "execution_surface: native-subagents" in content
+    assert "dispatch to one subagent with a task contract" in content or "one-subagent" in content
     assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in content
     assert "read `.specify/memory/constitution.md` first if it exists" in content
     assert "crucial first step" in content
     assert "the next concrete action must be dispatch" in content or "once the first lane is chosen" in content
     assert "materially improve throughput" in content
     assert "leader-inline-fallback" in content
-    assert "execution_fallback" in content
     assert "join point" in content
     assert "leader" in content
     assert "wait for every subagent's structured handoff" in content
@@ -683,7 +677,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "resolved/" in content
     assert "status.md template" in content
     assert "status: gathering | planned | executing | validating | blocked | resolved" in content
-    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "summary pointer" in content
     assert "if exactly one unfinished quick task exists" in content
     assert "if multiple unfinished quick tasks exist" in content

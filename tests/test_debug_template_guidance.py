@@ -41,8 +41,12 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert ".planning/learnings/candidates.md" in content
     assert "specify learning start --command debug --format json" in content
     assert "specify learning capture --command debug" in content
+    assert "project-map hard gate" in content
+    assert "must pass an atlas gate before" in content
     assert "read `project-handbook.md`" in content
-    assert ".specify/project-map/index/status.json" in content
+    assert "atlas.entry" in content
+    assert "atlas.index.status" in content
+    assert "atlas.index.atlas" in content
     assert "if the active session is `awaiting_human_verify`" in content
     assert "start a linked follow-up session" in content
     assert "record the parent/child relationship" in content
@@ -52,6 +56,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "freshness is `possibly_stale`" in content
     assert "must_refresh_topics" in content
     assert "review_topics" in content
+    assert "before observer framing moves into reproduction, logs, tests, or source-code" in content
     assert "truth ownership" in content
     assert "read whichever of `architecture.md`, `workflows.md`, `integrations.md`, `testing.md`, and `operations.md` map to the failing area" in content
     assert "if the handbook navigation system is missing" in content

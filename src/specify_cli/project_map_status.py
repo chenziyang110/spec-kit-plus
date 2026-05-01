@@ -3,6 +3,9 @@
 This module centralizes the status-file contract used by the handbook/project-map
 freshness helpers so Python call sites can reason about the same state without
 shelling out.
+
+This module now supports atlas hard-gate routing and minimum read-set checks in
+addition to freshness status.
 """
 
 from __future__ import annotations
@@ -92,6 +95,20 @@ def canonical_project_map_paths(project_root: Path) -> list[Path]:
         project_map_root / "TESTING.md",
         project_map_root / "OPERATIONS.md",
     ]
+
+
+def atlas_minimum_read_set(project_root: Path) -> list[Path]:
+    project_map_index_root = project_map_index_dir(project_root)
+    return [
+        project_root / "PROJECT-HANDBOOK.md",
+        project_map_dir(project_root) / "QUICK-NAV.md",
+        project_map_index_root / "status.json",
+        project_map_index_root / "atlas-index.json",
+    ]
+
+
+def atlas_root_topic_path(project_root: Path, topic_filename: str) -> Path:
+    return project_map_root_dir(project_root) / topic_filename
 
 
 def missing_canonical_project_map_paths(project_root: Path) -> list[Path]:

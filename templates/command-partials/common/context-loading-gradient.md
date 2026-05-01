@@ -1,34 +1,51 @@
-## Context Loading
+## Project-Map Hard Gate
 
-Load only the layers this command's tier requires.
+This command must treat the atlas as a mandatory pre-source knowledge base.
 
-### Layer Access by Tier
+### Hard Rule
 
-| Tier | Commands | Layers | Freshness Check |
-|------|----------|--------|-----------------|
-| trivial | sp-fast | Layer 1 only + target source | Skip |
-| light | sp-quick, sp-debug | Layer 1 + Layer 2 summary + target Layer 3 sections | Warn if stale, do not block |
-| heavy | sp-specify, sp-plan, sp-tasks, sp-implement | Layer 1 + Layer 2 + Layer 3 full | Enforce; stale triggers scoped rescan |
+Do not inspect implementation source, run reproduction or tests, compile a
+plan, prepare a fix, or emit technical recommendations until the atlas gate has
+passed.
 
-### Loading Order (all tiers)
+### Minimum Atlas Read Set
 
-1. Read `.specify/project-map/QUICK-NAV.md` first — determine which document to open
-2. Read the routed document's Layer 2 summary section
-3. [light/heavy only] Read target module's Layer 3 OVERVIEW.md (target sections only for light)
-4. [heavy only] Read `root/CONVENTIONS.md` relevant sections + `index/relations.json` for cross-module impact
-5. [all tiers] Read source files on-demand when docs are insufficient or marked `gap`
+Every ordinary `sp-*` workflow must read:
 
-### Freshness (layered, not binary)
+1. `PROJECT-HANDBOOK.md`
+2. `atlas.entry`
+3. `atlas.index.status`
+4. `atlas.index.atlas`
+5. at least one relevant root topic document
+6. at least one relevant module overview document
 
-- Layer 1 (QUICK-NAV.md): almost never stale — skip check
-- Layer 2 (summary cards in ARCHITECTURE.md): changes slowly — warn only
-- Layer 3 (module OVERVIEW.md): changes faster — enforce for heavy commands
+If the touched area crosses shared surfaces, integration seams, workflow joins,
+or verification-sensitive boundaries, also read:
 
-Check: compare `index/status.json` against current HEAD using the project-map freshness helper.
-- Same commit → fresh
-- Different, but only Layer 3 files changed → Layer 1+2 still valid
-- Different, structural files changed → all layers may be stale
+- `atlas.index.relations`
+- any additional root topic documents named by the entry layer
 
-When stale: heavy commands should prefer the smallest safe map refresh path supported by the current runtime. If scoped rescan is not implemented for the active runtime, fall back to `sp-map-scan -> sp-map-build`.
-Light commands proceed with a warning.
-Trivial commands skip freshness entirely.
+### Command Tier Depth
+
+Tier determines how deeply the workflow must continue through atlas layers
+after the minimum gate, not whether it may skip atlas consumption.
+
+- `trivial` (`sp-fast`): stay at the minimum atlas read set unless the entry
+  layer names shared-surface risk
+- `light` (`sp-quick`, `sp-debug`): read all root topics and module sections
+  named by Layer 1 for the touched area
+- `heavy` (`sp-specify`, `sp-plan`, `sp-tasks`, `sp-implement`): read all
+  relevant root topics, module docs, and relation surfaces needed for the
+  current decision
+
+### Freshness
+
+Treat atlas freshness as a gate:
+
+- `missing` -> block and refresh through `sp-map-scan -> sp-map-build`
+- `stale` -> block and refresh through `sp-map-scan -> sp-map-build`
+- `possibly_stale` -> inspect `must_refresh_topics` and `review_topics`; if
+  current-task topics intersect `must_refresh_topics`, block and refresh before
+  continuing
+
+The old `warn but proceed` behavior is not allowed.
