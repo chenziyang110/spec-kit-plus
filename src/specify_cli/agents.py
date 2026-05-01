@@ -248,8 +248,10 @@ class CommandRegistrar:
         if not isinstance(frontmatter, dict):
             frontmatter = {}
 
-        if agent_name in {"codex", "kimi"}:
+        if agent_name in {"codex", "kimi", "claude"}:
             body = self.resolve_skill_placeholders(agent_name, frontmatter, body, project_root)
+        elif agent_name in {"agy"}:
+            body = self.apply_skill_invocation_conventions(agent_name, body)
 
         description = frontmatter.get("description", f"Spec-kit workflow command: {skill_name}")
         skill_frontmatter = self.build_skill_frontmatter(
@@ -283,6 +285,79 @@ class CommandRegistrar:
             skill_frontmatter["user-invocable"] = True
             skill_frontmatter["disable-model-invocation"] = True
         return skill_frontmatter
+
+    @staticmethod
+    def _skill_invocation_example(agent_name: str) -> str | None:
+        """Return the agent-specific skill invocation example when applicable."""
+        if agent_name in {"codex", "agy"}:
+            return "$sp-plan"
+        if agent_name == "claude":
+            return "/sp-plan"
+        if agent_name == "kimi":
+            return "/skill:sp-plan"
+        return None
+
+    @classmethod
+    def apply_skill_invocation_conventions(cls, agent_name: str, body: str) -> str:
+        """Normalize skill-facing invocation wording for skills-backed agents.
+
+        Shared templates still use canonical workflow identifiers such as
+        ``/sp.plan`` inside state examples and some historical ``/sp-...``
+        user-invocation phrasing.  Skills-backed integrations need two things:
+
+        1. User-invocation guidance that matches the actual skill surface
+        2. A clear note that ``/sp.plan``-style tokens are canonical workflow
+           state identifiers, not necessarily the literal syntax to invoke
+           a skill in the current integration
+        """
+        if not isinstance(body, str) or not body:
+            return body
+
+        invocation_example = cls._skill_invocation_example(agent_name)
+        if not invocation_example:
+            return body
+
+        def project_workflow_name(name: str) -> str:
+            if agent_name in {"codex", "agy"}:
+                return f"$sp-{name}"
+            if agent_name == "claude":
+                return f"/sp-{name}"
+            if agent_name == "kimi":
+                return f"/skill:sp-{name}"
+            return f"/sp-{name}"
+
+        action_patterns = (
+            r"(?P<prefix>- (?:Run|Use|recommend|Recommend) )/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+            r"(?P<prefix>- (?:Run|Use|recommend|Recommend) `)/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+            r"(?P<prefix>- \*\*Default handoff\*\*: )/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+            r"(?P<prefix>- \*\*Recommendation\*\*: )/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+            r"(?P<prefix>To execute: `)/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+            r"(?P<prefix>Executing: `)/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+            r"(?P<prefix>recommended review follow-up: `)/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+            r"(?P<prefix>readiness for the next phase \(`)/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+            r"(?P<prefix>ready for `)/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+            r"(?P<prefix>route to `)/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+            r"(?P<prefix>proceed to `)/sp-(?P<name>[a-z0-9][a-z0-9-]*)",
+        )
+
+        for pattern in action_patterns:
+            body = re.sub(
+                pattern,
+                lambda match: f"{match.group('prefix')}{project_workflow_name(match.group('name'))}",
+                body,
+            )
+
+        marker = "## Invocation Syntax"
+        if marker in body:
+            return body
+
+        note = (
+            "## Invocation Syntax\n\n"
+            f"- In this integration, invoke workflow skills with `{invocation_example}`-style syntax.\n"
+            "- References such as `/sp.plan`, `/sp.tasks`, or `next_command: /sp.plan` are canonical workflow-state identifiers and handoff values.\n"
+            "- Preserve those canonical state tokens exactly in artifacts and workflow state; do not rewrite them to this integration's invocation syntax.\n\n"
+        )
+        return note + body
 
     @staticmethod
     def resolve_skill_placeholders(agent_name: str, frontmatter: dict, body: str, project_root: Path) -> str:
@@ -347,7 +422,8 @@ class CommandRegistrar:
             body = body.replace("{AGENT_SCRIPT}", agent_script_command)
 
         body = body.replace("{ARGS}", "$ARGUMENTS").replace("__AGENT__", agent_name)
-        return CommandRegistrar.rewrite_project_relative_paths(body)
+        body = CommandRegistrar.rewrite_project_relative_paths(body)
+        return CommandRegistrar.apply_skill_invocation_conventions(agent_name, body)
 
     def _convert_argument_placeholder(self, content: str, from_placeholder: str, to_placeholder: str) -> str:
         """Convert argument placeholder format.
