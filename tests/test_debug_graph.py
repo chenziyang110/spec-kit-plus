@@ -18,6 +18,11 @@ async def test_gathering_to_investigating():
     state.symptoms.expected = "Expected parser output"
     state.symptoms.actual = "Actual parser output"
     state.symptoms.reproduction_verified = True
+    # Pre-populate observer framing (now dispatched to think subagent in production)
+    state.observer_framing_completed = True
+    state.observer_mode = "full"
+    state.observer_framing.primary_suspected_loop = "general"
+    state.transition_memo.first_candidate_to_test = "Verify queue transitions"
     ctx = GraphRunContext(state=state, deps=None)
     node = GatheringNode()
 
@@ -37,6 +42,11 @@ async def test_gathering_node_uses_compressed_observer_framing_for_strong_low_le
     state.symptoms.actual = "Actual parser output"
     state.symptoms.reproduction_command = "python tests/repro.py"
     state.symptoms.reproduction_verified = True
+    # Pre-populate observer framing (now dispatched to think subagent in production)
+    state.observer_framing_completed = True
+    state.observer_mode = "compressed"
+    state.skip_observer_reason = "Strong low-level evidence present"
+    state.observer_framing.recommended_first_probe = "Verify queue transitions"
     ctx = GraphRunContext(state=state, deps=None)
     node = GatheringNode()
 

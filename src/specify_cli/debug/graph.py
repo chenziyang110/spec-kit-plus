@@ -13,6 +13,7 @@ from .schema import (
 from .persistence import MarkdownPersistenceHandler, build_handoff_report
 from .context import ContextLoader
 from .utils import run_command, edit_file, read_file
+from .think_agent import build_think_subagent_prompt
 import functools
 from specify_cli.verification import (
     ValidationResult as SharedValidationResult,
@@ -671,28 +672,39 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         ctx.state.status = DebugStatus.GATHERING
         ctx.state.current_node_id = "GatheringNode"
         
-        # 1. Instantiate ContextLoader and find the active feature context.
+        # 1. Load context
         loader = ContextLoader()
-        
-        # 2. Populate ctx.state.context and ctx.state.recently_modified if not already set.
+
         if not ctx.state.context.feature_id:
             feature_dir = loader.find_active_feature()
             if feature_dir:
                 ctx.state.context = loader.load_feature_context(feature_dir)
-        
+
         if not ctx.state.recently_modified:
             ctx.state.recently_modified = loader.get_recent_git_changes()
 
-        _populate_observer_framing(ctx.state)
+        _refresh_diagnostic_profile(ctx.state)
+        _refresh_lane_plan(ctx.state)
 
-        # 3. Add logic to ensure ctx.state.symptoms.expected and ctx.state.symptoms.actual are populated.
+        # 2. Observer Framing — dispatch to think subagent for isolated reasoning
+        if not ctx.state.observer_framing_completed:
+            prompt = build_think_subagent_prompt(ctx.state)
+            ctx.state.think_subagent_prompt = prompt
+            return _await_input(
+                ctx.state,
+                "Observer framing needed. Spawn a think subagent with think_subagent_prompt. "
+                "Wait for its structured result, then parse the YAML block after '---' and populate "
+                "observer_framing, transition_memo, and alternative_cause_candidates fields. "
+                "Set observer_framing_completed=True and continue.",
+            )
+
+        # 3. Gate checks
         if not ctx.state.symptoms.expected or not ctx.state.symptoms.actual:
             return _await_input(
                 ctx.state,
                 "Observer framing complete. Collect expected and actual behavior before continuing into evidence investigation.",
             )
-        
-        # 4. Implement "Reproduction First" gate in GatheringNode
+
         if not ctx.state.symptoms.reproduction_verified:
             return _await_input(
                 ctx.state,

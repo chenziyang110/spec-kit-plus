@@ -22,6 +22,8 @@ from specify_cli.debug.persistence import MarkdownPersistenceHandler
 @pytest.mark.asyncio
 async def test_gathering_node_missing_symptoms():
     state = DebugGraphState(slug="test", trigger="test")
+    # Mark observer framing as completed (now dispatched to think subagent in production)
+    state.observer_framing_completed = True
     # symptoms are empty by default
     node = GatheringNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -38,7 +40,9 @@ async def test_gathering_node_with_symptoms_not_verified():
     state = DebugGraphState(slug="test", trigger="test")
     state.symptoms.expected = "Something should happen"
     state.symptoms.actual = "Something else happened"
-    
+    # Mark observer framing as completed (now dispatched to think subagent in production)
+    state.observer_framing_completed = True
+
     node = GatheringNode()
     ctx = GraphRunContext(state=state, deps=None)
     
@@ -55,7 +59,9 @@ async def test_gathering_node_with_verified_reproduction():
     state.symptoms.actual = "Something else happened"
     state.symptoms.reproduction = "tests/repro.py"
     state.symptoms.reproduction_verified = True
-    
+    # Mark observer framing as completed (now dispatched to think subagent in production)
+    state.observer_framing_completed = True
+
     node = GatheringNode()
     ctx = GraphRunContext(state=state, deps=None)
     
@@ -84,6 +90,8 @@ async def test_graph_refreshes_diagnostic_profile_from_symptoms():
     state.symptoms.expected = "Fresh task state visible"
     state.symptoms.actual = "Stale snapshot cache remains visible"
     state.symptoms.reproduction_verified = True
+    # Mark observer framing as completed (now dispatched to think subagent in production)
+    state.observer_framing_completed = True
 
     node = GatheringNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -544,7 +552,7 @@ async def test_run_debug_session_stops_when_more_input_is_needed(tmp_path):
     await asyncio.wait_for(run_debug_session(state, handler), timeout=1)
 
     assert state.status == DebugStatus.GATHERING
-    assert "expected and actual behavior" in (state.current_focus.next_action or "").lower()
+    assert "observer framing needed" in (state.current_focus.next_action or "").lower()
 
 
 @pytest.mark.asyncio
