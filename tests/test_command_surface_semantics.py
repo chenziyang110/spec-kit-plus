@@ -143,3 +143,26 @@ def test_invoke_placeholder_does_not_rewrite_canonical_tokens():
     assert "Run $sp-plan next" in rendered
     assert "`/sp.plan`" in rendered
     assert "`/sp-test-scan`" in rendered
+
+
+def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_examples():
+    routing = read_template("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    map_gate = read_template("templates/passive-skills/spec-kit-project-map-gate/SKILL.md")
+    subagents = read_template("templates/passive-skills/subagent-driven-development/SKILL.md")
+    parallel = read_template("templates/passive-skills/dispatching-parallel-agents/SKILL.md")
+
+    assert "{{invoke:specify}}" in routing
+    assert "{{invoke:map-scan}} -> {{invoke:map-build}}" in routing
+    assert "Use `/sp-specify`" not in routing
+    assert "Use `/sp-plan`" not in routing
+
+    assert "{{invoke:map-scan}} -> {{invoke:map-build}}" in map_gate
+    assert "use `/sp-map-scan -> /sp-map-build`" not in map_gate
+
+    assert "{{invoke:tasks}}" in subagents
+    assert "{{invoke:implement}}" in subagents
+    assert "`sp-teams` only when Codex work needs durable team state" in subagents
+
+    assert "{{invoke:quick}}" in parallel
+    assert "{{invoke:implement}}" in parallel
+    assert "Use `sp-teams` only when Codex work needs durable team state" in parallel

@@ -30,10 +30,12 @@ Route first, packetize second, dispatch third.
 
 ## Process
 
-1. **Select the owning workflow**: Use `sp-tasks` when a plan lacks executable
-   task packets. Use `sp-implement` for planned feature execution, `sp-quick`
-   for lightweight tracked work, `sp-debug` for root-cause work, and the
-   relevant map/test workflow for project-map or testing-system lanes.
+1. **Select the owning workflow**: Route to canonical `sp-tasks` when a plan lacks
+   executable task packets. Route to canonical `sp-implement` for planned feature
+   execution, `sp-quick` for lightweight tracked work, `sp-debug` for root-cause
+   work, and the relevant map/test workflow for project-map or testing-system
+   lanes. When telling the user what to type, use `{{invoke:tasks}}`,
+   `{{invoke:implement}}`, `{{invoke:quick}}`, or `{{invoke:debug}}`.
 2. **Build the execution packet**: Every lane needs a validated
    `WorkerTaskPacket` or equivalent with task text, relevant artifacts, write
    set, shared surfaces, forbidden drift, acceptance checks, and verification
@@ -71,7 +73,8 @@ packet before dispatch.
 
 - If the user says "execute the plan", "start building", "implement tasks", or
   equivalent, route to `sp-implement`, or to `sp-tasks` first if tasks are not
-  generated.
+  generated. If a manual next step is needed, tell the user to run
+  `{{invoke:implement}}`, or `{{invoke:tasks}}` when task packets are missing.
 - If the user asks to "dispatch agents", "split this up", or "run subagents",
   route to the workflow that owns the state, then dispatch native subagents from
   validated packets.

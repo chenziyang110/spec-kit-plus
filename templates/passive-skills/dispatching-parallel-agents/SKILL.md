@@ -34,8 +34,11 @@ Current routing vocabulary:
 ## Process
 
 1. **Route first**: Select the owning `sp-*` workflow before dispatch. Common
-   routes are `sp-quick`, `sp-debug`, `sp-test-scan`, `sp-test-build`,
-   `sp-map-scan`, `sp-map-build`, and `sp-implement`.
+   canonical routes are `sp-quick`, `sp-debug`, `sp-test-scan`, `sp-test-build`,
+   `sp-map-scan`, `sp-map-build`, and `sp-implement`. When telling the user what
+   to type, use placeholders such as `{{invoke:quick}}`, `{{invoke:debug}}`,
+   `{{invoke:test-scan}}`, `{{invoke:test-build}}`, `{{invoke:map-scan}}`,
+   `{{invoke:map-build}}`, or `{{invoke:implement}}`.
 2. **Split lanes**: Name each lane, purpose, read context, write-set, forbidden
    paths, shared surfaces, and verification target.
 3. **Check conflicts**: Do not dispatch two writers to the same file or shared

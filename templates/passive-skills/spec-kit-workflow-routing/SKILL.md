@@ -9,7 +9,9 @@ origin: spec-kit-plus
 This repository's explicit `sp-*` workflow skills remain the primary execution surface.
 This passive skill exists to route ambiguous requests into the right active workflow
 instead of improvising a custom flow. Use it to route into the right active `sp-*` workflow
-before any complementary gate or learning layer runs.
+before any complementary gate or learning layer runs. When giving a user an explicit
+next-step invocation, use the projected invocation placeholder, such as
+`{{invoke:specify}}`, rather than assuming one universal slash-style syntax.
 
 ## Workflow Activation Discipline
 
@@ -69,6 +71,20 @@ complete and proceed.
   spec/plan/tasks artifacts.
 - Use `sp-explain` when the user needs a plain-language explanation of current
   artifacts or runtime state.
+
+## User Invocation Examples
+
+Use canonical workflow names above when describing routing semantics, workflow
+state, or artifact handoffs. Use projected invocation placeholders when telling a
+user what to type:
+
+- New capability alignment: `{{invoke:specify}}`
+- Planning handoff: `{{invoke:plan}}`
+- Task generation: `{{invoke:tasks}}`
+- Implementation execution: `{{invoke:implement}}`
+- Debugging route: `{{invoke:debug}}`
+- Map refresh detour: `{{invoke:map-scan}} -> {{invoke:map-build}}`
+- Testing system router: `{{invoke:test}}`
 
 ## Subagent Routing
 

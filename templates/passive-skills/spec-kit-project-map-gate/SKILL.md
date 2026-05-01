@@ -34,7 +34,9 @@ judgment in an established Spec Kit Plus repository:
 ## Missing Or Stale Context
 
 - If the handbook, module docs, or root docs do not exist, are stale, or are too broad
-  for the touched area, use `sp-map-scan -> sp-map-build` before continuing.
+  for the touched area, route through the canonical `sp-map-scan -> sp-map-build`
+  workflow detour before continuing. When giving the user an explicit command to
+  type, write `{{invoke:map-scan}} -> {{invoke:map-build}}`.
 - Treat `deep_stale` as a real warning: if the current task needs deep module detail and the module status says `deep_stale`, refresh or manually rebuild the required deep docs before trusting them.
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
   repository map should be the source of truth.
