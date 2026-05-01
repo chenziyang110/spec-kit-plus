@@ -45,6 +45,7 @@ Write your analysis as free text first, then append a `---` separator followed b
 [Your free-text analysis: reasoning process, key observations, connections you noticed, risks you considered but deprioritized]
 
 ---
+observer_mode: "full"
 observer_framing:
   summary: "One-paragraph summary of the most likely failure boundary"
   primary_suspected_loop: "scheduler-admission|cache-snapshot|ui-projection|general"

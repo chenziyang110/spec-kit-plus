@@ -169,6 +169,7 @@ If not: proceed to Stage 1 (Observer Framing).
   2. Wait for the subagent's structured result.
   3. The result is hybrid: free-text analysis followed by `---` and a YAML block.
   4. Parse the YAML block after `---` and populate the debug session fields.
+  5. Set `observer_mode: full` (unless the subagent output indicates `compressed` with a `skip_observer_reason`).
 - The think subagent produces the observer analysis board based on the user report plus the current system map. It does NOT read source code, logs, or run commands.
 - The observer analysis board must include:
   - `Primary suspected loop`

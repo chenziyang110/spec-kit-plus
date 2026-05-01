@@ -48,6 +48,7 @@ class TestBuildThinkSubagentPrompt:
         prompt = build_think_subagent_prompt(state)
 
         assert "---" in prompt
+        assert "observer_mode:" in prompt
         assert "observer_framing:" in prompt
         assert "alternative_cause_candidates:" in prompt
         assert "transition_memo:" in prompt
