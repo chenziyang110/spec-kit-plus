@@ -180,7 +180,7 @@ Skill map after `specify init`:
 
 Conditional gates and follow-up commands:
 
-- `map-scan` followed by `map-build` is the required brownfield gate for an existing codebase; generate the complete scan package first, then refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before specification, planning, task generation, or implementation continues
+- `map-scan` followed by `map-build` is the required brownfield gate for an existing generated project or downstream codebase; generate the complete scan package first, then refresh `PROJECT-HANDBOOK.md` and that project's `.specify/project-map/` before specification, planning, task generation, or implementation continues
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `map-scan` followed by `map-build` as the follow-up refresh workflow
 - `test` as the backward-compatible router for project-level testing work; it routes to `test-scan` when evidence or build lanes are missing and to `test-build` when scan artifacts are ready for execution
@@ -198,7 +198,7 @@ Conditional gates and follow-up commands:
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing subagent validation evidence)
 
 Already have code? Run `map-scan`, then `map-build` first and treat that two-step flow as the required brownfield gate before deeper specification, planning, task generation, or implementation work.
-Generated projects also track handbook freshness in `.specify/project-map/index/status.json`, so brownfield workflows can decide whether the current atlas baseline is fresh, possibly stale, or stale before proceeding.
+Generated projects track handbook freshness in `.specify/project-map/index/status.json`, so brownfield workflows can decide whether the current atlas baseline is fresh, possibly stale, or stale before proceeding.
 
 Routing guide for lightweight work:
 
@@ -528,9 +528,10 @@ Important directories:
 Navigation and technical truth are now handbook-first:
 
 - Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
-- Deep project knowledge lives under `.specify/project-map/`.
+- In generated projects, deep project knowledge lives under `.specify/project-map/`.
+- This repository does not treat its own root `.specify/` directory as committed source-of-truth content; repo-local `.specify/` state is disposable and may be regenerated.
 - Treat the combined handbook/project-map surface as an atlas-style technical encyclopedia for dependency graph, runtime flows, state lifecycle, and change-impact view.
-- `.specify/project-map/index/status.json` records the last successful map refresh and dirty state for freshness checks.
+- In generated projects, `.specify/project-map/index/status.json` records the last successful map refresh and dirty state for freshness checks.
 - After a successful `map-build` refresh, use `project-map complete-refresh` as the standard completion hook to record the new fresh baseline.
 - Any code change that alters navigation meaning must update the handbook system.
 

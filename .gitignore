@@ -58,13 +58,8 @@ docs/dev
 .specify/extensions/.backup/
 .specify/extensions/*/local-config.yml
 
-# Spec Kit stable project knowledge
-.specify/*
-!.specify/memory/
-!.specify/memory/project-rules.md
-!.specify/memory/project-learnings.md
-!.specify/project-map/
-!.specify/project-map/**
+# Repo-local generated state
+.specify/
 
 # Codex team runtime state
 .specify/runtime/

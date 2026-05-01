@@ -16,7 +16,8 @@ For AI CLI workflows in this repository:
 
 ## Project Memory
 
-- Passive project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`.
+- Generated projects use `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` as passive project memory.
+- This repository itself does not treat its root `.specify/` directory as committed source-of-truth content; local `.specify/` state here is disposable and may be regenerated.
 - Shared project memory is always available to later work in this repository, not just when a `sp-*` workflow is active.
 
 ## Cross-CLI Improvement Policy
@@ -560,13 +561,14 @@ When adding new agents:
 ## Brownfield Context Gate
 
 - `PROJECT-HANDBOOK.md` is the root navigation artifact.
-- Deep project knowledge lives under `.specify/project-map/`.
-- Before planning, debugging, or implementing against existing code, read `PROJECT-HANDBOOK.md` and the smallest relevant `.specify/project-map/*.md` files.
-- If handbook/project-map coverage is missing, stale, or too broad, run the runtime's `map-scan` workflow entrypoint followed by `map-build` before continuing.
+- Generated projects keep deep project knowledge under `.specify/project-map/`.
+- In this repository, use `PROJECT-HANDBOOK.md`, `templates/project-map/**`, and relevant source/tests as the committed atlas truth.
+- Before planning, debugging, or implementing against existing code, read `PROJECT-HANDBOOK.md` and the smallest relevant atlas or template docs for the touched area.
+- If handbook/project-map coverage is missing, stale, or too broad in a generated project, run the runtime's `map-scan` workflow entrypoint followed by `map-build` before continuing.
 
 ## Project Memory
 
-- Passive project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`.
+- Generated projects use `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` as passive project memory.
 - Shared project memory is always available to later work in this repository, not just when a `sp-*` workflow is active.
 - Prefer generated project-local Spec Kit workflows, skills, and commands over ad-hoc execution when they fit the task.
 
@@ -594,19 +596,19 @@ When adding new agents:
 
 ## Artifact Priority
 
-- `.specify/memory/constitution.md` is the principle-level source of truth when present.
+- In generated projects, `.specify/memory/constitution.md` is the principle-level source of truth when present.
 - `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress.
 - `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.
 - `deep-research.md`, its traceable `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence IDs, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.
 - `plan.md` under the active feature directory is the implementation design source of truth once planning begins.
 - `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.
-- `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain testing-system construction, implementation, and debugging when present.
-- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh.
+- Generated-project `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, and `.specify/testing/testing-state.md` constrain testing-system construction, implementation, and debugging when present.
+- In generated projects, `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh.
 
 ## Map Maintenance
 
-- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.
-- If that refresh cannot happen in the current pass, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.
+- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected atlas/template docs.
+- If that refresh cannot happen in the current pass for a generated project, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.
 - Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.
 
 ## Spec Quality Gate (`spec-lint`)

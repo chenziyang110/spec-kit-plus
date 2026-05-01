@@ -31,9 +31,9 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 ## How To Read This Project
 
 - Start here for orientation.
-- **First stop for any task**: open `.specify/project-map/QUICK-NAV.md` — a ≤50-line decision matrix that answers "which document should I open?"
+- **First stop for any task**: use the atlas routes described here and in `templates/project-map/QUICK-NAV.md` — repo-local `.specify/` state is not committed source-of-truth for this repository.
 - The handbook is the index-first entrypoint.
-- Read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` before broad brownfield work.
+- For generated projects, read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` before broad brownfield work.
 - Treat the combined handbook/project-map set as an atlas-style technical encyclopedia.
 - The root topical docs explain cross-module architecture, workflows, integrations, testing, operations, structure, and conventions.
 - Module docs explain module-local ownership and drill-down routes.
@@ -41,7 +41,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 
 ## Quick Navigation (Layer 1)
 
-For task-based routing, open `.specify/project-map/QUICK-NAV.md` first — it is a ≤50-line decision matrix that answers "which document should I open?" for 12 common task types. The handbook and project-map together form a four-layer atlas:
+For generated projects, open `.specify/project-map/QUICK-NAV.md` first. In this repository, use `templates/project-map/QUICK-NAV.md` plus the handbook's `Where To Read Next` / `Topic Map` sections. The atlas still follows the same four-layer model:
 
 - **Layer 1 (routing)**: `QUICK-NAV.md` — task→document mapping
 - **Layer 2 (summary)**: `root/ARCHITECTURE.md` capability cards — module-at-a-glance
@@ -109,10 +109,10 @@ For task-based routing, open `.specify/project-map/QUICK-NAV.md` first — it is
 
 ## Atlas Views
 
-- `index/atlas-index.json`: machine-readable atlas summary and next-read routes.
-- `index/modules.json`: module registry, owned roots, and module doc paths.
-- `index/relations.json`: cross-module dependencies and shared-surface expansion routes.
-- `index/status.json`: freshness and module coverage status.
+- `templates/project-map/index/atlas-index.json`: machine-readable atlas summary and next-read routes for generated projects.
+- `templates/project-map/index/modules.json`: module registry, owned roots, and module doc paths for generated projects.
+- `templates/project-map/index/relations.json`: cross-module dependencies and shared-surface expansion routes for generated projects.
+- Generated-project `.specify/project-map/index/status.json`: freshness and module coverage status.
 - `root/ARCHITECTURE.md`: cross-module architecture, contracts, dependency graph, capability cards.
 - `root/STRUCTURE.md`: directory ownership, critical file families, placement rules.
 - `root/CONVENTIONS.md`: naming, generated-surface, state, compatibility, and review conventions.
@@ -131,20 +131,18 @@ For task-based routing, open `.specify/project-map/QUICK-NAV.md` first — it is
 
 ## Topic Map
 
-- `.specify/project-map/index/atlas-index.json` - atlas entry summary and next lookup pointers
-- `.specify/project-map/index/modules.json` - module registry and module document paths
-- `.specify/project-map/index/relations.json` - cross-module dependencies and shared surfaces
-- `.specify/project-map/index/status.json` - atlas freshness and module status
-- `.specify/project-map/root/ARCHITECTURE.md` - cross-module architecture and capability contracts
-- `.specify/project-map/root/STRUCTURE.md` - repository structure and placement rules
-- `.specify/project-map/root/CONVENTIONS.md` - conventions and compatibility rules
-- `.specify/project-map/root/INTEGRATIONS.md` - external tools, integrations, runtime seams
-- `.specify/project-map/root/WORKFLOWS.md` - workflow state and lifecycle behavior
-- `.specify/project-map/root/TESTING.md` - verification strategy
-- `.specify/project-map/root/OPERATIONS.md` - operations and recovery
-- `.specify/project-map/modules/specify-cli-core/OVERVIEW.md` - Python CLI module routing
-- `.specify/project-map/modules/agent-teams-engine/OVERVIEW.md` - bundled engine routing
-- `.specify/project-map/modules/templates-generated-surfaces/OVERVIEW.md` - template/generated-surface routing
+- `templates/project-map/QUICK-NAV.md` - Layer 1 routing table for generated-project atlases
+- `templates/project-map/index/atlas-index.json` - atlas entry summary and next lookup pointers
+- `templates/project-map/index/modules.json` - module registry and module document paths
+- `templates/project-map/index/relations.json` - cross-module dependencies and shared surfaces
+- Generated-project `.specify/project-map/index/status.json` - atlas freshness and module status
+- `templates/project-map/root/ARCHITECTURE.md` - canonical root architecture template for generated-project atlases
+- `templates/project-map/root/STRUCTURE.md` - canonical root structure template for generated-project atlases
+- `templates/project-map/root/CONVENTIONS.md` - canonical root conventions template for generated-project atlases
+- `templates/project-map/root/INTEGRATIONS.md` - canonical root integrations template for generated-project atlases
+- `templates/project-map/root/WORKFLOWS.md` - canonical root workflows template for generated-project atlases
+- `templates/project-map/root/TESTING.md` - canonical root testing template for generated-project atlases
+- `templates/project-map/root/OPERATIONS.md` - canonical root operations template for generated-project atlases
 
 ## Update Triggers
 
