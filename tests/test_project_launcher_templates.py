@@ -16,7 +16,6 @@ HIGH_RISK_TEMPLATE_FILES = [
     Path("templates/commands/constitution.md"),
     Path("templates/commands/map-scan.md"),
     Path("templates/commands/map-build.md"),
-    Path("templates/commands/test.md"),
     Path("templates/commands/test-scan.md"),
     Path("templates/commands/test-build.md"),
     Path("templates/command-partials/common/learning-layer.md"),

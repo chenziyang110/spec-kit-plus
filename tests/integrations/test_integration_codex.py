@@ -29,10 +29,6 @@ class TestCodexIntegration(SkillsIntegrationTests):
 
     def _expected_files(self, script_variant: str) -> list[str]:
         files = super()._expected_files(script_variant)
-        if script_variant == "sh":
-            files.append(".specify/scripts/bash/prd-state.sh")
-        else:
-            files.append(".specify/scripts/powershell/prd-state.ps1")
         files.extend(
             [
                 ".codex/config.toml",

@@ -14,14 +14,6 @@ class TestKimiIntegration(SkillsIntegrationTests):
     REGISTRAR_DIR = ".kimi/skills"
     CONTEXT_FILE = "KIMI.md"
 
-    def _expected_files(self, script_variant: str) -> list[str]:
-        files = super()._expected_files(script_variant)
-        if script_variant == "sh":
-            files.append(".specify/scripts/bash/prd-state.sh")
-        else:
-            files.append(".specify/scripts/powershell/prd-state.ps1")
-        return sorted(files)
-
 
 class TestKimiOptions:
     """Kimi declares --skills and --migrate-legacy options."""

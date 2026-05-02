@@ -12,6 +12,24 @@ workflow_contract:
 Use `sp-integrate` to discover completed lanes, run integration prechecks,
 surface drift or overlap risk, and close the lane cleanly.
 
+## Context
+
+- Primary inputs: completed lane state, verification evidence, lane closeout metadata, and the smallest relevant handbook or project-map guidance for merge-sensitive shared surfaces.
+- This workflow is a dedicated closeout lane after implementation, not a substitute for `sp-implement`.
+
+## Process
+
+1. Discover candidate completed lanes and their readiness state.
+2. Check shared-surface overlap, merge sequencing risk, and required closeout evidence.
+3. Surface any unresolved integration blockers instead of hiding them behind a generic "done" status.
+4. Produce explicit closeout guidance for merge or PR follow-through.
+
+## Output Contract
+
+- Integration readiness result for each candidate lane.
+- Explicit blocked reasons when closeout cannot proceed safely.
+- Recommended next merge or PR follow-through step when readiness is confirmed.
+
 ## Guardrails
 
 - Do not fold this workflow into `sp-implement`.

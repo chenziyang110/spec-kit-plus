@@ -21,7 +21,7 @@ def test_specify_template_blocks_surface_only_release_patterns() -> None:
     assert "Do not release `Aligned: ready for plan` when the current understanding still depends on taste words" in content
     assert "implicit defaults" in content
     assert "untested assumptions" in content
-    assert "boundary handling, compatibility impact, or acceptance proof" in content
+    assert "behavior boundaries, failure handling, compatibility impact, and acceptance-shaping detail" in content
     assert '"make it more intuitive"' in content
     assert '"handle permissions normally"' in content
     assert '"keep it compatible"' in content
@@ -57,4 +57,4 @@ def test_specify_template_requires_engineering_completeness_for_boundary_sensiti
     assert "observability or support evidence needed to diagnose failures" in content
     assert "If the user already described the desired UX in natural language" in content
     assert "forcing a transport or browser-API choice" in content
-    assert "Do not release `Aligned: ready for plan` for a cross-boundary or event-driven feature" in content
+    assert "Do not release for cross-boundary or event-driven features" in content

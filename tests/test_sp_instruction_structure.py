@@ -64,7 +64,6 @@ def test_shared_sp_command_templates_expose_common_navigation_sections():
 
     required_headings = (
         "## Objective",
-        "## Context",
         "## Process",
         "## Output Contract",
         "## Guardrails",

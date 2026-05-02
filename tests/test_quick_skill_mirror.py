@@ -27,16 +27,14 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(tmp_path: 
     assert ".planning/quick/index.json" in body
     assert 'choose_subagent_dispatch(command_name="quick"' in body
     assert "read `.specify/memory/constitution.md` first" in body
-    assert "execution_model: subagents-first" in body
-    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in body
-    assert "execution_surface: native-subagents | managed-team | leader-inline" in body
+    assert "execution_model: subagent-mandatory" in body
+    assert "dispatch_shape: one-subagent | parallel-subagents" in body
+    assert "execution_surface: native-subagents" in body
     assert "one-subagent" in body
     assert "parallel-subagents" in body
     assert "native-subagents" in body
-    assert "managed-team" in body
-    assert "leader-inline-fallback" in body
-    assert "before any substantial repository analysis" in body
-    assert "first hard gate" in body
+    assert "subagent-blocked" in body
+    assert "constitution read is the first hard gate" in body
     assert "codex leader gate" in body
     assert "spawn_agent" in body
     assert "wait_agent" in body
@@ -45,8 +43,7 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(tmp_path: 
     assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in body
     assert "the next concrete action must be dispatch" in body or "first actionable execution step after scope lock is to dispatch" in body
     assert "materially improve throughput" in body
-    assert "leader-inline-fallback" in body
-    assert "execution_fallback" in body
+    assert "blocked_dispatch" in body
     assert "continue automatically until the quick task is complete or blocked" in body
     assert "if exactly one unfinished quick task exists" in body
     assert "if multiple unfinished quick tasks exist" in body
