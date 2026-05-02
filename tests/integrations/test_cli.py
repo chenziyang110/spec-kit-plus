@@ -58,6 +58,7 @@ class TestInitIntegrationFlag:
         assert "Codex Teams Readiness" in result.output
         assert "git repo detected" in result.output
         assert "worktree-ready" in result.output
+        assert "integrate" in result.output.lower()
 
     def test_non_codex_init_does_not_advertise_sp_teams_surface(self, tmp_path):
         from typer.testing import CliRunner
@@ -93,6 +94,7 @@ class TestInitIntegrationFlag:
         assert "specify team" not in result.output.lower()
         assert "/sp-teams" not in result.output.lower()
         assert "(codex-only)" not in result.output.lower()
+        assert "integrate" in result.output.lower()
 
     def test_non_codex_implement_skill_does_not_use_specify_team_as_primary_entrypoint(self, tmp_path):
         from typer.testing import CliRunner

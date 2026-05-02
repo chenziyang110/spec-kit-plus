@@ -3226,6 +3226,7 @@ def init(
     steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
     steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/], including boundary guardrail gaps")
     steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, implement, or handbook/project-map atlas state in plain language")
+    steps_lines.append(f"   - [cyan]{_display_cmd('integrate')}[/] - Inspect lane closeout readiness and complete independent feature integration")
     if codex_skill_mode:
         steps_lines.append("   ")
         steps_lines.append("   Codex-only runtime")
@@ -3260,6 +3261,8 @@ def init(
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](default gate before implement)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
             f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, task, implement, or handbook/project-map atlas artifact in plain language before moving forward",
             f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
+            ,
+            f"○ [cyan]{_display_cmd('integrate')}[/] [bright_black](post-implement closeout)[/bright_black] - Inspect lane readiness, surface precheck failures, and close completed independent feature lanes before merge"
         ]
     )
     enhancements_title = "Support and gate skills" if native_skill_mode else "Support and gate commands"
