@@ -801,6 +801,73 @@ def _run_quick_helper(
     return payload
 
 
+def _prd_helper_script() -> tuple[list[str], Path]:
+    project_root = _project_root_from_source()
+    core_pack = _locate_core_pack()
+    if os.name == "nt":
+        script_path = (
+            core_pack / "scripts" / "powershell" / "prd-state.ps1"
+            if core_pack is not None
+            else project_root / "scripts" / "powershell" / "prd-state.ps1"
+        )
+        if shutil.which("pwsh"):
+            return ["pwsh", "-NoProfile", "-File"], script_path
+        if shutil.which("powershell"):
+            return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"], script_path
+        console.print("[red]Error:[/red] Neither 'pwsh' nor 'powershell' is available")
+        raise typer.Exit(1)
+    script_path = (
+        core_pack / "scripts" / "bash" / "prd-state.sh"
+        if core_pack is not None
+        else project_root / "scripts" / "bash" / "prd-state.sh"
+    )
+    return ["bash"], script_path
+
+
+def _run_prd_helper(
+    mode: str,
+    run_slug: str = "",
+) -> dict[str, Any]:
+    interpreter, script_path = _prd_helper_script()
+    if not script_path.exists():
+        console.print(f"[red]Error:[/red] PRD helper script not found: {script_path}")
+        raise typer.Exit(1)
+
+    cmd = [
+        *interpreter,
+        str(script_path),
+        str(Path.cwd()),
+        mode,
+        run_slug,
+    ]
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        error_output = (result.stderr or result.stdout or "").strip() or "PRD helper failed"
+        console.print(f"[red]Error:[/red] {error_output}")
+        raise typer.Exit(1)
+
+    raw = (result.stdout or "").strip()
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        console.print(f"[red]Error:[/red] Failed to parse PRD helper output: {exc}")
+        raise typer.Exit(1) from exc
+    if not isinstance(payload, dict):
+        console.print("[red]Error:[/red] PRD helper returned an invalid payload")
+        raise typer.Exit(1)
+    return payload
+
+
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SPEC_KIT_BLOCK_END = "<!-- SPEC-KIT:END -->"
 
