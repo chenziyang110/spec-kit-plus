@@ -4950,12 +4950,13 @@ def integrate(
         )
         readiness = None
         lane_payload = None
+        lane_record = None
         if resolved is not None:
             relative_feature_dir = Path(resolved).relative_to(project_root).as_posix()
             lane_record = next(
                 (
                     record
-                    for record in collect_integration_candidates(project_root) + []
+                    for record in collect_integration_candidates(project_root)
                     if record.feature_dir == relative_feature_dir
                 ),
                 None,
@@ -4976,7 +4977,7 @@ def integrate(
             json.dumps(
                 {
                     "status": "ok"
-                    if resolved is not None and (readiness is None or readiness.ready or not close)
+                    if lane_record is not None and (readiness is None or readiness.ready or not close)
                     else "blocked",
                     "mode": "targeted",
                     "feature_dir": str(resolved) if resolved is not None else None,

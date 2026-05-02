@@ -36,7 +36,7 @@ def test_collect_integration_candidates_returns_completed_or_ready_lanes(tmp_pat
 
     candidates = collect_integration_candidates(tmp_path)
 
-    assert [candidate.feature_id for candidate in candidates] == ["001-demo"]
+    assert [candidate.feature_id for candidate in candidates] == ["001-demo", "002-demo"]
 
 
 def test_assess_integration_readiness_reports_failed_checks(tmp_path: Path):

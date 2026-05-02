@@ -17,7 +17,7 @@ from .state_store import (
 
 
 def collect_integration_candidates(project_root: Path) -> list[LaneRecord]:
-    """Return lanes that are ready to close out through sp-integrate."""
+    """Return lanes that are relevant to closeout through sp-integrate."""
 
     payload = read_lane_index(project_root) or {}
     candidates: list[LaneRecord] = []
@@ -27,9 +27,11 @@ def collect_integration_candidates(project_root: Path) -> list[LaneRecord]:
         lane = read_lane_record(project_root, str(item["lane_id"]))
         if lane is None:
             continue
-        if lane.recovery_state == "completed" or (
-            lane.lifecycle_state == "implementing" and lane.verification_status == "passed"
-        ):
+        if lane.last_command in {"implement", "integrate"} or lane.lifecycle_state in {
+            "implementing",
+            "integrating",
+            "completed",
+        }:
             candidates.append(lane)
     return candidates
 

@@ -1253,6 +1253,91 @@ def test_integrate_discovery_reports_readiness_checks(tmp_path):
     assert candidate["checks"]
 
 
+def test_integrate_discovery_includes_not_ready_lane_with_fix_prechecks_action(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "integrate-discovery-not-ready"
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (project / ".specify").mkdir()
+
+    from specify_cli.lanes.models import LaneRecord
+    from specify_cli.lanes.state_store import write_lane_index, write_lane_record
+
+    lane = LaneRecord(
+        lane_id="lane-001",
+        feature_id="001-demo",
+        feature_dir="specs/001-demo",
+        branch_name="001-demo",
+        worktree_path=".specify/lanes/worktrees/lane-001",
+        lifecycle_state="implementing",
+        recovery_state="blocked",
+        verification_status="failed",
+        last_command="implement",
+    )
+    write_lane_record(project, lane)
+    write_lane_index(project, {"lanes": [{"lane_id": "lane-001"}]})
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: blocked",
+                "feature: 001-demo",
+                "resume_decision: blocked-waiting",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: batch-a",
+                "goal: blocked",
+                "next_action: fix verification",
+                "",
+                "## Execution State",
+                "retry_attempts: 1",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(app, ["integrate"], catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert len(payload["candidates"]) == 1
+    candidate = payload["candidates"][0]
+    assert candidate["ready"] is False
+    assert candidate["recommended_action"] == "fix-prechecks"
+
+
+def test_integrate_targeted_blocks_when_feature_dir_has_no_registered_lane(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "integrate-no-lane"
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (project / ".specify").mkdir()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["integrate", "--feature-dir", str(feature_dir)],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert payload["lane_id"] is None
+
+
 def test_integrate_targeted_close_marks_ready_lane_completed(tmp_path):
     runner = CliRunner()
     project = tmp_path / "integrate-close"
