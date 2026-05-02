@@ -654,6 +654,7 @@ def test_new_analysis_workflow_command_templates_exist():
     assert "clarify" in template_stems
     assert "deep-research" in template_stems
     assert "explain" in template_stems
+    assert "prd" in template_stems
     assert "spec-extend" not in template_stems
 
 
@@ -1007,6 +1008,7 @@ def test_shared_workflow_templates_mark_hard_gates_with_agent_marker() -> None:
         "tasks": Path("templates/commands/tasks.md"),
         "implement": Path("templates/commands/implement.md"),
         "debug": Path("templates/commands/debug.md"),
+        "prd": Path("templates/commands/prd.md"),
     }
 
     for name, path in paths.items():
