@@ -14,6 +14,7 @@ from .reconcile import reconcile_lane
 from .resolution import resolve_lane_for_command
 from .state_store import (
     append_lane_event,
+    iter_lane_records,
     lane_index_path,
     lane_record_path,
     read_lane_index,
@@ -46,6 +47,7 @@ __all__ = [
     "append_lane_event",
     "assess_integration_readiness",
     "collect_integration_candidates",
+    "iter_lane_records",
     "lane_index_path",
     "lane_lease_expired",
     "lane_record_path",

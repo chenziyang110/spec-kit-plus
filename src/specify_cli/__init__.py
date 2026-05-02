@@ -125,6 +125,7 @@ from specify_cli.lanes import (
     assess_integration_readiness,
     append_lane_event,
     collect_integration_candidates,
+    iter_lane_records,
     materialize_lane_worktree,
     mark_lane_integrated,
     read_lane_record,
@@ -3334,6 +3335,14 @@ def _print_lane_resolution_json(result: Any) -> None:
                 "recovery_state": candidate.recovery_state,
                 "last_stable_checkpoint": candidate.last_stable_checkpoint,
                 "recovery_reason": candidate.recovery_reason,
+                "worktree_path": next(
+                    (
+                        record.worktree_path
+                        for record in iter_lane_records(Path.cwd())
+                        if record.lane_id == candidate.lane_id
+                    ),
+                    "",
+                ),
             }
             for candidate in result.candidates
         ],
@@ -3560,6 +3569,7 @@ def lane_register(
 def lane_resolve(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Explicit feature directory override"),
+    ensure_worktree: bool = typer.Option(False, "--ensure-worktree", help="Materialize the selected lane worktree when resolution is unique"),
 ):
     """Resolve the lane for a resumable workflow command."""
 
@@ -3581,7 +3591,73 @@ def lane_resolve(
         )
         return
 
-    _print_lane_resolution_json(resolve_lane_for_command(project_root, command_name=command_name))
+    result = resolve_lane_for_command(project_root, command_name=command_name)
+    if ensure_worktree and result.mode == "resume" and result.selected_lane_id:
+        lane = read_lane_record(project_root, result.selected_lane_id)
+        if lane is not None:
+            worktree_result = materialize_lane_worktree(project_root, lane)
+            payload = {
+                "mode": result.mode,
+                "selected_lane_id": result.selected_lane_id,
+                "reason": result.reason,
+                "worktree": {
+                    "status": worktree_result.status,
+                    "checkout_mode": worktree_result.checkout_mode,
+                    "path": worktree_result.worktree_path,
+                    "reason": worktree_result.reason,
+                },
+                "candidates": [
+                    {
+                        "lane_id": candidate.lane_id,
+                        "feature_id": candidate.feature_id,
+                        "feature_dir": candidate.feature_dir,
+                        "last_command": candidate.last_command,
+                        "recovery_state": candidate.recovery_state,
+                        "last_stable_checkpoint": candidate.last_stable_checkpoint,
+                        "recovery_reason": candidate.recovery_reason,
+                        "worktree_path": lane.worktree_path if candidate.lane_id == lane.lane_id else "",
+                    }
+                    for candidate in result.candidates
+                ],
+            }
+            print(json.dumps(payload, ensure_ascii=False))
+            return
+
+    _print_lane_resolution_json(result)
+
+
+@lane_app.command("status")
+def lane_status():
+    """List all registered lanes with their current recovery and worktree status."""
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    lanes = iter_lane_records(project_root)
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "lane_count": len(lanes),
+                "lanes": [
+                    {
+                        "lane_id": lane.lane_id,
+                        "feature_id": lane.feature_id,
+                        "feature_dir": lane.feature_dir,
+                        "branch_name": lane.branch_name,
+                        "lifecycle_state": lane.lifecycle_state,
+                        "recovery_state": lane.recovery_state,
+                        "verification_status": lane.verification_status,
+                        "last_command": lane.last_command,
+                        "last_stable_checkpoint": lane.last_stable_checkpoint,
+                        "worktree_path": lane.worktree_path,
+                        "worktree_exists": (project_root / lane.worktree_path).exists(),
+                    }
+                    for lane in lanes
+                ],
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 @lane_app.command("materialize-worktree")

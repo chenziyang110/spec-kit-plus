@@ -1509,6 +1509,132 @@ def test_lane_materialize_worktree_command_creates_worktree_when_git_head_exists
     assert (project / ".specify" / "lanes" / "worktrees" / "lane-001").exists()
 
 
+def test_lane_resolve_can_ensure_worktree_for_unique_lane(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "lane-resolve-worktree"
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (project / ".specify").mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
+    (project / "README.md").write_text("# test\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=project, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=project, check=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-analyze`",
+                "- status: `completed`",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.implement`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: executing",
+                "feature: 001-demo",
+                "resume_decision: resume-here",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: batch-a",
+                "goal: execute batch",
+                "next_action: collect worker result",
+                "",
+                "## Execution State",
+                "retry_attempts: 0",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    from specify_cli.lanes.models import LaneRecord
+    from specify_cli.lanes.state_store import write_lane_index, write_lane_record
+
+    lane = LaneRecord(
+        lane_id="lane-001",
+        feature_id="001-demo",
+        feature_dir="specs/001-demo",
+        branch_name="001-demo",
+        worktree_path=".specify/lanes/worktrees/lane-001",
+        lifecycle_state="implementing",
+        recovery_state="resumable",
+        last_command="implement",
+    )
+    write_lane_record(project, lane)
+    write_lane_index(project, {"lanes": [{"lane_id": "lane-001"}]})
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["lane", "resolve", "--command", "implement", "--ensure-worktree"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["mode"] == "resume"
+    assert payload["worktree"]["status"] in {"created", "existing"}
+    assert (project / ".specify" / "lanes" / "worktrees" / "lane-001").exists()
+
+
+def test_lane_status_lists_registered_lanes(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "lane-status"
+    (project / ".specify" / "lanes" / "lane-001").mkdir(parents=True)
+    (project / ".specify").mkdir(exist_ok=True)
+    (project / ".specify" / "lanes" / "lane-001" / "lane.json").write_text(
+        json.dumps(
+            {
+                "lane_id": "lane-001",
+                "feature_id": "001-demo",
+                "feature_dir": "specs/001-demo",
+                "branch_name": "001-demo",
+                "worktree_path": ".specify/lanes/worktrees/lane-001",
+                "lifecycle_state": "implementing",
+                "recovery_state": "resumable",
+                "last_command": "implement",
+                "last_stable_checkpoint": "batch-a",
+                "recovery_reason": "",
+                "verification_status": "unknown",
+                "created_at": "2026-05-02T00:00:00+00:00",
+                "updated_at": "2026-05-02T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(app, ["lane", "status"], catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["lane_count"] == 1
+    assert payload["lanes"][0]["lane_id"] == "lane-001"
+
+
 def test_lane_resolve_returns_choose_for_ambiguous_candidates(tmp_path):
     runner = CliRunner()
     project = tmp_path / "lane-resolve"
