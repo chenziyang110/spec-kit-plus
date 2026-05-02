@@ -3352,6 +3352,14 @@ def _print_lane_resolution_json(result: Any) -> None:
     print(json.dumps(payload, ensure_ascii=False))
 
 
+def _find_lane_by_feature_dir(project_root: Path, feature_dir: Path) -> LaneRecord | None:
+    resolved_feature_dir = feature_dir.resolve()
+    for lane in iter_lane_records(project_root):
+        if (project_root / lane.feature_dir).resolve() == resolved_feature_dir:
+            return lane
+    return None
+
+
 def _infer_lane_record(
     project_root: Path,
     *,
@@ -3579,17 +3587,39 @@ def lane_resolve(
     _require_spec_kit_plus_project(project_root)
     if feature_dir:
         resolved = _normalize_optional_repo_path(project_root, feature_dir)
-        print(
-            json.dumps(
+        lane = _find_lane_by_feature_dir(project_root, Path(str(resolved)))
+        payload: dict[str, object] = {
+            "mode": "resume",
+            "selected_lane_id": lane.lane_id if lane is not None else "",
+            "reason": "explicit-feature-dir",
+            "feature_dir": resolved,
+            "candidates": [],
+        }
+        if lane is not None:
+            payload["candidates"] = [
                 {
-                    "mode": "resume",
-                    "selected_lane_id": "",
-                    "reason": "explicit-feature-dir",
-                    "feature_dir": resolved,
-                    "candidates": [],
-                },
-                ensure_ascii=False,
-            )
+                    "lane_id": lane.lane_id,
+                    "feature_id": lane.feature_id,
+                    "feature_dir": lane.feature_dir,
+                    "last_command": lane.last_command,
+                    "recovery_state": lane.recovery_state,
+                    "last_stable_checkpoint": lane.last_stable_checkpoint,
+                    "recovery_reason": lane.recovery_reason,
+                    "verification_status": lane.verification_status,
+                    "worktree_path": lane.worktree_path,
+                    "worktree_exists": (project_root / lane.worktree_path).exists(),
+                }
+            ]
+            if ensure_worktree:
+                worktree_result = materialize_lane_worktree(project_root, lane)
+                payload["worktree"] = {
+                    "status": worktree_result.status,
+                    "checkout_mode": worktree_result.checkout_mode,
+                    "path": worktree_result.worktree_path,
+                    "reason": worktree_result.reason,
+                }
+        print(
+            json.dumps(payload, ensure_ascii=False)
         )
         return
 
@@ -3657,6 +3687,23 @@ def lane_status():
                         "last_stable_checkpoint": lane.last_stable_checkpoint,
                         "worktree_path": lane.worktree_path,
                         "worktree_exists": (project_root / lane.worktree_path).exists(),
+                        "ready_for_integrate": (
+                            assess_integration_readiness(project_root, lane).ready
+                            if lane.last_command in {"implement", "integrate"}
+                            or lane.lifecycle_state in {"implementing", "integrating", "completed"}
+                            else None
+                        ),
+                        "suggested_next_command": (
+                            "integrate"
+                            if lane.verification_status == "passed"
+                            and lane.last_command in {"implement", "integrate"}
+                            and lane.recovery_state in {"resumable", "completed"}
+                            else (
+                                lane.last_command or "specify"
+                                if lane.recovery_state == "resumable"
+                                else "manual-attention"
+                            )
+                        ),
                     }
                     for lane in lanes
                 ],

@@ -1635,6 +1635,8 @@ def test_lane_status_lists_registered_lanes(tmp_path):
     assert payload["lanes"][0]["lane_id"] == "lane-001"
     assert payload["lanes"][0]["worktree_exists"] is False
     assert payload["lanes"][0]["verification_status"] == "unknown"
+    assert payload["lanes"][0]["ready_for_integrate"] is False
+    assert payload["lanes"][0]["suggested_next_command"] == "implement"
 
 
 def test_lane_resolve_returns_choose_for_ambiguous_candidates(tmp_path):
@@ -1728,6 +1730,68 @@ def test_lane_resolve_returns_choose_for_ambiguous_candidates(tmp_path):
     assert len(payload["candidates"]) == 2
     assert "verification_status" in payload["candidates"][0]
     assert "worktree_exists" in payload["candidates"][0]
+
+
+def test_lane_resolve_explicit_feature_dir_can_ensure_worktree(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "lane-resolve-explicit-worktree"
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (project / ".specify").mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
+    (project / "README.md").write_text("# test\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=project, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=project, check=True)
+
+    (project / ".specify" / "lanes" / "lane-001").mkdir(parents=True)
+    (project / ".specify" / "lanes" / "lane-001" / "lane.json").write_text(
+        json.dumps(
+            {
+                "lane_id": "lane-001",
+                "feature_id": "001-demo",
+                "feature_dir": "specs/001-demo",
+                "branch_name": "001-demo",
+                "worktree_path": ".specify/lanes/worktrees/lane-001",
+                "lifecycle_state": "specified",
+                "recovery_state": "resumable",
+                "last_command": "specify",
+                "last_stable_checkpoint": "",
+                "recovery_reason": "",
+                "verification_status": "unknown",
+                "created_at": "2026-05-02T00:00:00+00:00",
+                "updated_at": "2026-05-02T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "lane",
+                "resolve",
+                "--command",
+                "plan",
+                "--feature-dir",
+                str(feature_dir),
+                "--ensure-worktree",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["mode"] == "resume"
+    assert payload["selected_lane_id"] == "lane-001"
+    assert payload["worktree"]["status"] in {"created", "existing"}
+    assert (project / ".specify" / "lanes" / "worktrees" / "lane-001").exists()
 
 
 def test_create_codex_teams_initial_commit_bootstraps_head(tmp_path):
