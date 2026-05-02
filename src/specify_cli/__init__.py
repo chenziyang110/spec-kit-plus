@@ -122,8 +122,10 @@ from specify_cli.project_map_status import (
 )
 from specify_cli.lanes import (
     LaneRecord,
+    assess_integration_readiness,
     append_lane_event,
     collect_integration_candidates,
+    mark_lane_integrated,
     read_lane_record,
     rebuild_lane_index,
     resolve_lane_for_command,
@@ -4696,6 +4698,7 @@ def version():
 @app.command("integrate")
 def integrate(
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory to close out"),
+    close: bool = typer.Option(False, "--close", help="Mark the targeted lane integrated after readiness passes"),
 ):
     """Inspect candidate lanes for closeout through the integrate workflow."""
 
@@ -4708,12 +4711,42 @@ def integrate(
             command_name="integrate",
             feature_dir=feature_dir,
         )
+        readiness = None
+        lane_payload = None
+        if resolved is not None:
+            relative_feature_dir = Path(resolved).relative_to(project_root).as_posix()
+            lane_record = next(
+                (
+                    record
+                    for record in collect_integration_candidates(project_root) + []
+                    if record.feature_dir == relative_feature_dir
+                ),
+                None,
+            )
+            if lane_record is None:
+                for record in rebuild_lane_index(project_root).get("lanes", []):
+                    if isinstance(record, dict) and record.get("feature_dir") == relative_feature_dir:
+                        lane_record = read_lane_record(project_root, str(record["lane_id"]))
+                        if lane_record is not None:
+                            break
+            if lane_record is not None:
+                readiness = assess_integration_readiness(project_root, lane_record)
+                lane_payload = readiness.lane
+                if close and readiness.ready:
+                    lane_payload = mark_lane_integrated(project_root, readiness.lane)
+
         print(
             json.dumps(
                 {
-                    "status": "ok" if resolved is not None else "blocked",
+                    "status": "ok"
+                    if resolved is not None and (readiness is None or readiness.ready or not close)
+                    else "blocked",
                     "mode": "targeted",
                     "feature_dir": str(resolved) if resolved is not None else None,
+                    "closed": bool(close and readiness is not None and readiness.ready),
+                    "ready": readiness.ready if readiness is not None else None,
+                    "lane_id": lane_payload.lane_id if lane_payload is not None else None,
+                    "checks": readiness.checks if readiness is not None else [],
                 },
                 ensure_ascii=False,
             )
@@ -4733,6 +4766,8 @@ def integrate(
                         "feature_dir": lane.feature_dir,
                         "branch_name": lane.branch_name,
                         "recovery_state": lane.recovery_state,
+                        "verification_status": lane.verification_status,
+                        "ready": assess_integration_readiness(project_root, lane).ready,
                     }
                     for lane in candidates
                 ],

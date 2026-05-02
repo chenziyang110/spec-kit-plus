@@ -1190,6 +1190,90 @@ def test_integrate_command_is_registered(tmp_path):
     assert "close out" in result.output.lower() or "closeout" in result.output.lower()
 
 
+def test_integrate_targeted_close_marks_ready_lane_completed(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "integrate-close"
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (project / ".specify").mkdir()
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-analyze`",
+                "- status: `completed`",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.implement`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: resolved",
+                "feature: 001-demo",
+                "resume_decision: resolved",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: batch-a",
+                "goal: done",
+                "next_action: none",
+                "",
+                "## Execution State",
+                "retry_attempts: 0",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    from specify_cli.lanes.models import LaneRecord
+    from specify_cli.lanes.state_store import write_lane_index, write_lane_record, read_lane_record
+
+    lane = LaneRecord(
+        lane_id="lane-001",
+        feature_id="001-demo",
+        feature_dir="specs/001-demo",
+        branch_name="001-demo",
+        worktree_path=".specify/lanes/worktrees/lane-001",
+        lifecycle_state="implementing",
+        recovery_state="completed",
+        verification_status="passed",
+        last_command="implement",
+    )
+    write_lane_record(project, lane)
+    write_lane_index(project, {"lanes": [{"lane_id": "lane-001", "feature_dir": "specs/001-demo"}]})
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["integrate", "--feature-dir", str(feature_dir), "--close"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["closed"] is True
+    updated = read_lane_record(project, "lane-001")
+    assert updated is not None
+    assert updated.last_command == "integrate"
+    assert updated.lifecycle_state == "completed"
+
+
 def test_lane_register_writes_lane_record_and_index(tmp_path):
     runner = CliRunner()
     project = tmp_path / "lane-register"

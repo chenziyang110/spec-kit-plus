@@ -1,6 +1,6 @@
 """Concurrent feature lane helpers."""
 
-from .integration import collect_integration_candidates, mark_lane_integrated
+from .integration import assess_integration_readiness, collect_integration_candidates, mark_lane_integrated
 from .lease import lane_lease_expired, validate_lane_write_lease
 from .models import (
     LaneLease,
@@ -37,6 +37,7 @@ __all__ = [
     "LaneResolutionCandidate",
     "LaneResolutionResult",
     "append_lane_event",
+    "assess_integration_readiness",
     "collect_integration_candidates",
     "lane_index_path",
     "lane_lease_expired",

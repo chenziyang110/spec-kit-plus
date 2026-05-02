@@ -46,6 +46,7 @@ class LaneRecord:
     last_command: str = ""
     last_stable_checkpoint: str = ""
     recovery_reason: str = ""
+    verification_status: Literal["unknown", "passed", "failed"] = "unknown"
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
 
