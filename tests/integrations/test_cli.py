@@ -1311,6 +1311,7 @@ def test_lane_register_writes_lane_record_and_index(tmp_path):
     assert payload["lane_id"] == "lane-001"
     assert payload["lifecycle_state"] == "specified"
     assert payload["recovery_state"] == "resumable"
+    assert payload["materialize_status"] in {"skipped", "created", "existing"}
     assert (project / ".specify" / "lanes" / "lane-001" / "lane.json").exists()
     assert (project / ".specify" / "lanes" / "index.json").exists()
 
@@ -1393,6 +1394,56 @@ def test_lane_register_inferrs_completed_implement_lane_from_tracker(tmp_path):
     payload = json.loads(result.output)
     assert payload["recovery_state"] == "completed"
     assert payload["verification_status"] == "passed"
+
+
+def test_lane_materialize_worktree_command_creates_worktree_when_git_head_exists(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "lane-materialize"
+    project.mkdir()
+    (project / ".specify" / "lanes" / "lane-001").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
+    (project / "README.md").write_text("# test\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=project, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=project, check=True)
+    (project / ".specify").mkdir(exist_ok=True)
+    (project / ".specify" / "lanes" / "lane-001" / "lane.json").write_text(
+        json.dumps(
+            {
+                "lane_id": "lane-001",
+                "feature_id": "001-demo",
+                "feature_dir": "specs/001-demo",
+                "branch_name": "001-demo",
+                "worktree_path": ".specify/lanes/worktrees/lane-001",
+                "lifecycle_state": "specified",
+                "recovery_state": "resumable",
+                "last_command": "specify",
+                "last_stable_checkpoint": "",
+                "recovery_reason": "",
+                "verification_status": "unknown",
+                "created_at": "2026-05-02T00:00:00+00:00",
+                "updated_at": "2026-05-02T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["lane", "materialize-worktree", "--lane-id", "lane-001"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] in {"created", "existing"}
+    assert (project / ".specify" / "lanes" / "worktrees" / "lane-001").exists()
 
 
 def test_lane_resolve_returns_choose_for_ambiguous_candidates(tmp_path):

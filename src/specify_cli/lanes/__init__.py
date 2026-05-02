@@ -26,7 +26,13 @@ from .state_store import (
     write_lane_record,
     write_lane_recovery,
 )
-from .worktree import LANE_WORKTREE_RELATIVE_ROOT, lane_worktree_path, lane_worktrees_root
+from .worktree import (
+    LANE_WORKTREE_RELATIVE_ROOT,
+    LaneWorktreeResult,
+    lane_worktree_path,
+    lane_worktrees_root,
+    materialize_lane_worktree,
+)
 
 __all__ = [
     "LANE_WORKTREE_RELATIVE_ROOT",
@@ -36,6 +42,7 @@ __all__ = [
     "LaneRecoveryState",
     "LaneResolutionCandidate",
     "LaneResolutionResult",
+    "LaneWorktreeResult",
     "append_lane_event",
     "assess_integration_readiness",
     "collect_integration_candidates",
@@ -45,6 +52,7 @@ __all__ = [
     "lane_worktree_path",
     "lane_worktrees_root",
     "mark_lane_integrated",
+    "materialize_lane_worktree",
     "read_lane_index",
     "read_lane_lease",
     "read_lane_record",

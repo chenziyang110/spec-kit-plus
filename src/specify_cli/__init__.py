@@ -125,6 +125,7 @@ from specify_cli.lanes import (
     assess_integration_readiness,
     append_lane_event,
     collect_integration_candidates,
+    materialize_lane_worktree,
     mark_lane_integrated,
     read_lane_record,
     rebuild_lane_index,
@@ -3515,6 +3516,7 @@ def lane_register(
         command_name=command_name,
     )
     write_lane_record(project_root, record)
+    worktree_result = materialize_lane_worktree(project_root, record)
     append_lane_event(
         project_root,
         lane_id,
@@ -3528,6 +3530,8 @@ def lane_register(
             "recovery_state": record.recovery_state,
             "verification_status": record.verification_status,
             "command_name": record.last_command,
+            "worktree_status": worktree_result.status,
+            "worktree_reason": worktree_result.reason,
         },
     )
     payload = rebuild_lane_index(project_root)
@@ -3542,6 +3546,9 @@ def lane_register(
                 "lifecycle_state": record.lifecycle_state,
                 "recovery_state": record.recovery_state,
                 "verification_status": record.verification_status,
+                "materialize_status": worktree_result.status,
+                "checkout_mode": worktree_result.checkout_mode,
+                "materialize_reason": worktree_result.reason,
                 "index_lane_count": len(payload.get("lanes", [])),
             },
             ensure_ascii=False,
@@ -3575,6 +3582,34 @@ def lane_resolve(
         return
 
     _print_lane_resolution_json(resolve_lane_for_command(project_root, command_name=command_name))
+
+
+@lane_app.command("materialize-worktree")
+def lane_materialize_worktree(
+    lane_id: str = typer.Option(..., "--lane-id", help="Stable lane identifier"),
+):
+    """Materialize the git worktree for one registered lane when possible."""
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    lane = read_lane_record(project_root, lane_id)
+    if lane is None:
+        console.print(f"[red]Error:[/red] lane '{lane_id}' not found.")
+        raise typer.Exit(1)
+
+    result = materialize_lane_worktree(project_root, lane)
+    print(
+        json.dumps(
+            {
+                "lane_id": result.lane_id,
+                "worktree_path": result.worktree_path,
+                "status": result.status,
+                "checkout_mode": result.checkout_mode,
+                "reason": result.reason,
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 @teams_app.callback(invoke_without_command=True)
