@@ -40,6 +40,7 @@ Its job is to read current repository state, identify the recommended next Spec 
 
 - Inspect the current repository state surfaces in priority order.
 - When concurrent lanes exist, resolve candidates by command semantics first and run reconcile before any resume decision.
+- If the selected lane has a materialized worktree, continue from that isolated worktree context instead of assuming the leader workspace is the active feature root.
 - Resolve exactly one safe canonical next command.
 - Continue under that command's full shared contract instead of improvising a blended workflow.
 

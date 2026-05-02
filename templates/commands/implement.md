@@ -197,7 +197,8 @@ human_needed_checks:
 ## Outline
 
 1. Run `{SCRIPT}` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
-   - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command implement}}` before guessing from branch-only context.
+   - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command implement --ensure-worktree}}` before guessing from branch-only context.
+   - When lane resolution returns a materialized lane worktree, treat that worktree as the execution context for this implementation lane instead of dispatching from the leader workspace by default.
 
 2. **Check checklists status** (if FEATURE_DIR/checklists/ exists):
    - Scan all checklist files in the checklists/ directory

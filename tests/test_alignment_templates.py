@@ -713,6 +713,7 @@ def test_auto_template_requires_reconcile_before_resume():
     assert "unique safe candidate" in content or "exactly one unique safe candidate" in content
     assert "do not guess" in content
     assert "never auto-resume an `uncertain` lane" in content
+    assert "materialized worktree" in content
 
 
 def test_plan_tasks_and_implement_templates_prefer_lane_resolution_when_feature_dir_is_not_explicit():
@@ -720,9 +721,12 @@ def test_plan_tasks_and_implement_templates_prefer_lane_resolution_when_feature_
     tasks = _read("templates/commands/tasks.md")
     implement = _read("templates/commands/implement.md")
 
-    assert "{{specify-subcmd:lane resolve --command plan}}" in plan
-    assert "{{specify-subcmd:lane resolve --command tasks}}" in tasks
-    assert "{{specify-subcmd:lane resolve --command implement}}" in implement
+    assert "{{specify-subcmd:lane resolve --command plan --ensure-worktree}}" in plan
+    assert "{{specify-subcmd:lane resolve --command tasks --ensure-worktree}}" in tasks
+    assert "{{specify-subcmd:lane resolve --command implement --ensure-worktree}}" in implement
+    assert "isolated worktree context" in plan.lower()
+    assert "isolated worktree context" in tasks.lower()
+    assert "execution context for this implementation lane" in implement.lower()
     assert "uncertain" in implement.lower()
 
 
