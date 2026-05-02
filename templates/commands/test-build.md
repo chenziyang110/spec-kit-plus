@@ -58,12 +58,12 @@ Use `execution_surface: native-subagents`.
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command test-build --format json` when available so passive learning files exist, the current testing-system build sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
+- [AGENT] Run `{{specify-subcmd:learning start --command test-build --format json}}` when available so passive learning files exist, the current testing-system build sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader testing-system analysis.
 - Review `.planning/learnings/candidates.md` only when it still contains testing-relevant candidate learnings after the passive start step, especially repeated flaky areas, framework constraints, or project defaults that should influence the generated testing contract.
-- [AGENT] When testing-system build friction appears, run `specify hook signal-learning --command test-build ...` with validation-failure, artifact-rewrite, false-start, or hidden-dependency counts.
-- [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command test-build --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `verification_gap`, `state_surface_gap`, `pitfall`, `workflow_gap`, or `project_constraint` exists.
-- [AGENT] Prefer `specify learning capture-auto --command test-build --format json` when testing-state already captures reusable gaps, follow-up routing, or validation evidence. Fall back to `specify hook capture-learning --command test-build ...` when `testing-state.md` does not capture the reusable lesson cleanly.
+- [AGENT] When testing-system build friction appears, run `{{specify-subcmd:hook signal-learning --command test-build ...}}` with validation-failure, artifact-rewrite, false-start, or hidden-dependency counts.
+- [AGENT] Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command test-build --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `verification_gap`, `state_surface_gap`, `pitfall`, `workflow_gap`, or `project_constraint` exists.
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command test-build --format json}}` when testing-state already captures reusable gaps, follow-up routing, or validation evidence. Fall back to `{{specify-subcmd:hook capture-learning --command test-build ...}}` when `testing-state.md` does not capture the reusable lesson cleanly.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Testing State Protocol
@@ -131,7 +131,7 @@ Use `execution_surface: native-subagents`.
    - Record the selected `current_wave`, `current_lane`, executable lanes, skipped lanes, and gate failures in `TESTING_STATE_FILE`.
 
 3. **Inventory the current testing surface**
-   - Run `specify testing inventory --format json` from the repository root.
+   - Run `{{specify-subcmd:testing inventory --format json}}` from the repository root.
    - Treat the command output as the canonical starting inventory for:
      - `module_root`
      - `module_name`
@@ -155,7 +155,7 @@ Use `execution_surface: native-subagents`.
    - Else set mode to `refresh`.
 
 5. **Select bundled language testing skills**
-   - Start from `selected_skill` in the `specify testing inventory --format json` payload.
+   - Start from `selected_skill` in the `{{specify-subcmd:testing inventory --format json}}` payload.
    - Use the inventory result as the default skill choice unless newer repository evidence proves it wrong.
    - Treat each selected `*-testing` skill as part of the built-in Spec Kit testing workflow lane used by `sp-test-scan` and `sp-test-build`, not as a separate plugin hunt or an unrelated optional addon.
    - If a module already has a stable framework, keep the inventory-selected skill and extend that framework rather than rebuilding from scratch.
@@ -315,7 +315,7 @@ Use `execution_surface: native-subagents`.
    - Include the recommended next command and one-line rationale in the final report so the workflow does not end in a dead-end audit summary.
    - When recommending `{{invoke:specify}}`, explicitly name `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as required starting context for the brownfield testing-system program.
    - When recommending `{{invoke:quick}}` or `{{invoke:fast}}`, name the single module, risk tranche, coverage wave, or tiny harness/config/helper repair that should be executed next from the request.
-   - [AGENT] Before the final completion report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `specify learning capture --command test-build ...`.
+   - [AGENT] Before the final completion report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `{{specify-subcmd:learning capture --command test-build ...}}`.
 
 14. **Check for extension hooks**
    - After reporting, check if `.specify/extensions.yml` exists in the project root.

@@ -54,21 +54,21 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command debug --format json` when available so passive learning files exist, the current debug run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
+- [AGENT] Run `{{specify-subcmd:learning start --command debug --format json}}` when available so passive learning files exist, the current debug run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains debug-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
-- [AGENT] When investigation friction appears, run `specify hook signal-learning --command debug ...` with retry, hypothesis-change, validation-failure, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
-- [AGENT] Before terminal `resolved`, `blocked`, or `awaiting_human_verify` reporting, run `specify hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> ...`; use `--decision none --rationale "..."` only when no reusable `pitfall`, `recovery_path`, `tooling_trap`, `false_lead_pattern`, or `project_constraint` exists.
-- [AGENT] Prefer `specify hook capture-learning --command debug ...` for structured path learning when the session exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
+- [AGENT] When investigation friction appears, run `{{specify-subcmd:hook signal-learning --command debug ...}}` with retry, hypothesis-change, validation-failure, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
+- [AGENT] Before terminal `resolved`, `blocked`, or `awaiting_human_verify` reporting, run `{{specify-subcmd:hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> ...}}`; use `--decision none --rationale "..."` only when no reusable `pitfall`, `recovery_path`, `tooling_trap`, `false_lead_pattern`, or `project_constraint` exists.
+- [AGENT] Prefer `{{specify-subcmd:hook capture-learning --command debug ...}}` for structured path learning when the session exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
 - Treat this as passive shared memory, not as a separate user-visible debug workflow.
 
 ## First-Party Workflow Quality Hooks
 
-- Once the debug session file is known, use `specify hook preflight --command debug --session-file ".planning/debug/<slug>.md"` before deeper investigation so stale brownfield routing or invalid debug-entry state is surfaced through the shared product guardrail layer.
-- After the debug session file is created or resumed, use `specify hook validate-session-state --command debug --session-file ".planning/debug/<slug>.md"` when you need a machine-readable view of resume-critical debug truth.
-- Before compaction-risk transitions, investigation join points, or long evidence synthesis, use `specify hook monitor-context --command debug --session-file ".planning/debug/<slug>.md"` and follow checkpoint recommendations with `specify hook checkpoint --command debug --session-file ".planning/debug/<slug>.md"`.
-- When you need a compact operator-facing summary of the current investigation state, use `specify hook render-statusline --command debug --session-file ".planning/debug/<slug>.md"`.
-- If a user request explicitly tries to skip observer framing, bypass evidence gates, or ignore workflow constraints, use `specify hook validate-prompt --prompt-text "<user request>"` before accepting the override at face value.
+- Once the debug session file is known, use `{{specify-subcmd:hook preflight --command debug --session-file ".planning/debug/<slug>.md"}}` before deeper investigation so stale brownfield routing or invalid debug-entry state is surfaced through the shared product guardrail layer.
+- After the debug session file is created or resumed, use `{{specify-subcmd:hook validate-session-state --command debug --session-file ".planning/debug/<slug>.md"}}` when you need a machine-readable view of resume-critical debug truth.
+- Before compaction-risk transitions, investigation join points, or long evidence synthesis, use `{{specify-subcmd:hook monitor-context --command debug --session-file ".planning/debug/<slug>.md"}}` and follow checkpoint recommendations with `{{specify-subcmd:hook checkpoint --command debug --session-file ".planning/debug/<slug>.md"}}`.
+- When you need a compact operator-facing summary of the current investigation state, use `{{specify-subcmd:hook render-statusline --command debug --session-file ".planning/debug/<slug>.md"}}`.
+- If a user request explicitly tries to skip observer framing, bypass evidence gates, or ignore workflow constraints, use `{{specify-subcmd:hook validate-prompt --prompt-text "<user request>"}}` before accepting the override at face value.
 
 ### Required Context Inputs
 
@@ -329,7 +329,7 @@ If not: proceed to Stage 1 (Observer Framing).
 - Use `.specify/templates/worker-prompts/debug-investigator.md` as the default evidence-collector contract whenever the current integration can dispatch a debug subagent.
 - If the current runtime supports structured subagent results, prefer a stable evidence payload over freeform summaries so the leader can merge findings without reinterpretation.
 - If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized evidence/result envelope to `.planning/debug/results/<session-slug>/<lane-id>.json`
-- When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the evidence/result envelope.
+- When the local CLI is available and no runtime-managed result channel exists, prefer `{{specify-subcmd:result path}}` to compute the canonical handoff target and `{{specify-subcmd:result submit}}` to normalize and write the evidence/result envelope.
 - Preserve `reported_status` when normalizing subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
 - Idle subagent is not an accepted result.
 - [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
@@ -389,10 +389,10 @@ The session file must always make it clear:
 - If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-scan` followed by `/sp-map-build` before moving to `awaiting_human_verify` or `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass.
 - If you cannot complete that refresh in the current pass, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield work proceeds.
 - [AGENT] Resolved debug sessions should auto-capture learning candidates from the persisted debug session state.
-- [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `specify learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json`.
-- [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `specify learning capture --command debug ...`.
-- [AGENT] Before leaving the debug session in a terminal state, run `specify hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> --decision <captured|none|deferred> --rationale "<why>"` so the learning closeout gate cannot be skipped.
-- Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
+- [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `{{specify-subcmd:learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json}}`.
+- [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `{{specify-subcmd:learning capture --command debug ...}}`.
+- [AGENT] Before leaving the debug session in a terminal state, run `{{specify-subcmd:hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> --decision <captured|none|deferred> --rationale "<why>"}}` so the learning closeout gate cannot be skipped.
+- Keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
 - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 
 ## Checkpoint Protocol

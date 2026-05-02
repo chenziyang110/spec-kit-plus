@@ -24,12 +24,12 @@ Use `execution_surface: native-subagents`.
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command test --format json` when available so passive learning files exist and this compatibility route can reuse project testing learnings.
+- [AGENT] Run `{{specify-subcmd:learning start --command test --format json}}` when available so passive learning files exist and this compatibility route can reuse project testing learnings.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before routing when they exist.
 - Review `.planning/learnings/candidates.md` only when it still contains testing-routing-relevant candidate learnings after the passive start step.
-- [AGENT] When this compatibility entrypoint exposes a reusable route gap, run `specify hook signal-learning --command test ...` with route-change, false-start, or hidden-dependency counts.
-- [AGENT] Before final routing or blocked reporting, run `specify hook review-learning --command test --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `routing_mistake`, or `state_surface_gap` exists.
-- [AGENT] Prefer `specify learning capture-auto --command test --format json` when `testing-state.md` already captures the route reason or follow-up command. Fall back to `specify hook capture-learning --command test ...` when the durable state does not capture the reusable lesson cleanly.
+- [AGENT] When this compatibility entrypoint exposes a reusable route gap, run `{{specify-subcmd:hook signal-learning --command test ...}}` with route-change, false-start, or hidden-dependency counts.
+- [AGENT] Before final routing or blocked reporting, run `{{specify-subcmd:hook review-learning --command test --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `routing_mistake`, or `state_surface_gap` exists.
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command test --format json}}` when `testing-state.md` already captures the route reason or follow-up command. Fall back to `{{specify-subcmd:hook capture-learning --command test ...}}` when the durable state does not capture the reusable lesson cleanly.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Testing State Protocol
@@ -109,7 +109,7 @@ Use `execution_surface: native-subagents`.
    - Include the one-line reason for the route.
    - If routing to `/sp-test-build`, name the scan/build-plan artifacts being consumed.
    - If routing to `/sp-test-scan`, name the missing or stale evidence that makes scanning necessary.
-   - [AGENT] Before final routing output, capture any new `routing_mistake`, `workflow_gap`, or `state_surface_gap` learning through `specify learning capture --command test ...` when the route exposed reusable workflow friction.
+   - [AGENT] Before final routing output, capture any new `routing_mistake`, `workflow_gap`, or `state_surface_gap` learning through `{{specify-subcmd:learning capture --command test ...}}` when the route exposed reusable workflow friction.
 
 ## Operating Rules
 

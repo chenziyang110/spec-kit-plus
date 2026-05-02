@@ -13,7 +13,7 @@ Create or update the project constitution as the authoritative rule layer for do
 
 ## Process
 
-- Run `specify learning start --command constitution --format json` when available so passive learning files exist and relevant shared memory is visible before broader context collection.
+- Run `{{specify-subcmd:learning start --command constitution --format json}}` when available so passive learning files exist and relevant shared memory is visible before broader context collection.
 - Load the current constitution, then read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` in that order before broader repository context.
 - If the repository already has code and you need repo-derived evidence, use `PROJECT-HANDBOOK.md` and `.specify/project-map/index/status.json` to decide whether the navigation system is fresh enough to trust. If the navigation system is missing or stale for an existing codebase, run `/sp-map-scan` followed by `/sp-map-build` before continuing or explicitly report the refresh as a blocking follow-up.
 - Load the current constitution and identify unresolved placeholders or requested changes.

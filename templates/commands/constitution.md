@@ -37,12 +37,12 @@ constitution and propagate any amendments across dependent artifacts.
 **Note**: If `.specify/memory/constitution.md` does not exist yet, it should
 have been initialized from `.specify/templates/constitution-template.md`
 during project setup. That project-local template may be the default product
-constitution or a built-in profile selected during `specify init`. If it is
+constitution or a built-in profile selected during `{{specify-subcmd:init}}`. If it is
 missing, copy the template first.
 
 ## Passive Project Learning Layer
 
-- Run `specify learning start --command constitution --format json` when
+- Run `{{specify-subcmd:learning start --command constitution --format json}}` when
   available so passive learning files exist before deeper context collection.
 - Read `.specify/memory/constitution.md`,
   `.specify/memory/project-rules.md`, and
@@ -53,15 +53,15 @@ missing, copy the template first.
   especially repeated workflow gaps, stable user defaults, or lower-order
   rules that may need promotion or retirement.
 - When constitution work exposes repeated decision debt, rule conflict, or
-  promotion friction, run `specify hook signal-learning --command constitution ...`
+  promotion friction, run `{{specify-subcmd:hook signal-learning --command constitution ...}}`
   so the workflow records reusable learning pressure instead of treating it as
   chat-only discussion.
 - Before final reporting, run
-  `specify hook review-learning --command constitution --terminal-status <resolved|blocked> ...`;
+  `{{specify-subcmd:hook review-learning --command constitution --terminal-status <resolved|blocked> ...}}`;
   use `--decision none --rationale "..."` only when no reusable
   `decision_debt`, `workflow_gap`, `user_preference`, or `project_constraint`
   exists.
-- Prefer `specify learning capture-auto --command constitution --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command constitution ...` when the durable state does not capture the reusable lesson cleanly.
+- Prefer `{{specify-subcmd:learning capture-auto --command constitution --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command constitution ...}}` when the durable state does not capture the reusable lesson cleanly.
 - Treat project rules or learnings that conflict with the amended constitution
   as mandatory follow-up work: either realign them in this run or flag them
   explicitly in the Sync Impact Report.
@@ -103,17 +103,17 @@ missing, copy the template first.
   - a `next_command` of `/sp-specify`, `/sp-plan`, `/sp-tasks`, or
     `/sp-analyze` as required by the affected artifacts
 - When the local CLI is available and an active feature package is affected,
-  use `specify hook validate-state --command constitution --feature-dir "$FEATURE_DIR"`
+  use `{{specify-subcmd:hook validate-state --command constitution --feature-dir "$FEATURE_DIR"}}`
   after updating `workflow-state.md` so the shared validator confirms the
   constitution handoff state is resume-safe.
 - Before final handoff from a constitution amendment that affects an active
   feature package, use
-  `specify hook validate-artifacts --command constitution --feature-dir "$FEATURE_DIR"`
+  `{{specify-subcmd:hook validate-artifacts --command constitution --feature-dir "$FEATURE_DIR"}}`
   so the amended `.specify/memory/constitution.md` and the downstream
   `workflow-state.md` handoff are machine-checked together.
 - Before any compaction-risk transition during a constitution amendment that
   affects an active feature package, use
-  `specify hook checkpoint --command constitution --feature-dir "$FEATURE_DIR"`
+  `{{specify-subcmd:hook checkpoint --command constitution --feature-dir "$FEATURE_DIR"}}`
   so the downstream re-entry path survives session recovery.
 
 Follow this execution flow:

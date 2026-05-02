@@ -24,12 +24,12 @@ Use `execution_surface: native-subagents`.
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command test-scan --format json` when available so passive learning files exist, the scan sees relevant shared project memory, and repeated testing-system candidates can be auto-promoted at start.
+- [AGENT] Run `{{specify-subcmd:learning start --command test-scan --format json}}` when available so passive learning files exist, the scan sees relevant shared project memory, and repeated testing-system candidates can be auto-promoted at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broad scan work.
 - Review `.planning/learnings/candidates.md` only when it still contains testing-relevant candidate learnings after the passive start step.
-- [AGENT] When scan friction appears, run `specify hook signal-learning --command test-scan ...` with route-change, false-start, hidden-dependency, or validation-failure counts.
-- [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command test-scan --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `verification_gap`, `state_surface_gap`, `workflow_gap`, `routing_mistake`, or `project_constraint` exists.
-- [AGENT] Prefer `specify learning capture-auto --command test-scan --format json` when `testing-state.md` already captures reusable gaps, route reasons, or validation evidence. Fall back to `specify hook capture-learning --command test-scan ...` when the durable state does not capture the reusable lesson cleanly.
+- [AGENT] When scan friction appears, run `{{specify-subcmd:hook signal-learning --command test-scan ...}}` with route-change, false-start, hidden-dependency, or validation-failure counts.
+- [AGENT] Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command test-scan --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `verification_gap`, `state_surface_gap`, `workflow_gap`, `routing_mistake`, or `project_constraint` exists.
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command test-scan --format json}}` when `testing-state.md` already captures reusable gaps, route reasons, or validation evidence. Fall back to `{{specify-subcmd:hook capture-learning --command test-scan ...}}` when the durable state does not capture the reusable lesson cleanly.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Testing State Protocol
@@ -67,7 +67,7 @@ Use `execution_surface: native-subagents`.
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.
 
 2. **Run the canonical inventory seed**
-   - Run `specify testing inventory --format json` from the repository root.
+   - Run `{{specify-subcmd:testing inventory --format json}}` from the repository root.
    - Treat the command output as the seed inventory for `module_root`, `module_name`, `module_kind`, `language`, `manifest_path`, `selected_skill`, `framework`, `framework_confidence`, `canonical_test_path`, `canonical_test_command`, `coverage_command`, `state`, and `classification_reason`.
    - If the command returns no modules, record the inventory gap, create a safe read-only recovery scan lane when one can be packetized, or stop with `subagent-blocked` for escalation instead of inventing fake module boundaries.
    - Record the raw inventory source and initial module list in `TESTING_STATE_FILE`.
@@ -214,7 +214,7 @@ Use `execution_surface: native-subagents`.
      - If the remaining work spans multiple modules or a larger coverage program, recommend `{{invoke:specify}}` and name `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as required starting context.
      - If command/framework behavior is broken and root cause is unclear, recommend `{{invoke:debug}}`.
    - Include selected bundled language testing skills in the final report and note that they are part of the built-in `sp-test-scan` / `sp-test-build` testing workflow surface.
-   - [AGENT] Before the final completion report, capture any new `verification_gap`, `workflow_gap`, `routing_mistake`, or `project_constraint` learning through `specify learning capture --command test-scan ...`.
+   - [AGENT] Before the final completion report, capture any new `verification_gap`, `workflow_gap`, `routing_mistake`, or `project_constraint` learning through `{{specify-subcmd:learning capture --command test-scan ...}}`.
 
 ## Operating Rules
 

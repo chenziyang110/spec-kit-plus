@@ -30,10 +30,10 @@ handbook/project-map outputs.
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command map-build --format json` when available so passive learning files exist, the current atlas build sees relevant shared project memory, and repeated high-signal candidates can be auto-promoted at start.
-- [AGENT] When atlas build friction appears, run `specify hook signal-learning --command map-build ...` with route-change, artifact-rewrite, false-start, hidden-dependency, scan-gap, or reverse-coverage-failure counts so atlas blind spots become explicit learning signals.
-- [AGENT] Before reporting completion or a blocked build, run `specify hook review-learning --command map-build --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `map_coverage_gap`, `workflow_gap`, `state_surface_gap`, or `project_constraint` exists.
-- [AGENT] Prefer `specify learning capture-auto --command map-build --feature-dir "$FEATURE_DIR" --format json` when workflow state already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command map-build ...` for structured atlas learnings when durable state does not capture the reusable lesson cleanly.
+- [AGENT] Run `{{specify-subcmd:learning start --command map-build --format json}}` when available so passive learning files exist, the current atlas build sees relevant shared project memory, and repeated high-signal candidates can be auto-promoted at start.
+- [AGENT] When atlas build friction appears, run `{{specify-subcmd:hook signal-learning --command map-build ...}}` with route-change, artifact-rewrite, false-start, hidden-dependency, scan-gap, or reverse-coverage-failure counts so atlas blind spots become explicit learning signals.
+- [AGENT] Before reporting completion or a blocked build, run `{{specify-subcmd:hook review-learning --command map-build --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `map_coverage_gap`, `workflow_gap`, `state_surface_gap`, or `project_constraint` exists.
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command map-build --feature-dir "$FEATURE_DIR" --format json}}` when workflow state already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command map-build ...}}` for structured atlas learnings when durable state does not capture the reusable lesson cleanly.
 
 ## Required Inputs
 
@@ -309,14 +309,14 @@ complete.
 
 ## First-Party Workflow Quality Hooks
 
-- Before broad atlas build work begins, use `specify hook preflight --command map-build --feature-dir "$REPO_ROOT/specs"` only when the local workflow needs a machine-readable guard result for map refresh entry.
-- Before compaction-risk transitions or after major atlas synthesis, use `specify hook checkpoint --command map-build --feature-dir "$REPO_ROOT/specs"` only if a workflow-state-backed wrapper has created the corresponding state artifact for this build run.
-- After a successful full refresh, prefer `specify hook complete-refresh` as the shared product path that finalizes project-map freshness state.
+- Before broad atlas build work begins, use `{{specify-subcmd:hook preflight --command map-build --feature-dir "$REPO_ROOT/specs"}}` only when the local workflow needs a machine-readable guard result for map refresh entry.
+- Before compaction-risk transitions or after major atlas synthesis, use `{{specify-subcmd:hook checkpoint --command map-build --feature-dir "$REPO_ROOT/specs"}}` only if a workflow-state-backed wrapper has created the corresponding state artifact for this build run.
+- After a successful full refresh, prefer `{{specify-subcmd:hook complete-refresh}}` as the shared product path that finalizes project-map freshness state.
 
 ## Report Completion
 
-- [AGENT] Before reporting completion, capture any new `pitfall`, `workflow_gap`, `map_coverage_gap`, or `project_constraint` learning through `specify learning capture --command map-build ...`.
-- [AGENT] Before reporting completion, run `specify hook review-learning --command map-build --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"`.
+- [AGENT] Before reporting completion, capture any new `pitfall`, `workflow_gap`, `map_coverage_gap`, or `project_constraint` learning through `{{specify-subcmd:learning capture --command map-build ...}}`.
+- [AGENT] Before reporting completion, run `{{specify-subcmd:hook review-learning --command map-build --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"}}`.
 - [AGENT] After the refresh succeeds, finalize the refresh through the project-map freshness helper using `complete-refresh` so downstream workflows know the new baseline commit and refresh reason. Use `record-refresh` only for low-level/manual recovery when the standard completion path is unavailable.
 - Summarize which canonical map files were created or refreshed.
 - Summarize which scan packets were consumed.

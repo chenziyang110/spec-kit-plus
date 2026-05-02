@@ -92,22 +92,22 @@ After checks complete, record results in `implement-tracker.md`:
 {{spec-kit-include: ../command-partials/common/extension-hooks-body.md}}
 
 **Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
-- Use `specify hook preflight --command implement --feature-dir "$FEATURE_DIR"` before execution so the shared product guardrail layer can block stale brownfield routing, analyze-gate drift, or invalid execution entry.
-- After `implement-tracker.md` is created or resumed, use `specify hook validate-state --command implement --feature-dir "$FEATURE_DIR"` so the shared validator confirms execution state exists and is resumable.
-- Use `specify hook validate-session-state --command implement --feature-dir "$FEATURE_DIR"` before choosing the next batch so `workflow-state.md` and `implement-tracker.md` do not silently disagree about whether implementation may continue.
-- Before subagent dispatch, use `specify hook validate-packet --packet-file <packet-json>` so `WorkerTaskPacket` integrity is enforced through the shared hook surface instead of only by runtime convention.
-- Before accepting a subagent handoff at a join point, use `specify hook validate-result --packet-file <packet-json> --result-file <result-json>` so the shared `DP1`/`DP2`/`DP3` contract blocks incomplete subagent completion.
-- Before compaction-risk transitions, long validation phases, join points, or subagent fan-out, use `specify hook monitor-context --command implement --feature-dir "$FEATURE_DIR"` and, when it recommends checkpointing, follow it with `specify hook checkpoint --command implement --feature-dir "$FEATURE_DIR"`.
-- When execution changes map-level truth surfaces, prefer `specify hook mark-dirty --reason "<reason>"` as the shared dirty-mark path before recommending `/sp-map-scan` followed by `/sp-map-build`.
+- Use `{{specify-subcmd:hook preflight --command implement --feature-dir "$FEATURE_DIR"}}` before execution so the shared product guardrail layer can block stale brownfield routing, analyze-gate drift, or invalid execution entry.
+- After `implement-tracker.md` is created or resumed, use `{{specify-subcmd:hook validate-state --command implement --feature-dir "$FEATURE_DIR"}}` so the shared validator confirms execution state exists and is resumable.
+- Use `{{specify-subcmd:hook validate-session-state --command implement --feature-dir "$FEATURE_DIR"}}` before choosing the next batch so `workflow-state.md` and `implement-tracker.md` do not silently disagree about whether implementation may continue.
+- Before subagent dispatch, use `{{specify-subcmd:hook validate-packet --packet-file <packet-json>}}` so `WorkerTaskPacket` integrity is enforced through the shared hook surface instead of only by runtime convention.
+- Before accepting a subagent handoff at a join point, use `{{specify-subcmd:hook validate-result --packet-file <packet-json> --result-file <result-json>}}` so the shared `DP1`/`DP2`/`DP3` contract blocks incomplete subagent completion.
+- Before compaction-risk transitions, long validation phases, join points, or subagent fan-out, use `{{specify-subcmd:hook monitor-context --command implement --feature-dir "$FEATURE_DIR"}}` and, when it recommends checkpointing, follow it with `{{specify-subcmd:hook checkpoint --command implement --feature-dir "$FEATURE_DIR"}}`.
+- When execution changes map-level truth surfaces, prefer `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the shared dirty-mark path before recommending `/sp-map-scan` followed by `/sp-map-build`.
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command implement --format json` when available so passive learning files exist, the current implementation run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
+- [AGENT] Run `{{specify-subcmd:learning start --command implement --format json}}` when available so passive learning files exist, the current implementation run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader execution context.
 - Review `.planning/learnings/candidates.md` only when it still contains implementation-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
-- [AGENT] When implementation friction appears, run `specify hook signal-learning --command implement ...` with retry, validation-failure, route-change, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
-- [AGENT] Before terminal `resolved` or `blocked` reporting, run `specify hook review-learning --command implement --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `pitfall`, `recovery_path`, `verification_gap`, `state_surface_gap`, or `project_constraint` exists.
-- [AGENT] Prefer `specify hook capture-learning --command implement ...` for structured path learning when the run exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
+- [AGENT] When implementation friction appears, run `{{specify-subcmd:hook signal-learning --command implement ...}}` with retry, validation-failure, route-change, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
+- [AGENT] Before terminal `resolved` or `blocked` reporting, run `{{specify-subcmd:hook review-learning --command implement --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `pitfall`, `recovery_path`, `verification_gap`, `state_surface_gap`, or `project_constraint` exists.
+- [AGENT] Prefer `{{specify-subcmd:hook capture-learning --command implement ...}}` for structured path learning when the run exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
 - Treat this as passive shared memory, not as a separate user-visible execution command.
 
 ## Implement Tracker Protocol
@@ -273,7 +273,7 @@ human_needed_checks:
     - **REQUIRED FOR SUBAGENT EXECUTION**: Use `.specify/templates/worker-prompts/implementer.md` as the default implementer subagent contract and pair post-implementation reviews with `.specify/templates/worker-prompts/spec-reviewer.md` and `.specify/templates/worker-prompts/code-quality-reviewer.md`
     - **REQUIRED FOR SUBAGENT EXECUTION**: Prefer structured handoffs compatible with the shared `WorkerTaskResult` contract whenever the current runtime exposes structured subagent results
     - **REQUIRED FOR SUBAGENT EXECUTION**: If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized subagent result envelope to `FEATURE_DIR/worker-results/<task-id>.json`
-    - **REQUIRED FOR SUBAGENT EXECUTION**: When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the result envelope
+    - **REQUIRED FOR SUBAGENT EXECUTION**: When the local CLI is available and no runtime-managed result channel exists, prefer `{{specify-subcmd:result path}}` to compute the canonical handoff target and `{{specify-subcmd:result submit}}` to normalize and write the result envelope
     - **REQUIRED FOR SUBAGENT EXECUTION**: Preserve `reported_status` when normalizing subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state
     - **REQUIRED FOR SUBAGENT EXECUTION**: Idle subagent is not an accepted result.
     - **REQUIRED FOR SUBAGENT EXECUTION**: [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
@@ -466,10 +466,10 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
    - If the completed implementation changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`, run `/sp-map-scan` followed by `/sp-map-build` before final completion reporting so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass.
    - If you cannot complete that refresh in the current pass, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before the next brownfield workflow proceeds.
    - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
-   - [AGENT] Before the final completion report, run `specify implement closeout --feature-dir "$FEATURE_DIR" --format json` so implementation session state is validated and retry-heavy patterns are auto-captured from `implement-tracker.md`.
-   - [AGENT] If the closeout auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `specify learning capture --command implement ...`.
-   - [AGENT] Before the final completion report, run `specify hook review-learning --command implement --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"` so the learning closeout gate cannot be skipped.
-   - Keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence.
+   - [AGENT] Before the final completion report, run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` so implementation session state is validated and retry-heavy patterns are auto-captured from `implement-tracker.md`.
+   - [AGENT] If the closeout auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `{{specify-subcmd:learning capture --command implement ...}}`.
+   - [AGENT] Before the final completion report, run `{{specify-subcmd:hook review-learning --command implement --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"}}` so the learning closeout gate cannot be skipped.
+   - Keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
    - Report final status with summary of completed work, remaining human-needed checks, and any unresolved gaps
 

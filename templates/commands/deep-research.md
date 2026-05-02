@@ -65,19 +65,19 @@ Use `execution_surface: native-subagents`.
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently.
 
 **Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
-- Use `specify hook preflight --command deep-research --feature-dir "$FEATURE_DIR"` before deeper workflow execution so stale brownfield routing or invalid workflow entry is caught by the shared product guardrail layer.
-- After `WORKFLOW_STATE_FILE` is created or resumed, use `specify hook validate-state --command deep-research --feature-dir "$FEATURE_DIR"` so the shared validator confirms `workflow-state.md` matches the `sp-deep-research` contract.
-- Before final handoff, use `specify hook validate-artifacts --command deep-research --feature-dir "$FEATURE_DIR"` so the required `deep-research.md` and `workflow-state.md` set is machine-checked.
-- Before compaction-risk transitions or after prototype evidence is synthesized, use `specify hook checkpoint --command deep-research --feature-dir "$FEATURE_DIR"` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+- Use `{{specify-subcmd:hook preflight --command deep-research --feature-dir "$FEATURE_DIR"}}` before deeper workflow execution so stale brownfield routing or invalid workflow entry is caught by the shared product guardrail layer.
+- After `WORKFLOW_STATE_FILE` is created or resumed, use `{{specify-subcmd:hook validate-state --command deep-research --feature-dir "$FEATURE_DIR"}}` so the shared validator confirms `workflow-state.md` matches the `sp-deep-research` contract.
+- Before final handoff, use `{{specify-subcmd:hook validate-artifacts --command deep-research --feature-dir "$FEATURE_DIR"}}` so the required `deep-research.md` and `workflow-state.md` set is machine-checked.
+- Before compaction-risk transitions or after prototype evidence is synthesized, use `{{specify-subcmd:hook checkpoint --command deep-research --feature-dir "$FEATURE_DIR"}}` to emit a resume-safe checkpoint payload from `workflow-state.md`.
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command deep-research --format json` when available so the research pass sees relevant shared project memory.
+- [AGENT] Run `{{specify-subcmd:learning start --command deep-research --format json}}` when available so the research pass sees relevant shared project memory.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains candidates relevant to feasibility, hidden dependencies, prototype failures, or repeated research gaps.
-- [AGENT] When feasibility friction appears, run `specify hook signal-learning --command deep-research ...` with route-change, false-start, hidden-dependency, command-failure, or validation-failure counts.
-- [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command deep-research --terminal-status <resolved|blocked> ...`.
-- [AGENT] Prefer `specify learning capture-auto --command deep-research --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command deep-research ...` when the durable state does not capture the reusable lesson cleanly.
+- [AGENT] When feasibility friction appears, run `{{specify-subcmd:hook signal-learning --command deep-research ...}}` with route-change, false-start, hidden-dependency, command-failure, or validation-failure counts.
+- [AGENT] Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command deep-research --terminal-status <resolved|blocked> ...}}`.
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command deep-research --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command deep-research ...}}` when the durable state does not capture the reusable lesson cleanly.
 
 ## Workflow Phase Lock
 
@@ -645,7 +645,7 @@ Use `execution_surface: native-subagents`.
     - updated alignment/context/reference paths
     - recommended next command
     - whether the feature is ready for `/sp.plan`
-    - [AGENT] before final completion text, capture any new `workflow_gap`, `project_constraint`, or `decision_debt` learning through `specify learning capture --command deep-research ...`
+    - [AGENT] before final completion text, capture any new `workflow_gap`, `project_constraint`, or `decision_debt` learning through `{{specify-subcmd:learning capture --command deep-research ...}}`
     - Use the user's current language for explanatory text while preserving literal command names, file paths, and fixed status values exactly as written.
 
 ## Readiness Refusal Rules

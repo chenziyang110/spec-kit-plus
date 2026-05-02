@@ -31,19 +31,19 @@ scripts:
 {{spec-kit-include: ../command-partials/common/extension-hooks-body.md}}
 
 **Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
-- Use `specify hook preflight --command specify --feature-dir "$FEATURE_DIR"` before deeper workflow execution so the shared product guardrail layer can block stale or invalid entry conditions.
-- After `WORKFLOW_STATE_FILE` is created or resumed, use `specify hook validate-state --command specify --feature-dir "$FEATURE_DIR"` so the shared state validator confirms `workflow-state.md` matches the `sp-specify` contract.
-- Before final handoff, use `specify hook validate-artifacts --command specify --feature-dir "$FEATURE_DIR"` so the required `spec.md`, `alignment.md`, `context.md`, and `workflow-state.md` set is machine-checked rather than trusted from chat narration.
-- Before any compaction-risk transition or after major artifact synthesis, use `specify hook checkpoint --command specify --feature-dir "$FEATURE_DIR"` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+- Use `{{specify-subcmd:hook preflight --command specify --feature-dir "$FEATURE_DIR"}}` before deeper workflow execution so the shared product guardrail layer can block stale or invalid entry conditions.
+- After `WORKFLOW_STATE_FILE` is created or resumed, use `{{specify-subcmd:hook validate-state --command specify --feature-dir "$FEATURE_DIR"}}` so the shared state validator confirms `workflow-state.md` matches the `sp-specify` contract.
+- Before final handoff, use `{{specify-subcmd:hook validate-artifacts --command specify --feature-dir "$FEATURE_DIR"}}` so the required `spec.md`, `alignment.md`, `context.md`, and `workflow-state.md` set is machine-checked rather than trusted from chat narration.
+- Before any compaction-risk transition or after major artifact synthesis, use `{{specify-subcmd:hook checkpoint --command specify --feature-dir "$FEATURE_DIR"}}` to emit a resume-safe checkpoint payload from `workflow-state.md`.
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `specify learning start --command specify --format json` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
+- [AGENT] Run `{{specify-subcmd:learning start --command specify --format json}}` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains candidate learnings relevant to specification after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
-- [AGENT] When specification friction appears, run `specify hook signal-learning --command specify ...` with user-correction, route-change, scope-change, false-start, or hidden-dependency counts.
-- [AGENT] Before final completion or blocked reporting, run `specify hook review-learning --command specify --terminal-status <resolved|blocked> ...`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `user_preference`, `decision_debt`, or `project_constraint` exists.
-- [AGENT] Prefer `specify learning capture-auto --command specify --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command specify ...` when the durable state does not capture the reusable lesson cleanly.
+- [AGENT] When specification friction appears, run `{{specify-subcmd:hook signal-learning --command specify ...}}` with user-correction, route-change, scope-change, false-start, or hidden-dependency counts.
+- [AGENT] Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command specify --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `user_preference`, `decision_debt`, or `project_constraint` exists.
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command specify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command specify ...}}` when the durable state does not capture the reusable lesson cleanly.
 - Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
@@ -750,8 +750,8 @@ Generate the pre-analysis output as the first section of `context.md`.
     - readiness for the next phase (`{{invoke:plan}}` for the mainline, `{{invoke:clarify}}` when deeper analysis is still needed, or `{{invoke:deep-research}}` when feasibility must be proven first)
     - recommended review follow-up: `{{invoke:clarify}}` when the user wants one more targeted repair pass over the written spec package before planning
     - if this pass reveals that the current atlas is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current handbook/project-map does not yet capture, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield execution work proceeds
-    - [AGENT] before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `specify learning capture --command specify ...`
-    - keep lower-signal items as candidates and use `specify learning promote --target learning ...` only after explicit confirmation or proven recurrence
+    - [AGENT] before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `{{specify-subcmd:learning capture --command specify ...}}`
+    - keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence
     - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or a repeated recurrence that should become shared project memory
     - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 

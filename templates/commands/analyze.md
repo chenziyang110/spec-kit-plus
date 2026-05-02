@@ -53,13 +53,13 @@ When recommending manual implementation resumption to the user, tell them to run
 
 ## First-Party Workflow Quality Hooks
 
-- Once `FEATURE_DIR` is known, use `specify hook preflight --command analyze --feature-dir "$FEATURE_DIR"` before deeper analysis so stale brownfield routing or invalid workflow entry is surfaced through the shared product guardrail layer.
-- After `WORKFLOW_STATE_FILE` is created or resumed, use `specify hook validate-state --command analyze --feature-dir "$FEATURE_DIR"` so the shared validator confirms `workflow-state.md` matches the `sp-analyze` contract.
-- Before final gate reporting, use `specify hook validate-artifacts --command analyze --feature-dir "$FEATURE_DIR"` so the required analyze-side artifact set is checked by the shared hook surface.
-- Before compaction-risk transitions or after large findings synthesis, use `specify hook checkpoint --command analyze --feature-dir "$FEATURE_DIR"` to emit a resume-safe checkpoint payload from `workflow-state.md`.
-- Run `specify learning start --command analyze --format json` when available, then use `specify hook signal-learning --command analyze ...` if the analysis exposes repeated artifact rewrites, route changes, false starts, or hidden dependencies.
-- Before final cleared or blocked gate reporting, run `specify hook review-learning --command analyze --terminal-status <resolved|blocked> ...`.
-- Prefer `specify learning capture-auto --command analyze --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command analyze ...` when the durable state does not capture the reusable lesson cleanly.
+- Once `FEATURE_DIR` is known, use `{{specify-subcmd:hook preflight --command analyze --feature-dir "$FEATURE_DIR"}}` before deeper analysis so stale brownfield routing or invalid workflow entry is surfaced through the shared product guardrail layer.
+- After `WORKFLOW_STATE_FILE` is created or resumed, use `{{specify-subcmd:hook validate-state --command analyze --feature-dir "$FEATURE_DIR"}}` so the shared validator confirms `workflow-state.md` matches the `sp-analyze` contract.
+- Before final gate reporting, use `{{specify-subcmd:hook validate-artifacts --command analyze --feature-dir "$FEATURE_DIR"}}` so the required analyze-side artifact set is checked by the shared hook surface.
+- Before compaction-risk transitions or after large findings synthesis, use `{{specify-subcmd:hook checkpoint --command analyze --feature-dir "$FEATURE_DIR"}}` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+- Run `{{specify-subcmd:learning start --command analyze --format json}}` when available, then use `{{specify-subcmd:hook signal-learning --command analyze ...}}` if the analysis exposes repeated artifact rewrites, route changes, false starts, or hidden dependencies.
+- Before final cleared or blocked gate reporting, run `{{specify-subcmd:hook review-learning --command analyze --terminal-status <resolved|blocked> ...}}`.
+- Prefer `{{specify-subcmd:learning capture-auto --command analyze --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command analyze ...}}` when the durable state does not capture the reusable lesson cleanly.
 
 ## Execution Steps
 

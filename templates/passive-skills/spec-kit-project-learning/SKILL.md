@@ -130,29 +130,29 @@ Treat `learning start` as required preflight memory, not optional telemetry.
 - Repeated candidates, including repeated high-signal candidates, should auto-promote instead of staying stuck in the candidate layer forever.
 
 Native hooks are an optional enhancement. Without native hooks, the shared
-`specify learning start`, `specify hook review-learning`, and
-`specify hook capture-learning` path must still execute correctly and preserve the
+`{{specify-subcmd:learning start}}`, `{{specify-subcmd:hook review-learning}}`, and
+`{{specify-subcmd:hook capture-learning}}` path must still execute correctly and preserve the
 same memory guarantees.
 
 ## Command Surface
 
 These are the memory-system primitives:
 
-- `specify learning status`
-- `specify learning start --command <command-name>`
-- `specify learning capture --command <command-name> --type <type> --summary "..." --evidence "..."`
-- `specify learning capture-auto --command <command-name> ...`
-- `specify learning promote --recurrence-key <key> --target <learning|rule>`
+- `{{specify-subcmd:learning status}}`
+- `{{specify-subcmd:learning start --command <command-name>}}`
+- `{{specify-subcmd:learning capture --command <command-name> --type <type> --summary "..." --evidence "..."}}`
+- `{{specify-subcmd:learning capture-auto --command <command-name> ...}}`
+- `{{specify-subcmd:learning promote --recurrence-key <key> --target <learning|rule>}}`
 
 ## First-Party Learning Hooks
 
 Use this hook surface when memory handling needs product-level enforcement or richer
 signal capture:
 
-- `specify hook signal-learning --command <command-name> ...`
-- `specify hook review-learning --command <command-name> --terminal-status <status> ...`
-- `specify hook capture-learning --command <command-name> --type <type> --summary "..." --evidence "..."`
-- `specify hook inject-learning --command <command-name> --type <type> --summary "..."`
+- `{{specify-subcmd:hook signal-learning --command <command-name> ...}}`
+- `{{specify-subcmd:hook review-learning --command <command-name> --terminal-status <status> ...}}`
+- `{{specify-subcmd:hook capture-learning --command <command-name> --type <type> --summary "..." --evidence "..."}}`
+- `{{specify-subcmd:hook inject-learning --command <command-name> --type <type> --summary "..."}}`
 
 ## When To Prefer Each Surface
 

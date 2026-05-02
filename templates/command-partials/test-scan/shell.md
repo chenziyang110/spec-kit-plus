@@ -13,7 +13,7 @@ Deep-scan the repository's testing surface and produce a build-ready unit-test s
 
 ## Process
 
-- Seed the scan with `specify testing inventory --format json`.
+- Seed the scan with `{{specify-subcmd:testing inventory --format json}}`.
 - Prioritize modules by risk tier before deep scanning.
 - Dispatch read-only subagents for independent module, framework, coverage-command, or risk-review lanes when safe.
 - Require concrete evidence from every scout: inspected files, public entrypoints, existing tests, missing scenarios, validation commands, and blockers.

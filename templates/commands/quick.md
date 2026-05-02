@@ -1,7 +1,7 @@
 ---
 description: Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.
 workflow_contract:
-  when_to_use: The task is too large or risky for `sp-fast` but does not justify the full `specify -> plan -> tasks -> implement` flow.
+  when_to_use: The task is too large or risky for `sp-fast` but does not justify the full `{{specify-subcmd:-> plan -> tasks -> implement}}` flow.
   primary_objective: Keep the task resumable and tracked while applying only the minimum planning, research, and validation depth it needs.
   primary_outputs: '`.planning/quick/<id>-<slug>/STATUS.md`, quick-task summary artifacts, and the scoped implementation changes for the task.'
   default_handoff: 'Resume the quick task until resolved, or escalate to /sp.specify if the scope grows into multi-capability or acceptance-criteria-heavy work.'
@@ -61,11 +61,11 @@ choosing the quick-task lane shape.
 
 ## First-Party Workflow Quality Hooks
 
-- Once the quick workspace exists, use `specify hook preflight --command quick --workspace ".planning/quick/<id>-<slug>"` before deeper execution so the shared product guardrail layer can block stale brownfield routing or invalid quick-task entry.
-- After `STATUS.md` is created or resumed, use `specify hook validate-state --command quick --workspace ".planning/quick/<id>-<slug>"` so the shared validator confirms the quick-task source of truth is resumable.
-- Use `specify hook validate-session-state --command quick --workspace ".planning/quick/<id>-<slug>"` when you need a machine-readable summary of quick-task resume truth rather than trusting chat narration.
-- Before compaction-risk transitions, join points, or delegated fan-out, use `specify hook monitor-context --command quick --workspace ".planning/quick/<id>-<slug>"` and follow checkpoint recommendations with `specify hook checkpoint --command quick --workspace ".planning/quick/<id>-<slug>"`.
-- When you want a compact operator-facing summary instead of re-reading the whole file, use `specify hook render-statusline --command quick --workspace ".planning/quick/<id>-<slug>"`.
+- Once the quick workspace exists, use `{{specify-subcmd:hook preflight --command quick --workspace ".planning/quick/<id>-<slug>"}}` before deeper execution so the shared product guardrail layer can block stale brownfield routing or invalid quick-task entry.
+- After `STATUS.md` is created or resumed, use `{{specify-subcmd:hook validate-state --command quick --workspace ".planning/quick/<id>-<slug>"}}` so the shared validator confirms the quick-task source of truth is resumable.
+- Use `{{specify-subcmd:hook validate-session-state --command quick --workspace ".planning/quick/<id>-<slug>"}}` when you need a machine-readable summary of quick-task resume truth rather than trusting chat narration.
+- Before compaction-risk transitions, join points, or delegated fan-out, use `{{specify-subcmd:hook monitor-context --command quick --workspace ".planning/quick/<id>-<slug>"}}` and follow checkpoint recommendations with `{{specify-subcmd:hook checkpoint --command quick --workspace ".planning/quick/<id>-<slug>"}}`.
+- When you want a compact operator-facing summary instead of re-reading the whole file, use `{{specify-subcmd:hook render-statusline --command quick --workspace ".planning/quick/<id>-<slug>"}}`.
 
 ## Scope Gate
 
@@ -73,7 +73,7 @@ Use `sp-quick` when all of these are true:
 - The task is bounded and clearly described.
 - The work is small but non-trivial.
 - A lightweight plan is useful, but a full spec package would be overhead.
-- Use this path when you want to skip the full `specify -> plan -> tasks -> implement` workflow for a bounded task.
+- Use this path when you want to skip the full `{{specify-subcmd:-> plan -> tasks -> implement}}` workflow for a bounded task.
 - The task does not require a new long-lived feature spec under `specs/<feature>/`.
 
 If the task is trivial and local:
@@ -127,7 +127,7 @@ The following flags are available and composable:
 - Use `.specify/templates/worker-prompts/quick-worker.md` as the default contract for quick-task subagents so the subagent returns enough state for the leader to keep `STATUS.md` accurate.
 - Prefer structured subagent results compatible with the shared `WorkerTaskResult` contract when the current runtime supports them.
 - If the current integration exposes a runtime-managed result channel, use that channel. Otherwise write the normalized subagent result envelope to `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`
-- When the local CLI is available and no runtime-managed result channel exists, prefer `specify result path` to compute the canonical handoff target and `specify result submit` to normalize and write the subagent result envelope.
+- When the local CLI is available and no runtime-managed result channel exists, prefer `{{specify-subcmd:result path}}` to compute the canonical handoff target and `{{specify-subcmd:result submit}}` to normalize and write the subagent result envelope.
 - Preserve `reported_status` when normalizing subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
 - Idle subagent is not an accepted result.
 - The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.

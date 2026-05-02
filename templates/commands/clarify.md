@@ -70,10 +70,10 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 
 ## Passive Project Learning Layer
 
-- Run `specify learning start --command clarify --format json` when available so this repair pass can consume existing project rules and learnings.
-- When clarification friction appears, run `specify hook signal-learning --command clarify ...` with user-correction, scope-change, route-change, false-start, or hidden-dependency counts.
-- Before final completion or blocked reporting, run `specify hook review-learning --command clarify --terminal-status <resolved|blocked> ...`.
-- Prefer `specify learning capture-auto --command clarify --feature-dir "$FEATURE_DIR" --format json` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `specify hook capture-learning --command clarify ...` when the durable state does not capture the reusable lesson cleanly.
+- Run `{{specify-subcmd:learning start --command clarify --format json}}` when available so this repair pass can consume existing project rules and learnings.
+- When clarification friction appears, run `{{specify-subcmd:hook signal-learning --command clarify ...}}` with user-correction, scope-change, route-change, false-start, or hidden-dependency counts.
+- Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command clarify --terminal-status <resolved|blocked> ...}}`.
+- Prefer `{{specify-subcmd:learning capture-auto --command clarify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command clarify ...}}` when the durable state does not capture the reusable lesson cleanly.
 
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
    - `FEATURE_DIR`
