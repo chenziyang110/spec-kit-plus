@@ -176,7 +176,11 @@ Each artifact must preserve the Evidence/Inference/Unknown distinction. Unknowns
 ## Quality Gates
 
 - **Capability Triage Gate**: block completion if core capabilities and tiers were never made explicit.
-- **Critical Depth Gate**: block completion if a `critical` capability lacks implementation-grade reconstruction.
+- **Critical Depth Gate**: a `critical` capability cannot be marked `depth-qualified` until implementation files are traced, core structure or format details are documented, producer and consumer relationships are documented when applicable, key constraints or compatibility rules are documented, failure or boundary behavior is documented, and remaining gaps are explicitly marked as `Unknown` or `depth-gap`.
+- **Content Coverage Gate**: for each external file, interface, schema, protocol, or persistent structure referenced by a `critical` or `high` capability, path-only coverage is not sufficient; structure or field-level content must be recorded.
+- **Producer-Consumer Gate**: for each important artifact, identify who produces it, who consumes it, and whether transformation occurs in between.
+- **Contradiction Search Gate**: actively check for contradictions such as filename or extension vs actual parser, documentation vs implementation behavior, read path vs write path, tests vs runtime logic, and declared schema vs normalized schema.
+- **Example Adequacy Gate**: each `critical` capability should include at least one concrete example when applicable; otherwise reduce confidence and keep the gap visible.
 - **Traceability Gate**: block completion if key mechanism claims cannot be traced back to repository evidence.
 - **Export Integrity Gate**: block completion if exports introduce consequential facts not grounded in `master-pack.md`, or if critical capabilities lack required export landings.
 - **Unknown Visibility Gate**: block completion if missing evidence is narrated as fact instead of preserved as `Unknown` or bounded `Inference`.

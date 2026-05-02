@@ -158,3 +158,13 @@ def test_prd_template_requires_expanded_quality_gates() -> None:
     assert "Producer-Consumer Gate" in content
     assert "Contradiction Search Gate" in content
     assert "Example Adequacy Gate" in content
+
+
+def test_prd_template_summary_quality_gates_match_expanded_gates() -> None:
+    content = _content()
+    summary_section = content.split("## Quality Gates", 1)[1]
+
+    assert "Content Coverage Gate" in summary_section
+    assert "Producer-Consumer Gate" in summary_section
+    assert "Contradiction Search Gate" in summary_section
+    assert "Example Adequacy Gate" in summary_section
