@@ -9,7 +9,13 @@ from specify_cli.hooks.checkpoint_serializers import serialize_implement_tracker
 
 from .models import LaneRecord
 from .reconcile import reconcile_lane
-from .state_store import append_lane_event, read_lane_index, read_lane_record, write_lane_record
+from .state_store import (
+    append_lane_event,
+    read_lane_index,
+    read_lane_record,
+    rebuild_lane_index,
+    write_lane_record,
+)
 
 
 def collect_integration_candidates(project_root: Path) -> list[LaneRecord]:
@@ -116,4 +122,5 @@ def mark_lane_integrated(project_root: Path, lane: LaneRecord) -> LaneRecord:
             "feature_dir": lane.feature_dir,
         },
     )
+    rebuild_lane_index(project_root)
     return lane

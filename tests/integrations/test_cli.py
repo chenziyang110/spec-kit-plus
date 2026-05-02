@@ -1309,8 +1309,90 @@ def test_lane_register_writes_lane_record_and_index(tmp_path):
     payload = json.loads(result.output)
     assert payload["status"] == "ok"
     assert payload["lane_id"] == "lane-001"
+    assert payload["lifecycle_state"] == "specified"
+    assert payload["recovery_state"] == "resumable"
     assert (project / ".specify" / "lanes" / "lane-001" / "lane.json").exists()
     assert (project / ".specify" / "lanes" / "index.json").exists()
+
+
+def test_lane_register_inferrs_completed_implement_lane_from_tracker(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "lane-register-implement"
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (project / ".specify").mkdir()
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-implement`",
+                "- status: `completed`",
+                "",
+                "## Next Action",
+                "",
+                "- done",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.integrate`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: resolved",
+                "feature: 001-demo",
+                "resume_decision: resolved",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: batch-a",
+                "goal: done",
+                "next_action: none",
+                "",
+                "## Execution State",
+                "retry_attempts: 0",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "lane",
+                "register",
+                "--lane-id",
+                "lane-001",
+                "--feature-dir",
+                str(feature_dir),
+                "--branch",
+                "001-demo",
+                "--worktree",
+                str(project / ".specify" / "lanes" / "worktrees" / "lane-001"),
+                "--command",
+                "implement",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["recovery_state"] == "completed"
+    assert payload["verification_status"] == "passed"
 
 
 def test_lane_resolve_returns_choose_for_ambiguous_candidates(tmp_path):

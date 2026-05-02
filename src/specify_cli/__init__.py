@@ -3340,6 +3340,75 @@ def _print_lane_resolution_json(result: Any) -> None:
     print(json.dumps(payload, ensure_ascii=False))
 
 
+def _infer_lane_record(
+    project_root: Path,
+    *,
+    lane_id: str,
+    feature_dir: Path,
+    branch: str,
+    worktree: Path,
+    command_name: str,
+) -> LaneRecord:
+    from specify_cli.hooks.checkpoint_serializers import serialize_implement_tracker, serialize_workflow_state
+    from specify_cli.lanes.models import utc_now
+
+    normalized_command = command_name.strip().lower()
+    existing = read_lane_record(project_root, lane_id)
+
+    lifecycle_map = {
+        "specify": "specified",
+        "plan": "planned",
+        "tasks": "tasked",
+        "implement": "implementing",
+        "integrate": "integrating",
+    }
+    lifecycle_state = lifecycle_map.get(normalized_command, existing.lifecycle_state if existing else "draft")
+    recovery_state = existing.recovery_state if existing is not None else "blocked"
+    verification_status = existing.verification_status if existing is not None else "unknown"
+    last_stable_checkpoint = existing.last_stable_checkpoint if existing is not None else ""
+
+    workflow_path = feature_dir / "workflow-state.md"
+    tracker_path = feature_dir / "implement-tracker.md"
+
+    if normalized_command == "implement" and tracker_path.exists():
+        tracker = serialize_implement_tracker(tracker_path)
+        tracker_status = str(tracker.get("status") or "")
+        last_stable_checkpoint = str(tracker.get("current_batch") or tracker.get("next_action") or last_stable_checkpoint)
+        if tracker_status == "resolved":
+            recovery_state = "completed"
+            verification_status = "passed"
+        elif tracker_status == "blocked":
+            recovery_state = "blocked"
+            verification_status = "failed"
+        else:
+            recovery_state = "resumable"
+            verification_status = "unknown"
+    elif workflow_path.exists():
+        workflow = serialize_workflow_state(workflow_path)
+        last_stable_checkpoint = str(workflow.get("next_action") or last_stable_checkpoint)
+        recovery_state = "resumable"
+    elif normalized_command == "integrate":
+        recovery_state = "completed"
+        verification_status = "passed"
+    else:
+        recovery_state = "resumable"
+
+    return LaneRecord(
+        lane_id=lane_id,
+        feature_id=feature_dir.name,
+        feature_dir=feature_dir.relative_to(project_root).as_posix(),
+        branch_name=branch,
+        worktree_path=worktree.relative_to(project_root).as_posix() if worktree.is_absolute() else worktree.as_posix(),
+        lifecycle_state=lifecycle_state,
+        recovery_state=recovery_state,
+        last_command=normalized_command,
+        last_stable_checkpoint=last_stable_checkpoint,
+        verification_status=verification_status,
+        created_at=existing.created_at if existing is not None else utc_now(),
+        updated_at=utc_now(),
+    )
+
+
 def _resolve_result_context(
     project_root: Path,
     *,
@@ -3437,15 +3506,13 @@ def lane_register(
         console.print("[red]Error:[/red] --feature-dir and --worktree are required.")
         raise typer.Exit(1)
 
-    record = LaneRecord(
+    record = _infer_lane_record(
+        project_root,
         lane_id=lane_id,
-        feature_id=Path(resolved_feature_dir).name,
-        feature_dir=Path(resolved_feature_dir).relative_to(project_root).as_posix(),
-        branch_name=branch,
-        worktree_path=Path(resolved_worktree).relative_to(project_root).as_posix()
-        if Path(resolved_worktree).is_absolute()
-        else Path(resolved_worktree).as_posix(),
-        last_command=command_name.strip().lower(),
+        feature_dir=Path(resolved_feature_dir),
+        branch=branch,
+        worktree=Path(resolved_worktree),
+        command_name=command_name,
     )
     write_lane_record(project_root, record)
     append_lane_event(
@@ -3457,6 +3524,9 @@ def lane_register(
             "feature_dir": record.feature_dir,
             "branch_name": record.branch_name,
             "worktree_path": record.worktree_path,
+            "lifecycle_state": record.lifecycle_state,
+            "recovery_state": record.recovery_state,
+            "verification_status": record.verification_status,
             "command_name": record.last_command,
         },
     )
@@ -3469,6 +3539,9 @@ def lane_register(
                 "feature_dir": record.feature_dir,
                 "branch_name": record.branch_name,
                 "worktree_path": record.worktree_path,
+                "lifecycle_state": record.lifecycle_state,
+                "recovery_state": record.recovery_state,
+                "verification_status": record.verification_status,
                 "index_lane_count": len(payload.get("lanes", [])),
             },
             ensure_ascii=False,

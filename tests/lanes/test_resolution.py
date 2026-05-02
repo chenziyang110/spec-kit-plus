@@ -113,3 +113,26 @@ def test_resolve_lane_requires_choice_for_multiple_resumable_candidates(tmp_path
     assert result.mode == "choose"
     assert result.selected_lane_id == ""
     assert [candidate.feature_id for candidate in result.candidates] == ["001-alpha", "002-beta"]
+
+
+def test_resolve_lane_auto_inferrs_implement_from_tracker_and_workflow_state(tmp_path: Path):
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_workflow_state(feature_dir, "/sp.implement")
+    _write_implement_tracker(feature_dir, "executing")
+    lane = LaneRecord(
+        lane_id="lane-001",
+        feature_id="001-demo",
+        feature_dir="specs/001-demo",
+        branch_name="001-demo",
+        worktree_path=".specify/lanes/worktrees/lane-001",
+        lifecycle_state="implementing",
+        recovery_state="resumable",
+        last_command="specify",
+    )
+    write_lane_record(tmp_path, lane)
+    write_lane_index(tmp_path, {"lanes": [{"lane_id": "lane-001"}]})
+
+    result = resolve_lane_for_command(tmp_path, command_name="auto")
+
+    assert result.mode == "resume"
+    assert result.candidates[0].last_command == "implement"
