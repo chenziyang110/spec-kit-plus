@@ -29,6 +29,30 @@ def test_checkpoint_returns_implement_tracker_resume_fields(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
+    lane_dir = project / ".specify" / "lanes" / "lane-001"
+    lane_dir.mkdir(parents=True, exist_ok=True)
+    (lane_dir / "lane.json").write_text(
+        "\n".join(
+            [
+                "{",
+                '  "lane_id": "lane-001",',
+                '  "feature_id": "001-demo",',
+                '  "feature_dir": "specs/001-demo",',
+                '  "branch_name": "001-demo",',
+                '  "worktree_path": ".specify/lanes/worktrees/lane-001",',
+                '  "lifecycle_state": "implementing",',
+                '  "recovery_state": "resumable",',
+                '  "last_command": "implement",',
+                '  "last_stable_checkpoint": "batch-a",',
+                '  "recovery_reason": "",',
+                '  "verification_status": "unknown",',
+                '  "created_at": "2026-05-02T00:00:00+00:00",',
+                '  "updated_at": "2026-05-02T00:00:00+00:00"',
+                "}",
+            ]
+        ),
+        encoding="utf-8",
+    )
     (feature_dir / "implement-tracker.md").write_text(
         "\n".join(
             [
@@ -68,3 +92,5 @@ def test_checkpoint_returns_implement_tracker_resume_fields(tmp_path: Path):
     assert checkpoint["current_batch"] == "batch-a"
     assert checkpoint["next_action"] == "wait for worker handoff"
     assert checkpoint["resume_decision"] == "resume-here"
+    assert checkpoint["lane_id"] == "lane-001"
+    assert checkpoint["lane_recovery_state"] == "resumable"

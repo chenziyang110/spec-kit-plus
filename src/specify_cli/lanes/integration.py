@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from specify_cli.hooks.checkpoint_serializers import serialize_implement_tracker
-
 from .models import LaneRecord
 from .reconcile import reconcile_lane
 from .state_store import (
@@ -74,6 +72,8 @@ def assess_integration_readiness(project_root: Path, lane: LaneRecord) -> Integr
     if reconciled.last_command == "integrate":
         implementation_complete = reconciled.recovery_state == "completed"
     elif reconciled.last_command == "implement":
+        from specify_cli.hooks.checkpoint_serializers import serialize_implement_tracker
+
         tracker_path = feature_dir / "implement-tracker.md"
         if tracker_path.exists():
             tracker = serialize_implement_tracker(tracker_path)

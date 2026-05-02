@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from specify_cli.lanes.state_store import iter_lane_records
+
 from .checkpoint_serializers import (
     normalize_command_name,
     serialize_debug_session,
@@ -28,11 +30,24 @@ def checkpoint_hook(project_root: Path, payload: dict[str, object]) -> HookResul
                 severity="critical",
                 errors=[f"workflow-state.md is missing at {target}"],
             )
+        checkpoint = serialize_workflow_state(target)
+        lane = next(
+            (
+                record
+                for record in iter_lane_records(project_root)
+                if (project_root / record.feature_dir).resolve() == feature_dir.resolve()
+            ),
+            None,
+        )
+        if lane is not None:
+            checkpoint["lane_id"] = lane.lane_id
+            checkpoint["lane_recovery_state"] = lane.recovery_state
+            checkpoint["lane_verification_status"] = lane.verification_status
         return HookResult(
             event=WORKFLOW_CHECKPOINT,
             status="ok",
             severity="info",
-            data={"checkpoint": serialize_workflow_state(target)},
+            data={"checkpoint": checkpoint},
         )
 
     if command_name == "implement":
@@ -45,11 +60,24 @@ def checkpoint_hook(project_root: Path, payload: dict[str, object]) -> HookResul
                 severity="critical",
                 errors=[f"implement-tracker.md is missing at {target}"],
             )
+        checkpoint = serialize_implement_tracker(target)
+        lane = next(
+            (
+                record
+                for record in iter_lane_records(project_root)
+                if (project_root / record.feature_dir).resolve() == feature_dir.resolve()
+            ),
+            None,
+        )
+        if lane is not None:
+            checkpoint["lane_id"] = lane.lane_id
+            checkpoint["lane_recovery_state"] = lane.recovery_state
+            checkpoint["lane_verification_status"] = lane.verification_status
         return HookResult(
             event=WORKFLOW_CHECKPOINT,
             status="ok",
             severity="info",
-            data={"checkpoint": serialize_implement_tracker(target)},
+            data={"checkpoint": checkpoint},
         )
 
     if command_name == "quick":

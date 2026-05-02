@@ -90,3 +90,62 @@ def test_preflight_warns_when_project_map_status_is_missing_for_brownfield_work(
     assert result.status == "warn"
     assert result.severity == "warning"
     assert any("project-map" in message for message in result.warnings)
+
+
+def test_preflight_blocks_integrate_when_lane_is_not_ready(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (project / ".specify" / "lanes" / "lane-001").mkdir(parents=True, exist_ok=True)
+    (project / ".specify" / "lanes" / "lane-001" / "lane.json").write_text(
+        "\n".join(
+            [
+                "{",
+                '  "lane_id": "lane-001",',
+                '  "feature_id": "001-demo",',
+                '  "feature_dir": "specs/001-demo",',
+                '  "branch_name": "001-demo",',
+                '  "worktree_path": ".specify/lanes/worktrees/lane-001",',
+                '  "lifecycle_state": "implementing",',
+                '  "recovery_state": "blocked",',
+                '  "last_command": "implement",',
+                '  "last_stable_checkpoint": "",',
+                '  "recovery_reason": "missing verification",',
+                '  "verification_status": "failed",',
+                '  "created_at": "2026-05-02T00:00:00+00:00",',
+                '  "updated_at": "2026-05-02T00:00:00+00:00"',
+                "}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: blocked",
+                "feature: 001-demo",
+                "resume_decision: blocked-waiting",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: batch-a",
+                "goal: blocked",
+                "next_action: fix verification",
+                "",
+                "## Execution State",
+                "retry_attempts: 1",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.preflight",
+        {"command_name": "integrate", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("integrate precheck failed" in message for message in result.errors)

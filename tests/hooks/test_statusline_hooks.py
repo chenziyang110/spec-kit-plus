@@ -89,6 +89,29 @@ def test_statusline_renders_quick_summary(tmp_path: Path):
 def test_statusline_renders_implement_summary(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
+    (project / ".specify" / "lanes" / "lane-001").mkdir(parents=True, exist_ok=True)
+    (project / ".specify" / "lanes" / "lane-001" / "lane.json").write_text(
+        "\n".join(
+            [
+                "{",
+                '  "lane_id": "lane-001",',
+                '  "feature_id": "001-demo",',
+                '  "feature_dir": "specs/001-demo",',
+                '  "branch_name": "001-demo",',
+                '  "worktree_path": ".specify/lanes/worktrees/lane-001",',
+                '  "lifecycle_state": "implementing",',
+                '  "recovery_state": "resumable",',
+                '  "last_command": "implement",',
+                '  "last_stable_checkpoint": "batch-b",',
+                '  "recovery_reason": "",',
+                '  "verification_status": "unknown",',
+                '  "created_at": "2026-05-02T00:00:00+00:00",',
+                '  "updated_at": "2026-05-02T00:00:00+00:00"',
+                "}",
+            ]
+        ),
+        encoding="utf-8",
+    )
     _write_implement_tracker(feature_dir)
 
     result = run_quality_hook(
@@ -102,3 +125,5 @@ def test_statusline_renders_implement_summary(tmp_path: Path):
     assert "implement:validating" in line
     assert "batch:batch-b" in line
     assert "retry:1" in line
+    assert "lane:lane-001" in line
+    assert "recovery:resumable" in line

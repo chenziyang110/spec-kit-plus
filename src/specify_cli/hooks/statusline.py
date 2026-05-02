@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from specify_cli.lanes.state_store import iter_lane_records
+
 from .checkpoint_serializers import (
     normalize_command_name,
     serialize_debug_session,
@@ -40,12 +42,22 @@ def statusline_hook(project_root: Path, payload: dict[str, object]) -> HookResul
     if command_name == "implement":
         feature_dir = _required_path(project_root, payload, "feature_dir")
         checkpoint = serialize_implement_tracker(feature_dir / "implement-tracker.md")
+        lane = next(
+            (
+                record
+                for record in iter_lane_records(project_root)
+                if (project_root / record.feature_dir).resolve() == feature_dir.resolve()
+            ),
+            None,
+        )
         line = " ".join(
             part
             for part in [
                 f"implement:{checkpoint.get('status', '')}",
                 f"batch:{checkpoint.get('current_batch', '')}" if checkpoint.get("current_batch") else "",
                 f"retry:{checkpoint.get('retry_attempts', '')}" if checkpoint.get("retry_attempts") else "",
+                f"lane:{lane.lane_id}" if lane is not None else "",
+                f"recovery:{lane.recovery_state}" if lane is not None else "",
                 f"next:{checkpoint.get('next_action', '')}" if checkpoint.get("next_action") else "",
             ]
             if part
@@ -60,11 +72,21 @@ def statusline_hook(project_root: Path, payload: dict[str, object]) -> HookResul
     if command_name in {"specify", "deep-research", "plan", "tasks", "analyze"}:
         feature_dir = _required_path(project_root, payload, "feature_dir")
         checkpoint = serialize_workflow_state(feature_dir / "workflow-state.md")
+        lane = next(
+            (
+                record
+                for record in iter_lane_records(project_root)
+                if (project_root / record.feature_dir).resolve() == feature_dir.resolve()
+            ),
+            None,
+        )
         line = " ".join(
             part
             for part in [
                 f"{command_name}:{checkpoint.get('phase_mode', '')}",
                 f"status:{checkpoint.get('status', '')}" if checkpoint.get("status") else "",
+                f"lane:{lane.lane_id}" if lane is not None else "",
+                f"recovery:{lane.recovery_state}" if lane is not None else "",
                 f"next:{checkpoint.get('next_action', '')}" if checkpoint.get("next_action") else "",
             ]
             if part

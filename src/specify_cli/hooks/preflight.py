@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from specify_cli.lanes.state_store import iter_lane_records
+
 from .checkpoint_serializers import normalize_command_name, serialize_workflow_state
 from .events import WORKFLOW_PREFLIGHT
 from .project_map import project_map_freshness_result
@@ -37,6 +39,33 @@ def workflow_preflight_hook(project_root: Path, payload: dict[str, object]) -> H
             if checkpoint.get("active_command") == "sp-analyze" and checkpoint.get("status") != "completed":
                 errors.append("analyze gate is still active and has not been cleared")
 
+    if command_name == "integrate":
+        from specify_cli.lanes.integration import assess_integration_readiness
+
+        raw_feature_dir = str(payload.get("feature_dir") or "").strip()
+        if not raw_feature_dir:
+            raise QualityHookError("feature_dir is required for integrate preflight")
+        feature_dir = Path(raw_feature_dir)
+        if not feature_dir.is_absolute():
+            feature_dir = (project_root / feature_dir).resolve()
+
+        lane = next(
+            (
+                record
+                for record in iter_lane_records(project_root)
+                if (project_root / record.feature_dir).resolve() == feature_dir.resolve()
+            ),
+            None,
+        )
+        if lane is None:
+            errors.append(f"no lane record found for feature dir {feature_dir}")
+        else:
+            readiness = assess_integration_readiness(project_root, lane)
+            if not readiness.ready:
+                for check in readiness.checks:
+                    if check["status"] != "pass":
+                        errors.append(f"integrate precheck failed: {check['name']} ({check['detail']})")
+
     if errors:
         return HookResult(
             event=WORKFLOW_PREFLIGHT,
@@ -60,4 +89,3 @@ def workflow_preflight_hook(project_root: Path, payload: dict[str, object]) -> H
         severity="info",
         data={"project_map": freshness.to_dict()},
     )
-
