@@ -1,12 +1,18 @@
 import json
+import os
+import stat
 
 import specify_cli
 from specify_cli.launcher import (
+    HookRuntimeSpec,
     diagnose_project_runtime_compatibility,
+    install_shared_hook_launcher_assets,
     SpecifyLauncherSpec,
     load_project_specify_launcher,
     project_specify_subcommand,
+    render_hook_launcher_command,
     render_project_launcher_placeholders,
+    resolve_hook_runtime_spec,
     write_project_specify_launcher_config,
 )
 
@@ -231,3 +237,95 @@ def test_diagnose_project_runtime_compatibility_reports_stale_claude_windows_hoo
     issues = diagnose_project_runtime_compatibility(tmp_path)
 
     assert any(issue["code"] == "stale-claude-windows-hook-command" for issue in issues)
+
+
+def test_diagnose_project_runtime_compatibility_reports_stale_direct_hook_launcher_command(tmp_path):
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "SessionStart": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": 'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/claude-hook-dispatch.py session-start',
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-direct-hook-launcher-command" for issue in issues)
+
+
+def test_resolve_hook_runtime_spec_prefers_runtime_command_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("SPECIFY_HOOK_RUNTIME_COMMAND", "python-custom -X utf8")
+
+    resolved = resolve_hook_runtime_spec(tmp_path)
+
+    assert resolved == HookRuntimeSpec(
+        command="python-custom -X utf8",
+        argv=("python-custom", "-X", "utf8"),
+        source="env:SPECIFY_HOOK_RUNTIME_COMMAND",
+    )
+
+
+def test_resolve_hook_runtime_spec_prefers_project_venv_python(tmp_path):
+    python_bin = tmp_path / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    python_bin.parent.mkdir(parents=True)
+    python_bin.write_text("", encoding="utf-8")
+
+    resolved = resolve_hook_runtime_spec(tmp_path)
+
+    assert resolved is not None
+    assert resolved.argv == (str(python_bin),)
+    assert resolved.source == "project-venv"
+
+
+def test_render_hook_launcher_command_targets_env_scoped_shared_launcher_posix(monkeypatch):
+    monkeypatch.setattr(os, "name", "posix", raising=False)
+
+    command = render_hook_launcher_command(
+        "claude",
+        "session-start",
+        project_dir_env_var="CLAUDE_PROJECT_DIR",
+    )
+
+    assert command == '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook claude session-start'
+
+
+def test_render_hook_launcher_command_targets_env_scoped_shared_launcher_windows(monkeypatch):
+    monkeypatch.setattr(os, "name", "nt", raising=False)
+
+    command = render_hook_launcher_command(
+        "gemini",
+        "before-tool",
+        project_dir_env_var="GEMINI_PROJECT_DIR",
+    )
+
+    assert command == '"$env:GEMINI_PROJECT_DIR"/.specify/bin/specify-hook.cmd gemini before-tool'
+
+
+def test_install_shared_hook_launcher_assets_writes_all_runtime_files(tmp_path):
+    created = install_shared_hook_launcher_assets(tmp_path)
+    relpaths = sorted(path.relative_to(tmp_path).as_posix() for path in created)
+
+    assert relpaths == [
+        ".specify/bin/specify-hook",
+        ".specify/bin/specify-hook.cmd",
+        ".specify/bin/specify-hook.py",
+    ]
+
+    posix_launcher = tmp_path / ".specify" / "bin" / "specify-hook"
+    assert posix_launcher.exists()
+    if os.name != "nt":
+        assert posix_launcher.stat().st_mode & stat.S_IXUSR

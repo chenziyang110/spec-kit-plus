@@ -271,7 +271,9 @@ First-party workflow quality hooks:
 
 Claude Code project-local integration:
 
-- `specify init --ai claude` installs `.claude/hooks/claude-hook-dispatch.py` and merges project-local `.claude/settings.json` when it is valid JSON.
+- `specify init --ai claude` installs `.claude/hooks/claude-hook-dispatch.py`, installs the shared launcher assets under `.specify/bin/`, and merges project-local `.claude/settings.json` when it is valid JSON.
+- Generated Claude native hook registrations now call `.specify/bin/specify-hook` (or `.specify/bin/specify-hook.cmd` on Windows) instead of embedding `python` or `python3` directly.
+- The shared launcher resolves Python at hook execution time, then delegates to the existing project-local Claude dispatch script.
 - The current managed Claude native hooks bridge:
   - `SessionStart` into `specify hook render-statusline`
   - `UserPromptSubmit` into `specify hook validate-prompt`
@@ -289,7 +291,9 @@ Codex/OMX native integration:
 
 Gemini native integration:
 
-- `specify init --ai gemini` installs `.gemini/hooks/gemini-hook-dispatch.py` and merges project-local `.gemini/settings.json` when it is valid JSON.
+- `specify init --ai gemini` installs `.gemini/hooks/gemini-hook-dispatch.py`, installs the shared launcher assets under `.specify/bin/`, and merges project-local `.gemini/settings.json` when it is valid JSON.
+- Generated Gemini native hook registrations now call `.specify/bin/specify-hook` (or `.specify/bin/specify-hook.cmd` on Windows) instead of embedding `python` or `python3` directly.
+- The shared launcher resolves Python at hook execution time, then delegates to the existing project-local Gemini dispatch script.
 - The managed Gemini native hooks bridge:
   - `SessionStart` into `specify hook render-statusline`
   - `BeforeAgent` into `specify hook validate-prompt` and soft `specify hook signal-learning` warnings when active workflow state records reusable friction

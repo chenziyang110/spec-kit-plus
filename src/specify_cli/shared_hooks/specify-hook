@@ -1,0 +1,29 @@
+#!/usr/bin/env sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PROJECT_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+
+if [ -n "${SPECIFY_HOOK_RUNTIME_COMMAND:-}" ]; then
+  exec ${SPECIFY_HOOK_RUNTIME_COMMAND} "$SCRIPT_DIR/specify-hook.py" "$@"
+fi
+
+if [ -n "${SPECIFY_HOOK_RUNTIME_ARGV:-}" ]; then
+  echo "SPECIFY_HOOK_RUNTIME_ARGV is not supported by the shell launcher; use SPECIFY_HOOK_RUNTIME_COMMAND instead." >&2
+  exit 2
+fi
+
+if [ -x "$PROJECT_ROOT/.venv/bin/python" ]; then
+  exec "$PROJECT_ROOT/.venv/bin/python" "$SCRIPT_DIR/specify-hook.py" "$@"
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  exec /usr/bin/env python3 "$SCRIPT_DIR/specify-hook.py" "$@"
+fi
+
+if command -v python >/dev/null 2>&1; then
+  exec /usr/bin/env python "$SCRIPT_DIR/specify-hook.py" "$@"
+fi
+
+echo "No usable Python runtime found for native hook launcher. Run 'specify integration repair' or install Python." >&2
+exit 2

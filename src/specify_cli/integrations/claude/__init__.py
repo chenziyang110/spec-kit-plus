@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +12,7 @@ import yaml
 
 from ..base import SkillsIntegration
 from ..manifest import IntegrationManifest
+from ...launcher import install_shared_hook_launcher_assets, render_hook_launcher_command
 from ...orchestration import CapabilitySnapshot, describe_delegation_surface
 from .multi_agent import ClaudeMultiAgentAdapter
 
@@ -54,31 +54,22 @@ class ClaudeIntegration(SkillsIntegration):
     key = "claude"
 
     @staticmethod
-    def _detect_python_command() -> str:
-        for candidate in ("python3", "python"):
-            if shutil.which(candidate):
-                return candidate
-        return sys.executable
-
-    @staticmethod
-    def _hook_dispatch_command(python_cmd: str, route: str) -> str:
-        if sys.platform.startswith("win"):
-            project_dir = '"$env:CLAUDE_PROJECT_DIR"'
-        else:
-            project_dir = '"$CLAUDE_PROJECT_DIR"'
-        return f"{python_cmd} {project_dir}/.claude/hooks/{CLAUDE_HOOK_DISPATCH} {route}"
+    def _hook_dispatch_command(route: str) -> str:
+        return render_hook_launcher_command(
+            "claude",
+            route,
+            project_dir_env_var="CLAUDE_PROJECT_DIR",
+        )
 
     @classmethod
-    def _build_managed_hook_events(cls, python_cmd: str | None = None) -> dict[str, list[dict[str, Any]]]:
-        if python_cmd is None:
-            python_cmd = cls._detect_python_command()
+    def _build_managed_hook_events(cls) -> dict[str, list[dict[str, Any]]]:
         return {
             "SessionStart": [
                 {
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command(python_cmd, "session-start"),
+                            "command": cls._hook_dispatch_command("session-start"),
                         }
                     ]
                 }
@@ -88,7 +79,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command(python_cmd, "user-prompt-submit"),
+                            "command": cls._hook_dispatch_command("user-prompt-submit"),
                         }
                     ]
                 }
@@ -99,7 +90,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command(python_cmd, "post-tool-session-state"),
+                            "command": cls._hook_dispatch_command("post-tool-session-state"),
                         }
                     ],
                 }
@@ -109,7 +100,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command(python_cmd, "stop-monitor"),
+                            "command": cls._hook_dispatch_command("stop-monitor"),
                         }
                     ]
                 }
@@ -120,7 +111,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command(python_cmd, "pre-tool-read"),
+                            "command": cls._hook_dispatch_command("pre-tool-read"),
                         }
                     ],
                 },
@@ -129,7 +120,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command(python_cmd, "pre-tool-bash"),
+                            "command": cls._hook_dispatch_command("pre-tool-bash"),
                         }
                     ],
                 },
@@ -181,6 +172,15 @@ class ClaudeIntegration(SkillsIntegration):
             f"{CLAUDE_HOOK_DISPATCH} pre-tool-read",
             f"{CLAUDE_HOOK_DISPATCH} pre-tool-bash",
         )
+
+    @staticmethod
+    def _is_stale_managed_hook_command(command: str, managed_suffixes: tuple[str, ...]) -> bool:
+        normalized = str(command or "")
+        if any(suffix in normalized for suffix in managed_suffixes):
+            return True
+        if ".specify/bin/specify-hook" in normalized and '"$CLAUDE_PROJECT_DIR"' in normalized:
+            return True
+        return False
 
     def _install_hook_assets(
         self,
@@ -260,9 +260,9 @@ class ClaudeIntegration(SkillsIntegration):
                 continue
             kept: list[Any] = []
             for hook in hooks:
-                if isinstance(hook, dict) and any(
-                    suffix in str(hook.get("command", ""))
-                    for suffix in managed_suffixes
+                if isinstance(hook, dict) and ClaudeIntegration._is_stale_managed_hook_command(
+                    str(hook.get("command", "")),
+                    managed_suffixes,
                 ):
                     changed = True
                 else:
@@ -344,8 +344,7 @@ class ClaudeIntegration(SkillsIntegration):
         settings_path = self._claude_settings_path(project_root)
         settings_path.parent.mkdir(parents=True, exist_ok=True)
 
-        python_cmd = self._detect_python_command()
-        managed_events = self._build_managed_hook_events(python_cmd)
+        managed_events = self._build_managed_hook_events()
 
         if not settings_path.exists():
             payload = {"hooks": managed_events}
@@ -402,9 +401,9 @@ class ClaudeIntegration(SkillsIntegration):
                                 for hook in hook_list
                                 if not (
                                     isinstance(hook, dict)
-                                    and any(
-                                        suffix in self._normalize_hook_command(hook.get("command"))
-                                        for suffix in self._managed_hook_command_suffixes()
+                                    and self._is_stale_managed_hook_command(
+                                        self._normalize_hook_command(hook.get("command")),
+                                        self._managed_hook_command_suffixes(),
                                     )
                                 )
                             ]
@@ -740,6 +739,12 @@ class ClaudeIntegration(SkillsIntegration):
             )
         )
         created.extend(
+            install_shared_hook_launcher_assets(
+                project_root,
+                manifest=manifest,
+            )
+        )
+        created.extend(
             self._install_or_merge_hook_settings(
                 project_root=project_root,
                 manifest=manifest,
@@ -837,6 +842,12 @@ class ClaudeIntegration(SkillsIntegration):
         created.extend(
             self._install_hook_assets(
                 project_root=project_root,
+                manifest=manifest,
+            )
+        )
+        created.extend(
+            install_shared_hook_launcher_assets(
+                project_root,
                 manifest=manifest,
             )
         )

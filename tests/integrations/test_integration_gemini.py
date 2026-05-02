@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from specify_cli import app
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
+from specify_cli.launcher import render_hook_launcher_command
 
 from .test_integration_base_toml import TomlIntegrationTests
 
@@ -22,6 +23,14 @@ class TestGeminiIntegration(TomlIntegrationTests):
     REGISTRAR_DIR = ".gemini/commands"
     CONTEXT_FILE = "GEMINI.md"
 
+    @staticmethod
+    def _expected_launcher_command(route: str) -> str:
+        return render_hook_launcher_command(
+            "gemini",
+            route,
+            project_dir_env_var="GEMINI_PROJECT_DIR",
+        )
+
     def _expected_files(self, script_variant: str) -> list[str]:
         expected = super()._expected_files(script_variant)
         expected.extend(
@@ -29,6 +38,9 @@ class TestGeminiIntegration(TomlIntegrationTests):
                 ".gemini/hooks/README.md",
                 ".gemini/hooks/gemini-hook-dispatch.py",
                 ".gemini/settings.json",
+                ".specify/bin/specify-hook",
+                ".specify/bin/specify-hook.cmd",
+                ".specify/bin/specify-hook.py",
             ]
         )
         return sorted(expected)
@@ -40,9 +52,11 @@ class TestGeminiIntegration(TomlIntegrationTests):
 
         hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
         settings_path = tmp_path / ".gemini" / "settings.json"
+        shared_launcher = tmp_path / ".specify" / "bin" / "specify-hook.py"
 
         assert hook_script.exists()
         assert settings_path.exists()
+        assert shared_launcher.exists()
 
         payload = json.loads(settings_path.read_text(encoding="utf-8"))
         assert "hooks" in payload
@@ -57,12 +71,13 @@ class TestGeminiIntegration(TomlIntegrationTests):
             for hook in entry.get("hooks", [])
             if isinstance(hook, dict) and isinstance(hook.get("command"), str)
         ]
-        assert any("gemini-hook-dispatch.py session-start" in command for command in commands)
-        assert any("gemini-hook-dispatch.py before-agent" in command for command in commands)
-        assert any("gemini-hook-dispatch.py before-tool" in command for command in commands)
+        assert any(command == self._expected_launcher_command("session-start") for command in commands)
+        assert any(command == self._expected_launcher_command("before-agent") for command in commands)
+        assert any(command == self._expected_launcher_command("before-tool") for command in commands)
 
         assert ".gemini/hooks/gemini-hook-dispatch.py" in manifest.files
         assert ".gemini/settings.json" in manifest.files
+        assert ".specify/bin/specify-hook.py" in manifest.files
 
     def test_setup_merges_existing_settings_json_without_overwriting_user_values(self, tmp_path):
         integration = get_integration("gemini")
@@ -111,7 +126,7 @@ class TestGeminiIntegration(TomlIntegrationTests):
             if entry.get("matcher") == "*"
             and any(
                 isinstance(hook, dict)
-                and "gemini-hook-dispatch.py before-tool" in str(hook.get("command", ""))
+                and self._expected_launcher_command("before-tool") == str(hook.get("command", ""))
                 for hook in entry.get("hooks", [])
             )
         ]

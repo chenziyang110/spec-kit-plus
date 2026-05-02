@@ -428,11 +428,32 @@ uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit
 
 Projects initialized from a git direct-url install now record a source-bound
 launcher in `.specify/config.json` under `specify_launcher`. Claude and Gemini
-native hooks read that before falling back to `specify` on PATH.
+native hooks still use that trusted launcher path after their shared startup
+launcher resolves Python.
+
+Generated Claude and Gemini hook registrations now call the shared launcher
+under `.specify/bin/`:
+
+- POSIX: `.specify/bin/specify-hook`
+- Windows: `.specify/bin/specify-hook.cmd`
+
+That shared launcher resolves the Python runtime at hook execution time and
+then delegates to the existing project-local dispatch script. This avoids
+hardcoding `python` or `python3` into managed hook registrations.
 
 The same underlying risk exists beyond native hooks: if a project has no
 trusted project launcher, runtime helper instructions can still fall back to
 PATH `specify` compatibility mode.
+
+If a project still has direct `python ...claude-hook-dispatch.py` or
+`python ...gemini-hook-dispatch.py` managed commands, run:
+
+```bash
+specify integration repair
+```
+
+This refresh installs the shared launcher assets under `.specify/bin/` and
+rewrites managed hook commands to use the stable launcher contract.
 
 For custom environments, set one of these before starting the agent:
 
@@ -441,11 +462,19 @@ SPECIFY_HOOK_ARGV='["uvx","--refresh","--from","git+https://github.com/chenziyan
 SPECIFY_HOOK_COMMAND='uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify'
 ```
 
+If you need to override how the shared startup launcher finds Python itself,
+set one of these before starting the agent:
+
+```bash
+SPECIFY_HOOK_RUNTIME_COMMAND='python3'
+```
+
 PowerShell:
 
 ```powershell
 $env:SPECIFY_HOOK_ARGV = '["uvx","--refresh","--from","git+https://github.com/chenziyang110/spec-kit-plus.git","specify"]'
 $env:SPECIFY_HOOK_COMMAND = 'uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify'
+$env:SPECIFY_HOOK_RUNTIME_COMMAND = 'py'
 ```
 
 ### "Do I need to run specify every time I open my project?"

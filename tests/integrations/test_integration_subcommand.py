@@ -481,6 +481,52 @@ class TestIntegrationSwitch:
 
 
 class TestIntegrationRepair:
+    def test_repair_upgrades_direct_claude_hook_commands_to_shared_launcher(self, tmp_path):
+        project = _init_project(tmp_path, "claude")
+
+        settings_path = project / ".claude" / "settings.json"
+        settings_payload = json.loads(settings_path.read_text(encoding="utf-8"))
+        for entries in settings_payload.get("hooks", {}).values():
+            for entry in entries:
+                for hook in entry.get("hooks", []):
+                    if isinstance(hook, dict) and isinstance(hook.get("command"), str):
+                        command = hook["command"]
+                        if ".specify/bin/specify-hook" in command:
+                            hook["command"] = command.replace(
+                                '"$env:CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude',
+                                'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/claude-hook-dispatch.py',
+                            )
+                            hook["command"] = hook["command"].replace(
+                                '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook claude',
+                                'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/claude-hook-dispatch.py',
+                            )
+        settings_path.write_text(json.dumps(settings_payload, indent=2) + "\n", encoding="utf-8")
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                ["integration", "repair", "--script", "ps"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        repaired_settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        commands = [
+            hook["command"]
+            for entries in repaired_settings["hooks"].values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        assert any(
+            command == '"$env:CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude session-start'
+            for command in commands
+        )
+
     def test_repair_refreshes_missing_project_launcher_and_stale_claude_hook_commands(self, tmp_path, monkeypatch):
         project = _init_project(tmp_path, "claude")
 
@@ -536,7 +582,10 @@ class TestIntegrationRepair:
             if isinstance(hook, dict) and isinstance(hook.get("command"), str)
         ]
         assert commands
-        assert all('"$env:CLAUDE_PROJECT_DIR"' in command for command in commands)
+        assert all(
+            command.startswith('"$env:CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude ')
+            for command in commands
+        )
 
     def test_repair_refreshes_shared_powershell_script_assets(self, tmp_path):
         project = _init_project(tmp_path, "claude")

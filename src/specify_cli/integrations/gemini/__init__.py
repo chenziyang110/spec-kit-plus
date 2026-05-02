@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +11,7 @@ import json5
 
 from ..base import TomlIntegration
 from ..manifest import IntegrationManifest
+from ...launcher import install_shared_hook_launcher_assets, render_hook_launcher_command
 from .multi_agent import GeminiMultiAgentAdapter
 
 GEMINI_HOOK_DISPATCH = "gemini-hook-dispatch.py"
@@ -20,17 +20,8 @@ GEMINI_HOOK_DISPATCH = "gemini-hook-dispatch.py"
 class GeminiIntegration(TomlIntegration):
     key = "gemini"
 
-    @staticmethod
-    def _detect_python_command() -> str:
-        for candidate in ("python3", "python"):
-            if shutil.which(candidate):
-                return candidate
-        return sys.executable
-
     @classmethod
-    def _build_managed_hook_events(cls, python_cmd: str | None = None) -> dict[str, list[dict[str, Any]]]:
-        if python_cmd is None:
-            python_cmd = cls._detect_python_command()
+    def _build_managed_hook_events(cls) -> dict[str, list[dict[str, Any]]]:
         return {
             "SessionStart": [
                 {
@@ -39,7 +30,11 @@ class GeminiIntegration(TomlIntegration):
                         {
                             "name": "spec-kit-session-start",
                             "type": "command",
-                            "command": f"{python_cmd} .gemini/hooks/{GEMINI_HOOK_DISPATCH} session-start",
+                            "command": render_hook_launcher_command(
+                                "gemini",
+                                "session-start",
+                                project_dir_env_var="GEMINI_PROJECT_DIR",
+                            ),
                         }
                     ],
                 }
@@ -51,7 +46,11 @@ class GeminiIntegration(TomlIntegration):
                         {
                             "name": "spec-kit-before-agent",
                             "type": "command",
-                            "command": f"{python_cmd} .gemini/hooks/{GEMINI_HOOK_DISPATCH} before-agent",
+                            "command": render_hook_launcher_command(
+                                "gemini",
+                                "before-agent",
+                                project_dir_env_var="GEMINI_PROJECT_DIR",
+                            ),
                         }
                     ],
                 }
@@ -63,7 +62,11 @@ class GeminiIntegration(TomlIntegration):
                         {
                             "name": "spec-kit-before-tool",
                             "type": "command",
-                            "command": f"{python_cmd} .gemini/hooks/{GEMINI_HOOK_DISPATCH} before-tool",
+                            "command": render_hook_launcher_command(
+                                "gemini",
+                                "before-tool",
+                                project_dir_env_var="GEMINI_PROJECT_DIR",
+                            ),
                         }
                     ],
                 }
@@ -275,8 +278,7 @@ class GeminiIntegration(TomlIntegration):
         settings_path = self._gemini_settings_path(project_root)
         settings_path.parent.mkdir(parents=True, exist_ok=True)
 
-        python_cmd = self._detect_python_command()
-        managed_events = self._build_managed_hook_events(python_cmd)
+        managed_events = self._build_managed_hook_events()
 
         if not settings_path.exists():
             payload = {"hooks": managed_events}
@@ -314,6 +316,10 @@ class GeminiIntegration(TomlIntegration):
             **opts,
         )
         self._install_hook_assets(project_root=project_root, manifest=manifest)
+        install_shared_hook_launcher_assets(
+            project_root,
+            manifest=manifest,
+        )
         self._install_or_merge_hook_settings(project_root=project_root, manifest=manifest)
         return created
 
@@ -328,6 +334,12 @@ class GeminiIntegration(TomlIntegration):
         created.extend(
             self._install_hook_assets(
                 project_root=project_root,
+                manifest=manifest,
+            )
+        )
+        created.extend(
+            install_shared_hook_launcher_assets(
+                project_root,
                 manifest=manifest,
             )
         )
