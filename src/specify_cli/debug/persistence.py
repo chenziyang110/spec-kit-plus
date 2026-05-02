@@ -24,6 +24,9 @@ def build_research_checkpoint(state: DebugGraphState) -> str:
         f"- Trigger: {state.trigger}",
         f"- Diagnostic profile: {profile}",
         f"- Failed verification attempts: {state.resolution.fail_count}",
+        f"- Agent verification failures: {state.resolution.agent_fail_count}",
+        f"- Human reopen count: {state.resolution.human_reopen_count}",
+        f"- Human verification outcome: {state.resolution.human_verification_outcome.value}",
         f"- Current root-cause draft: {root_cause}",
         f"- Latest attempted fix: {fix}",
         "",
@@ -81,11 +84,16 @@ def build_handoff_report(state: DebugGraphState) -> str:
         f"- Diagnostic profile: {state.diagnostic_profile or 'Not classified'}",
         f"- Root cause: {root_cause}",
         f"- Attempted fix: {state.resolution.fix or 'No fix recorded'}",
-        f"- Verification status: {state.resolution.verification or 'unknown'}",
-        f"- Failed verification attempts: {state.resolution.fail_count}",
+        f"- Agent verification status: {state.resolution.verification or 'unknown'}",
+        f"- Agent verification failures: {state.resolution.agent_fail_count}",
+        f"- Human reopen count: {state.resolution.human_reopen_count}",
+        f"- Human verification outcome: {state.resolution.human_verification_outcome.value}",
         "",
         "### Eliminated Hypotheses",
     ]
+
+    if state.waiting_on_child_human_followup:
+        lines.insert(8, "- Waiting on child human follow-up: true")
 
     if state.eliminated:
         for entry in state.eliminated:
@@ -123,6 +131,8 @@ def build_handoff_report(state: DebugGraphState) -> str:
         lines.append(f"- Suspected truth owner: {state.observer_framing.suspected_truth_owner}")
     if state.observer_framing.recommended_first_probe:
         lines.append(f"- Recommended first probe: {state.observer_framing.recommended_first_probe}")
+    if state.observer_framing.contrarian_candidate:
+        lines.append(f"- Contrarian candidate: {state.observer_framing.contrarian_candidate}")
     if state.observer_framing.missing_questions:
         lines.append("- Missing questions:")
         for question in state.observer_framing.missing_questions:
@@ -131,12 +141,16 @@ def build_handoff_report(state: DebugGraphState) -> str:
         lines.append("- Alternative cause candidates:")
         for candidate in state.observer_framing.alternative_cause_candidates:
             lines.append(f"  - {candidate.candidate}")
+            if candidate.failure_shape:
+                lines.append(f"    - failure shape: {candidate.failure_shape}")
             if candidate.why_it_fits:
                 lines.append(f"    - why it fits: {candidate.why_it_fits}")
             if candidate.map_evidence:
                 lines.append(f"    - map evidence: {candidate.map_evidence}")
             if candidate.would_rule_out:
                 lines.append(f"    - would rule out: {candidate.would_rule_out}")
+            if candidate.recommended_first_probe:
+                lines.append(f"    - recommended first probe: {candidate.recommended_first_probe}")
     if not any(
         (
             state.observer_framing.summary,
@@ -192,6 +206,16 @@ def build_handoff_report(state: DebugGraphState) -> str:
     else:
         lines.append("- Alternatives ruled out: not recorded")
     lines.append(f"- Root cause confidence: {state.resolution.root_cause_confidence or 'Not recorded'}")
+
+    lines.extend(["", "### Candidate Resolutions"])
+    if state.candidate_resolutions:
+        for entry in state.candidate_resolutions:
+            line = f"- {entry.candidate}: {entry.disposition}"
+            if entry.notes:
+                line += f" ({entry.notes})"
+            lines.append(line)
+    else:
+        lines.append("- Not recorded")
 
     lines.extend(["", "### Suggested Evidence Lanes"])
     if state.suggested_evidence_lanes:
@@ -298,9 +322,11 @@ class MarkdownPersistenceHandler:
             "parent_slug": state.parent_slug,
             "child_slugs": state.child_slugs,
             "resume_after_child": state.resume_after_child,
+            "waiting_on_child_human_followup": state.waiting_on_child_human_followup,
             "diagnostic_profile": state.diagnostic_profile,
             "observer_mode": state.observer_mode,
             "observer_framing_completed": state.observer_framing_completed,
+            "framing_gate_passed": state.framing_gate_passed,
             "skip_observer_reason": state.skip_observer_reason,
             "current_node_id": state.current_node_id,
             "created": state.created.isoformat(),
@@ -317,6 +343,7 @@ class MarkdownPersistenceHandler:
             ("Observer Framing", state.observer_framing.model_dump(mode="json")),
             ("Transition Memo", state.transition_memo.model_dump(mode="json")),
             ("Suggested Evidence Lanes", [lane.model_dump(mode="json") for lane in state.suggested_evidence_lanes]),
+            ("Candidate Resolutions", [entry.model_dump(mode="json") for entry in state.candidate_resolutions]),
             ("Truth Ownership", [entry.model_dump(mode="json") for entry in state.truth_ownership]),
             ("Control State", state.control_state),
             ("Observation State", state.observation_state),
@@ -397,9 +424,11 @@ class MarkdownPersistenceHandler:
                 "parent_slug": frontmatter.get("parent_slug"),
                 "child_slugs": frontmatter.get("child_slugs", []),
                 "resume_after_child": frontmatter.get("resume_after_child", False),
+                "waiting_on_child_human_followup": frontmatter.get("waiting_on_child_human_followup", False),
                 "diagnostic_profile": frontmatter.get("diagnostic_profile"),
                 "observer_mode": frontmatter.get("observer_mode"),
                 "observer_framing_completed": frontmatter.get("observer_framing_completed", False),
+                "framing_gate_passed": frontmatter.get("framing_gate_passed", False),
                 "skip_observer_reason": frontmatter.get("skip_observer_reason"),
                 "current_node_id": frontmatter.get("current_node_id"),
                 "created": frontmatter["created"],
@@ -409,6 +438,7 @@ class MarkdownPersistenceHandler:
                 "observer_framing": sections.get("Observer Framing") or {},
                 "transition_memo": sections.get("Transition Memo") or {},
                 "suggested_evidence_lanes": sections.get("Suggested Evidence Lanes") or [],
+                "candidate_resolutions": sections.get("Candidate Resolutions") or [],
                 "truth_ownership": sections.get("Truth Ownership") or [],
                 "control_state": sections.get("Control State") or [],
                 "observation_state": sections.get("Observation State") or [],
@@ -439,7 +469,7 @@ class MarkdownPersistenceHandler:
 
     def load_most_recent_awaiting_human_session(self) -> DebugGraphState | None:
         for state in self.load_all_sessions():
-            if state.status == DebugStatus.AWAITING_HUMAN:
+            if state.status == DebugStatus.AWAITING_HUMAN and not state.waiting_on_child_human_followup:
                 return state
         return None
 

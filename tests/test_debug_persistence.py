@@ -4,6 +4,7 @@ import pytest
 
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.debug.schema import (
+    CandidateResolution,
     DebugGraphState,
     DebugStatus,
     EvidenceEntry,
@@ -172,6 +173,46 @@ def test_persistence_round_trips_full_state(tmp_path):
     assert restored.resolution.validation_results[0].command == "python tests/repro.py"
 
 
+def test_persistence_round_trips_lifecycle_hardening_fields(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="human verify loop")
+    state.status = DebugStatus.AWAITING_HUMAN
+    state.waiting_on_child_human_followup = True
+    state.framing_gate_passed = True
+    state.resolution.human_verification_outcome = "derived_issue"
+    state.resolution.agent_fail_count = 2
+    state.resolution.human_reopen_count = 1
+    state.observer_framing.contrarian_candidate = "Projection layer drops correct source state"
+    state.observer_framing.alternative_cause_candidates = [
+        ObserverCauseCandidate(
+            candidate="Scheduler ownership state never released correctly",
+            failure_shape="truth_owner_logic",
+            recommended_first_probe="Inspect scheduler ownership sets before and after slot release",
+        )
+    ]
+    state.candidate_resolutions = [
+        CandidateResolution(
+            candidate="Scheduler ownership state never released correctly",
+            disposition="confirmed",
+        )
+    ]
+
+    handler.save(state)
+    restored = handler.load(tmp_path / "session.md")
+
+    assert restored.waiting_on_child_human_followup is True
+    assert restored.framing_gate_passed is True
+    assert restored.resolution.human_verification_outcome == "derived_issue"
+    assert restored.resolution.agent_fail_count == 2
+    assert restored.resolution.human_reopen_count == 1
+    assert restored.observer_framing.contrarian_candidate == "Projection layer drops correct source state"
+    assert restored.observer_framing.alternative_cause_candidates[0].failure_shape == "truth_owner_logic"
+    assert restored.observer_framing.alternative_cause_candidates[0].recommended_first_probe.startswith(
+        "Inspect scheduler ownership sets"
+    )
+    assert restored.candidate_resolutions[0].disposition == "confirmed"
+
+
 def test_resolution_root_cause_string_assignment_is_normalized():
     state = DebugGraphState(slug="session", trigger="string root cause")
 
@@ -224,6 +265,25 @@ def test_handoff_report_includes_parent_return_hint(tmp_path):
 
     assert "parent-session" in report
     assert "return to the parent session" in report.lower()
+
+
+def test_handoff_report_includes_split_verification_and_human_outcome(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="human verify loop")
+    state.status = DebugStatus.AWAITING_HUMAN
+    state.resolution.verification = "success"
+    state.resolution.agent_fail_count = 1
+    state.resolution.human_reopen_count = 2
+    state.resolution.human_verification_outcome = "same_issue"
+    state.waiting_on_child_human_followup = True
+
+    report = handler.build_handoff_report(state)
+
+    assert "Agent verification status: success" in report
+    assert "Agent verification failures: 1" in report
+    assert "Human verification outcome: same_issue" in report
+    assert "Human reopen count: 2" in report
+    assert "waiting on child human follow-up" in report.lower()
 
 
 def test_research_checkpoint_is_written_for_repeated_failures(tmp_path):

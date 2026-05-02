@@ -12,6 +12,21 @@ class DebugStatus(str, Enum):
     AWAITING_HUMAN = "awaiting_human_verify"
     RESOLVED = "resolved"
 
+
+class CandidateDisposition(str, Enum):
+    CONFIRMED = "confirmed"
+    RULED_OUT = "ruled_out"
+    STILL_OPEN_BUT_DEPRIORITIZED = "still_open_but_deprioritized"
+
+
+class HumanVerificationOutcome(str, Enum):
+    PENDING = "pending"
+    PASSED = "passed"
+    SAME_ISSUE = "same_issue"
+    DERIVED_ISSUE = "derived_issue"
+    UNRELATED_ISSUE = "unrelated_issue"
+    INSUFFICIENT_FEEDBACK = "insufficient_feedback"
+
 class Focus(BaseModel):
     hypothesis: Optional[str] = None
     test: Optional[str] = None
@@ -30,9 +45,17 @@ class Symptoms(BaseModel):
 
 class ObserverCauseCandidate(BaseModel):
     candidate: str
+    failure_shape: Optional[str] = None
     why_it_fits: Optional[str] = None
     map_evidence: Optional[str] = None
     would_rule_out: Optional[str] = None
+    recommended_first_probe: Optional[str] = None
+
+
+class CandidateResolution(BaseModel):
+    candidate: str
+    disposition: CandidateDisposition
+    notes: Optional[str] = None
 
 
 class ObserverFramingState(BaseModel):
@@ -41,6 +64,7 @@ class ObserverFramingState(BaseModel):
     suspected_owning_layer: Optional[str] = None
     suspected_truth_owner: Optional[str] = None
     recommended_first_probe: Optional[str] = None
+    contrarian_candidate: Optional[str] = None
     missing_questions: List[str] = Field(default_factory=list)
     alternative_cause_candidates: List[ObserverCauseCandidate] = Field(default_factory=list)
 
@@ -141,6 +165,9 @@ class Resolution(BaseModel):
     validation_results: List[ValidationCheck] = Field(default_factory=list)
     files_changed: List[str] = Field(default_factory=list)
     fail_count: int = 0
+    agent_fail_count: int = 0
+    human_reopen_count: int = 0
+    human_verification_outcome: HumanVerificationOutcome = HumanVerificationOutcome.PENDING
     report: Optional[str] = None
     decisive_signals: List[str] = Field(default_factory=list)
     rejected_surface_fixes: List[str] = Field(default_factory=list)
@@ -167,9 +194,11 @@ class DebugGraphState(BaseModel):
     parent_slug: Optional[str] = None
     child_slugs: List[str] = Field(default_factory=list)
     resume_after_child: bool = False
+    waiting_on_child_human_followup: bool = False
     diagnostic_profile: Optional[str] = None
     observer_mode: Optional[str] = None
     observer_framing_completed: bool = False
+    framing_gate_passed: bool = False
     skip_observer_reason: Optional[str] = None
     current_node_id: Optional[str] = None
     created: datetime = Field(default_factory=datetime.now)
@@ -190,4 +219,5 @@ class DebugGraphState(BaseModel):
     context: FeatureContext = Field(default_factory=FeatureContext)
     recently_modified: List[str] = Field(default_factory=list)
     execution_intent: ExecutionIntentState = Field(default_factory=ExecutionIntentState)
+    candidate_resolutions: List[CandidateResolution] = Field(default_factory=list)
     think_subagent_prompt: Optional[str] = None
