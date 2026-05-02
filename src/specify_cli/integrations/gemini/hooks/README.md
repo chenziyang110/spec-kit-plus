@@ -9,10 +9,12 @@ workflow truth remains centralized under `src/specify_cli/hooks/`.
 
 Managed native hook coverage:
 
-- `SessionStart` renders active workflow orientation through `specify hook render-statusline`.
-- `BeforeAgent` applies shared prompt-bypass guards and soft learning-signal warnings.
-- `BeforeTool` applies shared read-boundary and inline commit-message guards.
+- `SessionStart` renders active workflow orientation and bounded resume cues.
+- `BeforeAgent` applies shared prompt-bypass guards, workflow-policy checks, and soft learning-signal warnings.
+- `BeforeTool` applies shared workflow-policy checks, read-boundary checks, and inline commit-message guards.
 
 Learning capture and terminal learning review remain explicit workflow
 responsibilities. Native hooks surface friction automatically, but they do not
 promote learnings or invent a terminal review decision without durable evidence.
+Gemini remains an ingress-only lifecycle surface until it exposes richer
+post-tool or stop-time native events.

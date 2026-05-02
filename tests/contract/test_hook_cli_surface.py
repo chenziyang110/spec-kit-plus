@@ -559,6 +559,82 @@ def test_hook_validate_commit_outputs_parseable_json(tmp_path: Path):
     assert payload["event"] == "workflow.commit.validate"
 
 
+def test_hook_workflow_policy_outputs_parseable_json(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "workflow-policy",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+            "--trigger",
+            "pre-tool",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.policy.evaluate"
+    assert payload["status"] == "repairable-block"
+
+
+def test_hook_build_compaction_outputs_parseable_json(tmp_path: Path):
+    project = _create_project(tmp_path)
+    workspace = project / ".planning" / "quick" / "260502-001-demo"
+    workspace.mkdir(parents=True, exist_ok=True)
+    (workspace / "STATUS.md").write_text(
+        "\n".join(
+            [
+                "---",
+                'id: "260502-001"',
+                'slug: "demo"',
+                'title: "Demo quick task"',
+                'status: "executing"',
+                "---",
+                "",
+                "## Current Focus",
+                "",
+                "next_action: integrate results",
+                "",
+                "## Execution",
+                "",
+                "active_lane: batch-a",
+                "",
+                "## Summary Pointer",
+                "",
+                "resume_decision: resume here",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "build-compaction",
+            "--command",
+            "quick",
+            "--workspace",
+            str(workspace),
+            "--trigger",
+            "before-stop",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.compaction.build"
+    assert "artifact_path" in payload["data"]
+
+
 def test_hook_review_learning_blocks_without_review_payload(tmp_path: Path):
     project = _create_project(tmp_path)
 

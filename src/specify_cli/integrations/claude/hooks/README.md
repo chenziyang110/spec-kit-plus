@@ -10,10 +10,11 @@ workflow truth remains centralized under `src/specify_cli/hooks/`.
 Managed native hook coverage:
 
 - `SessionStart` renders active workflow orientation through `specify hook render-statusline`.
-- `UserPromptSubmit` applies shared prompt-bypass guards.
-- `PreToolUse` applies shared read-boundary and inline commit-message guards.
-- `PostToolUse` applies session-state drift checks and soft learning-signal warnings.
-- `Stop` applies context checkpoint monitoring and soft learning-signal warnings.
+- `SessionStart` renders active workflow orientation and bounded resume cues.
+- `UserPromptSubmit` applies shared prompt-bypass guards and workflow-policy checks.
+- `PreToolUse` applies shared workflow-policy checks, read-boundary checks, and inline commit-message guards.
+- `PostToolUse` applies session-state drift checks, soft learning-signal warnings, and compaction refresh guidance.
+- `Stop` applies context checkpoint monitoring, compaction refresh, bounded resume cues, and soft learning-signal warnings.
 
 Learning capture and terminal learning review remain explicit workflow
 responsibilities. Native hooks surface friction automatically, but they do not

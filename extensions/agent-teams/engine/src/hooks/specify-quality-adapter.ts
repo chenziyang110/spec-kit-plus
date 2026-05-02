@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { packageRoot } from "../utils/paths.js";
 
-type HookStatus = "ok" | "warn" | "blocked" | "repaired";
+type HookStatus = "ok" | "warn" | "blocked" | "repaired" | "repairable-block";
 
 export interface SharedQualityHookPayload {
   event: string;
@@ -114,7 +114,7 @@ export function sharedHookBlockOutput(
   hookEventName: string,
   payload: SharedQualityHookPayload,
 ): Record<string, unknown> | null {
-  if (payload.status !== "blocked") return null;
+  if (payload.status !== "blocked" && payload.status !== "repairable-block") return null;
   const reason = payload.errors?.[0] || payload.warnings?.[0] || "shared quality hook blocked the action";
   const contextParts = dedupeOrdered([reason, ...(payload.errors ?? []), ...(payload.warnings ?? [])]);
   return {
@@ -143,6 +143,16 @@ export function appendSharedHookContext(
       lines.push(
         `Shared quality hook checkpoint prepared${stateKind ? ` from ${stateKind}` : ""}${nextAction ? `; next action: ${nextAction}` : ""}.`,
       );
+    }
+  }
+  const artifact = payload.data?.artifact as Record<string, unknown> | undefined;
+  if (artifact && typeof artifact === "object") {
+    const phaseState = artifact["phase_state"] as Record<string, unknown> | undefined;
+    const nextAction = phaseState && typeof phaseState["next_action"] === "string"
+      ? String(phaseState["next_action"])
+      : "";
+    if (nextAction) {
+      lines.push(`Resume cue: ${nextAction}.`);
     }
   }
   if (lines.length === 0) return existing;

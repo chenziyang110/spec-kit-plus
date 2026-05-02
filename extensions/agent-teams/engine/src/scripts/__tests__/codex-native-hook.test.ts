@@ -2750,6 +2750,10 @@ export async function onHookEvent(event) {
         String(output?.hookSpecificOutput?.additionalContext ?? ""),
         /next action: collect worker result/i,
       );
+      assert.match(
+        String(output?.hookSpecificOutput?.additionalContext ?? ""),
+        /Resume cue: collect worker result\./i,
+      );
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

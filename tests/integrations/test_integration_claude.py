@@ -871,6 +871,73 @@ class TestClaudeIntegration:
         assert payload["systemMessage"].startswith("checkpoint recommended before further work continues")
         assert "Resume cue: run manual scenarios from quickstart.md to validate all user stories." in payload["systemMessage"]
 
+    def test_claude_hook_dispatch_reads_compaction_resume_context_on_session_start(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-plan`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `design-only`",
+                    "- summary: demo",
+                    "",
+                    "## Next Action",
+                    "",
+                    "- refine execution approach",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        compaction_dir = tmp_path / ".specify" / "runtime" / "compaction" / "plan-001-demo"
+        compaction_dir.mkdir(parents=True, exist_ok=True)
+        (compaction_dir / "latest.json").write_text(
+            json.dumps(
+                {
+                    "phase_state": {"next_action": "finish design review"},
+                    "resume_cue": ["Resume cue: finish design review."],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "session-start"],
+            input=json.dumps({}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        hook_output = payload["hookSpecificOutput"]
+        assert "plan:design-only" in hook_output["additionalContext"]
+        assert "Resume cue: finish design review." in hook_output["additionalContext"]
+
     def test_claude_hook_dispatch_surfaces_learning_signal_on_stop(self, tmp_path):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)

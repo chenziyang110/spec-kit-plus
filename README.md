@@ -295,6 +295,8 @@ First-party workflow quality hooks:
 - `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` enforce the shared subagent execution contract.
 - `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` provide shared read-boundary and prompt-bypass guards.
 - `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` cover workflow transitions and last-mile commit integrity.
+- `specify hook workflow-policy --command <workflow> ...` returns normalized workflow enforcement outcomes, including `repairable-block` for resumable but currently invalid execution state.
+- `specify hook build-compaction --command <workflow> ...` and `read-compaction --command <workflow> ...` manage structured recovery artifacts for bounded native-session resume cues.
 - `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
 - `specify hook mark-dirty --reason "<reason>"` and `specify hook complete-refresh` are the shared product paths for project-map freshness updates.
 
@@ -302,17 +304,19 @@ Claude Code integration note:
 
 - `specify init --ai claude` installs thin native adapters in `.claude/hooks/` and merges project-local `.claude/settings.json`.
 - The current managed Claude native hook set covers:
-  - `SessionStart` statusline/orientation context derived from active workflow state
-  - `UserPromptSubmit` prompt-guard checks
-  - `PreToolUse` read-boundary and inline commit-message validation
-  - `PostToolUse` session-state drift warnings for active implement/quick/debug flows, plus soft `signal-learning` warnings when workflow state records reusable friction
-  - `Stop` context-monitor checkpoint blocking or advisory output before stop, plus soft `signal-learning` warnings when active workflow state crosses the pain threshold
+  - `SessionStart` statusline/orientation context plus bounded compaction-backed resume cues
+  - `UserPromptSubmit` prompt-guard checks plus shared workflow-policy enforcement
+  - `PreToolUse` shared workflow-policy checks, read-boundary checks, and inline commit-message validation
+  - `PostToolUse` session-state drift warnings for active implement/quick/debug flows, plus soft `signal-learning` warnings and compaction refresh guidance when workflow state records reusable friction
+  - `Stop` context-monitor checkpoint blocking or advisory output before stop, plus compaction-backed resume cues and soft `signal-learning` warnings when active workflow state crosses the pain threshold
 - These adapters are intentionally thin: they call back into the shared `specify hook ...` command surface instead of re-implementing workflow truth inside standalone Claude scripts.
 
 Codex/OMX integration note:
 
 - The OMX runtime manages Codex native hooks through `.codex/hooks.json` and `codex-native-hook.js`.
 - The managed Codex native hook set covers `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop`.
+- `SessionStart` and `Stop` can append bounded compaction-backed resume cues from the shared hook surface.
+- `UserPromptSubmit` can bridge shared workflow-policy blocking when the active workflow is being asked to jump phases unsafely.
 - `PostToolUse` and `Stop` bridge shared `specify hook signal-learning` warnings when active workflow state records reusable friction.
 - Learning capture and terminal learning review still stay in the shared `specify hook capture-learning` / `review-learning` surfaces; native Codex hooks only surface the signal.
 
@@ -320,7 +324,8 @@ Gemini integration note:
 
 - `specify init --ai gemini` installs thin native adapters in `.gemini/hooks/` and merges project-local `.gemini/settings.json`.
 - The managed Gemini native hook set covers `SessionStart`, `BeforeAgent`, and `BeforeTool`.
-- `BeforeAgent` applies shared prompt guards and soft `signal-learning` warnings when active workflow state records reusable friction.
+- `SessionStart` can append bounded compaction-backed resume cues from the shared hook surface.
+- `BeforeAgent` applies shared prompt guards, targeted workflow-policy checks for explicit phase jumps, and soft `signal-learning` warnings when active workflow state records reusable friction.
 - `BeforeTool` applies shared read-boundary and inline commit-message validation.
 - As with Claude and Codex, learning capture and terminal review remain shared `specify hook capture-learning` / `review-learning` responsibilities.
 

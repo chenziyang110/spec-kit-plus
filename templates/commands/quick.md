@@ -64,7 +64,9 @@ choosing the quick-task lane shape.
 - Once the quick workspace exists, use `{{specify-subcmd:hook preflight --command quick --workspace ".planning/quick/<id>-<slug>"}}` before deeper execution so the shared product guardrail layer can block stale brownfield routing or invalid quick-task entry.
 - After `STATUS.md` is created or resumed, use `{{specify-subcmd:hook validate-state --command quick --workspace ".planning/quick/<id>-<slug>"}}` so the shared validator confirms the quick-task source of truth is resumable.
 - Use `{{specify-subcmd:hook validate-session-state --command quick --workspace ".planning/quick/<id>-<slug>"}}` when you need a machine-readable summary of quick-task resume truth rather than trusting chat narration.
+- Before resume-sensitive continuation or phase-sensitive quick-task routing, prefer `{{specify-subcmd:hook workflow-policy --command quick --workspace ".planning/quick/<id>-<slug>" --trigger pre-tool}}`.
 - Before compaction-risk transitions, join points, or delegated fan-out, use `{{specify-subcmd:hook monitor-context --command quick --workspace ".planning/quick/<id>-<slug>"}}` and follow checkpoint recommendations with `{{specify-subcmd:hook checkpoint --command quick --workspace ".planning/quick/<id>-<slug>"}}`.
+- When you need a compact native-session recovery capsule, follow checkpointing with `{{specify-subcmd:hook build-compaction --command quick --workspace ".planning/quick/<id>-<slug>" --trigger before-stop}}`.
 - When you want a compact operator-facing summary instead of re-reading the whole file, use `{{specify-subcmd:hook render-statusline --command quick --workspace ".planning/quick/<id>-<slug>"}}`.
 
 ## Scope Gate

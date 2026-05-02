@@ -141,6 +141,14 @@ interface ActiveWorkflowContext {
   stateFile?: string;
 }
 
+function buildSharedArgsFromActiveContext(context: ActiveWorkflowContext): string[] {
+  const args = ["--command", context.commandName];
+  if (context.featureDir) args.push("--feature-dir", context.featureDir);
+  if (context.workspace) args.push("--workspace", context.workspace);
+  if (context.sessionFile) args.push("--session-file", context.sessionFile);
+  return args;
+}
+
 function safeString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -598,6 +606,20 @@ function mergeSharedStopMonitorOutput(
     return withHookSpecificAdditionalContext(nextOutput, "Stop", mergedContext);
   }
   return nextOutput;
+}
+
+async function buildSharedCompactionArgs(
+  cwd: string,
+  payload: CodexHookPayload,
+  mode: "read" | "build",
+): Promise<string[] | null> {
+  const context = await resolveLearningSignalContext(cwd, payload);
+  if (!context?.commandName) return null;
+  const args = [mode === "build" ? "build-compaction" : "read-compaction", ...buildSharedArgsFromActiveContext(context)];
+  if (mode === "build") {
+    args.push("--trigger", safeString(payload.trigger).trim() || "native_hook");
+  }
+  return args;
 }
 
 function looksLikeExecutionHandoffPrompt(prompt: string): boolean {
@@ -2199,8 +2221,10 @@ export async function dispatchCodexNativeHook(
   let outputJson: Record<string, unknown> | null = null;
   let sharedPromptGuardOutput: Record<string, unknown> | null = null;
   let sharedPromptGuardPayload: SharedQualityHookPayload | null = null;
+  let sharedWorkflowPolicyPayload: SharedQualityHookPayload | null = null;
   let sharedStopMonitorPayload: SharedQualityHookPayload | null = null;
   let sharedLearningSignalPayload: SharedQualityHookPayload | null = null;
+  let sharedCompactionPayload: SharedQualityHookPayload | null = null;
 
   if (hookEventName === "UserPromptSubmit") {
     const prompt = readPromptText(payload);
@@ -2211,6 +2235,23 @@ export async function dispatchCodexNativeHook(
       );
       if (sharedPromptGuardPayload) {
         sharedPromptGuardOutput = sharedHookBlockOutput("UserPromptSubmit", sharedPromptGuardPayload);
+      }
+      if (!sharedPromptGuardOutput) {
+        const requestedAction = /implement directly|jump to implement/i.test(prompt) ? "jump_to_implement" : "";
+        if (requestedAction) {
+          const policyArgs = await buildSharedCompactionArgs(cwd, payload, "read");
+          const context = await resolveLearningSignalContext(cwd, payload);
+          if (context?.commandName) {
+            sharedWorkflowPolicyPayload = invokeSharedQualityHook(
+              ["workflow-policy", ...buildSharedArgsFromActiveContext(context), "--trigger", "prompt", "--requested-action", requestedAction],
+              { cwd },
+            );
+            if (sharedWorkflowPolicyPayload) {
+              sharedPromptGuardOutput = sharedHookBlockOutput("UserPromptSubmit", sharedWorkflowPolicyPayload);
+            }
+          }
+          void policyArgs;
+        }
       }
     }
     if (prompt) {
@@ -2319,9 +2360,15 @@ export async function dispatchCodexNativeHook(
     const additionalContextBase = hookEventName === "SessionStart"
       ? await buildSessionStartContext(cwd, canonicalSessionId || nativeSessionId)
       : (buildAdditionalContextMessage(readPromptText(payload), skillState, cwd, payload) ?? triageAdditionalContext);
+    if (hookEventName === "SessionStart") {
+      const sharedCompactionArgs = await buildSharedCompactionArgs(cwd, payload, "read");
+      if (sharedCompactionArgs) {
+        sharedCompactionPayload = invokeSharedQualityHook(sharedCompactionArgs, { cwd });
+      }
+    }
     const additionalContext = hookEventName === "UserPromptSubmit"
-      ? appendSharedHookContext(additionalContextBase, sharedPromptGuardPayload)
-      : additionalContextBase;
+      ? appendSharedHookContext(appendSharedHookContext(additionalContextBase, sharedPromptGuardPayload), sharedWorkflowPolicyPayload)
+      : appendSharedHookContext(additionalContextBase, sharedCompactionPayload);
     if (hookEventName === "UserPromptSubmit" && sharedPromptGuardOutput) {
       outputJson = sharedPromptGuardOutput;
       if (additionalContext) {
@@ -2361,12 +2408,28 @@ export async function dispatchCodexNativeHook(
       sharedLearningSignalPayload = invokeSharedQualityHook(sharedLearningSignalArgs, { cwd });
       outputJson = mergeSharedLearningSignalOutput(outputJson, "PostToolUse", sharedLearningSignalPayload);
     }
+    const sharedCompactionArgs = await buildSharedCompactionArgs(cwd, payload, "build");
+    if (sharedCompactionArgs) {
+      sharedCompactionPayload = invokeSharedQualityHook(sharedCompactionArgs, { cwd });
+      const mergedContext = appendSharedHookContext(readHookSpecificAdditionalContext(outputJson) || null, sharedCompactionPayload);
+      if (mergedContext) {
+        outputJson = withHookSpecificAdditionalContext(outputJson, "PostToolUse", mergedContext);
+      }
+    }
   } else if (hookEventName === "Stop") {
     outputJson = await buildStopHookOutput(payload, cwd, stateDir);
     const sharedStopMonitorArgs = buildSharedStopMonitorArgs(payload);
     if (sharedStopMonitorArgs) {
       sharedStopMonitorPayload = invokeSharedQualityHook(sharedStopMonitorArgs, { cwd });
       outputJson = mergeSharedStopMonitorOutput(outputJson, sharedStopMonitorPayload);
+    }
+    const sharedCompactionArgs = await buildSharedCompactionArgs(cwd, payload, "build");
+    if (sharedCompactionArgs) {
+      sharedCompactionPayload = invokeSharedQualityHook(sharedCompactionArgs, { cwd });
+      const mergedContext = appendSharedHookContext(readHookSpecificAdditionalContext(outputJson) || null, sharedCompactionPayload);
+      if (mergedContext) {
+        outputJson = withHookSpecificAdditionalContext(outputJson, "Stop", mergedContext);
+      }
     }
     const sharedLearningSignalArgs = await buildSharedLearningSignalArgs(cwd, payload);
     if (sharedLearningSignalArgs) {

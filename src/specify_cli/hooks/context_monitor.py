@@ -47,6 +47,10 @@ def context_monitor_hook(project_root: Path, payload: dict[str, object]) -> Hook
                 "trigger": trigger or "turn-progress",
                 "context_usage_percent": usage,
                 "reasons": [],
+                "compaction": {
+                    "should_refresh": False,
+                    "reason": "",
+                },
             },
         )
 
@@ -63,6 +67,10 @@ def context_monitor_hook(project_root: Path, payload: dict[str, object]) -> Hook
                 "trigger": trigger or "turn-progress",
                 "context_usage_percent": usage,
                 "reasons": reasons,
+                "compaction": {
+                    "should_refresh": True,
+                    "reason": trigger or "turn-progress",
+                },
             },
         )
 
@@ -78,6 +86,10 @@ def context_monitor_hook(project_root: Path, payload: dict[str, object]) -> Hook
             "context_usage_percent": usage,
             "reasons": reasons,
             "checkpoint": checkpoint.data["checkpoint"],
+            "compaction": {
+                "should_refresh": True,
+                "reason": trigger or "turn-progress",
+            },
         },
     )
 
@@ -94,4 +106,3 @@ def _normalize_percent(value: object) -> int | None:
     if parsed > 100:
         return 100
     return parsed
-

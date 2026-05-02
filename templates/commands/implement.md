@@ -97,7 +97,9 @@ After checks complete, record results in `implement-tracker.md`:
 - Use `{{specify-subcmd:hook validate-session-state --command implement --feature-dir "$FEATURE_DIR"}}` before choosing the next batch so `workflow-state.md` and `implement-tracker.md` do not silently disagree about whether implementation may continue.
 - Before subagent dispatch, use `{{specify-subcmd:hook validate-packet --packet-file <packet-json>}}` so `WorkerTaskPacket` integrity is enforced through the shared hook surface instead of only by runtime convention.
 - Before accepting a subagent handoff at a join point, use `{{specify-subcmd:hook validate-result --packet-file <packet-json> --result-file <result-json>}}` so the shared `DP1`/`DP2`/`DP3` contract blocks incomplete subagent completion.
+- Before high-risk execution jumps or resume-sensitive continuation, prefer `{{specify-subcmd:hook workflow-policy --command implement --feature-dir "$FEATURE_DIR" --trigger pre-tool}}` so repairable workflow-state problems are surfaced before runtime drift becomes invisible.
 - Before compaction-risk transitions, long validation phases, join points, or subagent fan-out, use `{{specify-subcmd:hook monitor-context --command implement --feature-dir "$FEATURE_DIR"}}` and, when it recommends checkpointing, follow it with `{{specify-subcmd:hook checkpoint --command implement --feature-dir "$FEATURE_DIR"}}`.
+- When the run needs a compact native-session recovery capsule, follow checkpointing with `{{specify-subcmd:hook build-compaction --command implement --feature-dir "$FEATURE_DIR" --trigger before-stop}}`.
 - When execution changes map-level truth surfaces, prefer `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the shared dirty-mark path before recommending `/sp-map-scan` followed by `/sp-map-build`.
 
 ## Passive Project Learning Layer

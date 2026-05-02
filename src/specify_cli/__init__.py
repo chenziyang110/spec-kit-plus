@@ -4742,6 +4742,78 @@ def hook_validate_commit_command(
     )
 
 
+@hook_app.command("workflow-policy")
+def hook_workflow_policy_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    trigger: str = typer.Option("manual", "--trigger", help="Native or workflow trigger name"),
+    requested_action: str | None = typer.Option(None, "--requested-action", help="Requested high-level action"),
+):
+    """Evaluate workflow policy and return normalized enforcement JSON."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.policy.evaluate",
+        {
+            "command_name": command_name,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "workspace": _normalize_optional_repo_path(project_root, workspace),
+            "session_file": _normalize_optional_repo_path(project_root, session_file),
+            "trigger": trigger,
+            "requested_action": requested_action or "",
+        },
+    )
+
+
+@hook_app.command("build-compaction")
+def hook_build_compaction_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    trigger: str = typer.Option("manual", "--trigger", help="Compaction trigger name"),
+):
+    """Build a structured compaction artifact for resumable workflow recovery."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.compaction.build",
+        {
+            "command_name": command_name,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "workspace": _normalize_optional_repo_path(project_root, workspace),
+            "session_file": _normalize_optional_repo_path(project_root, session_file),
+            "trigger": trigger,
+        },
+    )
+
+
+@hook_app.command("read-compaction")
+def hook_read_compaction_command(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
+    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
+    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+):
+    """Read the latest structured compaction artifact for a workflow scope."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_hook_and_print(
+        project_root,
+        "workflow.compaction.read",
+        {
+            "command_name": command_name,
+            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "workspace": _normalize_optional_repo_path(project_root, workspace),
+            "session_file": _normalize_optional_repo_path(project_root, session_file),
+        },
+    )
+
+
 @hook_app.command("signal-learning")
 def hook_signal_learning_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),

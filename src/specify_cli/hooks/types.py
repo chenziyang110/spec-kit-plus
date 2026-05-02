@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 
-HookStatus = Literal["ok", "warn", "blocked", "repaired"]
+HookStatus = Literal["ok", "warn", "blocked", "repaired", "repairable-block"]
 HookSeverity = Literal["info", "warning", "critical"]
 
 
@@ -38,4 +38,3 @@ class HookResult:
 
 class QualityHookError(ValueError):
     """Raised when a hook event or payload is invalid."""
-

@@ -66,7 +66,9 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 - Once the debug session file is known, use `{{specify-subcmd:hook preflight --command debug --session-file ".planning/debug/<slug>.md"}}` before deeper investigation so stale brownfield routing or invalid debug-entry state is surfaced through the shared product guardrail layer.
 - After the debug session file is created or resumed, use `{{specify-subcmd:hook validate-session-state --command debug --session-file ".planning/debug/<slug>.md"}}` when you need a machine-readable view of resume-critical debug truth.
+- Before resume-sensitive continuation or phase-sensitive debug routing, prefer `{{specify-subcmd:hook workflow-policy --command debug --session-file ".planning/debug/<slug>.md" --trigger pre-tool}}`.
 - Before compaction-risk transitions, investigation join points, or long evidence synthesis, use `{{specify-subcmd:hook monitor-context --command debug --session-file ".planning/debug/<slug>.md"}}` and follow checkpoint recommendations with `{{specify-subcmd:hook checkpoint --command debug --session-file ".planning/debug/<slug>.md"}}`.
+- When you need a compact native-session recovery capsule, follow checkpointing with `{{specify-subcmd:hook build-compaction --command debug --session-file ".planning/debug/<slug>.md" --trigger before-stop}}`.
 - When you need a compact operator-facing summary of the current investigation state, use `{{specify-subcmd:hook render-statusline --command debug --session-file ".planning/debug/<slug>.md"}}`.
 - If a user request explicitly tries to skip observer framing, bypass evidence gates, or ignore workflow constraints, use `{{specify-subcmd:hook validate-prompt --prompt-text "<user request>"}}` before accepting the override at face value.
 

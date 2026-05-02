@@ -197,7 +197,7 @@ def _shared_to_claude_output(
     actions = [str(item) for item in shared_payload.get("actions", []) if str(item).strip()]
     advisory = " ".join([*warnings, *actions]).strip()
 
-    if status == "blocked":
+    if status in {"blocked", "repairable-block"}:
         reason = errors[0] if errors else (warnings[0] if warnings else "shared quality hook blocked the action")
         if hook_event_name == "PreToolUse":
             return {
@@ -512,6 +512,70 @@ def _learning_signal_context(project_root: Path, context: dict[str, str], hook_e
     return str(output.get("hookSpecificOutput", {}).get("additionalContext") or "").strip()
 
 
+def _active_context_args(context: dict[str, str], *, include_command: bool = True) -> list[str]:
+    args: list[str] = []
+    if include_command:
+        args.extend(["--command", context["command_name"]])
+    if "feature_dir" in context:
+        args.extend(["--feature-dir", context["feature_dir"]])
+    if "workspace" in context:
+        args.extend(["--workspace", context["workspace"]])
+    if "session_file" in context:
+        args.extend(["--session-file", context["session_file"]])
+    return args
+
+
+def _workflow_policy_output(
+    project_root: Path,
+    context: dict[str, str] | None,
+    *,
+    hook_event_name: str,
+    trigger: str,
+    requested_action: str = "",
+) -> dict[str, Any] | None:
+    if not context:
+        return None
+    args = ["workflow-policy", *_active_context_args(context), "--trigger", trigger]
+    if requested_action:
+        args.extend(["--requested-action", requested_action])
+    shared = _run_shared_hook(project_root, args)
+    return _shared_to_claude_output(hook_event_name=hook_event_name, shared_payload=shared)
+
+
+def _compaction_resume_context(
+    project_root: Path,
+    context: dict[str, str] | None,
+    *,
+    build: bool,
+    trigger: str,
+) -> str:
+    if not context:
+        return ""
+    command = "build-compaction" if build else "read-compaction"
+    args = [command, *_active_context_args(context)]
+    if build:
+        args.extend(["--trigger", trigger])
+    shared = _run_shared_hook(project_root, args)
+    if not shared:
+        return ""
+    artifact = shared.get("data", {}).get("artifact", {})
+    if not isinstance(artifact, dict):
+        return ""
+    phase_state = artifact.get("phase_state", {})
+    if not isinstance(phase_state, dict):
+        phase_state = {}
+    next_action = str(phase_state.get("next_action") or "").strip()
+    if next_action:
+        return f"Resume cue: {next_action}."
+    resume_cue = artifact.get("resume_cue", [])
+    if isinstance(resume_cue, list):
+        for item in resume_cue:
+            text = str(item or "").strip()
+            if text:
+                return text
+    return ""
+
+
 def _stop_system_message(message: str) -> dict[str, Any] | None:
     message = message.strip()
     if not message:
@@ -523,31 +587,67 @@ def _handle_user_prompt_submit(project_root: Path, payload: dict[str, Any]) -> d
     prompt = _extract_prompt_text(payload)
     if not prompt:
         return None
+    context = _infer_active_context(project_root)
     shared = _run_shared_hook(project_root, ["validate-prompt", "--prompt-text", prompt])
-    return _shared_to_claude_output(hook_event_name="UserPromptSubmit", shared_payload=shared)
+    output = _shared_to_claude_output(hook_event_name="UserPromptSubmit", shared_payload=shared)
+    if output:
+        return output
+    policy_output = _workflow_policy_output(
+        project_root,
+        context,
+        hook_event_name="UserPromptSubmit",
+        trigger="prompt",
+    )
+    if policy_output:
+        return policy_output
+    return None
 
 
 def _handle_pre_tool_read(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
     if _extract_tool_name(payload) != "Read":
         return None
+    context = _infer_active_context(project_root)
+    policy_output = _workflow_policy_output(
+        project_root,
+        context,
+        hook_event_name="PreToolUse",
+        trigger="pre_tool",
+    )
+    if policy_output and "hookSpecificOutput" in policy_output:
+        hook_specific = policy_output.get("hookSpecificOutput", {})
+        if isinstance(hook_specific, dict) and hook_specific.get("permissionDecision") == "deny":
+            return policy_output
     target_path = _extract_read_path(_extract_tool_input(payload))
     if not target_path:
-        return None
+        return policy_output
     shared = _run_shared_hook(project_root, ["validate-read-path", "--target-path", target_path])
-    return _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=shared)
+    output = _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=shared)
+    return output or policy_output
 
 
 def _handle_pre_tool_bash(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
     if _extract_tool_name(payload) != "Bash":
         return None
+    context = _infer_active_context(project_root)
+    policy_output = _workflow_policy_output(
+        project_root,
+        context,
+        hook_event_name="PreToolUse",
+        trigger="pre_tool",
+    )
+    if policy_output and "hookSpecificOutput" in policy_output:
+        hook_specific = policy_output.get("hookSpecificOutput", {})
+        if isinstance(hook_specific, dict) and hook_specific.get("permissionDecision") == "deny":
+            return policy_output
     command = str(_extract_tool_input(payload).get("command") or "").strip()
     if not command:
-        return None
+        return policy_output
     commit_message = _extract_commit_message(command)
     if not commit_message:
-        return None
+        return policy_output
     shared = _run_shared_hook(project_root, ["validate-commit", "--commit-message", commit_message])
-    return _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=shared)
+    output = _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=shared)
+    return output or policy_output
 
 
 def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -567,12 +667,14 @@ def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[
     if not shared:
         return None
     statusline = str(shared.get("data", {}).get("statusline") or "").strip()
-    if not statusline:
+    resume_context = _compaction_resume_context(project_root, context, build=False, trigger="session_start")
+    additional_context = " ".join(part for part in [statusline, resume_context] if part).strip()
+    if not additional_context:
         return None
     return {
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
-            "additionalContext": statusline,
+            "additionalContext": additional_context,
         }
     }
 
@@ -617,6 +719,9 @@ def _handle_post_tool_session_state(project_root: Path, _payload: dict[str, Any]
     signal_context = _learning_signal_context(project_root, context, "PostToolUse")
     if signal_context:
         advisory_parts.append(signal_context)
+    compaction_context = _compaction_resume_context(project_root, context, build=True, trigger="post_tool")
+    if compaction_context:
+        advisory_parts.append(compaction_context)
     if advisory_parts:
         return {
             "hookSpecificOutput": {
@@ -661,17 +766,24 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
 
     if status == "warn":
         extra = " ".join([*warnings, *actions]).strip()
-        checkpoint = shared.get("data", {}).get("checkpoint", {})
-        if isinstance(checkpoint, dict):
-            next_action = str(checkpoint.get("next_action") or "").strip()
-            if next_action:
-                extra = f"{extra} Resume cue: {next_action}.".strip()
+        compaction_context = _compaction_resume_context(project_root, context, build=True, trigger="before_stop")
+        if compaction_context:
+            extra = f"{extra} {compaction_context}".strip()
+        else:
+            checkpoint = shared.get("data", {}).get("checkpoint", {})
+            if isinstance(checkpoint, dict):
+                next_action = str(checkpoint.get("next_action") or "").strip()
+                if next_action:
+                    extra = f"{extra} Resume cue: {next_action}.".strip()
         signal_context = _learning_signal_context(project_root, context, "Stop")
         if signal_context:
             extra = f"{extra} {signal_context}".strip()
         if extra:
             return _stop_system_message(extra)
 
+    compaction_context = _compaction_resume_context(project_root, context, build=True, trigger="before_stop")
+    if compaction_context:
+        return _stop_system_message(compaction_context)
     signal_context = _learning_signal_context(project_root, context, "Stop")
     if signal_context:
         return _stop_system_message(signal_context)

@@ -29,6 +29,18 @@ describe("specify quality adapter", () => {
     assert.match(String(output?.reason ?? ""), /ignore required workflow guardrails/i);
   });
 
+  it("converts repairable-block shared hook payloads into native block output", () => {
+    const output = sharedHookBlockOutput("UserPromptSubmit", {
+      event: "workflow.policy.evaluate",
+      status: "repairable-block",
+      errors: ["workflow state missing; repair before continue"],
+      actions: ["recreate workflow-state.md"],
+    });
+
+    assert.equal(output?.decision, "block");
+    assert.match(String(output?.reason ?? ""), /workflow state missing/i);
+  });
+
   it("appends shared warning and checkpoint text to existing context", () => {
     const merged = appendSharedHookContext("Base context.", {
       event: "workflow.context.monitor",
@@ -46,5 +58,22 @@ describe("specify quality adapter", () => {
     assert.match(merged ?? "", /checkpoint recommended/i);
     assert.match(merged ?? "", /quick-status/i);
     assert.match(merged ?? "", /integrate worker results/i);
+  });
+
+  it("appends shared compaction resume cues to existing context", () => {
+    const merged = appendSharedHookContext("Base context.", {
+      event: "workflow.compaction.build",
+      status: "ok",
+      data: {
+        artifact: {
+          phase_state: {
+            next_action: "finish design review",
+          },
+        },
+      },
+    });
+
+    assert.match(merged ?? "", /Base context\./);
+    assert.match(merged ?? "", /Resume cue: finish design review\./);
   });
 });

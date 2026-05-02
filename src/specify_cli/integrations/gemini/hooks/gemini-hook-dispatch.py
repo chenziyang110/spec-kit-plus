@@ -199,7 +199,7 @@ def _shared_block_to_gemini(
     if not shared_payload:
         return None
     status = str(shared_payload.get("status") or "").strip().lower()
-    if status != "blocked":
+    if status not in {"blocked", "repairable-block"}:
         return None
     errors = [str(item) for item in shared_payload.get("errors", []) if str(item).strip()]
     warnings = [str(item) for item in shared_payload.get("warnings", []) if str(item).strip()]
@@ -471,6 +471,59 @@ def _statusline_context(project_root: Path) -> str:
     return str(shared.get("data", {}).get("statusline") or "").strip()
 
 
+def _active_context_args(context: dict[str, str]) -> list[str]:
+    args = ["--command", context["command_name"]]
+    if "feature_dir" in context:
+        args.extend(["--feature-dir", context["feature_dir"]])
+    if "workspace" in context:
+        args.extend(["--workspace", context["workspace"]])
+    if "session_file" in context:
+        args.extend(["--session-file", context["session_file"]])
+    return args
+
+
+def _compaction_resume_context(project_root: Path) -> str:
+    context = _infer_active_context(project_root)
+    if not context:
+        return ""
+    shared = _run_shared_hook(project_root, ["read-compaction", *_active_context_args(context)])
+    if not shared:
+        return ""
+    artifact = shared.get("data", {}).get("artifact", {})
+    if not isinstance(artifact, dict):
+        return ""
+    phase_state = artifact.get("phase_state", {})
+    if isinstance(phase_state, dict):
+        next_action = str(phase_state.get("next_action") or "").strip()
+        if next_action:
+            return f"Resume cue: {next_action}."
+    resume_cue = artifact.get("resume_cue", [])
+    if isinstance(resume_cue, list):
+        for item in resume_cue:
+            text = str(item or "").strip()
+            if text:
+                return text
+    return ""
+
+
+def _workflow_policy_block(project_root: Path, *, trigger: str, requested_action: str = "") -> dict[str, Any] | None:
+    if not requested_action:
+        return None
+    context = _infer_active_context(project_root)
+    if not context:
+        return None
+    args = ["workflow-policy", *_active_context_args(context), "--trigger", trigger]
+    if requested_action:
+        args.extend(["--requested-action", requested_action])
+    shared = _run_shared_hook(project_root, args)
+    if not shared:
+        return None
+    status = str(shared.get("status") or "").strip().lower()
+    if status not in {"blocked", "repairable-block"}:
+        return None
+    return _shared_block_to_gemini(shared)
+
+
 def _learning_signal_context(project_root: Path) -> str:
     context = _infer_active_context(project_root)
     if not context:
@@ -522,20 +575,32 @@ def _learning_signal_context(project_root: Path) -> str:
 
 def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[str, Any]:
     statusline = _statusline_context(project_root)
-    return {"systemMessage": statusline} if statusline else {}
+    resume_context = _compaction_resume_context(project_root)
+    message = " ".join(part for part in [statusline, resume_context] if part).strip()
+    return {"systemMessage": message} if message else {}
 
 
 def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     prompt = _extract_prompt_text(payload)
     statusline = _statusline_context(project_root)
+    resume_context = _compaction_resume_context(project_root)
     learning_signal = _learning_signal_context(project_root)
-    advisory = " ".join([statusline, learning_signal]).strip()
+    advisory = " ".join([statusline, resume_context, learning_signal]).strip()
 
     if prompt:
         shared = _run_shared_hook(project_root, ["validate-prompt", "--prompt-text", prompt])
         blocked = _shared_block_to_gemini(shared, system_message=advisory)
         if blocked:
             return blocked
+        normalized_prompt = prompt.lower()
+        requested_action = ""
+        if "implement directly" in normalized_prompt or "jump to implement" in normalized_prompt:
+            requested_action = "jump_to_implement"
+        policy_block = _workflow_policy_block(project_root, trigger="prompt", requested_action=requested_action)
+        if policy_block:
+            if advisory and not policy_block.get("systemMessage"):
+                policy_block["systemMessage"] = advisory
+            return policy_block
 
     if advisory:
         return {

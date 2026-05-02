@@ -8,6 +8,7 @@ from typing import Callable
 from .artifact_validation import validate_artifacts_hook
 from .checkpoint import checkpoint_hook
 from .commit_validation import commit_validation_hook
+from .compaction import build_compaction_hook, read_compaction_hook
 from .context_monitor import context_monitor_hook
 from .delegation import validate_join_hook, validate_packet_hook
 from .events import (
@@ -22,10 +23,13 @@ from .events import (
     WORKFLOW_PREFLIGHT,
     WORKFLOW_BOUNDARY_VALIDATE,
     WORKFLOW_COMMIT_VALIDATE,
+    WORKFLOW_COMPACTION_BUILD,
+    WORKFLOW_COMPACTION_READ,
     WORKFLOW_LEARNING_CAPTURE,
     WORKFLOW_LEARNING_INJECT,
     WORKFLOW_LEARNING_REVIEW,
     WORKFLOW_LEARNING_SIGNAL,
+    WORKFLOW_POLICY_EVALUATE,
     WORKFLOW_PHASE_BOUNDARY_VALIDATE,
     WORKFLOW_PROMPT_GUARD_VALIDATE,
     WORKFLOW_READ_GUARD_VALIDATE,
@@ -47,6 +51,7 @@ from .session_state import session_state_hook
 from .state_validation import validate_state_hook
 from .statusline import statusline_hook
 from .workflow_boundary import phase_boundary_hook, workflow_boundary_hook
+from .workflow_policy import workflow_policy_hook
 from .types import HookResult, QualityHookError
 
 
@@ -66,6 +71,9 @@ _HOOK_REGISTRY: dict[str, HookFn] = {
     WORKFLOW_BOUNDARY_VALIDATE: workflow_boundary_hook,
     WORKFLOW_PHASE_BOUNDARY_VALIDATE: phase_boundary_hook,
     WORKFLOW_COMMIT_VALIDATE: commit_validation_hook,
+    WORKFLOW_POLICY_EVALUATE: workflow_policy_hook,
+    WORKFLOW_COMPACTION_BUILD: build_compaction_hook,
+    WORKFLOW_COMPACTION_READ: read_compaction_hook,
     WORKFLOW_LEARNING_SIGNAL: learning_signal_hook,
     WORKFLOW_LEARNING_REVIEW: learning_review_hook,
     WORKFLOW_LEARNING_CAPTURE: learning_capture_hook,
