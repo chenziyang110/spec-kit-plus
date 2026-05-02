@@ -23,9 +23,11 @@
 
 ## State and Entity Lifecycles
 
-[Record state lifecycle transitions, persistent checkpoints, cache checkpoints, and coordination identifiers that downstream changes must preserve.]
+[Record state lifecycle transitions, persistent checkpoints, cache checkpoints, and coordination identifiers that downstream changes must preserve. If concurrent feature lanes exist, document lane lifecycle state, recovery state, lease expiry behavior, and reconcile-before-resume rules explicitly.]
 
 ## Failure and Recovery Flows
+
+[If power-loss or crash recovery matters, state the fail-closed rules. Record whether `uncertain` recovery states block auto-resume and how the system chooses between multiple resumable lanes.]
 
 ## Entry Points, Contracts, and Handoffs
 

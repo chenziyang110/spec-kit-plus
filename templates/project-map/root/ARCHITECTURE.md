@@ -7,7 +7,7 @@
 
 ## Pattern Overview
 
-[Name the top-level architecture pattern, deployment shape, and major module dependencies.]
+[Name the top-level architecture pattern, deployment shape, and major module dependencies. If concurrent feature lanes exist, record lanes as the execution-isolation boundary and note whether lane state is durable, rebuildable, or both.]
 
 ## High-Value Capabilities
 

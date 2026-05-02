@@ -21,12 +21,14 @@
 
 ## State and Data Semantics
 
+[When concurrent feature lanes exist, treat lane-local durable state plus real feature artifacts as truth. Describe which registry files are rebuildable caches and when branch-only active-feature heuristics are no longer authoritative.]
+
 ## Config and Option Propagation
 
 ## Comments and Docs
 
 ## Development Workflow and Review Conventions
 
-[Capture branch strategy, review expectations, and local-development conventions when they materially shape how contributors should work in this repository.]
+[Capture branch strategy, review expectations, and local-development conventions when they materially shape how contributors should work in this repository. If the project uses isolated lane branches/worktrees, document that worktree + branch isolation is mandatory for concurrent feature execution and that closeout happens through a dedicated integration workflow.]
 
 ## Testing Conventions

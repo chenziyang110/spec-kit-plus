@@ -7,11 +7,13 @@ from datetime import datetime, timezone
 from typing import Literal, cast
 
 SubagentExecutionModel = Literal["subagent-mandatory"]
-DispatchShape = Literal["one-subagent", "parallel-subagents"]
+DispatchShape = Literal["one-subagent", "parallel-subagents", "leader-inline-fallback"]
 ExecutionSurface = Literal["native-subagents"]
 NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
 DelegationConfidence = Literal["low", "medium", "high"]
-_CANONICAL_DISPATCH_SHAPES = frozenset({"one-subagent", "parallel-subagents"})
+_CANONICAL_DISPATCH_SHAPES = frozenset(
+    {"one-subagent", "parallel-subagents", "leader-inline-fallback"}
+)
 _ORDINARY_SP_COMMANDS = frozenset(
     {
         "analyze",

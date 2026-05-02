@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from specify_cli.lanes.worktree import lane_worktree_path
+
 WORKTREE_RELATIVE_ROOT = Path(".specify") / "teams" / "worktrees"
 
 
@@ -30,5 +32,6 @@ def worker_worktree_path(project_root: Path, *, session_id: str, worker_id: str)
 __all__ = [
     "WORKTREE_RELATIVE_ROOT",
     "codex_team_worktrees_root",
+    "lane_worktree_path",
     "worker_worktree_path",
 ]

@@ -1032,6 +1032,294 @@ def test_install_psmux_for_codex_teams_skips_when_already_available(monkeypatch)
     assert "already installed" in detail.lower()
 
 
+def test_root_level_feature_resolution_prefers_unique_resumable_lane(tmp_path):
+    from specify_cli import _resolve_feature_dir_for_command
+    from specify_cli.lanes.models import LaneRecord
+    from specify_cli.lanes.state_store import write_lane_index, write_lane_record
+
+    feature_dir = tmp_path / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".specify").mkdir(exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-analyze`",
+                "- status: `completed`",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.implement`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: executing",
+                "feature: 001-demo",
+                "resume_decision: resume-here",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: batch-a",
+                "goal: execute batch",
+                "next_action: collect worker result",
+                "",
+                "## Execution State",
+                "retry_attempts: 0",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    lane = LaneRecord(
+        lane_id="lane-001",
+        feature_id="001-demo",
+        feature_dir="specs/001-demo",
+        branch_name="001-demo",
+        worktree_path=".specify/lanes/worktrees/lane-001",
+        recovery_state="resumable",
+        last_command="implement",
+    )
+    write_lane_record(tmp_path, lane)
+    write_lane_index(tmp_path, {"lanes": [{"lane_id": "lane-001"}]})
+
+    resolved = _resolve_feature_dir_for_command(tmp_path, command_name="implement", feature_dir=None)
+
+    assert resolved == (tmp_path / "specs" / "001-demo").resolve()
+
+
+def test_root_level_feature_resolution_returns_none_for_ambiguous_lanes(tmp_path):
+    from specify_cli import _resolve_feature_dir_for_command
+    from specify_cli.lanes.models import LaneRecord
+    from specify_cli.lanes.state_store import write_lane_index, write_lane_record
+
+    (tmp_path / ".specify").mkdir(exist_ok=True)
+    for slug in ("001-alpha", "002-beta"):
+        feature_dir = tmp_path / "specs" / slug
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-analyze`",
+                    "- status: `completed`",
+                    "",
+                    "## Next Command",
+                    "",
+                    "- `/sp.implement`",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (feature_dir / "implement-tracker.md").write_text(
+            "\n".join(
+                [
+                    "---",
+                    "status: executing",
+                    f"feature: {slug}",
+                    "resume_decision: resume-here",
+                    "---",
+                    "",
+                    "## Current Focus",
+                    "current_batch: batch-a",
+                    "goal: execute batch",
+                    "next_action: collect worker result",
+                    "",
+                    "## Execution State",
+                    "retry_attempts: 0",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    lane_a = LaneRecord(
+        lane_id="lane-001",
+        feature_id="001-alpha",
+        feature_dir="specs/001-alpha",
+        branch_name="001-alpha",
+        worktree_path=".specify/lanes/worktrees/lane-001",
+        recovery_state="resumable",
+        last_command="implement",
+    )
+    lane_b = LaneRecord(
+        lane_id="lane-002",
+        feature_id="002-beta",
+        feature_dir="specs/002-beta",
+        branch_name="002-beta",
+        worktree_path=".specify/lanes/worktrees/lane-002",
+        recovery_state="resumable",
+        last_command="implement",
+    )
+    write_lane_record(tmp_path, lane_a)
+    write_lane_record(tmp_path, lane_b)
+    write_lane_index(tmp_path, {"lanes": [{"lane_id": "lane-001"}, {"lane_id": "lane-002"}]})
+
+    resolved = _resolve_feature_dir_for_command(tmp_path, command_name="implement", feature_dir=None)
+
+    assert resolved is None
+
+
+def test_integrate_command_is_registered(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "integrate-command"
+    project.mkdir()
+    (project / ".specify").mkdir()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(app, ["integrate", "--help"], catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0
+    assert "close out" in result.output.lower() or "closeout" in result.output.lower()
+
+
+def test_lane_register_writes_lane_record_and_index(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "lane-register"
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (project / ".specify").mkdir()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "lane",
+                "register",
+                "--lane-id",
+                "lane-001",
+                "--feature-dir",
+                str(feature_dir),
+                "--branch",
+                "001-demo",
+                "--worktree",
+                str(project / ".specify" / "lanes" / "worktrees" / "lane-001"),
+                "--command",
+                "specify",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["lane_id"] == "lane-001"
+    assert (project / ".specify" / "lanes" / "lane-001" / "lane.json").exists()
+    assert (project / ".specify" / "lanes" / "index.json").exists()
+
+
+def test_lane_resolve_returns_choose_for_ambiguous_candidates(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "lane-resolve"
+    (project / ".specify" / "lanes" / "lane-001").mkdir(parents=True)
+    (project / ".specify" / "lanes" / "lane-002").mkdir(parents=True)
+    (project / ".specify").mkdir(exist_ok=True)
+
+    for lane_id, slug in (("lane-001", "001-alpha"), ("lane-002", "002-beta")):
+        feature_dir = project / "specs" / slug
+        feature_dir.mkdir(parents=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-analyze`",
+                    "- status: `completed`",
+                    "",
+                    "## Next Command",
+                    "",
+                    "- `/sp.implement`",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (feature_dir / "implement-tracker.md").write_text(
+            "\n".join(
+                [
+                    "---",
+                    "status: executing",
+                    f"feature: {slug}",
+                    "resume_decision: resume-here",
+                    "---",
+                    "",
+                    "## Current Focus",
+                    "current_batch: batch-a",
+                    "goal: execute batch",
+                    "next_action: collect worker result",
+                    "",
+                    "## Execution State",
+                    "retry_attempts: 0",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (project / ".specify" / "lanes" / lane_id / "lane.json").write_text(
+            json.dumps(
+                {
+                    "lane_id": lane_id,
+                    "feature_id": slug,
+                    "feature_dir": f"specs/{slug}",
+                    "branch_name": slug,
+                    "worktree_path": f".specify/lanes/worktrees/{lane_id}",
+                    "lifecycle_state": "implementing",
+                    "recovery_state": "resumable",
+                    "last_command": "implement",
+                    "last_stable_checkpoint": "",
+                    "recovery_reason": "",
+                    "created_at": "2026-05-02T00:00:00+00:00",
+                    "updated_at": "2026-05-02T00:00:00+00:00",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    (project / ".specify" / "lanes" / "index.json").write_text(
+        json.dumps({"lanes": [{"lane_id": "lane-001"}, {"lane_id": "lane-002"}]}),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["lane", "resolve", "--command", "implement"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["mode"] == "choose"
+    assert len(payload["candidates"]) == 2
+
+
 def test_create_codex_teams_initial_commit_bootstraps_head(tmp_path):
     from specify_cli import _create_codex_teams_initial_commit
 

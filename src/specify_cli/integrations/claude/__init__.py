@@ -30,6 +30,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "plan": "Optional guidance for the planning phase",
     "tasks": "Optional task generation constraints",
     "implement": "Optional implementation guidance or task filter",
+    "integrate": "Optional feature lane or closeout focus for integration readiness",
     "implement-teams": "Optional implementation scope or coordination guidance for the Agent Teams run",
     "analyze": "Optional focus areas for analysis, such as boundary guardrail drift (BG1/BG2/BG3)",
     "constitution": "Principles or values for the project constitution",

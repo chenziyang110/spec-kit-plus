@@ -290,6 +290,8 @@ if ($branchName.Length -gt $maxBranchLength) {
 $featureDir = Join-Path $specsDir $branchName
 $specFile = Join-Path $featureDir 'spec.md'
 $contextFile = Join-Path $featureDir 'context.md'
+$laneId = $branchName
+$laneWorktree = Join-Path $repoRoot ".specify/lanes/worktrees/$laneId"
 
 if (-not $DryRun) {
     if ($hasGit) {
@@ -372,6 +374,8 @@ if ($Json) {
         FEATURE_DIR = $featureDir
         SPEC_FILE = $specFile
         CONTEXT_FILE = $contextFile
+        LANE_ID = $laneId
+        LANE_WORKTREE = $laneWorktree
         FEATURE_NUM = $featureNum
         HAS_GIT = $hasGit
     }
@@ -384,6 +388,8 @@ if ($Json) {
     Write-Output "FEATURE_DIR: $featureDir"
     Write-Output "SPEC_FILE: $specFile"
     Write-Output "CONTEXT_FILE: $contextFile"
+    Write-Output "LANE_ID: $laneId"
+    Write-Output "LANE_WORKTREE: $laneWorktree"
     Write-Output "FEATURE_NUM: $featureNum"
     Write-Output "HAS_GIT: $hasGit"
     if (-not $DryRun) {

@@ -97,3 +97,18 @@ def test_session_state_warns_when_implement_tracker_conflicts_with_workflow_stat
     assert result.status == "warn"
     assert any("/sp.tasks" in message for message in result.warnings)
 
+
+def test_session_state_warns_when_lane_recovery_is_uncertain(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_workflow_state(feature_dir, "/sp.tasks")
+    _write_implement_tracker(feature_dir, status="executing")
+
+    result = run_quality_hook(
+        project,
+        "workflow.session_state.validate",
+        {"command_name": "implement", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "warn"
+    assert any("/sp.tasks" in message for message in result.warnings)

@@ -22,6 +22,14 @@
 
 - [artifact that must be re-read on resume before continuing]
 
+## Lane Context
+
+- lane_id: [stable lane identifier for this feature workflow]
+- branch_name: [branch bound to this lane]
+- worktree_path: [isolated worktree bound to this lane]
+- recovery_state: `resumable | uncertain | blocked | completed`
+- last_stable_checkpoint: [most recent durable resume point]
+
 ## Atlas Read Evidence
 
 - atlas_read_completed: `true | false`

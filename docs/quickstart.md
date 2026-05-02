@@ -8,7 +8,7 @@ This guide will help you get started with Spec-Driven Development using Spec Kit
 ## The 5-Step Process
 
 > [!TIP]
-> **Context Awareness**: Spec Kit commands automatically detect the active feature based on your current Git branch (e.g., `001-feature-name`). To switch between different specifications, simply switch Git branches.
+> **Context Awareness**: In single-feature workflows, Spec Kit commands can infer the active feature from the current Git branch (for example `001-feature-name`). Once concurrent feature lanes exist, root-level `sp-*` commands should prefer lane registry plus reconcile over branch-only guessing, and `sp-auto` should resume only when there is one uniquely safe candidate.
 
 ### Step 1: Install Specify
 
@@ -156,7 +156,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- **Support skills**: `map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
+- **Support skills**: `map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`, `integrate`
 - **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:

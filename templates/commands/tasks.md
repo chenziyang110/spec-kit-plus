@@ -61,6 +61,7 @@ scripts:
 ## Outline
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+   - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command tasks}}` before guessing from branch-only context.
    - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
    - [AGENT] Create or resume `WORKFLOW_STATE_FILE` before substantial task-generation analysis.
    - Read `templates/workflow-state-template.md`.

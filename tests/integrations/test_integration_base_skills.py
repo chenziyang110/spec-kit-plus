@@ -146,6 +146,17 @@ class SkillsIntegrationTests:
         assert "active_command: sp-deep-research" in content
         assert "active_command: sp-research" not in content
 
+    def test_integrate_skill_is_generated(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        integrate_path = i.skills_dest(tmp_path) / "sp-integrate" / "SKILL.md"
+        assert integrate_path.exists()
+        content = integrate_path.read_text(encoding="utf-8").lower()
+        assert "closeout" in content or "close out" in content
+        assert "do not fold this workflow into `sp-implement`" in content
+
     def test_passive_skills_use_distinct_non_sp_namespace(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)

@@ -620,6 +620,17 @@ def test_workflow_state_template_supports_analyze_gate_phase():
     assert "/sp.constitution" in content
 
 
+def test_workflow_state_template_includes_lane_context():
+    content = _read("templates/workflow-state-template.md")
+
+    assert "## Lane Context" in content
+    assert "lane_id:" in content
+    assert "branch_name:" in content
+    assert "worktree_path:" in content
+    assert "recovery_state:" in content
+    assert "last_stable_checkpoint:" in content
+
+
 def test_debug_template_reads_constitution_and_feature_context_before_fixing() -> None:
     content = _read("templates/commands/debug.md")
 
@@ -689,6 +700,30 @@ def test_specify_template_keeps_canonical_state_tokens_but_not_universal_user_in
     assert "Default handoff: /sp-plan" not in content
     assert "Default handoff: /sp.plan" not in content
     assert "{{invoke:plan}}" in content
+    assert "{{specify-subcmd:lane register" in content
+    assert "LANE_ID" in content
+    assert "LANE_WORKTREE" in content
+
+
+def test_auto_template_requires_reconcile_before_resume():
+    content = _read("templates/commands/auto.md").lower()
+
+    assert "lane registry" in content
+    assert "reconcile" in content
+    assert "unique safe candidate" in content or "exactly one unique safe candidate" in content
+    assert "do not guess" in content
+    assert "never auto-resume an `uncertain` lane" in content
+
+
+def test_plan_tasks_and_implement_templates_prefer_lane_resolution_when_feature_dir_is_not_explicit():
+    plan = _read("templates/commands/plan.md")
+    tasks = _read("templates/commands/tasks.md")
+    implement = _read("templates/commands/implement.md")
+
+    assert "{{specify-subcmd:lane resolve --command plan}}" in plan
+    assert "{{specify-subcmd:lane resolve --command tasks}}" in tasks
+    assert "{{specify-subcmd:lane resolve --command implement}}" in implement
+    assert "uncertain" in implement.lower()
 
 
 def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research():
@@ -1335,7 +1370,11 @@ def test_create_new_feature_scripts_scaffold_and_report_context():
     assert "Resolve-Template -TemplateName 'context-template'" in ps_create
     assert "CONTEXT_FILE = $contextFile" in ps_create
     assert "FEATURE_DIR = $featureDir" in ps_create
+    assert "LANE_ID = $laneId" in ps_create
+    assert "LANE_WORKTREE = $laneWorktree" in ps_create
     assert 'CONTEXT_FILE="$FEATURE_DIR/context.md"' in sh_create
     assert 'resolve_template "context-template"' in sh_create
     assert '"CONTEXT_FILE":"%s"' in sh_create
     assert '"FEATURE_DIR":"%s"' in sh_create
+    assert '"LANE_ID":"%s"' in sh_create
+    assert '"LANE_WORKTREE":"%s"' in sh_create

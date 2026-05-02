@@ -65,6 +65,7 @@ agent_scripts:
 ## Outline
 
 1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for `FEATURE_SPEC`, `IMPL_PLAN`, `SPECS_DIR`, `BRANCH`, and `FEATURE_DIR`.
+   - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command plan}}` before guessing from branch-only context.
    - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
    - [AGENT] Create or resume `WORKFLOW_STATE_FILE` before substantial planning analysis.
    - Read `templates/workflow-state-template.md`.

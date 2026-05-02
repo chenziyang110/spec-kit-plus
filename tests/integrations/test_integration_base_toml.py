@@ -154,6 +154,17 @@ class TomlIntegrationTests:
         assert "active_command: sp-deep-research" in prompt
         assert "active_command: sp-research" not in prompt
 
+    def test_integrate_command_is_generated(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        integrate_path = i.commands_dest(tmp_path) / i.command_filename("integrate")
+        assert integrate_path.exists()
+        content = integrate_path.read_text(encoding="utf-8").lower()
+        assert "closeout" in content or "close out" in content
+        assert "do not fold this workflow into `sp-implement`" in content
+
     def test_runtime_commands_hard_gate_project_map_reads(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)

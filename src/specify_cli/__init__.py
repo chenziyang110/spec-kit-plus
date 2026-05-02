@@ -120,6 +120,15 @@ from specify_cli.project_map_status import (
     refresh_project_map_topics,
     write_project_map_status,
 )
+from specify_cli.lanes import (
+    LaneRecord,
+    append_lane_event,
+    collect_integration_candidates,
+    read_lane_record,
+    rebuild_lane_index,
+    resolve_lane_for_command,
+    write_lane_record,
+)
 
 def _build_agent_config() -> dict[str, dict[str, Any]]:
     """Derive AGENT_CONFIG from INTEGRATION_REGISTRY."""
@@ -499,6 +508,12 @@ eval_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(eval_app, name="eval")
+lane_app = typer.Typer(
+    name="lane",
+    help="Inspect and manage concurrent feature lanes",
+    add_completion=False,
+)
+app.add_typer(lane_app, name="lane")
 
 def show_banner():
     """Display the ASCII art banner."""
@@ -3284,6 +3299,45 @@ def _normalize_optional_repo_path(project_root: Path, raw_value: str | None) -> 
     return str(path)
 
 
+def _resolve_feature_dir_for_command(
+    project_root: Path,
+    *,
+    command_name: str,
+    feature_dir: str | None,
+) -> Path | None:
+    if feature_dir:
+        resolved = Path(feature_dir)
+        return resolved if resolved.is_absolute() else (project_root / resolved).resolve()
+
+    lane_result = resolve_lane_for_command(project_root, command_name=command_name)
+    if lane_result.mode == "resume" and lane_result.selected_lane_id:
+        lane = read_lane_record(project_root, lane_result.selected_lane_id)
+        if lane is not None:
+            return (project_root / lane.feature_dir).resolve()
+    return None
+
+
+def _print_lane_resolution_json(result: Any) -> None:
+    payload = {
+        "mode": result.mode,
+        "selected_lane_id": result.selected_lane_id,
+        "reason": result.reason,
+        "candidates": [
+            {
+                "lane_id": candidate.lane_id,
+                "feature_id": candidate.feature_id,
+                "feature_dir": candidate.feature_dir,
+                "last_command": candidate.last_command,
+                "recovery_state": candidate.recovery_state,
+                "last_stable_checkpoint": candidate.last_stable_checkpoint,
+                "recovery_reason": candidate.recovery_reason,
+            }
+            for candidate in result.candidates
+        ],
+    }
+    print(json.dumps(payload, ensure_ascii=False))
+
+
 def _resolve_result_context(
     project_root: Path,
     *,
@@ -3361,6 +3415,91 @@ def _resolve_result_context(
 
     console.print(f"[red]Error:[/red] Unsupported result command '{command_name}'.")
     raise typer.Exit(1)
+
+
+@lane_app.command("register")
+def lane_register(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory for this lane"),
+    branch: str = typer.Option(..., "--branch", help="Git branch bound to the lane"),
+    worktree: str = typer.Option(..., "--worktree", help="Worktree path bound to the lane"),
+    command_name: str = typer.Option(..., "--command", help="Workflow command updating the lane"),
+    lane_id: str = typer.Option(..., "--lane-id", help="Stable lane identifier"),
+):
+    """Register or update a concurrent feature lane."""
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _normalize_optional_repo_path(project_root, feature_dir)
+    resolved_worktree = _normalize_optional_repo_path(project_root, worktree)
+    if resolved_feature_dir is None or resolved_worktree is None:
+        console.print("[red]Error:[/red] --feature-dir and --worktree are required.")
+        raise typer.Exit(1)
+
+    record = LaneRecord(
+        lane_id=lane_id,
+        feature_id=Path(resolved_feature_dir).name,
+        feature_dir=Path(resolved_feature_dir).relative_to(project_root).as_posix(),
+        branch_name=branch,
+        worktree_path=Path(resolved_worktree).relative_to(project_root).as_posix()
+        if Path(resolved_worktree).is_absolute()
+        else Path(resolved_worktree).as_posix(),
+        last_command=command_name.strip().lower(),
+    )
+    write_lane_record(project_root, record)
+    append_lane_event(
+        project_root,
+        lane_id,
+        {
+            "event": "lane_registered",
+            "lane_id": lane_id,
+            "feature_dir": record.feature_dir,
+            "branch_name": record.branch_name,
+            "worktree_path": record.worktree_path,
+            "command_name": record.last_command,
+        },
+    )
+    payload = rebuild_lane_index(project_root)
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "lane_id": lane_id,
+                "feature_dir": record.feature_dir,
+                "branch_name": record.branch_name,
+                "worktree_path": record.worktree_path,
+                "index_lane_count": len(payload.get("lanes", [])),
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
+@lane_app.command("resolve")
+def lane_resolve(
+    command_name: str = typer.Option(..., "--command", help="Workflow command name"),
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Explicit feature directory override"),
+):
+    """Resolve the lane for a resumable workflow command."""
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    if feature_dir:
+        resolved = _normalize_optional_repo_path(project_root, feature_dir)
+        print(
+            json.dumps(
+                {
+                    "mode": "resume",
+                    "selected_lane_id": "",
+                    "reason": "explicit-feature-dir",
+                    "feature_dir": resolved,
+                    "candidates": [],
+                },
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    _print_lane_resolution_json(resolve_lane_for_command(project_root, command_name=command_name))
 
 
 @teams_app.callback(invoke_without_command=True)
@@ -4552,6 +4691,55 @@ def version():
             "[dim]If a new workflow command is missing, remove stale pip/conda/uv tool installs or move the latest entry earlier on PATH.[/dim]"
         )
     console.print()
+
+
+@app.command("integrate")
+def integrate(
+    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory to close out"),
+):
+    """Inspect candidate lanes for closeout through the integrate workflow."""
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+
+    if feature_dir:
+        resolved = _resolve_feature_dir_for_command(
+            project_root,
+            command_name="integrate",
+            feature_dir=feature_dir,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "ok" if resolved is not None else "blocked",
+                    "mode": "targeted",
+                    "feature_dir": str(resolved) if resolved is not None else None,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    candidates = collect_integration_candidates(project_root)
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "mode": "discovery",
+                "candidates": [
+                    {
+                        "lane_id": lane.lane_id,
+                        "feature_id": lane.feature_id,
+                        "feature_dir": lane.feature_dir,
+                        "branch_name": lane.branch_name,
+                        "recovery_state": lane.recovery_state,
+                    }
+                    for lane in candidates
+                ],
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 @app.command()

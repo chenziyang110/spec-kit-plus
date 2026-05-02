@@ -32,12 +32,14 @@ Its job is to read current repository state, identify the recommended next Spec 
 ## Context
 
 - Primary inputs are the repository's authoritative workflow state surfaces, not chat memory.
+- Use the lane registry as a candidate-discovery cache, not as the truth source.
 - `sp-auto` does not create a new long-lived state file of its own.
 - It exists to continue the already-canonical workflow step recorded elsewhere.
 
 ## Process
 
 - Inspect the current repository state surfaces in priority order.
+- When concurrent lanes exist, resolve candidates by command semantics first and run reconcile before any resume decision.
 - Resolve exactly one safe canonical next command.
 - Continue under that command's full shared contract instead of improvising a blended workflow.
 
@@ -54,6 +56,8 @@ Its job is to read current repository state, identify the recommended next Spec 
 - Always obey the recorded upstream gate.
 - Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.tasks`, `/sp.analyze`, `/sp.implement`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`.
 - If state is missing, stale, conflicting, or cannot identify one safe next step, stop in read-only diagnosis and report the exact blocker instead of improvising a route.
+- Do not guess when multiple resumable lanes exist.
+- Never auto-resume an `uncertain` lane.
 
 ## Operating Rules
 
@@ -87,6 +91,9 @@ Inspect the available state surfaces in this order and prefer the most specific 
 
 Choose exactly one routed command.
 
+- If lane state exists, consult the lane registry first to discover candidate lanes, then reconcile against real workflow artifacts before selecting a route.
+- Auto-resume only when there is exactly one unique safe candidate.
+- If multiple candidates remain after reconcile, stop and present a minimal choice instead of guessing.
 - Prefer the route that is already recorded in the highest-authority active state file.
 - If multiple state surfaces are active, prefer the more execution-proximate surface only when it does not conflict with an explicit upstream `next_command`.
 - Never bypass canonical upstream gates such as `/sp.clarify`, `/sp.deep-research`, `/sp.plan`, `/sp.tasks`, or `/sp.analyze` just because downstream artifacts already exist.

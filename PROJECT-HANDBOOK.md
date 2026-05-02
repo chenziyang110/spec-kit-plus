@@ -21,6 +21,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 
 - **Project initialization and generated agent surfaces**: `specify init` resolves `--ai` or `--integration`, installs command/skill/workflow files, copies scripts/templates, and records integration manifests. Read `.specify/project-map/root/INTEGRATIONS.md` and `modules/specify-cli-core/ARCHITECTURE.md`.
 - **Workflow contract generation**: `templates/commands/`, `templates/command-partials/`, and `templates/passive-skills/` define `sp-*` behavior for downstream agents. Read `.specify/project-map/root/WORKFLOWS.md` and `modules/templates-generated-surfaces/WORKFLOWS.md`.
+- **Concurrent lane runtime**: `src/specify_cli/lanes/` adds lane-local durable state, reconcile-before-resume routing, and dedicated lane closeout primitives for independent feature execution.
 - **Enriched task contract generation**: `sp-tasks` produces subagent-ready task contracts with agent role assignment, context navigation pointers, write/read/forbidden scope boundaries, verify commands, and escalation strategy — enabling `sp-implement` to dispatch subagents directly without leader clarification.
 - **Spec quality gate (`spec-lint`)**: `tools/spec-lint/` is a zero-dependency Go binary that mechanically validates spec artifact sets against 8 tiered quality checks before `sp-plan`. Install scripts, CI cross-compilation, and the quality gate spec live alongside the tool. Read `templates/spec-quality-gate.md`.
 - **Brownfield atlas lifecycle**: `map-scan -> map-build` is the required stale/missing context gate. It produces scan packets, worker-result evidence, layered root/module docs, and freshness metadata. Read `.specify/project-map/root/OPERATIONS.md`.
@@ -58,6 +59,7 @@ The entry layer should help answer:
 ## Shared Surfaces
 
 - `src/specify_cli/__init__.py`: top-level Typer app, command registration, init flow, project-map/hook/learning/testing/eval/team helper commands.
+- `src/specify_cli/lanes/`: lane registry cache, lane-local durable state, lease helpers, reconcile logic, root-level lane resolution, and integrate closeout helpers.
 - `src/specify_cli/integrations/base.py` and `src/specify_cli/integrations/__init__.py`: integration registry, shared generation bases, template processing, passive skill installation, manifest behavior.
 - `templates/`: command templates, command partials, passive skills, project-map/testing templates, worker prompts, constitution/spec/plan/tasks artifacts.
 - `scripts/bash/` and `scripts/powershell/`: generated helper layer and freshness/context-update scripts.
@@ -77,6 +79,7 @@ The entry layer should help answer:
 
 - Agent registration metadata propagates into CLI help, integration generation tests, README guidance, generated file paths, and tool checks.
 - Template wording propagates into every generated agent surface and template assertion tests.
+- Lane registry semantics and reconcile rules propagate into root-level routing, workflow templates, feature-creation scripts, hook diagnostics, and generated documentation.
 - Subagents-first dispatch vocabulary propagates into orchestration tests, generated workflow tests, integration tests, README/quickstart guidance, context scripts, and project-map docs.
 - Layered atlas routing now propagates from `templates/project-handbook-template.md`, `templates/project-map/QUICK-NAV.md`, `templates/project-map/index/atlas-index.json`, and `templates/project-map/map-state-template.md` into initialized projects, map refresh helpers, and project-map tests.
 - Packet/result schema changes propagate into execution helpers, hooks, Codex team runtime, generated workflow prompts, and contract tests.

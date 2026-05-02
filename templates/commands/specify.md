@@ -97,11 +97,12 @@ Generate the pre-analysis output as the first section of `context.md`.
    - If the value is `"timestamp"`, add `--timestamp` or `-Timestamp`.
    - If the value is `"sequential"` or missing, use default numbering.
    - Do not pass `--number`.
-   - Parse `BRANCH_NAME`, `SPEC_FILE`, and `FEATURE_DIR` from the JSON response.
+   - Parse `BRANCH_NAME`, `SPEC_FILE`, `FEATURE_DIR`, `LANE_ID`, and `LANE_WORKTREE` from the JSON response.
    - Set `ALIGNMENT_FILE` to `FEATURE_DIR/alignment.md`.
    - Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`.
    - Set `REFERENCES_FILE` to `FEATURE_DIR/references.md`.
    - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
+   - Register or refresh the lane immediately with `{{specify-subcmd:lane register --lane-id "$LANE_ID" --feature-dir "$FEATURE_DIR" --branch "$BRANCH_NAME" --worktree "$LANE_WORKTREE" --command specify}}`.
    - [AGENT] Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known.
    - Read `templates/workflow-state-template.md`.
    - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.

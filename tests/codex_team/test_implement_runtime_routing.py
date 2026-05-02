@@ -23,16 +23,14 @@ def test_sp_implement_documents_canonical_decision_order() -> None:
     content = _step_6_block()
 
     decision_order = content[content.find("decision order (must match policy):") :]
-    fallback = decision_order.find("leader-inline-fallback")
     one_subagent = decision_order.find("one safe validated packet is ready and native subagents are available")
     parallel_subagents = decision_order.find("multiple safe validated packets have isolated write sets")
-    managed_team = decision_order.find("native subagents are unavailable")
+    blocked = decision_order.find("if overlapping write sets, no safe delegated lane, missing packet, unavailable runtime, or low confidence")
 
-    assert fallback != -1
     assert one_subagent != -1
     assert parallel_subagents != -1
-    assert managed_team != -1
-    assert fallback < one_subagent < parallel_subagents < managed_team
+    assert blocked != -1
+    assert blocked < one_subagent < parallel_subagents
 
 
 def test_sp_implement_preserves_join_point_semantics() -> None:
@@ -49,9 +47,9 @@ def test_sp_implement_preserves_join_point_semantics() -> None:
 def test_sp_implement_distinguishes_execution_modes() -> None:
     content = _step_6_block()
 
-    assert "execution_model: subagents-first" in content
-    assert "dispatch_shape: one-subagent | parallel-subagents | leader-inline-fallback" in content
-    assert "execution_surface: native-subagents | managed-team | leader-inline" in content
+    assert "execution_model: subagent-mandatory" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in content
+    assert "execution_surface: native-subagents" in content
     assert "decision order" in content
     assert "specify team" not in content
     assert "auto-dispatch" not in content

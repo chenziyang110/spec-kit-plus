@@ -13,12 +13,26 @@ def test_worker_worktree_path_is_rooted_within_project(codex_team_project_root):
     assert actual == expected
 
 
+def test_lane_worktree_path_is_rooted_within_project(codex_team_project_root):
+    expected = codex_team_project_root / ".specify" / "lanes" / "worktrees" / "lane-001"
+    actual = worktree_ops.lane_worktree_path(codex_team_project_root, lane_id="lane-001")
+    assert actual == expected
+
+
 def test_worker_worktree_path_rejects_escape(codex_team_project_root):
     with pytest.raises(ValueError):
         worktree_ops.worker_worktree_path(
             codex_team_project_root,
             session_id="..",
             worker_id="worker",
+        )
+
+
+def test_lane_worktree_path_rejects_escape(codex_team_project_root):
+    with pytest.raises(ValueError):
+        worktree_ops.lane_worktree_path(
+            codex_team_project_root,
+            lane_id="../escape",
         )
 
 

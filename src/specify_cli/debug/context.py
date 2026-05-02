@@ -3,6 +3,9 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 import yaml
+
+from specify_cli.lanes.resolution import resolve_lane_for_command
+
 from .schema import FeatureContext
 
 class ContextLoader:
@@ -10,7 +13,15 @@ class ContextLoader:
         self.root_dir = root_dir or Path.cwd()
 
     def find_active_feature(self) -> Optional[Path]:
-        """Find feature dir in specs/* with newest tasks.md."""
+        """Find the active feature, preferring a uniquely safe lane."""
+
+        resolved = resolve_lane_for_command(self.root_dir, command_name="auto")
+        if resolved.mode == "resume" and resolved.selected_lane_id:
+            for candidate in resolved.candidates:
+                if candidate.lane_id == resolved.selected_lane_id:
+                    return self.root_dir / candidate.feature_dir
+
+        # Legacy fallback for repositories that do not yet use lane state.
         specs_dir = self.root_dir / "specs"
         if not specs_dir.exists():
             return None

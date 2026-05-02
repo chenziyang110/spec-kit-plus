@@ -104,6 +104,7 @@ def test_dispatch_shape_and_execution_surface_literals_are_canonical():
     assert get_args(DispatchShape) == (
         "one-subagent",
         "parallel-subagents",
+        "leader-inline-fallback",
     )
     assert get_args(ExecutionSurface) == (
         "native-subagents",
