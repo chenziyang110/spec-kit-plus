@@ -837,7 +837,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.",
             "- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.",
             "- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.",
-            "- Use `sp-test` as the compatibility router for project-level testing work; it routes to `sp-test-scan` for evidence and build planning, or `sp-test-build` for leader-managed testing-system construction.",
+            "- Use `sp-test-scan` for project-level testing evidence and build planning, and `sp-test-build` for leader-managed testing-system construction.",
             "",
             "## Delegated Execution Defaults",
             "",
@@ -2603,7 +2603,6 @@ SKILL_DESCRIPTIONS = {
     "analyze": "Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution.",
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
     "checklist": "Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.",
-    "test": "Use when you need a compatibility entrypoint that routes project-level testing system work into scan or build phases.",
     "test-scan": "Use when you need a deep, read-only scan that turns a repository's testing gaps into a build-ready unit-test system plan.",
     "test-build": "Use when a completed test-system scan exists and you need to build or refresh the repository's unit testing system through leader-managed execution waves.",
     "map-scan": "Use when handbook/project-map coverage is missing, stale, or insufficient and you need a complete project scan package before atlas construction.",
@@ -3200,7 +3199,6 @@ def init(
     steps_lines.append("   Support skills")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-scan')}[/] - Scan the complete project tree and produce the coverage ledger plus scan packets for existing-code mapping")
     steps_lines.append(f"   - [cyan]{_display_cmd('map-build')}[/] - Build or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` from a complete map-scan package before specification or planning")
-    steps_lines.append(f"   - [cyan]{_display_cmd('test')}[/] - Route testing-system work to scan or build while preserving backward compatibility")
     steps_lines.append(f"   - [cyan]{_display_cmd('test-scan')}[/] - Deep-scan the testing surface and produce build-ready lanes")
     steps_lines.append(f"   - [cyan]{_display_cmd('test-build')}[/] - Build the unit testing system from scan-approved lanes with leader/subagent coordination")
     steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")

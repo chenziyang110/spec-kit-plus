@@ -1,4 +1,4 @@
-"""Repository testing inventory helpers for the sp-test workflow."""
+"""Repository testing inventory helpers for the testing workflows."""
 
 from __future__ import annotations
 

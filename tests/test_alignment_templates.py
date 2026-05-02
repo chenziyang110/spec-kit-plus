@@ -60,7 +60,6 @@ def test_core_sp_templates_use_learning_review_hooks():
         "plan": "templates/commands/plan.md",
         "tasks": "templates/commands/tasks.md",
         "analyze": "templates/commands/analyze.md",
-        "test": "templates/commands/test.md",
         "test-scan": "templates/commands/test-scan.md",
         "test-build": "templates/commands/test-build.md",
         "implement": "templates/commands/implement.md",
@@ -913,7 +912,6 @@ def test_workflow_state_driven_templates_prefer_capture_auto_for_learning_closeo
         ("templates/commands/plan.md", "plan"),
         ("templates/commands/tasks.md", "tasks"),
         ("templates/commands/analyze.md", "analyze"),
-        ("templates/commands/test.md", "test"),
         ("templates/commands/test-scan.md", "test-scan"),
         ("templates/commands/test-build.md", "test-build"),
     ):

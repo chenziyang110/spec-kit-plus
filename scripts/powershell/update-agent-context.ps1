@@ -166,7 +166,6 @@ function Get-SpecKitManagedBlock {
             '- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.'
             '- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.'
             '- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.'
-            '- Use `sp-test` as the compatibility router for project-level testing work.'
             '- Use `sp-test-scan` when testing-system coverage needs read-only evidence, risk tiering, module-by-module gap analysis, or build-ready lanes.'
             '- Use `sp-test-build` when scan-approved lanes should construct or refresh the unit testing system through leader/subagent execution.'
             ''

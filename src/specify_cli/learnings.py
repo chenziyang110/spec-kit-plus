@@ -50,7 +50,6 @@ KNOWN_COMMANDS = (
     "sp-checklist",
     "sp-tasks",
     "sp-analyze",
-    "sp-test",
     "sp-test-scan",
     "sp-test-build",
     "sp-implement",
@@ -237,7 +236,7 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
     if normalized_type == "routing_mistake":
         return ["sp-fast", "sp-quick", "sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"]
     if normalized_type == "verification_gap":
-        return ["sp-test", "sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", "sp-quick"]
+        return ["sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", "sp-quick"]
     if normalized_type == "state_surface_gap":
         return [
             "sp-specify",
@@ -964,7 +963,7 @@ def _suggest_test_auto_capture(project_root: Path) -> tuple[Path, list[AutoCaptu
             AutoCaptureSuggestion(
                 learning_type="workflow_gap",
                 summary="Testing-system open gaps should drive an explicit follow-up route before later workflows resume",
-                recurrence_key="test.open-gaps-require-explicit-follow-up-route",
+                recurrence_key="test-scan.open-gaps-require-explicit-follow-up-route",
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from testing-state.md",
                     [
@@ -985,7 +984,7 @@ def _suggest_test_auto_capture(project_root: Path) -> tuple[Path, list[AutoCaptu
             AutoCaptureSuggestion(
                 learning_type="project_constraint",
                 summary="Brownfield testing programs should start from UNIT_TEST_SYSTEM_REQUEST instead of ad-hoc implementation work",
-                recurrence_key="test.brownfield-programs-start-from-unit-test-system-request",
+                recurrence_key="test-scan.brownfield-programs-start-from-unit-test-system-request",
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from testing-state.md",
                     [
@@ -1004,7 +1003,7 @@ def _suggest_test_auto_capture(project_root: Path) -> tuple[Path, list[AutoCaptu
             AutoCaptureSuggestion(
                 learning_type="verification_gap",
                 summary="Testing-system completion requires explicit manual validation evidence in testing-state",
-                recurrence_key="test.complete-state-requires-manual-validation-evidence",
+                recurrence_key="test-scan.complete-state-requires-manual-validation-evidence",
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from testing-state.md",
                     [
@@ -1465,7 +1464,7 @@ def capture_auto_learning(
         if workspace is None:
             raise ValueError("workspace is required for quick auto-capture")
         source_path, suggestions = _suggest_quick_auto_capture(workspace)
-    elif normalized_command in {"sp-test", "sp-test-scan", "sp-test-build"}:
+    elif normalized_command in {"sp-test-scan", "sp-test-build"}:
         source_path, suggestions = _suggest_test_auto_capture(project_root)
     elif normalized_command in WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS:
         if feature_dir is None:

@@ -81,7 +81,7 @@ def test_fast_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert "do not use manual sanity checks as a substitute for red" in content
     assert "docs-only" in content or "docs only" in content
     assert "if no reliable automated test surface exists" in content
-    assert "/sp-test" in content
+    assert "/sp-test-scan" in content
 
 
 def test_fast_template_routes_unknown_root_cause_bugfixes_to_debug() -> None:

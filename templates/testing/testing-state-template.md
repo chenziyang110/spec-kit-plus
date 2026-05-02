@@ -1,5 +1,5 @@
 ---
-active_command: sp-test
+active_command: sp-test-scan
 status: routing
 mode: bootstrap
 scan_status: pending

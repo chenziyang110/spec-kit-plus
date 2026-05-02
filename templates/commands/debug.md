@@ -361,7 +361,7 @@ The session file must always make it clear:
 - Enter `fixing` only after the root cause is confirmed.
 - Write a failing automated repro test before changing production code.
 - Do not modify production behavior until the RED state is proven.
-- If no reliable automated test surface exists for the failing behavior, add the missing harness first or route through `/sp-test` (which can route to `/sp-test-scan`) before code changes.
+- If no reliable automated test surface exists for the failing behavior, add the missing harness first or route through `/sp-test-scan` before code changes.
 - Apply the minimum code change needed to address that root cause.
 - Fix the owning control-plane failure first. Do not treat a UI/status smoothing change as sufficient unless the closed loop is proven healthy end-to-end.
 - Classify the fix before verification:

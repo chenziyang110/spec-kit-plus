@@ -39,8 +39,8 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
-    assert "specify learning start --command debug --format json" in content
-    assert "specify learning capture --command debug" in content
+    assert "learning start --command debug --format json" in content
+    assert "capture-learning --command debug" in content or "learning capture --command debug" in content
     assert "project-map hard gate" in content
     assert "must pass an atlas gate before" in content
     assert "read `project-handbook.md`" in content
@@ -114,7 +114,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "write a failing automated repro test before changing production code" in content
     assert "do not modify production behavior until the red state is proven" in content
     assert "if no reliable automated test surface exists for the failing behavior" in content
-    assert "add the missing harness first or route through `/sp-test`" in content
+    assert "add the missing harness first or route through `/sp-test-scan`" in content
     assert "record which plausible causes were considered and which were ruled out" in content
     assert "surface-only" in content
     assert "cannot satisfy the debug contract" in content

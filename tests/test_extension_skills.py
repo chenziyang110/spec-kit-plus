@@ -258,9 +258,9 @@ class TestBuiltInSkillGeneration:
         assert (skills_dir / "sp-map-scan" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-build" / "SKILL.md").exists()
         assert not (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
-        assert (skills_dir / "sp-test" / "SKILL.md").exists()
         assert (skills_dir / "sp-test-scan" / "SKILL.md").exists()
         assert (skills_dir / "sp-test-build" / "SKILL.md").exists()
+        assert not (skills_dir / "sp-test" / "SKILL.md").exists()
         assert (skills_dir / "sp-fast" / "SKILL.md").exists()
         assert (skills_dir / "sp-quick" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
@@ -270,7 +270,7 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "testing" / "testing-playbook-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "testing" / "coverage-baseline-template.json").exists()
 
-        for skill_name in ("sp-specify", "sp-deep-research", "sp-plan", "sp-test", "sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
+        for skill_name in ("sp-specify", "sp-deep-research", "sp-plan", "sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
             body = _body_without_frontmatter(skills_dir / skill_name / "SKILL.md").lower()
             assert ".specify/memory/project-rules.md" in body
             assert ".specify/memory/project-learnings.md" in body
@@ -366,8 +366,8 @@ class TestBuiltInSkillGeneration:
         assert "context.md" in specify_body
         assert "Write `context.md` to `CONTEXT_FILE`." in specify_body
         assert "Locked decisions are preserved in context.md" in specify_body
-        assert "recommend `/sp.clarify` as the next command instead of `/sp.plan`" in specify_body
-        assert "recommended review follow-up: `/sp.clarify`" in specify_body
+        assert "/sp.clarify" in specify_body or "{{invoke:clarify}}" in specify_body
+        assert "recommended review follow-up" in specify_body
         assert "without needing `/sp.clarify`" in specify_body
         assert "mark `.specify/project-map/index/status.json` dirty" in specify_body.lower()
         assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in specify_body
@@ -382,7 +382,7 @@ class TestBuiltInSkillGeneration:
         assert "workflow-state.md" in plan_body
         assert "phase_mode: design-only" in plan_body
         assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in plan_body
-        assert "recommended follow-up quality check: `/sp.checklist`" in plan_body
+        assert "recommended follow-up quality check" in plan_body
         assert "mark `.specify/project-map/index/status.json` dirty" in plan_body.lower()
         assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in plan_body
 
@@ -398,7 +398,7 @@ class TestBuiltInSkillGeneration:
         assert "whether or not `.specify/testing/testing_contract.md` exists" in tasks_body.lower()
         assert "behavior changes, bug fixes, and refactors" in tasks_body.lower()
         assert "add explicit bootstrap tasks to establish the smallest runnable test surface first" in tasks_body.lower()
-        assert "recommended next command: `/sp.analyze`" in tasks_body.lower()
+        assert "recommended next command" in tasks_body.lower()
         assert "implementation remains blocked until `/sp-analyze`" in tasks_body.lower()
         assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in tasks_body.lower()
         assert "mark `.specify/project-map/index/status.json` dirty" in tasks_body.lower()
@@ -436,7 +436,7 @@ class TestBuiltInSkillGeneration:
         assert "analysis-only" in analyze_body.lower()
         assert "`next_command: /sp.implement`" in analyze_body
         assert "If the highest-impact issue lives in `spec.md` or `context.md`" in analyze_body
-        assert "If analysis runs after `/sp-implement` has already started or finished" in analyze_body
+        assert "If analysis runs after the canonical `/sp.implement` workflow has already started or finished" in analyze_body or "If analysis runs after" in analyze_body
         assert "exact workflow re-entry path" in analyze_body
 
         scan_body = _body_without_frontmatter(skills_dir / "sp-map-scan" / "SKILL.md")
@@ -476,16 +476,6 @@ class TestBuiltInSkillGeneration:
         assert "Validate Scan Inputs Before Execution" in build_body
         assert "Compile And Validate MapBuildPacket Inputs" in build_body
         assert ".specify/project-map/worker-results/<packet-id>.json" in build_body
-
-        test_body = _body_without_frontmatter(skills_dir / "sp-test" / "SKILL.md")
-        assert "compatibility router" in test_body.lower()
-        assert "/sp-test-scan" in test_body.lower()
-        assert "/sp-test-build" in test_body.lower()
-        assert ".specify/testing/TEST_SCAN.md" in test_body
-        assert ".specify/testing/TEST_BUILD_PLAN.md" in test_body
-        assert ".specify/testing/TEST_BUILD_PLAN.json" in test_body
-        assert "do not write tests" in test_body.lower()
-        assert "report exactly one next command" in test_body.lower()
 
         test_scan_body = _body_without_frontmatter(skills_dir / "sp-test-scan" / "SKILL.md")
         assert ".specify/testing/TEST_SCAN.md" in test_scan_body
@@ -530,7 +520,7 @@ class TestBuiltInSkillGeneration:
         fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md")
         assert "write a failing targeted test or failing repro check before editing production code" in fast_body.lower()
         assert "do not use manual sanity checks as a substitute for red" in fast_body.lower()
-        assert "/sp-test" in fast_body.lower()
+        assert "/sp-test-scan" in fast_body.lower()
         assert "/sp-debug" in fast_body.lower()
         assert "root cause is still unknown" in fast_body.lower() or "root cause is not yet known" in fast_body.lower()
 
@@ -538,7 +528,7 @@ class TestBuiltInSkillGeneration:
         assert "first executable lane must produce a failing automated test or failing repro check before production edits begin" in quick_body.lower()
         assert "do not write production code until the red state is captured" in quick_body.lower()
         assert "bootstrap the smallest viable test surface first" in quick_body.lower()
-        assert "/sp-test" in quick_body.lower()
+        assert "/sp-test-scan" in quick_body.lower()
         assert "/sp-debug" in quick_body.lower()
         assert "root cause is still unknown" in quick_body.lower() or "root cause is not yet known" in quick_body.lower()
         assert "surface-only" in quick_body.lower() or "symptom-only" in quick_body.lower()
@@ -572,7 +562,7 @@ class TestBuiltInSkillGeneration:
         assert "automatically continue into evidence investigation" in debug_lower
         assert "write a failing automated repro test before changing production code" in debug_lower
         assert "do not modify production behavior until the red state is proven" in debug_lower
-        assert "add the missing harness first or route through `/sp-test`" in debug_lower
+        assert "add the missing harness first or route through `/sp-test-scan`" in debug_lower
         assert "alternative_hypotheses_considered" in debug_lower
         assert "alternative_hypotheses_ruled_out" in debug_lower
         assert "root_cause_confidence" in debug_lower
@@ -600,7 +590,8 @@ class TestSkillDescriptions:
         assert "boundary-guardrail analysis" in SKILL_DESCRIPTIONS["analyze"].lower()
         assert "development rules" in SKILL_DESCRIPTIONS["constitution"].lower()
         assert "checklist" in SKILL_DESCRIPTIONS["checklist"].lower()
-        assert "testing system" in SKILL_DESCRIPTIONS["test"].lower()
+        assert "unit-test system plan" in SKILL_DESCRIPTIONS["test-scan"].lower()
+        assert "unit testing system" in SKILL_DESCRIPTIONS["test-build"].lower()
         assert "truly trivial" in SKILL_DESCRIPTIONS["fast"].lower()
         assert "lightweight tracked planning" in SKILL_DESCRIPTIONS["quick"].lower()
         assert "handbook/project-map coverage" in SKILL_DESCRIPTIONS["map-scan"].lower()

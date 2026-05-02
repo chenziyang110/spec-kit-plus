@@ -23,26 +23,8 @@ def _assert_mandatory_subagent_guidance(content: str) -> None:
 
 
 def test_testing_workflow_templates_require_mandatory_subagent_guidance():
-    _assert_mandatory_subagent_guidance(_read("templates/commands/test.md"))
     _assert_mandatory_subagent_guidance(_read("templates/commands/test-scan.md"))
     _assert_mandatory_subagent_guidance(_read("templates/commands/test-build.md"))
-
-
-def test_test_template_routes_to_scan_or_build():
-    content = _read("templates/commands/test.md")
-    lowered = content.lower()
-
-    assert "## Workflow Contract Summary" in content
-    assert "compatibility router" in lowered
-    assert "/sp-test-scan" in content
-    assert "/sp-test-build" in content
-    assert ".specify/testing/TEST_SCAN.md".lower() in lowered
-    assert ".specify/testing/TEST_BUILD_PLAN.md".lower() in lowered
-    assert ".specify/testing/TEST_BUILD_PLAN.json".lower() in lowered
-    assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md".lower() in lowered
-    assert ".specify/testing/testing-state.md" in lowered
-    assert "do not write tests" in lowered
-    assert "report exactly one next command" in lowered
 
 
 def test_test_scan_template_deep_scans_and_emits_build_plan():
@@ -225,7 +207,7 @@ def test_testing_state_tracks_scan_and_build_lifecycle():
     state_template = _read("templates/testing/testing-state-template.md")
     lowered = state_template.lower()
 
-    assert "active_command: sp-test" in state_template
+    assert "active_command: sp-test-scan" in state_template
     assert "scan_status" in lowered
     assert "build_status" in lowered
     assert "test_scan" in lowered

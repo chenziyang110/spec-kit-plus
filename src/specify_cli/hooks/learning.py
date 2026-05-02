@@ -164,7 +164,7 @@ def derive_injection_targets(command_name: str, learning_type: str) -> list[str]
     normalized_type = normalize_learning_type(learning_type)
     targets_by_type = {
         "routing_mistake": ["spec-kit-workflow-routing", "sp-fast", "sp-quick", "sp-specify"],
-        "verification_gap": ["sp-test", "sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", ".specify/testing/TESTING_CONTRACT.md"],
+        "verification_gap": ["sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", ".specify/testing/TESTING_CONTRACT.md"],
         "state_surface_gap": ["workflow-state.md", "implement-tracker.md", "STATUS.md", "sp-implement", "sp-quick"],
         "map_coverage_gap": ["sp-map-scan", "sp-map-build", "PROJECT-HANDBOOK.md", ".specify/project-map/"],
         "tooling_trap": ["sp-debug", "sp-implement", "sp-map-scan", "sp-map-build"],

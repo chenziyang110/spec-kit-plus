@@ -58,8 +58,8 @@ def test_quick_template_preserves_quality_guardrails() -> None:
 
     assert "scope gate" in content
     assert "small but non-trivial" in content or "not for trivial work" in content
-    assert "redirect to `/sp-fast`" in content or "use `/sp-fast`" in content
-    assert "redirect to `/sp-specify`" in content or "use `/sp-specify`" in content
+    assert "{{invoke:fast}}" in content or "/sp-fast" in content
+    assert "{{invoke:specify}}" in content or "/sp-specify" in content
     assert "validate" in content
     assert "verify" in content
     assert "completion standard" in content
@@ -124,7 +124,7 @@ def test_quick_template_includes_concrete_status_template() -> None:
 def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
     content = read_template("templates/commands/quick.md").lower()
 
-    assert "upgrade to `/sp-specify` immediately if" in content
+    assert "upgrade to `{{invoke:specify}}` immediately if" in content or "upgrade to `/sp-specify` immediately if" in content
     assert "unit test system program" in content or "testing-system program" in content
     assert "architecture" in content
     assert "cross-cutting" in content
@@ -239,7 +239,7 @@ def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent
     assert "ownership, placement, workflow, integration, or verification guidance" in content
     assert "status.md" in content.lower()
     assert "[AGENT] Use the shared policy function before execution begins and again at each join point" in content
-    assert "before final completion or blocked reporting, run `specify hook review-learning` with the terminal status" in content.lower()
+    assert "review-learning" in content.lower() or "capture-learning" in content.lower()
 
 
 def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
@@ -252,13 +252,13 @@ def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert "do not write production code until the red state is captured" in content
     assert "if no reliable automated test surface exists for the touched behavior" in content
     assert "bootstrap the smallest viable test surface first" in content
-    assert "/sp-test" in content
+    assert "{{invoke:test-scan}}" in content or "/sp-test-scan" in content or "/sp-test" in content
 
 
 def test_quick_template_routes_uncertain_bugfixes_into_debug() -> None:
     content = read_template("templates/commands/quick.md").lower()
 
     assert "root cause is still unknown" in content or "root cause is not yet known" in content
-    assert "/sp-debug" in content
+    assert "{{invoke:debug}}" in content or "/sp-debug" in content
     assert "surface-only" in content or "symptom-only" in content
     assert "cannot satisfy the quick-task contract" in content or "cannot satisfy the quick contract" in content

@@ -175,11 +175,6 @@ class TestInitIntegrationFlag:
             assert "execution_surface: native-subagents" in content
             assert "specify team" not in content
 
-        test_router = (skills_dir / "sp-test" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "compatibility router" in test_router
-        assert "/sp-test-scan" in test_router
-        assert "/sp-test-build" in test_router
-
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert 'choose_subagent_dispatch(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
@@ -429,7 +424,9 @@ def test_check_reports_missing_project_launcher_in_spec_kit_project(tmp_path, mo
         assert "$sp-implement" in result.output
         assert "$sp-implement-teams" in result.output
         assert "$sp-checklist" in result.output
-        assert "$sp-test" in result.output
+        assert "$sp-test" not in result.output
+        assert "$sp-test-scan" in result.output
+        assert "$sp-test-build" in result.output
         assert "$sp-analyze" in result.output
         assert "$sp-auto" in result.output
         assert "$sp-explain" in result.output
@@ -495,7 +492,9 @@ def test_check_reports_missing_project_launcher_in_spec_kit_project(tmp_path, mo
         assert "/sp-implement" in result.output
         assert "/sp-implement-teams" in result.output
         assert "/sp-checklist" in result.output
-        assert "/sp-test" in result.output
+        assert "/sp-test" not in result.output
+        assert "/sp-test-scan" in result.output
+        assert "/sp-test-build" in result.output
         assert "/sp-analyze" in result.output
         assert "/sp-auto" in result.output
         assert "seeded default constitution" in result.output.lower()

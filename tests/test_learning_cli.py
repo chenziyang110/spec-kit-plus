@@ -510,7 +510,8 @@ def test_learning_start_exposes_confirmed_project_constraint_warning_for_all_wor
         "checklist",
         "tasks",
         "analyze",
-        "test",
+        "test-scan",
+        "test-build",
         "implement",
         "debug",
         "fast",
@@ -828,7 +829,8 @@ def test_project_constraint_default_applies_to_includes_test_and_map_codebase(tm
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     applies_to = payload["entry"]["applies_to"]
-    assert "sp-test" in applies_to
+    assert "sp-test-scan" in applies_to
+    assert "sp-test-build" in applies_to
     assert "sp-map-scan" in applies_to
     assert "sp-map-build" in applies_to
 
@@ -1194,7 +1196,7 @@ def test_learning_capture_auto_test_extracts_followup_route_and_validation_gaps(
             "learning",
             "capture-auto",
             "--command",
-            "test",
+            "test-scan",
             "--format",
             "json",
         ],
@@ -1204,9 +1206,9 @@ def test_learning_capture_auto_test_extracts_followup_route_and_validation_gaps(
     payload = json.loads(result.stdout)
     keys = [entry["recurrence_key"] for entry in payload["captured"]]
     assert payload["status"] == "captured"
-    assert "test.open-gaps-require-explicit-follow-up-route" in keys
-    assert "test.complete-state-requires-manual-validation-evidence" in keys
-    assert "test.brownfield-programs-start-from-unit-test-system-request" in keys
+    assert "test-scan.open-gaps-require-explicit-follow-up-route" in keys
+    assert "test-scan.complete-state-requires-manual-validation-evidence" in keys
+    assert "test-scan.brownfield-programs-start-from-unit-test-system-request" in keys
 
 
 def test_learning_capture_auto_plan_extracts_route_reason_false_starts_and_constraints(tmp_path: Path) -> None:

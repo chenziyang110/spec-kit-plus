@@ -83,7 +83,7 @@ Upgrade to `/sp-specify` immediately if:
    - If the task is behavior-changing rather than docs-only, write a failing targeted test or failing repro check before editing production code.
    - The task contract must include that RED gate before production edits.
    - Do not use manual sanity checks as a substitute for red when behavior changes.
-   - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-test` (which routes to `/sp-test-scan`) or `/sp-quick` instead of hand-waving the verification gap.
+   - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-test-scan` or `/sp-quick` instead of hand-waving the verification gap.
    - For bug fixes and regressions, the task contract must record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
    - Dispatch one subagent for the lane.
    - Wait for the structured handoff before verification.

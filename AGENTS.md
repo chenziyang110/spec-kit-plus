@@ -48,7 +48,7 @@ specify -> plan
 
 Treat `CLARIFY` as the optional enhancement path when an existing spec needs deeper analysis before planning.
 Treat `sp-deep-research` as the optional feasibility and planning handoff gate when the requirements are clear but one or more capabilities still need coordinated research, external evidence, an implementation chain proof, or a disposable demo before planning. Its findings and demo evidence must become explicit inputs to `sp-plan`; do not require it for minor adjustments to existing, already-proven capabilities.
-Treat `sp-test` as the compatibility router for project-level testing-system work. Use `sp-test-scan` for read-only evidence, risk tiering, and build-ready lane planning; use `sp-test-build` for leader/subagent construction of the unit testing system from scan-approved lanes. Brownfield coverage programs start from `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` emitted by `sp-test-scan`, while preserving the mainline `specify -> plan` guidance.
+Treat `sp-test-scan` and `sp-test-build` as the primary testing-system workflows. Brownfield coverage programs start from `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` emitted by `sp-test-scan`, while preserving the mainline `specify -> plan` guidance.
 
 ---
 
@@ -579,7 +579,6 @@ When adding new agents:
 - Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning. Before handing off to plan, run `spec-lint -dir <FEATURE_DIR>` to mechanically verify the artifact set; fix failures before proceeding.
 - Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.
 - Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
-- Use `sp-test` as the compatibility router for project-level testing work.
 - Use `sp-test-scan` when testing-system coverage needs read-only evidence, risk tiering, module-by-module gap analysis, or build-ready lanes.
 - Use `sp-test-build` when scan-approved lanes should construct or refresh the unit testing system through leader/subagent execution.
 - Use `sp-tasks` to produce enriched task contracts with agent assignment, context navigation, scope boundaries, and verify commands — enabling subagents to execute without asking the leader for clarification.

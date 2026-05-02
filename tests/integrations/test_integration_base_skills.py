@@ -482,7 +482,8 @@ class SkillsIntegrationTests:
         assert "sp-specify" in content
         assert "sp-deep-research" in content
         assert "sp-debug" in content
-        assert "sp-test" in content
+        assert "sp-test-scan" in content
+        assert "sp-test-build" in content
         assert "## Artifact Priority" in content
         assert "workflow-state.md" in content
         assert "alignment.md" in content

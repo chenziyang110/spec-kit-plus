@@ -42,8 +42,6 @@ complete and proceed.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
-- Use `sp-test` as the compatibility router when the repository needs project-level
-  testing-system work but the user did not name scan or build.
 - Use `sp-test-scan` when the repository needs read-only testing-system evidence,
   module risk tiers, coverage-gap analysis, or build-ready test lanes.
 - Use `sp-test-build` when `TEST_SCAN.md` and `TEST_BUILD_PLAN.md/json` exist and
@@ -84,7 +82,6 @@ user what to type:
 - Implementation execution: `{{invoke:implement}}`
 - Debugging route: `{{invoke:debug}}`
 - Map refresh detour: `{{invoke:map-scan}} -> {{invoke:map-build}}`
-- Testing system router: `{{invoke:test}}`
 
 ## Subagent Routing
 

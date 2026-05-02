@@ -201,7 +201,7 @@ Kimi.
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- Support skills: `map-scan`, `map-build`, `test`, `test-scan`, `test-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
+- Support skills: `map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
 - Codex-only runtime: `sp-teams`
 
 Conditional gates and follow-up commands:
@@ -209,7 +209,6 @@ Conditional gates and follow-up commands:
 - `map-scan` followed by `map-build` is the required brownfield gate for an existing generated project or downstream codebase; generate the complete scan package first, then refresh `PROJECT-HANDBOOK.md` and that project's `.specify/project-map/` before specification, planning, task generation, or implementation continues
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `map-scan` followed by `map-build` as the follow-up refresh workflow
-- `test` as the backward-compatible router for project-level testing work; it routes to `test-scan` when evidence or build lanes are missing and to `test-build` when scan artifacts are ready for execution
 - `test-scan` to run a deep, read-only testing-system scan using leader-managed scout subagents, then write `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, and `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`
 - `test-build` to consume scan-approved lanes, coordinate leader/subagent test-building waves, update tests/fixtures/config as authorized by lane packets, bootstrap or refresh bundled language testing skills, establish a coverage baseline, capture manual validation evidence, and write the durable testing contract plus standard test/coverage playbook
 - `auto` to resume the recommended next workflow step from current repository state; it reads canonical state surfaces such as `workflow-state.md`, `implement-tracker.md`, `.specify/testing/testing-state.md`, quick-task `STATUS.md`, and debug session files, then continues under the routed workflow's contract without rewriting downstream `next_command` to `sp-auto`
@@ -233,7 +232,7 @@ Routing guide for lightweight work:
 - `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
 - Both `sp-fast` and `sp-quick` still pass the atlas hard gate first: read `PROJECT-HANDBOOK.md`, the Layer 1 atlas entry surface, freshness/index state, and the relevant root/module atlas documents before source reads continue.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
-- Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` now follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, route through `sp-test` or directly to `sp-test-scan` before continuing.
+- Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` now follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, route directly to `sp-test-scan` before continuing.
 - For brownfield repositories with weak legacy coverage, let `sp-test-scan` generate `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and treat it as the starting artifact for any testing-system program or coverage uplift program that must continue through `sp-specify`, `sp-quick`, or `sp-fast`; use `sp-test-build` only once build-ready lanes exist.
 - Quick workspaces now live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the task source of truth and `.planning/quick/index.json` as a derived management index.
 - Invoking `sp-quick` with no arguments should resume unfinished quick work when possible. If only one unfinished quick task exists, continue it automatically. `blocked` quick tasks still count as resumable unfinished work.

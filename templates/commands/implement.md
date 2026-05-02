@@ -396,7 +396,7 @@ until the atlas gate has passed.
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
    - **Hard TDD gate**: Write the failing test first for every behavior-changing task, bug fix, or refactor.
    - **Hard TDD gate**: Do not write production code for the batch until the RED state is verified.
-   - **Testing surface gate**: If no reliable automated test surface exists for the touched behavior, add the smallest viable test-surface bootstrap step first or stop and route through `/sp-test` or `/sp-test-scan` before continuing.
+   - **Testing surface gate**: If no reliable automated test surface exists for the touched behavior, add the smallest viable test-surface bootstrap step first or stop and route through `/sp-test-scan` before continuing.
    - **Testing contract is binding when present**: If `.specify/testing/TESTING_CONTRACT.md` exists, add or update the required failing tests or regression tests before treating a behavior change as complete.
    - **File-based coordination**: Tasks affecting the same files must run sequentially
    - **Shared-surface coordination**: Treat shared registration files, router tables, export barrels, dependency injection containers, and similar coordination points as write conflicts even if the main feature files differ

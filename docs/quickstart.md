@@ -156,7 +156,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- **Support skills**: `map-scan`, `map-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
+- **Support skills**: `map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
 - **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -393,7 +393,7 @@ Finally, implement the solution:
 - **Use `specify -> plan` as the default path**
 - **Use `clarify` only when an existing spec needs deeper analysis before planning**
 - **Use `deep-research` only when feasibility or the implementation chain must be proven before planning, and preserve its Planning Handoff as plan input; treat `research` as a compatibility alias, not a separate workflow**
-- **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, run `sp-test` first so it can route to `sp-test-scan` for deep evidence gathering, then use `sp-test-build` when scan-approved lanes can bootstrap the bundled language testing skills, establish a coverage baseline, leave manual validation evidence behind, and emit `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` for any brownfield testing-system program or coverage uplift program that needs follow-on routing
+- **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, run `sp-test-scan` first for deep evidence gathering, then use `sp-test-build` when scan-approved lanes can bootstrap the bundled language testing skills, establish a coverage baseline, leave manual validation evidence behind, and emit `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` for any brownfield testing-system program or coverage uplift program that needs follow-on routing.
 - **Validate** the plan before coding begins
 - **Let the AI agent handle** the implementation details
 

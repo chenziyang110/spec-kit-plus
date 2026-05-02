@@ -160,6 +160,5 @@ The entry layer should help answer:
 - The layered project-map atlas now treats `QUICK-NAV.md` as the canonical Layer 1 routing surface and includes it in canonical atlas outputs and freshness requirements.
 - Layer 1 now behaves like a dictionary-style atlas entry surface with symptom routing, shared-surface hotspots, verification routes, and propagation-risk routes.
 - Ordinary `sp-*` workflows now treat atlas consumption as a hard gate before source-level work, instead of a warn-only layered hint.
-- The old one-step map-codebase path was replaced with `sp-map-scan -> sp-map-build`.
 - The layered project-map atlas now has explicit scan packets, worker-result evidence, root/module docs, reverse coverage validation, and freshness completion.
-- Testing workflow guidance now routes through `sp-test`, `sp-test-scan`, and `sp-test-build`.
+- Testing workflow guidance now centers `sp-test-scan` and `sp-test-build`.

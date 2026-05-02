@@ -13,7 +13,9 @@ def test_workflow_routing_references_map_gate_and_project_learning_roles() -> No
 
     assert "spec-kit-project-map-gate" in content
     assert "spec-kit-project-learning" in content
-    assert "sp-test" in content
+    assert "sp-test-scan" in content
+    assert "sp-test-build" in content
+    assert "{{invoke:test}}" not in content
     assert "sp-auto" in content
     assert "sp-deep-research" in content
     assert "implementation chain" in content or "implementation-chain" in content
@@ -85,9 +87,9 @@ def test_project_learning_focuses_on_memory_triggers_storage_and_promotion() -> 
     assert "capture heuristics" in content
     assert "promotion heuristics" in content
     assert "injection goal" in content
-    assert "specify learning start --command <command-name>" in content
-    assert "specify hook review-learning --command <command-name>" in content
-    assert "specify hook capture-learning --command <command-name>" in content
+    assert "learning start --command <command-name>" in content
+    assert "hook review-learning --command <command-name>" in content
+    assert "hook capture-learning --command <command-name>" in content
     assert "native hooks are an optional enhancement" in content
     assert "without native hooks" in content
     assert "single high-signal candidates should still appear in start-time warnings" in content

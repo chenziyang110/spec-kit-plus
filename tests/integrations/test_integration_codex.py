@@ -336,15 +336,6 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "workflow_state_file" in content
         assert "re-read `workflow_state_file`" in content or "re-read `workflow-state-file`" in content
 
-    test_router = (skills_dir / "sp-test" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "specify team" not in test_router
-    assert "compatibility router" in test_router
-    assert "testing-state.md" in test_router
-    assert "testing_state_file" in test_router or "testing-state-file" in test_router
-    assert "route to `sp-test-scan`" in test_router
-    assert "`sp-test-build`" in test_router
-    assert "do not dispatch subagents from `sp-test` itself" in test_router
-
     test_scan_content = (skills_dir / "sp-test-scan" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert "testscanpacket" in test_scan_content
     assert "read-only scout work" in test_scan_content

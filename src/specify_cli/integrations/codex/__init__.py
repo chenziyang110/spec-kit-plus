@@ -215,21 +215,6 @@ class CodexIntegration(SkillsIntegration):
             created,
             project_root,
             manifest,
-            skills_dir / "sp-test" / "SKILL.md",
-            f"## {agent_name} Subagents-First Dispatch",
-            (
-                "\n"
-                f"## {agent_name} Subagents-First Dispatch\n\n"
-                f"When running `sp-test` in {agent_name}, treat it as a compatibility router, not the scan or build executor.\n"
-                "- Do not dispatch subagents from `sp-test` itself; route to `sp-test-scan` for read-only evidence fan-out or `sp-test-build` for execution fan-out.\n"
-                "- If the route is `sp-test-scan` or `sp-test-build`, let that routed command own `spawn_agent`, `wait_agent`, and `close_agent` behavior.\n"
-                "- Persist the routing decision in `.specify/testing/testing-state.md` before handoff.\n"
-            ),
-        )
-        self._augment_shared_skill(
-            created,
-            project_root,
-            manifest,
             skills_dir / "sp-test-scan" / "SKILL.md",
             f"## {agent_name} Subagents-First Dispatch",
             (
