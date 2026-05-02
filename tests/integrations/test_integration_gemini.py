@@ -48,7 +48,7 @@ class TestGeminiIntegration(TomlIntegrationTests):
     def test_setup_installs_hook_assets_and_settings_json(self, tmp_path):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
-        created = integration.setup(tmp_path, manifest, script_type="sh")
+        integration.setup(tmp_path, manifest, script_type="sh")
 
         hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
         settings_path = tmp_path / ".gemini" / "settings.json"
