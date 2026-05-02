@@ -1724,6 +1724,7 @@ def test_lane_status_lists_registered_lanes(tmp_path):
     assert payload["lanes"][0]["verification_status"] == "unknown"
     assert payload["lanes"][0]["ready_for_integrate"] is False
     assert payload["lanes"][0]["suggested_next_command"] == "implement"
+    assert payload["lanes"][0]["inferred_command"] == "implement"
 
 
 def test_lane_resolve_returns_choose_for_ambiguous_candidates(tmp_path):
@@ -1817,6 +1818,7 @@ def test_lane_resolve_returns_choose_for_ambiguous_candidates(tmp_path):
     assert len(payload["candidates"]) == 2
     assert "verification_status" in payload["candidates"][0]
     assert "worktree_exists" in payload["candidates"][0]
+    assert "inferred_command" in payload["candidates"][0]
 
 
 def test_lane_resolve_explicit_feature_dir_can_ensure_worktree(tmp_path):
@@ -1877,8 +1879,33 @@ def test_lane_resolve_explicit_feature_dir_can_ensure_worktree(tmp_path):
     payload = json.loads(result.output)
     assert payload["mode"] == "resume"
     assert payload["selected_lane_id"] == "lane-001"
+    assert payload["candidates"][0]["inferred_command"] == "specify"
     assert payload["worktree"]["status"] in {"created", "existing"}
     assert (project / ".specify" / "lanes" / "worktrees" / "lane-001").exists()
+
+
+def test_lane_resolve_explicit_feature_dir_blocks_when_no_lane_matches(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "lane-resolve-no-lane"
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (project / ".specify").mkdir()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            ["lane", "resolve", "--command", "plan", "--feature-dir", str(feature_dir)],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["mode"] == "blocked"
+    assert payload["reason"] == "feature-dir-has-no-registered-lane"
 
 
 def test_create_codex_teams_initial_commit_bootstraps_head(tmp_path):

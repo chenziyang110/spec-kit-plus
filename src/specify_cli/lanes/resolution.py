@@ -29,7 +29,7 @@ def _candidate_lane_ids(project_root: Path) -> list[str]:
     return lane_ids
 
 
-def _inferred_command_name(project_root: Path, lane) -> str:
+def infer_lane_command_name(project_root: Path, lane) -> str:
     feature_dir = project_root / lane.feature_dir
     tracker_path = feature_dir / "implement-tracker.md"
     workflow_path = feature_dir / "workflow-state.md"
@@ -60,7 +60,7 @@ def resolve_lane_for_command(project_root: Path, *, command_name: str) -> LaneRe
         lane = read_lane_record(project_root, lane_id)
         if lane is None:
             continue
-        inferred_command = _inferred_command_name(project_root, lane)
+        inferred_command = infer_lane_command_name(project_root, lane)
         if normalized_command != "auto" and inferred_command != normalized_command:
             continue
 
