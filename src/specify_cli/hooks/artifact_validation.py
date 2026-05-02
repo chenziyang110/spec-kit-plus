@@ -78,6 +78,21 @@ PRD_COVERAGE_REQUIRED_TOKENS = (
     "Overall Status",
 )
 
+PRD_OPTIONAL_CONTROL_ARTIFACTS: dict[str, tuple[Path, tuple[str, ...]]] = {
+    "capability-triage.md": (
+        Path("capability-triage.md"),
+        ("## Core Value Proposition", "## Capability Tiers"),
+    ),
+    "depth-policy.md": (
+        Path("depth-policy.md"),
+        ("## Tier Expectations",),
+    ),
+    "quality-check.md": (
+        Path("quality-check.md"),
+        ("## Gates",),
+    ),
+}
+
 DEEP_RESEARCH_NOT_NEEDED_STATUS_RE = re.compile(
     r"(?im)^\*\*Status\*\*:\s*(?:\[)?Not needed(?:\])?\s*$"
 )
@@ -242,6 +257,10 @@ def _validate_prd_artifacts(feature_dir: Path) -> list[str]:
             "exports/prd.md",
         )
     )
+    for label, (relative_path, required_sections) in PRD_OPTIONAL_CONTROL_ARTIFACTS.items():
+        artifact_path = feature_dir / relative_path
+        if artifact_path.exists():
+            errors.extend(_validate_markdown_contains(artifact_path, required_sections, label))
     return errors
 
 

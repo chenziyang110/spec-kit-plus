@@ -40,6 +40,14 @@ Required context inputs:
 
 Create a run workspace under `.specify/prd-runs/<run-id>/` and treat `.specify/prd-runs/<run-id>/workflow-state.md` as the resumable source of truth for phase, project classification, coverage state, open unknowns, blocked surfaces, and export readiness.
 
+Optional control artifacts may also exist under `.specify/prd-runs/<run-id>/`:
+
+- `capability-triage.md` for explicit capability IDs, tiers, and evidence sources
+- `depth-policy.md` for tier-by-tier reconstruction expectations
+- `quality-check.md` for quality-gate tracking during synthesis and export review
+
+These optional control artifacts strengthen depth-aware execution when present, but they do not replace the required artifact set or the master-pack-first contract.
+
 Classify the project before synthesis as one of:
 
 - `ui` - UI-heavy product, application, site, console, dashboard, or interaction surface.

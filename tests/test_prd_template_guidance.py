@@ -108,3 +108,12 @@ def test_prd_template_requires_depth_aware_coverage_and_quality_gates() -> None:
     assert "Critical Depth Gate" in content
     assert "Traceability Gate" in content
     assert "Export Integrity Gate" in content
+
+
+def test_prd_template_references_optional_control_artifacts() -> None:
+    content = _content()
+
+    assert "capability-triage.md" in content
+    assert "depth-policy.md" in content
+    assert "quality-check.md" in content
+    assert "optional control artifacts" in content.lower()

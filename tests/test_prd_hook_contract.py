@@ -214,3 +214,19 @@ def test_prd_artifact_validation_blocks_missing_depth_aware_sections(tmp_path: P
     assert any("coverage-matrix.md is missing depth-aware columns" in message for message in result.errors)
     assert any("master/master-pack.md is missing required section" in message for message in result.errors)
     assert any("exports/prd.md is missing required section" in message for message in result.errors)
+
+
+def test_prd_artifact_validation_allows_missing_optional_control_artifacts(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "prd-runs" / "260503-optional-control-artifacts"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    _write_complete_prd_artifacts(run_dir)
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "prd", "feature_dir": str(run_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
