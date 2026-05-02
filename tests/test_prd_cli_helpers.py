@@ -51,6 +51,9 @@ def test_bash_prd_init_creates_run_workspace_and_emits_json(tmp_path: Path):
     assert (run_dir / "master" / "exports").is_dir()
     assert (run_dir / "workflow-state.md").is_file()
     assert (run_dir / "coverage-matrix.md").is_file()
+    assert (run_dir / "capability-triage.md").is_file()
+    assert (run_dir / "depth-policy.md").is_file()
+    assert (run_dir / "quality-check.md").is_file()
     workflow_state = (run_dir / "workflow-state.md").read_text(encoding="utf-8")
     assert "- active_command: `sp-prd`" in workflow_state
     assert "- phase_mode: `analysis-only`" in workflow_state
@@ -62,6 +65,9 @@ def test_bash_prd_init_creates_run_workspace_and_emits_json(tmp_path: Path):
         "master_exports": True,
         "workflow_state": True,
         "coverage_matrix": True,
+        "capability_triage": True,
+        "depth_policy": True,
+        "quality_check": True,
     }
 
 
@@ -85,6 +91,9 @@ def test_bash_prd_status_reports_missing_and_present_surfaces(tmp_path: Path):
         "master_exports": False,
         "workflow_state": True,
         "coverage_matrix": False,
+        "capability_triage": False,
+        "depth_policy": False,
+        "quality_check": False,
     }
     assert payload["complete"] is False
 
@@ -110,6 +119,9 @@ def test_powershell_prd_helper_matches_bash_init_contract(tmp_path: Path):
     assert payload["slug"] == "support-desk"
     assert run_dir.is_dir()
     assert (run_dir / "master" / "exports").is_dir()
+    assert (run_dir / "capability-triage.md").is_file()
+    assert (run_dir / "depth-policy.md").is_file()
+    assert (run_dir / "quality-check.md").is_file()
     assert all(payload["surfaces"].values())
 
 
@@ -125,6 +137,9 @@ def test_python_prd_helper_wrapper_runs_helper_from_current_project(tmp_path: Pa
     assert payload["mode"] == "init"
     assert payload["slug"] == "billing-portal"
     assert Path(payload["workspace_path"]).is_dir()
+    assert payload["surfaces"]["capability_triage"] is True
+    assert payload["surfaces"]["depth_policy"] is True
+    assert payload["surfaces"]["quality_check"] is True
     state_path = Path(payload["workspace_path"]) / "workflow-state.md"
     state_content = state_path.read_text(encoding="utf-8")
     assert "- active_command: `sp-prd`" in state_content

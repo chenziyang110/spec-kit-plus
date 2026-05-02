@@ -21,6 +21,9 @@ EXPECTED_SURFACES = {
     "master_exports": "master/exports",
     "workflow_state": "workflow-state.md",
     "coverage_matrix": "coverage-matrix.md",
+    "capability_triage": "capability-triage.md",
+    "depth_policy": "depth-policy.md",
+    "quality_check": "quality-check.md",
 }
 
 
@@ -47,6 +50,9 @@ def surface_status(run_dir: Path) -> dict[str, bool]:
         "master_exports": (run_dir / "master" / "exports").is_dir(),
         "workflow_state": (run_dir / "workflow-state.md").is_file(),
         "coverage_matrix": (run_dir / "coverage-matrix.md").is_file(),
+        "capability_triage": (run_dir / "capability-triage.md").is_file(),
+        "depth_policy": (run_dir / "depth-policy.md").is_file(),
+        "quality_check": (run_dir / "quality-check.md").is_file(),
     }
 
 
@@ -117,6 +123,58 @@ def init_run(project_root: Path, requested_slug: str) -> dict[str, object]:
                 "| Surface | Status | Evidence | Notes |",
                 "| --- | --- | --- | --- |",
                 "| Repository overview | pending |  |  |",
+                "",
+            ]
+        ),
+    )
+    write_file_if_missing(
+        run_dir / "capability-triage.md",
+        "\n".join(
+            [
+                "# Capability Triage",
+                "",
+                "## Core Value Proposition",
+                "",
+                "- [Describe the repository-backed product-defining value before broad synthesis.]",
+                "",
+                "## Capability Tiers",
+                "",
+                "| Capability ID | Display Name | Tier | Why It Matters | Evidence Sources | Required Depth |",
+                "| --- | --- | --- | --- | --- | --- |",
+                "| [CAP-001] | [CAPABILITY] | [critical | high | standard | auxiliary] | [WHY_THIS_CAPABILITY_MATTERS] | [PATHS] | [surface | depth-qualified] |",
+                "",
+            ]
+        ),
+    )
+    write_file_if_missing(
+        run_dir / "depth-policy.md",
+        "\n".join(
+            [
+                "# Depth Policy",
+                "",
+                "## Tier Expectations",
+                "",
+                "- `critical`: implementation mechanisms, traceability, edge cases, and format/protocol details when applicable.",
+                "- `high`: mechanism summary, key rules, and main failure paths.",
+                "- `standard`: flow-level reconstruction and main surfaces.",
+                "- `auxiliary`: surface inventory unless stronger evidence demands more detail.",
+                "",
+            ]
+        ),
+    )
+    write_file_if_missing(
+        run_dir / "quality-check.md",
+        "\n".join(
+            [
+                "# Quality Check",
+                "",
+                "## Gates",
+                "",
+                "- [ ] Capability Triage Gate",
+                "- [ ] Critical Depth Gate",
+                "- [ ] Traceability Gate",
+                "- [ ] Export Integrity Gate",
+                "- [ ] Unknown Visibility Gate",
                 "",
             ]
         ),
