@@ -560,6 +560,10 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "observer framing" in content
     assert "compressed observer framing" in content
     assert "full observer framing" in content
+    assert "same_issue" in content
+    assert "derived_issue" in content
+    assert "unrelated_issue" in content
+    assert "contrarian candidate" in content
     assert "the think subagent must not read source files" in content
     assert "the think subagent must not inspect logs" in content
     assert "primary suspected loop" in content
