@@ -2,7 +2,7 @@
 
 ## Current Command
 
-- active_command: `sp-specify`
+- active_command: `[canonical sp-* command, e.g. sp-specify or sp-prd]`
 - status: `active | blocked | completed`
 
 ## Phase Mode
@@ -58,7 +58,7 @@
 
 ## Next Command
 
-- `/sp.constitution | /sp.plan | /sp.tasks | /sp.analyze | /sp.implement | /sp.clarify | /sp.deep-research`
+- `/sp.constitution | /sp.prd | /sp.plan | /sp.tasks | /sp.analyze | /sp.implement | /sp.clarify | /sp.deep-research`
 
 ## Learning Signals
 

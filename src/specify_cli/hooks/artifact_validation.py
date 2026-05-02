@@ -17,6 +17,13 @@ REQUIRED_ARTIFACTS = {
     "plan": ("plan.md", "workflow-state.md"),
     "tasks": ("tasks.md", "workflow-state.md"),
     "analyze": ("workflow-state.md",),
+    "prd": (
+        "workflow-state.md",
+        "coverage-matrix.md",
+        "master/master-pack.md",
+        "exports/prd.md",
+        "master/exports",
+    ),
 }
 
 DEEP_RESEARCH_REQUIRED_SECTIONS = (
@@ -185,6 +192,14 @@ def _validate_plan_consumes_deep_research(feature_dir: Path) -> list[str]:
     return errors
 
 
+def _validate_prd_artifacts(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    master_exports_dir = feature_dir / "master" / "exports"
+    if master_exports_dir.exists() and not master_exports_dir.is_dir():
+        errors.append("master/exports must be a directory")
+    return errors
+
+
 def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
     command_name = normalize_command_name(str(payload.get("command_name") or ""))
     if command_name not in REQUIRED_ARTIFACTS:
@@ -215,6 +230,8 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":
         validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
+    if command_name == "prd":
+        validation_errors.extend(_validate_prd_artifacts(feature_dir))
     if validation_errors:
         return HookResult(
             event=WORKFLOW_ARTIFACTS_VALIDATE,

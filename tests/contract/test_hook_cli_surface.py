@@ -128,6 +128,49 @@ def test_hook_validate_state_supports_constitution_command(tmp_path: Path):
     assert payload["status"] == "ok"
 
 
+def test_hook_validate_state_supports_prd_command(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "prd-runs" / "260502-demo-prd"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo PRD",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-prd`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `analysis-only`",
+                "- summary: reverse PRD extraction",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-state",
+            "--command",
+            "prd",
+            "--feature-dir",
+            str(run_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.state.validate"
+    assert payload["status"] == "ok"
+    assert payload["data"]["checkpoint"]["active_command"] == "sp-prd"
+
+
 def test_hook_preflight_blocks_implement_and_returns_json(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -294,6 +337,38 @@ def test_hook_validate_artifacts_supports_constitution_command(tmp_path: Path):
             "constitution",
             "--feature-dir",
             str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_supports_prd_command(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "prd-runs" / "260502-demo-prd"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (run_dir / "coverage-matrix.md").write_text("# Coverage Matrix\n", encoding="utf-8")
+    master_dir = run_dir / "master"
+    master_dir.mkdir()
+    (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
+    (master_dir / "exports").mkdir()
+    exports_dir = run_dir / "exports"
+    exports_dir.mkdir()
+    (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd",
+            "--feature-dir",
+            str(run_dir),
         ],
     )
 
