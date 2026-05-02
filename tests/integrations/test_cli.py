@@ -1633,6 +1633,8 @@ def test_lane_status_lists_registered_lanes(tmp_path):
     assert payload["status"] == "ok"
     assert payload["lane_count"] == 1
     assert payload["lanes"][0]["lane_id"] == "lane-001"
+    assert payload["lanes"][0]["worktree_exists"] is False
+    assert payload["lanes"][0]["verification_status"] == "unknown"
 
 
 def test_lane_resolve_returns_choose_for_ambiguous_candidates(tmp_path):
@@ -1724,6 +1726,8 @@ def test_lane_resolve_returns_choose_for_ambiguous_candidates(tmp_path):
     payload = json.loads(result.output)
     assert payload["mode"] == "choose"
     assert len(payload["candidates"]) == 2
+    assert "verification_status" in payload["candidates"][0]
+    assert "worktree_exists" in payload["candidates"][0]
 
 
 def test_create_codex_teams_initial_commit_bootstraps_head(tmp_path):

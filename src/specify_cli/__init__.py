@@ -3322,6 +3322,7 @@ def _resolve_feature_dir_for_command(
 
 
 def _print_lane_resolution_json(result: Any) -> None:
+    lane_records = {record.lane_id: record for record in iter_lane_records(Path.cwd())}
     payload = {
         "mode": result.mode,
         "selected_lane_id": result.selected_lane_id,
@@ -3335,14 +3336,15 @@ def _print_lane_resolution_json(result: Any) -> None:
                 "recovery_state": candidate.recovery_state,
                 "last_stable_checkpoint": candidate.last_stable_checkpoint,
                 "recovery_reason": candidate.recovery_reason,
-                "worktree_path": next(
-                    (
-                        record.worktree_path
-                        for record in iter_lane_records(Path.cwd())
-                        if record.lane_id == candidate.lane_id
-                    ),
-                    "",
-                ),
+                "verification_status": lane_records[candidate.lane_id].verification_status
+                if candidate.lane_id in lane_records
+                else "unknown",
+                "worktree_path": lane_records[candidate.lane_id].worktree_path
+                if candidate.lane_id in lane_records
+                else "",
+                "worktree_exists": (Path.cwd() / lane_records[candidate.lane_id].worktree_path).exists()
+                if candidate.lane_id in lane_records
+                else False,
             }
             for candidate in result.candidates
         ],
@@ -3615,7 +3617,11 @@ def lane_resolve(
                         "recovery_state": candidate.recovery_state,
                         "last_stable_checkpoint": candidate.last_stable_checkpoint,
                         "recovery_reason": candidate.recovery_reason,
+                        "verification_status": lane.verification_status if candidate.lane_id == lane.lane_id else "unknown",
                         "worktree_path": lane.worktree_path if candidate.lane_id == lane.lane_id else "",
+                        "worktree_exists": (project_root / lane.worktree_path).exists()
+                        if candidate.lane_id == lane.lane_id
+                        else False,
                     }
                     for candidate in result.candidates
                 ],
