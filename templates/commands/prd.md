@@ -26,6 +26,15 @@ Extract product truth from code, docs, configuration, tests, routes, UI surfaces
 
 Every consequential conclusion must be marked as `Evidence`, `Inference`, or `Unknown`.
 
+### Reconstruction Rule
+
+`sp-prd` must reconstruct behavior, not merely inventory repository objects.
+
+The standard is not “artifact found in repository”.
+The standard is “artifact explained well enough that another engineer could reconstruct its structure and behavior”.
+
+If the workflow can only name a path, file, endpoint, or module without explaining its internal structure or constraints, mark it as `depth-gap`, not `depth-qualified`.
+
 ## Context
 
 `sp-prd` is a peer workflow to `sp-specify`, not a pre-plan requirement. `sp-specify` starts from requested change intent. `sp-prd` starts from current repository reality.
@@ -85,6 +94,20 @@ The classification must include evidence-backed reasoning. It controls which exp
    - Populate `.specify/prd-runs/<run-id>/evidence/` with notes or files for relevant surfaces.
    - Continue broad surface collection for repository surfaces, UI surfaces, service surfaces, entities and models, workflows, rules, integrations, configuration, permissions, error states, and test/verification clues.
    - For `critical` and `high` capabilities, deepen collection to implementation files, key functions, parsers/serializers, compatibility logic, edge-case handlers, and failure paths.
+   - For every `critical` or `high` capability, do not stop at repository object discovery.
+   - For each important artifact involved in the capability, capture:
+     - where it is
+     - what is inside it
+     - who reads it
+     - who writes it
+     - what constraints it must preserve
+     - what happens when it fails or receives invalid input
+   - Important artifacts include configuration files, schemas, data models, API or CLI contracts, protocol payloads, state machines, normalization or mapping logic, persistence structures, and integration boundaries.
+   - Automatically deepen collection for artifacts involving configuration or persistence, protocol or format conversion, compatibility or migration behavior, authentication or authorization boundaries, state transitions, normalization logic, or rollback, retry, failover, and recovery behavior.
+   - For any file, interface, schema, or protocol referenced by a `critical` or `high` capability, recording only the path or name is insufficient. Capture structure, fields, format, or contract details.
+   - If structure is unknown, mark it explicitly as `Unknown`. If structure is only partially understood, mark it as `depth-gap`.
+   - Capture negative-space rules when they materially shape behavior, including read-only fields or sections, values that must remain stable, unsupported transitions, protected history or compatibility anchors, and forbidden overwrite or replacement behavior.
+   - When applicable, include at least one concrete example such as a config snippet, schema fragment, request or response sample, state transition example, or failure case example.
    - Label every consequential claim as `Evidence`, `Inference`, or `Unknown`.
    - Use `Evidence` only for claims directly supported by repository files, project docs, runnable behavior, or explicit user input.
    - Use `Inference` for professional conclusions derived from evidence. Include the supporting evidence and confidence.
@@ -111,7 +134,11 @@ The classification must include evidence-backed reasoning. It controls which exp
 
 9. **Run quality gates**
    - Run the Capability Triage Gate: block completion if core capabilities and tiers were never made explicit.
-   - Run the Critical Depth Gate: block completion if a `critical` capability lacks implementation-grade reconstruction.
+   - Run the Critical Depth Gate: a `critical` capability cannot be marked `depth-qualified` until implementation files are traced, core structure or format details are documented, producer and consumer relationships are documented when applicable, key constraints or compatibility rules are documented, failure or boundary behavior is documented, and remaining gaps are explicitly marked as `Unknown` or `depth-gap`.
+   - Run the Content Coverage Gate: for each external file, interface, schema, protocol, or persistent structure referenced by a `critical` or `high` capability, path-only coverage is not sufficient; structure or field-level content must be recorded.
+   - Run the Producer-Consumer Gate: for each important artifact, identify who produces it, who consumes it, and whether transformation occurs in between.
+   - Run the Contradiction Search Gate: actively check for contradictions such as filename or extension vs actual parser, documentation vs implementation behavior, read path vs write path, tests vs runtime logic, and declared schema vs normalized schema.
+   - Run the Example Adequacy Gate: each `critical` capability should include at least one concrete example when applicable; otherwise reduce confidence and keep the gap visible.
    - Run the Traceability Gate: block completion if key mechanism claims cannot be traced back to repository evidence.
    - Run the Export Integrity Gate: block completion if exports introduce consequential facts not grounded in `master-pack.md`, or if critical capabilities lack required export landings.
    - Verify every master capability appears in at least one export.
@@ -160,6 +187,9 @@ Each artifact must preserve the Evidence/Inference/Unknown distinction. Unknowns
 - Do not automatically hand off into `sp-plan`, `sp-tasks`, or implementation planning.
 - Do not invent product truth to make the PRD look complete.
 - Do not collapse repository evidence, professional inference, and unknowns into one unmarked narrative.
+- Do not treat path-level traceability as implementation-grade reconstruction.
+- Do not mark a capability `depth-qualified` unless the workflow explains what the relevant artifact contains, what constraints it carries, and how it behaves at the boundary.
+- Do not collapse contradictions into one clean narrative; preserve conflicting evidence explicitly when repository reality is inconsistent.
 - Do not skip `PROJECT-HANDBOOK.md` or project-map routing when they exist.
 - Do not treat `exports/prd.md` as the source of truth; it is generated from `master/master-pack.md`.
 - Do not claim the PRD suite is complete until export completeness checks pass or unresolved blockers are explicitly reported.

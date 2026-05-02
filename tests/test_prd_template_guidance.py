@@ -126,3 +126,35 @@ def test_prd_template_requires_writing_gate_results_back_to_quality_check() -> N
     assert "quality-check.md" in content
     assert "record pass/fail status" in lowered
     assert "gate results" in lowered or "quality-check" in lowered
+
+
+def test_prd_template_defines_reconstruction_rule() -> None:
+    content = _content()
+    lowered = content.lower()
+
+    assert "### Reconstruction Rule" in content
+    assert "reconstruct behavior" in lowered
+    assert "artifact found in repository" in lowered
+    assert "depth-gap" in lowered
+    assert "depth-qualified" in lowered
+
+
+def test_prd_template_requires_structure_level_targeted_evidence_harvest() -> None:
+    content = _content()
+    lowered = content.lower()
+
+    assert "what is inside it" in lowered
+    assert "who reads it" in lowered
+    assert "who writes it" in lowered
+    assert "negative-space rules" in lowered or "negative space" in lowered
+    assert "config snippet" in lowered
+    assert "schema fragment" in lowered
+
+
+def test_prd_template_requires_expanded_quality_gates() -> None:
+    content = _content()
+
+    assert "Content Coverage Gate" in content
+    assert "Producer-Consumer Gate" in content
+    assert "Contradiction Search Gate" in content
+    assert "Example Adequacy Gate" in content
