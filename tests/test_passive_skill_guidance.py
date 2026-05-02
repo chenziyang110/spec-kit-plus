@@ -42,6 +42,15 @@ def test_project_to_prd_routes_existing_project_prd_extraction() -> None:
     assert "do not automatically hand off to `sp-plan`" in content
 
 
+def test_project_to_prd_mentions_depth_aware_reconstruction() -> None:
+    content = _read("templates/passive-skills/project-to-prd/SKILL.md").lower()
+
+    assert "capability triage" in content
+    assert "targeted evidence harvest" in content
+    assert "critical capabilities" in content
+    assert "depth-aware" in content
+
+
 def test_workflow_routing_forces_route_selection_before_any_action() -> None:
     content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md").lower()
 

@@ -83,3 +83,28 @@ def test_prd_template_keeps_master_pack_as_export_truth_source() -> None:
     assert "export completeness" in lowered
     assert "every master capability appears in at least one export" in lowered
     assert "No automatic handoff into implementation planning" in content
+
+
+def test_prd_template_requires_capability_triage_and_targeted_evidence_harvest() -> None:
+    content = _content().lower()
+
+    assert "capability triage" in content
+    assert "targeted evidence harvest" in content
+    assert "critical" in content
+    assert "high" in content
+    assert "standard" in content
+    assert "auxiliary" in content
+
+
+def test_prd_template_requires_depth_aware_coverage_and_quality_gates() -> None:
+    content = _content()
+    lowered = content.lower()
+
+    assert "depth-qualified" in lowered
+    assert "surface-covered" in lowered
+    assert "depth-gap" in lowered
+    assert "## Quality Gates" in content or "quality gates" in lowered
+    assert "Capability Triage Gate" in content
+    assert "Critical Depth Gate" in content
+    assert "Traceability Gate" in content
+    assert "Export Integrity Gate" in content

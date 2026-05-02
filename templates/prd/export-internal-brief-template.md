@@ -13,11 +13,11 @@ This brief maps product semantics back to repository structure. It is not an aut
 - **Current-state baseline**: [SUMMARY]
 - **Evidence/Inference/Unknown**: [CONFIDENCE_SUMMARY]
 
-## Capability-to-Module Mapping
+## Critical Capability-to-Code Mapping
 
-| Capability | Repository Module or Area | Primary Files | Evidence/Inference/Unknown |
-|------------|---------------------------|---------------|----------------------------|
-| [CAPABILITY] | [MODULE] | [PATHS] | [Evidence] |
+| Capability | Tier | Repository Module or Area | Primary Files or Functions | Evidence/Inference/Unknown |
+|------------|------|---------------------------|----------------------------|----------------------------|
+| [CAPABILITY] | [critical] | [MODULE] | [PATHS_OR_FUNCTIONS] | [Evidence] |
 
 ## Screen/Service-to-Code Mapping
 
@@ -29,7 +29,7 @@ This brief maps product semantics back to repository structure. It is not an aut
 
 - [Ambiguous ownership, brittle flow, missing tests, hidden dependency, or confidence gap.]
 
-## Testing or Verification Clues
+## Verification Clues
 
 - [Existing test, fixture, command, route, or behavior that can verify the product claim.]
 

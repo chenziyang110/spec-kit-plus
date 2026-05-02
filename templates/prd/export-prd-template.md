@@ -39,6 +39,17 @@ This export is the primary reader-facing PRD. It must be derived from `master-pa
 |------------|-------------|------------------------|----------------------------|
 | [CAPABILITY] | [DESCRIPTION] | [ROLE_OR_SYSTEM] | [Evidence] |
 
+## Critical Capability Notes
+
+| Capability | Tier | Depth Status | Why It Matters | Evidence/Inference/Unknown |
+|------------|------|--------------|----------------|----------------------------|
+| [CAPABILITY] | [critical] | [depth-qualified | surface-covered | depth-gap] | [WHY_THIS_CAPABILITY_IS_CORE] | [Evidence] |
+
+## Confidence and Unknown Handling
+
+- `depth-qualified` means the master pack reconstructs the capability with mechanism-level detail and traceable evidence.
+- `surface-covered` means the capability appears in repository surfaces but still lacks enough reconstruction depth to be treated as complete.
+
 ## Key Flows
 
 - **[FLOW]**

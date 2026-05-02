@@ -18,9 +18,15 @@ repository that already exists.
 
 - Route existing-project reverse PRD requests to `sp-prd` before repository
   inspection.
+- Treat `sp-prd` as a depth-aware current-state extraction workflow, not a flat
+  repo summary pass.
 - Ground the PRD in current implementation reality: code, docs, tests, routes,
   UI surfaces, service/API surfaces, configuration, data models, domain terms,
   `PROJECT-HANDBOOK.md`, and project-map evidence when present.
+- Require capability triage before claiming the PRD suite is complete.
+- Use targeted evidence harvest for `critical` and `high` capabilities.
+- Keep `critical capabilities` visible until they are depth-aware and
+  `depth-qualified` rather than merely surface-covered.
 - Preserve the distinction between Evidence, Inference, and Unknown.
 - Treat `.specify/prd-runs/<run-id>/workflow-state.md` as the resumable state
   source for the PRD run.
@@ -53,4 +59,6 @@ The active workflow should produce a current-state PRD suite, typically:
 - `.specify/prd-runs/<run-id>/exports/prd.md`
 
 Mode-specific exports may include UI, service, flow, data, rule, or internal
-brief views when the repository evidence supports them.
+brief views when the repository evidence supports them. Completion requires
+capability triage, targeted evidence harvest, and depth-aware handling for
+product-defining capabilities.

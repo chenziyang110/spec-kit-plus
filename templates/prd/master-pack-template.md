@@ -7,11 +7,12 @@
 
 This document is the single truth source for the PRD export suite. All exports must derive from this master pack. Do not maintain export-only facts that are absent from this file.
 
-## Product Overview
+## Product Frame
 
 - **Evidence/Inference/Unknown**: [Mark the confidence of the product summary.]
 - **What exists now**: [Current-state product or service summary.]
 - **Who it serves**: [Roles, users, operators, or systems.]
+- **Core Value Proposition**: [Repository-backed statement of the product-defining value.]
 - **Primary value**: [Repository-backed value statement.]
 
 ## Audience and Roles
@@ -22,9 +23,42 @@ This document is the single truth source for the PRD export suite. All exports m
 
 ## Capability Inventory
 
-| Capability | User or System Value | Surfaces | Rules or Data | Evidence/Inference/Unknown | Export Destinations |
-|------------|----------------------|----------|---------------|----------------------------|---------------------|
-| [CAPABILITY] | [VALUE] | [SCREENS_OR_ENTRYPOINTS] | [RULES_OR_ENTITIES] | [Evidence] | [prd.md, ui-spec.md, service-spec.md] |
+| Capability ID | Tier | Capability | User or System Value | Surfaces | Rules or Data | Depth Status | Evidence/Inference/Unknown | Export Destinations |
+|---------------|------|------------|----------------------|----------|---------------|--------------|----------------------------|---------------------|
+| [CAP-001] | [critical] | [CAPABILITY] | [VALUE] | [SCREENS_OR_ENTRYPOINTS] | [RULES_OR_ENTITIES] | [surface-covered | depth-qualified] | [Evidence] | [prd.md, ui-spec.md, service-spec.md] |
+
+## Critical Capability Dossiers
+
+### [CAP-001] [CAPABILITY]
+
+#### Overview
+
+- Purpose: [WHY_THIS_CAPABILITY_EXISTS]
+- Tier: [critical | high]
+- Evidence/Inference/Unknown: [CONFIDENCE]
+
+#### Implementation Mechanisms
+
+- [Mechanism name] -> [What it does and where it lives]
+
+#### Format or Protocol Matrix
+
+| Surface | Format / Protocol | Parser / Serializer | Constraints | Sources |
+|---------|-------------------|---------------------|-------------|---------|
+| [CONFIG_OR_API] | [FORMAT] | [PARSER] | [RULE] | [PATHS] |
+
+#### Edge Cases and Failure Paths
+
+- [Failure or compatibility case] -> [Handling behavior] -> [Sources]
+
+#### Source Traceability
+
+- [Claim] -> [file path or function path]
+
+#### Unknowns and Inference Notes
+
+- Unknown: [UNRESOLVED_GAP]
+- Inference: [BOUNDED_INFERENCE]
 
 ## Surface Inventory
 
@@ -88,11 +122,11 @@ This document is the single truth source for the PRD export suite. All exports m
 
 - [Unknown item] -> [Why evidence is insufficient]
 
-## Export Map
+## Coverage and Export Map
 
-| Master Item | prd.md | ui-spec.md | service-spec.md | flows-and-ia.md | data-rules-appendix.md | internal-implementation-brief.md |
-|-------------|--------|------------|-----------------|-----------------|------------------------|----------------------------------|
-| [CAPABILITY_OR_RULE] | [yes/no] | [yes/no] | [yes/no] | [yes/no] | [yes/no] | [yes/no] |
+| Master Item | Tier | Depth Status | prd.md | ui-spec.md | service-spec.md | flows-and-ia.md | data-rules-appendix.md | internal-implementation-brief.md |
+|-------------|------|--------------|--------|------------|-----------------|-----------------|------------------------|----------------------------------|
+| [CAP-001] | [critical] | [depth-qualified] | [yes] | [yes/no] | [yes/no] | [yes/no] | [yes/no] | [yes] |
 
 ## Export Completeness Check
 

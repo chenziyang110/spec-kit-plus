@@ -60,6 +60,24 @@ DEEP_RESEARCH_NOT_NEEDED_REQUIRED_SECTIONS = (
     "## Next Command",
 )
 
+PRD_MASTER_PACK_REQUIRED_SECTIONS = (
+    "## Capability Inventory",
+    "## Critical Capability Dossiers",
+    "## Coverage and Export Map",
+)
+
+PRD_EXPORT_REQUIRED_SECTIONS = (
+    "## Capability Overview",
+    "## Critical Capability Notes",
+    "## Unknowns and Evidence Confidence",
+)
+
+PRD_COVERAGE_REQUIRED_TOKENS = (
+    "Tier",
+    "Depth Status",
+    "Overall Status",
+)
+
 DEEP_RESEARCH_NOT_NEEDED_STATUS_RE = re.compile(
     r"(?im)^\*\*Status\*\*:\s*(?:\[)?Not needed(?:\])?\s*$"
 )
@@ -75,6 +93,11 @@ def _extract_markdown_section(content: str, heading: str) -> str:
     if next_heading:
         return section_body[: next_heading.start()]
     return section_body
+
+
+def _validate_markdown_contains(path: Path, required_items: tuple[str, ...], label: str) -> list[str]:
+    content = path.read_text(encoding="utf-8", errors="replace")
+    return [f"{label} is missing required section: {item}" for item in required_items if item not in content]
 
 
 def _extract_handoff_ids(content: str) -> set[str]:
@@ -197,6 +220,28 @@ def _validate_prd_artifacts(feature_dir: Path) -> list[str]:
     master_exports_dir = feature_dir / "master" / "exports"
     if master_exports_dir.exists() and not master_exports_dir.is_dir():
         errors.append("master/exports must be a directory")
+
+    coverage_path = feature_dir / "coverage-matrix.md"
+    coverage_content = coverage_path.read_text(encoding="utf-8", errors="replace")
+    missing_coverage = [token for token in PRD_COVERAGE_REQUIRED_TOKENS if token not in coverage_content]
+    if missing_coverage:
+        joined = ", ".join(missing_coverage)
+        errors.append(f"coverage-matrix.md is missing depth-aware columns or fields: {joined}")
+
+    errors.extend(
+        _validate_markdown_contains(
+            feature_dir / "master" / "master-pack.md",
+            PRD_MASTER_PACK_REQUIRED_SECTIONS,
+            "master/master-pack.md",
+        )
+    )
+    errors.extend(
+        _validate_markdown_contains(
+            feature_dir / "exports" / "prd.md",
+            PRD_EXPORT_REQUIRED_SECTIONS,
+            "exports/prd.md",
+        )
+    )
     return errors
 
 

@@ -67,32 +67,45 @@ The classification must include evidence-backed reasoning. It controls which exp
    - Record the evidence used for classification in `.specify/prd-runs/<run-id>/coverage-matrix.md`.
    - Keep mode-specific assumptions visible. Do not silently treat a mixed project as UI-only or service-only.
 
-4. **Harvest evidence**
+4. **Capability triage**
+   - Identify the repository-backed core value proposition before broad synthesis.
+   - Reconstruct capability IDs and assign each one a depth tier: `critical`, `high`, `standard`, or `auxiliary`.
+   - Record why each `critical` or `high` capability matters, which sources own it, and which implementation details must be reconstructed before completion can be claimed.
+   - Treat cross-cutting behaviors as first-class capabilities even when they span multiple modules or do not align to one UI screen or one service entrypoint.
+
+5. **Targeted evidence harvest**
    - Populate `.specify/prd-runs/<run-id>/evidence/` with notes or files for relevant surfaces.
-   - Cover repository surfaces, UI surfaces, service surfaces, entities and models, workflows, rules, integrations, configuration, permissions, error states, and test/verification clues when present.
+   - Continue broad surface collection for repository surfaces, UI surfaces, service surfaces, entities and models, workflows, rules, integrations, configuration, permissions, error states, and test/verification clues.
+   - For `critical` and `high` capabilities, deepen collection to implementation files, key functions, parsers/serializers, compatibility logic, edge-case handlers, and failure paths.
    - Label every consequential claim as `Evidence`, `Inference`, or `Unknown`.
    - Use `Evidence` only for claims directly supported by repository files, project docs, runnable behavior, or explicit user input.
    - Use `Inference` for professional conclusions derived from evidence. Include the supporting evidence and confidence.
    - Use `Unknown` when evidence is absent, contradictory, stale, or insufficient. Unknowns must remain visible.
 
-5. **Build coverage matrix**
+6. **Build depth-aware coverage matrix**
    - Maintain `.specify/prd-runs/<run-id>/coverage-matrix.md`.
    - Track each capability, screen, service entrypoint, data/rule surface, workflow, integration, and export destination.
-   - Mark coverage status, source paths, confidence, and whether the item appears in `master-pack.md` and at least one export.
+   - Track each capability's tier, evidence status, depth status, source paths, confidence, and whether the item appears in `master-pack.md` and at least one export.
+   - Use depth-aware states such as `surface-covered`, `partially-reconstructed`, `depth-gap`, `blocked-by-unknowns`, and `depth-qualified`.
+   - For `critical` and `high` capabilities, include a breakdown covering implementation mechanisms, format or protocol coverage when applicable, edge cases, and traceability.
 
-6. **Synthesize the unified master pack**
+7. **Synthesize the unified master pack**
    - Write `.specify/prd-runs/<run-id>/master/master-pack.md`.
    - Treat `master/master-pack.md` as the single truth source for all exports.
-   - Include product overview, audience and roles, capability inventory, UI or service surface inventory, data and rule model, workflows, integrations, constraints, non-goals, Evidence/Inference/Unknown registry, and export map.
+   - Include product frame, audience and roles, capability inventory, critical capability dossiers, UI or service surface inventory, data and rule model, workflows, integrations, constraints, non-goals, Evidence/Inference/Unknown registry, and coverage/export map.
    - Do not maintain separate export-only facts that are absent from the master pack.
 
-7. **Export PRD views**
+8. **Export PRD views**
    - Always write `.specify/prd-runs/<run-id>/exports/prd.md`.
    - For `ui` and `mixed`, write UI-oriented exports such as `ui-spec.md` and flow or information-architecture views when evidence supports them.
    - For `service` and `mixed`, write service-oriented exports such as `service-spec.md` and capability/API flow views when evidence supports them.
    - Include appendices for data, rules, evidence, unknowns, and internal planning handoff notes when they are needed for a complete suite.
 
-8. **Run export completeness checks**
+9. **Run quality gates**
+   - Run the Capability Triage Gate: block completion if core capabilities and tiers were never made explicit.
+   - Run the Critical Depth Gate: block completion if a `critical` capability lacks implementation-grade reconstruction.
+   - Run the Traceability Gate: block completion if key mechanism claims cannot be traced back to repository evidence.
+   - Run the Export Integrity Gate: block completion if exports introduce consequential facts not grounded in `master-pack.md`, or if critical capabilities lack required export landings.
    - Verify every master capability appears in at least one export.
    - Verify every relevant screen or service surface has a documented home.
    - Verify rules and entities are not stranded only in evidence notes.
@@ -100,7 +113,7 @@ The classification must include evidence-backed reasoning. It controls which exp
    - Verify no unresolved placeholders or contradictory sections remain in the suite.
    - Record pass/fail status in `workflow-state.md`.
 
-9. **Report completion**
+10. **Report completion**
    - Report the run directory, classification, completed exports, unresolved unknowns, inference-heavy areas, and any blocked surfaces.
    - Do not claim implementation-planning readiness unless the user explicitly asks how to consume the PRD suite in later workflows.
 
@@ -123,7 +136,15 @@ Mode-specific exports:
 
 `master/master-pack.md` is the unified master pack and the truth source for exports. `exports/prd.md` is the primary reader-facing PRD. Export completeness must be checked against the master pack before final completion.
 
-Each artifact must preserve the Evidence/Inference/Unknown distinction. Unknowns must remain visible rather than being silently filled.
+Each artifact must preserve the Evidence/Inference/Unknown distinction. Unknowns must remain visible rather than being silently filled. Coverage is not complete merely because a capability is mentioned; `critical` capabilities must be depth-qualified before the PRD suite can be marked complete.
+
+## Quality Gates
+
+- **Capability Triage Gate**: block completion if core capabilities and tiers were never made explicit.
+- **Critical Depth Gate**: block completion if a `critical` capability lacks implementation-grade reconstruction.
+- **Traceability Gate**: block completion if key mechanism claims cannot be traced back to repository evidence.
+- **Export Integrity Gate**: block completion if exports introduce consequential facts not grounded in `master-pack.md`, or if critical capabilities lack required export landings.
+- **Unknown Visibility Gate**: block completion if missing evidence is narrated as fact instead of preserved as `Unknown` or bounded `Inference`.
 
 ## Guardrails
 

@@ -351,6 +351,83 @@ def test_hook_validate_artifacts_supports_prd_command(tmp_path: Path):
     run_dir = project / ".specify" / "prd-runs" / "260502-demo-prd"
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (run_dir / "coverage-matrix.md").write_text(
+        "\n".join(
+            [
+                "# Coverage Matrix",
+                "",
+                "| Capability | Tier | Evidence Status | Depth Status | Export Destinations | Overall Status |",
+                "|------------|------|-----------------|--------------|---------------------|----------------|",
+                "| Config Management | critical | Evidence | depth-qualified | prd.md | depth-qualified |",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    master_dir = run_dir / "master"
+    master_dir.mkdir()
+    (master_dir / "master-pack.md").write_text(
+        "\n".join(
+            [
+                "# Master Pack",
+                "",
+                "## Capability Inventory",
+                "",
+                "## Critical Capability Dossiers",
+                "",
+                "### CAP-001 Config Management",
+                "",
+                "#### Implementation Mechanisms",
+                "",
+                "#### Source Traceability",
+                "",
+                "## Coverage and Export Map",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (master_dir / "exports").mkdir()
+    exports_dir = run_dir / "exports"
+    exports_dir.mkdir()
+    (exports_dir / "prd.md").write_text(
+        "\n".join(
+            [
+                "# PRD",
+                "",
+                "**Derived From**: `master/master-pack.md`",
+                "",
+                "## Capability Overview",
+                "",
+                "## Critical Capability Notes",
+                "",
+                "## Unknowns and Evidence Confidence",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd",
+            "--feature-dir",
+            str(run_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_blocks_shallow_prd_suite(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "prd-runs" / "260503-demo-prd"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (run_dir / "coverage-matrix.md").write_text("# Coverage Matrix\n", encoding="utf-8")
     master_dir = run_dir / "master"
     master_dir.mkdir()
@@ -374,8 +451,8 @@ def test_hook_validate_artifacts_supports_prd_command(tmp_path: Path):
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output.strip())
-    assert payload["event"] == "workflow.artifacts.validate"
-    assert payload["status"] == "ok"
+    assert payload["status"] == "blocked"
+    assert any("depth-aware" in message.lower() or "required section" in message.lower() for message in payload["errors"])
 
 
 def test_hook_validate_packet_outputs_parseable_json(tmp_path: Path):

@@ -384,6 +384,10 @@ class TestBuiltInSkillGeneration:
         assert "master/master-pack.md" in prd_body
         assert "exports/prd.md" in prd_body
         assert "no automatic handoff into implementation planning" in prd_lower
+        assert "capability triage" in prd_lower
+        assert "targeted evidence harvest" in prd_lower
+        assert "depth-qualified" in prd_lower
+        assert "critical depth gate" in prd_lower
 
         plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         assert "Add `Implementation Constitution`" in plan_body

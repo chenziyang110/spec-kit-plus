@@ -42,13 +42,58 @@ def _write_prd_workflow_state(run_dir: Path) -> None:
 
 def _write_complete_prd_artifacts(run_dir: Path) -> None:
     _write_prd_workflow_state(run_dir)
-    (run_dir / "coverage-matrix.md").write_text("# Coverage Matrix\n", encoding="utf-8")
+    (run_dir / "coverage-matrix.md").write_text(
+        "\n".join(
+            [
+                "# Coverage Matrix",
+                "",
+                "| Capability | Tier | Evidence Status | Depth Status | Export Destinations | Overall Status |",
+                "|------------|------|-----------------|--------------|---------------------|----------------|",
+                "| Config Management | critical | Evidence | depth-qualified | prd.md | depth-qualified |",
+            ]
+        ),
+        encoding="utf-8",
+    )
     master_dir = run_dir / "master"
     master_dir.mkdir()
-    (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
+    (master_dir / "master-pack.md").write_text(
+        "\n".join(
+            [
+                "# Master Pack",
+                "",
+                "## Capability Inventory",
+                "",
+                "## Critical Capability Dossiers",
+                "",
+                "### CAP-001 Config Management",
+                "",
+                "#### Implementation Mechanisms",
+                "",
+                "#### Source Traceability",
+                "",
+                "## Coverage and Export Map",
+            ]
+        ),
+        encoding="utf-8",
+    )
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
-    (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
+    (exports_dir / "prd.md").write_text(
+        "\n".join(
+            [
+                "# PRD",
+                "",
+                "**Derived From**: `master/master-pack.md`",
+                "",
+                "## Capability Overview",
+                "",
+                "## Critical Capability Notes",
+                "",
+                "## Unknowns and Evidence Confidence",
+            ]
+        ),
+        encoding="utf-8",
+    )
     (master_dir / "exports").mkdir()
 
 
@@ -143,3 +188,29 @@ def test_prd_artifact_validation_accepts_complete_prd_suite(tmp_path: Path):
 
     assert result.status == "ok"
     assert result.errors == []
+
+
+def test_prd_artifact_validation_blocks_missing_depth_aware_sections(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "prd-runs" / "260503-depth-gap-prd"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    _write_prd_workflow_state(run_dir)
+    (run_dir / "coverage-matrix.md").write_text("# Coverage Matrix\n", encoding="utf-8")
+    master_dir = run_dir / "master"
+    master_dir.mkdir()
+    (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
+    (master_dir / "exports").mkdir()
+    exports_dir = run_dir / "exports"
+    exports_dir.mkdir()
+    (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "prd", "feature_dir": str(run_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("coverage-matrix.md is missing depth-aware columns" in message for message in result.errors)
+    assert any("master/master-pack.md is missing required section" in message for message in result.errors)
+    assert any("exports/prd.md is missing required section" in message for message in result.errors)

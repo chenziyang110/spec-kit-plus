@@ -12,6 +12,8 @@ EXPECTED_PRD_TEMPLATES = {
         "Inference",
         "Unknown",
         "Export Map",
+        "Critical Capability Dossiers",
+        "Coverage and Export Map",
     ],
     "export-prd-template.md": [
         "# Product Requirements Document",
@@ -51,9 +53,10 @@ EXPECTED_PRD_TEMPLATES = {
     ],
     "export-internal-brief-template.md": [
         "# Internal Implementation Brief",
-        "Capability-to-Module Mapping",
+        "Critical Capability-to-Code Mapping",
         "Screen/Service-to-Code Mapping",
         "Planning Handoff Notes",
+        "Verification Clues",
     ],
 }
 
@@ -84,3 +87,31 @@ def test_prd_master_pack_template_is_export_truth_source() -> None:
     assert "Do not maintain export-only facts" in content
     assert "Export Completeness Check" in content
     assert "every master capability appears in at least one export" in content
+
+
+def test_prd_master_pack_template_requires_tiered_capability_fields() -> None:
+    content = (PRD_TEMPLATE_DIR / "master-pack-template.md").read_text(encoding="utf-8")
+
+    assert "Core Value Proposition" in content
+    assert "| Capability ID | Tier |" in content
+    assert "## Critical Capability Dossiers" in content
+    assert "Implementation Mechanisms" in content
+    assert "Format or Protocol Matrix" in content
+    assert "Edge Cases and Failure Paths" in content
+    assert "Source Traceability" in content
+
+
+def test_prd_export_template_calls_out_depth_qualified_capabilities() -> None:
+    content = (PRD_TEMPLATE_DIR / "export-prd-template.md").read_text(encoding="utf-8")
+
+    assert "Critical Capability Notes" in content
+    assert "depth-qualified" in content
+    assert "surface-covered" in content
+
+
+def test_internal_brief_template_maps_critical_capabilities_to_code() -> None:
+    content = (PRD_TEMPLATE_DIR / "export-internal-brief-template.md").read_text(encoding="utf-8")
+
+    assert "Critical Capability-to-Code Mapping" in content
+    assert "Primary Files or Functions" in content
+    assert "Verification Clues" in content
