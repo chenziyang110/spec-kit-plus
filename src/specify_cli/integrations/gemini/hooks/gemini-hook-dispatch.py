@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Thin Gemini CLI native hook adapter for spec-kit-plus.
 
 This script is installed into ``.gemini/hooks/`` for project-local Gemini

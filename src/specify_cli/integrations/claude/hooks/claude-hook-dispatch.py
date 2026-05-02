@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Thin Claude Code native hook adapter for spec-kit-plus.
 
 This script is installed into ``.claude/hooks/`` for project-local Claude

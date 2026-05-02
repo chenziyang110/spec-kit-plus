@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -14,48 +15,61 @@ from ..manifest import IntegrationManifest
 from .multi_agent import GeminiMultiAgentAdapter
 
 GEMINI_HOOK_DISPATCH = "gemini-hook-dispatch.py"
-GEMINI_MANAGED_HOOK_EVENTS = {
-    "SessionStart": [
-        {
-            "matcher": "startup",
-            "hooks": [
-                {
-                    "name": "spec-kit-session-start",
-                    "type": "command",
-                    "command": f"python .gemini/hooks/{GEMINI_HOOK_DISPATCH} session-start",
-                }
-            ],
-        }
-    ],
-    "BeforeAgent": [
-        {
-            "matcher": "*",
-            "hooks": [
-                {
-                    "name": "spec-kit-before-agent",
-                    "type": "command",
-                    "command": f"python .gemini/hooks/{GEMINI_HOOK_DISPATCH} before-agent",
-                }
-            ],
-        }
-    ],
-    "BeforeTool": [
-        {
-            "matcher": "*",
-            "hooks": [
-                {
-                    "name": "spec-kit-before-tool",
-                    "type": "command",
-                    "command": f"python .gemini/hooks/{GEMINI_HOOK_DISPATCH} before-tool",
-                }
-            ],
-        }
-    ],
-}
 
 
 class GeminiIntegration(TomlIntegration):
     key = "gemini"
+
+    @staticmethod
+    def _detect_python_command() -> str:
+        for candidate in ("python3", "python"):
+            if shutil.which(candidate):
+                return candidate
+        return sys.executable
+
+    @classmethod
+    def _build_managed_hook_events(cls, python_cmd: str | None = None) -> dict[str, list[dict[str, Any]]]:
+        if python_cmd is None:
+            python_cmd = cls._detect_python_command()
+        return {
+            "SessionStart": [
+                {
+                    "matcher": "startup",
+                    "hooks": [
+                        {
+                            "name": "spec-kit-session-start",
+                            "type": "command",
+                            "command": f"{python_cmd} .gemini/hooks/{GEMINI_HOOK_DISPATCH} session-start",
+                        }
+                    ],
+                }
+            ],
+            "BeforeAgent": [
+                {
+                    "matcher": "*",
+                    "hooks": [
+                        {
+                            "name": "spec-kit-before-agent",
+                            "type": "command",
+                            "command": f"{python_cmd} .gemini/hooks/{GEMINI_HOOK_DISPATCH} before-agent",
+                        }
+                    ],
+                }
+            ],
+            "BeforeTool": [
+                {
+                    "matcher": "*",
+                    "hooks": [
+                        {
+                            "name": "spec-kit-before-tool",
+                            "type": "command",
+                            "command": f"{python_cmd} .gemini/hooks/{GEMINI_HOOK_DISPATCH} before-tool",
+                        }
+                    ],
+                }
+            ],
+        }
+
     config = {
         "name": "Gemini CLI",
         "folder": ".gemini/",
@@ -145,6 +159,7 @@ class GeminiIntegration(TomlIntegration):
         command: str,
     ) -> bool:
         normalized_command = self._normalize_hook_command(command)
+        managed_suffixes = self._managed_hook_command_suffixes()
         for entry in existing_entries:
             if not isinstance(entry, dict):
                 continue
@@ -156,13 +171,17 @@ class GeminiIntegration(TomlIntegration):
             for hook in hooks:
                 if not isinstance(hook, dict):
                     continue
-                if self._normalize_hook_command(hook.get("command")) == normalized_command:
+                existing_command = self._normalize_hook_command(hook.get("command"))
+                if existing_command == normalized_command:
+                    return True
+                if any(suffix in existing_command for suffix in managed_suffixes):
                     return True
         return False
 
     def _merge_managed_hook_settings(
         self,
         settings: dict[str, Any],
+        managed_events: dict[str, list[dict[str, Any]]],
     ) -> tuple[dict[str, Any], bool]:
         merged = json.loads(json.dumps(settings))
         changed = False
@@ -175,7 +194,7 @@ class GeminiIntegration(TomlIntegration):
         if not isinstance(hooks, dict):
             return settings, False
 
-        for event_name, managed_entries in GEMINI_MANAGED_HOOK_EVENTS.items():
+        for event_name, managed_entries in managed_events.items():
             event_entries = hooks.get(event_name)
             if event_entries is None:
                 event_entries = []
@@ -219,8 +238,11 @@ class GeminiIntegration(TomlIntegration):
         settings_path = self._gemini_settings_path(project_root)
         settings_path.parent.mkdir(parents=True, exist_ok=True)
 
+        python_cmd = self._detect_python_command()
+        managed_events = self._build_managed_hook_events(python_cmd)
+
         if not settings_path.exists():
-            payload = {"hooks": GEMINI_MANAGED_HOOK_EVENTS}
+            payload = {"hooks": managed_events}
             created = self.write_file_and_record(
                 json.dumps(payload, indent=2) + "\n",
                 settings_path,
@@ -233,7 +255,7 @@ class GeminiIntegration(TomlIntegration):
         if existing is None:
             return []
 
-        merged, changed = self._merge_managed_hook_settings(existing)
+        merged, changed = self._merge_managed_hook_settings(existing, managed_events)
         if not changed:
             return []
 

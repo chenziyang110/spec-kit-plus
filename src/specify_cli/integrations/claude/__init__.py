@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -44,75 +45,88 @@ ARGUMENT_HINTS: dict[str, str] = {
 }
 
 CLAUDE_HOOK_DISPATCH = "claude-hook-dispatch.py"
-CLAUDE_MANAGED_HOOK_EVENTS = {
-    "SessionStart": [
-        {
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": f'python "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} session-start',
-                }
-            ]
-        }
-    ],
-    "UserPromptSubmit": [
-        {
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": f'python "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} user-prompt-submit',
-                }
-            ]
-        }
-    ],
-    "PostToolUse": [
-        {
-            "matcher": "Bash|Edit|Write|MultiEdit|Task",
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": f'python "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} post-tool-session-state',
-                }
-            ],
-        }
-    ],
-    "Stop": [
-        {
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": f'python "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} stop-monitor',
-                }
-            ]
-        }
-    ],
-    "PreToolUse": [
-        {
-            "matcher": "Read",
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": f'python "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} pre-tool-read',
-                }
-            ],
-        },
-        {
-            "matcher": "Bash",
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": f'python "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} pre-tool-bash',
-                }
-            ],
-        },
-    ],
-}
 
 
 class ClaudeIntegration(SkillsIntegration):
     """Integration for Claude Code skills."""
 
     key = "claude"
+
+    @staticmethod
+    def _detect_python_command() -> str:
+        for candidate in ("python3", "python"):
+            if shutil.which(candidate):
+                return candidate
+        return sys.executable
+
+    @classmethod
+    def _build_managed_hook_events(cls, python_cmd: str | None = None) -> dict[str, list[dict[str, Any]]]:
+        if python_cmd is None:
+            python_cmd = cls._detect_python_command()
+        return {
+            "SessionStart": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} session-start',
+                        }
+                    ]
+                }
+            ],
+            "UserPromptSubmit": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} user-prompt-submit',
+                        }
+                    ]
+                }
+            ],
+            "PostToolUse": [
+                {
+                    "matcher": "Bash|Edit|Write|MultiEdit|Task",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} post-tool-session-state',
+                        }
+                    ],
+                }
+            ],
+            "Stop": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} stop-monitor',
+                        }
+                    ]
+                }
+            ],
+            "PreToolUse": [
+                {
+                    "matcher": "Read",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} pre-tool-read',
+                        }
+                    ],
+                },
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} pre-tool-bash',
+                        }
+                    ],
+                },
+            ],
+        }
+
     config = {
         "name": "Claude Code",
         "folder": ".claude/",
@@ -205,6 +219,7 @@ class ClaudeIntegration(SkillsIntegration):
         command: str,
     ) -> bool:
         normalized_command = self._normalize_hook_command(command)
+        managed_suffixes = self._managed_hook_command_suffixes()
         for entry in existing_entries:
             if not isinstance(entry, dict):
                 continue
@@ -216,13 +231,17 @@ class ClaudeIntegration(SkillsIntegration):
             for hook in hooks:
                 if not isinstance(hook, dict):
                     continue
-                if self._normalize_hook_command(hook.get("command")) == normalized_command:
+                existing_command = self._normalize_hook_command(hook.get("command"))
+                if existing_command == normalized_command:
+                    return True
+                if any(suffix in existing_command for suffix in managed_suffixes):
                     return True
         return False
 
     def _merge_managed_hook_settings(
         self,
         settings: dict[str, Any],
+        managed_events: dict[str, list[dict[str, Any]]],
     ) -> tuple[dict[str, Any], bool]:
         merged = json.loads(json.dumps(settings))
         changed = False
@@ -235,7 +254,7 @@ class ClaudeIntegration(SkillsIntegration):
         if not isinstance(hooks, dict):
             return settings, False
 
-        for event_name, managed_entries in CLAUDE_MANAGED_HOOK_EVENTS.items():
+        for event_name, managed_entries in managed_events.items():
             event_entries = hooks.get(event_name)
             if event_entries is None:
                 event_entries = []
@@ -279,8 +298,11 @@ class ClaudeIntegration(SkillsIntegration):
         settings_path = self._claude_settings_path(project_root)
         settings_path.parent.mkdir(parents=True, exist_ok=True)
 
+        python_cmd = self._detect_python_command()
+        managed_events = self._build_managed_hook_events(python_cmd)
+
         if not settings_path.exists():
-            payload = {"hooks": CLAUDE_MANAGED_HOOK_EVENTS}
+            payload = {"hooks": managed_events}
             created = self.write_file_and_record(
                 json.dumps(payload, indent=2) + "\n",
                 settings_path,
@@ -293,7 +315,7 @@ class ClaudeIntegration(SkillsIntegration):
         if existing is None:
             return []
 
-        merged, changed = self._merge_managed_hook_settings(existing)
+        merged, changed = self._merge_managed_hook_settings(existing, managed_events)
         if not changed:
             return []
 
