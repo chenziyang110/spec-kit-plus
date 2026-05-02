@@ -219,7 +219,6 @@ class ClaudeIntegration(SkillsIntegration):
         command: str,
     ) -> bool:
         normalized_command = self._normalize_hook_command(command)
-        managed_suffixes = self._managed_hook_command_suffixes()
         for entry in existing_entries:
             if not isinstance(entry, dict):
                 continue
@@ -231,12 +230,41 @@ class ClaudeIntegration(SkillsIntegration):
             for hook in hooks:
                 if not isinstance(hook, dict):
                     continue
-                existing_command = self._normalize_hook_command(hook.get("command"))
-                if existing_command == normalized_command:
-                    return True
-                if any(suffix in existing_command for suffix in managed_suffixes):
+                if self._normalize_hook_command(hook.get("command")) == normalized_command:
                     return True
         return False
+
+    @staticmethod
+    def _strip_stale_managed_hooks(
+        entries: list[Any],
+        managed_suffixes: tuple[str, ...],
+    ) -> tuple[list[Any], bool]:
+        stripped: list[Any] = []
+        changed = False
+        for entry in entries:
+            if not isinstance(entry, dict):
+                stripped.append(entry)
+                continue
+            hooks = entry.get("hooks", [])
+            if not isinstance(hooks, list):
+                stripped.append(entry)
+                continue
+            kept: list[Any] = []
+            for hook in hooks:
+                if isinstance(hook, dict) and any(
+                    suffix in str(hook.get("command", ""))
+                    for suffix in managed_suffixes
+                ):
+                    changed = True
+                else:
+                    kept.append(hook)
+            if kept:
+                next_entry = dict(entry)
+                next_entry["hooks"] = kept
+                stripped.append(next_entry)
+            else:
+                changed = True
+        return stripped, changed
 
     def _merge_managed_hook_settings(
         self,
@@ -245,6 +273,7 @@ class ClaudeIntegration(SkillsIntegration):
     ) -> tuple[dict[str, Any], bool]:
         merged = json.loads(json.dumps(settings))
         changed = False
+        managed_suffixes = self._managed_hook_command_suffixes()
 
         hooks = merged.get("hooks")
         if hooks is None:
@@ -262,6 +291,14 @@ class ClaudeIntegration(SkillsIntegration):
                 changed = True
             if not isinstance(event_entries, list):
                 continue
+
+            stripped_entries, strip_changed = self._strip_stale_managed_hooks(
+                event_entries, managed_suffixes
+            )
+            if strip_changed:
+                hooks[event_name] = stripped_entries
+                event_entries = stripped_entries
+                changed = True
 
             for managed_entry in managed_entries:
                 matcher = managed_entry.get("matcher")
