@@ -566,6 +566,12 @@ class TestBuiltInSkillGeneration:
         assert "observer framing" in debug_lower
         assert "compressed observer framing" in debug_lower
         assert "full observer framing" in debug_lower
+        assert "same_issue" in debug_lower
+        assert "derived_issue" in debug_lower
+        assert "unrelated_issue" in debug_lower
+        assert "contrarian candidate" in debug_lower
+        assert "at least 3 alternative cause candidates" in debug_lower
+        assert "at least 2 for compressed framing" in debug_lower
         assert "the think subagent must not read source files" in debug_lower
         assert "the think subagent must not inspect logs" in debug_lower
         assert "the think subagent must not read test files" in debug_lower

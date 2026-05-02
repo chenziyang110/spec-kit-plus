@@ -14,7 +14,9 @@ trigger: "[verbatim user input]"
 diagnostic_profile: scheduler-admission | cache-snapshot | ui-projection | general
 observer_mode: full | compressed
 observer_framing_completed: [true only after observer framing and transition memo are both written and the observer gate passes]
+framing_gate_passed: [true only after candidate count, diversity, contrarian candidate, and transition memo requirements pass]
 skip_observer_reason: [required when observer framing was compressed]
+waiting_on_child_human_followup: [true when a parent session is blocked on a derived child issue]
 atlas_read_completed: [true only after the atlas gate is complete]
 current_node_id: [ID of the active graph node]
 created: [ISO timestamp]
@@ -59,13 +61,16 @@ primary_suspected_loop: [most likely workflow/control loop break from the map vi
 suspected_owning_layer: [layer most likely to own the truth]
 suspected_truth_owner: [module/system area most likely defining the broken truth]
 recommended_first_probe: [best first evidence action for the investigator view]
+contrarian_candidate: [strongest materially different alternative candidate]
 missing_questions:
   - [question that would materially narrow the issue]
 alternative_cause_candidates:
   - candidate: [candidate cause]
+    failure_shape: [truth_owner_logic | control_observation_drift | projection_render | cache_snapshot | boundary_contract | config_flag_env | ordering_concurrency]
     why_it_fits: [why it fits the symptom]
     map_evidence: [which handbook/project-map evidence supports it]
     would_rule_out: [what missing information or evidence would eliminate it]
+    recommended_first_probe: [best first probe for this specific candidate]
 
 ## Transition Memo
 <!-- OVERWRITE/REFINE between observer framing and evidence investigation -->
@@ -89,6 +94,13 @@ carry_forward_notes:
   evidence_to_collect:
     - [specific evidence item]
   join_goal: [what decision this lane should help make at the join point]
+
+## Candidate Resolutions
+<!-- APPEND/REFINE - every high-priority framing candidate must eventually land somewhere -->
+
+- candidate: [candidate text]
+  disposition: confirmed | ruled_out | still_open_but_deprioritized
+  notes: [why it landed there]
 
 ## Truth Ownership
 <!-- APPEND/REFINE during investigation - identifies who owns system truth -->
@@ -159,6 +171,9 @@ root_cause_confidence: tentative | supported | confirmed
 fix: [empty until applied]
 fix_scope: truth-owner | control-boundary | observation-boundary | surface-only
 verification: [empty until verified]
+agent_fail_count: [automatic verification failures only]
+human_reopen_count: [human verification reopen count only]
+human_verification_outcome: pending | passed | same_issue | derived_issue | unrelated_issue | insufficient_feedback
 validation_results:
   - command: [verification command]
     status: passed | failed | skipped

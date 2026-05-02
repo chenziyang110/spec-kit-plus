@@ -1878,6 +1878,7 @@ class SkillsIntegration(IntegrationBase):
                 "  - `observer_framing` (summary, primary_suspected_loop, suspected_owning_layer, etc.)\n"
                 "  - `transition_memo` (first_candidate_to_test, why_first, carry_forward_notes)\n"
                 "  - `alternative_cause_candidates` (list of candidate objects)\n"
+                "- Ensure full framing yields at least 3 candidates, compressed framing at least 2, and include a contrarian candidate from a different failure family.\n"
                 "- Set `observer_framing_completed` to `True`.\n"
                 "- Then continue the debug session — the next GatheringNode run will skip observer framing "
                 "and proceed to gate checks.\n"
@@ -1910,7 +1911,10 @@ class SkillsIntegration(IntegrationBase):
             "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             f"- Use `wait_agent` only after the current investigation fan-out reaches its join point.\n"
             f"- Use `close_agent` after integrating finished subagent results.\n"
-            "- Keep fixing, verification, `awaiting_human_verify`, and final session resolution on the leader path.\n"
+            "- Do not resolve the session directly from successful automated verification. Successful automated verification must hand off into formal human verification.\n"
+            "- If human feedback reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue`.\n"
+            "- Default to `same_issue` unless strong evidence proves the other classes.\n"
+            "- Keep fixing, agent verification, `awaiting_human_verify`, and final session resolution on the leader path.\n"
         )
 
         content = content + addendum

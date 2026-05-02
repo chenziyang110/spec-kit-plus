@@ -51,6 +51,12 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "start a linked follow-up session" in content
     assert "record the parent/child relationship" in content
     assert "return to the parent session to finish the original human verification" in content
+    assert "same_issue" in content
+    assert "derived_issue" in content
+    assert "unrelated_issue" in content
+    assert "full framing: at least 3 candidates" in content
+    assert "compressed framing: at least 2 candidates" in content
+    assert "contrarian candidate" in content
     assert "project-map freshness helper" in content
     assert "freshness is `missing` or `stale`" in content
     assert "freshness is `possibly_stale`" in content
@@ -184,4 +190,7 @@ def test_debug_session_template_captures_control_plane_debugging_fields() -> Non
     assert "root_cause_confidence:" in content
     assert "fix_scope:" in content
     assert "loop_restoration_proof:" in content
+    assert "framing_gate_passed:" in content
+    assert "waiting_on_child_human_followup:" in content
+    assert "human_verification_outcome:" in content
     assert "no source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`" in lowered

@@ -87,8 +87,13 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
    - Look for existing files in `.planning/debug/*.md` (excluding `resolved/`).
    - If a session exists and no new issue is described, resume it.
    - If a new issue is described, start a new session.
-   - If the active session is `awaiting_human_verify` and the user reports a new issue discovered during that human verification, start a linked follow-up session instead of replacing the parent session.
-   - Record the parent/child relationship in both session files, and after the follow-up session is resolved, return to the parent session to finish the original human verification before archiving it.
+   - If the active session is `awaiting_human_verify` and the user reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue`.
+   - Default to `same_issue` unless repository evidence proves the other two classes.
+   - `same_issue` reopens the parent session.
+   - `derived_issue` starts a linked follow-up session instead of replacing the parent session.
+   - In other words, when repository evidence supports `derived_issue`, start a linked follow-up session rather than reopening the parent directly.
+   - `unrelated_issue` starts a separate session and does not auto-close the parent.
+   - Record the parent/child relationship in both session files, and after a `derived_issue` follow-up session is resolved, return to the parent session to finish the original human verification before archiving it.
 
 2. **Initialize or Resume**
    - [AGENT] Create or read the session file in `.planning/debug/[slug].md`.
@@ -108,7 +113,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
    - Verify with the reproduction steps and relevant tests.
 
 5. **Human Verification**
-   - Once the fix is verified by the agent, request a human confirmation checkpoint.
+   - Once the fix is verified by the agent, move into a formal human verification stage instead of resolving immediately.
+   - The session closes only after explicit human confirmation or an evidence-backed classification into `same_issue`, `derived_issue`, or `unrelated_issue`.
 
 6. **Archive and Commit**
    - After human confirmation, move the session file to `resolved/`.
@@ -197,6 +203,12 @@ If not: proceed to Stage 1 (Observer Framing).
   - `Map evidence`
   - `Missing questions`
   - `Recommended first probe`
+- Record at least 3 alternative cause candidates for full framing.
+- Record at least 2 for compressed framing.
+- Full framing: at least 3 candidates.
+- Compressed framing: at least 2 candidates.
+- Record a contrarian candidate from a different failure family.
+- Candidate diversity must span at least 2 failure-shape or truth-owner families.
 - Set `observer_framing_completed: true` only after all required fields are populated.
 - This stage is not complete until the debug session contains non-empty values for `summary`, `primary_suspected_loop`, `suspected_owning_layer`, `suspected_truth_owner`, `recommended_first_probe`, and at least one `alternative_cause_candidate`.
 - If there are no meaningful missing questions, record that explicitly instead of leaving the field empty.

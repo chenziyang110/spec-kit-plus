@@ -574,6 +574,40 @@ def _unique_strings(values: list[str]) -> list[str]:
     return ordered
 
 
+def _framing_gate_count_requirement(state: DebugGraphState) -> int:
+    return 2 if state.observer_mode == "compressed" else 3
+
+
+def _framing_gate_diversity_gaps(state: DebugGraphState) -> list[str]:
+    shapes = {
+        candidate.failure_shape
+        for candidate in state.observer_framing.alternative_cause_candidates
+        if candidate.failure_shape
+    }
+    if len(shapes) >= 2:
+        return []
+    return ["candidate diversity across at least 2 failure shapes or truth-owner families"]
+
+
+def _framing_gate_gaps(state: DebugGraphState) -> list[str]:
+    candidates = state.observer_framing.alternative_cause_candidates
+    gaps: list[str] = []
+    required_count = _framing_gate_count_requirement(state)
+    if len(candidates) < required_count:
+        gaps.append(f"at least {required_count} alternative cause candidates")
+    if not state.observer_framing.contrarian_candidate:
+        gaps.append("contrarian candidate")
+    for index, candidate in enumerate(candidates, start=1):
+        if not candidate.failure_shape:
+            gaps.append(f"candidate {index} failure_shape")
+        if not candidate.would_rule_out:
+            gaps.append(f"candidate {index} would_rule_out")
+        if not candidate.recommended_first_probe:
+            gaps.append(f"candidate {index} recommended_first_probe")
+    gaps.extend(_framing_gate_diversity_gaps(state))
+    return _unique_strings(gaps)
+
+
 def _sync_resolution_coverage(state: DebugGraphState) -> None:
     considered = list(state.resolution.alternative_hypotheses_considered)
     ruled_out = list(state.resolution.alternative_hypotheses_ruled_out)
@@ -696,6 +730,19 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
                 "observer_framing, transition_memo, and alternative_cause_candidates fields. "
                 "Set observer_framing_completed=True and continue.",
             )
+
+        framing_gaps = _framing_gate_gaps(ctx.state)
+        if framing_gaps:
+            ctx.state.framing_gate_passed = False
+            return _await_input(
+                ctx.state,
+                _format_checklist(
+                    "Observer framing is complete in form but not yet sufficient to enter investigation.",
+                    framing_gaps,
+                    intro="Fill in the missing framing items below before reproduction or code reads:",
+                ),
+            )
+        ctx.state.framing_gate_passed = True
 
         # 3. Gate checks
         if not ctx.state.symptoms.expected or not ctx.state.symptoms.actual:
@@ -821,7 +868,8 @@ class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
 
         # If verification passed, move to resolved.
         ctx.state.resolution.verification = "success"
-        return ResolvedNode()
+        ctx.state.resolution.human_verification_outcome = "pending"
+        return AwaitingHumanNode()
 
     def _handle_failed_verification(
         self,
@@ -829,20 +877,22 @@ class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         persistence: MarkdownPersistenceHandler | None,
     ) -> Union['InvestigatingNode', 'AwaitingHumanNode']:
         state.resolution.verification = "failed"
-        state.resolution.fail_count += 1
+        previous_failures = state.resolution.agent_fail_count or state.resolution.fail_count
+        state.resolution.agent_fail_count = previous_failures + 1
+        state.resolution.fail_count = state.resolution.agent_fail_count
         research_path: Path | None = None
-        if state.resolution.fail_count >= 2 and persistence:
+        if state.resolution.agent_fail_count >= 2 and persistence:
             research_path = persistence.save_research_checkpoint(state)
         if state.resolution.fix and state.resolution.fix not in state.resolution.rejected_surface_fixes:
             state.resolution.rejected_surface_fixes.append(state.resolution.fix)
-        if state.resolution.fail_count > 2:
+        if state.resolution.agent_fail_count > 2:
             if research_path is not None:
                 state.current_focus.next_action = (
                     f"Repeated verification failed. Review `{research_path.as_posix()}` "
                     "before attempting another fix loop."
                 )
             return AwaitingHumanNode()
-        if state.resolution.fail_count >= 2:
+        if state.resolution.agent_fail_count >= 2:
             state.current_focus.hypothesis = None
             state.current_focus.test = None
             state.current_focus.expecting = None
@@ -857,9 +907,11 @@ class AwaitingHumanNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['VerifyingNode', End]:
         ctx.state.status = DebugStatus.AWAITING_HUMAN
         ctx.state.current_node_id = "AwaitingHumanNode"
+        if ctx.state.resolution.human_verification_outcome == "passed":
+            return ResolvedNode()
         report_builder = ctx.deps.build_handoff_report if ctx.deps else build_handoff_report
         ctx.state.resolution.report = report_builder(ctx.state)
-        if ctx.state.resolution.fail_count >= 2 and ctx.deps:
+        if ctx.state.resolution.agent_fail_count >= 2 and ctx.deps:
             research_path = ctx.deps.save_research_checkpoint(ctx.state)
             if ctx.state.parent_slug:
                 ctx.state.current_focus.next_action = (
@@ -912,6 +964,7 @@ async def run_debug_session(
     if resumed and state.current_node_id == "VerifyingNode":
         state.status = DebugStatus.AWAITING_HUMAN
         state.current_node_id = "AwaitingHumanNode"
+        state.resolution.human_verification_outcome = "pending"
         state.current_focus.next_action = (
             "Confirm persisted verification commands before resuming automated execution."
         )

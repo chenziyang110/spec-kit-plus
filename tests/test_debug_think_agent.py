@@ -65,6 +65,19 @@ class TestBuildThinkSubagentPrompt:
         assert "Do NOT read source code" in prompt
         assert "Do NOT run commands" in prompt
 
+    def test_prompt_requires_failure_shape_and_contrarian_candidate(self) -> None:
+        state = DebugGraphState(
+            slug="test-session",
+            trigger="queue stuck after slot release",
+            diagnostic_profile="scheduler-admission",
+        )
+
+        prompt = build_think_subagent_prompt(state)
+
+        assert "failure_shape" in prompt
+        assert "recommended_first_probe" in prompt
+        assert "contrarian_candidate" in prompt
+
 
 class TestParseThinkSubagentResult:
     def test_extracts_observer_framing_from_hybrid_output(self) -> None:
