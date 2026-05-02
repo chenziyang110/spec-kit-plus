@@ -3,7 +3,7 @@ description: Use when an existing repository needs to be reverse-extracted into 
 workflow_contract:
   when_to_use: Use for an existing repository that needs a professional PRD suite reconstructed from current implementation reality, not for a new idea with no current project surface.
   primary_objective: Produce a delivery-grade PRD suite from an existing project by extracting repository-backed product truth and clearly separating evidence from inference and unknowns.
-  primary_outputs: '`.specify/prd-runs/<run-id>/workflow-state.md`, `.specify/prd-runs/<run-id>/coverage-matrix.md`, `.specify/prd-runs/<run-id>/evidence/**`, `.specify/prd-runs/<run-id>/master/master-pack.md`, and `.specify/prd-runs/<run-id>/exports/prd.md` plus mode-specific exports.'
+  primary_outputs: '`.specify/prd-runs/<run-id>/workflow-state.md`, `.specify/prd-runs/<run-id>/coverage-matrix.md`, `.specify/prd-runs/<run-id>/evidence/**`, `.specify/prd-runs/<run-id>/master/master-pack.md`, `.specify/prd-runs/<run-id>/master/exports/**`, and `.specify/prd-runs/<run-id>/exports/prd.md` plus mode-specific exports.'
   default_handoff: Completed PRD suite export. No automatic handoff into implementation planning.
 ---
 
@@ -112,6 +112,7 @@ The default artifact set is:
 - `.specify/prd-runs/<run-id>/coverage-matrix.md`
 - `.specify/prd-runs/<run-id>/evidence/`
 - `.specify/prd-runs/<run-id>/master/master-pack.md`
+- `.specify/prd-runs/<run-id>/master/exports/`
 - `.specify/prd-runs/<run-id>/exports/prd.md`
 
 Mode-specific exports:

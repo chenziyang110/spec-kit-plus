@@ -18,6 +18,7 @@ EXPECTED_SURFACES = {
     "evidence": "evidence",
     "master": "master",
     "exports": "exports",
+    "master_exports": "master/exports",
     "workflow_state": "workflow-state.md",
     "coverage_matrix": "coverage-matrix.md",
 }
@@ -43,6 +44,7 @@ def surface_status(run_dir: Path) -> dict[str, bool]:
         "evidence": (run_dir / "evidence").is_dir(),
         "master": (run_dir / "master").is_dir(),
         "exports": (run_dir / "exports").is_dir(),
+        "master_exports": (run_dir / "master" / "exports").is_dir(),
         "workflow_state": (run_dir / "workflow-state.md").is_file(),
         "coverage_matrix": (run_dir / "coverage-matrix.md").is_file(),
     }
@@ -59,7 +61,7 @@ def init_run(project_root: Path, requested_slug: str) -> dict[str, object]:
     workspace = f"{date_value}-{slug}"
     run_dir = project_root / ".specify" / "prd-runs" / workspace
     run_dir.mkdir(parents=True, exist_ok=True)
-    for dirname in ("evidence", "master", "exports"):
+    for dirname in ("evidence", "master", "exports", "master/exports"):
         (run_dir / dirname).mkdir(exist_ok=True)
 
     write_file_if_missing(
@@ -74,10 +76,33 @@ def init_run(project_root: Path, requested_slug: str) -> dict[str, object]:
                 "---",
                 "# PRD Workflow State",
                 "",
-                "## Current Phase",
-                "initialized",
+                "## Current Command",
+                "",
+                "- active_command: `sp-prd`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `analysis-only`",
+                "- summary: existing-project reverse PRD extraction",
+                "",
+                "## Next Action",
+                "",
+                "- initialize repository evidence harvest",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.prd`",
+                "",
+                "## Authoritative Files",
+                "",
+                f"- `.specify/prd-runs/{workspace}/workflow-state.md`",
+                f"- `.specify/prd-runs/{workspace}/coverage-matrix.md`",
+                f"- `.specify/prd-runs/{workspace}/master/master-pack.md`",
+                f"- `.specify/prd-runs/{workspace}/exports/prd.md`",
                 "",
                 "## Open Unknowns",
+                "",
                 "- None recorded yet.",
                 "",
             ]

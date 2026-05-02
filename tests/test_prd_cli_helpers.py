@@ -48,13 +48,18 @@ def test_bash_prd_init_creates_run_workspace_and_emits_json(tmp_path: Path):
     assert (run_dir / "evidence").is_dir()
     assert (run_dir / "master").is_dir()
     assert (run_dir / "exports").is_dir()
+    assert (run_dir / "master" / "exports").is_dir()
     assert (run_dir / "workflow-state.md").is_file()
     assert (run_dir / "coverage-matrix.md").is_file()
+    workflow_state = (run_dir / "workflow-state.md").read_text(encoding="utf-8")
+    assert "- active_command: `sp-prd`" in workflow_state
+    assert "- phase_mode: `analysis-only`" in workflow_state
     assert payload["surfaces"] == {
         "workspace": True,
         "evidence": True,
         "master": True,
         "exports": True,
+        "master_exports": True,
         "workflow_state": True,
         "coverage_matrix": True,
     }
@@ -77,6 +82,7 @@ def test_bash_prd_status_reports_missing_and_present_surfaces(tmp_path: Path):
         "evidence": True,
         "master": False,
         "exports": False,
+        "master_exports": False,
         "workflow_state": True,
         "coverage_matrix": False,
     }
@@ -103,6 +109,7 @@ def test_powershell_prd_helper_matches_bash_init_contract(tmp_path: Path):
     assert payload["mode"] == "init"
     assert payload["slug"] == "support-desk"
     assert run_dir.is_dir()
+    assert (run_dir / "master" / "exports").is_dir()
     assert all(payload["surfaces"].values())
 
 
@@ -118,6 +125,10 @@ def test_python_prd_helper_wrapper_runs_helper_from_current_project(tmp_path: Pa
     assert payload["mode"] == "init"
     assert payload["slug"] == "billing-portal"
     assert Path(payload["workspace_path"]).is_dir()
+    state_path = Path(payload["workspace_path"]) / "workflow-state.md"
+    state_content = state_path.read_text(encoding="utf-8")
+    assert "- active_command: `sp-prd`" in state_content
+    assert "- phase_mode: `analysis-only`" in state_content
 
 
 def test_prd_helper_script_prefers_bundled_core_pack_scripts(tmp_path: Path, monkeypatch):

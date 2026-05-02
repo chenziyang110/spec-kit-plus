@@ -527,6 +527,20 @@ def test_hook_validate_prompt_supports_python_module_entrypoint(tmp_path: Path):
     assert payload["status"] in {"warn", "blocked"}
 
 
+def test_prd_command_supports_python_module_entrypoint(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = _run_module_in_project(project, ["prd", "Portal Audit", "--json"])
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    payload = json.loads(result.stdout.strip())
+    assert payload["mode"] == "init"
+    assert payload["slug"] == "portal-audit"
+    run_dir = Path(payload["workspace_path"])
+    assert (run_dir / "workflow-state.md").is_file()
+    assert (run_dir / "master" / "exports").is_dir()
+
+
 def test_hook_validate_commit_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)
 

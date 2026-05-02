@@ -1095,6 +1095,37 @@ def _render_quick_task_table(tasks: list[dict[str, Any]]) -> None:
     console.print(table)
 
 
+@app.command("prd")
+def prd_command(
+    run_slug: str = typer.Argument(
+        "prd-run",
+        help="Run slug to initialize, or run ID when using --status",
+    ),
+    status: bool = typer.Option(False, "--status", help="Show an existing PRD run surface status"),
+    json_output: bool = typer.Option(False, "--json", help="Print the helper payload as JSON"),
+):
+    """Initialize or inspect an existing-project PRD extraction run."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_prd_helper("status" if status else "init", run_slug=run_slug)
+
+    if json_output:
+        print(json.dumps(payload, ensure_ascii=False))
+        return
+
+    mode = str(payload.get("mode") or ("status" if status else "init"))
+    title = "PRD Run Status" if mode == "status" else "PRD Run Initialized"
+    surfaces = payload.get("surfaces") if isinstance(payload.get("surfaces"), dict) else {}
+    missing = sorted(name for name, present in surfaces.items() if not present)
+    rows = [
+        ("Workspace", str(payload.get("workspace", ""))),
+        ("Path", str(payload.get("workspace_path", ""))),
+        ("Complete", "yes" if payload.get("complete") else "no"),
+    ]
+    if missing:
+        rows.append(("Missing", ", ".join(missing)))
+    console.print(_cli_panel(_labeled_grid(rows), title=title, border_style="cyan"))
+
+
 @quick_app.command("list")
 def quick_list(
     all_tasks: bool = typer.Option(False, "--all", help="Include closed and archived quick tasks"),
