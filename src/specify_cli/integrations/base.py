@@ -1080,6 +1080,15 @@ class IntegrationBase(ABC):
         """High-level uninstall — calls ``teardown()``."""
         return self.teardown(project_root, manifest, force=force)
 
+    def repair_runtime_assets(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        **opts: Any,
+    ) -> list[Path]:
+        """Refresh runtime-managed integration assets without rewriting workflow content."""
+        return self.install_scripts(project_root, manifest)
+
 
 # ---------------------------------------------------------------------------
 # MarkdownIntegration — covers ~20 standard agents

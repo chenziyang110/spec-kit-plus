@@ -2313,6 +2313,8 @@ def _install_shared_infra(
     project_path: Path,
     script_type: str,
     tracker: StepTracker | None = None,
+    *,
+    overwrite_existing: bool = False,
 ) -> bool:
     """Install shared infrastructure files into *project_path*.
 
@@ -2351,7 +2353,7 @@ def _install_shared_infra(
                 if src_path.is_file():
                     rel_path = src_path.relative_to(variant_src)
                     dst_path = dest_variant / rel_path
-                    if dst_path.exists():
+                    if dst_path.exists() and not overwrite_existing:
                         skipped_files.append(str(dst_path.relative_to(project_path)))
                     else:
                         dst_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2378,7 +2380,7 @@ def _install_shared_infra(
             rel_path = src_path.relative_to(templates_src)
             dst = dest_templates / rel_path
             dst.parent.mkdir(parents=True, exist_ok=True)
-            if dst.exists():
+            if dst.exists() and not overwrite_existing:
                 skipped_files.append(str(dst.relative_to(project_path)))
                 continue
 
@@ -2409,7 +2411,7 @@ def _install_shared_infra(
                     rel_path = src_path.relative_to(extra_src)
                     dst = extra_dest / rel_path
                     dst.parent.mkdir(parents=True, exist_ok=True)
-                    if dst.exists():
+                    if dst.exists() and not overwrite_existing:
                         skipped_files.append(str(dst.relative_to(project_path)))
                         continue
 
@@ -5058,6 +5060,21 @@ def check():
                 "[dim]Re-run `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai <agent>` from the project root to persist a trusted launcher.[/dim]"
             )
 
+    if (project_root / ".specify").exists():
+        from .launcher import diagnose_project_runtime_compatibility
+
+        compatibility_issues = diagnose_project_runtime_compatibility(project_root)
+        if compatibility_issues:
+            console.print()
+            rows = [
+                ("Project", f"[dim]{project_root}[/dim]"),
+                ("Issues", f"[yellow]{len(compatibility_issues)} detected[/yellow]"),
+            ]
+            console.print(_cli_panel(_labeled_grid(rows), title="Project Compatibility", border_style="yellow"))
+            for issue in compatibility_issues:
+                console.print(f"- [yellow]{issue['summary']}[/yellow]")
+                console.print(f"  [dim]{issue['repair']}[/dim]")
+
     console.print("\n[bold green]Specify CLI is ready to use![/bold green]")
 
     if not git_ok:
@@ -5603,6 +5620,57 @@ def _update_init_options_for_integration(
     save_init_options(project_root, opts)
 
 
+def _repair_active_integration_runtime_assets(
+    project_root: Path,
+    *,
+    script_type: str,
+) -> tuple[str | None, int]:
+    """Refresh shared infra and the active integration's managed runtime assets.
+
+    This path is intentionally conservative: it refreshes shared/runtime-managed
+    assets while leaving user-modified workflow and skill content alone.
+    """
+    from .integrations import get_integration
+    from .integrations.manifest import IntegrationManifest
+
+    current = _read_integration_json(project_root)
+    installed_key = current.get("integration")
+
+    _install_shared_infra(project_root, script_type, overwrite_existing=True)
+    if os.name != "nt":
+        ensure_executable_scripts(project_root)
+
+    if not installed_key:
+        return None, 0
+
+    integration = get_integration(installed_key)
+    if integration is None:
+        raise ValueError(f"Unknown active integration '{installed_key}'")
+
+    try:
+        manifest = IntegrationManifest.load(integration.key, project_root)
+        manifest.version = get_speckit_version()
+    except (ValueError, FileNotFoundError):
+        manifest = IntegrationManifest(
+            integration.key, project_root, version=get_speckit_version()
+        )
+
+    integration.repair_runtime_assets(
+        project_root,
+        manifest,
+        script_type=script_type,
+    )
+    _install_codex_team_assets_if_needed(
+        project_root,
+        manifest,
+        integration.key,
+    )
+    manifest.save()
+    _write_integration_json(project_root, integration.key, script_type)
+    _update_init_options_for_integration(project_root, integration, script_type=script_type)
+    return integration.key, len(manifest.files)
+
+
 @integration_app.command("uninstall")
 def integration_uninstall(
     key: str = typer.Argument(None, help="Integration key to uninstall (default: current integration)"),
@@ -5814,6 +5882,31 @@ def integration_switch(
 
     name = (target_integration.config or {}).get("name", target)
     console.print(f"\n[green]✓[/green] Switched to integration '{name}'")
+
+
+@integration_app.command("repair")
+def integration_repair(
+    script: str | None = typer.Option(None, "--script", help="Script type: sh or ps (default: from init-options.json or platform default)"),
+):
+    """Refresh shared/runtime integration assets for the current project."""
+    project_root = Path.cwd()
+
+    _require_spec_kit_plus_project(project_root)
+
+    selected_script = _resolve_script_type(project_root, script)
+    active_key, tracked_files = _repair_active_integration_runtime_assets(
+        project_root,
+        script_type=selected_script,
+    )
+
+    if active_key:
+        console.print(
+            f"[green]✓[/green] Refreshed shared assets and repaired runtime-managed surfaces for integration "
+            f"[cyan]{active_key}[/cyan]."
+        )
+        console.print(f"[dim]Tracked files refreshed: {tracked_files}[/dim]")
+    else:
+        console.print("[green]✓[/green] Refreshed shared project assets. No active integration was installed.")
 
 
 # ===== Preset Commands =====

@@ -208,3 +208,76 @@ def write_project_specify_launcher_config(
         encoding="utf-8",
     )
     return config_path
+
+
+def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str, str]]:
+    """Inspect persisted launcher and generated runtime surfaces for stale or broken state."""
+
+    issues: list[dict[str, str]] = []
+
+    launcher = load_project_specify_launcher(project_root)
+    if launcher is not None and launcher.argv:
+        launcher_entry = launcher.argv[0]
+        launcher_exists = Path(launcher_entry).exists() if Path(launcher_entry).is_absolute() else shutil.which(launcher_entry)
+        if not launcher_exists:
+            issues.append(
+                {
+                    "code": "broken-project-launcher",
+                    "summary": "Persisted project launcher is configured but unavailable.",
+                    "repair": "Repair `.specify/config.json` or re-run `specify init --here --force ...` from a trusted launcher source.",
+                }
+            )
+
+    powershell_common = project_root / ".specify" / "scripts" / "powershell" / "common.ps1"
+    try:
+        powershell_common_text = powershell_common.read_text(encoding="utf-8")
+    except OSError:
+        powershell_common_text = ""
+    if powershell_common_text:
+        has_prefix_helper = "function Find-FeatureDirByPrefix" in powershell_common_text
+        uses_prefix_resolution = "Find-FeatureDirByPrefix -RepoRoot $repoRoot -BranchName $currentBranch" in powershell_common_text
+        if not has_prefix_helper or not uses_prefix_resolution:
+            issues.append(
+                {
+                    "code": "stale-powershell-feature-resolver",
+                    "summary": "Generated PowerShell workflow scripts are stale and still rely on exact branch-to-feature-dir matching.",
+                    "repair": "Refresh the generated scripts by re-running `specify init --here --force --ai <agent>` or reinstalling the active integration.",
+                }
+            )
+
+    claude_settings = project_root / ".claude" / "settings.json"
+    claude_payload = _load_config(claude_settings)
+    if isinstance(claude_payload, dict):
+        hooks = claude_payload.get("hooks")
+        stale_claude_hook = False
+        if isinstance(hooks, dict):
+            for entries in hooks.values():
+                if not isinstance(entries, list):
+                    continue
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    hook_items = entry.get("hooks", [])
+                    if not isinstance(hook_items, list):
+                        continue
+                    for hook in hook_items:
+                        if not isinstance(hook, dict):
+                            continue
+                        command = str(hook.get("command") or "")
+                        if "claude-hook-dispatch.py" in command and '"$CLAUDE_PROJECT_DIR"' in command:
+                            stale_claude_hook = True
+                            break
+                    if stale_claude_hook:
+                        break
+                if stale_claude_hook:
+                    break
+        if stale_claude_hook:
+            issues.append(
+                {
+                    "code": "stale-claude-windows-hook-command",
+                    "summary": "Claude managed hook commands still use POSIX-style `$CLAUDE_PROJECT_DIR` expansion.",
+                    "repair": "Refresh the Claude integration so `.claude/settings.json` rewrites managed hook commands with the current Windows-safe format.",
+                }
+            )
+
+    return issues

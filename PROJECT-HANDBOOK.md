@@ -1,6 +1,6 @@
 # Project Handbook
 
-**Last Updated:** 2026-05-01
+**Last Updated:** 2026-05-02
 **Purpose:** Root navigation artifact for this repository.
 
 ## System Summary
@@ -20,6 +20,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 ## High-Value Capabilities
 
 - **Project initialization and generated agent surfaces**: `specify init` resolves `--ai` or `--integration`, installs command/skill/workflow files, copies scripts/templates, and records integration manifests. Read `.specify/project-map/root/INTEGRATIONS.md` and `modules/specify-cli-core/ARCHITECTURE.md`.
+- **Generated-project repair and compatibility diagnostics**: `specify check` now surfaces broken project launchers and stale generated runtime assets, and `specify integration repair` refreshes shared/runtime-managed generated assets in place without overwriting user-edited workflow content. Read `.specify/project-map/root/OPERATIONS.md` and `modules/specify-cli-core/ARCHITECTURE.md`.
 - **Workflow contract generation**: `templates/commands/`, `templates/command-partials/`, and `templates/passive-skills/` define `sp-*` behavior for downstream agents. Read `.specify/project-map/root/WORKFLOWS.md` and `modules/templates-generated-surfaces/WORKFLOWS.md`.
 - **Existing-project PRD extraction**: `sp-prd` is the repository-first current-state PRD lane for reverse-extracting product documentation from code, docs, tests, routes, UI/API surfaces, and atlas evidence. It is a peer workflow to `sp-specify` and does not automatically hand off to planning.
 - **Concurrent lane runtime**: `src/specify_cli/lanes/` adds lane-local durable state, reconcile-before-resume routing, and dedicated lane closeout primitives for independent feature execution.
@@ -60,6 +61,7 @@ The entry layer should help answer:
 ## Shared Surfaces
 
 - `src/specify_cli/__init__.py`: top-level Typer app, command registration, init flow, project-map/hook/learning/testing/eval/team helper commands.
+- `src/specify_cli/launcher.py`: persisted project launcher binding, generated-project compatibility diagnostics, and runtime launcher helpers.
 - `src/specify_cli/lanes/`: lane registry cache, lane-local durable state, lease helpers, reconcile logic, root-level lane resolution, and integrate closeout helpers.
 - `src/specify_cli/integrations/base.py` and `src/specify_cli/integrations/__init__.py`: integration registry, shared generation bases, template processing, passive skill installation, manifest behavior.
 - `templates/`: command templates, command partials, passive skills, project-map/testing templates, worker prompts, constitution/spec/plan/tasks artifacts.
@@ -79,6 +81,7 @@ The entry layer should help answer:
 ## Change-Propagation Hotspots
 
 - Agent registration metadata propagates into CLI help, integration generation tests, README guidance, generated file paths, and tool checks.
+- Generated runtime compatibility rules propagate into `specify check`, integration install/switch/repair flows, generated `.specify/config.json`, generated hook/settings assets, and generated shared scripts.
 - Template wording propagates into every generated agent surface and template assertion tests.
 - Lane registry semantics and reconcile rules propagate into root-level routing, workflow templates, feature-creation scripts, hook diagnostics, and generated documentation.
 - Subagents-first dispatch vocabulary propagates into orchestration tests, generated workflow tests, integration tests, README/quickstart guidance, context scripts, and project-map docs.
@@ -94,6 +97,7 @@ The entry layer should help answer:
 - Change workflow templates or passive skills: read `root/WORKFLOWS.md`, `modules/templates-generated-surfaces/WORKFLOWS.md`, and template tests. For `sp-prd`, preserve repository-first current-state PRD extraction and no automatic planning handoff.
 - Change hooks, packets, orchestration, or Codex team runtime: read `root/ARCHITECTURE.md`, `root/OPERATIONS.md`, and relevant module docs.
 - Change packaging, CI, devcontainer, extension, or preset surfaces: read `root/STRUCTURE.md`, `root/INTEGRATIONS.md`, and `root/OPERATIONS.md`.
+- Change launcher binding, generated runtime compatibility, or generated-project repair flows: read `root/OPERATIONS.md`, `root/INTEGRATIONS.md`, and `modules/specify-cli-core/ARCHITECTURE.md`.
 
 ## Verification Entry Points
 

@@ -141,6 +141,60 @@ check_feature_branch() {
 
 get_feature_dir() { echo "$1/specs/$2"; }
 
+# Find feature directory from durable lane state before falling back to branch-prefix guessing.
+# This lets resumed workflows recover the canonical feature dir even when the
+# current branch name and feature directory suffix no longer match exactly.
+find_feature_dir_from_lane_state() {
+    local repo_root="$1"
+    local branch_name="$2"
+    local lanes_root="$repo_root/.specify/lanes"
+
+    [ -d "$lanes_root" ] || return 1
+
+    local matches=()
+    local lane_file feature_dir
+    for lane_file in "$lanes_root"/*/lane.json; do
+        [ -f "$lane_file" ] || continue
+        if grep -Eq "\"branch_name\"[[:space:]]*:[[:space:]]*\"$branch_name\"" "$lane_file" \
+            || grep -Eq "\"lane_id\"[[:space:]]*:[[:space:]]*\"$branch_name\"" "$lane_file"; then
+            feature_dir=$(sed -n 's/.*"feature_dir"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$lane_file" | head -n1)
+            [ -n "$feature_dir" ] || continue
+            if [[ "$feature_dir" != /* ]]; then
+                feature_dir="$repo_root/$feature_dir"
+            fi
+            matches+=("$feature_dir")
+        fi
+    done
+
+    if [[ ${#matches[@]} -eq 0 ]]; then
+        return 1
+    fi
+
+    local unique_matches=()
+    local candidate seen=false
+    for candidate in "${matches[@]}"; do
+        seen=false
+        for existing in "${unique_matches[@]}"; do
+            if [[ "$existing" == "$candidate" ]]; then
+                seen=true
+                break
+            fi
+        done
+        if [[ "$seen" == false ]]; then
+            unique_matches+=("$candidate")
+        fi
+    done
+
+    if [[ ${#unique_matches[@]} -eq 1 ]]; then
+        echo "${unique_matches[0]}"
+        return 0
+    fi
+
+    echo "ERROR: Multiple lane records map branch '$branch_name' to feature directories: ${unique_matches[*]}" >&2
+    echo "Please resolve the lane state before continuing." >&2
+    return 1
+}
+
 # Find feature directory by numeric prefix instead of exact branch match
 # This allows multiple branches to work on the same spec (e.g., 004-fix-bug, 004-add-feature)
 find_feature_dir_by_prefix() {
@@ -196,9 +250,11 @@ get_feature_paths() {
 
     # Use prefix-based lookup to support multiple branches per spec
     local feature_dir
-    if ! feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch"); then
-        echo "ERROR: Failed to resolve feature directory" >&2
-        return 1
+    if ! feature_dir=$(find_feature_dir_from_lane_state "$repo_root" "$current_branch"); then
+        if ! feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch"); then
+            echo "ERROR: Failed to resolve feature directory" >&2
+            return 1
+        fi
     fi
 
     # Use printf '%q' to safely quote values, preventing shell injection

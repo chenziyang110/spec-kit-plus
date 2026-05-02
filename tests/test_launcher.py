@@ -2,6 +2,7 @@ import json
 
 import specify_cli
 from specify_cli.launcher import (
+    diagnose_project_runtime_compatibility,
     SpecifyLauncherSpec,
     load_project_specify_launcher,
     project_specify_subcommand,
@@ -169,3 +170,64 @@ def test_render_project_launcher_placeholders_expands_cli_and_subcommand(tmp_pat
         "`uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify hook validate-state --command plan`"
         in rendered
     )
+
+
+def test_diagnose_project_runtime_compatibility_reports_broken_launcher(tmp_path):
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "broken launcher",
+                    "argv": ["definitely-missing-specify-command", "specify"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "broken-project-launcher" for issue in issues)
+
+
+def test_diagnose_project_runtime_compatibility_reports_stale_powershell_resolver(tmp_path):
+    common_path = tmp_path / ".specify" / "scripts" / "powershell" / "common.ps1"
+    common_path.parent.mkdir(parents=True)
+    common_path.write_text(
+        "function Get-FeaturePathsEnv { $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch }\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-powershell-feature-resolver" for issue in issues)
+
+
+def test_diagnose_project_runtime_compatibility_reports_stale_claude_windows_hook_commands(tmp_path):
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "SessionStart": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": 'python "$CLAUDE_PROJECT_DIR"/.claude/hooks/claude-hook-dispatch.py session-start',
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-claude-windows-hook-command" for issue in issues)

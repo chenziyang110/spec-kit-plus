@@ -94,6 +94,22 @@ Generated projects may also persist a trusted project launcher in
 first-party runtime helper instructions should follow it instead of assuming the
 first `specify` executable on PATH is the correct one.
 
+Validate generated-project runtime health and repair stale generated assets:
+
+```bash
+specify check
+specify integration repair
+```
+
+`specify check` now reports:
+
+- missing or broken persisted project launchers
+- stale generated PowerShell workflow scripts that still rely on exact branch-to-feature-dir matching
+- stale Claude Windows hook commands that still use POSIX-style `$CLAUDE_PROJECT_DIR`
+
+`specify integration repair` refreshes shared/runtime-managed generated assets in place
+without overwriting user-edited workflow or skill content.
+
 Validate the installation:
 
 ```bash
@@ -120,6 +136,12 @@ install thin native hook adapters under `.claude/hooks/`. When
 `.claude/settings.json` is absent, it is created; when it already exists and is
 valid JSON, managed hook registrations are merged without overwriting unrelated
 user settings.
+
+If a generated Claude project on Windows still has stale hook commands, run:
+
+```bash
+specify integration repair --script ps
+```
 
 Gemini:
 
@@ -227,6 +249,7 @@ Conditional gates and follow-up commands:
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
 - `explain` to describe the current spec, plan, task, implement, or handbook/project-map atlas artifact in plain language
 - `integrate` to discover implementation-complete lanes, run closeout prechecks, and prepare them for mainline merge without folding closeout back into `implement`
+- `integration repair` to refresh generated shared/runtime-managed assets after CLI upgrades or when `specify check` reports stale launcher, script, or hook surfaces
 - when you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing subagent validation evidence)

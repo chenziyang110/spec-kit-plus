@@ -2,10 +2,12 @@
 
 import json
 import os
+from pathlib import Path
 
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli.launcher import SpecifyLauncherSpec
 
 
 runner = CliRunner()
@@ -476,6 +478,111 @@ class TestIntegrationSwitch:
 
         data = json.loads((project / ".specify" / "integration.json").read_text(encoding="utf-8"))
         assert data["integration"] == "claude"
+
+
+class TestIntegrationRepair:
+    def test_repair_refreshes_missing_project_launcher_and_stale_claude_hook_commands(self, tmp_path, monkeypatch):
+        project = _init_project(tmp_path, "claude")
+
+        config_path = project / ".specify" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_payload = {}
+        config_path.write_text(json.dumps(config_payload, indent=2) + "\n", encoding="utf-8")
+
+        launcher = SpecifyLauncherSpec(
+            command="uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify",
+            argv=(
+                "uvx",
+                "--from",
+                "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+                "specify",
+            ),
+        )
+        monkeypatch.setattr("specify_cli.launcher.resolve_specify_launcher_spec", lambda: launcher)
+
+        settings_path = project / ".claude" / "settings.json"
+        settings_payload = json.loads(settings_path.read_text(encoding="utf-8"))
+        for entries in settings_payload.get("hooks", {}).values():
+            for entry in entries:
+                for hook in entry.get("hooks", []):
+                    if isinstance(hook, dict) and isinstance(hook.get("command"), str):
+                        hook["command"] = hook["command"].replace("$env:CLAUDE_PROJECT_DIR", "$CLAUDE_PROJECT_DIR")
+        settings_path.write_text(json.dumps(settings_payload, indent=2) + "\n", encoding="utf-8")
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                ["integration", "repair", "--script", "ps"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert "repaired runtime-managed surfaces" in result.output.lower()
+
+        repaired_config = json.loads(config_path.read_text(encoding="utf-8"))
+        assert isinstance(repaired_config.get("specify_launcher"), dict)
+        assert repaired_config["specify_launcher"]["argv"] == list(launcher.argv)
+
+        repaired_settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        commands = [
+            hook["command"]
+            for entries in repaired_settings["hooks"].values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        assert commands
+        assert all('"$env:CLAUDE_PROJECT_DIR"' in command for command in commands)
+
+    def test_repair_refreshes_shared_powershell_script_assets(self, tmp_path):
+        project = _init_project(tmp_path, "claude")
+
+        common_path = project / ".specify" / "scripts" / "powershell" / "common.ps1"
+        common_path.parent.mkdir(parents=True, exist_ok=True)
+        common_path.write_text(
+            "function Get-FeaturePathsEnv { $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch }\n",
+            encoding="utf-8",
+        )
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                ["integration", "repair", "--script", "ps"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        repaired = common_path.read_text(encoding="utf-8")
+        assert "Find-FeatureDirFromLaneState" in repaired
+
+    def test_repair_preserves_user_modified_skill_content(self, tmp_path):
+        project = _init_project(tmp_path, "claude")
+
+        skill_path = project / ".claude" / "skills" / "sp-plan" / "SKILL.md"
+        original = "# custom user skill content\n"
+        skill_path.write_text(original, encoding="utf-8")
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                ["integration", "repair", "--script", "ps"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert skill_path.read_text(encoding="utf-8") == original
 
 
 # ── Full lifecycle ───────────────────────────────────────────────────

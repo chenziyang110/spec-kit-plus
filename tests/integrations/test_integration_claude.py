@@ -252,6 +252,26 @@ class TestClaudeIntegration:
         assert ".claude/hooks/claude-hook-dispatch.py" in tracked
         assert ".claude/settings.json" in tracked
 
+    def test_setup_writes_windows_safe_hook_commands(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="ps")
+
+        settings_path = tmp_path / ".claude" / "settings.json"
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+        commands = [
+            hook["command"]
+            for entries in payload["hooks"].values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+
+        assert commands
+        for command in commands:
+            assert '"$env:CLAUDE_PROJECT_DIR"' in command
+            assert '"$CLAUDE_PROJECT_DIR"' not in command
+
     def test_setup_refreshes_existing_managed_hook_asset(self, tmp_path):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)
@@ -363,7 +383,7 @@ class TestClaudeIntegration:
 
         tracked = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in created}
         assert ".claude/settings.json" not in tracked
-        assert ".claude/settings.json" not in manifest.files
+        assert ".claude/settings.json" in manifest.files
 
     def test_setup_preserves_invalid_existing_settings_json(self, tmp_path):
         integration = get_integration("claude")

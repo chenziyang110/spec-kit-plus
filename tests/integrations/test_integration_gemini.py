@@ -119,7 +119,7 @@ class TestGeminiIntegration(TomlIntegrationTests):
 
         tracked = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in created}
         assert ".gemini/settings.json" not in tracked
-        assert ".gemini/settings.json" not in manifest.files
+        assert ".gemini/settings.json" in manifest.files
 
     def test_setup_preserves_invalid_existing_settings_json(self, tmp_path):
         integration = get_integration("gemini")

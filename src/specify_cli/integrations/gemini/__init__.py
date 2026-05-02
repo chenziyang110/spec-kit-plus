@@ -297,6 +297,7 @@ class GeminiIntegration(TomlIntegration):
             return []
 
         settings_path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+        self.record_file_in_manifest(settings_path, project_root, manifest)
         return []
 
     def setup(
@@ -314,6 +315,28 @@ class GeminiIntegration(TomlIntegration):
         )
         self._install_hook_assets(project_root=project_root, manifest=manifest)
         self._install_or_merge_hook_settings(project_root=project_root, manifest=manifest)
+        return created
+
+    def repair_runtime_assets(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        **opts: Any,
+    ) -> list[Path]:
+        created: list[Path] = []
+        created.extend(self.install_scripts(project_root, manifest))
+        created.extend(
+            self._install_hook_assets(
+                project_root=project_root,
+                manifest=manifest,
+            )
+        )
+        created.extend(
+            self._install_or_merge_hook_settings(
+                project_root=project_root,
+                manifest=manifest,
+            )
+        )
         return created
 
     def teardown(

@@ -60,6 +60,14 @@ class ClaudeIntegration(SkillsIntegration):
                 return candidate
         return sys.executable
 
+    @staticmethod
+    def _hook_dispatch_command(python_cmd: str, route: str) -> str:
+        if sys.platform.startswith("win"):
+            project_dir = '"$env:CLAUDE_PROJECT_DIR"'
+        else:
+            project_dir = '"$CLAUDE_PROJECT_DIR"'
+        return f"{python_cmd} {project_dir}/.claude/hooks/{CLAUDE_HOOK_DISPATCH} {route}"
+
     @classmethod
     def _build_managed_hook_events(cls, python_cmd: str | None = None) -> dict[str, list[dict[str, Any]]]:
         if python_cmd is None:
@@ -70,7 +78,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} session-start',
+                            "command": cls._hook_dispatch_command(python_cmd, "session-start"),
                         }
                     ]
                 }
@@ -80,7 +88,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} user-prompt-submit',
+                            "command": cls._hook_dispatch_command(python_cmd, "user-prompt-submit"),
                         }
                     ]
                 }
@@ -91,7 +99,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} post-tool-session-state',
+                            "command": cls._hook_dispatch_command(python_cmd, "post-tool-session-state"),
                         }
                     ],
                 }
@@ -101,7 +109,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} stop-monitor',
+                            "command": cls._hook_dispatch_command(python_cmd, "stop-monitor"),
                         }
                     ]
                 }
@@ -112,7 +120,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} pre-tool-read',
+                            "command": cls._hook_dispatch_command(python_cmd, "pre-tool-read"),
                         }
                     ],
                 },
@@ -121,7 +129,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f'{python_cmd} "$CLAUDE_PROJECT_DIR"/.claude/hooks/{CLAUDE_HOOK_DISPATCH} pre-tool-bash',
+                            "command": cls._hook_dispatch_command(python_cmd, "pre-tool-bash"),
                         }
                     ],
                 },
@@ -358,6 +366,7 @@ class ClaudeIntegration(SkillsIntegration):
             return []
 
         settings_path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+        self.record_file_in_manifest(settings_path, project_root, manifest)
         return []
 
     def teardown(
@@ -815,6 +824,28 @@ class ClaudeIntegration(SkillsIntegration):
             implement_teams_skill.write_bytes(content.encode("utf-8"))
             self.record_file_in_manifest(implement_teams_skill, project_root, manifest)
 
+        return created
+
+    def repair_runtime_assets(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        **opts: Any,
+    ) -> list[Path]:
+        created: list[Path] = []
+        created.extend(self.install_scripts(project_root, manifest))
+        created.extend(
+            self._install_hook_assets(
+                project_root=project_root,
+                manifest=manifest,
+            )
+        )
+        created.extend(
+            self._install_or_merge_hook_settings(
+                project_root=project_root,
+                manifest=manifest,
+            )
+        )
         return created
 
 

@@ -5,6 +5,7 @@ Converted from tests/test_timestamp_branches.sh so they are discovered by `uv ru
 """
 
 import os
+import json
 import re
 import shlex
 import shutil
@@ -17,6 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CREATE_FEATURE = PROJECT_ROOT / "scripts" / "bash" / "create-new-feature.sh"
 CREATE_FEATURE_PS = PROJECT_ROOT / "scripts" / "powershell" / "create-new-feature.ps1"
 COMMON_SH = PROJECT_ROOT / "scripts" / "bash" / "common.sh"
+COMMON_PS = PROJECT_ROOT / "scripts" / "powershell" / "common.ps1"
 
 requires_bash = pytest.mark.skipif(
     shutil.which("bash") is None,
@@ -714,6 +716,93 @@ def _has_pwsh() -> bool:
         return True
     except (FileNotFoundError, subprocess.CalledProcessError):
         return False
+
+
+@pytest.mark.skipif(not _has_pwsh(), reason="pwsh not available")
+class TestPowerShellFeatureDirResolution:
+    def test_common_ps_feature_paths_match_timestamp_prefix(self, tmp_path: Path):
+        """PowerShell should resolve an existing timestamp-prefixed spec dir even when branch suffix differs."""
+        (tmp_path / "specs" / "20260319-143022-original-feat").mkdir(parents=True)
+        (tmp_path / ".specify").mkdir(parents=True)
+        ps_dir = tmp_path / "scripts" / "powershell"
+        ps_dir.mkdir(parents=True)
+        shutil.copy(COMMON_PS, ps_dir / "common.ps1")
+
+        script = (
+            f'. "{ps_dir / "common.ps1"}"; '
+            '$env:SPECIFY_FEATURE = "20260319-143022-different-name"; '
+            '$paths = Get-FeaturePathsEnv; '
+            'Write-Output $paths.FEATURE_DIR'
+        )
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command", script],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == str(tmp_path / "specs" / "20260319-143022-original-feat")
+
+    def test_common_ps_feature_paths_match_sequential_prefix(self, tmp_path: Path):
+        """PowerShell should resolve an existing numeric-prefixed spec dir even when branch suffix differs."""
+        (tmp_path / "specs" / "1000-original-feat").mkdir(parents=True)
+        (tmp_path / ".specify").mkdir(parents=True)
+        ps_dir = tmp_path / "scripts" / "powershell"
+        ps_dir.mkdir(parents=True)
+        shutil.copy(COMMON_PS, ps_dir / "common.ps1")
+
+        script = (
+            f'. "{ps_dir / "common.ps1"}"; '
+            '$env:SPECIFY_FEATURE = "1000-different-name"; '
+            '$paths = Get-FeaturePathsEnv; '
+            'Write-Output $paths.FEATURE_DIR'
+        )
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command", script],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == str(tmp_path / "specs" / "1000-original-feat")
+
+    def test_common_ps_feature_paths_prefer_lane_state(self, tmp_path: Path):
+        """PowerShell should recover the canonical feature dir from durable lane state before branch fallback."""
+        (tmp_path / ".specify" / "lanes" / "001-hotfix-branch").mkdir(parents=True)
+        (tmp_path / "specs" / "001-canonical-feature").mkdir(parents=True)
+        ps_dir = tmp_path / "scripts" / "powershell"
+        ps_dir.mkdir(parents=True)
+        shutil.copy(COMMON_PS, ps_dir / "common.ps1")
+        (tmp_path / ".specify" / "lanes" / "001-hotfix-branch" / "lane.json").write_text(
+            json.dumps(
+                {
+                    "lane_id": "001-hotfix-branch",
+                    "feature_id": "001-canonical-feature",
+                    "feature_dir": "specs/001-canonical-feature",
+                    "branch_name": "001-hotfix-branch",
+                    "worktree_path": ".specify/lanes/worktrees/001-hotfix-branch",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        script = (
+            f'. "{ps_dir / "common.ps1"}"; '
+            '$env:SPECIFY_FEATURE = "001-hotfix-branch"; '
+            '$paths = Get-FeaturePathsEnv; '
+            'Write-Output $paths.FEATURE_DIR'
+        )
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command", script],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == str(tmp_path / "specs" / "001-canonical-feature")
 
 
 def run_ps_script(cwd: Path, *args: str) -> subprocess.CompletedProcess:

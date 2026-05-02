@@ -156,11 +156,117 @@ function Get-FeatureDir {
     Join-Path $RepoRoot "specs/$Branch"
 }
 
+function Find-FeatureDirFromLaneState {
+    param(
+        [string]$RepoRoot,
+        [string]$BranchName
+    )
+
+    $lanesRoot = Join-Path $RepoRoot ".specify/lanes"
+    if (-not (Test-Path -LiteralPath $lanesRoot -PathType Container)) {
+        return $null
+    }
+
+    $featureMatches = @()
+    Get-ChildItem -LiteralPath $lanesRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $laneFile = Join-Path $_.FullName "lane.json"
+        if (-not (Test-Path -LiteralPath $laneFile -PathType Leaf)) {
+            return
+        }
+
+        try {
+            $lanePayload = Get-Content -LiteralPath $laneFile -Raw | ConvertFrom-Json
+        } catch {
+            return
+        }
+
+        if (-not $lanePayload) {
+            return
+        }
+
+        $matchesBranch = ($lanePayload.branch_name -eq $BranchName) -or ($lanePayload.lane_id -eq $BranchName)
+        if (-not $matchesBranch) {
+            return
+        }
+
+        $featureDir = [string]$lanePayload.feature_dir
+        if ([string]::IsNullOrWhiteSpace($featureDir)) {
+            return
+        }
+
+        $resolved = if ([System.IO.Path]::IsPathRooted($featureDir)) {
+            $featureDir
+        } else {
+            Join-Path $RepoRoot $featureDir
+        }
+
+        $featureMatches += $resolved
+    }
+
+    $uniqueMatches = @($featureMatches | Select-Object -Unique)
+    if ($uniqueMatches.Count -eq 0) {
+        return $null
+    }
+
+    if ($uniqueMatches.Count -eq 1) {
+        return $uniqueMatches[0]
+    }
+
+    Write-Output "ERROR: Multiple lane records map branch '$BranchName' to feature directories: $($uniqueMatches -join ', ')"
+    Write-Output "Please resolve the lane state before continuing."
+    return $null
+}
+
+function Find-FeatureDirByPrefix {
+    param(
+        [string]$RepoRoot,
+        [string]$BranchName
+    )
+
+    $specsDir = Join-Path $RepoRoot "specs"
+    $prefix = ""
+
+    if ($BranchName -match '^(\d{8}-\d{6})-') {
+        $prefix = $matches[1]
+    } elseif ($BranchName -match '^(\d{3,})-') {
+        $prefix = $matches[1]
+    } else {
+        return (Join-Path $specsDir $BranchName)
+    }
+
+    $featureMatches = @()
+    if (Test-Path -LiteralPath $specsDir -PathType Container) {
+        $featureMatches = @(
+            Get-ChildItem -LiteralPath $specsDir -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -like "$prefix-*" } |
+                Select-Object -ExpandProperty Name
+        )
+    }
+
+    if ($featureMatches.Count -eq 0) {
+        return (Join-Path $specsDir $BranchName)
+    }
+
+    if ($featureMatches.Count -eq 1) {
+        return (Join-Path $specsDir $featureMatches[0])
+    }
+
+    Write-Output "ERROR: Multiple spec directories found with prefix '$prefix': $($featureMatches -join ', ')"
+    Write-Output "Please ensure only one spec directory exists per prefix."
+    return $null
+}
+
 function Get-FeaturePathsEnv {
     $repoRoot = Get-RepoRoot
     $currentBranch = Get-CurrentBranch
     $hasGit = Test-HasGit
-    $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch
+    $featureDir = Find-FeatureDirFromLaneState -RepoRoot $repoRoot -BranchName $currentBranch
+    if (-not $featureDir) {
+        $featureDir = Find-FeatureDirByPrefix -RepoRoot $repoRoot -BranchName $currentBranch
+    }
+    if (-not $featureDir) {
+        throw "Failed to resolve feature directory"
+    }
     
     [PSCustomObject]@{
         REPO_ROOT     = $repoRoot

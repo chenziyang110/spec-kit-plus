@@ -242,6 +242,61 @@ def test_check_reports_missing_project_launcher_in_spec_kit_project(tmp_path, mo
     assert "project launcher" in result.output.lower()
     assert "compatibility mode" in result.output.lower()
 
+
+def test_check_reports_project_runtime_compatibility_issues(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "project-compat"
+    project.mkdir()
+    (project / ".specify" / "scripts" / "powershell").mkdir(parents=True)
+    (project / ".specify" / "config.json").write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "broken launcher",
+                    "argv": ["definitely-missing-specify-command", "specify"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (project / ".specify" / "scripts" / "powershell" / "common.ps1").write_text(
+        "function Get-FeaturePathsEnv { $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch }\n",
+        encoding="utf-8",
+    )
+    (project / ".claude").mkdir()
+    (project / ".claude" / "settings.json").write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "SessionStart": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": 'python "$CLAUDE_PROJECT_DIR"/.claude/hooks/claude-hook-dispatch.py session-start',
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(app, ["check"], catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0
+    assert "project compatibility" in result.output.lower()
+    assert "persisted project launcher is configured but unavailable" in result.output.lower()
+    assert "generated powershell workflow scripts are stale" in result.output.lower()
+    assert "claude managed hook commands still use posix-style" in result.output.lower()
+
     def test_integration_copilot_creates_files(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app

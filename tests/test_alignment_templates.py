@@ -1325,6 +1325,8 @@ def test_script_contracts_expose_context_artifact_paths():
     assert "context.md" in ps_check
     assert "CONTEXT = $paths.CONTEXT" in ps_setup
     assert "CONTEXT=%q\\n" in sh_common
+    assert "find_feature_dir_from_lane_state" in sh_common
+    assert "Find-FeatureDirFromLaneState" in ps_common
     assert '--arg context "$CONTEXT"' in sh_check
     assert '--arg project_map_status "$(project_map_status_path "$REPO_ROOT")"' in sh_check
     assert '--arg project_map_helper "$REPO_ROOT/.specify/scripts/bash/project-map-freshness.sh"' in sh_check
