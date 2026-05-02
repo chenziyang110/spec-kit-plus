@@ -1695,6 +1695,15 @@ git commit -m "docs: describe parallel lane workflow model"
 - `pytest tests/codex_team/test_worktree_ops.py tests/codex_team/test_auto_dispatch.py tests/codex_team/test_runtime_bridge.py -q`
 - `pytest tests/test_alignment_templates.py tests/test_extension_skills.py tests/integrations/test_cli.py tests/integrations/test_integration_claude.py tests/integrations/test_integration_codex.py -q`
 - `uv run --extra test pytest tests/lanes tests/hooks tests/orchestration tests/codex_team tests/integrations -q`
+- `pytest tests/lanes tests/integrations/test_cli.py tests/codex_team/test_worktree_ops.py tests/test_alignment_templates.py -q`
+- `pytest tests/codex_team -q`
+- `pytest tests/lanes/test_integration.py tests/integrations/test_cli.py -q`
+- `pytest tests/lanes/test_resolution.py tests/integrations/test_cli.py -q`
+- `pytest tests/hooks/test_statusline_hooks.py tests/hooks/test_checkpoint_hooks.py tests/hooks/test_preflight_hooks.py -q`
+- `pytest tests/hooks tests/lanes tests/integrations/test_cli.py tests/codex_team/test_worktree_ops.py tests/codex_team/test_implement_runtime_routing.py -q`
+- `pytest tests/codex_team/test_worktree_ops.py tests/integrations/test_cli.py -q`
+- `pytest tests/lanes tests/hooks/test_statusline_hooks.py tests/hooks/test_checkpoint_hooks.py tests/hooks/test_preflight_hooks.py tests/integrations/test_cli.py tests/codex_team/test_worktree_ops.py tests/codex_team/test_implement_runtime_routing.py tests/test_alignment_templates.py -q`
+- `pytest tests/integrations/test_cli.py -q`
 
 Result:
 
@@ -1704,3 +1713,8 @@ Result:
   - `pytest tests/codex_team -q`
   - `pytest tests/integrations -q`
 - Final verification status: passing for the exercised lane runtime, Codex team, and integration surfaces used by this change set.
+- Follow-up verification slices also passed after the later `sp-integrate`, lane hook, lane worktree, and lane operator-surface improvements:
+  - focused lane/integrate CLI verification
+  - focused hook verification for statusline/checkpoint/preflight
+  - focused worktree materialization verification
+  - repeated Codex team regression coverage
