@@ -139,6 +139,34 @@ def test_debug_resume_prefers_parent_session_after_resolved_child(clean_debug_di
     assert seen["resumed"] is True
     assert "returning to parent debug session" in result.stdout.lower()
 
+
+def test_debug_same_issue_feedback_reopens_parent_session(clean_debug_dir, monkeypatch):
+    import specify_cli.debug.cli as cli_module
+
+    handler = MarkdownPersistenceHandler(clean_debug_dir)
+    state = DebugGraphState(slug="parent-session", trigger="original issue")
+    state.status = DebugStatus.AWAITING_HUMAN
+    state.current_node_id = "AwaitingHumanNode"
+    state.resolution.human_verification_outcome = "same_issue"
+    handler.save(state)
+
+    seen = {}
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        seen["slug"] = state.slug
+        seen["resumed"] = resumed
+        state.status = DebugStatus.INVESTIGATING
+        handler.save(state)
+
+    monkeypatch.setattr(cli_module, "run_debug_session", fake_run_debug_session)
+
+    result = runner.invoke(app, ["debug"])
+
+    assert result.exit_code == 0
+    assert "resuming debug session: parent-session" in result.stdout.lower()
+    assert seen["slug"] == "parent-session"
+    assert seen["resumed"] is True
+
 def test_debug_awaiting_human_status(clean_debug_dir, monkeypatch):
     import specify_cli.debug.cli as cli_module
 
@@ -160,6 +188,27 @@ def test_debug_awaiting_human_status(clean_debug_dir, monkeypatch):
     assert "awaiting human review" in result.stdout.lower()
     assert "paused" in result.stdout.lower()
     assert "hitl-test.md" in result.stdout
+
+
+def test_debug_awaiting_human_report_mentions_child_wait_state(clean_debug_dir, monkeypatch):
+    import specify_cli.debug.cli as cli_module
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        state.status = DebugStatus.AWAITING_HUMAN
+        state.waiting_on_child_human_followup = True
+        state.child_slugs = ["child-session"]
+        state.resolution.human_verification_outcome = "derived_issue"
+        state.resolution.report = "## Awaiting Human Review\n\n- Waiting on child follow-up"
+        handler.save(state)
+
+    monkeypatch.setattr(cli_module, "generate_slug", lambda _: "parent-session")
+    monkeypatch.setattr(cli_module, "run_debug_session", fake_run_debug_session)
+
+    result = runner.invoke(app, ["debug", "parser bug"])
+
+    assert result.exit_code == 0
+    assert "awaiting human review" in result.stdout.lower()
+    assert "child-session" in result.stdout.lower()
 
 
 def test_debug_prints_checkpoint_for_incomplete_session(clean_debug_dir, monkeypatch):

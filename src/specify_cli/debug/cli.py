@@ -30,6 +30,8 @@ def _link_follow_up_session(
     if child_state.slug not in parent_state.child_slugs:
         parent_state.child_slugs.append(child_state.slug)
     parent_state.resume_after_child = True
+    parent_state.waiting_on_child_human_followup = True
+    parent_state.resolution.human_verification_outcome = "derived_issue"
     parent_state.current_focus.next_action = (
         f"A linked follow-up issue is being investigated in `{child_state.slug}`. "
         "After that session is resolved, return here to finish the original human verification."
@@ -237,6 +239,10 @@ def _missing_causal_gate_fields(state: DebugGraphState) -> list[str]:
 def _print_session_checkpoint(state: DebugGraphState, handler: MarkdownPersistenceHandler) -> None:
     session_path = handler.debug_dir / f"{state.slug}.md"
     console.print(f"[cyan]Current stage:[/cyan] {state.status.value}")
+    if state.status == DebugStatus.AWAITING_HUMAN:
+        console.print(
+            f"[cyan]Human verification outcome:[/cyan] {state.resolution.human_verification_outcome}"
+        )
     if state.diagnostic_profile:
         console.print(f"[cyan]Diagnostic profile:[/cyan] {state.diagnostic_profile}")
     if state.suggested_evidence_lanes:
@@ -345,11 +351,21 @@ async def _run_debug(description: Optional[str]):
             console.print("[yellow]Awaiting Human Review[/yellow]")
             console.print(report)
             console.print(f"[yellow]Session paused.[/yellow] Continue from: {session_path}")
+            if state.waiting_on_child_human_followup and state.child_slugs:
+                console.print("[yellow]Waiting on child follow-up before closing this parent session.[/yellow]")
+                for child_slug in state.child_slugs:
+                    console.print(f"- linked child: {child_slug}")
             if state.parent_slug:
                 console.print(
                     f"[yellow]After confirming this follow-up issue, return to parent session:[/yellow] {state.parent_slug}"
                 )
         elif state.status == DebugStatus.RESOLVED and state.parent_slug:
+            parent_path = handler.debug_dir / f"{state.parent_slug}.md"
+            if parent_path.exists():
+                parent_state = handler.load(parent_path)
+                parent_state.waiting_on_child_human_followup = False
+                parent_state.resume_after_child = True
+                handler.save(parent_state)
             console.print(
                 f"[cyan]Follow-up issue resolved.[/cyan] Return to parent debug session: {state.parent_slug}"
             )
