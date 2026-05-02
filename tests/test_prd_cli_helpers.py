@@ -54,6 +54,10 @@ def test_bash_prd_init_creates_run_workspace_and_emits_json(tmp_path: Path):
     assert (run_dir / "capability-triage.md").is_file()
     assert (run_dir / "depth-policy.md").is_file()
     assert (run_dir / "quality-check.md").is_file()
+    quality_check = (run_dir / "quality-check.md").read_text(encoding="utf-8")
+    assert "| Gate | Status | Evidence | Notes |" in quality_check
+    assert "| Capability Triage Gate | pending |  |  |" in quality_check
+    assert "| Critical Depth Gate | pending |  |  |" in quality_check
     workflow_state = (run_dir / "workflow-state.md").read_text(encoding="utf-8")
     assert "- active_command: `sp-prd`" in workflow_state
     assert "- phase_mode: `analysis-only`" in workflow_state
@@ -122,6 +126,8 @@ def test_powershell_prd_helper_matches_bash_init_contract(tmp_path: Path):
     assert (run_dir / "capability-triage.md").is_file()
     assert (run_dir / "depth-policy.md").is_file()
     assert (run_dir / "quality-check.md").is_file()
+    quality_check = (run_dir / "quality-check.md").read_text(encoding="utf-8")
+    assert "| Gate | Status | Evidence | Notes |" in quality_check
     assert all(payload["surfaces"].values())
 
 

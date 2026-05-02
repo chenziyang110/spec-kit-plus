@@ -117,3 +117,12 @@ def test_prd_template_references_optional_control_artifacts() -> None:
     assert "depth-policy.md" in content
     assert "quality-check.md" in content
     assert "optional control artifacts" in content.lower()
+
+
+def test_prd_template_requires_writing_gate_results_back_to_quality_check() -> None:
+    content = _content()
+    lowered = content.lower()
+
+    assert "quality-check.md" in content
+    assert "record pass/fail status" in lowered
+    assert "gate results" in lowered or "quality-check" in lowered
