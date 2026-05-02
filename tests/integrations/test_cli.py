@@ -6,6 +6,9 @@ import subprocess
 from pathlib import Path
 
 import yaml
+from typer.testing import CliRunner
+
+from specify_cli import app
 
 
 class TestInitIntegrationFlag:
@@ -222,6 +225,25 @@ class TestInitIntegrationFlag:
         ])
         assert result.exit_code != 0
         assert "Unknown integration" in result.output
+
+
+def test_check_reports_missing_project_launcher_in_spec_kit_project(tmp_path, monkeypatch):
+    runner = CliRunner()
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".specify").mkdir()
+    (project / ".specify" / "config.json").write_text("{}", encoding="utf-8")
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(app, ["check"], catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0
+    assert "project launcher" in result.output.lower()
+    assert "compatibility mode" in result.output.lower()
 
     def test_integration_copilot_creates_files(self, tmp_path):
         from typer.testing import CliRunner

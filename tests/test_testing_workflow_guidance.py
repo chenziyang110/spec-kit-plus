@@ -55,7 +55,7 @@ def test_test_scan_template_deep_scans_and_emits_build_plan():
     assert ".specify/testing/TEST_BUILD_PLAN.md".lower() in lowered
     assert ".specify/testing/TEST_BUILD_PLAN.json".lower() in lowered
     assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md".lower() in lowered
-    assert "specify testing inventory --format json" in lowered
+    assert "{{specify-subcmd:testing inventory --format json}}" in lowered
     assert "module_kind" in lowered
     assert "framework_confidence" in lowered
     assert "selected_skill" in lowered

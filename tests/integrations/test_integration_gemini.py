@@ -296,6 +296,52 @@ class TestGeminiIntegration(TomlIntegrationTests):
             "continue",
         ]
 
+    def test_gemini_hook_dispatch_blocks_when_project_launcher_is_invalid(self, tmp_path):
+        integration = get_integration("gemini")
+        manifest = IntegrationManifest("gemini", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        fake_bin = tmp_path / "bin"
+        fake_bin.mkdir(parents=True, exist_ok=True)
+        fake_specify = fake_bin / ("specify.bat" if os.name == "nt" else "specify")
+        fake_specify.write_text("@echo off\nexit /b 0\n" if os.name == "nt" else "#!/bin/sh\nexit 0\n", encoding="utf-8")
+        if os.name != "nt":
+            fake_specify.chmod(0o755)
+
+        config_path = tmp_path / ".specify" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(
+                {
+                    "specify_launcher": {
+                        "command": "broken launcher",
+                        "argv": ["definitely-missing-specify-command", "specify"],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        env["GEMINI_PROJECT_DIR"] = str(tmp_path)
+        env["PATH"] = f"{fake_bin}{os.pathsep}{env.get('PATH', '')}"
+
+        hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "before-agent"],
+            input=json.dumps({"prompt": "continue"}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        assert payload["decision"] == "deny"
+        assert "launcher" in payload["reason"].lower()
+
     def test_gemini_hook_dispatch_adds_statusline_context_on_session_start(self, tmp_path):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)

@@ -190,6 +190,30 @@ def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contrac
     assert "advise the user to run multiple parallel instances" not in parallel
 
 
+def test_codex_generated_skills_render_launcher_backed_runtime_commands(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-launcher-render"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    constitution_content = (target / ".codex" / "skills" / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8")
+    implement_content = (target / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "learning start --command constitution --format json" in constitution_content
+    assert "validate-state --command implement" in implement_content
+    assert "validate-session-state --command implement" in implement_content
+    assert "{{specify-subcmd:" not in constitution_content
+    assert "{{specify-subcmd:" not in implement_content
+
+
 def test_codex_implement_teams_template_keeps_only_backend_specific_guidance():
     template = Path("templates/commands/implement-teams.md").read_text(encoding="utf-8")
 
@@ -341,7 +365,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert ".specify/memory/project-rules.md" in constitution_content
     assert ".specify/memory/project-learnings.md" in constitution_content
     assert ".planning/learnings/candidates.md" in constitution_content
-    assert "specify learning start --command constitution --format json" in constitution_content
+    assert "learning start --command constitution --format json" in constitution_content
     assert "project-handbook.md" in constitution_content
     assert ".specify/project-map/index/status.json" in constitution_content
     assert "/sp-map-scan" in constitution_content

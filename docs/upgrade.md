@@ -95,6 +95,28 @@ Replace `<your-agent>` with your AI assistant. Refer to this list of [Supported 
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai copilot
 ```
 
+### Runtime launcher binding inside generated projects
+
+Refreshing a project from a trusted source-bound command can also persist a
+project launcher in `.specify/config.json` under `specify_launcher`.
+
+That matters because there are two different questions:
+
+1. did you install or run the latest CLI source successfully
+2. will generated runtime helper commands inside the project keep calling that
+   same trusted source later
+
+The second question is about runtime binding, not installation.
+
+When `specify_launcher` exists, first-party runtime helper instructions should
+follow that project launcher instead of assuming the first PATH `specify` entry
+is correct.
+
+When `specify_launcher` is missing, the project is in compatibility mode.
+Compatibility mode can still work, but runtime helper commands may fall back to
+PATH `specify`, which means an older global install can still be selected if it
+shadows the newer one.
+
 ### Understanding the `--force` flag
 
 Without `--force`, the CLI warns you and asks for confirmation:
@@ -407,6 +429,10 @@ uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit
 Projects initialized from a git direct-url install now record a source-bound
 launcher in `.specify/config.json` under `specify_launcher`. Claude and Gemini
 native hooks read that before falling back to `specify` on PATH.
+
+The same underlying risk exists beyond native hooks: if a project has no
+trusted project launcher, runtime helper instructions can still fall back to
+PATH `specify` compatibility mode.
 
 For custom environments, set one of these before starting the agent:
 

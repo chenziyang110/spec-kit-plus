@@ -50,6 +50,14 @@ def test_quickstart_declares_integration_specific_invocation_syntax():
         assert "/sp.plan" in content
 
 
+def test_upgrade_doc_mentions_project_launcher_binding():
+    upgrade = _read("docs/upgrade.md")
+
+    assert "specify_launcher" in upgrade
+    assert "project launcher" in upgrade.lower()
+    assert "runtime" in upgrade.lower()
+
+
 def test_quickstart_positions_clarify_correctly():
     quickstart = _read("docs/quickstart.md")
     lowered = quickstart.lower()

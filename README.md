@@ -89,6 +89,11 @@ If the current directory is not empty:
 specify init --here --force --ai codex
 ```
 
+Generated projects may also persist a trusted project launcher in
+`.specify/config.json` under `specify_launcher`. When that launcher exists,
+first-party runtime helper instructions should follow it instead of assuming the
+first `specify` executable on PATH is the correct one.
+
 Validate the installation:
 
 ```bash

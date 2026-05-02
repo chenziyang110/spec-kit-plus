@@ -29,6 +29,13 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME> --script sh  # Force POSIX shell
 ```
 
+When `specify init` comes from a trusted source-bound launcher such as the
+`uvx --refresh --from ... specify` form above, generated projects can persist
+that launcher in `.specify/config.json` as `specify_launcher`. Runtime helper
+instructions inside generated workflows should follow the project launcher when
+it exists instead of blindly trusting whichever `specify` happens to be first on
+PATH.
+
 ### Invocation Syntax
 
 Canonical workflow names are integration-neutral: `constitution`, `specify`,
