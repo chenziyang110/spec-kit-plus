@@ -27,6 +27,26 @@ class HumanVerificationOutcome(str, Enum):
     UNRELATED_ISSUE = "unrelated_issue"
     INSUFFICIENT_FEEDBACK = "insufficient_feedback"
 
+
+class InvestigationMode(str, Enum):
+    NORMAL = "normal"
+    ROOT_CAUSE = "root_cause"
+
+
+class CandidateStatus(str, Enum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    CONFIRMED = "confirmed"
+    RULED_OUT = "ruled_out"
+    DEPRIORITIZED = "deprioritized"
+
+
+class RelatedRiskStatus(str, Enum):
+    PENDING = "pending"
+    CHECKED = "checked"
+    CLEARED = "cleared"
+    NEEDS_FOLLOWUP = "needs_followup"
+
 class Focus(BaseModel):
     hypothesis: Optional[str] = None
     test: Optional[str] = None
@@ -58,6 +78,45 @@ class CandidateResolution(BaseModel):
     notes: Optional[str] = None
 
 
+class InvestigationCandidate(BaseModel):
+    candidate_id: str
+    candidate: str
+    family: str
+    status: CandidateStatus = CandidateStatus.PENDING
+    why_it_fits: Optional[str] = None
+    map_evidence: Optional[str] = None
+    would_rule_out: Optional[str] = None
+    recommended_first_probe: Optional[str] = None
+    evidence_needed: List[str] = Field(default_factory=list)
+    evidence_found: List[str] = Field(default_factory=list)
+    related_targets: List[str] = Field(default_factory=list)
+
+
+class RelatedRiskTarget(BaseModel):
+    target: str
+    reason: str
+    scope: str
+    status: RelatedRiskStatus = RelatedRiskStatus.PENDING
+    evidence: List[str] = Field(default_factory=list)
+
+
+class CausalCoverageState(BaseModel):
+    competing_candidate_ruled_out: bool = False
+    truth_owner_confirmed: bool = False
+    boundary_break_localized: bool = False
+    related_risk_scan_completed: bool = False
+    closeout_ready: bool = False
+
+
+class InvestigationContractState(BaseModel):
+    primary_candidate_id: Optional[str] = None
+    candidate_queue: List[InvestigationCandidate] = Field(default_factory=list)
+    related_risk_targets: List[RelatedRiskTarget] = Field(default_factory=list)
+    investigation_mode: InvestigationMode = InvestigationMode.NORMAL
+    escalation_reason: Optional[str] = None
+    causal_coverage_state: CausalCoverageState = Field(default_factory=CausalCoverageState)
+
+
 class ObserverFramingState(BaseModel):
     summary: Optional[str] = None
     primary_suspected_loop: Optional[str] = None
@@ -82,6 +141,8 @@ class EliminatedEntry(BaseModel):
 
 class EvidenceEntry(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
+    source_type: Optional[str] = None
+    source_ref: Optional[str] = None
     checked: str
     found: str
     implication: str
@@ -219,5 +280,6 @@ class DebugGraphState(BaseModel):
     context: FeatureContext = Field(default_factory=FeatureContext)
     recently_modified: List[str] = Field(default_factory=list)
     execution_intent: ExecutionIntentState = Field(default_factory=ExecutionIntentState)
+    investigation_contract: InvestigationContractState = Field(default_factory=InvestigationContractState)
     candidate_resolutions: List[CandidateResolution] = Field(default_factory=list)
     think_subagent_prompt: Optional[str] = None

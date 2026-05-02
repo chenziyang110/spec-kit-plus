@@ -1,7 +1,6 @@
 """Tests for worktree planning and bootstrap instructions."""
 
 import subprocess
-from pathlib import Path
 
 import pytest
 

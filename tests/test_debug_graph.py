@@ -51,6 +51,28 @@ async def test_gathering_to_investigating():
     state.transition_memo.first_candidate_to_test = "Verify queue transitions"
     state.transition_memo.why_first = "Best matches the current evidence."
     state.transition_memo.evidence_unlock = ["reproduction", "code"]
+    state.investigation_contract.primary_candidate_id = "cand-parser-boundary"
+    state.investigation_contract.candidate_queue = [
+        {
+            "candidate_id": "cand-parser-boundary",
+            "candidate": "Parser upper bound excludes final token",
+            "family": "truth_owner_logic",
+            "status": "pending",
+        },
+        {
+            "candidate_id": "cand-projection-boundary",
+            "candidate": "Projection layer drops final token",
+            "family": "projection_render",
+            "status": "pending",
+        },
+        {
+            "candidate_id": "cand-config-gate",
+            "candidate": "Configuration gate trims final token",
+            "family": "config_flag_env",
+            "status": "pending",
+        },
+    ]
+    state.transition_memo.first_candidate_to_test = "cand-parser-boundary"
     ctx = GraphRunContext(state=state, deps=None)
     node = GatheringNode()
 
@@ -97,6 +119,22 @@ async def test_gathering_node_uses_compressed_observer_framing_for_strong_low_le
     state.transition_memo.first_candidate_to_test = "Parser upper bound excludes final token"
     state.transition_memo.why_first = "Matches the explicit low-level evidence."
     state.transition_memo.evidence_unlock = ["reproduction", "code"]
+    state.investigation_contract.primary_candidate_id = "cand-parser-boundary"
+    state.investigation_contract.candidate_queue = [
+        {
+            "candidate_id": "cand-parser-boundary",
+            "candidate": "Parser upper bound excludes final token",
+            "family": "truth_owner_logic",
+            "status": "pending",
+        },
+        {
+            "candidate_id": "cand-projection-boundary",
+            "candidate": "Projection layer drops final token",
+            "family": "projection_render",
+            "status": "pending",
+        },
+    ]
+    state.transition_memo.first_candidate_to_test = "cand-parser-boundary"
     ctx = GraphRunContext(state=state, deps=None)
     node = GatheringNode()
 
@@ -166,6 +204,56 @@ async def test_gathering_blocks_when_candidate_diversity_is_fake():
 
     assert result.data == "Awaiting more debugging input"
     assert "diversity" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_gathering_blocks_when_transition_candidate_is_missing_from_queue():
+    state = DebugGraphState(trigger="queue stuck", slug="test-slug")
+    state.symptoms.expected = "queue drains"
+    state.symptoms.actual = "queue remains non-empty"
+    state.symptoms.reproduction_verified = True
+    state.observer_framing_completed = True
+    state.observer_mode = "full"
+    state.observer_framing.summary = "Scheduler boundary issue"
+    state.observer_framing.primary_suspected_loop = "scheduler-admission"
+    state.observer_framing.suspected_owning_layer = "scheduler"
+    state.observer_framing.suspected_truth_owner = "scheduler"
+    state.observer_framing.recommended_first_probe = "Compare queue and ownership sets"
+    state.observer_framing.contrarian_candidate = "UI projection layer is stale"
+    state.observer_framing.alternative_cause_candidates = [
+        graph_module.ObserverCauseCandidate(
+            candidate="A",
+            failure_shape="truth_owner_logic",
+            would_rule_out="authoritative state is already correct",
+            recommended_first_probe="inspect authoritative state",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="B",
+            failure_shape="projection_render",
+            would_rule_out="rendered view matches publish payload",
+            recommended_first_probe="compare publish and render",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="C",
+            failure_shape="config_flag_env",
+            would_rule_out="flag is disabled in repro",
+            recommended_first_probe="inspect active flags",
+        ),
+    ]
+    state.transition_memo.first_candidate_to_test = "cand-missing"
+    state.transition_memo.why_first = "best fit"
+    state.transition_memo.evidence_unlock = ["reproduction"]
+    state.investigation_contract.candidate_queue = [
+        {"candidate_id": "cand-a", "candidate": "A", "family": "truth_owner_logic"},
+        {"candidate_id": "cand-b", "candidate": "B", "family": "projection_render"},
+    ]
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await GatheringNode().run(ctx)
+
+    assert result.data == "Awaiting more debugging input"
+    assert "first candidate" in (state.current_focus.next_action or "").lower()
+    assert "candidate queue" in (state.current_focus.next_action or "").lower()
 
 @pytest.mark.asyncio
 async def test_investigating_to_fixing():

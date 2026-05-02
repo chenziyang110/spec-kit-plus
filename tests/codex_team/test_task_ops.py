@@ -438,7 +438,7 @@ def test_terminal_transition_clears_claim_and_blocks_approvals(codex_team_projec
         claim_token=token,
     )
 
-    completed = transition_task_status(
+    transition_task_status(
         codex_team_project_root,
         task_id="task-14",
         new_status="completed",

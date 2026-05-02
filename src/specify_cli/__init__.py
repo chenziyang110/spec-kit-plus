@@ -84,8 +84,6 @@ from specify_cli.codex_team.runtime_bridge import (
 )
 from specify_cli.execution import (
     build_result_handoff_path,
-    normalize_worker_task_result_payload,
-    worker_task_result_payload,
     write_normalized_result_handoff,
 )
 from specify_cli.eval_runner import run_eval_suite
@@ -2494,7 +2492,6 @@ def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = 
 
 def _materialize_constitution_template(template_text: str, project_path: Path) -> str:
     """Replace basic constitution template tokens with init-time defaults."""
-    today = date.today().isoformat()
     replacements = {
         "[PROJECT_NAME]": project_path.resolve().name,
     }

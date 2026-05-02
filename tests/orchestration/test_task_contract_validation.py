@@ -1,6 +1,5 @@
 """Tests for task contract validation helpers."""
 
-import pytest
 from specify_cli.orchestration.delegation import (
     validate_task_contract,
     validate_batch_isolation,

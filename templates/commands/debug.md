@@ -43,13 +43,17 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Find truth ownership before chasing symptoms**: Identify which layer owns the critical truth and which layers only reflect, cache, or project it.
 - **One active hypothesis at a time**: Parallel evidence gathering is allowed; parallel root-cause theories are not.
 - **Observability before speculation**: Read existing logs and outputs first. If they are too weak to explain the failure, improve logging or tracing before attempting a fix.
+- **Logs are a first-class evidence source**: When existing logs, stderr/stdout, test output, or trace files materially narrow the issue, append it to `Evidence` with `source_type: log` (or the closest concrete source type) and a concrete `source_ref`.
 - **Control state is not observation state**: Keep scheduling, admission, allocation, and ownership state separate from UI, logs, event streams, caches, and snapshots.
 - **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Update it before each action.
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
 - **Begin as an observer**: Start by acting like a knowledgeable outsider who only has the user report plus the current system map. Do not rush into code-level detail just because implementation files exist.
 - **Observer framing comes before evidence collection**: The first pass should generate multiple plausible causes from the map and user report before reproduction, logs, code, or test reads begin.
+- **Observer framing becomes an investigation contract**: The output of the think subagent is not advisory prose. The second stage must consume the candidate queue, primary candidate, and related risk targets before freeform investigation can continue.
 - **Debug the loop, not just the point**: Validate the path from input event to control decision to resource allocation to state transition to external observation.
 - **Escalate diagnostics when the loop is still ambiguous**: If two investigation rounds do not converge, stop layering plausible small fixes and add decisive instrumentation.
+- **Root-cause mode is mandatory after repeated failure**: After two automated verification failures, stop adding point fixes and switch the session into `root-cause mode`.
+- **Related-risk review is part of closeout**: Do not close the session until nearest-neighbor related risk targets have been reviewed.
 - **Execution intent stays explicit**: Record the current verification outcome, active constraints, and required success evidence in the session file before and during verification so resume decisions do not depend on chat memory.
 
 ## Passive Project Learning Layer
@@ -221,6 +225,7 @@ If not: proceed to Stage 1 (Observer Framing).
 - Record whether this pass used `full observer framing` or `compressed observer framing`, and why.
 - After writing the transition memo, automatically continue into evidence investigation. Do not stop for confirmation unless human action is required.
 - Treat the transition memo as the bridge between the outsider view and the investigator view. The later evidence phase must carry the observer framing forward instead of discarding it.
+- After the transition memo is written, build or refresh the runtime investigation contract so the second stage has an explicit candidate queue, primary candidate, and related risk targets.
 - If `observer_mode` is `compressed`, fill `skip_observer_reason` with the decisive low-level evidence that justified compression.
 
 ### Observer Gate
@@ -240,6 +245,7 @@ If not: proceed to Stage 1 (Observer Framing).
 
 ### Stage 4: Log Review
 - Inspect existing logs, error output, and test output before changing code.
+- Treat logs as evidence, not background noise: if a log line materially changes the hypothesis space, record it in the session `Evidence` section with its source path/command.
 - Identify whether the current observability already shows:
   - where the failure occurs,
   - which inputs or branches matter,
@@ -315,6 +321,9 @@ If not: proceed to Stage 1 (Observer Framing).
   - `decisive_signal`
 
 ## Capability-Aware Investigation
+
+- During `investigating`, the current candidate queue is the execution contract for the stage. The leader should not drift into unrelated freeform probing while the active primary candidate is still unresolved.
+- Candidate queue entries must be consumed explicitly: confirm them, rule them out, or deprioritize them with evidence. Do not let high-priority candidates silently disappear from the session.
 
 - During `investigating`, decide whether the current investigation can use subagent evidence collection before running multiple independent evidence-gathering actions sequentially.
 - [AGENT] Use the shared policy function with the current capability snapshot: `choose_subagent_dispatch(command_name="debug", snapshot, workload_shape)`.

@@ -2,10 +2,12 @@ from pathlib import Path
 from typing import Union
 from pydantic_graph import BaseNode, Graph, GraphRunContext, End
 from .schema import (
+    CandidateStatus,
     DebugGraphState,
     DebugStatus,
     EliminatedEntry,
     EvidenceEntry,
+    InvestigationMode,
     ObserverCauseCandidate,
     SuggestedEvidenceLane,
     ValidationCheck,
@@ -626,6 +628,34 @@ def _sync_resolution_coverage(state: DebugGraphState) -> None:
     state.resolution.alternative_hypotheses_ruled_out = _unique_strings(ruled_out)
 
 
+def _candidate_by_id(state: DebugGraphState, candidate_id: str | None):
+    if not candidate_id:
+        return None
+    for candidate in state.investigation_contract.candidate_queue:
+        current_id = (
+            candidate.get("candidate_id")
+            if isinstance(candidate, dict)
+            else candidate.candidate_id
+        )
+        if current_id == candidate_id:
+            return candidate
+    return None
+
+
+def _related_risk_scan_gaps(state: DebugGraphState) -> list[str]:
+    if state.investigation_contract.causal_coverage_state.related_risk_scan_completed:
+        return []
+    if state.investigation_contract.related_risk_targets:
+        return ["related risk scan completion"]
+    return []
+
+
+def _sync_root_cause_mode(state: DebugGraphState) -> None:
+    if state.resolution.agent_fail_count >= 2:
+        state.investigation_contract.investigation_mode = InvestigationMode.ROOT_CAUSE
+        state.investigation_contract.escalation_reason = "two verification failures"
+
+
 def _resolve_test_targets(state: DebugGraphState) -> list[str]:
     explicit_targets: list[str] = []
     seen: set[str] = set()
@@ -656,6 +686,8 @@ def _record_verification_evidence(
     fix_summary = state.resolution.fix or "No fix recorded"
     state.evidence.append(
         EvidenceEntry(
+            source_type="verification_command",
+            source_ref=command,
             checked=command,
             found=output,
             implication=f"Verification {result} while validating fix: {fix_summary}",
@@ -742,6 +774,14 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
                     intro="Fill in the missing framing items below before reproduction or code reads:",
                 ),
             )
+        first_candidate_id = ctx.state.transition_memo.first_candidate_to_test
+        if first_candidate_id and not _candidate_by_id(ctx.state, first_candidate_id):
+            ctx.state.framing_gate_passed = False
+            return _await_input(
+                ctx.state,
+                "Observer framing is complete, but the first candidate to test is not present in the candidate queue. "
+                "Reconcile transition_memo.first_candidate_to_test with investigation_contract.candidate_queue before continuing.",
+            )
         ctx.state.framing_gate_passed = True
 
         # 3. Gate checks
@@ -764,6 +804,28 @@ class InvestigatingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['FixingNode', End]:
         ctx.state.status = DebugStatus.INVESTIGATING
         ctx.state.current_node_id = "InvestigatingNode"
+
+        if ctx.state.investigation_contract.primary_candidate_id:
+            active = [
+                candidate
+                for candidate in ctx.state.investigation_contract.candidate_queue
+                if candidate.status == CandidateStatus.ACTIVE
+            ]
+            if not active:
+                primary = _candidate_by_id(
+                    ctx.state, ctx.state.investigation_contract.primary_candidate_id
+                )
+                if primary:
+                    primary_status = (
+                        primary.get("status")
+                        if isinstance(primary, dict)
+                        else primary.status
+                    )
+                    if primary_status == CandidateStatus.PENDING or primary_status == "pending":
+                        if isinstance(primary, dict):
+                            primary["status"] = CandidateStatus.ACTIVE.value
+                        else:
+                            primary.status = CandidateStatus.ACTIVE
         
         # 1. Update next_action to prioritize recently modified files if no focus is set
         if not ctx.state.current_focus.hypothesis and not ctx.state.current_focus.next_action:
@@ -866,6 +928,18 @@ class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
                 _post_verification_checklist_message(ctx.state),
             )
 
+        related_risk_gaps = _related_risk_scan_gaps(ctx.state)
+        if related_risk_gaps:
+            ctx.state.resolution.verification = "success"
+            return _await_input(
+                ctx.state,
+                _format_checklist(
+                    "Verification passed, but related-risk review is incomplete.",
+                    related_risk_gaps,
+                    intro="Finish the nearest-neighbor related-risk scan before closing the session:",
+                ),
+            )
+
         # If verification passed, move to resolved.
         ctx.state.resolution.verification = "success"
         ctx.state.resolution.human_verification_outcome = "pending"
@@ -880,6 +954,7 @@ class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         previous_failures = state.resolution.agent_fail_count or state.resolution.fail_count
         state.resolution.agent_fail_count = previous_failures + 1
         state.resolution.fail_count = state.resolution.agent_fail_count
+        _sync_root_cause_mode(state)
         research_path: Path | None = None
         if state.resolution.agent_fail_count >= 2 and persistence:
             research_path = persistence.save_research_checkpoint(state)

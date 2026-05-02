@@ -48,7 +48,13 @@ def build_research_checkpoint(state: DebugGraphState) -> str:
 
     if state.evidence:
         for entry in state.evidence[-5:]:
-            lines.append(f"- {entry.checked}: {entry.found} -> {entry.implication}")
+            source_prefix = ""
+            if entry.source_type:
+                source_prefix = f"[{entry.source_type}] "
+            source_ref = f" ({entry.source_ref})" if entry.source_ref else ""
+            lines.append(
+                f"- {source_prefix}{entry.checked}{source_ref}: {entry.found} -> {entry.implication}"
+            )
     else:
         lines.append("- No decisive evidence recorded yet.")
 
@@ -104,8 +110,12 @@ def build_handoff_report(state: DebugGraphState) -> str:
     lines.extend(["", "### Key Evidence"])
     if state.evidence:
         for entry in state.evidence:
+            source_prefix = ""
+            if entry.source_type:
+                source_prefix = f"[{entry.source_type}] "
+            source_ref = f" ({entry.source_ref})" if entry.source_ref else ""
             lines.append(
-                f"- {entry.checked}: {entry.found} -> {entry.implication}"
+                f"- {source_prefix}{entry.checked}{source_ref}: {entry.found} -> {entry.implication}"
             )
     else:
         lines.append("- None recorded")
@@ -183,6 +193,32 @@ def build_handoff_report(state: DebugGraphState) -> str:
             state.transition_memo.carry_forward_notes,
         )
     ):
+        lines.append("- Not recorded")
+
+    lines.extend(["", "### Investigation Contract"])
+    lines.append(f"- Investigation mode: {state.investigation_contract.investigation_mode.value}")
+    lines.append(
+        f"- Primary candidate: {state.investigation_contract.primary_candidate_id or 'Not recorded'}"
+    )
+    if state.investigation_contract.escalation_reason:
+        lines.append(f"- Escalation reason: {state.investigation_contract.escalation_reason}")
+    if state.investigation_contract.candidate_queue:
+        lines.append("- Candidate queue:")
+        for candidate in state.investigation_contract.candidate_queue:
+            lines.append(
+                f"  - {candidate.candidate_id}: {candidate.candidate} "
+                f"[{candidate.family}] ({candidate.status.value})"
+            )
+    else:
+        lines.append("- Candidate queue: not recorded")
+
+    lines.extend(["", "### Related Risk Targets"])
+    if state.investigation_contract.related_risk_targets:
+        for target in state.investigation_contract.related_risk_targets:
+            lines.append(
+                f"- {target.target} ({target.scope}, {target.status.value}): {target.reason}"
+            )
+    else:
         lines.append("- Not recorded")
 
     lines.extend(["", "### Decisive Signals"])
@@ -342,6 +378,7 @@ class MarkdownPersistenceHandler:
             ("Symptoms", state.symptoms.model_dump(mode="json")),
             ("Observer Framing", state.observer_framing.model_dump(mode="json")),
             ("Transition Memo", state.transition_memo.model_dump(mode="json")),
+            ("Investigation Contract", state.investigation_contract.model_dump(mode="json")),
             ("Suggested Evidence Lanes", [lane.model_dump(mode="json") for lane in state.suggested_evidence_lanes]),
             ("Candidate Resolutions", [entry.model_dump(mode="json") for entry in state.candidate_resolutions]),
             ("Truth Ownership", [entry.model_dump(mode="json") for entry in state.truth_ownership]),
@@ -437,6 +474,7 @@ class MarkdownPersistenceHandler:
                 "symptoms": sections.get("Symptoms") or {},
                 "observer_framing": sections.get("Observer Framing") or {},
                 "transition_memo": sections.get("Transition Memo") or {},
+                "investigation_contract": sections.get("Investigation Contract") or {},
                 "suggested_evidence_lanes": sections.get("Suggested Evidence Lanes") or [],
                 "candidate_resolutions": sections.get("Candidate Resolutions") or [],
                 "truth_ownership": sections.get("Truth Ownership") or [],

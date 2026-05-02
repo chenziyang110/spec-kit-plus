@@ -77,7 +77,7 @@ def test_execute_packet_uses_configured_packet_executor_command(
             "forbidden_drift_respected": True,
         },
     }
-    result = WorkerTaskResult(
+    WorkerTaskResult(
         task_id="T902",
         status="success",
         changed_files=["src/t902.py"],

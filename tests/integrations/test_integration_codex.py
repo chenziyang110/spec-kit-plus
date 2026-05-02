@@ -1,10 +1,6 @@
 """Tests for CodexIntegration."""
 
-import json
 from pathlib import Path
-from unittest.mock import patch
-
-import yaml
 
 from .test_integration_base_skills import SkillsIntegrationTests
 
@@ -587,6 +583,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "must not update the debug file" in content
     assert "wait for every subagent's structured handoff" in content
     assert "do not treat an idle subagent as done work" in content
+    assert "candidate queue" in content
+    assert "root-cause mode" in content
 
 
 def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):

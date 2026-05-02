@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from specify_cli.evals import (
-    EvalCase,
     create_eval_case,
     ensure_eval_store,
 )

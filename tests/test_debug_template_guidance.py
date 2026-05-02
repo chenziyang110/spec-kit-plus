@@ -87,6 +87,8 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "debug file" in content
     assert "evidence-gathering" in content or "evidence-gathering tasks" in content
     assert "existing logs" in content
+    assert "logs are a first-class evidence source" in content
+    assert "append it to `evidence` with `source_type: log`" in content
     assert "observability as insufficient" in content
     assert "diagnostic logging" in content or "instrumentation" in content
     assert "truth ownership map" in content
@@ -98,6 +100,11 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "decisive signals" in content
     assert "alternative_hypotheses_considered" in content
     assert "alternative_hypotheses_ruled_out" in content
+    assert "investigation contract" in content
+    assert "candidate queue" in content
+    assert "related risk targets" in content
+    assert "root-cause mode" in content
+    assert "second stage must consume the candidate queue" in content
     assert "root_cause_confidence" in content
     assert "fix_scope" in content
     assert "loop_restoration_proof" in content
@@ -176,6 +183,14 @@ def test_debug_session_template_captures_control_plane_debugging_fields() -> Non
     assert "## Observation State" in content
     assert "## Closed Loop" in content
     assert "## Execution Intent" in content
+    assert "## Evidence" in content
+    assert "## Investigation Contract" in content
+    assert "primary_candidate_id:" in content
+    assert "candidate_queue:" in content
+    assert "related_risk_targets:" in content
+    assert "investigation_mode:" in content
+    assert "source_type: log" in content
+    assert "source_ref:" in content
     assert "summary:" in content
     assert "owning_layer:" in content
     assert "broken_control_state:" in content

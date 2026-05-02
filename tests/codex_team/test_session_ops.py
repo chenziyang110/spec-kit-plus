@@ -102,7 +102,7 @@ def test_cleanup_requires_terminal_state(codex_team_project_root: Path):
         cleanup_session(codex_team_project_root, session_id=session.session_id)
 
     _write_session_status(codex_team_project_root, session.session_id, "failed")
-    cleaned = cleanup_session(codex_team_project_root, session_id=session.session_id)
+    cleanup_session(codex_team_project_root, session_id=session.session_id)
     payload = _read_json(runtime_session_path(codex_team_project_root, session.session_id))
     assert payload["status"] == "cleaned"
 

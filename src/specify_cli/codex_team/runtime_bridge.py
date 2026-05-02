@@ -510,7 +510,7 @@ def _sync_task_state_from_result(
         else task_ops.TASK_STATUS_FAILED
     )
     failure_class = "blocked" if validated.status == "blocked" else ""
-    terminal_record = task_ops.transition_task_status(
+    task_ops.transition_task_status(
         project_root,
         task_id=packet_task_id,
         new_status=final_status,

@@ -14,7 +14,6 @@ from specify_cli.debug.graph import (
     FixingNode,
     GatheringNode,
     InvestigatingNode,
-    ResolvedNode,
     VerifyingNode,
     run_debug_session,
 )
@@ -55,7 +54,31 @@ def _populate_valid_observer_framing(state: DebugGraphState, *, mode: str = "ful
                 recommended_first_probe="Inspect active parsing flags",
             )
         )
-    state.transition_memo.first_candidate_to_test = "Parser upper bound excludes final token"
+    state.investigation_contract.primary_candidate_id = "cand-parser-boundary"
+    state.investigation_contract.candidate_queue = [
+        {
+            "candidate_id": "cand-parser-boundary",
+            "candidate": "Parser upper bound excludes final token",
+            "family": "truth_owner_logic",
+            "status": "pending",
+        },
+        {
+            "candidate_id": "cand-projection-boundary",
+            "candidate": "Projection layer drops final token",
+            "family": "projection_render",
+            "status": "pending",
+        },
+    ]
+    if mode != "compressed":
+        state.investigation_contract.candidate_queue.append(
+            {
+                "candidate_id": "cand-config-gate",
+                "candidate": "Configuration gate trims final token",
+                "family": "config_flag_env",
+                "status": "pending",
+            }
+        )
+    state.transition_memo.first_candidate_to_test = "cand-parser-boundary"
     state.transition_memo.why_first = "Best matches the outsider framing."
     state.transition_memo.evidence_unlock = ["reproduction", "code"]
 
@@ -541,6 +564,28 @@ async def test_verifying_node_second_failure_demands_diagnostic_escalation(monke
 
 
 @pytest.mark.asyncio
+async def test_verifying_second_failure_switches_to_root_cause_mode(monkeypatch):
+    import specify_cli.debug.graph as graph_module
+
+    monkeypatch.setattr(graph_module, "run_command", lambda _cmd: "FAIL")
+
+    state = DebugGraphState(slug="test-session", trigger="hard bug")
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.resolution.fix = "Normalize display status"
+    state.resolution.fail_count = 1
+    state.investigation_contract.investigation_mode = "normal"
+
+    node = VerifyingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await node.run(ctx)
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.investigation_contract.investigation_mode.value == "root_cause"
+    assert state.investigation_contract.escalation_reason == "two verification failures"
+
+
+@pytest.mark.asyncio
 async def test_cache_snapshot_profile_gets_targeted_diagnostic_checklist(monkeypatch):
     def mock_run(_cmd):
         return "FAIL"
@@ -564,6 +609,36 @@ async def test_cache_snapshot_profile_gets_targeted_diagnostic_checklist(monkeyp
     assert "detected profile: cache/snapshot drift" in (state.current_focus.next_action or "").lower()
     assert "- [ ] capture the authoritative control state and the cached/snapshot state side by side" in (state.current_focus.next_action or "").lower()
     assert "- [ ] trace any cache invalidation or refresh path" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_verifying_blocks_closeout_until_related_risk_scan_completes(monkeypatch):
+    import specify_cli.debug.graph as graph_module
+
+    monkeypatch.setattr(graph_module, "run_command", lambda _cmd: "PASS")
+
+    state = DebugGraphState(slug="test-session", trigger="hard bug")
+    state.symptoms.reproduction_command = "python tests/repro.py"
+    state.context.modified_files = ["tests/test_debug_graph_nodes.py"]
+    state.resolution.fix_scope = "truth-owner"
+    state.resolution.loop_restoration_proof = ["Loop restored end-to-end"]
+    state.investigation_contract.related_risk_targets = [
+        {
+            "target": "projection-boundary",
+            "reason": "Nearest-neighbor risk",
+            "scope": "nearest-neighbor",
+            "status": "pending",
+        }
+    ]
+    state.investigation_contract.causal_coverage_state.related_risk_scan_completed = False
+
+    node = VerifyingNode()
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await node.run(ctx)
+
+    assert result.data == "Awaiting more debugging input"
+    assert "related risk" in (state.current_focus.next_action or "").lower()
 
 @pytest.mark.asyncio
 async def test_verifying_node_treats_silent_nonzero_exit_as_failure():

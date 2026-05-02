@@ -11,7 +11,7 @@ from .checkpoint import checkpoint_hook
 from .checkpoint_serializers import normalize_command_name
 from .events import WORKFLOW_COMPACTION_BUILD, WORKFLOW_COMPACTION_READ
 from .learning import _recent_signal_for_command
-from .types import HookResult, QualityHookError
+from .types import HookResult
 
 
 def build_compaction_hook(project_root: Path, payload: dict[str, object]) -> HookResult:

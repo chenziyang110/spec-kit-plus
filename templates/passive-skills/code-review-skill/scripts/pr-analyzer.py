@@ -14,7 +14,7 @@ import re
 import argparse
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 
 @dataclass
@@ -302,7 +302,7 @@ def print_analysis(analysis: PRAnalysis, show_files: bool = False):
     print("PR ANALYSIS REPORT")
     print("=" * 60)
 
-    print(f"\n📊 SUMMARY")
+    print("\n📊 SUMMARY")
     print(f"   Files changed: {analysis.total_files}")
     print(f"   Additions: +{analysis.total_additions}")
     print(f"   Deletions: -{analysis.total_deletions}")
@@ -313,16 +313,16 @@ def print_analysis(analysis: PRAnalysis, show_files: bool = False):
     print(f"   Estimated review time: ~{analysis.estimated_review_time} minutes")
 
     if analysis.risk_factors:
-        print(f"\n⚠️  RISK FACTORS:")
+        print("\n⚠️  RISK FACTORS:")
         for risk in analysis.risk_factors:
             print(f"   • {risk}")
 
-    print(f"\n💡 SUGGESTIONS:")
+    print("\n💡 SUGGESTIONS:")
     for suggestion in analysis.suggestions:
         print(f"   • {suggestion}")
 
     if show_files:
-        print(f"\n📁 FILES:")
+        print("\n📁 FILES:")
         # Group by language
         by_lang: Dict[str, List[FileStats]] = defaultdict(list)
         for f in analysis.files:

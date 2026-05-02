@@ -192,6 +192,30 @@ def _print_transition_memo(state: DebugGraphState) -> None:
             console.print(f"  - {note}")
 
 
+def _print_investigation_contract_summary(state: DebugGraphState) -> None:
+    contract = state.investigation_contract
+    if not any((contract.primary_candidate_id, contract.candidate_queue, contract.related_risk_targets)):
+        return
+
+    console.print("[bold]Investigation Contract[/bold]")
+    console.print(f"- Mode: {contract.investigation_mode.value}")
+    if contract.primary_candidate_id:
+        console.print(f"- Primary candidate: {contract.primary_candidate_id}")
+    if contract.candidate_queue:
+        console.print("- Candidate queue:")
+        for candidate in contract.candidate_queue:
+            status = candidate["status"] if isinstance(candidate, dict) else candidate.status.value
+            candidate_id = candidate["candidate_id"] if isinstance(candidate, dict) else candidate.candidate_id
+            text = candidate["candidate"] if isinstance(candidate, dict) else candidate.candidate
+            console.print(f"  - {candidate_id}: {text} ({status})")
+    if contract.related_risk_targets:
+        console.print("- Related risk targets:")
+        for target in contract.related_risk_targets:
+            target_id = target["target"] if isinstance(target, dict) else target.target
+            status = target["status"] if isinstance(target, dict) else target.status.value
+            console.print(f"  - {target_id} ({status})")
+
+
 def _missing_root_cause_fields(state: DebugGraphState) -> list[str]:
     root_cause = state.resolution.root_cause
     if not root_cause:
@@ -261,6 +285,7 @@ def _print_session_checkpoint(state: DebugGraphState, handler: MarkdownPersisten
                 console.print(f"- {task.lane_name}: {task.agent_type} ({task.reasoning_effort})")
     _print_observer_framing_summary(state)
     _print_transition_memo(state)
+    _print_investigation_contract_summary(state)
     _print_root_cause_summary(state)
     _print_causal_coverage_summary(state)
     _print_fix_closure_summary(state)

@@ -1,8 +1,6 @@
 import pytest
 from typer.testing import CliRunner
 from specify_cli import app
-from pathlib import Path
-import os
 import re
 from specify_cli.debug.schema import DebugStatus
 from specify_cli.debug.persistence import MarkdownPersistenceHandler

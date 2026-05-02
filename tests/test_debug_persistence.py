@@ -5,11 +5,17 @@ import pytest
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.debug.schema import (
     CandidateResolution,
+    CandidateStatus,
+    CausalCoverageState,
     DebugGraphState,
     DebugStatus,
     EvidenceEntry,
+    InvestigationCandidate,
+    InvestigationMode,
     ObserverCauseCandidate,
     OwnershipEntry,
+    RelatedRiskStatus,
+    RelatedRiskTarget,
     SuggestedEvidenceLane,
 )
 
@@ -309,6 +315,125 @@ def test_research_checkpoint_is_written_for_repeated_failures(tmp_path):
     assert "Try another parser boundary tweak" in content
     assert "Research Questions" in content
     assert "Exit Criteria" in content
+
+
+def test_persistence_round_trips_evidence_source_metadata(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="log evidence")
+    state.evidence.append(
+        EvidenceEntry(
+            source_type="log",
+            source_ref="runtime-test-output.log",
+            checked="runtime stderr",
+            found="FAIL: parser still drops final token",
+            implication="Existing runtime logs already localize the failure before code edits",
+        )
+    )
+
+    handler.save(state)
+    restored = handler.load(tmp_path / "session.md")
+
+    assert restored.evidence[0].source_type == "log"
+    assert restored.evidence[0].source_ref == "runtime-test-output.log"
+
+
+def test_persistence_round_trips_investigation_contract_fields(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="candidate-driven debug")
+    state.investigation_contract.primary_candidate_id = "cand-parser-boundary"
+    state.investigation_contract.investigation_mode = InvestigationMode.ROOT_CAUSE
+    state.investigation_contract.escalation_reason = "two verification failures"
+    state.investigation_contract.candidate_queue = [
+        InvestigationCandidate(
+            candidate_id="cand-parser-boundary",
+            candidate="Parser boundary truncates final token",
+            family="truth_owner_logic",
+            status=CandidateStatus.ACTIVE,
+            why_it_fits="Final token is consistently missing",
+            map_evidence="Parser owns token boundary truth",
+            would_rule_out="Raw parser output already includes final token",
+            recommended_first_probe="Inspect raw parser output before rendering",
+            evidence_needed=["raw parser output", "boundary indices"],
+            evidence_found=[],
+            related_targets=["projection-boundary", "verification-repro"],
+        )
+    ]
+    state.investigation_contract.related_risk_targets = [
+        RelatedRiskTarget(
+            target="projection-boundary",
+            reason="Same token family may be dropped after publish",
+            scope="nearest-neighbor",
+            status=RelatedRiskStatus.PENDING,
+            evidence=[],
+        )
+    ]
+    state.investigation_contract.causal_coverage_state = CausalCoverageState(
+        competing_candidate_ruled_out=False,
+        truth_owner_confirmed=True,
+        boundary_break_localized=True,
+        related_risk_scan_completed=False,
+        closeout_ready=False,
+    )
+
+    handler.save(state)
+    restored = handler.load(tmp_path / "session.md")
+
+    assert restored.investigation_contract.primary_candidate_id == "cand-parser-boundary"
+    assert restored.investigation_contract.investigation_mode == "root_cause"
+    assert restored.investigation_contract.escalation_reason == "two verification failures"
+    assert restored.investigation_contract.candidate_queue[0].status == "active"
+    assert restored.investigation_contract.related_risk_targets[0].status == "pending"
+    assert restored.investigation_contract.causal_coverage_state.closeout_ready is False
+
+
+def test_handoff_report_shows_evidence_source_metadata(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="log evidence")
+    state.evidence.append(
+        EvidenceEntry(
+            source_type="log",
+            source_ref="logs/app.log",
+            checked="application error log",
+            found="scheduler released slot but ownership set stayed populated",
+            implication="Log evidence points at scheduler truth-owner drift",
+        )
+    )
+
+    report = handler.build_handoff_report(state)
+
+    assert "[log]" in report
+    assert "logs/app.log" in report
+
+
+def test_handoff_report_includes_investigation_contract_sections(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="candidate report")
+    state.investigation_contract.primary_candidate_id = "cand-parser-boundary"
+    state.investigation_contract.investigation_mode = InvestigationMode.ROOT_CAUSE
+    state.investigation_contract.candidate_queue = [
+        InvestigationCandidate(
+            candidate_id="cand-parser-boundary",
+            candidate="Parser boundary truncates final token",
+            family="truth_owner_logic",
+            status=CandidateStatus.ACTIVE,
+        )
+    ]
+    state.investigation_contract.related_risk_targets = [
+        RelatedRiskTarget(
+            target="projection-boundary",
+            reason="Nearest-neighbor token drop risk",
+            scope="nearest-neighbor",
+            status=RelatedRiskStatus.PENDING,
+        )
+    ]
+
+    report = handler.build_handoff_report(state)
+
+    assert "Investigation mode: root_cause" in report
+    assert "Primary candidate: cand-parser-boundary" in report
+    assert "Parser boundary truncates final token" in report
+    assert "Related Risk Targets" in report
+    assert "projection-boundary" in report
 
 
 def test_handoff_report_points_to_research_checkpoint_after_repeated_failures(tmp_path):

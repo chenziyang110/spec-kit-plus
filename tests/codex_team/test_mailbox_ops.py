@@ -109,8 +109,6 @@ def test_mailbox_notify_and_deliver_marking_is_idempotent(codex_team_project_roo
         payload={"type": "task"},
     )
 
-    events_after_send = _iterate_events(codex_team_project_root)
-
     first_notify = mark_mailbox_notified(
         codex_team_project_root,
         mailbox_id="worker-a",

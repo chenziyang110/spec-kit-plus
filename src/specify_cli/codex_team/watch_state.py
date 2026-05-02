@@ -6,7 +6,6 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from .manifests import DispatchRecord, dispatch_record_from_json, runtime_session_from_json
 from .runtime_state import (

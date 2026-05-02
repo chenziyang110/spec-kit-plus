@@ -3,7 +3,6 @@
 import json
 import os
 import subprocess
-from pathlib import Path
 
 import yaml
 from typer.testing import CliRunner

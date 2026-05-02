@@ -1,4 +1,3 @@
-import pytest
 from specify_cli.debug.schema import DebugGraphState
 from specify_cli.debug.think_agent import (
     build_think_subagent_prompt,
@@ -77,6 +76,10 @@ class TestBuildThinkSubagentPrompt:
         assert "failure_shape" in prompt
         assert "recommended_first_probe" in prompt
         assert "contrarian_candidate" in prompt
+        assert "candidate_id" in prompt
+        assert "investigation_contract:" in prompt
+        assert "related_risk_targets" in prompt
+        assert "primary_candidate_id" in prompt
 
 
 class TestParseThinkSubagentResult:
@@ -149,6 +152,57 @@ transition_memo:
         result = parse_think_subagent_result(raw)
 
         assert len(result["alternative_cause_candidates"]) == 3
+
+    def test_parse_think_subagent_result_extracts_investigation_contract_fields(self) -> None:
+        raw = """Observer analysis.
+
+---
+observer_mode: "full"
+observer_framing:
+  summary: "Parser boundary likely owns the broken truth"
+  primary_suspected_loop: "general"
+  suspected_owning_layer: "parser"
+  suspected_truth_owner: "parser"
+  recommended_first_probe: "Inspect raw parser output before render"
+  contrarian_candidate: "Projection boundary drops a correct parser result"
+  missing_questions: []
+alternative_cause_candidates:
+  - candidate_id: "cand-parser-boundary"
+    candidate: "Parser boundary truncates final token"
+    failure_shape: "truth_owner_logic"
+    why_it_fits: "Missing final token is stable"
+    map_evidence: "Parser owns token boundary truth"
+    would_rule_out: "Raw parser output contains final token"
+    recommended_first_probe: "Inspect raw parser output before render"
+  - candidate_id: "cand-projection-boundary"
+    candidate: "Projection boundary drops final token"
+    failure_shape: "projection_render"
+    why_it_fits: "Rendered output may diverge after publish"
+    map_evidence: "Projection is an observation layer"
+    would_rule_out: "Published payload already lacks final token"
+    recommended_first_probe: "Compare published payload and rendered output"
+investigation_contract:
+  primary_candidate_id: "cand-parser-boundary"
+  investigation_mode: "normal"
+  escalation_reason: null
+  related_risk_targets:
+    - target: "projection-boundary"
+      reason: "Nearest-neighbor token family risk"
+      scope: "nearest-neighbor"
+      status: "pending"
+transition_memo:
+  first_candidate_to_test: "cand-parser-boundary"
+  why_first: "Highest-likelihood truth owner"
+  evidence_unlock: ["reproduction", "logs", "code", "tests"]
+  carry_forward_notes:
+    - "Do not discard the observer framing when code-level evidence appears."
+"""
+
+        result = parse_think_subagent_result(raw)
+
+        assert result["alternative_cause_candidates"][0]["candidate_id"] == "cand-parser-boundary"
+        assert result["investigation_contract"]["primary_candidate_id"] == "cand-parser-boundary"
+        assert result["investigation_contract"]["related_risk_targets"][0]["target"] == "projection-boundary"
 
     def test_no_yaml_block_returns_empty_dict(self) -> None:
         raw = "Just some free text without any YAML block."

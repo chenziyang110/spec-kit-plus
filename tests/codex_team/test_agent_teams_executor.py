@@ -1,9 +1,7 @@
 import json
-import os
 import sys
 from pathlib import Path
 
-import pytest
 
 from specify_cli.codex_team.runtime_bridge import bootstrap_runtime_session, dispatch_runtime_task
 from specify_cli.codex_team.state_paths import dispatch_record_path, result_record_path

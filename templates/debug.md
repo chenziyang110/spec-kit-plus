@@ -86,6 +86,37 @@ evidence_unlock:
 carry_forward_notes:
   - [what the investigator must preserve from observer framing]
 
+## Investigation Contract
+<!-- OVERWRITE/REFINE - converts observer framing into runtime investigation constraints -->
+
+primary_candidate_id: [candidate id currently driving the next investigation step]
+investigation_mode: normal | root_cause
+escalation_reason: [why the session entered root_cause mode, if it did]
+candidate_queue:
+  - candidate_id: [stable candidate id]
+    candidate: [concise one-line hypothesis]
+    family: [truth_owner_logic | projection_render | cache_snapshot | boundary_contract | config_flag_env | ordering_concurrency]
+    status: pending | active | confirmed | ruled_out | deprioritized
+    evidence_needed:
+      - [concrete evidence still required]
+    evidence_found:
+      - [evidence already collected]
+    related_targets:
+      - [nearest-neighbor target id]
+related_risk_targets:
+  - target: [adjacent risk area]
+    reason: [why this risk is related]
+    scope: [nearest-neighbor | broader-family]
+    status: pending | checked | cleared | needs_followup
+    evidence:
+      - [what was reviewed]
+causal_coverage_state:
+  competing_candidate_ruled_out: [true|false]
+  truth_owner_confirmed: [true|false]
+  boundary_break_localized: [true|false]
+  related_risk_scan_completed: [true|false]
+  closeout_ready: [true|false]
+
 ## Suggested Evidence Lanes
 <!-- OVERWRITE/REFINE - recommended fan-out lanes for delegated or manual evidence collection -->
 
@@ -149,6 +180,8 @@ success_signals:
 <!-- APPEND only - facts discovered during investigation -->
 
 - timestamp: [when found]
+  source_type: log
+  source_ref: [for example `logs/app.log`, `runtime-test-output.log`, or the exact command that produced the evidence]
   checked: [what was examined]
   found: [what was observed]
   implication: [what this means]
@@ -224,6 +257,14 @@ loop_restoration_proof:
 - Records which evidence surfaces are now unlocked and what the investigator must carry forward
 - This section is incomplete until `first_candidate_to_test`, `why_first`, and at least one `evidence_unlock` entry are filled
 
+**Investigation Contract:**
+- OVERWRITE/REFINE once observer framing is available
+- Converts observer framing from advisory prose into runtime investigation constraints
+- `primary_candidate_id` must map to an entry in `candidate_queue`
+- `investigation_mode` tracks whether the session is still in `normal` mode or has escalated into `root_cause`
+- `related_risk_targets` records the nearest-neighbor paths that must be reviewed before closeout
+- `causal_coverage_state.related_risk_scan_completed` should stay `false` until the nearest-neighbor review is actually complete
+
 **Observer Gate:**
 - Set `observer_framing_completed: true` only after both `Observer Framing` and `Transition Memo` are complete
 - If `observer_mode` is `compressed`, `skip_observer_reason` must be non-empty
@@ -255,6 +296,7 @@ The session file must always make it clear:
 - what the active hypothesis is,
 - what experiment is being run,
 - why the current logs are sufficient or insufficient,
+- whether a recorded evidence item came from logs, tests, verification commands, traces, or manual observation,
 - which layer owns the relevant truth,
 - which state is control state versus observation state,
 - where the closed loop is currently believed to break,

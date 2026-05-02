@@ -2,7 +2,7 @@ import json
 import sys
 
 from specify_cli.codex_team.runtime_bridge import bootstrap_runtime_session, dispatch_runtime_task
-from specify_cli.codex_team.state_paths import shutdown_path, worker_heartbeat_path
+from specify_cli.codex_team.state_paths import worker_heartbeat_path
 from specify_cli.codex_team.worker_runtime import main
 
 

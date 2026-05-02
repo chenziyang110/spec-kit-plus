@@ -20,9 +20,7 @@ import yaml
 from pathlib import Path
 
 from specify_cli.extensions import (
-    ExtensionManifest,
     ExtensionManager,
-    ExtensionError,
 )
 from specify_cli import SKILL_DESCRIPTIONS
 
@@ -314,7 +312,6 @@ class TestBuiltInSkillGeneration:
         assert "before rendering the final explanation" in explain_body.lower()
 
         specify_body = _body_without_frontmatter(skills_dir / "sp-specify" / "SKILL.md")
-        specify_outline = _extract_section(specify_body, "Outline")
         assert "pre-analysis protocol" in specify_body.lower()
         assert "native structured question tool" in specify_body.lower()
         assert "fallback-only text format guidance" in specify_body.lower()
@@ -592,6 +589,8 @@ class TestBuiltInSkillGeneration:
         assert "fix_scope" in debug_lower
         assert "loop_restoration_proof" in debug_lower
         assert "surface-only" in debug_lower
+        assert "candidate queue" in debug_lower
+        assert "root-cause mode" in debug_lower
 
 
 class TestSkillDescriptions:
@@ -672,7 +671,7 @@ class TestExtensionSkillRegistration:
         """Skills should be created when ai_skills is enabled."""
         project_dir, skills_dir = skills_project
         manager = ExtensionManager(project_dir)
-        manifest = manager.install_from_directory(
+        manager.install_from_directory(
             extension_dir, "0.1.0", register_commands=False
         )
 
@@ -1045,7 +1044,7 @@ class TestExtensionSkillEdgeCases:
         )
 
         manager = ExtensionManager(project_dir)
-        manifest = manager.install_from_directory(
+        manager.install_from_directory(
             ext_dir, "0.1.0", register_commands=False
         )
 
@@ -1064,7 +1063,7 @@ class TestExtensionSkillEdgeCases:
         ext_dir = _create_extension_dir(temp_dir, ext_id="test-ext")
 
         manager = ExtensionManager(project_dir)
-        manifest = manager.install_from_directory(
+        manager.install_from_directory(
             ext_dir, "0.1.0", register_commands=False
         )
 
@@ -1080,10 +1079,10 @@ class TestExtensionSkillEdgeCases:
         ext_dir_b = _create_extension_dir(temp_dir, ext_id="ext-b")
 
         manager = ExtensionManager(project_dir)
-        manifest_a = manager.install_from_directory(
+        manager.install_from_directory(
             ext_dir_a, "0.1.0", register_commands=False
         )
-        manifest_b = manager.install_from_directory(
+        manager.install_from_directory(
             ext_dir_b, "0.1.0", register_commands=False
         )
 
@@ -1141,7 +1140,7 @@ class TestExtensionSkillEdgeCases:
 
         manager = ExtensionManager(project_dir)
         # Should not raise
-        manifest = manager.install_from_directory(
+        manager.install_from_directory(
             ext_dir, "0.1.0", register_commands=False
         )
 

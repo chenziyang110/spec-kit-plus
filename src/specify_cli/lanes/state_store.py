@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
 
 from specify_cli.orchestration.state_store import read_json, write_json
 

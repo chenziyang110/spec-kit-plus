@@ -1,6 +1,4 @@
 import os
-from pathlib import Path
-import pytest
 from specify_cli.debug.context import ContextLoader
 
 def test_find_active_feature(tmp_path):
