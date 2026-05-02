@@ -535,7 +535,7 @@ class IntegrationBase(ABC):
             "\n"
             "Before any code edits, test edits, build commands, or implementation actions:\n"
             "- Read `FEATURE_DIR/implement-tracker.md` first if it exists, and resume from its recorded blocker, recovery, replanning, or validation state before choosing a new batch.\n"
-            "- When the local CLI is available, use `specify hook validate-state --command implement --feature-dir \"$FEATURE_DIR\"` and `specify hook validate-session-state --command implement --feature-dir \"$FEATURE_DIR\"` before choosing the next batch so shared product checks verify the execution state.\n"
+            "- When the project launcher is available, use `{{specify-subcmd:hook validate-state --command implement --feature-dir \"$FEATURE_DIR\"}}` and `{{specify-subcmd:hook validate-session-state --command implement --feature-dir \"$FEATURE_DIR\"}}` before choosing the next batch so shared product checks verify the execution state.\n"
             "- **Audit Missed Dispatches**: If you find tasks in the tracker that you performed yourself but could have been delegated, record them under a `missed_agent_dispatch` field in the tracker as a recovery debt.\n"
             "- If `$ARGUMENTS` is non-empty, extract the important execution constraints or recovery hints from it and persist them under `## User Execution Notes` in `FEATURE_DIR/implement-tracker.md` before dispatching work.\n"
             "- Read `tasks.md`, identify the current ready batch, and choose the `subagents-first` dispatch shape for that batch.\n"
@@ -545,7 +545,7 @@ class IntegrationBase(ABC):
             "- Use the current runtime's `native-subagents` path first when `delegation_confidence` makes subagent execution safe.\n"
             "- Use `leader-inline-fallback` only after recording why delegation is unavailable, unsafe, or not packetized in `FEATURE_DIR/implement-tracker.md`.\n"
             "- Before any subagent implementation work starts, compile and validate the packet for the current task or batch item.\n"
-            "- Before subagent dispatch, prefer `specify hook validate-packet --packet-file <packet-json>` when the current runtime has written the packet to disk.\n"
+            "- Before subagent dispatch, prefer `{{specify-subcmd:hook validate-packet --packet-file <packet-json>}}` when the current runtime has written the packet to disk.\n"
             "- Do **not** fall through from subagent dispatch into local self-execution just because the implementation looks feasible.\n"
             "- If the subagent-readiness bar is not met, use `leader-inline-fallback` until the missing context, hard rules, validation gates, or handoff requirements are compiled. Do not dispatch a low-context subagent just to satisfy a routing preference.\n"
             "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
@@ -684,7 +684,7 @@ class IntegrationBase(ABC):
             "Before code edits, test edits, or implementation commands:\n"
             "- Read `.specify/memory/constitution.md` first if it exists.\n"
             "- Read `STATUS.md` for the active quick-task workspace, or create it if this quick task is new.\n"
-            "- When the local CLI is available, use `specify hook validate-state --command quick --workspace <quick-workspace>` and `specify hook validate-session-state --command quick --workspace <quick-workspace>` before choosing the next lane so shared product checks verify quick-task resume truth.\n"
+            "- When the project launcher is available, use `{{specify-subcmd:hook validate-state --command quick --workspace <quick-workspace>}}` and `{{specify-subcmd:hook validate-session-state --command quick --workspace <quick-workspace>}}` before choosing the next lane so shared product checks verify quick-task resume truth.\n"
             "- Define the smallest safe delegated lane or ready batch, and choose the `subagents-first` dispatch shape for that batch.\n"
             "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
             "- Dispatch `parallel-subagents` when two or more safe subagent lanes would materially improve throughput.\n"
@@ -735,7 +735,7 @@ class IntegrationBase(ABC):
             "- Once the first lane is chosen, dispatch it before continuing any leader-inline deep-dive analysis of the repository.\n"
             "- If multiple safe subagent lanes exist and they materially improve throughput, dispatch them in parallel.\n"
             "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth.\n"
-            "- Before compaction-risk transitions or join points, prefer `specify hook monitor-context --command quick --workspace <quick-workspace>` and follow checkpoint recommendations with `specify hook checkpoint --command quick --workspace <quick-workspace>`.\n"
+            "- Before compaction-risk transitions or join points, prefer `{{specify-subcmd:hook monitor-context --command quick --workspace <quick-workspace>}}` and follow checkpoint recommendations with `{{specify-subcmd:hook checkpoint --command quick --workspace <quick-workspace>}}`.\n"
             "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
             f"- Decision order for {agent_name} `sp-quick`: safe packetized subagents -> `managed-team` when durable state is needed -> `leader-inline-fallback` with reason.\n"
             "- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
@@ -889,6 +889,7 @@ class IntegrationBase(ABC):
         script_type: str,
         arg_placeholder: str = "$ARGUMENTS",
         template_path: Path | None = None,
+        project_root: Path | None = None,
     ) -> str:
         """Process a raw command template into agent-ready content.
 
@@ -986,8 +987,11 @@ class IntegrationBase(ABC):
         #    CommandRegistrar so extension-local paths are preserved and
         #    boundary rules stay consistent across the codebase.
         from specify_cli.agents import CommandRegistrar
+        from specify_cli.launcher import render_project_launcher_placeholders
         content = CommandRegistrar.rewrite_project_relative_paths(content)
         content = CommandRegistrar.render_invocation_placeholders(agent_name, content)
+        if project_root is not None:
+            content = render_project_launcher_placeholders(project_root, content)
 
         return content
 
@@ -1133,6 +1137,7 @@ class MarkdownIntegration(IntegrationBase):
                 script_type,
                 arg_placeholder,
                 template_path=src_file,
+                project_root=project_root,
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
             processed = self._append_runtime_project_map_gate(
@@ -1329,6 +1334,7 @@ class TomlIntegration(IntegrationBase):
                 script_type,
                 arg_placeholder,
                 template_path=src_file,
+                project_root=project_root,
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
             processed = self._append_runtime_project_map_gate(
@@ -1488,6 +1494,7 @@ class SkillsIntegration(IntegrationBase):
         skill_name: str,
         description: str,
         source: str,
+        project_root: Path,
         script_type: str,
         arg_placeholder: str,
         apply_invocation_conventions: bool = False,
@@ -1500,6 +1507,7 @@ class SkillsIntegration(IntegrationBase):
             script_type,
             arg_placeholder,
             template_path=template_path,
+            project_root=project_root,
         )
         if processed_body.startswith("---"):
             parts = processed_body.split("---", 2)
@@ -1621,6 +1629,7 @@ class SkillsIntegration(IntegrationBase):
                 skill_name=skill_name,
                 description=description,
                 source=f"templates/commands/{src_file.name}",
+                project_root=project_root,
                 script_type=script_type,
                 arg_placeholder=arg_placeholder,
                 apply_invocation_conventions=True,
@@ -1693,6 +1702,7 @@ class SkillsIntegration(IntegrationBase):
                 skill_name=skill_name,
                 description=description,
                 source=f"templates/passive-skills/{skill_name}/SKILL.md",
+                project_root=project_root,
                 script_type=script_type,
                 arg_placeholder=arg_placeholder,
                 apply_invocation_conventions=False,

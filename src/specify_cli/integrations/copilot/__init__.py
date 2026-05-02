@@ -90,6 +90,7 @@ class CopilotIntegration(IntegrationBase):
                 script_type,
                 arg_placeholder,
                 template_path=src_file,
+                project_root=project_root,
             )
             processed = self._append_runtime_project_map_gate(
                 content=processed,

@@ -88,6 +88,7 @@ class ForgeIntegration(MarkdownIntegration):
                 script_type,
                 arg_placeholder,
                 template_path=src_file,
+                project_root=project_root,
             )
 
             # FORGE-SPECIFIC: Ensure any remaining $ARGUMENTS placeholders are

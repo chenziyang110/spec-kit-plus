@@ -116,6 +116,14 @@ def _argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
     return None
 
 
+def _project_launcher_broken(project_root: Path) -> bool:
+    launcher_argv = _argv_from_project_config(project_root)
+    if not launcher_argv:
+        return False
+    first = launcher_argv[0]
+    return shutil.which(first) is None and not Path(first).exists()
+
+
 def _shared_hook_commands(project_root: Path, args: list[str]) -> list[list[str]]:
     commands: list[list[str]] = []
     for launcher_argv in (
@@ -134,6 +142,16 @@ def _shared_hook_commands(project_root: Path, args: list[str]) -> list[list[str]
 
 
 def _run_shared_hook(project_root: Path, args: list[str]) -> dict[str, Any] | None:
+    if _project_launcher_broken(project_root):
+        return {
+            "status": "blocked",
+            "errors": ["project launcher is configured but unavailable"],
+            "warnings": [],
+            "actions": [
+                "repair `.specify/config.json` or re-run `specify init --here --force ...` from a trusted launcher source",
+            ],
+        }
+
     seen: set[tuple[str, ...]] = set()
     for command in _shared_hook_commands(project_root, args):
         key = tuple(command)

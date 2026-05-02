@@ -128,6 +128,7 @@ class GenericIntegration(MarkdownIntegration):
                 script_type,
                 arg_placeholder,
                 template_path=src_file,
+                project_root=project_root,
             )
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(

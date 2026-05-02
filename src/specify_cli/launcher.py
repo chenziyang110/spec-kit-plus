@@ -7,7 +7,9 @@ import importlib.metadata as importlib_metadata
 import json
 import os
 from pathlib import Path
+import re
 import shutil
+import shlex
 import subprocess
 from typing import Any
 
@@ -98,11 +100,82 @@ def _load_config(path: Path) -> dict[str, Any] | None:
     return loaded if isinstance(loaded, dict) else None
 
 
+def _normalize_launcher_payload(payload: Any) -> SpecifyLauncherSpec | None:
+    if not isinstance(payload, dict):
+        return None
+    argv = payload.get("argv")
+    if not isinstance(argv, list) or not argv or not all(isinstance(item, str) and item for item in argv):
+        return None
+
+    normalized_argv = tuple(argv)
+    command = payload.get("command")
+    if not isinstance(command, str) or not command.strip():
+        command = render_command(normalized_argv)
+
+    return SpecifyLauncherSpec(command=command.strip(), argv=normalized_argv)
+
+
 def _launcher_payload(launcher: SpecifyLauncherSpec) -> dict[str, Any]:
     return {
         "command": launcher.command,
         "argv": list(launcher.argv),
     }
+
+
+def load_project_specify_launcher(project_root: Path) -> SpecifyLauncherSpec | None:
+    """Load the persisted project launcher from ``.specify/config.json``."""
+
+    config_path = project_root / SPECIFY_CONFIG_FILE
+    payload = _load_config(config_path)
+    if payload is None:
+        return None
+    return _normalize_launcher_payload(payload.get(SPECIFY_LAUNCHER_CONFIG_KEY))
+
+
+def project_specify_subcommand(
+    project_root: Path,
+    args: list[str] | tuple[str, ...],
+) -> SpecifyLauncherSpec | None:
+    """Compose a trusted launcher-backed ``specify`` subcommand for a project."""
+
+    launcher = load_project_specify_launcher(project_root)
+    if launcher is None:
+        return None
+
+    normalized_args = tuple(args)
+    argv = (*launcher.argv, *normalized_args)
+    return SpecifyLauncherSpec(command=render_command(argv), argv=argv)
+
+
+def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
+    """Expand launcher placeholders in template or guidance text."""
+
+    if not isinstance(body, str) or "{{specify-" not in body:
+        return body
+
+    launcher = load_project_specify_launcher(project_root)
+    default = default_specify_launcher_spec()
+    active_launcher = launcher or default
+
+    rendered = body.replace("{{specify-cli}}", active_launcher.command)
+    pattern = re.compile(r"\{\{specify-subcmd:(?P<args>[^{}]+)\}\}")
+
+    def replace(match: re.Match[str]) -> str:
+        args_text = match.group("args").strip()
+        if not args_text:
+            return match.group(0)
+        try:
+            tokens = tuple(shlex.split(args_text, posix=os.name != "nt"))
+        except ValueError:
+            return match.group(0)
+        if not tokens:
+            return match.group(0)
+        if launcher is None:
+            return render_command((*default.argv, *tokens))
+        subcommand = project_specify_subcommand(project_root, tokens)
+        return subcommand.command if subcommand is not None else render_command((*default.argv, *tokens))
+
+    return pattern.sub(replace, rendered)
 
 
 def write_project_specify_launcher_config(

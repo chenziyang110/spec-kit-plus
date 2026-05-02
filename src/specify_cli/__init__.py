@@ -4451,6 +4451,43 @@ def check():
                 "[dim]Clean old pip/conda installs or reorder PATH, then verify `specify --help` shows the expected commands.[/dim]"
             )
 
+    project_root = Path.cwd()
+    project_config = project_root / ".specify" / "config.json"
+    if project_config.exists():
+        try:
+            loaded = json.loads(project_config.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            loaded = None
+
+        console.print()
+        if isinstance(loaded, dict) and isinstance(loaded.get("specify_launcher"), dict):
+            launcher = loaded["specify_launcher"]
+            argv = launcher.get("argv")
+            command = launcher.get("command")
+            rows = [
+                ("Project", f"[dim]{project_root}[/dim]"),
+                ("Launcher", "[green]configured[/green]"),
+            ]
+            if isinstance(command, str) and command.strip():
+                rows.append(("Command", f"[dim]{command}[/dim]"))
+            elif isinstance(argv, list) and argv:
+                rows.append(("Command", f"[dim]{' '.join(str(item) for item in argv)}[/dim]"))
+            console.print(_cli_panel(_labeled_grid(rows), title="Project Launcher", border_style="green"))
+        else:
+            rows = [
+                ("Project", f"[dim]{project_root}[/dim]"),
+                ("Launcher", "[yellow]missing[/yellow]"),
+                ("Mode", "[yellow]compatibility mode[/yellow]"),
+            ]
+            console.print(_cli_panel(_labeled_grid(rows), title="Project Launcher", border_style="yellow"))
+            console.print(
+                "[yellow]Warning:[/yellow] This project has Spec Kit state but no persisted project launcher. "
+                "Runtime helper commands may fall back to PATH `specify` compatibility mode."
+            )
+            console.print(
+                "[dim]Re-run `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai <agent>` from the project root to persist a trusted launcher.[/dim]"
+            )
+
     console.print("\n[bold green]Specify CLI is ready to use![/bold green]")
 
     if not git_ok:

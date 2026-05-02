@@ -517,6 +517,7 @@ class ClaudeIntegration(SkillsIntegration):
             skill_name="sp-implement-teams",
             description=description,
             source="src/specify_cli/integrations/claude/templates/implement-teams.md",
+            project_root=project_root,
             script_type=script_type,
             arg_placeholder=arg_placeholder,
         )
