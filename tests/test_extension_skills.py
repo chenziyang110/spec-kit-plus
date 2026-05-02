@@ -263,6 +263,7 @@ class TestBuiltInSkillGeneration:
         assert not (skills_dir / "sp-test" / "SKILL.md").exists()
         assert (skills_dir / "sp-fast" / "SKILL.md").exists()
         assert (skills_dir / "sp-quick" / "SKILL.md").exists()
+        assert (skills_dir / "sp-prd" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-rules-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learnings-template.md").exists()
@@ -371,6 +372,18 @@ class TestBuiltInSkillGeneration:
         assert "without needing `/sp.clarify`" in specify_body
         assert "mark `.specify/project-map/index/status.json` dirty" in specify_body.lower()
         assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in specify_body
+
+        prd_body = _body_without_frontmatter(skills_dir / "sp-prd" / "SKILL.md")
+        prd_lower = prd_body.lower()
+        assert "existing project prd suite" in prd_lower
+        assert "peer workflow to `sp-specify`" in prd_lower
+        assert "current repository reality" in prd_lower
+        assert "evidence/inference/unknown" in prd_lower
+        assert ".specify/prd-runs/<run-id>/workflow-state.md" in prd_body
+        assert ".specify/prd-runs/<run-id>/coverage-matrix.md" in prd_body
+        assert "master/master-pack.md" in prd_body
+        assert "exports/prd.md" in prd_body
+        assert "no automatic handoff into implementation planning" in prd_lower
 
         plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         assert "Add `Implementation Constitution`" in plan_body
@@ -580,6 +593,8 @@ class TestSkillDescriptions:
 
         assert "guided requirement discovery" in SKILL_DESCRIPTIONS["specify"].lower()
         assert "planning-ready specification package" in SKILL_DESCRIPTIONS["specify"].lower()
+        assert "current-state prd extraction" in SKILL_DESCRIPTIONS["prd"].lower()
+        assert "without automatically handing off to planning" in SKILL_DESCRIPTIONS["prd"].lower()
         assert "planning-critical gaps" in SKILL_DESCRIPTIONS["clarify"].lower()
         assert "feasibility risk" in SKILL_DESCRIPTIONS["deep-research"].lower()
         assert "planning handoff" in SKILL_DESCRIPTIONS["deep-research"].lower()

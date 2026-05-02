@@ -29,6 +29,10 @@ class TestCodexIntegration(SkillsIntegrationTests):
 
     def _expected_files(self, script_variant: str) -> list[str]:
         files = super()._expected_files(script_variant)
+        if script_variant == "sh":
+            files.append(".specify/scripts/bash/prd-state.sh")
+        else:
+            files.append(".specify/scripts/powershell/prd-state.ps1")
         files.extend(
             [
                 ".codex/config.toml",
@@ -352,6 +356,12 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert "spawn_agent" in test_build_content
     assert "wait_agent" in test_build_content
 
+    prd_content = (skills_dir / "sp-prd" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "existing-project reverse prd extraction" in prd_content
+    assert "current repository reality" in prd_content
+    assert "no automatic handoff into implementation planning" in prd_content
+    assert ".specify/prd-runs/<run-id>/" in prd_content
+
     constitution_content = (skills_dir / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert ".specify/memory/project-rules.md" in constitution_content
     assert ".specify/memory/project-learnings.md" in constitution_content
@@ -410,7 +420,7 @@ def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):
 
     assert result.exit_code == 0, result.output
 
-    for skill_name in ("sp-fast", "sp-quick", "sp-map-scan", "sp-map-build", "sp-implement", "sp-specify", "sp-plan", "sp-tasks", "sp-debug"):
+    for skill_name in ("sp-fast", "sp-quick", "sp-map-scan", "sp-map-build", "sp-implement", "sp-specify", "sp-prd", "sp-plan", "sp-tasks", "sp-debug"):
         content = (target / ".codex" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
         assert "[AGENT]" in content
 

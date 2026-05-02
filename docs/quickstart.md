@@ -44,17 +44,19 @@ guide are the stable names used by Spec Kit Plus.
 
 Invocation syntax depends on the integration:
 
-| Integration surface | Constitution | Specify | Plan | Tasks |
-| --- | --- | --- | --- | --- |
-| Codex skills | `$sp-constitution` | `$sp-specify` | `$sp-plan` | `$sp-tasks` |
-| Kimi Code skills | `/skill:sp-constitution` | `/skill:sp-specify` | `/skill:sp-plan` | `/skill:sp-tasks` |
-| Claude skills | `/sp-constitution` | `/sp-specify` | `/sp-plan` | `/sp-tasks` |
-| Slash-dot command integrations | `/sp.constitution` | `/sp.specify` | `/sp.plan` | `/sp.tasks` |
+| Integration surface | Constitution | Specify | PRD | Plan | Tasks |
+| --- | --- | --- | --- | --- | --- |
+| Codex skills | `$sp-constitution` | `$sp-specify` | `$sp-prd` | `$sp-plan` | `$sp-tasks` |
+| Kimi Code skills | `/skill:sp-constitution` | `/skill:sp-specify` | `/skill:sp-prd` | `/skill:sp-plan` | `/skill:sp-tasks` |
+| Claude skills | `/sp-constitution` | `/sp-specify` | `/sp-prd` | `/sp-plan` | `/sp-tasks` |
+| Slash-dot command integrations | `/sp.constitution` | `/sp.specify` | `/sp.prd` | `/sp.plan` | `/sp.tasks` |
 
 `/sp-*` is not universal for skills-backed integrations. Use the syntax
 generated for the integration selected during `specify init`; for example, run
 `$sp-specify` in Codex, `/skill:sp-specify` in Kimi, `/sp-specify` in Claude, or
-`/sp.specify` in slash-dot command integrations.
+`/sp.specify` in slash-dot command integrations. For existing-project PRD
+extraction, use the same mapping for the canonical `prd` workflow, such as
+`$sp-prd`, `/skill:sp-prd`, `/sp-prd`, or `/sp.prd`.
 
 The concrete chat snippets below use Claude-style `/sp-*` examples for
 readability. Translate them through the matrix above when you are using Codex,
@@ -88,6 +90,15 @@ Built-in profiles:
 
 ```markdown
 /sp-specify Build an application that can help me organize my photos in separate photo albums. Albums are grouped by date and can be re-organized by dragging and dropping on the main page. Albums are never in other nested albums. Within each album, photos are previewed in a tile-like interface.
+```
+
+For an existing repository that needs a current-state product requirements
+document instead of a new feature spec, run the peer `prd` workflow. It
+reverse-extracts a PRD suite from repository evidence, writes
+`.specify/prd-runs/<run-id>/`, and does not automatically hand off to `plan`.
+
+```markdown
+/sp-prd Extract a current-state PRD suite for this repository.
 ```
 
 ### Step 4: Plan the Implementation
@@ -156,7 +167,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- **Support skills**: `map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`, `integrate`
+- **Support skills**: `map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `prd`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`, `integrate`
 - **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -186,6 +197,7 @@ Use support skills when they solve a specific gap:
 
 - `map-scan` followed by `map-build` as the required brownfield gate when you are working in an existing codebase; generate the complete scan package first, then refresh the handbook/project-map navigation system before deeper workflow steps
 - `auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
+- `prd` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it writes `.specify/prd-runs/<run-id>/` and does not automatically hand off to `plan`
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `map-scan` followed by `map-build` as the follow-up refresh workflow
 - `clarify` when an existing spec still needs deeper analysis before planning

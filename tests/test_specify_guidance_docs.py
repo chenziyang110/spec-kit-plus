@@ -19,8 +19,10 @@ def test_quickstart_teaches_specify_to_plan_mainline():
 
     assert "move directly from `specify` to `plan`" in quickstart
     assert "$sp-specify" in quickstart
+    assert "$sp-prd" in quickstart
     assert "/skill:sp-plan" in quickstart
     assert "/sp.specify" in quickstart
+    assert "/sp.prd" in quickstart
     assert "`specify -> plan` as the default path" in quickstart
     assert "`specify` -> `deep-research` -> `plan`" in quickstart
 
@@ -32,8 +34,11 @@ def test_quickstart_declares_integration_specific_invocation_syntax():
 
     assert "Invocation syntax depends on the integration:" in quickstart
     assert "$sp-specify" in quickstart
+    assert "$sp-prd" in quickstart
     assert "/skill:sp-specify" in quickstart
+    assert "/skill:sp-prd" in quickstart
     assert "/sp.specify" in quickstart
+    assert "/sp.prd" in quickstart
     assert "Canonical workflow names are integration-neutral" in quickstart
     assert "Slash-dot command integrations" in readme
     assert "Slash-dot command integrations" in quickstart
@@ -46,8 +51,11 @@ def test_quickstart_declares_integration_specific_invocation_syntax():
         assert "`/sp-*` is not universal for skills-backed integrations" in content
         assert "canonical workflow names" in content.lower()
         assert "$sp-plan" in content
+        assert "$sp-prd" in content
         assert "/skill:sp-plan" in content
+        assert "/skill:sp-prd" in content
         assert "/sp.plan" in content
+        assert "/sp.prd" in content
 
 
 def test_upgrade_doc_mentions_project_launcher_binding():
@@ -76,6 +84,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "`auto`" in readme
     assert "`clarify`" in readme
     assert "`deep-research`" in readme
+    assert "`prd`" in readme
     assert "`checklist`" in readme
     assert "`analyze`" in readme
     assert "`debug`" in readme
@@ -89,7 +98,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "Codex-only runtime" in quickstart
     skill_map = _section(quickstart, "## Skill Map", "For Codex team-mode execution")
     assert "`constitution`, `specify`, `plan`, `tasks`, `implement`" in skill_map
-    assert "`map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`" in skill_map
+    assert "`map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `prd`, `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`" in skill_map
     assert "/sp-" not in skill_map
 
 
@@ -104,6 +113,8 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
 
     assert "`map-scan` followed by `map-build`" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
+    assert "`prd` as the existing-project reverse PRD lane" in support_guidance
+    assert "does not automatically hand off to `plan`" in support_guidance
     assert "`analyze` as the required gate before implementation once `tasks.md` exists" in support_guidance
     assert "`fast` is only for trivial local fixes" in support_guidance
     assert "the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows" in support_guidance

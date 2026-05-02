@@ -115,6 +115,8 @@ def test_project_map_templates_require_full_detail_sections_for_high_value_facts
     assert "## State Transitions and Compatibility Notes" in workflows
     assert "## Runtime Data and Event Flows" in workflows
     assert "## State and Entity Lifecycles" in workflows
+    assert "`sp-prd` as a peer workflow to `sp-specify`" in workflows
+    assert "does not automatically hand off to planning" in workflows
     assert "## Contract Verification Surfaces" in testing
     assert "## Build, Runtime, and Recovery Verification" in testing
     assert "## Test Pyramid and Quality Gates" in testing

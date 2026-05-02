@@ -31,6 +31,10 @@
 
 ## Entry Points, Contracts, and Handoffs
 
+[Record `sp-prd` as a peer workflow to `sp-specify` when supported. It starts
+from current repository reality and reverse-extracts a PRD suite into
+`.specify/prd-runs/<run-id>/`; it does not automatically hand off to planning.]
+
 ## State Transitions and Compatibility Notes
 
 [Call out handoff fields, state transitions, and compatibility notes that govern the workflow.]
@@ -42,3 +46,7 @@
 ## Adjacent Workflow Risks
 
 ## Entry Commands and Handoffs
+
+[Include the `prd` entry command when present. Describe it as existing-project
+current-state PRD extraction grounded in repository evidence, not as a required
+pre-plan step.]

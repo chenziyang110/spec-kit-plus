@@ -17,6 +17,9 @@ def test_workflow_routing_references_map_gate_and_project_learning_roles() -> No
     assert "sp-test-build" in content
     assert "{{invoke:test}}" not in content
     assert "sp-auto" in content
+    assert "sp-prd" in content
+    assert "peer to `sp-specify`" in content
+    assert "do not automatically hand off to planning" in content
     assert "sp-deep-research" in content
     assert "implementation chain" in content or "implementation-chain" in content
     assert "planning handoff" in content
@@ -25,6 +28,18 @@ def test_workflow_routing_references_map_gate_and_project_learning_roles() -> No
     assert "learning-start" in content
     assert "learning-capture" in content
     assert "recommended next step" in content or "continue without naming the exact workflow" in content
+
+
+def test_project_to_prd_routes_existing_project_prd_extraction() -> None:
+    content = _read("templates/passive-skills/project-to-prd/SKILL.md").lower()
+
+    assert "sp-prd" in content
+    assert "peer workflow to `sp-specify`" in content
+    assert "current-state prd suite" in content
+    assert "repository evidence" in content
+    assert "evidence, inference, and unknown" in content
+    assert ".specify/prd-runs/<run-id>/workflow-state.md" in content
+    assert "do not automatically hand off to `sp-plan`" in content
 
 
 def test_workflow_routing_forces_route_selection_before_any_action() -> None:

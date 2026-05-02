@@ -896,6 +896,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Treat `specify -> plan` as the default path.",
             "- Use `clarify` only when an existing spec needs deeper analysis before planning.",
             "- Use `deep-research` only when requirements are clear but feasibility or the implementation chain must be proven before planning; its research findings, demo evidence, and Planning Handoff become inputs to `plan`.",
+            "- Use `prd` as a peer existing-project reverse PRD lane when the user needs repository-first current-state product documentation; it does not automatically hand off to planning.",
             "",
             "## Workflow Activation Discipline",
             "",
@@ -922,6 +923,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.",
             "- Use `sp-auto` when repository state already records the recommended next step and the user wants one continue entrypoint instead of naming the exact workflow manually.",
             "- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.",
+            "- Use `sp-prd` when an existing repository needs a current-state PRD suite extracted from code, docs, tests, routes, UI/API surfaces, and project-map evidence without automatically entering planning.",
             "- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.",
             "- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.",
             "- Use `sp-test-scan` for project-level testing evidence and build planning, and `sp-test-build` for leader-managed testing-system construction.",
@@ -939,6 +941,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- `.specify/memory/constitution.md` is the principle-level source of truth when present.",
             "- `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress.",
             "- `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.",
+            "- `.specify/prd-runs/<run-id>/workflow-state.md`, `coverage-matrix.md`, `master/master-pack.md`, and `exports/prd.md` carry current-state PRD extraction artifacts from `sp-prd`; they are documentation outputs, not implicit planning inputs.",
             "- `deep-research.md`, its traceable `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence IDs, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.",
             "- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.",
             "- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.",
@@ -2678,6 +2681,7 @@ DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
+    "prd": "Use when an existing repository needs repository-first current-state PRD extraction into a professional PRD suite without automatically handing off to planning.",
     "clarify": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
     "deep-research": "Use when a planning-ready spec still has feasibility risk and needs coordinated research, evidence packets, a Planning Handoff, or a disposable demo before implementation planning.",
     "research": "Use when a compatibility alias is needed for deep-research; route to the canonical feasibility research gate without creating separate sp-research artifacts.",
@@ -3289,6 +3293,7 @@ def init(
     steps_lines.append(f"   - [cyan]{_display_cmd('test-scan')}[/] - Deep-scan the testing surface and produce build-ready lanes")
     steps_lines.append(f"   - [cyan]{_display_cmd('test-build')}[/] - Build the unit testing system from scan-approved lanes with leader/subagent coordination")
     steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
+    steps_lines.append(f"   - [cyan]{_display_cmd('prd')}[/] - Reverse-extract a current-state PRD suite from an existing repository without automatically entering planning")
     steps_lines.append(f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work")
     steps_lines.append(f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning")
     steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
@@ -3324,6 +3329,7 @@ def init(
             f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Produce a complete scan package before deeper brownfield specification, planning, task generation, or implementation resumes",
             f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Generate or refresh the handbook/project-map atlas-style encyclopedia from the complete scan package",
             f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",
+            f"○ [cyan]{_display_cmd('prd')}[/] [bright_black](existing-project PRD)[/bright_black] - Reverse-extract a repository-first current-state PRD suite; it is a peer workflow to [cyan]{_display_cmd('specify')}[/] and does not automatically hand off to planning",
             f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
             f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility and research gate)[/bright_black] - Prove whether a clear requirement can be implemented and hand [cyan]{_display_cmd('plan')}[/] the research findings, demo evidence, constraints, and recommended approach",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](default gate before implement)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",

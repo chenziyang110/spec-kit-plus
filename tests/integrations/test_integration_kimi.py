@@ -14,6 +14,14 @@ class TestKimiIntegration(SkillsIntegrationTests):
     REGISTRAR_DIR = ".kimi/skills"
     CONTEXT_FILE = "KIMI.md"
 
+    def _expected_files(self, script_variant: str) -> list[str]:
+        files = super()._expected_files(script_variant)
+        if script_variant == "sh":
+            files.append(".specify/scripts/bash/prd-state.sh")
+        else:
+            files.append(".specify/scripts/powershell/prd-state.ps1")
+        return sorted(files)
+
 
 class TestKimiOptions:
     """Kimi declares --skills and --migrate-legacy options."""
@@ -119,6 +127,7 @@ class TestKimiLegacyMigration:
         assert (skills_dir / "sp-oldcmd" / "SKILL.md").exists()
         # New skills from templates should also exist
         assert (skills_dir / "sp-specify" / "SKILL.md").exists()
+        assert (skills_dir / "sp-prd" / "SKILL.md").exists()
 
 
 class TestKimiNextSteps:

@@ -50,6 +50,10 @@ complete and proceed.
   and the user wants to continue without naming the exact workflow manually.
 - Use `sp-specify` for new capability, behavior, or requirement changes that need an
   aligned spec package before implementation.
+- Use `sp-prd` when an existing repository needs a current-state PRD suite
+  reverse-extracted from code, docs, tests, routes, UI/API surfaces, and
+  project-map evidence. Treat it as a peer to `sp-specify`, not as a pre-plan
+  requirement, and do not automatically hand off to planning.
 - Use `sp-clarify` when an existing spec package needs deeper analysis before
   planning can safely proceed.
 - Use `sp-deep-research` when the requirements are clear but feasibility, external
@@ -77,6 +81,7 @@ state, or artifact handoffs. Use projected invocation placeholders when telling 
 user what to type:
 
 - New capability alignment: `{{invoke:specify}}`
+- Existing-project PRD extraction: `{{invoke:prd}}`
 - Planning handoff: `{{invoke:plan}}`
 - Task generation: `{{invoke:tasks}}`
 - Implementation execution: `{{invoke:implement}}`
