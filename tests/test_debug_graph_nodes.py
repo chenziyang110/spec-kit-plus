@@ -7,6 +7,7 @@ from specify_cli.debug.schema import (
     DebugStatus,
     EliminatedEntry,
     EvidenceEntry,
+    ObserverCauseCandidate,
 )
 from specify_cli.debug.graph import (
     AwaitingHumanNode,
@@ -19,11 +20,49 @@ from specify_cli.debug.graph import (
 )
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 
+
+def _populate_valid_observer_framing(state: DebugGraphState, *, mode: str = "full") -> None:
+    state.observer_framing_completed = True
+    state.observer_mode = mode
+    if mode == "compressed":
+        state.skip_observer_reason = "Strong low-level evidence present"
+    state.observer_framing.summary = "Observer framing identifies a bounded control-plane issue."
+    state.observer_framing.primary_suspected_loop = "general"
+    state.observer_framing.suspected_owning_layer = "parser"
+    state.observer_framing.suspected_truth_owner = "parser"
+    state.observer_framing.recommended_first_probe = "Check parser boundary against output."
+    state.observer_framing.contrarian_candidate = "Projection layer rewrites correct parser output"
+    state.observer_framing.alternative_cause_candidates = [
+        ObserverCauseCandidate(
+            candidate="Parser upper bound excludes final token",
+            failure_shape="truth_owner_logic",
+            would_rule_out="Parser output already contains final token",
+            recommended_first_probe="Run parser repro and inspect raw output",
+        ),
+        ObserverCauseCandidate(
+            candidate="Projection layer drops final token",
+            failure_shape="projection_render",
+            would_rule_out="Projection input already lacks final token",
+            recommended_first_probe="Compare parser output and rendered output",
+        ),
+    ]
+    if mode != "compressed":
+        state.observer_framing.alternative_cause_candidates.append(
+            ObserverCauseCandidate(
+                candidate="Configuration gate trims final token",
+                failure_shape="config_flag_env",
+                would_rule_out="Relevant parsing flag is disabled",
+                recommended_first_probe="Inspect active parsing flags",
+            )
+        )
+    state.transition_memo.first_candidate_to_test = "Parser upper bound excludes final token"
+    state.transition_memo.why_first = "Best matches the outsider framing."
+    state.transition_memo.evidence_unlock = ["reproduction", "code"]
+
 @pytest.mark.asyncio
 async def test_gathering_node_missing_symptoms():
     state = DebugGraphState(slug="test", trigger="test")
-    # Mark observer framing as completed (now dispatched to think subagent in production)
-    state.observer_framing_completed = True
+    _populate_valid_observer_framing(state)
     # symptoms are empty by default
     node = GatheringNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -40,8 +79,7 @@ async def test_gathering_node_with_symptoms_not_verified():
     state = DebugGraphState(slug="test", trigger="test")
     state.symptoms.expected = "Something should happen"
     state.symptoms.actual = "Something else happened"
-    # Mark observer framing as completed (now dispatched to think subagent in production)
-    state.observer_framing_completed = True
+    _populate_valid_observer_framing(state)
 
     node = GatheringNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -59,8 +97,7 @@ async def test_gathering_node_with_verified_reproduction():
     state.symptoms.actual = "Something else happened"
     state.symptoms.reproduction = "tests/repro.py"
     state.symptoms.reproduction_verified = True
-    # Mark observer framing as completed (now dispatched to think subagent in production)
-    state.observer_framing_completed = True
+    _populate_valid_observer_framing(state)
 
     node = GatheringNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -90,8 +127,7 @@ async def test_graph_refreshes_diagnostic_profile_from_symptoms():
     state.symptoms.expected = "Fresh task state visible"
     state.symptoms.actual = "Stale snapshot cache remains visible"
     state.symptoms.reproduction_verified = True
-    # Mark observer framing as completed (now dispatched to think subagent in production)
-    state.observer_framing_completed = True
+    _populate_valid_observer_framing(state)
 
     node = GatheringNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -259,7 +295,7 @@ async def test_verifying_node_success(monkeypatch):
     
     result = await node.run(ctx)
     
-    assert isinstance(result, ResolvedNode)
+    assert isinstance(result, AwaitingHumanNode)
     assert state.resolution.verification == "success"
     # Should call run_command twice (reproduction + feature tests)
     assert len(calls) == 2
@@ -323,7 +359,7 @@ async def test_verifying_node_uses_changed_test_files(monkeypatch):
 
     result = await node.run(ctx)
 
-    assert isinstance(result, ResolvedNode)
+    assert isinstance(result, AwaitingHumanNode)
     assert calls == ["python tests/repro.py", "pytest tests/test_debug_cli.py"]
 
 @pytest.mark.asyncio
@@ -351,7 +387,7 @@ async def test_verifying_node_falls_back_to_project_tests(monkeypatch):
 
     result = await node.run(ctx)
 
-    assert isinstance(result, ResolvedNode)
+    assert isinstance(result, AwaitingHumanNode)
     assert calls == ["python tests/repro.py", "pytest tests"]
 
 @pytest.mark.asyncio

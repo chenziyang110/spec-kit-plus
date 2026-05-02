@@ -3,6 +3,7 @@ from pydantic_graph import GraphRunContext
 
 import specify_cli.debug.graph as graph_module
 from specify_cli.debug.graph import (
+    AwaitingHumanNode,
     FixingNode,
     GatheringNode,
     InvestigatingNode,
@@ -264,11 +265,23 @@ async def test_verifying_to_resolved_on_success(monkeypatch):
     node = VerifyingNode()
 
     result = await node.run(ctx)
-    assert isinstance(result, ResolvedNode)
+    assert isinstance(result, AwaitingHumanNode)
     assert state.resolution.verification == "success"
     assert seen == ["python tests/repro.py", "pytest tests/test_debug_graph.py"]
     assert [item.command for item in state.resolution.validation_results] == seen
     assert state.status == DebugStatus.VERIFYING
+
+
+@pytest.mark.asyncio
+async def test_awaiting_human_node_resolves_when_user_already_confirmed():
+    state = DebugGraphState(trigger="test bug", slug="test-slug")
+    state.status = DebugStatus.AWAITING_HUMAN
+    state.resolution.human_verification_outcome = "passed"
+    ctx = GraphRunContext(state=state, deps=None)
+
+    result = await AwaitingHumanNode().run(ctx)
+
+    assert isinstance(result, ResolvedNode)
 
 @pytest.mark.asyncio
 async def test_verifying_to_investigating_on_failure(monkeypatch):

@@ -868,7 +868,8 @@ class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
 
         # If verification passed, move to resolved.
         ctx.state.resolution.verification = "success"
-        return ResolvedNode()
+        ctx.state.resolution.human_verification_outcome = "pending"
+        return AwaitingHumanNode()
 
     def _handle_failed_verification(
         self,
@@ -876,20 +877,22 @@ class VerifyingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         persistence: MarkdownPersistenceHandler | None,
     ) -> Union['InvestigatingNode', 'AwaitingHumanNode']:
         state.resolution.verification = "failed"
-        state.resolution.fail_count += 1
+        previous_failures = state.resolution.agent_fail_count or state.resolution.fail_count
+        state.resolution.agent_fail_count = previous_failures + 1
+        state.resolution.fail_count = state.resolution.agent_fail_count
         research_path: Path | None = None
-        if state.resolution.fail_count >= 2 and persistence:
+        if state.resolution.agent_fail_count >= 2 and persistence:
             research_path = persistence.save_research_checkpoint(state)
         if state.resolution.fix and state.resolution.fix not in state.resolution.rejected_surface_fixes:
             state.resolution.rejected_surface_fixes.append(state.resolution.fix)
-        if state.resolution.fail_count > 2:
+        if state.resolution.agent_fail_count > 2:
             if research_path is not None:
                 state.current_focus.next_action = (
                     f"Repeated verification failed. Review `{research_path.as_posix()}` "
                     "before attempting another fix loop."
                 )
             return AwaitingHumanNode()
-        if state.resolution.fail_count >= 2:
+        if state.resolution.agent_fail_count >= 2:
             state.current_focus.hypothesis = None
             state.current_focus.test = None
             state.current_focus.expecting = None
@@ -904,9 +907,11 @@ class AwaitingHumanNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['VerifyingNode', End]:
         ctx.state.status = DebugStatus.AWAITING_HUMAN
         ctx.state.current_node_id = "AwaitingHumanNode"
+        if ctx.state.resolution.human_verification_outcome == "passed":
+            return ResolvedNode()
         report_builder = ctx.deps.build_handoff_report if ctx.deps else build_handoff_report
         ctx.state.resolution.report = report_builder(ctx.state)
-        if ctx.state.resolution.fail_count >= 2 and ctx.deps:
+        if ctx.state.resolution.agent_fail_count >= 2 and ctx.deps:
             research_path = ctx.deps.save_research_checkpoint(ctx.state)
             if ctx.state.parent_slug:
                 ctx.state.current_focus.next_action = (
@@ -959,6 +964,7 @@ async def run_debug_session(
     if resumed and state.current_node_id == "VerifyingNode":
         state.status = DebugStatus.AWAITING_HUMAN
         state.current_node_id = "AwaitingHumanNode"
+        state.resolution.human_verification_outcome = "pending"
         state.current_focus.next_action = (
             "Confirm persisted verification commands before resuming automated execution."
         )
