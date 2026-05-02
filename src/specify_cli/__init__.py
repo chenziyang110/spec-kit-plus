@@ -4868,15 +4868,19 @@ def integrate(
                 "status": "ok",
                 "mode": "discovery",
                 "candidates": [
-                    {
-                        "lane_id": lane.lane_id,
-                        "feature_id": lane.feature_id,
-                        "feature_dir": lane.feature_dir,
-                        "branch_name": lane.branch_name,
-                        "recovery_state": lane.recovery_state,
-                        "verification_status": lane.verification_status,
-                        "ready": assess_integration_readiness(project_root, lane).ready,
-                    }
+                    (
+                        lambda readiness: {
+                            "lane_id": readiness.lane.lane_id,
+                            "feature_id": readiness.lane.feature_id,
+                            "feature_dir": readiness.lane.feature_dir,
+                            "branch_name": readiness.lane.branch_name,
+                            "recovery_state": readiness.lane.recovery_state,
+                            "verification_status": readiness.lane.verification_status,
+                            "ready": readiness.ready,
+                            "recommended_action": "close" if readiness.ready else "fix-prechecks",
+                            "checks": readiness.checks,
+                        }
+                    )(assess_integration_readiness(project_root, lane))
                     for lane in candidates
                 ],
             },

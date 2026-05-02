@@ -1190,6 +1190,69 @@ def test_integrate_command_is_registered(tmp_path):
     assert "close out" in result.output.lower() or "closeout" in result.output.lower()
 
 
+def test_integrate_discovery_reports_readiness_checks(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "integrate-discovery"
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (project / ".specify").mkdir()
+
+    from specify_cli.lanes.models import LaneRecord
+    from specify_cli.lanes.state_store import write_lane_index, write_lane_record
+
+    lane = LaneRecord(
+        lane_id="lane-001",
+        feature_id="001-demo",
+        feature_dir="specs/001-demo",
+        branch_name="001-demo",
+        worktree_path=".specify/lanes/worktrees/lane-001",
+        lifecycle_state="implementing",
+        recovery_state="resumable",
+        verification_status="passed",
+        last_command="implement",
+    )
+    write_lane_record(project, lane)
+    write_lane_index(project, {"lanes": [{"lane_id": "lane-001"}]})
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: resolved",
+                "feature: 001-demo",
+                "resume_decision: resolved",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: batch-a",
+                "goal: done",
+                "next_action: none",
+                "",
+                "## Execution State",
+                "retry_attempts: 0",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(app, ["integrate"], catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["mode"] == "discovery"
+    assert len(payload["candidates"]) == 1
+    candidate = payload["candidates"][0]
+    assert candidate["recommended_action"] in {"close", "fix-prechecks"}
+    assert isinstance(candidate["checks"], list)
+    assert candidate["checks"]
+
+
 def test_integrate_targeted_close_marks_ready_lane_completed(tmp_path):
     runner = CliRunner()
     project = tmp_path / "integrate-close"
