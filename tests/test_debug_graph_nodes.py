@@ -287,6 +287,29 @@ async def test_investigating_node_finds_root_cause():
         "Projection layer drops the final token",
     ]
     state.resolution.root_cause_confidence = "confirmed"
+    state.investigation_contract.primary_candidate_id = "cand-parser-boundary"
+    state.investigation_contract.candidate_queue = [
+        {
+            "candidate_id": "cand-parser-boundary",
+            "candidate": "Parser upper bound excludes the final token",
+            "family": "truth_owner_logic",
+            "status": "confirmed",
+        },
+        {
+            "candidate_id": "cand-projection-boundary",
+            "candidate": "Projection layer drops the final token",
+            "family": "projection_render",
+            "status": "ruled_out",
+        },
+    ]
+    state.investigation_contract.related_risk_targets = [
+        {
+            "target": "projection-boundary",
+            "reason": "Nearest-neighbor risk for published token output",
+            "scope": "nearest-neighbor",
+            "status": "checked",
+        }
+    ]
     
     node = InvestigatingNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -371,6 +394,65 @@ async def test_fixing_node_with_fix():
     result = await node.run(ctx)
     
     assert isinstance(result, VerifyingNode)
+
+
+@pytest.mark.asyncio
+async def test_fixing_blocks_until_contrarian_candidate_is_resolved() -> None:
+    state = DebugGraphState(slug="test", trigger="queue stuck")
+    state.resolution.root_cause = {
+        "summary": "Scheduler does not clear slot ownership on release",
+        "owning_layer": "scheduler",
+        "broken_control_state": "slot ownership set",
+        "failure_mechanism": "release path leaves ownership set dirty",
+        "loop_break": "truth owner update -> projection refresh",
+        "decisive_signal": "ownership set remains non-empty after release",
+    }
+    state.truth_ownership = [{"layer": "scheduler", "owns": "slot ownership set"}]
+    state.control_state = ["slot ownership set"]
+    state.observation_state = ["queue badge"]
+    state.closed_loop.input_event = "slot release"
+    state.closed_loop.control_decision = "promote next queued task"
+    state.closed_loop.resource_allocation = "release and reassign slot"
+    state.closed_loop.state_transition = "queued task becomes admitted"
+    state.closed_loop.external_observation = "queue badge resets"
+    state.closed_loop.break_point = "truth owner update -> projection refresh"
+    state.resolution.decisive_signals = ["ownership set remains non-empty after release"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Scheduler does not clear slot ownership on release",
+        "Projection layer renders stale queue counts",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Projection layer renders stale queue counts",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
+    state.investigation_contract.primary_candidate_id = "cand-slot-ownership"
+    state.investigation_contract.candidate_queue = [
+        {
+            "candidate_id": "cand-slot-ownership",
+            "candidate": "Scheduler does not clear slot ownership on release",
+            "family": "truth_owner_logic",
+            "status": "confirmed",
+        },
+        {
+            "candidate_id": "cand-stale-projection",
+            "candidate": "Projection layer renders stale queue counts",
+            "family": "projection_render",
+            "status": "pending",
+        },
+    ]
+    state.investigation_contract.related_risk_targets = [
+        {
+            "target": "release-retry-loop",
+            "reason": "Retry admission also depends on slot ownership",
+            "scope": "nearest-neighbor",
+            "status": "pending",
+        }
+    ]
+
+    result = await InvestigatingNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert "competing candidate" in (state.current_focus.next_action or "").lower()
 
 @pytest.mark.asyncio
 async def test_verifying_node_success(monkeypatch):
@@ -717,6 +799,41 @@ async def test_verifying_blocks_closeout_until_related_risk_scan_completes(monke
 
     assert result.data == "Awaiting more debugging input"
     assert "related risk" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_verifying_blocks_until_adjacent_risk_target_checked(monkeypatch) -> None:
+    import specify_cli.debug.graph as graph_module
+
+    monkeypatch.setattr(graph_module, "run_verification_commands", lambda commands, runner, stop_on_failure: [])
+    monkeypatch.setattr(graph_module, "verification_passed", lambda results: True)
+
+    state = DebugGraphState(slug="test", trigger="queue stuck")
+    state.symptoms.reproduction_command = "pytest tests/test_debug_graph.py::test_gathering_to_investigating -q"
+    state.resolution.fix = "clear slot ownership on release"
+    state.resolution.fix_scope = "truth-owner"
+    state.resolution.loop_restoration_proof = ["Loop restored end-to-end"]
+    state.resolution.root_cause = {
+        "summary": "Scheduler does not clear slot ownership on release",
+        "owning_layer": "scheduler",
+        "broken_control_state": "slot ownership set",
+        "failure_mechanism": "release path leaves ownership set dirty",
+        "loop_break": "truth owner update -> projection refresh",
+        "decisive_signal": "ownership set remains non-empty after release",
+    }
+    state.investigation_contract.related_risk_targets = [
+        {
+            "target": "release-retry-loop",
+            "reason": "Retry admission also depends on slot ownership",
+            "scope": "nearest-neighbor",
+            "status": "pending",
+        }
+    ]
+
+    result = await VerifyingNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert "related-risk review is incomplete" in (state.current_focus.next_action or "").lower()
 
 @pytest.mark.asyncio
 async def test_verifying_node_treats_silent_nonzero_exit_as_failure():

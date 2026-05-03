@@ -358,6 +358,29 @@ async def test_investigating_to_fixing():
         "Resource counters or slot accounting are stale",
     ]
     state.resolution.root_cause_confidence = "confirmed"
+    state.investigation_contract.primary_candidate_id = "cand-scheduler-ownership"
+    state.investigation_contract.candidate_queue = [
+        {
+            "candidate_id": "cand-scheduler-ownership",
+            "candidate": "Scheduler kept stale running ownership after slot release",
+            "family": "truth_owner_logic",
+            "status": "confirmed",
+        },
+        {
+            "candidate_id": "cand-resource-counters",
+            "candidate": "Resource counters or slot accounting are stale",
+            "family": "projection_render",
+            "status": "ruled_out",
+        },
+    ]
+    state.investigation_contract.related_risk_targets = [
+        {
+            "target": "promotion-boundary",
+            "reason": "Nearest-neighbor risk for scheduler promotion",
+            "scope": "nearest-neighbor",
+            "status": "checked",
+        }
+    ]
     ctx = GraphRunContext(state=state, deps=None)
     node = InvestigatingNode()
     
