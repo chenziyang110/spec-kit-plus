@@ -62,6 +62,8 @@ def test_compaction_build_writes_json_and_markdown(tmp_path: Path):
     assert payload["identity"]["command_name"] == "quick"
     assert payload["phase_state"]["next_action"] == "integrate results"
     assert "resume_cue" in payload
+    assert payload["recovery_summary"]["next_action"] == "integrate results"
+    assert payload["recovery_summary"]["authoritative_sources"] == [str(workspace / "STATUS.md")]
 
 
 def test_compaction_read_warns_when_artifact_missing(tmp_path: Path):

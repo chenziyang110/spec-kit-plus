@@ -33,6 +33,7 @@ def build_compaction_hook(project_root: Path, payload: dict[str, object]) -> Hoo
         )
 
     checkpoint = dict(checkpoint_result.data.get("checkpoint") or {})
+    checkpoint.setdefault("command_name", command_name)
     scope_key = _scope_key(command_name, checkpoint, payload)
     artifact_dir = project_root / ".specify" / "runtime" / "compaction" / scope_key
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -50,6 +51,7 @@ def build_compaction_hook(project_root: Path, payload: dict[str, object]) -> Hoo
         "artifact_digest": _artifact_digest(checkpoint),
         "execution_signal": _execution_signal(checkpoint, recent_signal),
         "resume_cue": _resume_cue(command_name, checkpoint),
+        "recovery_summary": _recovery_summary(project_root, checkpoint),
     }
 
     json_path = artifact_dir / "latest.json"
@@ -183,6 +185,44 @@ def _execution_signal(checkpoint: dict[str, Any], recent_signal: dict[str, objec
     return signal
 
 
+def _recovery_summary(project_root: Path, checkpoint: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "command_name": checkpoint.get("command_name", ""),
+        "phase_mode": checkpoint.get("phase_mode", ""),
+        "status": checkpoint.get("status", ""),
+        "summary": checkpoint.get("summary", ""),
+        "allowed_actions": checkpoint.get("allowed_actions") or checkpoint.get("allowed_artifact_writes", []),
+        "forbidden_actions": checkpoint.get("forbidden_actions", []),
+        "authoritative_sources": _authoritative_sources(project_root, checkpoint),
+        "next_action": checkpoint.get("next_action", ""),
+        "next_command": checkpoint.get("next_command", ""),
+        "route_reason": checkpoint.get("route_reason", ""),
+        "blocked_reason": checkpoint.get("blocked_reason", ""),
+        "resume_decision": checkpoint.get("resume_decision", ""),
+    }
+
+
+def _authoritative_sources(project_root: Path, checkpoint: dict[str, Any]) -> list[str]:
+    checkpoint_path = str(checkpoint.get("path") or "").strip()
+    candidates = [checkpoint_path, *list(checkpoint.get("authoritative_files") or [])]
+    base_dir = Path(checkpoint_path).parent if checkpoint_path else project_root
+    sources: list[str] = []
+    seen: set[str] = set()
+    for raw in candidates:
+        value = str(raw or "").strip()
+        if not value:
+            continue
+        path = Path(value)
+        if not path.is_absolute():
+            path = base_dir / path
+        key = str(path.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        sources.append(key)
+    return sources
+
+
 def _resume_cue(command_name: str, checkpoint: dict[str, Any]) -> list[str]:
     cues = [f"You are resuming `{command_name}`."]
     next_action = str(checkpoint.get("next_action") or "").strip()
@@ -202,6 +242,7 @@ def _artifact_markdown(artifact: dict[str, Any]) -> str:
     phase_state = artifact["phase_state"]
     resume_cue = artifact["resume_cue"]
     truth_sources = artifact["truth_sources"]
+    recovery_summary = artifact["recovery_summary"]
     lines = [
         "# Workflow Compaction",
         "",
@@ -214,6 +255,12 @@ def _artifact_markdown(artifact: dict[str, Any]) -> str:
         f"- status: `{phase_state.get('status', '')}`",
         f"- next_action: `{phase_state.get('next_action', '')}`",
         f"- next_command: `{phase_state.get('next_command', '')}`",
+        "",
+        "## Recovery Summary",
+        "",
+        f"- phase_mode: `{recovery_summary.get('phase_mode', '')}`",
+        f"- next_action: `{recovery_summary.get('next_action', '')}`",
+        f"- next_command: `{recovery_summary.get('next_command', '')}`",
         "",
         "## Truth Sources",
         "",

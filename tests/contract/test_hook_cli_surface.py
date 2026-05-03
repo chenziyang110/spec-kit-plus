@@ -851,6 +851,58 @@ def test_hook_build_compaction_outputs_parseable_json(tmp_path: Path):
     assert "artifact_path" in payload["data"]
 
 
+def test_hook_build_compaction_outputs_recovery_summary(tmp_path: Path):
+    project = _create_project(tmp_path)
+    workspace = project / ".planning" / "quick" / "260427-001-demo-quick-task"
+    workspace.mkdir(parents=True, exist_ok=True)
+    (workspace / "STATUS.md").write_text(
+        "\n".join(
+            [
+                "---",
+                'id: "260427-001"',
+                'slug: "demo-quick-task"',
+                'title: "Demo quick task"',
+                'status: "executing"',
+                "---",
+                "",
+                "## Current Focus",
+                "",
+                "next_action: finish validation",
+                "",
+                "## Execution",
+                "",
+                "active_lane: worker-a",
+                "",
+                "## Summary Pointer",
+                "",
+                "resume_decision: resume here",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "build-compaction",
+            "--command",
+            "quick",
+            "--workspace",
+            str(workspace),
+            "--trigger",
+            "before_stop",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    recovery_summary = payload["data"]["artifact"]["recovery_summary"]
+    assert recovery_summary["next_action"] == "finish validation"
+    assert recovery_summary["resume_decision"] == "resume here"
+
+
 def test_hook_review_learning_blocks_without_review_payload(tmp_path: Path):
     project = _create_project(tmp_path)
 
