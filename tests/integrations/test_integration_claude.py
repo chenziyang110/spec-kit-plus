@@ -1114,6 +1114,7 @@ class TestClaudeIntegration:
         hook_output = payload["hookSpecificOutput"]
         assert "plan:design-only" in hook_output["additionalContext"]
         assert "Resume cue: finish design review." in hook_output["additionalContext"]
+        assert "Phase:" not in hook_output["additionalContext"]
 
     def test_claude_hook_dispatch_surfaces_learning_signal_on_stop(self, tmp_path):
         integration = get_integration("claude")

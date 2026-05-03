@@ -587,19 +587,26 @@ def _compaction_resume_context(
     context: dict[str, str] | None,
     *,
     build: bool,
+    read_first: bool,
     trigger: str,
     prefer_summary: bool,
 ) -> str:
     if not context:
         return ""
-    command = "build-compaction" if build else "read-compaction"
-    args = [command, *_active_context_args(context)]
-    if build:
-        args.extend(["--trigger", trigger])
-    shared = _run_shared_hook(project_root, args)
+    shared = None
+    artifact: dict[str, Any] | Any = {}
+
+    if read_first or not build:
+        shared = _run_shared_hook(project_root, ["read-compaction", *_active_context_args(context)])
+        artifact = shared.get("data", {}).get("artifact", {}) if shared else {}
+
+    if build and (not shared or not isinstance(artifact, dict) or not artifact):
+        args = ["build-compaction", *_active_context_args(context), "--trigger", trigger]
+        shared = _run_shared_hook(project_root, args)
+        artifact = shared.get("data", {}).get("artifact", {}) if shared else {}
+
     if not shared:
         return ""
-    artifact = shared.get("data", {}).get("artifact", {})
     if not isinstance(artifact, dict) or not artifact:
         return ""
     if prefer_summary:
@@ -706,6 +713,7 @@ def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[
         project_root,
         context,
         build=True,
+        read_first=True,
         trigger="session_start",
         prefer_summary=True,
     )
@@ -764,6 +772,7 @@ def _handle_post_tool_session_state(project_root: Path, _payload: dict[str, Any]
         project_root,
         context,
         build=True,
+        read_first=False,
         trigger="post_tool",
         prefer_summary=False,
     )
@@ -817,6 +826,7 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
             project_root,
             context,
             build=True,
+            read_first=False,
             trigger="before_stop",
             prefer_summary=False,
         )
@@ -838,6 +848,7 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
         project_root,
         context,
         build=True,
+        read_first=False,
         trigger="before_stop",
         prefer_summary=False,
     )
