@@ -673,6 +673,85 @@ class TestClaudeIntegration:
         assert hook_output["hookEventName"] == "SessionStart"
         assert "plan:design-only" in hook_output["additionalContext"]
 
+    def test_claude_hook_session_start_appends_recovery_summary(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-specify`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `planning-only`",
+                    "- summary: draft specification",
+                    "",
+                    "## Allowed Artifact Writes",
+                    "",
+                    "- spec.md",
+                    "- checklists/requirements.md",
+                    "",
+                    "## Forbidden Actions",
+                    "",
+                    "- edit source code",
+                    "- run implementation tasks",
+                    "",
+                    "## Authoritative Files",
+                    "",
+                    "- spec.md",
+                    "- workflow-state.md",
+                    "",
+                    "## Next Action",
+                    "",
+                    "- refine scope",
+                    "",
+                    "## Next Command",
+                    "",
+                    "- `/sp.plan`",
+                    "",
+                    "## Learning Signals",
+                    "",
+                    "- route_reason: `spec not yet approved for implementation`",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "session-start"],
+            input=json.dumps({}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        additional_context = payload["hookSpecificOutput"]["additionalContext"]
+        assert "planning-only" in additional_context
+        assert "/sp.plan" in additional_context
+
     def test_claude_hook_dispatch_adds_session_state_warning_on_post_tool_use(self, tmp_path):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)

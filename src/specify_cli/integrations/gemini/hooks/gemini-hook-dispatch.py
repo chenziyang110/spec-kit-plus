@@ -215,6 +215,23 @@ def _shared_block_to_gemini(
     return output
 
 
+def _format_recovery_summary(summary: dict[str, Any]) -> str:
+    parts: list[str] = []
+    phase_mode = str(summary.get("phase_mode") or "").strip()
+    next_action = str(summary.get("next_action") or "").strip()
+    next_command = str(summary.get("next_command") or "").strip()
+    route_reason = str(summary.get("route_reason") or "").strip()
+    if phase_mode:
+        parts.append(f"Phase: {phase_mode}.")
+    if next_action:
+        parts.append(f"Next action: {next_action}.")
+    if next_command:
+        parts.append(f"Next command: {next_command}.")
+    if route_reason:
+        parts.append(f"Reason: {route_reason}.")
+    return " ".join(parts)
+
+
 def _read_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
@@ -487,11 +504,22 @@ def _compaction_resume_context(project_root: Path) -> str:
     if not context:
         return ""
     shared = _run_shared_hook(project_root, ["read-compaction", *_active_context_args(context)])
+    artifact = shared.get("data", {}).get("artifact", {}) if shared else {}
+    if not shared or not isinstance(artifact, dict) or not artifact:
+        shared = _run_shared_hook(
+            project_root,
+            ["build-compaction", *_active_context_args(context), "--trigger", "session_start"],
+        )
     if not shared:
         return ""
     artifact = shared.get("data", {}).get("artifact", {})
     if not isinstance(artifact, dict):
         return ""
+    recovery_summary = artifact.get("recovery_summary", {})
+    if isinstance(recovery_summary, dict):
+        formatted = _format_recovery_summary(recovery_summary)
+        if formatted:
+            return formatted
     phase_state = artifact.get("phase_state", {})
     if isinstance(phase_state, dict):
         next_action = str(phase_state.get("next_action") or "").strip()
@@ -519,6 +547,20 @@ def _workflow_policy_block(project_root: Path, *, trigger: str, requested_action
     if not shared:
         return None
     status = str(shared.get("status") or "").strip().lower()
+    policy = shared.get("data", {}).get("policy", {})
+    if (
+        status == "warn"
+        and isinstance(policy, dict)
+        and policy.get("classification") == "redirect"
+    ):
+        recovery_summary = policy.get("recovery_summary", {})
+        message = _format_recovery_summary(recovery_summary) if isinstance(recovery_summary, dict) else ""
+        warnings = [str(item) for item in shared.get("warnings", []) if str(item).strip()]
+        reason = warnings[0] if warnings else "requested action conflicts with the active workflow phase"
+        output = {"decision": "deny", "reason": reason}
+        if message:
+            output["systemMessage"] = message
+        return output
     if status not in {"blocked", "repairable-block"}:
         return None
     return _shared_block_to_gemini(shared)
@@ -596,6 +638,8 @@ def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[st
         requested_action = ""
         if "implement directly" in normalized_prompt or "jump to implement" in normalized_prompt:
             requested_action = "jump_to_implement"
+        elif "start editing code" in normalized_prompt or "start implementation" in normalized_prompt:
+            requested_action = "start_editing_code"
         policy_block = _workflow_policy_block(project_root, trigger="prompt", requested_action=requested_action)
         if policy_block:
             if advisory and not policy_block.get("systemMessage"):

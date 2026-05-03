@@ -195,6 +195,7 @@ def _shared_to_claude_output(
     errors = [str(item) for item in shared_payload.get("errors", []) if str(item).strip()]
     warnings = [str(item) for item in shared_payload.get("warnings", []) if str(item).strip()]
     actions = [str(item) for item in shared_payload.get("actions", []) if str(item).strip()]
+    system_message = str(shared_payload.get("systemMessage") or shared_payload.get("system_message") or "").strip()
     advisory = " ".join([*warnings, *actions]).strip()
 
     if status in {"blocked", "repairable-block"}:
@@ -209,6 +210,9 @@ def _shared_to_claude_output(
             }
         if hook_event_name == "UserPromptSubmit":
             output = {"decision": "block", "reason": reason}
+            if system_message:
+                output["systemMessage"] = system_message
+                return output
             if advisory and advisory != reason:
                 output["systemMessage"] = advisory
             return output
@@ -221,6 +225,9 @@ def _shared_to_claude_output(
             }
         return {"decision": "block", "reason": reason}
 
+    if status == "warn" and system_message and hook_event_name == "UserPromptSubmit":
+        return {"systemMessage": system_message}
+
     if status == "warn" and advisory:
         if hook_event_name == "PreToolUse":
             return {"systemMessage": advisory}
@@ -232,6 +239,23 @@ def _shared_to_claude_output(
         }
 
     return None
+
+
+def _format_recovery_summary(summary: dict[str, Any]) -> str:
+    parts: list[str] = []
+    phase_mode = str(summary.get("phase_mode") or "").strip()
+    next_action = str(summary.get("next_action") or "").strip()
+    next_command = str(summary.get("next_command") or "").strip()
+    route_reason = str(summary.get("route_reason") or "").strip()
+    if phase_mode:
+        parts.append(f"Phase: {phase_mode}.")
+    if next_action:
+        parts.append(f"Next action: {next_action}.")
+    if next_command:
+        parts.append(f"Next command: {next_command}.")
+    if route_reason:
+        parts.append(f"Reason: {route_reason}.")
+    return " ".join(parts)
 
 
 def _read_text(path: Path) -> str:
@@ -556,11 +580,20 @@ def _compaction_resume_context(
     if build:
         args.extend(["--trigger", trigger])
     shared = _run_shared_hook(project_root, args)
+    artifact = shared.get("data", {}).get("artifact", {}) if shared else {}
+    if (not shared or not isinstance(artifact, dict) or not artifact) and not build:
+        build_args = ["build-compaction", *_active_context_args(context), "--trigger", trigger]
+        shared = _run_shared_hook(project_root, build_args)
     if not shared:
         return ""
     artifact = shared.get("data", {}).get("artifact", {})
     if not isinstance(artifact, dict):
         return ""
+    recovery_summary = artifact.get("recovery_summary", {})
+    if isinstance(recovery_summary, dict):
+        formatted = _format_recovery_summary(recovery_summary)
+        if formatted:
+            return formatted
     phase_state = artifact.get("phase_state", {})
     if not isinstance(phase_state, dict):
         phase_state = {}
