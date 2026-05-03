@@ -17,6 +17,21 @@ HARD_BLOCKABLE_PHASE_JUMPS = {
     "skip_to_implement",
     "implement_directly",
 }
+SOFT_REDIRECT_ACTIONS = {
+    "start_editing_code",
+    "start_implementation",
+    "run_fix_loop",
+    "jump_to_testing",
+}
+REDIRECTABLE_WORKFLOW_COMMANDS = {
+    "constitution",
+    "specify",
+    "deep-research",
+    "plan",
+    "tasks",
+    "analyze",
+    "prd",
+}
 
 
 def workflow_policy_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
@@ -64,6 +79,45 @@ def workflow_policy_hook(project_root: Path, payload: dict[str, object]) -> Hook
                     "state_result": state_result.to_dict(),
                 }
             },
+        )
+
+    if (
+        requested_action in SOFT_REDIRECT_ACTIONS
+        and command_name in REDIRECTABLE_WORKFLOW_COMMANDS
+    ):
+        recovery_summary = _build_recovery_summary(
+            state_result.data.get("checkpoint", {})
+        )
+        policy = {
+            "classification": "redirect",
+            "trigger": trigger,
+            "command_name": command_name,
+            "repairable": False,
+            "requested_action": requested_action,
+            "recovery_summary": recovery_summary,
+        }
+        prior_redirect_count = int(payload.get("prior_redirect_count") or 0)
+        if prior_redirect_count >= 1:
+            return HookResult(
+                event=WORKFLOW_POLICY_EVALUATE,
+                status="blocked",
+                severity="critical",
+                errors=[
+                    "requested action repeats a phase drift after redirect; return to the recorded workflow phase before continuing"
+                ],
+                data={"policy": policy},
+            )
+        return HookResult(
+            event=WORKFLOW_POLICY_EVALUATE,
+            status="warn",
+            severity="warning",
+            warnings=[
+                "requested action conflicts with the active workflow phase; redirect before continuing"
+            ],
+            actions=[
+                "re-read the authoritative workflow state and continue from the recorded next action"
+            ],
+            data={"policy": policy},
         )
 
     if command_name in {"implement", "quick", "debug"}:
@@ -121,3 +175,17 @@ def workflow_policy_hook(project_root: Path, payload: dict[str, object]) -> Hook
             }
         },
     )
+
+
+def _build_recovery_summary(checkpoint: object) -> dict[str, object]:
+    if not isinstance(checkpoint, dict):
+        checkpoint = {}
+    return {
+        "phase_mode": checkpoint.get("phase_mode", ""),
+        "summary": checkpoint.get("summary", ""),
+        "forbidden_actions": list(checkpoint.get("forbidden_actions", [])),
+        "authoritative_files": list(checkpoint.get("authoritative_files", [])),
+        "next_action": checkpoint.get("next_action", ""),
+        "next_command": checkpoint.get("next_command", ""),
+        "route_reason": checkpoint.get("route_reason", ""),
+    }

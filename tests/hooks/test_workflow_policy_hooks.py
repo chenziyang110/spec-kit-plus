@@ -96,3 +96,93 @@ def test_workflow_policy_denies_explicit_phase_jump(tmp_path: Path):
 
     assert result.status == "blocked"
     assert any("phase" in error.lower() for error in result.errors)
+
+
+def _write_sp_specify_workflow_state(feature_dir: Path) -> None:
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: demo",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "",
+                "## Next Action",
+                "",
+                "- refine scope",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+                "## Learning Signals",
+                "",
+                "- route_reason: spec not yet approved for planning",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_workflow_policy_redirects_first_phase_drift(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_sp_specify_workflow_state(feature_dir)
+
+    result = run_quality_hook(
+        project,
+        "workflow.policy.evaluate",
+        {
+            "command_name": "specify",
+            "feature_dir": str(feature_dir),
+            "trigger": "prompt",
+            "requested_action": "start_editing_code",
+        },
+    )
+
+    assert result.status == "warn"
+    assert result.data["policy"]["classification"] == "redirect"
+    assert result.data["policy"]["recovery_summary"]["next_command"] == "/sp.plan"
+
+
+def test_workflow_policy_blocks_repeated_phase_drift(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_sp_specify_workflow_state(feature_dir)
+
+    result = run_quality_hook(
+        project,
+        "workflow.policy.evaluate",
+        {
+            "command_name": "specify",
+            "feature_dir": str(feature_dir),
+            "trigger": "prompt",
+            "requested_action": "start_editing_code",
+            "prior_redirect_count": 1,
+        },
+    )
+
+    assert result.status == "blocked"
+    assert any("phase" in error.lower() for error in result.errors)
