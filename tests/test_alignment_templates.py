@@ -814,6 +814,19 @@ def test_plan_tasks_and_implement_templates_prefer_lane_resolution_when_feature_
     assert "uncertain" in implement.lower()
 
 
+def test_analyze_template_requires_lane_resolution_before_branch_guessing() -> None:
+    content = _read("templates/commands/analyze.md")
+    lowered = content.lower()
+
+    assert "{{specify-subcmd:lane resolve --command analyze --ensure-worktree}}" in content
+    assert "if `feature_dir` is not already explicit" in lowered
+    assert "before guessing from branch-only context" in lowered
+    assert "when lane resolution returns a materialized lane worktree" in lowered
+    assert "must not switch branches" in lowered
+    assert 'implicitly check out a "correct" feature branch' in lowered
+    assert "mutate git state" in lowered
+
+
 def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research():
     specify = _read("templates/commands/specify.md")
     plan = _read("templates/commands/plan.md")

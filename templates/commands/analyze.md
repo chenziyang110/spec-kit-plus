@@ -33,6 +33,8 @@ Identify inconsistencies, duplications, ambiguities, and underspecified items ac
 
 **READ-ONLY FOR PLANNING ARTIFACTS**: Do **not** modify `spec.md`, `context.md`, `plan.md`, or `tasks.md`. Output a structured analysis report. This command may update `workflow-state.md` to record the cleared or blocked gate result. Offer an optional remediation plan (user must explicitly approve before any follow-up editing commands would be invoked manually).
 
+Analyze must not switch branches, implicitly check out a "correct" feature branch, or mutate git state in order to determine scope. If the active feature cannot be identified safely through explicit `FEATURE_DIR` binding or lane resolution, fail closed and tell the user how to repair routing.
+
 **Closed-loop requirement**: Do not present findings as a dead-end audit. The report MUST tell the user which workflow stage to reopen, which downstream artifacts must be regenerated, and whether implementation may continue immediately or must pause until upstream remediation is complete.
 Preserve canonical `/sp.implement` only in workflow-state fields.
 When recommending manual implementation resumption to the user, tell them to run `{{invoke:implement}}`.
@@ -66,6 +68,9 @@ When recommending manual implementation resumption to the user, tell them to run
 ### 1. Initialize Analysis Context
 
 Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
+
+- If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command analyze --ensure-worktree}}` before guessing from branch-only context.
+- When lane resolution returns a materialized lane worktree, continue analysis from that isolated worktree context so downstream gate decisions stay attached to the same lane boundary.
 
 - SPEC = FEATURE_DIR/spec.md
 - CONTEXT = FEATURE_DIR/context.md

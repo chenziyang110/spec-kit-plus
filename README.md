@@ -199,6 +199,10 @@ Mainline pre-planning flow:
 specify -> plan
 ```
 
+Feature creation is driven by the `specify` workflow itself. Use `sp-specify`
+with the generated create-feature script and lane/runtime helpers that it
+invokes; do not look for or teach a separate branch-creation CLI family.
+
 Optional feasibility branch when `sp-specify` finds an unproven implementation chain:
 
 ```text

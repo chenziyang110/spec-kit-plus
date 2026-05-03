@@ -166,3 +166,53 @@ def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_exa
     assert "{{invoke:quick}}" in parallel
     assert "{{invoke:implement}}" in parallel
     assert "Use `sp-teams` only when Codex work needs durable team state" in parallel
+
+
+def test_readme_does_not_teach_specify_branch_as_a_real_command() -> None:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
+
+    assert "specify branch" not in readme
+
+
+def test_upgrade_guide_uses_current_runtime_repair_language() -> None:
+    content = (PROJECT_ROOT / "docs" / "upgrade.md").read_text(encoding="utf-8").lower()
+
+    assert "specify check" in content
+    assert "specify integration repair" in content
+    assert "/speckit." not in content
+
+
+def test_specify_template_points_feature_creation_to_sp_specify_and_generated_script() -> None:
+    content = (PROJECT_ROOT / "templates" / "commands" / "specify.md").read_text(
+        encoding="utf-8"
+    )
+    lowered = content.lower()
+
+    assert "sp-specify" in content
+    assert "generated create-feature script" in lowered
+    assert "specify branch" not in lowered
+
+
+def test_quickstart_uses_current_feature_creation_and_repair_guidance() -> None:
+    content = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8")
+    lowered = content.lower()
+
+    assert "generated create-feature script" in lowered
+    assert "specify check" in lowered
+    assert "specify integration repair" in lowered
+    assert "specify branch" not in lowered
+
+
+def test_learning_surfaces_do_not_reference_removed_origin_artifact_option() -> None:
+    quickstart = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+    learning_skill = (
+        PROJECT_ROOT
+        / "templates"
+        / "passive-skills"
+        / "spec-kit-project-learning"
+        / "SKILL.md"
+    ).read_text(encoding="utf-8").lower()
+
+    assert "--origin-artifact" not in quickstart
+    assert "--origin-artifact" not in learning_skill
+    assert "review-learning --command <command-name> --terminal-status <status>" in learning_skill

@@ -88,6 +88,10 @@ Built-in profiles:
 
 **In the chat**, run the `specify` workflow to describe what you want to build. Focus on the **what** and **why**, not the tech stack.
 
+Treat `sp-specify` plus the generated create-feature script as the supported
+feature-creation path. Do not look for or teach a separate branch-creation
+command family.
+
 ```markdown
 /sp-specify Build an application that can help me organize my photos in separate photo albums. Albums are grouped by date and can be re-organized by dragging and dropping on the main page. Albums are never in other nested albums. Within each album, photos are previewed in a tile-like interface.
 ```
@@ -135,6 +139,11 @@ Then, run the `implement` workflow to execute the plan.
 ```
 
 When you want one state-driven resume lane instead of naming the next workflow manually, use the `auto` workflow. It reads the current repository state and resumes the recommended next step under that workflow's existing contract.
+
+If generated workflow assets or helper surfaces seem stale after a CLI upgrade,
+run `specify check` first. Treat any reported workflow-contract drift as a hard
+incompatibility, then run `specify integration repair` before continuing with
+`sp-*` workflows.
 
 When the feature touches an established boundary pattern in the target project, make that constraint explicit before coding starts:
 
