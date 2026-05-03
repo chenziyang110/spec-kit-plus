@@ -96,7 +96,7 @@ agent_scripts:
    - Read `FEATURE_DIR/context.md`
    - Read `FEATURE_DIR/references.md` if present
    - Read `FEATURE_DIR/deep-research.md` if present
-   - Read `FEATURE_DIR/workflow-state.md` if present
+   - Read `FEATURE_DIR/workflow-state.md` if present. When it exists, treat it as semantically required profile-aware planning context, not optional resume trivia.
    - Read `.specify/testing/TESTING_CONTRACT.md` if present
    - Read `.specify/testing/TESTING_PLAYBOOK.md` if present
    - Read `.specify/testing/COVERAGE_BASELINE.json` if present
@@ -110,6 +110,17 @@ agent_scripts:
    - Read `templates/research-template.md`
    - Read `templates/workflow-state-template.md`
    - Load the copied IMPL_PLAN template
+
+## Scenario Profile Inputs
+
+- First-release `sp-plan` supports only these active profiles from `FEATURE_DIR/workflow-state.md`: `Standard Delivery` and `Reference-Implementation`.
+- Read `FEATURE_DIR/workflow-state.md` if present and consume its scenario profile contract before planning synthesis.
+- Treat `active_profile`, `required_sections`, `activated_gates`, `task_shaping_rules`, `required_evidence`, and `transition_policy` as planning inputs, not status-only metadata.
+- Use the existing `active_profile` contract from `workflow-state.md`; do not perform a second informal task classification pass during planning.
+- Preserve `transition_policy` as an obligation field that constrains downstream handoff; do not use it as a substitute for a supported `active_profile`.
+- If the active profile is `Reference-Implementation`, add `Profile-Driven Implementation Constraints` to the generated plan and promote fidelity-preservation rules, reference-object constraints, and required evidence into `Implementation Constitution`.
+- If the active profile is `Standard Delivery`, keep the standard planning artifact contract and only add profile-driven constraints when `workflow-state.md` explicitly records them.
+- If `workflow-state.md` presents any other `active_profile` in first release, stop and tell the operator to repair or re-run upstream scenario profile routing state before planning; do not silently reinterpret unsupported profiles as a new planning mode.
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
@@ -156,6 +167,8 @@ gate.
    - Use the `Evidence Quality Rubric` and `Planning Traceability Index` from `deep-research.md` to distinguish blocking constraints from informative context.
    - Treat `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` as active planning inputs, not descriptive appendix material
    - Treat `context.md` as the primary implementation-context artifact that captures downstream planning decisions explicitly
+   - Treat `workflow-state.md` scenario profile fields as active planning inputs. The plan consumes the existing supported profile contract persisted by upstream routing.
+   - Do not perform a second informal task classification pass; `sp-plan` consumes `active_profile`, `required_sections`, `activated_gates`, `task_shaping_rules`, `required_evidence`, and `transition_policy` from `workflow-state.md`.
    - Do not introduce a separate clarification command as the normal next step for routine planning readiness
    - [AGENT] Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="plan", snapshot, workload_shape)`
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
@@ -183,6 +196,9 @@ gate.
       - the repository already has canonical boundary files or examples that implementers must inspect before changing code safely
     - Add `Dispatch Compilation Hints` whenever subagent execution would be unsafe without an explicit boundary owner, packet references, validation gates, or task-level quality floor
    - Fill Constitution Check from the constitution
+   - Add a `Scenario Profile Inputs` section using `workflow-state.md` when present, including `active_profile`, `required_sections`, `activated_gates`, `task_shaping_rules`, `required_evidence`, and `transition_policy`.
+   - Add a `Profile-Driven Implementation Constraints` section when `workflow-state.md` records profile-specific implementation obligations.
+   - If `active_profile` is `Reference-Implementation`, promote fidelity-preservation rules, reference-object constraints, allowed-drift limits, and required evidence into `Implementation Constitution` so implementers preserve the reference instead of treating it as background inspiration.
    - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
    - Add a `Feasibility Evidence From Deep Research` section when `deep-research.md` exists, preserving proven chains, research-agent findings, spike evidence, constraints, rejected options, and residual risks
    - Add a `Planning Handoff From Deep Research` section when `deep-research.md` contains `Planning Handoff`, and translate that handoff into implementation strategy, architecture implications, module boundaries, API/library choices, data flow notes, validation implications, and plan-level risks

@@ -396,6 +396,16 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "native bridge, plugin surface, protocol seam, generated API surface" in content
     assert "generic implementation instinct would likely drift away" in content
     assert "canonical boundary files or examples" in content
+    assert "## Scenario Profile Inputs" in content
+    assert "Read `FEATURE_DIR/workflow-state.md` if present" in content
+    assert "active_profile" in content
+    assert "transition_policy" in content
+    assert "Profile-Driven Implementation Constraints" in content
+    assert "Reference-Implementation" in content
+    assert "do not perform a second informal task classification pass" in lowered
+    assert "stop and tell the operator to repair or re-run upstream scenario profile routing state before planning" in lowered
+    assert "do not silently reinterpret unsupported profiles as a new planning mode" in lowered
+    assert "do not use it as a substitute for a supported `active_profile`" in lowered
     _assert_subagent_dispatch_contract(content, "plan")
     assert "research" in lowered
     assert "data model" in lowered
