@@ -3,6 +3,7 @@ import sys
 import asyncio
 from pydantic_graph import GraphRunContext
 from specify_cli.debug.schema import (
+    CausalMapCandidate,
     DebugGraphState,
     DebugStatus,
     EliminatedEntry,
@@ -21,10 +22,59 @@ from specify_cli.debug.persistence import MarkdownPersistenceHandler
 
 
 def _populate_valid_observer_framing(state: DebugGraphState, *, mode: str = "full") -> None:
+    state.causal_map_completed = True
+    state.contract_generation_completed = True
     state.observer_framing_completed = True
     state.observer_mode = mode
     if mode == "compressed":
         state.skip_observer_reason = "Strong low-level evidence present"
+    state.causal_map.symptom_anchor = "Caller output is missing the final token"
+    state.causal_map.closed_loop_path = [
+        "parse request",
+        "compute token bounds",
+        "token list update",
+        "projection publish",
+        "caller output render",
+    ]
+    state.causal_map.break_edges = ["compute token bounds -> token list update"]
+    state.causal_map.bypass_paths = ["stale projection cache serves a truncated token list"]
+    state.causal_map.family_coverage = ["truth_owner_logic", "projection_render"]
+    state.causal_map.candidates = [
+        CausalMapCandidate(
+            candidate_id="cand-parser-boundary",
+            family="truth_owner_logic",
+            candidate="Parser upper bound excludes final token",
+            falsifier="Raw parser output already contains the final token",
+            recommended_first_probe="Run parser repro and inspect raw output",
+        ),
+        CausalMapCandidate(
+            candidate_id="cand-projection-boundary",
+            family="projection_render",
+            candidate="Projection layer drops final token",
+            falsifier="Projection input already lacks final token",
+            recommended_first_probe="Compare parser output and rendered output",
+        ),
+    ]
+    if mode != "compressed":
+        state.causal_map.family_coverage.append("config_flag_env")
+        state.causal_map.candidates.append(
+            CausalMapCandidate(
+                candidate_id="cand-config-gate",
+                family="config_flag_env",
+                candidate="Configuration gate trims final token",
+                falsifier="Relevant parsing flag is disabled",
+                recommended_first_probe="Inspect active parsing flags",
+            )
+        )
+    state.causal_map.adjacent_risk_targets = [
+        {
+            "target": "projection-boundary",
+            "reason": "Nearest-neighbor risk for missing final token",
+            "family": "projection_render",
+            "scope": "nearest-neighbor",
+            "falsifier": "Rendered output always matches projection payload",
+        }
+    ]
     state.observer_framing.summary = "Observer framing identifies a bounded control-plane issue."
     state.observer_framing.primary_suspected_loop = "general"
     state.observer_framing.suspected_owning_layer = "parser"
@@ -129,6 +179,34 @@ async def test_gathering_node_with_verified_reproduction():
     
     assert isinstance(result, InvestigatingNode)
 
+
+@pytest.mark.asyncio
+async def test_gathering_blocks_until_dual_observer_is_complete() -> None:
+    state = DebugGraphState(slug="test", trigger="queue stuck")
+    state.symptoms.expected = "queue drains"
+    state.symptoms.actual = "queue remains non-empty"
+    state.symptoms.reproduction_verified = True
+    state.causal_map_completed = True
+    state.contract_generation_completed = False
+    state.causal_map.family_coverage = [
+        "truth_owner_logic",
+        "cache_snapshot",
+        "projection_render",
+    ]
+    state.causal_map.candidates = [
+        CausalMapCandidate(
+            candidate_id="cand-slot-ownership",
+            family="truth_owner_logic",
+            candidate="Scheduler does not clear slot ownership on release",
+        )
+    ]
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert state.observer_framing_completed is False
+    assert state.contract_subagent_prompt is not None
+
 @pytest.mark.asyncio
 async def test_investigating_node_prioritization():
     state = DebugGraphState(slug="test", trigger="test")
@@ -209,6 +287,29 @@ async def test_investigating_node_finds_root_cause():
         "Projection layer drops the final token",
     ]
     state.resolution.root_cause_confidence = "confirmed"
+    state.investigation_contract.primary_candidate_id = "cand-parser-boundary"
+    state.investigation_contract.candidate_queue = [
+        {
+            "candidate_id": "cand-parser-boundary",
+            "candidate": "Parser upper bound excludes the final token",
+            "family": "truth_owner_logic",
+            "status": "confirmed",
+        },
+        {
+            "candidate_id": "cand-projection-boundary",
+            "candidate": "Projection layer drops the final token",
+            "family": "projection_render",
+            "status": "ruled_out",
+        },
+    ]
+    state.investigation_contract.related_risk_targets = [
+        {
+            "target": "projection-boundary",
+            "reason": "Nearest-neighbor risk for published token output",
+            "scope": "nearest-neighbor",
+            "status": "checked",
+        }
+    ]
     
     node = InvestigatingNode()
     ctx = GraphRunContext(state=state, deps=None)
@@ -293,6 +394,65 @@ async def test_fixing_node_with_fix():
     result = await node.run(ctx)
     
     assert isinstance(result, VerifyingNode)
+
+
+@pytest.mark.asyncio
+async def test_fixing_blocks_until_contrarian_candidate_is_resolved() -> None:
+    state = DebugGraphState(slug="test", trigger="queue stuck")
+    state.resolution.root_cause = {
+        "summary": "Scheduler does not clear slot ownership on release",
+        "owning_layer": "scheduler",
+        "broken_control_state": "slot ownership set",
+        "failure_mechanism": "release path leaves ownership set dirty",
+        "loop_break": "truth owner update -> projection refresh",
+        "decisive_signal": "ownership set remains non-empty after release",
+    }
+    state.truth_ownership = [{"layer": "scheduler", "owns": "slot ownership set"}]
+    state.control_state = ["slot ownership set"]
+    state.observation_state = ["queue badge"]
+    state.closed_loop.input_event = "slot release"
+    state.closed_loop.control_decision = "promote next queued task"
+    state.closed_loop.resource_allocation = "release and reassign slot"
+    state.closed_loop.state_transition = "queued task becomes admitted"
+    state.closed_loop.external_observation = "queue badge resets"
+    state.closed_loop.break_point = "truth owner update -> projection refresh"
+    state.resolution.decisive_signals = ["ownership set remains non-empty after release"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Scheduler does not clear slot ownership on release",
+        "Projection layer renders stale queue counts",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Projection layer renders stale queue counts",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
+    state.investigation_contract.primary_candidate_id = "cand-slot-ownership"
+    state.investigation_contract.candidate_queue = [
+        {
+            "candidate_id": "cand-slot-ownership",
+            "candidate": "Scheduler does not clear slot ownership on release",
+            "family": "truth_owner_logic",
+            "status": "confirmed",
+        },
+        {
+            "candidate_id": "cand-stale-projection",
+            "candidate": "Projection layer renders stale queue counts",
+            "family": "projection_render",
+            "status": "pending",
+        },
+    ]
+    state.investigation_contract.related_risk_targets = [
+        {
+            "target": "release-retry-loop",
+            "reason": "Retry admission also depends on slot ownership",
+            "scope": "nearest-neighbor",
+            "status": "pending",
+        }
+    ]
+
+    result = await InvestigatingNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert "competing candidate" in (state.current_focus.next_action or "").lower()
 
 @pytest.mark.asyncio
 async def test_verifying_node_success(monkeypatch):
@@ -640,6 +800,41 @@ async def test_verifying_blocks_closeout_until_related_risk_scan_completes(monke
     assert result.data == "Awaiting more debugging input"
     assert "related risk" in (state.current_focus.next_action or "").lower()
 
+
+@pytest.mark.asyncio
+async def test_verifying_blocks_until_adjacent_risk_target_checked(monkeypatch) -> None:
+    import specify_cli.debug.graph as graph_module
+
+    monkeypatch.setattr(graph_module, "run_verification_commands", lambda commands, runner, stop_on_failure: [])
+    monkeypatch.setattr(graph_module, "verification_passed", lambda results: True)
+
+    state = DebugGraphState(slug="test", trigger="queue stuck")
+    state.symptoms.reproduction_command = "pytest tests/test_debug_graph.py::test_gathering_to_investigating -q"
+    state.resolution.fix = "clear slot ownership on release"
+    state.resolution.fix_scope = "truth-owner"
+    state.resolution.loop_restoration_proof = ["Loop restored end-to-end"]
+    state.resolution.root_cause = {
+        "summary": "Scheduler does not clear slot ownership on release",
+        "owning_layer": "scheduler",
+        "broken_control_state": "slot ownership set",
+        "failure_mechanism": "release path leaves ownership set dirty",
+        "loop_break": "truth owner update -> projection refresh",
+        "decisive_signal": "ownership set remains non-empty after release",
+    }
+    state.investigation_contract.related_risk_targets = [
+        {
+            "target": "release-retry-loop",
+            "reason": "Retry admission also depends on slot ownership",
+            "scope": "nearest-neighbor",
+            "status": "pending",
+        }
+    ]
+
+    result = await VerifyingNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert "related-risk review is incomplete" in (state.current_focus.next_action or "").lower()
+
 @pytest.mark.asyncio
 async def test_verifying_node_treats_silent_nonzero_exit_as_failure():
     state = DebugGraphState(slug="test", trigger="test")
@@ -663,7 +858,7 @@ async def test_run_debug_session_stops_when_more_input_is_needed(tmp_path):
     await asyncio.wait_for(run_debug_session(state, handler), timeout=1)
 
     assert state.status == DebugStatus.GATHERING
-    assert "observer framing needed" in (state.current_focus.next_action or "").lower()
+    assert "causal map needed" in (state.current_focus.next_action or "").lower()
 
 
 @pytest.mark.asyncio

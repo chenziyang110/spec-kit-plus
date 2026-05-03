@@ -16,6 +16,7 @@ from .persistence import MarkdownPersistenceHandler, build_handoff_report
 from .context import ContextLoader
 from .utils import run_command, edit_file, read_file
 from .think_agent import build_think_subagent_prompt
+from .contract_agent import build_contract_subagent_prompt
 import functools
 from specify_cli.verification import (
     ValidationResult as SharedValidationResult,
@@ -594,6 +595,16 @@ def _framing_gate_diversity_gaps(state: DebugGraphState) -> list[str]:
 def _framing_gate_gaps(state: DebugGraphState) -> list[str]:
     candidates = state.observer_framing.alternative_cause_candidates
     gaps: list[str] = []
+    family_count = len(set(state.causal_map.family_coverage))
+    minimum_family_count = 2 if state.observer_mode == "compressed" else 3
+    if family_count < minimum_family_count:
+        gaps.append(
+            f"Causal map must cover at least {minimum_family_count} distinct failure families before investigation."
+        )
+    if not state.causal_map.candidates:
+        gaps.append("Causal map must include candidate entries before contract generation can pass.")
+    if not state.causal_map.adjacent_risk_targets:
+        gaps.append("Causal map must identify at least one adjacent risk target before investigation.")
     required_count = _framing_gate_count_requirement(state)
     if len(candidates) < required_count:
         gaps.append(f"at least {required_count} alternative cause candidates")
@@ -648,6 +659,47 @@ def _related_risk_scan_gaps(state: DebugGraphState) -> list[str]:
     if state.investigation_contract.related_risk_targets:
         return ["related risk scan completion"]
     return []
+
+
+def _minimum_contract_gaps(state: DebugGraphState) -> list[str]:
+    gaps: list[str] = []
+    contract = state.investigation_contract
+    if not contract.primary_candidate_id:
+        gaps.append("Set investigation_contract.primary_candidate_id before entering fixing.")
+    if len(contract.candidate_queue) < 2:
+        gaps.append("Keep at least a primary candidate and one contrarian candidate in the candidate queue.")
+    families = {
+        candidate.family if not isinstance(candidate, dict) else candidate.get("family")
+        for candidate in contract.candidate_queue
+        if (candidate.family if not isinstance(candidate, dict) else candidate.get("family"))
+    }
+    if len(families) < 2:
+        gaps.append("Candidate queue must span at least two failure families before fixing.")
+    if not contract.related_risk_targets:
+        gaps.append("Record at least one adjacent risk target before fixing.")
+    return gaps
+
+
+def _contrarian_resolution_gaps(state: DebugGraphState) -> list[str]:
+    gaps: list[str] = []
+    queue = state.investigation_contract.candidate_queue
+    if len(queue) < 2:
+        return gaps
+    non_primary = [
+        candidate
+        for candidate in queue
+        if (
+            candidate.candidate_id if not isinstance(candidate, dict) else candidate.get("candidate_id")
+        ) != state.investigation_contract.primary_candidate_id
+    ]
+    if not any(
+        (
+            candidate.status if not isinstance(candidate, dict) else candidate.get("status")
+        ) in {CandidateStatus.RULED_OUT, CandidateStatus.DEPRIORITIZED, "ruled_out", "deprioritized"}
+        for candidate in non_primary
+    ):
+        gaps.append("At least one non-primary competing candidate must be ruled out or deprioritized before fixing.")
+    return gaps
 
 
 def _sync_root_cause_mode(state: DebugGraphState) -> None:
@@ -751,17 +803,30 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         if not ctx.state.recently_modified:
             ctx.state.recently_modified = loader.get_recent_git_changes()
 
-        # 2. Observer Framing — dispatch to think subagent for isolated reasoning
-        if not ctx.state.observer_framing_completed:
+        # 2. Stage 1A: causal map
+        if not ctx.state.causal_map_completed:
             prompt = build_think_subagent_prompt(ctx.state)
             ctx.state.think_subagent_prompt = prompt
             return _await_input(
                 ctx.state,
-                "Observer framing needed. Spawn a think subagent with think_subagent_prompt. "
+                "Causal map needed. Spawn a think subagent with think_subagent_prompt. "
                 "Wait for its structured result, then parse the YAML block after '---' and populate "
-                "observer_framing, transition_memo, and alternative_cause_candidates fields. "
-                "Set observer_framing_completed=True and continue.",
+                "causal_map, observer_mode, and any observer summary fields it returned. "
+                "Set causal_map_completed=True and continue.",
             )
+
+        # 2B. Stage 1B: investigation contract
+        if not ctx.state.contract_generation_completed:
+            prompt = build_contract_subagent_prompt(ctx.state)
+            ctx.state.contract_subagent_prompt = prompt
+            return _await_input(
+                ctx.state,
+                "Investigation contract needed. Spawn a contract subagent with contract_subagent_prompt. "
+                "Wait for its structured result, then populate observer_framing, transition_memo, and "
+                "investigation_contract. Set contract_generation_completed=True and continue.",
+            )
+
+        ctx.state.observer_framing_completed = True
 
         framing_gaps = _framing_gate_gaps(ctx.state)
         if framing_gaps:
@@ -809,7 +874,9 @@ class InvestigatingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
             active = [
                 candidate
                 for candidate in ctx.state.investigation_contract.candidate_queue
-                if candidate.status == CandidateStatus.ACTIVE
+                if (
+                    candidate.status if not isinstance(candidate, dict) else candidate.get("status")
+                ) in {CandidateStatus.ACTIVE, "active"}
             ]
             if not active:
                 primary = _candidate_by_id(
@@ -863,6 +930,17 @@ class InvestigatingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
                 return _await_input(
                     ctx.state,
                     _root_cause_checklist_message(ctx.state, stage="investigating"),
+                )
+            contract_gaps = _minimum_contract_gaps(ctx.state)
+            contract_gaps.extend(_contrarian_resolution_gaps(ctx.state))
+            if contract_gaps:
+                return _await_input(
+                    ctx.state,
+                    _format_checklist(
+                        "Root cause exists, but the investigation contract is not yet sufficient to enter fixing.",
+                        contract_gaps,
+                        intro="Resolve these contract gaps before moving into fixing:",
+                    ),
                 )
             return FixingNode()
         

@@ -6,6 +6,22 @@ from specify_cli.debug.think_agent import (
 
 
 class TestBuildThinkSubagentPrompt:
+    def test_build_think_subagent_prompt_requires_family_coverage_output(self) -> None:
+        state = DebugGraphState(
+            slug="test-session",
+            trigger="queue badge remains non-zero after slot release",
+            diagnostic_profile="scheduler-admission",
+        )
+        state.symptoms.expected = "queue badge resets to zero"
+        state.symptoms.actual = "queue badge remains non-zero"
+
+        prompt = build_think_subagent_prompt(state)
+
+        assert "family_coverage" in prompt
+        assert "falsifier" in prompt
+        assert "adjacent_risk_targets" in prompt
+        assert "closed_loop_path" in prompt
+
     def test_includes_symptoms_in_prompt(self) -> None:
         state = DebugGraphState(
             slug="test-session",
@@ -48,9 +64,9 @@ class TestBuildThinkSubagentPrompt:
 
         assert "---" in prompt
         assert "observer_mode:" in prompt
-        assert "observer_framing:" in prompt
-        assert "alternative_cause_candidates:" in prompt
-        assert "transition_memo:" in prompt
+        assert "causal_map:" in prompt
+        assert "family_coverage:" in prompt
+        assert "adjacent_risk_targets:" in prompt
 
     def test_prompt_marks_hard_constraints(self) -> None:
         state = DebugGraphState(
@@ -64,7 +80,7 @@ class TestBuildThinkSubagentPrompt:
         assert "Do NOT read source code" in prompt
         assert "Do NOT run commands" in prompt
 
-    def test_prompt_requires_failure_shape_and_contrarian_candidate(self) -> None:
+    def test_prompt_requires_family_and_falsifier_fields(self) -> None:
         state = DebugGraphState(
             slug="test-session",
             trigger="queue stuck after slot release",
@@ -73,16 +89,42 @@ class TestBuildThinkSubagentPrompt:
 
         prompt = build_think_subagent_prompt(state)
 
-        assert "failure_shape" in prompt
+        assert "family" in prompt
         assert "recommended_first_probe" in prompt
-        assert "contrarian_candidate" in prompt
+        assert "falsifier" in prompt
         assert "candidate_id" in prompt
-        assert "investigation_contract:" in prompt
-        assert "related_risk_targets" in prompt
-        assert "primary_candidate_id" in prompt
+        assert "adjacent_risk_targets" in prompt
+        assert "break_edges" in prompt
+        assert "bypass_paths" in prompt
 
 
 class TestParseThinkSubagentResult:
+    def test_parse_think_subagent_result_extracts_causal_map(self) -> None:
+        raw = """Scheduler ownership looks stale after release.
+
+---
+observer_mode: "full"
+causal_map:
+  symptom_anchor: "UI queue badge remains non-zero"
+  closed_loop_path:
+    - "job release event"
+    - "scheduler admission decision"
+  family_coverage:
+    - "truth_owner_logic"
+    - "cache_snapshot"
+  candidates:
+    - candidate_id: "cand-slot-ownership"
+      family: "truth_owner_logic"
+      candidate: "Scheduler does not clear slot ownership on release"
+      falsifier: "Ownership set is empty before projection refresh"
+"""
+
+        data = parse_think_subagent_result(raw)
+
+        assert data["causal_map"]["symptom_anchor"] == "UI queue badge remains non-zero"
+        assert data["causal_map"]["family_coverage"] == ["truth_owner_logic", "cache_snapshot"]
+        assert data["causal_map"]["candidates"][0]["candidate_id"] == "cand-slot-ownership"
+
     def test_extracts_observer_framing_from_hybrid_output(self) -> None:
         raw = """The most likely failure is in the scheduler admission loop.
 
@@ -153,56 +195,37 @@ transition_memo:
 
         assert len(result["alternative_cause_candidates"]) == 3
 
-    def test_parse_think_subagent_result_extracts_investigation_contract_fields(self) -> None:
+    def test_parse_think_subagent_result_extracts_family_candidates(self) -> None:
         raw = """Observer analysis.
 
 ---
 observer_mode: "full"
-observer_framing:
-  summary: "Parser boundary likely owns the broken truth"
-  primary_suspected_loop: "general"
-  suspected_owning_layer: "parser"
-  suspected_truth_owner: "parser"
-  recommended_first_probe: "Inspect raw parser output before render"
-  contrarian_candidate: "Projection boundary drops a correct parser result"
-  missing_questions: []
-alternative_cause_candidates:
-  - candidate_id: "cand-parser-boundary"
-    candidate: "Parser boundary truncates final token"
-    failure_shape: "truth_owner_logic"
-    why_it_fits: "Missing final token is stable"
-    map_evidence: "Parser owns token boundary truth"
-    would_rule_out: "Raw parser output contains final token"
-    recommended_first_probe: "Inspect raw parser output before render"
-  - candidate_id: "cand-projection-boundary"
-    candidate: "Projection boundary drops final token"
-    failure_shape: "projection_render"
-    why_it_fits: "Rendered output may diverge after publish"
-    map_evidence: "Projection is an observation layer"
-    would_rule_out: "Published payload already lacks final token"
-    recommended_first_probe: "Compare published payload and rendered output"
-investigation_contract:
-  primary_candidate_id: "cand-parser-boundary"
-  investigation_mode: "normal"
-  escalation_reason: null
-  related_risk_targets:
+causal_map:
+  symptom_anchor: "Rendered final token is missing"
+  family_coverage:
+    - "truth_owner_logic"
+    - "projection_render"
+  candidates:
+    - candidate_id: "cand-parser-boundary"
+      family: "truth_owner_logic"
+      candidate: "Parser boundary truncates final token"
+      falsifier: "Raw parser output contains final token"
+    - candidate_id: "cand-projection-boundary"
+      family: "projection_render"
+      candidate: "Projection boundary drops final token"
+      falsifier: "Published payload already lacks final token"
+  adjacent_risk_targets:
     - target: "projection-boundary"
       reason: "Nearest-neighbor token family risk"
+      family: "projection_render"
       scope: "nearest-neighbor"
-      status: "pending"
-transition_memo:
-  first_candidate_to_test: "cand-parser-boundary"
-  why_first: "Highest-likelihood truth owner"
-  evidence_unlock: ["reproduction", "logs", "code", "tests"]
-  carry_forward_notes:
-    - "Do not discard the observer framing when code-level evidence appears."
 """
 
         result = parse_think_subagent_result(raw)
 
-        assert result["alternative_cause_candidates"][0]["candidate_id"] == "cand-parser-boundary"
-        assert result["investigation_contract"]["primary_candidate_id"] == "cand-parser-boundary"
-        assert result["investigation_contract"]["related_risk_targets"][0]["target"] == "projection-boundary"
+        assert result["causal_map"]["candidates"][0]["candidate_id"] == "cand-parser-boundary"
+        assert result["causal_map"]["candidates"][0]["family"] == "truth_owner_logic"
+        assert result["causal_map"]["adjacent_risk_targets"][0]["target"] == "projection-boundary"
 
     def test_no_yaml_block_returns_empty_dict(self) -> None:
         raw = "Just some free text without any YAML block."

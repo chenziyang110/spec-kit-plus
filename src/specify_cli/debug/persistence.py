@@ -130,6 +130,58 @@ def build_handoff_report(state: DebugGraphState) -> str:
     else:
         lines.append("- Not recorded")
 
+    lines.extend(["", "### Causal Map"])
+    if state.causal_map.symptom_anchor:
+        lines.append(f"- Symptom anchor: {state.causal_map.symptom_anchor}")
+    if state.causal_map.closed_loop_path:
+        lines.append("- Closed loop path:")
+        for item in state.causal_map.closed_loop_path:
+            lines.append(f"  - {item}")
+    if state.causal_map.break_edges:
+        lines.append("- Break edges:")
+        for item in state.causal_map.break_edges:
+            lines.append(f"  - {item}")
+    if state.causal_map.bypass_paths:
+        lines.append("- Bypass paths:")
+        for item in state.causal_map.bypass_paths:
+            lines.append(f"  - {item}")
+    if state.causal_map.family_coverage:
+        lines.append(f"- Family coverage: {', '.join(state.causal_map.family_coverage)}")
+    if state.causal_map.candidates:
+        lines.append("- Candidates:")
+        for candidate in state.causal_map.candidates:
+            lines.append(f"  - {candidate.candidate_id}: {candidate.candidate} [{candidate.family}]")
+            if candidate.why_it_fits:
+                lines.append(f"    - why it fits: {candidate.why_it_fits}")
+            if candidate.map_evidence:
+                lines.append(f"    - map evidence: {candidate.map_evidence}")
+            if candidate.falsifier:
+                lines.append(f"    - falsifier: {candidate.falsifier}")
+            if candidate.break_edge:
+                lines.append(f"    - break edge: {candidate.break_edge}")
+            if candidate.bypass_path:
+                lines.append(f"    - bypass path: {candidate.bypass_path}")
+            if candidate.recommended_first_probe:
+                lines.append(f"    - recommended first probe: {candidate.recommended_first_probe}")
+    if state.causal_map.adjacent_risk_targets:
+        lines.append("- Adjacent risk targets:")
+        for target in state.causal_map.adjacent_risk_targets:
+            lines.append(f"  - {target.target} [{target.family}] ({target.scope}): {target.reason}")
+            if target.falsifier:
+                lines.append(f"    - falsifier: {target.falsifier}")
+    if not any(
+        (
+            state.causal_map.symptom_anchor,
+            state.causal_map.closed_loop_path,
+            state.causal_map.break_edges,
+            state.causal_map.bypass_paths,
+            state.causal_map.family_coverage,
+            state.causal_map.candidates,
+            state.causal_map.adjacent_risk_targets,
+        )
+    ):
+        lines.append("- Not recorded")
+
     lines.extend(["", "### Observer Framing"])
     if state.observer_framing.summary:
         lines.append(f"- Summary: {state.observer_framing.summary}")
@@ -360,6 +412,8 @@ class MarkdownPersistenceHandler:
             "resume_after_child": state.resume_after_child,
             "waiting_on_child_human_followup": state.waiting_on_child_human_followup,
             "diagnostic_profile": state.diagnostic_profile,
+            "causal_map_completed": state.causal_map_completed,
+            "contract_generation_completed": state.contract_generation_completed,
             "observer_mode": state.observer_mode,
             "observer_framing_completed": state.observer_framing_completed,
             "framing_gate_passed": state.framing_gate_passed,
@@ -376,6 +430,7 @@ class MarkdownPersistenceHandler:
         sections = [
             ("Current Focus", state.current_focus.model_dump(mode="json")),
             ("Symptoms", state.symptoms.model_dump(mode="json")),
+            ("Causal Map", state.causal_map.model_dump(mode="json")),
             ("Observer Framing", state.observer_framing.model_dump(mode="json")),
             ("Transition Memo", state.transition_memo.model_dump(mode="json")),
             ("Investigation Contract", state.investigation_contract.model_dump(mode="json")),
@@ -463,6 +518,8 @@ class MarkdownPersistenceHandler:
                 "resume_after_child": frontmatter.get("resume_after_child", False),
                 "waiting_on_child_human_followup": frontmatter.get("waiting_on_child_human_followup", False),
                 "diagnostic_profile": frontmatter.get("diagnostic_profile"),
+                "causal_map_completed": frontmatter.get("causal_map_completed", False),
+                "contract_generation_completed": frontmatter.get("contract_generation_completed", False),
                 "observer_mode": frontmatter.get("observer_mode"),
                 "observer_framing_completed": frontmatter.get("observer_framing_completed", False),
                 "framing_gate_passed": frontmatter.get("framing_gate_passed", False),
@@ -472,6 +529,7 @@ class MarkdownPersistenceHandler:
                 "updated": frontmatter["updated"],
                 "current_focus": sections.get("Current Focus") or {},
                 "symptoms": sections.get("Symptoms") or {},
+                "causal_map": sections.get("Causal Map") or {},
                 "observer_framing": sections.get("Observer Framing") or {},
                 "transition_memo": sections.get("Transition Memo") or {},
                 "investigation_contract": sections.get("Investigation Contract") or {},

@@ -117,6 +117,36 @@ class InvestigationContractState(BaseModel):
     causal_coverage_state: CausalCoverageState = Field(default_factory=CausalCoverageState)
 
 
+class CausalMapCandidate(BaseModel):
+    candidate_id: str
+    family: str
+    candidate: str
+    why_it_fits: Optional[str] = None
+    map_evidence: Optional[str] = None
+    falsifier: Optional[str] = None
+    break_edge: Optional[str] = None
+    bypass_path: Optional[str] = None
+    recommended_first_probe: Optional[str] = None
+
+
+class CausalMapRiskTarget(BaseModel):
+    target: str
+    reason: str
+    family: str
+    scope: str = "nearest-neighbor"
+    falsifier: Optional[str] = None
+
+
+class CausalMapState(BaseModel):
+    symptom_anchor: Optional[str] = None
+    closed_loop_path: List[str] = Field(default_factory=list)
+    break_edges: List[str] = Field(default_factory=list)
+    bypass_paths: List[str] = Field(default_factory=list)
+    family_coverage: List[str] = Field(default_factory=list)
+    candidates: List[CausalMapCandidate] = Field(default_factory=list)
+    adjacent_risk_targets: List[CausalMapRiskTarget] = Field(default_factory=list)
+
+
 class ObserverFramingState(BaseModel):
     summary: Optional[str] = None
     primary_suspected_loop: Optional[str] = None
@@ -257,6 +287,8 @@ class DebugGraphState(BaseModel):
     resume_after_child: bool = False
     waiting_on_child_human_followup: bool = False
     diagnostic_profile: Optional[str] = None
+    causal_map_completed: bool = False
+    contract_generation_completed: bool = False
     observer_mode: Optional[str] = None
     observer_framing_completed: bool = False
     framing_gate_passed: bool = False
@@ -267,6 +299,7 @@ class DebugGraphState(BaseModel):
     
     current_focus: Focus = Field(default_factory=Focus)
     symptoms: Symptoms = Field(default_factory=Symptoms)
+    causal_map: CausalMapState = Field(default_factory=CausalMapState)
     observer_framing: ObserverFramingState = Field(default_factory=ObserverFramingState)
     transition_memo: TransitionMemoState = Field(default_factory=TransitionMemoState)
     eliminated: List[EliminatedEntry] = Field(default_factory=list)
@@ -283,3 +316,4 @@ class DebugGraphState(BaseModel):
     investigation_contract: InvestigationContractState = Field(default_factory=InvestigationContractState)
     candidate_resolutions: List[CandidateResolution] = Field(default_factory=list)
     think_subagent_prompt: Optional[str] = None
+    contract_subagent_prompt: Optional[str] = None

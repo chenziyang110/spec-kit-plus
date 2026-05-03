@@ -48,8 +48,11 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Update it before each action.
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
 - **Begin as an observer**: Start by acting like a knowledgeable outsider who only has the user report plus the current system map. Do not rush into code-level detail just because implementation files exist.
-- **Observer framing comes before evidence collection**: The first pass should generate multiple plausible causes from the map and user report before reproduction, logs, code, or test reads begin.
-- **Observer framing becomes an investigation contract**: The output of the think subagent is not advisory prose. The second stage must consume the candidate queue, primary candidate, and related risk targets before freeform investigation can continue.
+- **Stage 1A: Causal Map**: The first subagent builds a family-spanning causal map before contract generation begins.
+- **Stage 1B: Investigation Contract**: The second subagent converts the causal map into the minimum contract the investigator must consume.
+- **The second stage must consume the candidate queue**: Investigation cannot skip the Stage 1B contract and jump straight to freeform fixes.
+- **Family coverage is the quality bar**: Observer framing is not complete until the causal map spans enough failure families and each family includes a falsifier.
+- **Observer framing remains the bridge artifact**: Stage 1B still records `primary suspected loop`, `recommended first probe`, and a `contrarian candidate` before evidence collection begins.
 - **Debug the loop, not just the point**: Validate the path from input event to control decision to resource allocation to state transition to external observation.
 - **Escalate diagnostics when the loop is still ambiguous**: If two investigation rounds do not converge, stop layering plausible small fixes and add decisive instrumentation.
 - **Root-cause mode is mandatory after repeated failure**: After two automated verification failures, stop adding point fixes and switch the session into `root-cause mode`.
@@ -190,33 +193,53 @@ If fast-path: manually set `observer_framing_completed: true`, fill minimal `obs
 Record: "Fast-path: error at [location], repro [steps], impact bounded to [module]."
 If not: proceed to Stage 1 (Observer Framing).
 
-### Stage 1: Observer Framing (Think Subagent)
+### Stage 1: Observer Framing
 
-- This stage is **mandatory**. The graph engine (GatheringNode) will return an `await_input` containing a `think_subagent_prompt` when `observer_framing_completed` is not yet `true`.
+This stage is now split into Stage 1A and Stage 1B, but remains the same top-level observer-framing phase for workflow semantics.
+
+### Stage 1A: Causal Map (Think Subagent)
+
+- This stage is **mandatory**. The graph engine (GatheringNode) will return an `await_input` containing a `think_subagent_prompt` when `causal_map_completed` is not yet `true`.
 - **Leader's responsibility**: When you receive the `think_subagent_prompt`:
   1. Dispatch a think subagent with the exact prompt text (use your runtime's subagent dispatch mechanism).
   2. Wait for the subagent's structured result.
   3. The result is hybrid: free-text analysis followed by `---` and a YAML block.
-  4. Parse the YAML block after `---` and populate the debug session fields.
+  4. Parse the YAML block after `---` and populate the `causal_map` fields plus `observer_mode`.
   5. Set `observer_mode: full` (unless the subagent output indicates `compressed` with a `skip_observer_reason`).
-- The think subagent produces the observer analysis board based on the user report plus the current system map. It does NOT read source code, logs, or run commands.
-- The observer analysis board must include:
-  - `Primary suspected loop`
-  - `Alternative cause candidates` (at least 3)
-  - `Why each candidate fits`
-  - `Map evidence`
-  - `Missing questions`
-  - `Recommended first probe`
-- Record at least 3 alternative cause candidates for full framing.
-- Record at least 2 for compressed framing.
+- The think subagent produces a causal map based on the user report plus the current system map. It does NOT read source code, logs, or run commands.
+- The causal map must include:
+  - `symptom_anchor`
+  - `closed_loop_path`
+  - `break_edges`
+  - `family_coverage`
+  - `candidates`
+  - `adjacent_risk_targets`
+- The causal map candidates are the widened alternative cause candidates for the observer-framing phase.
+- Full framing: cover at least 3 failure families.
+- Compressed framing: cover at least 2 failure families.
 - Full framing: at least 3 candidates.
 - Compressed framing: at least 2 candidates.
-- Record a contrarian candidate from a different failure family.
-- Candidate diversity must span at least 2 failure-shape or truth-owner families.
-- Set `observer_framing_completed: true` only after all required fields are populated.
-- This stage is not complete until the debug session contains non-empty values for `summary`, `primary_suspected_loop`, `suspected_owning_layer`, `suspected_truth_owner`, `recommended_first_probe`, and at least one `alternative_cause_candidate`.
-- If there are no meaningful missing questions, record that explicitly instead of leaving the field empty.
-- Compressed framing still requires the full Observer Framing section to be written; compression lowers certainty expectations, not delivery requirements.
+- Full framing: at least 3 alternative cause candidates.
+- Compressed framing: at least 2 for compressed framing.
+- Each family must include a falsifier, not just a plausible guess.
+
+### Stage 1B: Investigation Contract
+
+- After Stage 1A completes, Gathering returns an `await_input` containing `contract_subagent_prompt`.
+- **Leader's responsibility**: When you receive `contract_subagent_prompt`:
+  1. Dispatch a contract-planner subagent with the exact prompt text.
+  2. Wait for the structured result.
+  3. Parse the YAML block after `---` and populate `observer_framing`, `transition_memo`, and `investigation_contract`.
+  4. Set `contract_generation_completed: true`.
+- The contract planner does not widen the hypothesis space. It converts the causal map into:
+  - `primary suspected loop`
+  - `primary_candidate`
+  - `contrarian_candidate`
+  - `candidate_queue`
+  - `related_risk_targets`
+  - `transition_memo`
+- Stage 1B must still leave the session with a clear `contrarian candidate`, a `recommended first probe`, and a transition memo that can automatically continue into evidence investigation.
+- Compressed framing still requires the full observer framing section; compression lowers certainty expectations, not delivery requirements.
 
 ### Stage 2: Transition Memo
 
