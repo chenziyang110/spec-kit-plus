@@ -11,7 +11,63 @@ from specify_cli.debug.graph import (
     VerifyingNode,
 )
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
-from specify_cli.debug.schema import DebugGraphState, DebugStatus
+from specify_cli.debug.schema import CausalMapCandidate, DebugGraphState, DebugStatus
+
+
+def _populate_valid_dual_observer_state(state: DebugGraphState, *, mode: str = "full") -> None:
+    state.causal_map_completed = True
+    state.contract_generation_completed = True
+    state.observer_framing_completed = True
+    state.observer_mode = mode
+    if mode == "compressed":
+        state.skip_observer_reason = "Strong low-level evidence present"
+    state.causal_map.symptom_anchor = "Caller output is missing the final token"
+    state.causal_map.closed_loop_path = [
+        "parse request",
+        "compute token bounds",
+        "token list update",
+        "projection publish",
+        "caller output render",
+    ]
+    state.causal_map.break_edges = ["compute token bounds -> token list update"]
+    state.causal_map.bypass_paths = ["stale projection cache serves a truncated token list"]
+    state.causal_map.family_coverage = ["truth_owner_logic", "projection_render"]
+    state.causal_map.candidates = [
+        CausalMapCandidate(
+            candidate_id="cand-parser-boundary",
+            family="truth_owner_logic",
+            candidate="Parser upper bound excludes final token",
+            falsifier="Raw parser output already contains final token",
+            recommended_first_probe="Run parser repro and inspect raw output",
+        ),
+        CausalMapCandidate(
+            candidate_id="cand-projection-boundary",
+            family="projection_render",
+            candidate="Projection layer drops final token",
+            falsifier="Projection input already lacks final token",
+            recommended_first_probe="Compare parser output and rendered output",
+        ),
+    ]
+    if mode != "compressed":
+        state.causal_map.family_coverage.append("config_flag_env")
+        state.causal_map.candidates.append(
+            CausalMapCandidate(
+                candidate_id="cand-config-gate",
+                family="config_flag_env",
+                candidate="Configuration gate trims final token",
+                falsifier="Relevant parsing flag is disabled",
+                recommended_first_probe="Inspect active parsing flags",
+            )
+        )
+    state.causal_map.adjacent_risk_targets = [
+        {
+            "target": "projection-boundary",
+            "reason": "Nearest-neighbor token family risk",
+            "family": "projection_render",
+            "scope": "nearest-neighbor",
+            "falsifier": "Rendered output always matches projection payload",
+        }
+    ]
 
 @pytest.mark.asyncio
 async def test_gathering_to_investigating():
@@ -19,9 +75,7 @@ async def test_gathering_to_investigating():
     state.symptoms.expected = "Expected parser output"
     state.symptoms.actual = "Actual parser output"
     state.symptoms.reproduction_verified = True
-    # Pre-populate observer framing (now dispatched to think subagent in production)
-    state.observer_framing_completed = True
-    state.observer_mode = "full"
+    _populate_valid_dual_observer_state(state)
     state.observer_framing.primary_suspected_loop = "general"
     state.observer_framing.summary = "General truth-owner issue"
     state.observer_framing.suspected_owning_layer = "parser"
@@ -92,10 +146,7 @@ async def test_gathering_node_uses_compressed_observer_framing_for_strong_low_le
     state.symptoms.actual = "Actual parser output"
     state.symptoms.reproduction_command = "python tests/repro.py"
     state.symptoms.reproduction_verified = True
-    # Pre-populate observer framing (now dispatched to think subagent in production)
-    state.observer_framing_completed = True
-    state.observer_mode = "compressed"
-    state.skip_observer_reason = "Strong low-level evidence present"
+    _populate_valid_dual_observer_state(state, mode="compressed")
     state.observer_framing.summary = "Parser boundary issue"
     state.observer_framing.primary_suspected_loop = "general"
     state.observer_framing.suspected_owning_layer = "parser"
@@ -153,8 +204,7 @@ async def test_gathering_blocks_when_full_framing_has_fewer_than_three_candidate
     state.symptoms.expected = "queue drains"
     state.symptoms.actual = "queue remains non-empty"
     state.symptoms.reproduction_verified = True
-    state.observer_framing_completed = True
-    state.observer_mode = "full"
+    _populate_valid_dual_observer_state(state)
     state.observer_framing.summary = "Scheduler boundary issue"
     state.observer_framing.primary_suspected_loop = "scheduler-admission"
     state.observer_framing.suspected_owning_layer = "scheduler"
@@ -165,6 +215,7 @@ async def test_gathering_blocks_when_full_framing_has_fewer_than_three_candidate
         graph_module.ObserverCauseCandidate(candidate="A", failure_shape="truth_owner_logic"),
         graph_module.ObserverCauseCandidate(candidate="B", failure_shape="truth_owner_logic"),
     ]
+    state.causal_map.family_coverage = ["truth_owner_logic"]
     state.transition_memo.first_candidate_to_test = "A"
     state.transition_memo.why_first = "best fit"
     state.transition_memo.evidence_unlock = ["reproduction"]
@@ -182,8 +233,7 @@ async def test_gathering_blocks_when_candidate_diversity_is_fake():
     state.symptoms.expected = "queue drains"
     state.symptoms.actual = "queue remains non-empty"
     state.symptoms.reproduction_verified = True
-    state.observer_framing_completed = True
-    state.observer_mode = "full"
+    _populate_valid_dual_observer_state(state)
     state.observer_framing.summary = "Scheduler boundary issue"
     state.observer_framing.primary_suspected_loop = "scheduler-admission"
     state.observer_framing.suspected_owning_layer = "scheduler"
@@ -195,6 +245,7 @@ async def test_gathering_blocks_when_candidate_diversity_is_fake():
         graph_module.ObserverCauseCandidate(candidate="B", failure_shape="truth_owner_logic"),
         graph_module.ObserverCauseCandidate(candidate="C", failure_shape="truth_owner_logic"),
     ]
+    state.causal_map.family_coverage = ["truth_owner_logic", "truth_owner_logic", "truth_owner_logic"]
     state.transition_memo.first_candidate_to_test = "A"
     state.transition_memo.why_first = "best fit"
     state.transition_memo.evidence_unlock = ["reproduction"]
@@ -212,8 +263,7 @@ async def test_gathering_blocks_when_transition_candidate_is_missing_from_queue(
     state.symptoms.expected = "queue drains"
     state.symptoms.actual = "queue remains non-empty"
     state.symptoms.reproduction_verified = True
-    state.observer_framing_completed = True
-    state.observer_mode = "full"
+    _populate_valid_dual_observer_state(state)
     state.observer_framing.summary = "Scheduler boundary issue"
     state.observer_framing.primary_suspected_loop = "scheduler-admission"
     state.observer_framing.suspected_owning_layer = "scheduler"
@@ -254,6 +304,30 @@ async def test_gathering_blocks_when_transition_candidate_is_missing_from_queue(
     assert result.data == "Awaiting more debugging input"
     assert "first candidate" in (state.current_focus.next_action or "").lower()
     assert "candidate queue" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_gathering_requests_contract_subagent_after_causal_map() -> None:
+    state = DebugGraphState(trigger="queue stuck", slug="test-slug")
+    state.causal_map_completed = True
+    state.causal_map.family_coverage = [
+        "truth_owner_logic",
+        "cache_snapshot",
+        "projection_render",
+    ]
+    state.causal_map.candidates = [
+        CausalMapCandidate(
+            candidate_id="cand-slot-ownership",
+            family="truth_owner_logic",
+            candidate="Scheduler does not clear slot ownership on release",
+        )
+    ]
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert state.contract_subagent_prompt is not None
+    assert "contract subagent" in (state.current_focus.next_action or "").lower()
 
 @pytest.mark.asyncio
 async def test_investigating_to_fixing():
