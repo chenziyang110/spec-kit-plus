@@ -76,4 +76,27 @@ describe("specify quality adapter", () => {
     assert.match(merged ?? "", /Base context\./);
     assert.match(merged ?? "", /Resume cue: finish design review\./);
   });
+
+  it("appends shared recovery summary text to existing context", () => {
+    const merged = appendSharedHookContext("Base context.", {
+      event: "workflow.compaction.build",
+      status: "ok",
+      data: {
+        artifact: {
+          recovery_summary: {
+            phase_mode: "planning-only",
+            next_action: "refine scope",
+            next_command: "/sp.plan",
+            route_reason: "spec not yet approved for implementation",
+          },
+        },
+      },
+    });
+
+    assert.match(merged ?? "", /Base context\./);
+    assert.match(merged ?? "", /Phase: planning-only\./);
+    assert.match(merged ?? "", /Next action: refine scope\./);
+    assert.match(merged ?? "", /Next command: \/sp\.plan\./);
+    assert.match(merged ?? "", /Reason: spec not yet approved for implementation\./);
+  });
 });

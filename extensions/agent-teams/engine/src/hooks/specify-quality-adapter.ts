@@ -154,6 +154,21 @@ export function appendSharedHookContext(
     if (nextAction) {
       lines.push(`Resume cue: ${nextAction}.`);
     }
+    const recoverySummary = artifact["recovery_summary"] as Record<string, unknown> | undefined;
+    if (recoverySummary && typeof recoverySummary === "object") {
+      const recoveryTextFields: Array<[string, string]> = [
+        ["phase_mode", "Phase"],
+        ["next_action", "Next action"],
+        ["next_command", "Next command"],
+        ["route_reason", "Reason"],
+      ];
+      for (const [fieldName, label] of recoveryTextFields) {
+        const value = recoverySummary[fieldName];
+        if (typeof value === "string" && value.trim()) {
+          lines.push(`${label}: ${value.trim()}.`);
+        }
+      }
+    }
   }
   if (lines.length === 0) return existing;
   return dedupeOrdered([existing ?? "", ...lines]).filter(Boolean).join(" ");
