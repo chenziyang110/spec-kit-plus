@@ -28,6 +28,14 @@ def _extract_step_6_strategy_block(content: str) -> str:
     return lowered[start:end]
 
 
+def _extract_outline_step_block(content: str, step_prefix: str, next_step_prefix: str) -> str:
+    start = content.find(step_prefix)
+    assert start != -1
+    end = content.find(next_step_prefix, start)
+    assert end != -1
+    return content[start:end]
+
+
 def _assert_contains_any(text: str, *needles: str) -> None:
     assert any(needle in text for needle in needles), f"Expected one of: {needles}"
 
@@ -50,6 +58,18 @@ def _assert_default_handoff_contract(content: str, expected_fragment: str) -> No
     handoff = match.group("value")
     assert expected_fragment in handoff
     assert "{{invoke:" not in handoff
+
+
+def _assert_reference_evidence_contract(text: str) -> None:
+    lowered = text.lower()
+    assert "active_profile" in text
+    assert "required_evidence" in text
+    assert "Reference-Implementation" in text
+    assert "reference source evidence" in lowered
+    assert "fidelity criteria" in lowered
+    assert "difference inventory" in lowered
+    assert "accepted deviations" in lowered
+    assert "verification entry points" in lowered
 
 
 def test_core_sp_templates_use_learning_review_hooks():
@@ -1098,6 +1118,21 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
     step_6 = _extract_step_6_strategy_block(content)
+    context_loading = _extract_outline_step_block(
+        content,
+        "3. Load and analyze the implementation context:",
+        "4. **Project Setup Verification**:",
+    )
+    batch_acceptance = _extract_outline_step_block(
+        content,
+        "9. Progress tracking and error handling:",
+        "10. Completion validation:",
+    )
+    completion_gate = _extract_outline_step_block(
+        content,
+        "10. Completion validation:",
+        "Note: This command assumes a complete task breakdown exists in tasks.md.",
+    )
 
     assert "PROJECT-HANDBOOK.md" in content
     assert ".specify/memory/project-rules.md" in content
@@ -1137,6 +1172,20 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "intent_outcome:" in lowered
     assert "intent_constraints:" in lowered
     assert "success_evidence:" in lowered
+    _assert_reference_evidence_contract(context_loading)
+    _assert_reference_evidence_contract(batch_acceptance)
+    _assert_reference_evidence_contract(completion_gate)
+    assert "profile-matched evidence" in context_loading.lower()
+    assert "profile-matched evidence" in batch_acceptance.lower()
+    assert "profile-matched evidence" in completion_gate.lower()
+    assert "standard delivery" in context_loading.lower()
+    assert "standard delivery" in completion_gate.lower()
+    assert "lighter default" in context_loading.lower()
+    assert "lighter default" in completion_gate.lower()
+    assert "generic `tests passed` output is not sufficient" in batch_acceptance.lower()
+    assert "generic `tests passed` output" in completion_gate.lower()
+    assert "comparison evidence" in lowered
+    assert "deviation log" in lowered
     assert "first-class implementation context" in lowered
     assert "user execution notes" in lowered
     assert "build or compile order" in lowered
