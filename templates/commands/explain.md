@@ -37,6 +37,8 @@ Use `execution_surface: native-subagents`.
 Goal: Read the current stage artifact or atlas artifact and explain it in plain language so the user can understand what the system currently believes, what is decided, what is still open, and what the next phase or next relevant atlas view will do.
 
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`) and parse the available feature paths.
+   - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command explain --ensure-worktree}}` before guessing from branch-only context.
+   - When lane resolution returns a materialized lane worktree, explain artifacts from that isolated worktree context so the explanation stays attached to the active feature lane.
 
 2. Resolve the stage artifact deterministically:
    - If the user explicitly names a stage, honor it.

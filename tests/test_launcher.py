@@ -312,7 +312,7 @@ def test_render_hook_launcher_command_targets_env_scoped_shared_launcher_windows
         project_dir_env_var="GEMINI_PROJECT_DIR",
     )
 
-    assert command == '"$env:GEMINI_PROJECT_DIR"/.specify/bin/specify-hook.cmd gemini before-tool'
+    assert command == '"$GEMINI_PROJECT_DIR"/.specify/bin/specify-hook.cmd gemini before-tool'
 
 
 def test_render_hook_launcher_command_can_target_powershell_surface_from_posix(monkeypatch):
@@ -325,7 +325,7 @@ def test_render_hook_launcher_command_can_target_powershell_surface_from_posix(m
         script_type="ps",
     )
 
-    assert command == '"$env:CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude session-start'
+    assert command == '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude session-start'
 
 
 def test_install_shared_hook_launcher_assets_writes_all_runtime_files(tmp_path):

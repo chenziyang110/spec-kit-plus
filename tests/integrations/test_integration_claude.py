@@ -285,8 +285,8 @@ class TestClaudeIntegration:
 
         assert commands
         for command in commands:
-            assert command.startswith('"$env:CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude ')
-            assert '"$CLAUDE_PROJECT_DIR"' not in command
+            assert command.startswith('"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude ')
+            assert "$env:CLAUDE_PROJECT_DIR" not in command
 
     def test_setup_refreshes_existing_managed_hook_asset(self, tmp_path):
         integration = get_integration("claude")

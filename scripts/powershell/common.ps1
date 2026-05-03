@@ -156,6 +156,15 @@ function Get-FeatureDir {
     Join-Path $RepoRoot "specs/$Branch"
 }
 
+function Get-FeatureSpecsRoots {
+    param([string]$RepoRoot)
+
+    @(
+        (Join-Path $RepoRoot "specs")
+        (Join-Path $RepoRoot ".specify/specs")
+    )
+}
+
 function Find-FeatureDirFromLaneState {
     param(
         [string]$RepoRoot,
@@ -223,7 +232,6 @@ function Find-FeatureDirByPrefix {
         [string]$BranchName
     )
 
-    $specsDir = Join-Path $RepoRoot "specs"
     $prefix = ""
 
     if ($BranchName -match '^(\d{8}-\d{6})-') {
@@ -231,24 +239,27 @@ function Find-FeatureDirByPrefix {
     } elseif ($BranchName -match '^(\d{3,})-') {
         $prefix = $matches[1]
     } else {
-        return (Join-Path $specsDir $BranchName)
+        return (Join-Path (Join-Path $RepoRoot "specs") $BranchName)
     }
 
     $featureMatches = @()
-    if (Test-Path -LiteralPath $specsDir -PathType Container) {
-        $featureMatches = @(
+    foreach ($specsDir in (Get-FeatureSpecsRoots -RepoRoot $RepoRoot)) {
+        if (-not (Test-Path -LiteralPath $specsDir -PathType Container)) {
+            continue
+        }
+        $featureMatches += @(
             Get-ChildItem -LiteralPath $specsDir -Directory -ErrorAction SilentlyContinue |
                 Where-Object { $_.Name -like "$prefix-*" } |
-                Select-Object -ExpandProperty Name
+                Select-Object -ExpandProperty FullName
         )
     }
 
     if ($featureMatches.Count -eq 0) {
-        return (Join-Path $specsDir $BranchName)
+        return (Join-Path (Join-Path $RepoRoot "specs") $BranchName)
     }
 
     if ($featureMatches.Count -eq 1) {
-        return (Join-Path $specsDir $featureMatches[0])
+        return $featureMatches[0]
     }
 
     Write-Output "ERROR: Multiple spec directories found with prefix '$prefix': $($featureMatches -join ', ')"
@@ -257,12 +268,22 @@ function Find-FeatureDirByPrefix {
 }
 
 function Get-FeaturePathsEnv {
+    param([string]$FeatureDirOverride = "")
+
     $repoRoot = Get-RepoRoot
     $currentBranch = Get-CurrentBranch
     $hasGit = Test-HasGit
-    $featureDir = Find-FeatureDirFromLaneState -RepoRoot $repoRoot -BranchName $currentBranch
-    if (-not $featureDir) {
-        $featureDir = Find-FeatureDirByPrefix -RepoRoot $repoRoot -BranchName $currentBranch
+    if ([string]::IsNullOrWhiteSpace($FeatureDirOverride)) {
+        $featureDir = Find-FeatureDirFromLaneState -RepoRoot $repoRoot -BranchName $currentBranch
+        if (-not $featureDir) {
+            $featureDir = Find-FeatureDirByPrefix -RepoRoot $repoRoot -BranchName $currentBranch
+        }
+    } else {
+        $featureDir = if ([System.IO.Path]::IsPathRooted($FeatureDirOverride)) {
+            $FeatureDirOverride
+        } else {
+            Join-Path $repoRoot $FeatureDirOverride
+        }
     }
     if (-not $featureDir) {
         throw "Failed to resolve feature directory"

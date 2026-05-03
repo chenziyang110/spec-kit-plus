@@ -1229,6 +1229,50 @@ def test_root_level_feature_resolution_returns_none_for_ambiguous_lanes(tmp_path
     assert resolved is None
 
 
+def test_root_level_feature_resolution_supports_legacy_spec_root_from_lane_record(tmp_path):
+    from specify_cli import _resolve_feature_dir_for_command
+    from specify_cli.lanes.models import LaneRecord
+    from specify_cli.lanes.state_store import write_lane_index, write_lane_record
+
+    feature_dir = tmp_path / ".specify" / "specs" / "001-legacy"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".specify").mkdir(exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `completed`",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    lane = LaneRecord(
+        lane_id="lane-legacy",
+        feature_id="001-legacy",
+        feature_dir=".specify/specs/001-legacy",
+        branch_name="001-legacy-hotfix",
+        worktree_path=".specify/lanes/worktrees/lane-legacy",
+        recovery_state="resumable",
+        last_command="specify",
+    )
+    write_lane_record(tmp_path, lane)
+    write_lane_index(tmp_path, {"lanes": [{"lane_id": "lane-legacy"}]})
+
+    resolved = _resolve_feature_dir_for_command(tmp_path, command_name="plan", feature_dir=None)
+
+    assert resolved == feature_dir.resolve()
+
+
 def test_integrate_command_is_registered(tmp_path):
     runner = CliRunner()
     project = tmp_path / "integrate-command"

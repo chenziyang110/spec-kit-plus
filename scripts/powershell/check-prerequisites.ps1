@@ -20,6 +20,7 @@ param(
     [switch]$RequireTasks,
     [switch]$IncludeTasks,
     [switch]$PathsOnly,
+    [string]$FeatureDir,
     [switch]$Help
 )
 
@@ -37,6 +38,7 @@ OPTIONS:
   -RequireTasks       Require tasks.md to exist (for implementation phase)
   -IncludeTasks       Include tasks.md in AVAILABLE_DOCS list
   -PathsOnly          Only output path variables (no prerequisite validation)
+  -FeatureDir         Explicit feature directory override
   -Help, -h           Show this help message
 
 EXAMPLES:
@@ -57,9 +59,9 @@ EXAMPLES:
 . "$PSScriptRoot/common.ps1"
 
 # Get feature paths and validate branch
-$paths = Get-FeaturePathsEnv
+$paths = Get-FeaturePathsEnv -FeatureDirOverride $FeatureDir
 
-if (-not (Test-FeatureBranch -Branch $paths.CURRENT_BRANCH -HasGit:$paths.HAS_GIT)) { 
+if (-not $FeatureDir -and -not (Test-FeatureBranch -Branch $paths.CURRENT_BRANCH -HasGit:$paths.HAS_GIT)) { 
     exit 1 
 }
 

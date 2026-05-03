@@ -721,10 +721,16 @@ def test_plan_tasks_and_implement_templates_prefer_lane_resolution_when_feature_
     plan = _read("templates/commands/plan.md")
     tasks = _read("templates/commands/tasks.md")
     implement = _read("templates/commands/implement.md")
+    deep_research = _read("templates/commands/deep-research.md")
+    clarify = _read("templates/commands/clarify.md")
+    explain = _read("templates/commands/explain.md")
 
     assert "{{specify-subcmd:lane resolve --command plan --ensure-worktree}}" in plan
     assert "{{specify-subcmd:lane resolve --command tasks --ensure-worktree}}" in tasks
     assert "{{specify-subcmd:lane resolve --command implement --ensure-worktree}}" in implement
+    assert "{{specify-subcmd:lane resolve --command deep-research --ensure-worktree}}" in deep_research
+    assert "{{specify-subcmd:lane resolve --command clarify --ensure-worktree}}" in clarify
+    assert "{{specify-subcmd:lane resolve --command explain --ensure-worktree}}" in explain
     assert "isolated worktree context" in plan.lower()
     assert "isolated worktree context" in tasks.lower()
     assert "execution context for this implementation lane" in implement.lower()
@@ -1320,18 +1326,26 @@ def test_script_contracts_expose_context_artifact_paths():
 
     assert "CONTEXT       = Join-Path $featureDir 'context.md'" in ps_common
     assert "CONTEXT      = $paths.CONTEXT" in ps_check
+    assert "[string]$FeatureDir" in ps_check
     assert "PROJECT_MAP_STATUS = (Get-ProjectMapStatusPath -RepoRoot $paths.REPO_ROOT)" in ps_check
     assert 'PROJECT_MAP_HELPER = (Join-Path $paths.REPO_ROOT ".specify/scripts/powershell/project-map-freshness.ps1")' in ps_check
     assert "context.md" in ps_check
     assert "CONTEXT = $paths.CONTEXT" in ps_setup
+    assert "FEATURE_DIR = $paths.FEATURE_DIR" in ps_setup
+    assert "[string]$FeatureDir" in ps_setup
     assert "CONTEXT=%q\\n" in sh_common
     assert "find_feature_dir_from_lane_state" in sh_common
+    assert "feature_specs_roots" in sh_common
     assert "Find-FeatureDirFromLaneState" in ps_common
+    assert "Get-FeatureSpecsRoots" in ps_common
     assert '--arg context "$CONTEXT"' in sh_check
+    assert '--feature-dir' in sh_check
     assert '--arg project_map_status "$(project_map_status_path "$REPO_ROOT")"' in sh_check
     assert '--arg project_map_helper "$REPO_ROOT/.specify/scripts/bash/project-map-freshness.sh"' in sh_check
     assert '"CONTEXT":"%s"' in sh_check
     assert '--arg context "$CONTEXT"' in sh_setup
+    assert '--arg feature_dir "$FEATURE_DIR"' in sh_setup
+    assert '"FEATURE_DIR":"%s"' in sh_setup
     assert '"CONTEXT":"%s"' in sh_setup
 
 

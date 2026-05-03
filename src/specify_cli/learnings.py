@@ -199,6 +199,8 @@ def normalize_command_name(command_name: str) -> str:
     raw = str(command_name or "").strip().lower()
     if not raw:
         raise ValueError("command name is required")
+    while raw.startswith("/"):
+        raw = raw[1:]
     if raw.startswith("sp-"):
         normalized = raw
     elif raw.startswith("sp."):

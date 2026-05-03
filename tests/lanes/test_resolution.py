@@ -136,3 +136,25 @@ def test_resolve_lane_auto_inferrs_implement_from_tracker_and_workflow_state(tmp
 
     assert result.mode == "resume"
     assert result.candidates[0].last_command == "implement"
+
+
+def test_resolve_lane_matches_canonical_slash_prefixed_next_command(tmp_path: Path):
+    feature_dir = tmp_path / ".specify" / "specs" / "001-legacy"
+    _write_workflow_state(feature_dir, "/sp.plan")
+    lane = LaneRecord(
+        lane_id="lane-legacy",
+        feature_id="001-legacy",
+        feature_dir=".specify/specs/001-legacy",
+        branch_name="001-legacy-hotfix",
+        worktree_path=".specify/lanes/worktrees/lane-legacy",
+        lifecycle_state="specified",
+        recovery_state="resumable",
+        last_command="specify",
+    )
+    write_lane_record(tmp_path, lane)
+    write_lane_index(tmp_path, {"lanes": [{"lane_id": "lane-legacy"}]})
+
+    result = resolve_lane_for_command(tmp_path, command_name="plan")
+
+    assert result.mode == "resume"
+    assert result.selected_lane_id == "lane-legacy"

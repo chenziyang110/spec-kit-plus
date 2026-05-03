@@ -76,6 +76,8 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 - Prefer `{{specify-subcmd:learning capture-auto --command clarify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command clarify ...}}` when the durable state does not capture the reusable lesson cleanly.
 
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
+   - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command clarify --ensure-worktree}}` before guessing from branch-only context.
+   - When lane resolution returns a materialized lane worktree, continue clarification from that isolated worktree context so the repaired spec package stays bound to the active feature lane.
    - `FEATURE_DIR`
    - `FEATURE_SPEC`
    - optional downstream paths if returned

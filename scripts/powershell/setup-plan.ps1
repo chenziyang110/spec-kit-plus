@@ -4,6 +4,7 @@
 [CmdletBinding()]
 param(
     [switch]$Json,
+    [string]$FeatureDir,
     [switch]$Help
 )
 
@@ -11,8 +12,9 @@ $ErrorActionPreference = 'Stop'
 
 # Show help if requested
 if ($Help) {
-    Write-Output "Usage: ./setup-plan.ps1 [-Json] [-Help]"
+    Write-Output "Usage: ./setup-plan.ps1 [-Json] [-FeatureDir <path>] [-Help]"
     Write-Output "  -Json     Output results in JSON format"
+    Write-Output "  -FeatureDir  Explicit feature directory override"
     Write-Output "  -Help     Show this help message"
     exit 0
 }
@@ -21,10 +23,10 @@ if ($Help) {
 . "$PSScriptRoot/common.ps1"
 
 # Get all paths and variables from common functions
-$paths = Get-FeaturePathsEnv
+$paths = Get-FeaturePathsEnv -FeatureDirOverride $FeatureDir
 
 # Check if we're on a proper feature branch (only for git repos)
-if (-not (Test-FeatureBranch -Branch $paths.CURRENT_BRANCH -HasGit $paths.HAS_GIT)) { 
+if (-not $FeatureDir -and -not (Test-FeatureBranch -Branch $paths.CURRENT_BRANCH -HasGit $paths.HAS_GIT)) { 
     exit 1 
 }
 
@@ -35,9 +37,13 @@ New-Item -ItemType Directory -Path $paths.FEATURE_DIR -Force | Out-Null
 $template = Resolve-Template -TemplateName 'plan-template' -RepoRoot $paths.REPO_ROOT
 if ($template -and (Test-Path $template)) { 
     Copy-Item $template $paths.IMPL_PLAN -Force
-    Write-Output "Copied plan template to $($paths.IMPL_PLAN)"
+    if (-not $Json) {
+        Write-Output "Copied plan template to $($paths.IMPL_PLAN)"
+    }
 } else {
-    Write-Warning "Plan template not found"
+    if (-not $Json) {
+        Write-Warning "Plan template not found"
+    }
     # Create a basic plan file if template doesn't exist
     New-Item -ItemType File -Path $paths.IMPL_PLAN -Force | Out-Null
 }
@@ -45,6 +51,7 @@ if ($template -and (Test-Path $template)) {
 # Output results
 if ($Json) {
     $result = [PSCustomObject]@{ 
+        FEATURE_DIR = $paths.FEATURE_DIR
         FEATURE_SPEC = $paths.FEATURE_SPEC
         CONTEXT = $paths.CONTEXT
         IMPL_PLAN = $paths.IMPL_PLAN
@@ -54,6 +61,7 @@ if ($Json) {
     }
     $result | ConvertTo-Json -Compress
 } else {
+    Write-Output "FEATURE_DIR: $($paths.FEATURE_DIR)"
     Write-Output "FEATURE_SPEC: $($paths.FEATURE_SPEC)"
     Write-Output "CONTEXT: $($paths.CONTEXT)"
     Write-Output "IMPL_PLAN: $($paths.IMPL_PLAN)"

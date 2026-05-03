@@ -23,6 +23,10 @@ def normalize_command_name(command_name: str) -> str:
         normalized = normalized[3:]
     elif normalized.startswith("sp."):
         normalized = normalized[3:]
+    elif normalized.startswith("/sp-"):
+        normalized = normalized[4:]
+    elif normalized.startswith("/sp."):
+        normalized = normalized[4:]
     normalized = COMMAND_ALIASES.get(normalized, normalized)
     return normalized
 

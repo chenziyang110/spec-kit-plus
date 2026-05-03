@@ -205,11 +205,8 @@ def render_hook_launcher_command(
     launcher_name = HOOK_LAUNCHER_WINDOWS if use_windows_launcher else HOOK_LAUNCHER_POSIX
     launcher_path = f".specify/bin/{launcher_name}"
     if project_dir_env_var:
-        project_root = (
-            f'"$env:{project_dir_env_var}"'
-            if use_windows_launcher
-            else f'"${project_dir_env_var}"'
-        )
+        # Hook runners (e.g. Claude Code on Windows) invoke these via bash; use `$VAR` not `$env:VAR`.
+        project_root = f'"${project_dir_env_var}"'
         return f"{project_root}/{launcher_path} {integration_key} {route}"
     return f"{launcher_path} {integration_key} {route}"
 
@@ -417,7 +414,13 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                         if not isinstance(hook, dict):
                             continue
                         command = str(hook.get("command") or "")
-                        if "claude-hook-dispatch.py" in command and '"$CLAUDE_PROJECT_DIR"' in command:
+                        if "claude-hook-dispatch.py" in command:
+                            stale_claude_hook = True
+                        if (
+                            ".specify/bin/specify-hook" in command
+                            and "claude" in command
+                            and '"$env:CLAUDE_PROJECT_DIR"' in command
+                        ):
                             stale_claude_hook = True
                         if any(marker in command for marker in DIRECT_HOOK_DISPATCH_MARKERS) and any(
                             token in command for token in ("python ", "python3 ", "py ")
@@ -431,8 +434,8 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
             issues.append(
                 {
                     "code": "stale-claude-windows-hook-command",
-                    "summary": "Claude managed hook commands still use POSIX-style `$CLAUDE_PROJECT_DIR` expansion.",
-                    "repair": "Refresh the Claude integration so `.claude/settings.json` rewrites managed hook commands with the current Windows-safe format.",
+                    "summary": "Claude managed hook commands still use PowerShell-style `$env:CLAUDE_PROJECT_DIR` (or legacy `claude-hook-dispatch.py`) instead of the bash-compatible launcher command.",
+                    "repair": "Run `specify integration repair` (or `specify init --here --force --ai claude`) so `.claude/settings.json` refreshes managed hook commands.",
                 }
             )
         if stale_direct_launcher:

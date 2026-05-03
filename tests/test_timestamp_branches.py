@@ -19,6 +19,10 @@ CREATE_FEATURE = PROJECT_ROOT / "scripts" / "bash" / "create-new-feature.sh"
 CREATE_FEATURE_PS = PROJECT_ROOT / "scripts" / "powershell" / "create-new-feature.ps1"
 COMMON_SH = PROJECT_ROOT / "scripts" / "bash" / "common.sh"
 COMMON_PS = PROJECT_ROOT / "scripts" / "powershell" / "common.ps1"
+CHECK_PREREQUISITES = PROJECT_ROOT / "scripts" / "bash" / "check-prerequisites.sh"
+CHECK_PREREQUISITES_PS = PROJECT_ROOT / "scripts" / "powershell" / "check-prerequisites.ps1"
+SETUP_PLAN = PROJECT_ROOT / "scripts" / "bash" / "setup-plan.sh"
+SETUP_PLAN_PS = PROJECT_ROOT / "scripts" / "powershell" / "setup-plan.ps1"
 
 requires_bash = pytest.mark.skipif(
     shutil.which("bash") is None,
@@ -44,7 +48,9 @@ def git_repo(tmp_path: Path) -> Path:
     scripts_dir = tmp_path / "scripts" / "bash"
     scripts_dir.mkdir(parents=True)
     shutil.copy(CREATE_FEATURE, scripts_dir / "create-new-feature.sh")
+    shutil.copy(CHECK_PREREQUISITES, scripts_dir / "check-prerequisites.sh")
     shutil.copy(COMMON_SH, scripts_dir / "common.sh")
+    shutil.copy(SETUP_PLAN, scripts_dir / "setup-plan.sh")
     (tmp_path / ".specify" / "templates").mkdir(parents=True)
     return tmp_path
 
@@ -55,7 +61,9 @@ def no_git_dir(tmp_path: Path) -> Path:
     scripts_dir = tmp_path / "scripts" / "bash"
     scripts_dir.mkdir(parents=True)
     shutil.copy(CREATE_FEATURE, scripts_dir / "create-new-feature.sh")
+    shutil.copy(CHECK_PREREQUISITES, scripts_dir / "check-prerequisites.sh")
     shutil.copy(COMMON_SH, scripts_dir / "common.sh")
+    shutil.copy(SETUP_PLAN, scripts_dir / "setup-plan.sh")
     (tmp_path / ".specify" / "templates").mkdir(parents=True)
     return tmp_path
 
@@ -63,6 +71,30 @@ def no_git_dir(tmp_path: Path) -> Path:
 def run_script(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     """Run create-new-feature.sh with given args."""
     cmd = ["bash", "scripts/bash/create-new-feature.sh", *args]
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        errors="replace",
+    )
+
+
+def run_check_prerequisites(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    """Run check-prerequisites.sh with given args."""
+    cmd = ["bash", "scripts/bash/check-prerequisites.sh", *args]
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        errors="replace",
+    )
+
+
+def run_setup_plan(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    """Run setup-plan.sh with given args."""
+    cmd = ["bash", "scripts/bash/setup-plan.sh", *args]
     return subprocess.run(
         cmd,
         cwd=cwd,
@@ -267,6 +299,15 @@ class TestFindFeatureDirByPrefix:
         assert result.returncode == 0
         assert result.stdout.strip() == f"{_bash_path(tmp_path)}/specs/1000-original-feat"
 
+    def test_legacy_spec_root(self, tmp_path: Path):
+        """find_feature_dir_by_prefix should also search legacy .specify/specs roots."""
+        (tmp_path / ".specify" / "specs" / "20260319-143022-original-feat").mkdir(parents=True)
+        result = source_and_call(
+            f'find_feature_dir_by_prefix "{_bash_path(tmp_path)}" "20260319-143022-different-name"'
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/.specify/specs/20260319-143022-original-feat"
+
 
 # ── get_current_branch Tests ─────────────────────────────────────────────────
 
@@ -291,6 +332,48 @@ class TestNoGitTimestamp:
         spec_dirs = list((no_git_dir / "specs").iterdir()) if (no_git_dir / "specs").exists() else []
         assert len(spec_dirs) > 0, "spec dir not created"
         assert "git" in result.stderr.lower() or "warning" in result.stderr.lower()
+
+
+@requires_bash
+class TestExplicitFeatureDirOverrides:
+    def test_check_prerequisites_accepts_explicit_legacy_feature_dir(self, git_repo: Path):
+        """check-prerequisites should accept an explicit feature dir even off a feature branch."""
+        legacy_feature_dir = git_repo / ".specify" / "specs" / "001-legacy"
+        legacy_feature_dir.mkdir(parents=True, exist_ok=True)
+        (legacy_feature_dir / "spec.md").write_text("# spec\n", encoding="utf-8")
+
+        result = run_check_prerequisites(
+            git_repo,
+            "--json",
+            "--paths-only",
+            "--feature-dir",
+            ".specify/specs/001-legacy",
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert payload["FEATURE_DIR"] == _bash_path(legacy_feature_dir)
+        assert payload["FEATURE_SPEC"] == _bash_path(legacy_feature_dir / "spec.md")
+
+    def test_setup_plan_accepts_explicit_legacy_feature_dir(self, git_repo: Path):
+        """setup-plan should accept an explicit feature dir even off a feature branch."""
+        legacy_feature_dir = git_repo / ".specify" / "specs" / "001-legacy"
+        legacy_feature_dir.mkdir(parents=True, exist_ok=True)
+        (legacy_feature_dir / "spec.md").write_text("# spec\n", encoding="utf-8")
+        (legacy_feature_dir / "context.md").write_text("# context\n", encoding="utf-8")
+
+        result = run_setup_plan(
+            git_repo,
+            "--json",
+            "--feature-dir",
+            ".specify/specs/001-legacy",
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert payload["FEATURE_DIR"] == _bash_path(legacy_feature_dir)
+        assert payload["IMPL_PLAN"] == _bash_path(legacy_feature_dir / "plan.md")
+        assert (legacy_feature_dir / "plan.md").exists()
 
 
 # ── E2E Flow Tests ───────────────────────────────────────────────────────────
@@ -804,10 +887,47 @@ class TestPowerShellFeatureDirResolution:
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip() == str(tmp_path / "specs" / "001-canonical-feature")
 
+    def test_common_ps_feature_paths_support_legacy_spec_root(self, tmp_path: Path):
+        """PowerShell should resolve legacy .specify/specs roots by prefix."""
+        (tmp_path / ".specify" / "specs" / "20260319-143022-original-feat").mkdir(parents=True)
+        ps_dir = tmp_path / "scripts" / "powershell"
+        ps_dir.mkdir(parents=True)
+        shutil.copy(COMMON_PS, ps_dir / "common.ps1")
+
+        script = (
+            f'. "{ps_dir / "common.ps1"}"; '
+            '$env:SPECIFY_FEATURE = "20260319-143022-different-name"; '
+            '$paths = Get-FeaturePathsEnv; '
+            'Write-Output $paths.FEATURE_DIR'
+        )
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command", script],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == str(tmp_path / ".specify" / "specs" / "20260319-143022-original-feat")
+
 
 def run_ps_script(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     """Run create-new-feature.ps1 from the temp repo's scripts directory."""
     script = cwd / "scripts" / "powershell" / "create-new-feature.ps1"
+    cmd = ["pwsh", "-NoProfile", "-File", str(script), *args]
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+
+
+def run_ps_check_prerequisites(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    """Run check-prerequisites.ps1 from the temp repo's scripts directory."""
+    script = cwd / "scripts" / "powershell" / "check-prerequisites.ps1"
+    cmd = ["pwsh", "-NoProfile", "-File", str(script), *args]
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+
+
+def run_ps_setup_plan(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    """Run setup-plan.ps1 from the temp repo's scripts directory."""
+    script = cwd / "scripts" / "powershell" / "setup-plan.ps1"
     cmd = ["pwsh", "-NoProfile", "-File", str(script), *args]
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
 
@@ -830,8 +950,10 @@ def ps_git_repo(tmp_path: Path) -> Path:
     ps_dir = tmp_path / "scripts" / "powershell"
     ps_dir.mkdir(parents=True)
     shutil.copy(CREATE_FEATURE_PS, ps_dir / "create-new-feature.ps1")
+    shutil.copy(CHECK_PREREQUISITES_PS, ps_dir / "check-prerequisites.ps1")
     common_ps = PROJECT_ROOT / "scripts" / "powershell" / "common.ps1"
     shutil.copy(common_ps, ps_dir / "common.ps1")
+    shutil.copy(SETUP_PLAN_PS, ps_dir / "setup-plan.ps1")
     (tmp_path / ".specify" / "templates").mkdir(parents=True)
     return tmp_path
 
@@ -901,3 +1023,42 @@ class TestPowerShellDryRun:
         assert result.returncode == 0, result.stderr
         data = json.loads(result.stdout)
         assert "DRY_RUN" not in data, f"DRY_RUN should not be in normal JSON: {data}"
+
+    def test_ps_check_prerequisites_accepts_explicit_legacy_feature_dir(self, ps_git_repo: Path):
+        """PowerShell check-prerequisites should accept an explicit feature dir even off a feature branch."""
+        legacy_feature_dir = ps_git_repo / ".specify" / "specs" / "001-legacy"
+        legacy_feature_dir.mkdir(parents=True, exist_ok=True)
+        (legacy_feature_dir / "spec.md").write_text("# spec\n", encoding="utf-8")
+
+        result = run_ps_check_prerequisites(
+            ps_git_repo,
+            "-Json",
+            "-PathsOnly",
+            "-FeatureDir",
+            ".specify/specs/001-legacy",
+        )
+
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert data["FEATURE_DIR"] == str(legacy_feature_dir)
+        assert data["FEATURE_SPEC"] == str(legacy_feature_dir / "spec.md")
+
+    def test_ps_setup_plan_accepts_explicit_legacy_feature_dir(self, ps_git_repo: Path):
+        """PowerShell setup-plan should accept an explicit feature dir even off a feature branch."""
+        legacy_feature_dir = ps_git_repo / ".specify" / "specs" / "001-legacy"
+        legacy_feature_dir.mkdir(parents=True, exist_ok=True)
+        (legacy_feature_dir / "spec.md").write_text("# spec\n", encoding="utf-8")
+        (legacy_feature_dir / "context.md").write_text("# context\n", encoding="utf-8")
+
+        result = run_ps_setup_plan(
+            ps_git_repo,
+            "-Json",
+            "-FeatureDir",
+            ".specify/specs/001-legacy",
+        )
+
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert data["FEATURE_DIR"] == str(legacy_feature_dir)
+        assert data["IMPL_PLAN"] == str(legacy_feature_dir / "plan.md")
+        assert (legacy_feature_dir / "plan.md").exists()

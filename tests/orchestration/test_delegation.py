@@ -6,6 +6,7 @@ def test_research_alias_normalizes_to_deep_research_for_orchestration_support() 
     assert normalize_command_name("research") == "deep-research"
     assert normalize_command_name("sp-research") == "deep-research"
     assert normalize_command_name("sp.research") == "deep-research"
+    assert normalize_command_name("/sp.plan") == "plan"
     assert supports_workflow_command("sp-research") is True
 
 

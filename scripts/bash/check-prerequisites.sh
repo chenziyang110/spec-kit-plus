@@ -26,20 +26,34 @@ JSON_MODE=false
 REQUIRE_TASKS=false
 INCLUDE_TASKS=false
 PATHS_ONLY=false
+FEATURE_DIR_OVERRIDE=""
 
-for arg in "$@"; do
+while [[ $# -gt 0 ]]; do
+    arg="$1"
     case "$arg" in
         --json)
             JSON_MODE=true
+            shift
             ;;
         --require-tasks)
             REQUIRE_TASKS=true
+            shift
             ;;
         --include-tasks)
             INCLUDE_TASKS=true
+            shift
             ;;
         --paths-only)
             PATHS_ONLY=true
+            shift
+            ;;
+        --feature-dir)
+            if [[ $# -lt 2 ]]; then
+                echo "ERROR: --feature-dir requires a value. Use --help for usage information." >&2
+                exit 1
+            fi
+            FEATURE_DIR_OVERRIDE="$2"
+            shift 2
             ;;
         --help|-h)
             cat << 'EOF'
@@ -52,6 +66,7 @@ OPTIONS:
   --require-tasks     Require tasks.md to exist (for implementation phase)
   --include-tasks     Include tasks.md in AVAILABLE_DOCS list
   --paths-only        Only output path variables (no prerequisite validation)
+  --feature-dir PATH  Explicit feature directory override
   --help, -h          Show this help message
 
 EXAMPLES:
@@ -79,10 +94,12 @@ SCRIPT_DIR="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 # Get feature paths and validate branch
-_paths_output=$(get_feature_paths) || { echo "ERROR: Failed to resolve feature paths" >&2; exit 1; }
+_paths_output=$(get_feature_paths "$FEATURE_DIR_OVERRIDE") || { echo "ERROR: Failed to resolve feature paths" >&2; exit 1; }
 eval "$_paths_output"
 unset _paths_output
-check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
+if [[ -z "$FEATURE_DIR_OVERRIDE" ]]; then
+    check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
+fi
 
 # If paths-only mode, output paths and exit (support JSON + paths-only combined)
 if $PATHS_ONLY; then

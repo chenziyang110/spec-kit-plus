@@ -186,6 +186,8 @@ Use `execution_surface: native-subagents`.
 ## Outline
 
 1. **Setup**: Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
+   - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command deep-research --ensure-worktree}}` before guessing from branch-only context.
+   - When lane resolution returns a materialized lane worktree, continue research from that isolated worktree context instead of assuming the leader workspace already matches the active feature lane.
    - `FEATURE_DIR`
    - `FEATURE_SPEC`
    - optional downstream paths if returned

@@ -141,6 +141,12 @@ check_feature_branch() {
 
 get_feature_dir() { echo "$1/specs/$2"; }
 
+feature_specs_roots() {
+    local repo_root="$1"
+    printf '%s\n' "$repo_root/specs"
+    printf '%s\n' "$repo_root/.specify/specs"
+}
+
 # Find feature directory from durable lane state before falling back to branch-prefix guessing.
 # This lets resumed workflows recover the canonical feature dir even when the
 # current branch name and feature directory suffix no longer match exactly.
@@ -200,7 +206,6 @@ find_feature_dir_from_lane_state() {
 find_feature_dir_by_prefix() {
     local repo_root="$1"
     local branch_name="$2"
-    local specs_dir="$repo_root/specs"
 
     # Extract prefix from branch (e.g., "004" from "004-whatever" or "20260319-143022" from timestamp branches)
     local prefix=""
@@ -210,27 +215,29 @@ find_feature_dir_by_prefix() {
         prefix="${BASH_REMATCH[1]}"
     else
         # If branch doesn't have a recognized prefix, fall back to exact match
-        echo "$specs_dir/$branch_name"
+        echo "$repo_root/specs/$branch_name"
         return
     fi
 
-    # Search for directories in specs/ that start with this prefix
+    # Search known feature roots for directories that start with this prefix.
     local matches=()
-    if [[ -d "$specs_dir" ]]; then
+    local specs_dir
+    while IFS= read -r specs_dir; do
+        [[ -d "$specs_dir" ]] || continue
         for dir in "$specs_dir"/"$prefix"-*; do
             if [[ -d "$dir" ]]; then
-                matches+=("$(basename "$dir")")
+                matches+=("$dir")
             fi
         done
-    fi
+    done < <(feature_specs_roots "$repo_root")
 
     # Handle results
     if [[ ${#matches[@]} -eq 0 ]]; then
         # No match found - return the branch name path (will fail later with clear error)
-        echo "$specs_dir/$branch_name"
+        echo "$repo_root/specs/$branch_name"
     elif [[ ${#matches[@]} -eq 1 ]]; then
         # Exactly one match - perfect!
-        echo "$specs_dir/${matches[0]}"
+        echo "${matches[0]}"
     else
         # Multiple matches - this shouldn't happen with proper naming convention
         echo "ERROR: Multiple spec directories found with prefix '$prefix': ${matches[*]}" >&2
@@ -240,6 +247,7 @@ find_feature_dir_by_prefix() {
 }
 
 get_feature_paths() {
+    local explicit_feature_dir="${1:-}"
     local repo_root=$(get_repo_root)
     local current_branch=$(get_current_branch)
     local has_git_repo="false"
@@ -248,12 +256,20 @@ get_feature_paths() {
         has_git_repo="true"
     fi
 
-    # Use prefix-based lookup to support multiple branches per spec
     local feature_dir
-    if ! feature_dir=$(find_feature_dir_from_lane_state "$repo_root" "$current_branch"); then
-        if ! feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch"); then
-            echo "ERROR: Failed to resolve feature directory" >&2
-            return 1
+    if [[ -n "$explicit_feature_dir" ]]; then
+        if [[ "$explicit_feature_dir" = /* ]]; then
+            feature_dir="$explicit_feature_dir"
+        else
+            feature_dir="$repo_root/$explicit_feature_dir"
+        fi
+    else
+        # Use prefix-based lookup to support multiple branches per spec
+        if ! feature_dir=$(find_feature_dir_from_lane_state "$repo_root" "$current_branch"); then
+            if ! feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch"); then
+                echo "ERROR: Failed to resolve feature directory" >&2
+                return 1
+            fi
         fi
     fi
 

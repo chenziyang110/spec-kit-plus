@@ -179,7 +179,7 @@ class ClaudeIntegration(SkillsIntegration):
         normalized = str(command or "")
         if any(suffix in normalized for suffix in managed_suffixes):
             return True
-        if ".specify/bin/specify-hook" in normalized and '"$CLAUDE_PROJECT_DIR"' in normalized:
+        if ".specify/bin/specify-hook" in normalized and '"$env:CLAUDE_PROJECT_DIR"' in normalized:
             return True
         return False
 

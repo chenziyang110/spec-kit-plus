@@ -492,7 +492,7 @@ class TestIntegrationRepair:
                         command = hook["command"]
                         if ".specify/bin/specify-hook" in command:
                             hook["command"] = command.replace(
-                                '"$env:CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude',
+                                '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude',
                                 'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/claude-hook-dispatch.py',
                             )
                             hook["command"] = hook["command"].replace(
@@ -522,7 +522,7 @@ class TestIntegrationRepair:
             if isinstance(hook, dict) and isinstance(hook.get("command"), str)
         ]
         assert any(
-            command == '"$env:CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude session-start'
+            command == '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude session-start'
             for command in commands
         )
 
@@ -551,7 +551,10 @@ class TestIntegrationRepair:
             for entry in entries:
                 for hook in entry.get("hooks", []):
                     if isinstance(hook, dict) and isinstance(hook.get("command"), str):
-                        hook["command"] = hook["command"].replace("$env:CLAUDE_PROJECT_DIR", "$CLAUDE_PROJECT_DIR")
+                        hook["command"] = hook["command"].replace(
+                            '"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook',
+                            '"$env:CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd',
+                        )
         settings_path.write_text(json.dumps(settings_payload, indent=2) + "\n", encoding="utf-8")
 
         old_cwd = os.getcwd()
@@ -582,7 +585,7 @@ class TestIntegrationRepair:
         ]
         assert commands
         assert all(
-            command.startswith('"$env:CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude ')
+            command.startswith('"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook.cmd claude ')
             for command in commands
         )
 

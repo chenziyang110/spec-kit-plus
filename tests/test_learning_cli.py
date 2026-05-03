@@ -18,6 +18,7 @@ def test_learning_normalizes_research_alias_to_deep_research() -> None:
     assert normalize_command_name("research") == "sp-deep-research"
     assert normalize_command_name("sp-research") == "sp-deep-research"
     assert normalize_command_name("sp.research") == "sp-deep-research"
+    assert normalize_command_name("/sp.plan") == "sp-plan"
 
 
 def _seed_learning_templates(project_path: Path) -> None:
