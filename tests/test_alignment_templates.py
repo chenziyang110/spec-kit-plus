@@ -326,6 +326,22 @@ def test_core_planning_templates_use_logical_atlas_references() -> None:
         assert "at least one relevant module overview document" in lowered
 
 
+def test_project_map_root_templates_document_scenario_profile_contracts() -> None:
+    workflows = _read("templates/project-map/root/WORKFLOWS.md").lower()
+    testing = _read("templates/project-map/root/TESTING.md").lower()
+
+    assert "scenario profile" in workflows
+    assert "standard delivery" in workflows
+    assert "reference-implementation" in workflows
+    assert "profile routing" in workflows
+    assert "sp-specify -> sp-plan -> sp-tasks -> sp-implement" in workflows
+
+    assert "profile-matched evidence" in testing
+    assert "reference fidelity" in testing
+    assert "standard delivery" in testing
+    assert "reference-implementation" in testing
+
+
 def test_constitution_template_uses_current_shared_context_and_reentry_contract() -> None:
     content = _read("templates/commands/constitution.md")
     lowered = content.lower()
