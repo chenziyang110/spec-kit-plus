@@ -146,6 +146,7 @@ export function appendSharedHookContext(
     }
   }
   const artifact = payload.data?.artifact as Record<string, unknown> | undefined;
+  const recoverySummary = sharedRecoverySummary(payload.data);
   if (artifact && typeof artifact === "object") {
     const phaseState = artifact["phase_state"] as Record<string, unknown> | undefined;
     const nextAction = phaseState && typeof phaseState["next_action"] === "string"
@@ -154,24 +155,47 @@ export function appendSharedHookContext(
     if (nextAction) {
       lines.push(`Resume cue: ${nextAction}.`);
     }
-    const recoverySummary = artifact["recovery_summary"] as Record<string, unknown> | undefined;
-    if (recoverySummary && typeof recoverySummary === "object") {
-      const recoveryTextFields: Array<[string, string]> = [
-        ["phase_mode", "Phase"],
-        ["next_action", "Next action"],
-        ["next_command", "Next command"],
-        ["route_reason", "Reason"],
-      ];
-      for (const [fieldName, label] of recoveryTextFields) {
-        const value = recoverySummary[fieldName];
-        if (typeof value === "string" && value.trim()) {
-          lines.push(`${label}: ${value.trim()}.`);
-        }
-      }
-    }
+  }
+  if (recoverySummary) {
+    lines.push(...recoverySummaryLines(recoverySummary));
   }
   if (lines.length === 0) return existing;
   return dedupeOrdered([existing ?? "", ...lines]).filter(Boolean).join(" ");
+}
+
+function sharedRecoverySummary(data: Record<string, unknown> | undefined): Record<string, unknown> | null {
+  const artifact = data?.["artifact"];
+  if (artifact && typeof artifact === "object") {
+    const recoverySummary = (artifact as Record<string, unknown>)["recovery_summary"];
+    if (recoverySummary && typeof recoverySummary === "object") {
+      return recoverySummary as Record<string, unknown>;
+    }
+  }
+  const policy = data?.["policy"];
+  if (policy && typeof policy === "object") {
+    const recoverySummary = (policy as Record<string, unknown>)["recovery_summary"];
+    if (recoverySummary && typeof recoverySummary === "object") {
+      return recoverySummary as Record<string, unknown>;
+    }
+  }
+  return null;
+}
+
+function recoverySummaryLines(recoverySummary: Record<string, unknown>): string[] {
+  const lines: string[] = [];
+  const recoveryTextFields: Array<[string, string]> = [
+    ["phase_mode", "Phase"],
+    ["next_action", "Next action"],
+    ["next_command", "Next command"],
+    ["route_reason", "Reason"],
+  ];
+  for (const [fieldName, label] of recoveryTextFields) {
+    const value = recoverySummary[fieldName];
+    if (typeof value === "string" && value.trim()) {
+      lines.push(`${label}: ${value.trim()}.`);
+    }
+  }
+  return lines;
 }
 
 function dedupeOrdered(values: string[]): string[] {
