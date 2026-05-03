@@ -154,6 +154,10 @@ signal capture:
 - `{{specify-subcmd:hook capture-learning --command <command-name> --type <type> --summary "..." --evidence "..."}}`
 - `{{specify-subcmd:hook inject-learning --command <command-name> --type <type> --summary "..."}}`
 
+The terminal review-learning surface is intentionally narrow: use the real
+`review-learning` helper shape above and do not add removed artifact-origin
+helper options back into examples or generated guidance.
+
 ## When To Prefer Each Surface
 
 - Use `learning start` to load and expose relevant memory before deeper work.

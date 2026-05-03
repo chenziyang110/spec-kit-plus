@@ -364,6 +364,12 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
 
     issues: list[dict[str, str]] = []
 
+    def _read_text_if_exists(path: Path) -> str:
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError:
+            return ""
+
     launcher = load_project_specify_launcher(project_root)
     if launcher is not None and launcher.argv:
         launcher_entry = launcher.argv[0]
@@ -378,10 +384,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
             )
 
     powershell_common = project_root / ".specify" / "scripts" / "powershell" / "common.ps1"
-    try:
-        powershell_common_text = powershell_common.read_text(encoding="utf-8")
-    except OSError:
-        powershell_common_text = ""
+    powershell_common_text = _read_text_if_exists(powershell_common)
     if powershell_common_text:
         has_prefix_helper = "function Find-FeatureDirByPrefix" in powershell_common_text
         uses_prefix_resolution = "Find-FeatureDirByPrefix -RepoRoot $repoRoot -BranchName $currentBranch" in powershell_common_text
@@ -393,6 +396,35 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                     "repair": "Refresh the generated scripts by re-running `specify init --here --force --ai <agent>` or reinstalling the active integration.",
                 }
             )
+
+    generated_analyze = project_root / ".specify" / "templates" / "commands" / "analyze.md"
+    generated_analyze_text = _read_text_if_exists(generated_analyze)
+    if generated_analyze_text and "{{specify-subcmd:lane resolve --command analyze --ensure-worktree}}" not in generated_analyze_text:
+        issues.append(
+            {
+                "code": "stale-analyze-lane-routing-template",
+                "summary": "Generated analyze workflow guidance is stale and does not require lane resolution before branch-only fallback.",
+                "repair": "Run `specify integration repair` (or re-run `specify init --here --force --ai <agent>`) so generated workflow templates refresh to the current routing contract.",
+            }
+        )
+
+    generated_learning_candidates = (
+        project_root / ".specify" / "templates" / "passive-skills" / "spec-kit-project-learning" / "SKILL.md",
+        project_root / ".specify" / "templates" / "passive-skills" / "learning.md",
+    )
+    generated_learning_text = ""
+    for candidate in generated_learning_candidates:
+        generated_learning_text = _read_text_if_exists(candidate)
+        if generated_learning_text:
+            break
+    if generated_learning_text and "--origin-artifact" in generated_learning_text:
+        issues.append(
+            {
+                "code": "stale-review-learning-command-surface",
+                "summary": "Generated learning guidance still references unsupported `review-learning` helper options.",
+                "repair": "Run `specify integration repair` so generated workflow and passive-skill assets refresh to the current helper command surface.",
+            }
+        )
 
     claude_settings = project_root / ".claude" / "settings.json"
     claude_payload = _load_config(claude_settings)

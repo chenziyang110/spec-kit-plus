@@ -294,7 +294,44 @@ def test_check_reports_project_runtime_compatibility_issues(tmp_path):
     assert "project compatibility" in result.output.lower()
     assert "persisted project launcher is configured but unavailable" in result.output.lower()
     assert "generated powershell workflow scripts are stale" in result.output.lower()
-    assert "claude managed hook commands still use posix-style" in result.output.lower()
+    assert "claude managed hook commands still use powershell-style" in result.output.lower()
+    assert "bash-compatible launcher command" in result.output.lower()
+
+
+def test_check_reports_workflow_contract_drift(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "project-workflow-contract"
+    project.mkdir()
+    (project / ".specify" / "scripts" / "powershell").mkdir(parents=True)
+    (project / ".specify" / "config.json").write_text("{}", encoding="utf-8")
+    (project / ".specify" / "scripts" / "powershell" / "common.ps1").write_text(
+        "function Find-FeatureDirByPrefix {}\nFind-FeatureDirByPrefix -RepoRoot $repoRoot -BranchName $currentBranch\n",
+        encoding="utf-8",
+    )
+    (project / ".specify" / "templates" / "commands").mkdir(parents=True)
+    (project / ".specify" / "templates" / "commands" / "analyze.md").write_text(
+        "Run scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks\n",
+        encoding="utf-8",
+    )
+    (project / ".specify" / "templates" / "passive-skills" / "spec-kit-project-learning").mkdir(parents=True)
+    (project / ".specify" / "templates" / "passive-skills" / "spec-kit-project-learning" / "SKILL.md").write_text(
+        "specify hook review-learning --command analyze --origin-artifact plan.md\n",
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(app, ["check"], catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    lowered = result.output.lower()
+    assert "generated analyze workflow guidance is stale" in lowered
+    assert "generated learning guidance still references unsupported" in lowered
+    assert "helper command surface" in lowered
+    assert "specify integration repair" in lowered
 
     def test_integration_copilot_creates_files(self, tmp_path):
         from typer.testing import CliRunner

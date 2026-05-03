@@ -211,6 +211,35 @@ def test_diagnose_project_runtime_compatibility_reports_stale_powershell_resolve
     assert any(issue["code"] == "stale-powershell-feature-resolver" for issue in issues)
 
 
+def test_diagnose_project_runtime_compatibility_reports_workflow_contract_drift(tmp_path):
+    common_path = tmp_path / ".specify" / "scripts" / "powershell" / "common.ps1"
+    common_path.parent.mkdir(parents=True)
+    common_path.write_text(
+        "function Find-FeatureDirByPrefix {}\nFind-FeatureDirByPrefix -RepoRoot $repoRoot -BranchName $currentBranch\n",
+        encoding="utf-8",
+    )
+
+    analyze_path = tmp_path / ".specify" / "templates" / "commands" / "analyze.md"
+    analyze_path.parent.mkdir(parents=True)
+    analyze_path.write_text(
+        "Run scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks\n",
+        encoding="utf-8",
+    )
+
+    learning_path = tmp_path / ".specify" / "templates" / "passive-skills" / "spec-kit-project-learning" / "SKILL.md"
+    learning_path.parent.mkdir(parents=True)
+    learning_path.write_text(
+        "specify hook review-learning --command analyze --origin-artifact plan.md\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+    codes = {issue["code"] for issue in issues}
+
+    assert "stale-analyze-lane-routing-template" in codes
+    assert "stale-review-learning-command-surface" in codes
+
+
 def test_diagnose_project_runtime_compatibility_reports_stale_claude_windows_hook_commands(tmp_path):
     settings_path = tmp_path / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True)

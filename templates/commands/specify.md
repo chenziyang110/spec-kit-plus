@@ -101,6 +101,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Keep it descriptive and action-oriented when possible.
 
 3. Create the feature branch by running the script once with `--json`/`-Json` and `--short-name`/`-ShortName`.
+   - Treat `sp-specify` plus the generated create-feature script as the supported feature-creation path. Do not infer or recommend a separate branch-creation CLI family.
    - Before running the script, check if `.specify/init-options.json` exists and read `branch_numbering`.
    - If the value is `"timestamp"`, add `--timestamp` or `-Timestamp`.
    - If the value is `"sequential"` or missing, use default numbering.

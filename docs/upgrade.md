@@ -117,6 +117,13 @@ Compatibility mode can still work, but runtime helper commands may fall back to
 PATH `specify`, which means an older global install can still be selected if it
 shadows the newer one.
 
+### Workflow contract drift after CLI upgrades
+
+If `specify check` reports stale generated workflow routing or stale helper
+command surfaces, treat that as a hard incompatibility rather than a warning.
+Run `specify integration repair` to refresh the generated assets before
+continuing with `sp-*` workflows.
+
 ### Understanding the `--force` flag
 
 Without `--force`, the CLI warns you and asks for confirmation:
