@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
+from typing import Any
 
 from .checkpoint_serializers import normalize_command_name
 from .events import WORKFLOW_POLICY_EVALUATE
@@ -85,8 +88,9 @@ def workflow_policy_hook(project_root: Path, payload: dict[str, object]) -> Hook
         requested_action in SOFT_REDIRECT_ACTIONS
         and command_name in REDIRECTABLE_WORKFLOW_COMMANDS
     ):
+        checkpoint = state_result.data.get("checkpoint", {})
         recovery_summary = _build_recovery_summary(
-            state_result.data.get("checkpoint", {})
+            checkpoint
         )
         policy = {
             "classification": "redirect",
@@ -96,7 +100,18 @@ def workflow_policy_hook(project_root: Path, payload: dict[str, object]) -> Hook
             "requested_action": requested_action,
             "recovery_summary": recovery_summary,
         }
-        prior_redirect_count = int(payload.get("prior_redirect_count") or 0)
+        count_override = payload.get("prior_redirect_count")
+        redirect_store = _redirect_store_path(
+            project_root,
+            checkpoint,
+            recovery_summary,
+            requested_action,
+        )
+        prior_redirect_count = (
+            int(count_override)
+            if count_override is not None
+            else _read_redirect_count(redirect_store)
+        )
         if prior_redirect_count >= 1:
             return HookResult(
                 event=WORKFLOW_POLICY_EVALUATE,
@@ -107,6 +122,7 @@ def workflow_policy_hook(project_root: Path, payload: dict[str, object]) -> Hook
                 ],
                 data={"policy": policy},
             )
+        _write_redirect_count(redirect_store, 1)
         return HookResult(
             event=WORKFLOW_POLICY_EVALUATE,
             status="warn",
@@ -189,3 +205,47 @@ def _build_recovery_summary(checkpoint: object) -> dict[str, object]:
         "next_command": checkpoint.get("next_command", ""),
         "route_reason": checkpoint.get("route_reason", ""),
     }
+
+
+def _redirect_store_path(
+    project_root: Path,
+    checkpoint: object,
+    recovery_summary: dict[str, object],
+    requested_action: str,
+) -> Path:
+    checkpoint_path = ""
+    if isinstance(checkpoint, dict):
+        checkpoint_path = str(checkpoint.get("path") or "")
+    scope = {
+        "checkpoint_path": checkpoint_path,
+        "phase_mode": recovery_summary["phase_mode"],
+        "next_action": recovery_summary["next_action"],
+        "next_command": recovery_summary["next_command"],
+        "route_reason": recovery_summary["route_reason"],
+        "requested_action": requested_action,
+    }
+    digest = hashlib.sha256(
+        json.dumps(scope, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return project_root / ".specify" / "runtime" / "workflow-policy" / f"{digest}.json"
+
+
+def _read_redirect_count(path: Path) -> int:
+    try:
+        data: Any = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return 0
+    if not isinstance(data, dict):
+        return 0
+    try:
+        return int(data.get("count") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _write_redirect_count(path: Path, count: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"count": count}, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )

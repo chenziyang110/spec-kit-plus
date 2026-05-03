@@ -186,3 +186,31 @@ def test_workflow_policy_blocks_repeated_phase_drift(tmp_path: Path):
 
     assert result.status == "blocked"
     assert any("phase" in error.lower() for error in result.errors)
+
+
+def test_workflow_policy_blocks_second_phase_drift_without_override(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_sp_specify_workflow_state(feature_dir)
+    payload = {
+        "command_name": "specify",
+        "feature_dir": str(feature_dir),
+        "trigger": "prompt",
+        "requested_action": "start_editing_code",
+    }
+
+    first_result = run_quality_hook(
+        project,
+        "workflow.policy.evaluate",
+        payload,
+    )
+    second_result = run_quality_hook(
+        project,
+        "workflow.policy.evaluate",
+        payload,
+    )
+
+    assert first_result.status == "warn"
+    assert second_result.status == "blocked"
+    assert any("phase" in error.lower() for error in second_result.errors)
