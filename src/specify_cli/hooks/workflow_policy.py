@@ -105,7 +105,6 @@ def workflow_policy_hook(project_root: Path, payload: dict[str, object]) -> Hook
             project_root,
             checkpoint,
             recovery_summary,
-            requested_action,
         )
         prior_redirect_count = (
             int(count_override)
@@ -211,7 +210,6 @@ def _redirect_store_path(
     project_root: Path,
     checkpoint: object,
     recovery_summary: dict[str, object],
-    requested_action: str,
 ) -> Path:
     checkpoint_path = ""
     if isinstance(checkpoint, dict):
@@ -222,7 +220,6 @@ def _redirect_store_path(
         "next_action": recovery_summary["next_action"],
         "next_command": recovery_summary["next_command"],
         "route_reason": recovery_summary["route_reason"],
-        "requested_action": requested_action,
     }
     digest = hashlib.sha256(
         json.dumps(scope, sort_keys=True, separators=(",", ":")).encode("utf-8")
