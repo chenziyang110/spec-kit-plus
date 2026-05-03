@@ -6,6 +6,8 @@ from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.debug.schema import (
     CandidateResolution,
     CandidateStatus,
+    CausalMapCandidate,
+    CausalMapRiskTarget,
     CausalCoverageState,
     DebugGraphState,
     DebugStatus,
@@ -217,6 +219,63 @@ def test_persistence_round_trips_lifecycle_hardening_fields(tmp_path):
         "Inspect scheduler ownership sets"
     )
     assert restored.candidate_resolutions[0].disposition == "confirmed"
+
+
+def test_persistence_round_trips_causal_map_fields(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="queue stuck after slot release")
+    state.causal_map_completed = True
+    state.causal_map.symptom_anchor = "UI queue badge remains non-zero"
+    state.causal_map.closed_loop_path = [
+        "job release event",
+        "scheduler admission decision",
+        "slot ownership update",
+        "queue projection refresh",
+        "UI queue badge render",
+    ]
+    state.causal_map.break_edges = [
+        "slot ownership update -> queue projection refresh",
+    ]
+    state.causal_map.bypass_paths = [
+        "snapshot cache serves stale queue count after ownership update",
+    ]
+    state.causal_map.family_coverage = [
+        "truth_owner_logic",
+        "cache_snapshot",
+        "projection_render",
+    ]
+    state.causal_map.candidates = [
+        CausalMapCandidate(
+            candidate_id="cand-slot-ownership",
+            family="truth_owner_logic",
+            candidate="Scheduler does not clear slot ownership on release",
+            why_it_fits="Queue stays blocked after release",
+            map_evidence="Scheduler owns slot allocation truth",
+            falsifier="Ownership set is empty before the UI refresh begins",
+            break_edge="scheduler admission decision -> slot ownership update",
+            bypass_path="stale ownership cache",
+            recommended_first_probe="Inspect ownership set immediately after release",
+        )
+    ]
+    state.causal_map.adjacent_risk_targets = [
+        CausalMapRiskTarget(
+            target="release-retry-loop",
+            reason="Same ownership path governs retry admission",
+            family="truth_owner_logic",
+            scope="nearest-neighbor",
+            falsifier="Retry path bypasses slot ownership state",
+        )
+    ]
+
+    handler.save(state)
+    restored = handler.load(tmp_path / "session.md")
+
+    assert restored.causal_map_completed is True
+    assert restored.causal_map.symptom_anchor == "UI queue badge remains non-zero"
+    assert restored.causal_map.closed_loop_path[1] == "scheduler admission decision"
+    assert restored.causal_map.candidates[0].candidate_id == "cand-slot-ownership"
+    assert restored.causal_map.candidates[0].falsifier == "Ownership set is empty before the UI refresh begins"
+    assert restored.causal_map.adjacent_risk_targets[0].target == "release-retry-loop"
 
 
 def test_resolution_root_cause_string_assignment_is_normalized():
