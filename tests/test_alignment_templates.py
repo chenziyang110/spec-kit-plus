@@ -179,6 +179,25 @@ def test_specify_template_uses_alignment_first_contract():
     assert "verification entry points" in lowered
     assert "known unknowns or stale evidence boundaries" in lowered
 
+    assert "## Scenario Profile Routing" in content
+    assert "active_profile" in content
+    assert "routing_reason" in content
+    assert "Reference-Implementation" in content
+    assert "Standard Delivery" in content
+    assert "Debug / Repair" in content
+    assert "Brownfield Enhancement" in content
+    assert "If the success criterion is fidelity to a reference object" in content
+    assert "persist at least these fields for the active pass" in lowered
+    assert "required_sections" in content
+    assert "activated_gates" in content
+    assert "`active_profile` must always be the supported profile whose obligations are persisted downstream" in content
+    assert "record the inferred unsupported taxonomy profile separately from `active_profile`" in content
+    assert "surface every profile narrowing to the user and allow correction before proceeding" in lowered
+    assert re.search(r"`Standard Delivery`:\s+- `required_sections`:", content)
+    assert re.search(r"`Standard Delivery`:[\s\S]*?- `transition_policy`: permit `/sp\.plan`", content)
+    assert re.search(r"`Reference-Implementation`:\s+- `required_sections`:", content)
+    assert re.search(r"`Reference-Implementation`:[\s\S]*?- `transition_policy`: permit `/sp\.plan` only", content)
+
     assert "alignment.md" in content
     assert "aligned: ready for plan" in lowered
     assert "Aligned: ready for plan" in content
