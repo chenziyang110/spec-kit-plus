@@ -4749,23 +4749,25 @@ def hook_workflow_policy_command(
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
     trigger: str = typer.Option("manual", "--trigger", help="Native or workflow trigger name"),
     requested_action: str | None = typer.Option(None, "--requested-action", help="Requested high-level action"),
-    prior_redirect_count: int = typer.Option(0, "--prior-redirect-count", help="Number of prior redirect outcomes for this active workflow"),
+    prior_redirect_count: int | None = typer.Option(None, "--prior-redirect-count", help="Number of prior redirect outcomes for this active workflow"),
 ):
     """Evaluate workflow policy and return normalized enforcement JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    payload = {
+        "command_name": command_name,
+        "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+        "workspace": _normalize_optional_repo_path(project_root, workspace),
+        "session_file": _normalize_optional_repo_path(project_root, session_file),
+        "trigger": trigger,
+        "requested_action": requested_action or "",
+    }
+    if prior_redirect_count is not None:
+        payload["prior_redirect_count"] = prior_redirect_count
     _run_hook_and_print(
         project_root,
         "workflow.policy.evaluate",
-        {
-            "command_name": command_name,
-            "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
-            "workspace": _normalize_optional_repo_path(project_root, workspace),
-            "session_file": _normalize_optional_repo_path(project_root, session_file),
-            "trigger": trigger,
-            "requested_action": requested_action or "",
-            "prior_redirect_count": prior_redirect_count,
-        },
+        payload,
     )
 
 
