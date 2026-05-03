@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -80,6 +81,30 @@ def test_claim_task_records_token_and_worker(codex_team_project_root):
 
     assert claim_meta["claim_id"] == token
     assert claim_meta["worker_id"] == "worker-a"
+
+
+def test_get_task_retries_when_task_file_is_temporarily_empty(monkeypatch, codex_team_project_root):
+    created = create_task(codex_team_project_root, task_id="task-race", summary="race-safe")
+    path = task_record_path(codex_team_project_root, "task-race")
+    real_read_text = Path.read_text
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    attempts = {"count": 0}
+
+    def flaky_read_text(self: Path, *args, **kwargs):
+        if self == path:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                return ""
+            return json.dumps(payload, ensure_ascii=False)
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky_read_text)
+
+    record = get_task(codex_team_project_root, "task-race")
+
+    assert record.task_id == "task-race"
+    assert record.version == created.version
+    assert attempts["count"] >= 2
 
 
 def test_claim_task_enforces_expected_version(codex_team_project_root):

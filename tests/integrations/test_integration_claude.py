@@ -32,11 +32,12 @@ def _load_claude_hook_dispatch_module():
 
 class TestClaudeIntegration:
     @staticmethod
-    def _expected_launcher_command(route: str) -> str:
+    def _expected_launcher_command(route: str, *, script_type: str = "sh") -> str:
         return render_hook_launcher_command(
             "claude",
             route,
             project_dir_env_var="CLAUDE_PROJECT_DIR",
+            script_type=script_type,
         )
 
     @staticmethod
@@ -255,12 +256,12 @@ class TestClaudeIntegration:
             for hook in entry.get("hooks", [])
             if isinstance(hook, dict) and isinstance(hook.get("command"), str)
         ]
-        assert any(command == self._expected_launcher_command("user-prompt-submit") for command in commands)
-        assert any(command == self._expected_launcher_command("pre-tool-read") for command in commands)
-        assert any(command == self._expected_launcher_command("pre-tool-bash") for command in commands)
-        assert any(command == self._expected_launcher_command("session-start") for command in commands)
-        assert any(command == self._expected_launcher_command("post-tool-session-state") for command in commands)
-        assert any(command == self._expected_launcher_command("stop-monitor") for command in commands)
+        assert any(command == self._expected_launcher_command("user-prompt-submit", script_type="sh") for command in commands)
+        assert any(command == self._expected_launcher_command("pre-tool-read", script_type="sh") for command in commands)
+        assert any(command == self._expected_launcher_command("pre-tool-bash", script_type="sh") for command in commands)
+        assert any(command == self._expected_launcher_command("session-start", script_type="sh") for command in commands)
+        assert any(command == self._expected_launcher_command("post-tool-session-state", script_type="sh") for command in commands)
+        assert any(command == self._expected_launcher_command("stop-monitor", script_type="sh") for command in commands)
 
         tracked = {path.resolve().relative_to(tmp_path.resolve()).as_posix() for path in created}
         assert ".claude/hooks/claude-hook-dispatch.py" in tracked
@@ -390,7 +391,7 @@ class TestClaudeIntegration:
             if entry.get("matcher") == "Read"
             and any(
                 isinstance(hook, dict)
-                and self._expected_launcher_command("pre-tool-read") == str(hook.get("command", ""))
+                and self._expected_launcher_command("pre-tool-read", script_type="sh") == str(hook.get("command", ""))
                 for hook in entry.get("hooks", [])
             )
         ]
@@ -1072,12 +1073,12 @@ class TestClaudeIntegration:
             if isinstance(hook, dict) and isinstance(hook.get("command"), str)
         ]
         suffixes = (
-            self._expected_launcher_command("session-start"),
-            self._expected_launcher_command("user-prompt-submit"),
-            self._expected_launcher_command("pre-tool-read"),
-            self._expected_launcher_command("pre-tool-bash"),
-            self._expected_launcher_command("post-tool-session-state"),
-            self._expected_launcher_command("stop-monitor"),
+            self._expected_launcher_command("session-start", script_type="sh"),
+            self._expected_launcher_command("user-prompt-submit", script_type="sh"),
+            self._expected_launcher_command("pre-tool-read", script_type="sh"),
+            self._expected_launcher_command("pre-tool-bash", script_type="sh"),
+            self._expected_launcher_command("post-tool-session-state", script_type="sh"),
+            self._expected_launcher_command("stop-monitor", script_type="sh"),
         )
         for suffix in suffixes:
             assert sum(command == suffix for command in commands) == 1

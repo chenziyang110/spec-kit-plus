@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import secrets
 import uuid
 from dataclasses import asdict
@@ -172,6 +173,18 @@ def get_task(project_root: Path, task_id: str) -> Any:
     path = _task_record_path(project_root, task_id)
     if not path.exists():
         raise TaskOpsError(f"task {task_id} not found")
+    last_error: json.JSONDecodeError | None = None
+    for _ in range(5):
+        text = path.read_text(encoding="utf-8")
+        try:
+            return task_record_from_json(text)
+        except json.JSONDecodeError as exc:
+            last_error = exc
+            if text.strip():
+                raise
+            time.sleep(0.02)
+    if last_error is not None:
+        raise last_error
     return task_record_from_json(path.read_text(encoding="utf-8"))
 
 

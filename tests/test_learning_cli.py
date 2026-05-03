@@ -5,6 +5,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from specify_cli import app
+from tests.conftest import strip_ansi
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.debug.schema import DebugGraphState, DebugStatus, RootCause, ValidationCheck
 from specify_cli.learnings import normalize_command_name
@@ -788,7 +789,7 @@ def test_learning_capture_auto_help_mentions_broader_state_surfaces() -> None:
     result = runner.invoke(app, ["learning", "capture-auto", "--help"], catch_exceptions=False)
 
     assert result.exit_code == 0, result.stdout
-    output = result.stdout
+    output = strip_ansi(result.stdout)
     assert "--command" in output
     assert "plan" in output
     assert "test" in output

@@ -133,6 +133,10 @@ def _read_utf8_without_bom(path: Path) -> str:
     return raw.decode("utf-8")
 
 
+def _normalize_newlines(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
     lower = content.lower()
 
@@ -406,7 +410,7 @@ def test_powershell_script_updates_existing_non_agents_file_with_managed_guidanc
 
     assert result.returncode == 0, result.stderr
     content = _read_utf8_without_bom(claude)
-    assert content.startswith(initial)
+    assert _normalize_newlines(content).startswith(_normalize_newlines(initial))
     assert BLOCK_START in content
     assert "PROJECT-HANDBOOK.md" in content
     assert ".specify/project-map/" in content

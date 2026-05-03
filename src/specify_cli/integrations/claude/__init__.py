@@ -54,22 +54,23 @@ class ClaudeIntegration(SkillsIntegration):
     key = "claude"
 
     @staticmethod
-    def _hook_dispatch_command(route: str) -> str:
+    def _hook_dispatch_command(route: str, *, script_type: str = "sh") -> str:
         return render_hook_launcher_command(
             "claude",
             route,
             project_dir_env_var="CLAUDE_PROJECT_DIR",
+            script_type=script_type,
         )
 
     @classmethod
-    def _build_managed_hook_events(cls) -> dict[str, list[dict[str, Any]]]:
+    def _build_managed_hook_events(cls, *, script_type: str = "sh") -> dict[str, list[dict[str, Any]]]:
         return {
             "SessionStart": [
                 {
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command("session-start"),
+                            "command": cls._hook_dispatch_command("session-start", script_type=script_type),
                         }
                     ]
                 }
@@ -79,7 +80,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command("user-prompt-submit"),
+                            "command": cls._hook_dispatch_command("user-prompt-submit", script_type=script_type),
                         }
                     ]
                 }
@@ -90,7 +91,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command("post-tool-session-state"),
+                            "command": cls._hook_dispatch_command("post-tool-session-state", script_type=script_type),
                         }
                     ],
                 }
@@ -100,7 +101,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command("stop-monitor"),
+                            "command": cls._hook_dispatch_command("stop-monitor", script_type=script_type),
                         }
                     ]
                 }
@@ -111,7 +112,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command("pre-tool-read"),
+                            "command": cls._hook_dispatch_command("pre-tool-read", script_type=script_type),
                         }
                     ],
                 },
@@ -120,7 +121,7 @@ class ClaudeIntegration(SkillsIntegration):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": cls._hook_dispatch_command("pre-tool-bash"),
+                            "command": cls._hook_dispatch_command("pre-tool-bash", script_type=script_type),
                         }
                     ],
                 },
@@ -340,11 +341,12 @@ class ClaudeIntegration(SkillsIntegration):
         *,
         project_root: Path,
         manifest: IntegrationManifest,
+        script_type: str = "sh",
     ) -> list[Path]:
         settings_path = self._claude_settings_path(project_root)
         settings_path.parent.mkdir(parents=True, exist_ok=True)
 
-        managed_events = self._build_managed_hook_events()
+        managed_events = self._build_managed_hook_events(script_type=script_type)
 
         if not settings_path.exists():
             payload = {"hooks": managed_events}
@@ -748,6 +750,7 @@ class ClaudeIntegration(SkillsIntegration):
             self._install_or_merge_hook_settings(
                 project_root=project_root,
                 manifest=manifest,
+                script_type=script_type,
             )
         )
 
@@ -855,6 +858,7 @@ class ClaudeIntegration(SkillsIntegration):
             self._install_or_merge_hook_settings(
                 project_root=project_root,
                 manifest=manifest,
+                script_type=opts.get("script_type", "sh"),
             )
         )
         return created

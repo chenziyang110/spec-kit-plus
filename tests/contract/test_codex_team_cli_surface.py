@@ -7,6 +7,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 import specify_cli
+from tests.conftest import strip_ansi
 from specify_cli import app
 from specify_cli.codex_team import task_ops
 from specify_cli.codex_team.state_paths import runtime_session_path
@@ -207,7 +208,7 @@ def test_team_watch_subcommand_is_exposed_in_help(tmp_path: Path):
     result = _invoke_in_project(project, ["sp-teams", "watch", "--help"])
 
     assert result.exit_code == 0, result.output
-    lowered = result.output.lower()
+    lowered = strip_ansi(result.output).lower()
     assert "full-screen" in lowered
     assert "refresh-interval" in lowered
     assert "view" in lowered

@@ -24,11 +24,12 @@ class TestGeminiIntegration(TomlIntegrationTests):
     CONTEXT_FILE = "GEMINI.md"
 
     @staticmethod
-    def _expected_launcher_command(route: str) -> str:
+    def _expected_launcher_command(route: str, *, script_type: str = "sh") -> str:
         return render_hook_launcher_command(
             "gemini",
             route,
             project_dir_env_var="GEMINI_PROJECT_DIR",
+            script_type=script_type,
         )
 
     def _expected_files(self, script_variant: str) -> list[str]:
@@ -71,9 +72,9 @@ class TestGeminiIntegration(TomlIntegrationTests):
             for hook in entry.get("hooks", [])
             if isinstance(hook, dict) and isinstance(hook.get("command"), str)
         ]
-        assert any(command == self._expected_launcher_command("session-start") for command in commands)
-        assert any(command == self._expected_launcher_command("before-agent") for command in commands)
-        assert any(command == self._expected_launcher_command("before-tool") for command in commands)
+        assert any(command == self._expected_launcher_command("session-start", script_type="sh") for command in commands)
+        assert any(command == self._expected_launcher_command("before-agent", script_type="sh") for command in commands)
+        assert any(command == self._expected_launcher_command("before-tool", script_type="sh") for command in commands)
 
         assert ".gemini/hooks/gemini-hook-dispatch.py" in manifest.files
         assert ".gemini/settings.json" in manifest.files
@@ -126,7 +127,7 @@ class TestGeminiIntegration(TomlIntegrationTests):
             if entry.get("matcher") == "*"
             and any(
                 isinstance(hook, dict)
-                and self._expected_launcher_command("before-tool") == str(hook.get("command", ""))
+                and self._expected_launcher_command("before-tool", script_type="sh") == str(hook.get("command", ""))
                 for hook in entry.get("hooks", [])
             )
         ]

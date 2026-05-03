@@ -336,7 +336,6 @@ def test_persistence_round_trips_evidence_source_metadata(tmp_path):
     assert restored.evidence[0].source_type == "log"
     assert restored.evidence[0].source_ref == "runtime-test-output.log"
 
-
 def test_persistence_round_trips_investigation_contract_fields(tmp_path):
     handler = MarkdownPersistenceHandler(tmp_path)
     state = DebugGraphState(slug="session", trigger="candidate-driven debug")
@@ -384,7 +383,6 @@ def test_persistence_round_trips_investigation_contract_fields(tmp_path):
     assert restored.investigation_contract.candidate_queue[0].status == "active"
     assert restored.investigation_contract.related_risk_targets[0].status == "pending"
     assert restored.investigation_contract.causal_coverage_state.closeout_ready is False
-
 
 def test_handoff_report_shows_evidence_source_metadata(tmp_path):
     handler = MarkdownPersistenceHandler(tmp_path)
@@ -434,7 +432,6 @@ def test_handoff_report_includes_investigation_contract_sections(tmp_path):
     assert "Parser boundary truncates final token" in report
     assert "Related Risk Targets" in report
     assert "projection-boundary" in report
-
 
 def test_handoff_report_points_to_research_checkpoint_after_repeated_failures(tmp_path):
     handler = MarkdownPersistenceHandler(tmp_path)

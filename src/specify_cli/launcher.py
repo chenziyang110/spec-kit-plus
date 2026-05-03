@@ -197,13 +197,19 @@ def render_hook_launcher_command(
     route: str,
     *,
     project_dir_env_var: str | None = None,
+    script_type: str | None = None,
 ) -> str:
     """Render the native hook command that targets the shared launcher."""
 
-    launcher_name = HOOK_LAUNCHER_WINDOWS if os.name == "nt" else HOOK_LAUNCHER_POSIX
+    use_windows_launcher = script_type == "ps" if script_type is not None else os.name == "nt"
+    launcher_name = HOOK_LAUNCHER_WINDOWS if use_windows_launcher else HOOK_LAUNCHER_POSIX
     launcher_path = f".specify/bin/{launcher_name}"
     if project_dir_env_var:
-        project_root = f'"$env:{project_dir_env_var}"' if os.name == "nt" else f'"${project_dir_env_var}"'
+        project_root = (
+            f'"$env:{project_dir_env_var}"'
+            if use_windows_launcher
+            else f'"${project_dir_env_var}"'
+        )
         return f"{project_root}/{launcher_path} {integration_key} {route}"
     return f"{launcher_path} {integration_key} {route}"
 

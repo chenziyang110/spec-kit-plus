@@ -23,8 +23,17 @@ def _load_fastmcp():
     return FastMCP
 
 
+def _looks_like_windows_absolute_path(raw: str) -> bool:
+    return bool(raw) and len(raw) >= 3 and raw[1] == ":" and raw[2] in {"\\", "/"}
+
+
 def _resolve_project_root(project_root: str | None) -> Path:
-    return Path(project_root).resolve() if project_root else Path.cwd().resolve()
+    if not project_root:
+        return Path.cwd().resolve()
+    raw = str(project_root).strip()
+    if _looks_like_windows_absolute_path(raw):
+        return Path(raw)
+    return Path(raw).resolve()
 
 
 def build_teams_mcp_server(*, fastmcp_cls: type | None = None):

@@ -21,7 +21,7 @@ class GeminiIntegration(TomlIntegration):
     key = "gemini"
 
     @classmethod
-    def _build_managed_hook_events(cls) -> dict[str, list[dict[str, Any]]]:
+    def _build_managed_hook_events(cls, *, script_type: str = "sh") -> dict[str, list[dict[str, Any]]]:
         return {
             "SessionStart": [
                 {
@@ -34,6 +34,7 @@ class GeminiIntegration(TomlIntegration):
                                 "gemini",
                                 "session-start",
                                 project_dir_env_var="GEMINI_PROJECT_DIR",
+                                script_type=script_type,
                             ),
                         }
                     ],
@@ -50,6 +51,7 @@ class GeminiIntegration(TomlIntegration):
                                 "gemini",
                                 "before-agent",
                                 project_dir_env_var="GEMINI_PROJECT_DIR",
+                                script_type=script_type,
                             ),
                         }
                     ],
@@ -66,6 +68,7 @@ class GeminiIntegration(TomlIntegration):
                                 "gemini",
                                 "before-tool",
                                 project_dir_env_var="GEMINI_PROJECT_DIR",
+                                script_type=script_type,
                             ),
                         }
                     ],
@@ -274,11 +277,12 @@ class GeminiIntegration(TomlIntegration):
         *,
         project_root: Path,
         manifest: IntegrationManifest,
+        script_type: str = "sh",
     ) -> list[Path]:
         settings_path = self._gemini_settings_path(project_root)
         settings_path.parent.mkdir(parents=True, exist_ok=True)
 
-        managed_events = self._build_managed_hook_events()
+        managed_events = self._build_managed_hook_events(script_type=script_type)
 
         if not settings_path.exists():
             payload = {"hooks": managed_events}
@@ -320,7 +324,11 @@ class GeminiIntegration(TomlIntegration):
             project_root,
             manifest=manifest,
         )
-        self._install_or_merge_hook_settings(project_root=project_root, manifest=manifest)
+        self._install_or_merge_hook_settings(
+            project_root=project_root,
+            manifest=manifest,
+            script_type=opts.get("script_type", "sh"),
+        )
         return created
 
     def repair_runtime_assets(
@@ -347,6 +355,7 @@ class GeminiIntegration(TomlIntegration):
             self._install_or_merge_hook_settings(
                 project_root=project_root,
                 manifest=manifest,
+                script_type=opts.get("script_type", "sh"),
             )
         )
         return created

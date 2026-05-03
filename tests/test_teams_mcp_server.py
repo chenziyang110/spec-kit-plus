@@ -56,6 +56,21 @@ def test_build_teams_mcp_server_registers_expected_tools(monkeypatch) -> None:
     assert calls == [(r"F:\project", "status", "blue")]
 
 
+def test_build_teams_mcp_server_preserves_windows_absolute_paths_on_posix(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_run(project_root: Path, operation: str, **kwargs):
+        calls.append(str(project_root))
+        return {"operation": operation, "status": "ok"}
+
+    monkeypatch.setattr("specify_cli.mcp.teams_server.run_team_api_operation", fake_run)
+
+    server = build_teams_mcp_server(fastmcp_cls=FakeFastMCP)
+    server.tools["teams_status"](project_root=r"F:\project")
+
+    assert calls == [r"F:\project"]
+
+
 def test_build_teams_mcp_server_registers_read_only_resources(monkeypatch) -> None:
     def fake_run(project_root: Path, operation: str, **kwargs):
         return {"operation": operation, "status": "ok", "payload": {"project_root": str(project_root)}}
