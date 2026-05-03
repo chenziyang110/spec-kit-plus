@@ -384,6 +384,70 @@ def test_hook_checkpoint_supports_constitution_command(tmp_path: Path):
     assert payload["data"]["checkpoint"]["active_command"] == "sp-constitution"
 
 
+def test_hook_checkpoint_supports_prd_command(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "prd-runs" / "260502-demo-prd"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo PRD",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-prd`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `analysis-only`",
+                "- summary: reverse PRD extraction",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- prd.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- workflow-state.md",
+                "",
+                "## Next Action",
+                "",
+                "- finish export completeness checks",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.prd`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "checkpoint",
+            "--command",
+            "prd",
+            "--feature-dir",
+            str(run_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.checkpoint"
+    assert payload["status"] == "ok"
+    assert payload["data"]["checkpoint"]["state_kind"] == "workflow-state"
+    assert payload["data"]["checkpoint"]["active_command"] == "sp-prd"
+
+
 def test_hook_validate_artifacts_supports_constitution_command(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
