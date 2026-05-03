@@ -63,6 +63,19 @@ def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
                 "- phase_mode: `planning-only`",
                 "- summary: demo",
                 "",
+                "## Scenario Profile",
+                "",
+                "- active_profile: `greenfield-api`",
+                "- routing_reason: Requirements create a new API boundary.",
+                "- confidence_level: `high`",
+                "",
+                "## Profile Obligations",
+                "",
+                "- required_sections:",
+                "  - API contract",
+                "- required_evidence:",
+                "  - Contract test output",
+                "",
             ]
         ),
         encoding="utf-8",
@@ -84,6 +97,8 @@ def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.state.validate"
     assert payload["status"] == "ok"
+    assert payload["data"]["checkpoint"]["active_profile"] == "greenfield-api"
+    assert payload["data"]["checkpoint"]["required_sections"] == ["API contract"]
 
 
 def test_hook_validate_state_supports_constitution_command(tmp_path: Path):

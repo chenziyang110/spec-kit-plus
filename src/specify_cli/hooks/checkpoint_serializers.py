@@ -108,10 +108,36 @@ def extract_bullets(text: str) -> list[str]:
     return values
 
 
+def extract_nested_bullets_by_label(text: str, label: str) -> list[str]:
+    target = f"{label}:"
+    values: list[str] = []
+    collecting = False
+    child_indent: int | None = None
+    for raw_line in text.splitlines():
+        if not raw_line.strip():
+            continue
+        indent = len(raw_line) - len(raw_line.lstrip(" "))
+        stripped = raw_line.strip()
+        is_top_level_bullet = stripped.startswith("- ") and indent == 0
+        if is_top_level_bullet:
+            item = stripped[2:].strip()
+            collecting = item.lower() == target.lower()
+            child_indent = None
+            continue
+        if collecting and indent > 0 and stripped.startswith("- "):
+            if child_indent is None:
+                child_indent = indent
+            if indent == child_indent:
+                values.append(_strip_wrappers(stripped[2:].strip()))
+    return values
+
+
 def serialize_workflow_state(path: Path) -> dict[str, Any]:
     text = _read_text(path)
     current_command = section_body(text, "Current Command")
     phase_mode = section_body(text, "Phase Mode")
+    scenario_profile = section_body(text, "Scenario Profile")
+    profile_obligations = section_body(text, "Profile Obligations")
     next_action = section_body(text, "Next Action")
     next_command = section_body(text, "Next Command")
     authoritative_files = section_body(text, "Authoritative Files")
@@ -127,6 +153,14 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
         "active_command": extract_field(current_command, "active_command"),
         "status": extract_field(current_command, "status"),
         "phase_mode": extract_field(phase_mode, "phase_mode"),
+        "active_profile": extract_field(scenario_profile, "active_profile"),
+        "routing_reason": extract_field(scenario_profile, "routing_reason"),
+        "confidence_level": extract_field(scenario_profile, "confidence_level"),
+        "required_sections": extract_nested_bullets_by_label(profile_obligations, "required_sections"),
+        "activated_gates": extract_nested_bullets_by_label(profile_obligations, "activated_gates"),
+        "task_shaping_rules": extract_nested_bullets_by_label(profile_obligations, "task_shaping_rules"),
+        "required_evidence": extract_nested_bullets_by_label(profile_obligations, "required_evidence"),
+        "transition_policy": extract_field(profile_obligations, "transition_policy"),
         "next_action": extract_first_nonempty_line(next_action),
         "next_command": extract_first_nonempty_line(next_command),
         "authoritative_files": extract_bullets(authoritative_files),
