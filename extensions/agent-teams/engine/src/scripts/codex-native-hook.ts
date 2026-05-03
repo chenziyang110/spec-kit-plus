@@ -646,6 +646,23 @@ function buildPromptPriorityMessage(prompt: string): string | null {
   return null;
 }
 
+function requestedWorkflowPolicyActionFromPrompt(prompt: string): string {
+  const normalized = prompt.toLowerCase();
+  if (/implement directly|jump to implement/i.test(normalized)) {
+    return "jump_to_implement";
+  }
+  if (/start editing code|start implementation/i.test(normalized)) {
+    return "start_editing_code";
+  }
+  if (/run fix loop/i.test(normalized)) {
+    return "run_fix_loop";
+  }
+  if (/jump to testing/i.test(normalized)) {
+    return "jump_to_testing";
+  }
+  return "";
+}
+
 function readHookEventName(payload: CodexHookPayload): CodexHookEventName | null {
   const raw = safeString(
     payload.hook_event_name
@@ -2237,7 +2254,7 @@ export async function dispatchCodexNativeHook(
         sharedPromptGuardOutput = sharedHookBlockOutput("UserPromptSubmit", sharedPromptGuardPayload);
       }
       if (!sharedPromptGuardOutput) {
-        const requestedAction = /implement directly|jump to implement/i.test(prompt) ? "jump_to_implement" : "";
+        const requestedAction = requestedWorkflowPolicyActionFromPrompt(prompt);
         if (requestedAction) {
           const policyArgs = await buildSharedCompactionArgs(cwd, payload, "read");
           const context = await resolveLearningSignalContext(cwd, payload);
@@ -2361,7 +2378,7 @@ export async function dispatchCodexNativeHook(
       ? await buildSessionStartContext(cwd, canonicalSessionId || nativeSessionId)
       : (buildAdditionalContextMessage(readPromptText(payload), skillState, cwd, payload) ?? triageAdditionalContext);
     if (hookEventName === "SessionStart") {
-      const sharedCompactionArgs = await buildSharedCompactionArgs(cwd, payload, "read");
+      const sharedCompactionArgs = await buildSharedCompactionArgs(cwd, payload, "build");
       if (sharedCompactionArgs) {
         sharedCompactionPayload = invokeSharedQualityHook(sharedCompactionArgs, { cwd });
       }

@@ -3,8 +3,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { buildManagedCodexHooksConfig } from "../../config/codex-hooks.js";
 import {
@@ -110,6 +110,55 @@ async function writeImplementTracker(
             "",
           ]
         : []),
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+async function writePlanningOnlyWorkflowState(featureDir: string): Promise<void> {
+  await mkdir(featureDir, { recursive: true });
+  await writeFile(
+    join(featureDir, "workflow-state.md"),
+    [
+      "# Workflow State: Demo",
+      "",
+      "## Current Command",
+      "",
+      "- active_command: `sp-specify`",
+      "- status: `active`",
+      "",
+      "## Phase Mode",
+      "",
+      "- phase_mode: `planning-only`",
+      "- summary: draft specification",
+      "",
+      "## Allowed Artifact Writes",
+      "",
+      "- spec.md",
+      "- checklists/requirements.md",
+      "",
+      "## Forbidden Actions",
+      "",
+      "- edit source code",
+      "- run implementation tasks",
+      "",
+      "## Authoritative Files",
+      "",
+      "- spec.md",
+      "- workflow-state.md",
+      "",
+      "## Next Action",
+      "",
+      "- refine scope",
+      "",
+      "## Next Command",
+      "",
+      "- `/sp.plan`",
+      "",
+      "## Learning Signals",
+      "",
+      "- route_reason: `spec not yet approved for implementation`",
+      "",
     ].join("\n"),
     "utf-8",
   );
@@ -280,7 +329,7 @@ describe("codex native hook dispatch", () => {
   it("emits deterministic JSON stdout when CLI stdin is malformed", () => {
     const stdout = execFileSync(
       process.execPath,
-      [join(process.cwd(), "dist", "scripts", "codex-native-hook.js")],
+      [resolve(dirname(fileURLToPath(import.meta.url)), "..", "codex-native-hook.js")],
       {
         cwd: process.cwd(),
         input: "{",
@@ -386,6 +435,32 @@ describe("codex native hook dispatch", () => {
     }
   });
 
+  it("includes shared recovery summary in SessionStart output for active planning-only workflow state", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-session-recovery-summary-"));
+    try {
+      const featureDir = join(cwd, "specs", "001-demo");
+      await writePlanningOnlyWorkflowState(featureDir);
+
+      const result = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "SessionStart",
+          cwd,
+          session_id: "sess-recovery-summary-1",
+        },
+        { cwd, sessionOwnerPid: 43210 },
+      );
+
+      const additionalContext = String(
+        (result.outputJson as { hookSpecificOutput?: { additionalContext?: string } } | null)
+          ?.hookSpecificOutput?.additionalContext ?? "",
+      );
+      assert.match(additionalContext, /planning-only/);
+      assert.match(additionalContext, /\/sp\.plan/);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("preserves canonical OMX session scope when native SessionStart arrives with a different id", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-session-reconcile-"));
     try {
@@ -435,6 +510,46 @@ describe("codex native hook dispatch", () => {
       assert.equal(existsSync(join(stateDir, "sessions", canonicalSessionId, "ralplan-state.json")), true);
       assert.equal(existsSync(join(stateDir, "sessions", nativeSessionId, "skill-active-state.json")), false);
       assert.equal(existsSync(join(stateDir, "sessions", nativeSessionId, "ralplan-state.json")), false);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks repeated shared phase drift in UserPromptSubmit while workflow remains planning-only", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-repeated-phase-drift-"));
+    try {
+      const featureDir = join(cwd, "specs", "001-demo");
+      await writePlanningOnlyWorkflowState(featureDir);
+
+      const first = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "UserPromptSubmit",
+          cwd,
+          session_id: "sess-repeated-phase-drift-1",
+          thread_id: "thread-repeated-phase-drift-1",
+          turn_id: "turn-repeated-phase-drift-1",
+          prompt: "start editing code for the current feature",
+        },
+        { cwd },
+      );
+      assert.notEqual(first.outputJson?.decision, "block");
+
+      const second = await dispatchCodexNativeHook(
+        {
+          hook_event_name: "UserPromptSubmit",
+          cwd,
+          session_id: "sess-repeated-phase-drift-1",
+          thread_id: "thread-repeated-phase-drift-1",
+          turn_id: "turn-repeated-phase-drift-2",
+          prompt: "start editing code for the current feature",
+        },
+        { cwd },
+      );
+
+      assert.equal(second.outputJson?.decision, "block");
+      assert.match(String(second.outputJson?.reason ?? ""), /phase drift/i);
+      assert.match(JSON.stringify(second.outputJson), /planning-only/);
+      assert.match(JSON.stringify(second.outputJson), /\/sp\.plan/);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
