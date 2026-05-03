@@ -514,6 +514,18 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "write-set and parallel-safety analysis" in lowered
     assert "plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)" in content
     assert "alignment.md (locked decisions, outstanding questions, planning gate context)" in content
+    assert "Scenario profile inputs" in content
+    assert "same profile contract or active profile" in lowered
+    assert "persisted first-release profile contract" in lowered
+    assert "unsupported `active_profile`" in lowered
+    assert "stops before decomposition" in lowered
+    assert "repair/re-run upstream routing state" in lowered
+    assert "preserve it only as context while shaping tasks" not in lowered
+    assert "fidelity checkpoints" in lowered
+    assert "before implementation batches that can materially change the reference-preserved surface" in lowered
+    assert "after implementation batches that materially change" not in lowered
+    assert "deviation review" in lowered
+    assert "required evidence" in lowered
     assert "Locked Planning Decisions" in content
     assert "Decision Preservation Check" in content
     assert "quickstart.md exists: extract validation scenarios" in lowered
