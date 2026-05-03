@@ -318,6 +318,8 @@ Native hook coverage matrix:
 | Gemini | Yes | Yes | Yes | No |
 | Other integrations | Yes | No | No | No |
 
+Active `sp-*` workflows now surface a structured recovery summary on resume. Prompt-entry policy uses redirect-first enforcement for phase drift, then hard-blocks repeated or explicit phase jumps so agents return to the recorded workflow state before coding or fix loops.
+
 ## Detailed Example: Building Taskify
 
 Here's a complete example of building a team productivity platform:

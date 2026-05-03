@@ -1047,6 +1047,15 @@ def test_workflow_state_template_exists_and_captures_phase_lock_contract():
     assert "/sp.constitution" in content
 
 
+def test_workflow_state_template_documents_recovery_sections() -> None:
+    content = _read("templates/workflow-state-template.md")
+
+    assert "## Allowed Artifact Writes" in content
+    assert "## Forbidden Actions" in content
+    assert "## Authoritative Files" in content
+    assert "Re-read this file first after compaction or session recovery." in content
+
+
 def test_auto_template_routes_from_existing_state_surfaces():
     content = _read("templates/commands/auto.md")
     lowered = content.lower()

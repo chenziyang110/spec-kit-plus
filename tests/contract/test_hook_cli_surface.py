@@ -875,6 +875,81 @@ def test_hook_workflow_policy_outputs_redirect_payload(tmp_path: Path):
     assert payload["data"]["policy"]["recovery_summary"]["next_command"] == "/sp.plan"
 
 
+def test_hook_workflow_policy_accepts_prior_redirect_count(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: draft specification",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "- checklists/requirements.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "- run implementation tasks",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "- workflow-state.md",
+                "",
+                "## Next Action",
+                "",
+                "- refine scope",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+                "## Learning Signals",
+                "",
+                "- route_reason: `spec not yet approved for implementation`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "workflow-policy",
+            "--command",
+            "specify",
+            "--feature-dir",
+            str(feature_dir),
+            "--trigger",
+            "prompt",
+            "--requested-action",
+            "start_editing_code",
+            "--prior-redirect-count",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.policy.evaluate"
+    assert payload["status"] == "blocked"
+
+
 def test_hook_build_compaction_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)
     workspace = project / ".planning" / "quick" / "260502-001-demo"

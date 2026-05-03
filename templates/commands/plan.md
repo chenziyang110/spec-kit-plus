@@ -61,6 +61,7 @@ agent_scripts:
   - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from plan artifacts`
 - Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
+- If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
 ## Outline
 
@@ -78,6 +79,7 @@ agent_scripts:
      - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from plan artifacts`
      - `authoritative_files: spec.md, alignment.md, context.md, plan.md, research.md`
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
+   - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
 2. **Ensure repository navigation system exists**:
    - Check whether `.specify/project-map/index/status.json` exists.

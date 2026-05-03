@@ -65,6 +65,7 @@
 - Re-read this file first after compaction or session recovery.
 - Re-read the authoritative files before taking the next step.
 - If the next action conflicts with the current `phase_mode`, stop and repair the workflow state instead of improvising.
+- Native hook recovery may redirect the first phase jump back to this state; repeated or explicit phase jumps must be blocked by workflow policy.
 
 ## Exit Criteria
 

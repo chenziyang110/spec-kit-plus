@@ -4749,6 +4749,7 @@ def hook_workflow_policy_command(
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
     trigger: str = typer.Option("manual", "--trigger", help="Native or workflow trigger name"),
     requested_action: str | None = typer.Option(None, "--requested-action", help="Requested high-level action"),
+    prior_redirect_count: int = typer.Option(0, "--prior-redirect-count", help="Number of prior redirect outcomes for this active workflow"),
 ):
     """Evaluate workflow policy and return normalized enforcement JSON."""
     project_root = Path.cwd()
@@ -4763,6 +4764,7 @@ def hook_workflow_policy_command(
             "session_file": _normalize_optional_repo_path(project_root, session_file),
             "trigger": trigger,
             "requested_action": requested_action or "",
+            "prior_redirect_count": prior_redirect_count,
         },
     )
 

@@ -85,6 +85,7 @@ continues.
   - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
 - Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
+- If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
 ## Outline
 
@@ -131,6 +132,7 @@ Generate the pre-analysis output as the first section of `context.md`.
      - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
      - `authoritative_files: spec.md, alignment.md, context.md, references.md`
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
+   - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
 4. Ensure repository navigation system exists.
    - Check whether `.specify/project-map/index/status.json` exists.

@@ -10,8 +10,11 @@ workflow truth remains centralized under `src/specify_cli/hooks/`.
 Managed native hook coverage:
 
 - `SessionStart` renders active workflow orientation and bounded resume cues.
+- `SessionStart` injects the structured recovery summary for active resumable workflows.
 - `BeforeAgent` applies shared prompt-bypass guards, workflow-policy checks, and soft learning-signal warnings.
+- `BeforeAgent` handles prompt-entry phase drift with a redirect-first workflow-policy response.
 - `BeforeTool` applies shared workflow-policy checks, read-boundary checks, and inline commit-message guards.
+- Repeated or explicit phase jumps are blocked by the shared workflow policy.
 
 Learning capture and terminal learning review remain explicit workflow
 responsibilities. Native hooks surface friction automatically, but they do not

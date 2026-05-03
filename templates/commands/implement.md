@@ -116,6 +116,7 @@ After checks complete, record results in `implement-tracker.md`:
 
 - `FEATURE_DIR/implement-tracker.md` is the execution-state source of truth for `sp-implement`.
 - [AGENT] Create it if missing after `FEATURE_DIR` is known. If it already exists and is not terminal, resume from it instead of restarting from chat memory.
+- If native hook policy redirects a prompt-entry phase jump, return to `workflow-state.md` or `implement-tracker.md`; repeated or explicit phase jumps are blocked by shared workflow policy.
 - Treat terminal states as `resolved` or `blocked`. Treat `gathering`, `executing`, `recovering`, `replanning`, and `validating` as resumable states.
 - Update the tracker before each material phase transition: after scope recovery, before dispatching a ready batch, after each join point, before validation, when entering replanning, and before final completion reporting.
 - The tracker must keep these fields obvious:
