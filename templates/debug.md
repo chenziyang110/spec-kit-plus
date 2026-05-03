@@ -12,6 +12,8 @@ slug: [session slug]
 status: gathering | investigating | fixing | verifying | awaiting_human_verify | resolved
 trigger: "[verbatim user input]"
 diagnostic_profile: scheduler-admission | cache-snapshot | ui-projection | general
+causal_map_completed: [true only after the Stage 1A causal map is written]
+contract_generation_completed: [true only after the Stage 1B contract planner finishes]
 observer_mode: full | compressed
 observer_framing_completed: [true only after observer framing and transition memo are both written and the observer gate passes]
 framing_gate_passed: [true only after candidate count, diversity, contrarian candidate, and transition memo requirements pass]
@@ -52,6 +54,34 @@ atlas_module_docs_read:
   - [module overview or module-local doc actually read]
 atlas_status_basis: [fresh | missing | stale | possibly_stale plus the decision taken]
 atlas_blocked_reason: [why atlas gating blocked work, if it did]
+
+## Causal Map
+<!-- OVERWRITE/REFINE before observer framing - Stage 1A system-map view -->
+
+symptom_anchor: [where the symptom first appears]
+closed_loop_path:
+  - [input event]
+  - [control decision]
+  - [truth owner update]
+  - [projection refresh]
+  - [external observation]
+break_edges:
+  - [where the loop most likely breaks]
+bypass_paths:
+  - [cache or projection bypass]
+family_coverage:
+  - [truth_owner_logic | cache_snapshot | projection_render]
+candidates:
+  - candidate_id: [stable candidate id]
+    family: [failure family]
+    candidate: [concise hypothesis]
+    falsifier: [key disconfirming signal]
+adjacent_risk_targets:
+  - target: [nearest-neighbor risk]
+    reason: [why it is related]
+    family: [failure family]
+    scope: [nearest-neighbor | broader-family]
+    falsifier: [what would disconfirm the risk]
 
 ## Observer Framing
 <!-- OVERWRITE/REFINE before evidence investigation - outsider view only -->
@@ -243,6 +273,11 @@ loop_restoration_proof:
 - Reference point for what we're trying to fix
 - Fields: expected, actual, errors, reproduction, reproduction_command, started, reproduction_verified
 
+**Causal Map:**
+- OVERWRITE/REFINE during Stage 1A
+- Captures the system-map view before contract generation begins
+- Tracks family coverage, broken edges, likely bypass paths, and nearest-neighbor risks
+
 **Observer Framing:**
 - OVERWRITE/REFINE before evidence investigation begins
 - Must be built from the user report plus handbook/project-map context only
@@ -266,7 +301,7 @@ loop_restoration_proof:
 - `causal_coverage_state.related_risk_scan_completed` should stay `false` until the nearest-neighbor review is actually complete
 
 **Observer Gate:**
-- Set `observer_framing_completed: true` only after both `Observer Framing` and `Transition Memo` are complete
+- Set `observer_framing_completed: true` only after Stage 1A (`Causal Map`) and Stage 1B (`Observer Framing` + `Transition Memo`) are complete
 - If `observer_mode` is `compressed`, `skip_observer_reason` must be non-empty
 - No source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`
 

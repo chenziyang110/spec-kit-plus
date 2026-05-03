@@ -134,6 +134,36 @@ def _print_fix_closure_summary(state: DebugGraphState) -> None:
             console.print(f"  - {item}")
 
 
+def _print_causal_map_summary(state: DebugGraphState) -> None:
+    causal_map = state.causal_map
+    if not any(
+        (
+            causal_map.symptom_anchor,
+            causal_map.closed_loop_path,
+            causal_map.break_edges,
+            causal_map.family_coverage,
+            causal_map.adjacent_risk_targets,
+        )
+    ):
+        return
+
+    console.print("[bold]Causal Map[/bold]")
+    if causal_map.symptom_anchor:
+        console.print(f"- Symptom anchor: {causal_map.symptom_anchor}")
+    if causal_map.family_coverage:
+        console.print(f"- Family coverage: {', '.join(causal_map.family_coverage)}")
+    if causal_map.break_edges:
+        console.print("- Break edges:")
+        for edge in causal_map.break_edges:
+            console.print(f"  - {edge}")
+    if causal_map.adjacent_risk_targets:
+        console.print("- Adjacent risk targets:")
+        for target in causal_map.adjacent_risk_targets:
+            target_id = target["target"] if isinstance(target, dict) else target.target
+            scope = target["scope"] if isinstance(target, dict) else target.scope
+            console.print(f"  - {target_id} ({scope})")
+
+
 def _print_observer_framing_summary(state: DebugGraphState) -> None:
     observer = state.observer_framing
     if not any(
@@ -283,6 +313,7 @@ def _print_session_checkpoint(state: DebugGraphState, handler: MarkdownPersisten
             console.print("[bold]Suggested Codex Spawn Payloads[/bold]")
             for task in spawn_plan:
                 console.print(f"- {task.lane_name}: {task.agent_type} ({task.reasoning_effort})")
+    _print_causal_map_summary(state)
     _print_observer_framing_summary(state)
     _print_transition_memo(state)
     _print_investigation_contract_summary(state)

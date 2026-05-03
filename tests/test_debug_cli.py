@@ -2,7 +2,7 @@ import pytest
 from typer.testing import CliRunner
 from specify_cli import app
 import re
-from specify_cli.debug.schema import DebugStatus
+from specify_cli.debug.schema import CausalMapRiskTarget, DebugStatus
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.debug.schema import DebugGraphState, ObserverCauseCandidate, SuggestedEvidenceLane
 
@@ -258,6 +258,43 @@ def test_debug_prints_checkpoint_for_incomplete_session(clean_debug_dir, monkeyp
     assert "next action" in result.stdout.lower()
     assert "truth ownership map" in result.stdout.lower()
     assert "checkpoint-test.md" in result.stdout
+
+
+def test_debug_checkpoint_renders_causal_map_section(clean_debug_dir, monkeypatch):
+    import specify_cli.debug.cli as cli_module
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        state.status = DebugStatus.INVESTIGATING
+        state.causal_map_completed = True
+        state.causal_map.symptom_anchor = "UI queue badge remains non-zero"
+        state.causal_map.family_coverage = [
+            "truth_owner_logic",
+            "cache_snapshot",
+            "projection_render",
+        ]
+        state.causal_map.break_edges = [
+            "slot ownership update -> queue projection refresh",
+        ]
+        state.causal_map.adjacent_risk_targets = [
+            CausalMapRiskTarget(
+                target="release-retry-loop",
+                reason="Retry admission also depends on slot ownership",
+                family="truth_owner_logic",
+                scope="nearest-neighbor",
+                falsifier="Retry admission bypasses slot ownership state",
+            )
+        ]
+        handler.save(state)
+
+    monkeypatch.setattr(cli_module, "generate_slug", lambda _: "dual-observer")
+    monkeypatch.setattr(cli_module, "run_debug_session", fake_run_debug_session)
+
+    result = runner.invoke(app, ["debug", "queue badge remains non-zero"])
+
+    assert result.exit_code == 0
+    assert "causal map" in result.stdout.lower()
+    assert "family coverage" in result.stdout.lower()
+    assert "release-retry-loop" in result.stdout.lower()
 
 
 def test_debug_prints_missing_root_cause_fields(clean_debug_dir, monkeypatch):
