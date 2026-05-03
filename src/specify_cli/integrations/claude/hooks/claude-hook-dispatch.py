@@ -258,6 +258,22 @@ def _format_recovery_summary(summary: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def _artifact_resume_cue(artifact: dict[str, Any]) -> str:
+    phase_state = artifact.get("phase_state", {})
+    if not isinstance(phase_state, dict):
+        phase_state = {}
+    next_action = str(phase_state.get("next_action") or "").strip()
+    if next_action:
+        return f"Resume cue: {next_action}."
+    resume_cue = artifact.get("resume_cue", [])
+    if isinstance(resume_cue, list):
+        for item in resume_cue:
+            text = str(item or "").strip()
+            if text:
+                return text
+    return ""
+
+
 def _read_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
@@ -572,6 +588,7 @@ def _compaction_resume_context(
     *,
     build: bool,
     trigger: str,
+    prefer_summary: bool,
 ) -> str:
     if not context:
         return ""
@@ -580,33 +597,18 @@ def _compaction_resume_context(
     if build:
         args.extend(["--trigger", trigger])
     shared = _run_shared_hook(project_root, args)
-    artifact = shared.get("data", {}).get("artifact", {}) if shared else {}
-    if (not shared or not isinstance(artifact, dict) or not artifact) and not build:
-        build_args = ["build-compaction", *_active_context_args(context), "--trigger", trigger]
-        shared = _run_shared_hook(project_root, build_args)
     if not shared:
         return ""
     artifact = shared.get("data", {}).get("artifact", {})
-    if not isinstance(artifact, dict):
+    if not isinstance(artifact, dict) or not artifact:
         return ""
-    recovery_summary = artifact.get("recovery_summary", {})
-    if isinstance(recovery_summary, dict):
-        formatted = _format_recovery_summary(recovery_summary)
-        if formatted:
-            return formatted
-    phase_state = artifact.get("phase_state", {})
-    if not isinstance(phase_state, dict):
-        phase_state = {}
-    next_action = str(phase_state.get("next_action") or "").strip()
-    if next_action:
-        return f"Resume cue: {next_action}."
-    resume_cue = artifact.get("resume_cue", [])
-    if isinstance(resume_cue, list):
-        for item in resume_cue:
-            text = str(item or "").strip()
-            if text:
-                return text
-    return ""
+    if prefer_summary:
+        recovery_summary = artifact.get("recovery_summary", {})
+        if isinstance(recovery_summary, dict):
+            formatted = _format_recovery_summary(recovery_summary)
+            if formatted:
+                return formatted
+    return _artifact_resume_cue(artifact)
 
 
 def _stop_system_message(message: str) -> dict[str, Any] | None:
@@ -700,7 +702,13 @@ def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[
     if not shared:
         return None
     statusline = str(shared.get("data", {}).get("statusline") or "").strip()
-    resume_context = _compaction_resume_context(project_root, context, build=False, trigger="session_start")
+    resume_context = _compaction_resume_context(
+        project_root,
+        context,
+        build=True,
+        trigger="session_start",
+        prefer_summary=True,
+    )
     additional_context = " ".join(part for part in [statusline, resume_context] if part).strip()
     if not additional_context:
         return None
@@ -752,7 +760,13 @@ def _handle_post_tool_session_state(project_root: Path, _payload: dict[str, Any]
     signal_context = _learning_signal_context(project_root, context, "PostToolUse")
     if signal_context:
         advisory_parts.append(signal_context)
-    compaction_context = _compaction_resume_context(project_root, context, build=True, trigger="post_tool")
+    compaction_context = _compaction_resume_context(
+        project_root,
+        context,
+        build=True,
+        trigger="post_tool",
+        prefer_summary=False,
+    )
     if compaction_context:
         advisory_parts.append(compaction_context)
     if advisory_parts:
@@ -799,7 +813,13 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
 
     if status == "warn":
         extra = " ".join([*warnings, *actions]).strip()
-        compaction_context = _compaction_resume_context(project_root, context, build=True, trigger="before_stop")
+        compaction_context = _compaction_resume_context(
+            project_root,
+            context,
+            build=True,
+            trigger="before_stop",
+            prefer_summary=False,
+        )
         if compaction_context:
             extra = f"{extra} {compaction_context}".strip()
         else:
@@ -814,7 +834,13 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
         if extra:
             return _stop_system_message(extra)
 
-    compaction_context = _compaction_resume_context(project_root, context, build=True, trigger="before_stop")
+    compaction_context = _compaction_resume_context(
+        project_root,
+        context,
+        build=True,
+        trigger="before_stop",
+        prefer_summary=False,
+    )
     if compaction_context:
         return _stop_system_message(compaction_context)
     signal_context = _learning_signal_context(project_root, context, "Stop")
