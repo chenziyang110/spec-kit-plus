@@ -61,6 +61,10 @@ def test_bash_prd_init_creates_run_workspace_and_emits_json(tmp_path: Path):
     workflow_state = (run_dir / "workflow-state.md").read_text(encoding="utf-8")
     assert "- active_command: `sp-prd`" in workflow_state
     assert "- phase_mode: `analysis-only`" in workflow_state
+    assert "## Allowed Artifact Writes" in workflow_state
+    assert "## Forbidden Actions" in workflow_state
+    assert "## Authoritative Files" in workflow_state
+    assert "## Next Command" in workflow_state
     assert payload["surfaces"] == {
         "workspace": True,
         "evidence": True,
@@ -150,6 +154,10 @@ def test_python_prd_helper_wrapper_runs_helper_from_current_project(tmp_path: Pa
     state_content = state_path.read_text(encoding="utf-8")
     assert "- active_command: `sp-prd`" in state_content
     assert "- phase_mode: `analysis-only`" in state_content
+    assert "## Allowed Artifact Writes" in state_content
+    assert "## Forbidden Actions" in state_content
+    assert "## Authoritative Files" in state_content
+    assert "## Next Command" in state_content
 
 
 def test_prd_helper_script_prefers_bundled_core_pack_scripts(tmp_path: Path, monkeypatch):
