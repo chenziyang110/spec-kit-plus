@@ -84,6 +84,46 @@ def _not_needed_deep_research_artifact() -> str:
 """
 
 
+def _reference_implementation_workflow_state(active_profile: str = "reference-implementation") -> str:
+    return "\n".join(
+        [
+            "# Workflow State: Demo",
+            "",
+            "## Current Command",
+            "",
+            "- active_command: `sp-specify`",
+            "- status: `active`",
+            "",
+            "## Phase Mode",
+            "",
+            "- phase_mode: `planning-only`",
+            "- summary: demo",
+            "",
+            "## Scenario Profile",
+            "",
+            f"- active_profile: `{active_profile}`" if active_profile else "- routing_reason: no active profile",
+            "- routing_reason: Existing implementation must remain the behavioral source of truth.",
+            "- confidence_level: `high`",
+            "",
+            "## Profile Obligations",
+            "",
+            "- required_sections:",
+            "  - Fidelity Requirements",
+            "  - Reference Object",
+            "  - Required Fidelity",
+            "",
+            "## Next Action",
+            "",
+            "- refine scope",
+            "",
+            "## Next Command",
+            "",
+            "- `/sp.plan`",
+            "",
+        ]
+    )
+
+
 def test_validate_artifacts_blocks_when_specify_outputs_are_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -99,6 +139,123 @@ def test_validate_artifacts_blocks_when_specify_outputs_are_missing(tmp_path: Pa
     assert result.status == "blocked"
     assert any("alignment.md" in message for message in result.errors)
     assert any("context.md" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_reference_implementation_spec_without_fidelity_requirements(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text(
+        "# Spec\n\n## User Scenarios\n\nDemo scenario.\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
+    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text(
+        _reference_implementation_workflow_state(),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("Fidelity Requirements" in message for message in result.errors)
+    assert any("Reference Object" in message for message in result.errors)
+    assert any("Required Fidelity" in message for message in result.errors)
+
+
+def test_validate_artifacts_requires_reference_implementation_sections_as_headings(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text(
+        """# Spec
+
+This prose mentions ## Fidelity Requirements but not as a heading.
+
+The text also mentions ### Reference Object and ### Required Fidelity inline.
+""",
+        encoding="utf-8",
+    )
+    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
+    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text(
+        _reference_implementation_workflow_state(),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("## Fidelity Requirements" in message for message in result.errors)
+    assert any("### Reference Object" in message for message in result.errors)
+    assert any("### Required Fidelity" in message for message in result.errors)
+
+
+def test_validate_artifacts_skips_reference_sections_when_profile_is_not_active(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text("# Spec\n\n## User Scenarios\n\nDemo scenario.\n", encoding="utf-8")
+    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
+    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text(
+        _reference_implementation_workflow_state(active_profile="greenfield-api"),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_accepts_reference_implementation_spec_with_fidelity_requirements(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text(
+        """# Spec
+
+## Fidelity Requirements
+
+### Reference Object
+
+- Existing checkout behavior.
+
+### Required Fidelity
+
+- Preserve request and response behavior.
+""",
+        encoding="utf-8",
+    )
+    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
+    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text(
+        _reference_implementation_workflow_state(),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
 
 
 def test_validate_artifacts_accepts_tasks_outputs_when_present(tmp_path: Path):

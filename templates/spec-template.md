@@ -29,6 +29,30 @@
 - [Explicitly excluded capability or workflow]
 - [Deferred enhancement, adjacent idea, or later release work]
 
+## Fidelity Requirements *(profile-driven overlay; include when an active scenario profile requires reference fidelity)*
+
+<!--
+  Shared-template overlay for Reference-Implementation, copy-exact, or other
+  fidelity-sensitive scenario profiles. Do not split this into a separate
+  template; remove or mark non-applicable subsections only when the active
+  profile has no reference object to preserve.
+-->
+
+### Reference Object
+
+- [Reference object, source path, artifact, product surface, behavior, or example that delivery must match]
+- [Reference-implementation or copy-exact scope, including which observable details are binding]
+
+### Required Fidelity
+
+- [Required fidelity dimensions such as behavior, layout, command shape, workflow order, naming, outputs, timing, or compatibility]
+- [Required evidence that will prove the implementation matches the reference object]
+
+### Allowed Deviations
+
+- [Explicitly allowed deviation from the reference object, with rationale and user-visible impact]
+- [Deviation review owner or approval condition, if any deviation must be accepted before implementation]
+
 ## Scenarios and Usage Paths *(mandatory)*
 
 <!--

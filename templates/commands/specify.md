@@ -74,6 +74,14 @@ continues.
 - Set or update the state for this run with at least:
   - `active_command: sp-specify`
   - `phase_mode: planning-only`
+  - `active_profile`
+  - `routing_reason`
+  - `confidence_level`
+  - `required_sections`
+  - `activated_gates`
+  - `task_shaping_rules`
+  - `required_evidence`
+  - `transition_policy`
   - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
 - Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
@@ -110,6 +118,14 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Persist at least these fields for the active pass:
      - `active_command: sp-specify`
      - `phase_mode: planning-only`
+     - `active_profile`
+     - `routing_reason`
+     - `confidence_level`
+     - `required_sections`
+     - `activated_gates`
+     - `task_shaping_rules`
+     - `required_evidence`
+     - `transition_policy`
      - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, workflow-state.md, checklists/requirements.md`
      - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
      - `authoritative_files: spec.md, alignment.md, context.md, references.md`
@@ -178,6 +194,45 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Task classification changes which requirement dimensions are probed. Use the inferred class to choose the questioning path instead of reusing one generic flow for every request.
 
    Briefly tell the user your inferred classification and allow correction before continuing.
+
+## Scenario Profile Routing
+
+Before deeper decomposition, infer exactly one `active_profile` for the full feature lifecycle and persist the routing result in `WORKFLOW_STATE_FILE`, `alignment.md`, and `context.md`. Use the first matching profile in this priority order:
+1. Explicit user profile: use only when the user directly names the scenario profile to run.
+2. Reference-Implementation: use when the request is to reproduce, port, match, compare against, or preserve fidelity to a named reference object. If the success criterion is fidelity to a reference object, this profile wins over ordinary enhancement or bug-fix routing.
+3. Debug / Repair: use when diagnosis, regression repair, broken behavior, or root-cause proof is the main lifecycle driver.
+4. Brownfield Enhancement: use when an existing capability is extended without reference-fidelity or repair as the dominant success criterion.
+5. Standard Delivery: use for ordinary new or changed capability delivery when no higher-priority profile applies.
+
+First release support: actively support only `Standard Delivery` and `Reference-Implementation`. `active_profile` must always be the supported profile whose obligations are persisted downstream in `required_sections`, `activated_gates`, `task_shaping_rules`, `required_evidence`, and `transition_policy`.
+
+If routing identifies `Debug / Repair` or `Brownfield Enhancement`, record the inferred unsupported taxonomy profile separately from `active_profile` as an inferred/unsupported routing note in `alignment.md` and `context.md`, then persist `active_profile: Standard Delivery` unless the request also meets `Reference-Implementation`. Do not persist `active_profile` as an unsupported profile in first release, and do not leave a state where `active_profile` names one profile while `required_sections`, `activated_gates`, or `transition_policy` describe another.
+
+If an explicit user profile request is unsupported in first release, or if an inferred profile is narrowed to a supported profile, surface every profile narrowing to the user and allow correction before proceeding. The user-facing note must name the requested or inferred unsupported profile, the supported `active_profile` that will be persisted for obligations, and the reason for narrowing.
+
+Document the first-release obligation mapping inline:
+- `Standard Delivery`:
+  - `required_sections`: goal, users and roles, first-release scope, capability decomposition, acceptance scenarios, constraints, risks, and planning handoff.
+  - `activated_gates`: atlas gate, classification gate, decomposition gate, clarification gate, confirmation gate, artifact self-review, and spec-lint readiness.
+  - `task_shaping_rules`: favor coherent delivery slices and testable user value.
+  - `required_evidence`: repository scout evidence, confirmed decisions, unresolved risks, and verification entry points.
+  - `transition_policy`: permit `/sp.plan` when no planning-critical ambiguity remains.
+- `Reference-Implementation`:
+  - `required_sections`: reference object identity, fidelity dimensions, allowed deviations, comparison method, acceptance proof, constraints, risks, and planning handoff.
+  - `activated_gates`: atlas gate, reference capture gate, fidelity criteria gate, deviation approval gate, confirmation gate, artifact self-review, and spec-lint readiness.
+  - `task_shaping_rules`: prioritize behavior, UX, data, and API fidelity over generic enhancement shaping.
+  - `required_evidence`: reference source evidence, fidelity criteria, difference inventory, accepted deviations, and verification entry points.
+  - `transition_policy`: permit `/sp.plan` only when the reference object and fidelity criteria are specific enough to test.
+
+For every profile decision, persist at least these fields for the active pass:
+- `active_profile`
+- `routing_reason`
+- `confidence_level`
+- `required_sections`
+- `activated_gates`
+- `task_shaping_rules`
+- `required_evidence`
+- `transition_policy`
 
 8. Analyze the whole feature before decomposing it.
    Build a top-down understanding grounded in the project handbook and touched-area topical map plus any targeted live-file reads. It must cover:
@@ -651,6 +706,14 @@ Generate the pre-analysis output as the first section of `context.md`.
     - After the artifact set is current, write or update `WORKFLOW_STATE_FILE` so it records:
       - `active_command: sp-specify`
       - `phase_mode: planning-only`
+      - `active_profile`
+      - `routing_reason`
+      - `confidence_level`
+      - `required_sections`
+      - `activated_gates`
+      - `task_shaping_rules`
+      - `required_evidence`
+      - `transition_policy`
       - current authoritative files
       - exit criteria for planning readiness
       - the next action required before handoff

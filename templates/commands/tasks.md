@@ -89,7 +89,7 @@ scripts:
 3. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
    - **Required when present**: alignment.md (locked decisions, outstanding questions, planning gate context)
-   - **Required when present**: workflow-state.md (current phase lock, allowed actions, forbidden actions, resume contract)
+   - **Required when present**: workflow-state.md (current phase lock, allowed actions, forbidden actions, resume contract, active profile, activated gates, task-shaping rules, and required evidence)
    - **Required when present**: `.specify/testing/TESTING_CONTRACT.md` (project-level testing rules and required regression behavior)
    - **Required when present**: `.specify/testing/TESTING_PLAYBOOK.md` (canonical test and coverage commands)
    - **Required when present**: `.specify/testing/COVERAGE_BASELINE.json` (baseline or threshold context by module)
@@ -135,6 +135,10 @@ artifacts afterward, but it may not skip the atlas gate.
       - before writing `tasks.md`
       - before emitting canonical parallel batches and join points
     - Record the chosen strategy, reason, any blocked dispatch or escalation decision, selected lanes, and join points in the generated report and implementation strategy section.
+    - Extract the active profile, activated gates, task-shaping rules, and required evidence obligations from `workflow-state.md`; `sp-tasks` consumes the same profile contract or active profile that `sp-specify`/`sp-plan` persisted, not a newly invented taxonomy.
+    - Keep `sp-tasks` aligned with the persisted first-release profile contract: `active_profile` must be one of the two supported profiles, `Standard Delivery` or `Reference-Implementation`.
+    - If `workflow-state.md` presents an unsupported `active_profile` during first release, `sp-tasks` stops before decomposition and tells the operator to repair/re-run upstream routing state before task generation continues.
+    - Treat `Scenario profile inputs` as task-shaping inputs: active profile, routing reason, activated gates, fidelity obligations, deviation review requirements, and required evidence.
     - Load plan.md and extract tech stack, libraries, project structure
     - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
     - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
@@ -145,6 +149,8 @@ artifacts afterward, but it may not skip the atlas gate.
     - If contracts/ exists: Map interface contracts to user stories
     - If research.md exists: Extract decisions for setup tasks
     - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
+    - If active profile is `Reference-Implementation`, add explicit fidelity checkpoints before implementation batches that can materially change the reference-preserved surface. Each fidelity checkpoint must identify the preserved surface, the reference evidence to compare against, the validation command or manual check, and the pass condition.
+    - If implementation may intentionally diverge from the reference contract, add a `Deviation Review` join point before downstream work continues. The join point must capture the divergence rationale, affected contract or reference surface, approval or re-planning requirement, and downstream task adjustments.
     - **Missing design artifacts**: If plan.md's expected artifacts (data-model.md, contracts/, research.md) are absent and the feature would benefit from them, stop and recommend re-running `{{invoke:plan}}` instead of generating tasks from incomplete design context.
     - Generate tasks organized by user story (see Task Generation Rules below)
     - Whether or not `.specify/testing/TESTING_CONTRACT.md` exists, treat tests as default deliverables for behavior changes, bug fixes, and refactors
@@ -154,6 +160,7 @@ artifacts afterward, but it may not skip the atlas gate.
     - A subagent can still execute the task internally through smaller 2-5 minute atomic steps, but do not explode the public task list into coordinator-hostile micro-tasks
     - Stop decomposition once the current executable window is atomic. Leave later phases at the coarser story or phase level when their exact shape depends on earlier join-point evidence
     - If later work still depends on upstream evidence, add a refinement checkpoint instead of guessing detailed downstream tasks too early
+    - Carry profile-required evidence into task completion criteria instead of relying only on generic behavior validation. When the active profile requires screenshots, trace IDs, reference comparisons, migration proof, or other required evidence, attach that evidence obligation to the relevant task done condition or join point pass condition.
     - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
     - **Task Guardrail Index**: Add task-to-guardrail mapping when tasks inherit execution rules from plan.md or constitution.md. Keep the mapping compact so downstream execution can resolve applicable hard rules per task.
     - For every `[P]` task or parallel batch, include: objective, write set, required references, forbidden drift, validation command, and done condition — the information downstream execution needs to dispatch work safely
@@ -187,6 +194,10 @@ artifacts afterward, but it may not skip the atlas gate.
    - Dependencies section showing story completion order
    - Parallel batches and join points for each phase where they matter
    - Join point validation notes whenever a join point gates downstream implementation or shared-surface merge work
+   - Scenario profile inputs section showing the active profile, activated gates, task-shaping rules, and required evidence when they materially shape execution
+   - Fidelity checkpoints before `Reference-Implementation` batches that can materially change the reference-preserved surface
+   - Deviation Review join points before downstream work continues when an implementation may intentionally diverge from the reference contract
+   - Task completion criteria that carry required evidence from the active profile instead of relying only on generic behavior validation
    - Parallel execution examples per story
     - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution
     - Planning inputs section showing implementation constitution rules when they materially shape execution
@@ -201,6 +212,7 @@ artifacts afterward, but it may not skip the atlas gate.
     - Parallel batch count and the join points that gate downstream work
     - Independent test criteria for each story
     - Suggested first release scope (based on the smallest coherent release slice, not automatically limited to just User Story 1)
+    - Confirm first-release profile scope stayed within the two supported profiles: `Standard Delivery` and `Reference-Implementation`
     - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
     - workflow-state path
     - Recommended next command: `{{invoke:analyze}}`

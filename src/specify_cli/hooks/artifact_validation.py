@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .checkpoint_serializers import normalize_command_name
+from .checkpoint_serializers import normalize_command_name, serialize_workflow_state
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
 from .types import HookResult, QualityHookError
 
@@ -72,6 +72,21 @@ PRD_EXPORT_REQUIRED_SECTIONS = (
     "## Unknowns and Evidence Confidence",
 )
 
+REFERENCE_IMPLEMENTATION_PROFILE = "reference-implementation"
+
+REFERENCE_IMPLEMENTATION_SPEC_REQUIRED_SECTIONS = (
+    "## Fidelity Requirements",
+    "### Reference Object",
+    "### Required Fidelity",
+)
+
+REFERENCE_IMPLEMENTATION_SECTION_HEADINGS = {
+    "fidelity requirements": "## Fidelity Requirements",
+    "reference object": "### Reference Object",
+    "required fidelity": "### Required Fidelity",
+    "reference fidelity": "## Fidelity Requirements",
+}
+
 PRD_COVERAGE_REQUIRED_TOKENS = (
     "Tier",
     "Depth Status",
@@ -113,6 +128,16 @@ def _extract_markdown_section(content: str, heading: str) -> str:
 def _validate_markdown_contains(path: Path, required_items: tuple[str, ...], label: str) -> list[str]:
     content = path.read_text(encoding="utf-8", errors="replace")
     return [f"{label} is missing required section: {item}" for item in required_items if item not in content]
+
+
+def _validate_markdown_headings(path: Path, required_headings: tuple[str, ...], label: str) -> list[str]:
+    content = path.read_text(encoding="utf-8", errors="replace")
+    present_headings = {match.group(0).strip() for match in re.finditer(r"(?m)^#{1,6}\s+.+$", content)}
+    return [
+        f"{label} is missing required heading: {heading}"
+        for heading in required_headings
+        if heading not in present_headings
+    ]
 
 
 def _extract_handoff_ids(content: str) -> set[str]:
@@ -264,6 +289,33 @@ def _validate_prd_artifacts(feature_dir: Path) -> list[str]:
     return errors
 
 
+def _validate_specify_profile_artifacts(feature_dir: Path) -> list[str]:
+    checkpoint = serialize_workflow_state(feature_dir / "workflow-state.md")
+    active_profile = checkpoint.get("active_profile")
+    required_sections = checkpoint.get("required_sections")
+    if not isinstance(required_sections, list):
+        required_sections = []
+
+    if active_profile != REFERENCE_IMPLEMENTATION_PROFILE:
+        return []
+
+    persisted_required_headings = {
+        heading
+        for section_name in required_sections
+        if (heading := REFERENCE_IMPLEMENTATION_SECTION_HEADINGS.get(str(section_name).strip().lower()))
+    }
+    mapped_headings = [
+        heading for heading in REFERENCE_IMPLEMENTATION_SPEC_REQUIRED_SECTIONS if heading in persisted_required_headings
+    ]
+    required_headings = tuple(dict.fromkeys([*mapped_headings, *REFERENCE_IMPLEMENTATION_SPEC_REQUIRED_SECTIONS]))
+
+    return _validate_markdown_headings(
+        feature_dir / "spec.md",
+        required_headings,
+        "spec.md reference-implementation profile",
+    )
+
+
 def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
     command_name = normalize_command_name(str(payload.get("command_name") or ""))
     if command_name not in REQUIRED_ARTIFACTS:
@@ -290,6 +342,8 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
             data={"feature_dir": str(feature_dir)},
         )
     validation_errors: list[str] = []
+    if command_name == "specify":
+        validation_errors.extend(_validate_specify_profile_artifacts(feature_dir))
     if command_name == "deep-research":
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":

@@ -17,6 +17,16 @@
 
 [List the smallest trustworthy proofs for mapped contracts, flows, and integrations.]
 
+### Scenario Profile Evidence
+
+[Document how completion evidence varies by scenario profile. Keep the default
+verification set lighter for `Standard Delivery` unless local risk expands it.
+When `Reference-Implementation` is activated upstream, require
+profile-matched evidence beyond generic passing tests: cite the reference
+source, state the reference fidelity criteria, and preserve comparison or
+deviation evidence that proves the implemented behavior still matches the
+reference obligation.]
+
 ## Capability Verification Map
 
 ## Contract Verification Surfaces

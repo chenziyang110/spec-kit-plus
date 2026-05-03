@@ -236,6 +236,10 @@ human_needed_checks:
 3. Load and analyze the implementation context:
    - **REQUIRED**: [AGENT] Create or resume `FEATURE_DIR/implement-tracker.md` immediately after `FEATURE_DIR` is known.
    - **REQUIRED WHEN PRESENT**: Read `FEATURE_DIR/workflow-state.md` if present before choosing the next batch.
+   - **REQUIRED WHEN PRESENT**: If `FEATURE_DIR/workflow-state.md` records `active_profile` or `required_evidence`, treat those fields as execution constraints for batch acceptance and final completion, not as descriptive metadata.
+   - **PROFILE EVIDENCE DEFAULT**: For `Standard Delivery`, behavior validation and regression proof remain the lighter default unless `required_evidence` explicitly activates stronger exit evidence.
+   - **PROFILE EVIDENCE UPGRADE**: For `Reference-Implementation`, completion requires profile-matched evidence for the persisted `required_evidence` terms activated upstream: reference source evidence, fidelity criteria, difference inventory, accepted deviations, and verification entry points.
+   - **PROFILE ARTIFACT FORMS**: Comparison evidence, a deviation log, or fidelity audit notes are acceptable artifact forms only when they satisfy the persisted `Reference-Implementation` evidence terms; do not treat those artifact labels as replacement `required_evidence` names.
    - **IF `WORKFLOW_STATE_FILE` STILL POINTS TO `/sp.analyze` OR SHOWS TASK-GENERATION STATE WAITING FOR ANALYSIS**: stop and run `/sp-analyze` first. Do not self-authorize an `/sp-implement` start from chat memory alone.
    - **IF `WORKFLOW_STATE_FILE` POINTS TO ANOTHER UPSTREAM COMMAND SUCH AS `/sp.plan`, `/sp.tasks`, `/sp.clarify`, OR `/sp.deep-research`**: follow that recorded upstream command first and treat the current implementation attempt as blocked by analysis until the workflow state is cleared back to `/sp.implement`.
    - **IF TRACKER EXISTS WITH STATUS `blocked` OR `replanning`**: Read `blockers`, `open_gaps`, `recovery_action`, and `next_action` first, then continue from that state instead of restarting the workflow from scratch.
@@ -422,6 +426,10 @@ until the atlas gate has passed.
    - Planned validation tasks are still ready work. If the remaining tasks are executable tests, E2E checks, security verification, quickstart validation, or other scripted validation work already present in `tasks.md`, continue automatically instead of asking whether validation should start.
    - Do not stop to ask whether validation should start unless a manual-only check or approval step is explicitly recorded in the tracker or task plan.
    - If a subagent lane flips to `completed` or drifts into `idle` before the promised handoff, result file, or completion evidence arrives, treat it as a stale lane rather than accepted work: probe once for the missing handoff, then re-dispatch, block, or defer explicitly instead of silently continuing
+   - Before accepting a completed batch, verify the structured handoff includes profile-matched evidence for the current `active_profile` and the exact `required_evidence` constraints from `workflow-state.md`.
+   - For `Reference-Implementation`, require the persisted evidence terms activated upstream: reference source evidence, fidelity criteria, difference inventory, accepted deviations, and verification entry points.
+   - Comparison evidence, a deviation log, or fidelity audit notes may satisfy those persisted terms when they map directly to them, but they do not replace the upstream `required_evidence` vocabulary.
+   - Generic `tests passed` output is not sufficient when the active profile requires stronger exit evidence; require the profile-matched evidence named by `required_evidence` before crossing the join point.
    - For high-risk batches, treat acceptance as a three-layer check:
      - subagent self-check
      - optional read-only peer-review lane when `classify_review_gate_policy(workload_shape)` recommends it
@@ -460,6 +468,11 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
    - Validate that tests pass and coverage meets requirements
    - If `.specify/testing/TESTING_PLAYBOOK.md` exists, use its canonical commands for full validation, targeted module validation, and coverage rather than inventing substitute commands.
    - Confirm the implementation follows the technical plan
+   - Confirm final exit evidence matches `active_profile` and `required_evidence` from `workflow-state.md` when present.
+   - For `Standard Delivery`, behavior validation and regression proof are the lighter default unless stronger required evidence was explicitly activated.
+   - For `Reference-Implementation`, do not mark completion unless profile-matched evidence is present for the exact persisted `required_evidence` terms activated upstream: reference source evidence, fidelity criteria, difference inventory, accepted deviations, and verification entry points.
+   - Comparison evidence, a deviation log, or fidelity audit notes are acceptable artifact forms only when they satisfy those persisted `Reference-Implementation` terms; do not treat them as replacement `required_evidence` names.
+   - Do not accept generic `tests passed` output as sufficient when the active profile requires stronger exit evidence.
    - If validation finds missing user-visible behavior or unmet acceptance criteria, record an `open_gaps` entry instead of silently claiming completion
    - Do not use final-completion language such as `core implementation complete`, `implementation complete`, or `ready for integration testing` as shorthand for overall feature completion while required E2E, Polish, documentation, quickstart, or other planned validation tasks remain incomplete; report that partial state explicitly instead
    - Classify each unresolved gap:

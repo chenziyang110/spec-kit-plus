@@ -28,6 +28,14 @@ def _extract_step_6_strategy_block(content: str) -> str:
     return lowered[start:end]
 
 
+def _extract_outline_step_block(content: str, step_prefix: str, next_step_prefix: str) -> str:
+    start = content.find(step_prefix)
+    assert start != -1
+    end = content.find(next_step_prefix, start)
+    assert end != -1
+    return content[start:end]
+
+
 def _assert_contains_any(text: str, *needles: str) -> None:
     assert any(needle in text for needle in needles), f"Expected one of: {needles}"
 
@@ -50,6 +58,18 @@ def _assert_default_handoff_contract(content: str, expected_fragment: str) -> No
     handoff = match.group("value")
     assert expected_fragment in handoff
     assert "{{invoke:" not in handoff
+
+
+def _assert_reference_evidence_contract(text: str) -> None:
+    lowered = text.lower()
+    assert "active_profile" in text
+    assert "required_evidence" in text
+    assert "Reference-Implementation" in text
+    assert "reference source evidence" in lowered
+    assert "fidelity criteria" in lowered
+    assert "difference inventory" in lowered
+    assert "accepted deviations" in lowered
+    assert "verification entry points" in lowered
 
 
 def test_core_sp_templates_use_learning_review_hooks():
@@ -179,6 +199,25 @@ def test_specify_template_uses_alignment_first_contract():
     assert "verification entry points" in lowered
     assert "known unknowns or stale evidence boundaries" in lowered
 
+    assert "## Scenario Profile Routing" in content
+    assert "active_profile" in content
+    assert "routing_reason" in content
+    assert "Reference-Implementation" in content
+    assert "Standard Delivery" in content
+    assert "Debug / Repair" in content
+    assert "Brownfield Enhancement" in content
+    assert "If the success criterion is fidelity to a reference object" in content
+    assert "persist at least these fields for the active pass" in lowered
+    assert "required_sections" in content
+    assert "activated_gates" in content
+    assert "`active_profile` must always be the supported profile whose obligations are persisted downstream" in content
+    assert "record the inferred unsupported taxonomy profile separately from `active_profile`" in content
+    assert "surface every profile narrowing to the user and allow correction before proceeding" in lowered
+    assert re.search(r"`Standard Delivery`:\s+- `required_sections`:", content)
+    assert re.search(r"`Standard Delivery`:[\s\S]*?- `transition_policy`: permit `/sp\.plan`", content)
+    assert re.search(r"`Reference-Implementation`:\s+- `required_sections`:", content)
+    assert re.search(r"`Reference-Implementation`:[\s\S]*?- `transition_policy`: permit `/sp\.plan` only", content)
+
     assert "alignment.md" in content
     assert "aligned: ready for plan" in lowered
     assert "Aligned: ready for plan" in content
@@ -287,6 +326,22 @@ def test_core_planning_templates_use_logical_atlas_references() -> None:
         assert "at least one relevant module overview document" in lowered
 
 
+def test_project_map_root_templates_document_scenario_profile_contracts() -> None:
+    workflows = _read("templates/project-map/root/WORKFLOWS.md").lower()
+    testing = _read("templates/project-map/root/TESTING.md").lower()
+
+    assert "scenario profile" in workflows
+    assert "standard delivery" in workflows
+    assert "reference-implementation" in workflows
+    assert "profile routing" in workflows
+    assert "sp-specify -> sp-plan -> sp-tasks -> sp-implement" in workflows
+
+    assert "profile-matched evidence" in testing
+    assert "reference fidelity" in testing
+    assert "standard delivery" in testing
+    assert "reference-implementation" in testing
+
+
 def test_constitution_template_uses_current_shared_context_and_reentry_contract() -> None:
     content = _read("templates/commands/constitution.md")
     lowered = content.lower()
@@ -377,6 +432,16 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "native bridge, plugin surface, protocol seam, generated API surface" in content
     assert "generic implementation instinct would likely drift away" in content
     assert "canonical boundary files or examples" in content
+    assert "## Scenario Profile Inputs" in content
+    assert "Read `FEATURE_DIR/workflow-state.md` if present" in content
+    assert "active_profile" in content
+    assert "transition_policy" in content
+    assert "Profile-Driven Implementation Constraints" in content
+    assert "Reference-Implementation" in content
+    assert "do not perform a second informal task classification pass" in lowered
+    assert "stop and tell the operator to repair or re-run upstream scenario profile routing state before planning" in lowered
+    assert "do not silently reinterpret unsupported profiles as a new planning mode" in lowered
+    assert "do not use it as a substitute for a supported `active_profile`" in lowered
     _assert_subagent_dispatch_contract(content, "plan")
     assert "research" in lowered
     assert "data model" in lowered
@@ -485,6 +550,18 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "write-set and parallel-safety analysis" in lowered
     assert "plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)" in content
     assert "alignment.md (locked decisions, outstanding questions, planning gate context)" in content
+    assert "Scenario profile inputs" in content
+    assert "same profile contract or active profile" in lowered
+    assert "persisted first-release profile contract" in lowered
+    assert "unsupported `active_profile`" in lowered
+    assert "stops before decomposition" in lowered
+    assert "repair/re-run upstream routing state" in lowered
+    assert "preserve it only as context while shaping tasks" not in lowered
+    assert "fidelity checkpoints" in lowered
+    assert "before implementation batches that can materially change the reference-preserved surface" in lowered
+    assert "after implementation batches that materially change" not in lowered
+    assert "deviation review" in lowered
+    assert "required evidence" in lowered
     assert "Locked Planning Decisions" in content
     assert "Decision Preservation Check" in content
     assert "quickstart.md exists: extract validation scenarios" in lowered
@@ -885,6 +962,37 @@ def test_spec_template_defines_scope_boundaries_without_open_clarification_examp
     assert "viable mvp" not in content.lower()
 
 
+def test_shared_artifact_templates_include_profile_fidelity_overlays():
+    spec_content = _read("templates/spec-template.md")
+    spec_lowered = spec_content.lower()
+    assert "## Fidelity Requirements" in spec_content
+    _assert_contains_any(spec_lowered, "reference-implementation", "copy-exact")
+    assert "reference object" in spec_lowered
+
+    plan_lowered = _read("templates/plan-template.md").lower()
+    assert "reference fidelity contract" in plan_lowered
+    _assert_contains_any(
+        plan_lowered,
+        "profile-driven implementation constraints",
+        "profile obligations",
+    )
+
+    tasks_content = _read("templates/tasks-template.md")
+    tasks_lowered = tasks_content.lower()
+    prerequisites_match = re.search(r"(?m)^\*\*Prerequisites\*\*: (?P<value>.+)$", tasks_content)
+    assert prerequisites_match is not None
+    prerequisites = prerequisites_match.group("value")
+    assert "alignment.md" in prerequisites
+    assert "context.md" in prerequisites
+    assert re.search(
+        r"scenario profile inputs.*alignment\.md.*context\.md",
+        tasks_lowered,
+    )
+    assert "Fidelity Checkpoint" in tasks_content
+    assert "Deviation Review" in tasks_content
+    assert "required evidence" in tasks_lowered
+
+
 def test_context_template_exists_and_captures_planning_context():
     content = _read("templates/context-template.md")
 
@@ -1026,6 +1134,21 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
     step_6 = _extract_step_6_strategy_block(content)
+    context_loading = _extract_outline_step_block(
+        content,
+        "3. Load and analyze the implementation context:",
+        "4. **Project Setup Verification**:",
+    )
+    batch_acceptance = _extract_outline_step_block(
+        content,
+        "9. Progress tracking and error handling:",
+        "10. Completion validation:",
+    )
+    completion_gate = _extract_outline_step_block(
+        content,
+        "10. Completion validation:",
+        "Note: This command assumes a complete task breakdown exists in tasks.md.",
+    )
 
     assert "PROJECT-HANDBOOK.md" in content
     assert ".specify/memory/project-rules.md" in content
@@ -1065,6 +1188,20 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "intent_outcome:" in lowered
     assert "intent_constraints:" in lowered
     assert "success_evidence:" in lowered
+    _assert_reference_evidence_contract(context_loading)
+    _assert_reference_evidence_contract(batch_acceptance)
+    _assert_reference_evidence_contract(completion_gate)
+    assert "profile-matched evidence" in context_loading.lower()
+    assert "profile-matched evidence" in batch_acceptance.lower()
+    assert "profile-matched evidence" in completion_gate.lower()
+    assert "standard delivery" in context_loading.lower()
+    assert "standard delivery" in completion_gate.lower()
+    assert "lighter default" in context_loading.lower()
+    assert "lighter default" in completion_gate.lower()
+    assert "generic `tests passed` output is not sufficient" in batch_acceptance.lower()
+    assert "generic `tests passed` output" in completion_gate.lower()
+    assert "comparison evidence" in lowered
+    assert "deviation log" in lowered
     assert "first-class implementation context" in lowered
     assert "user execution notes" in lowered
     assert "build or compile order" in lowered

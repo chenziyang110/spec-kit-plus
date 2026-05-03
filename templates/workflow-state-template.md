@@ -10,6 +10,24 @@
 - phase_mode: `planning-only | research-only | design-only | task-generation-only | analysis-only | execution-only`
 - summary: [One-sentence reminder of what this phase is allowed to do]
 
+## Scenario Profile
+
+- active_profile: [scenario profile selected for this workflow]
+- routing_reason: [why this scenario profile was selected]
+- confidence_level: `low | medium | high`
+
+## Profile Obligations
+
+- required_sections:
+  - [artifact section required by the active profile]
+- activated_gates:
+  - [quality gate activated by the active profile]
+- task_shaping_rules:
+  - [rule that must shape downstream task generation or execution]
+- required_evidence:
+  - [evidence required before the workflow can transition]
+- transition_policy: [handoff or phase-transition policy required by the active profile]
+
 ## Allowed Artifact Writes
 
 - [artifact path the current command may update]
@@ -62,7 +80,7 @@
 
 ## Learning Signals
 
-- route_reason: [Why the workflow must hand off or reopen instead of pretending it can continue locally]
+- route_reason: [Why the current workflow phase must hand off, reopen, or stop]
 - blocked_reason: [What specifically prevented clean completion]
 
 ### False Starts

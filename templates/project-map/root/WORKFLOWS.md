@@ -9,6 +9,17 @@
 
 [Describe the entry-to-exit data flow for core business or runtime workflows.]
 
+### Scenario Profile Lifecycle
+
+[Document scenario profile routing at the atlas level. Each feature lifecycle
+has one active profile that is selected at workflow entry, preserved in planning
+state, and carried through `sp-specify -> sp-plan -> sp-tasks -> sp-implement`.
+For first-release support, distinguish `Standard Delivery` from
+`Reference-Implementation`: standard delivery is the default implementation
+path, while reference-implementation is activated only when success depends on
+fidelity to an explicit reference source. Record where the active profile is
+persisted and which downstream workflow handoffs must preserve it.]
+
 ## Core Maintainer Flows
 
 ## Capability Flows
