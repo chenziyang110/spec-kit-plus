@@ -588,6 +588,7 @@ class TestGeminiIntegration(TomlIntegrationTests):
         env["GEMINI_PROJECT_DIR"] = str(tmp_path)
 
         hook_script = tmp_path / ".gemini" / "hooks" / "gemini-hook-dispatch.py"
+        compaction_path = tmp_path / ".specify" / "runtime" / "compaction" / "specify-001-demo" / "latest.json"
         result = subprocess.run(
             [sys.executable, str(hook_script), "before-agent"],
             input=json.dumps({"prompt": "start editing code now"}),
@@ -602,6 +603,7 @@ class TestGeminiIntegration(TomlIntegrationTests):
         payload = json.loads(result.stdout.strip())
         assert payload["decision"] == "deny"
         assert "/sp.plan" in payload["systemMessage"]
+        assert not compaction_path.exists()
 
     def test_gemini_hook_dispatch_surfaces_learning_signal_on_before_agent(self, tmp_path):
         integration = get_integration("gemini")

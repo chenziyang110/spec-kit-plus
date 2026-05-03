@@ -499,16 +499,21 @@ def _active_context_args(context: dict[str, str]) -> list[str]:
     return args
 
 
-def _compaction_resume_context(project_root: Path) -> str:
+def _compaction_resume_context(
+    project_root: Path,
+    *,
+    build: bool,
+    trigger: str,
+) -> str:
     context = _infer_active_context(project_root)
     if not context:
         return ""
     shared = _run_shared_hook(project_root, ["read-compaction", *_active_context_args(context)])
     artifact = shared.get("data", {}).get("artifact", {}) if shared else {}
-    if not shared or not isinstance(artifact, dict) or not artifact:
+    if build and (not shared or not isinstance(artifact, dict) or not artifact):
         shared = _run_shared_hook(
             project_root,
-            ["build-compaction", *_active_context_args(context), "--trigger", "session_start"],
+            ["build-compaction", *_active_context_args(context), "--trigger", trigger],
         )
     if not shared:
         return ""
@@ -617,7 +622,7 @@ def _learning_signal_context(project_root: Path) -> str:
 
 def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[str, Any]:
     statusline = _statusline_context(project_root)
-    resume_context = _compaction_resume_context(project_root)
+    resume_context = _compaction_resume_context(project_root, build=True, trigger="session_start")
     message = " ".join(part for part in [statusline, resume_context] if part).strip()
     return {"systemMessage": message} if message else {}
 
@@ -625,7 +630,7 @@ def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[
 def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     prompt = _extract_prompt_text(payload)
     statusline = _statusline_context(project_root)
-    resume_context = _compaction_resume_context(project_root)
+    resume_context = _compaction_resume_context(project_root, build=False, trigger="prompt")
     learning_signal = _learning_signal_context(project_root)
     advisory = " ".join([statusline, resume_context, learning_signal]).strip()
 
