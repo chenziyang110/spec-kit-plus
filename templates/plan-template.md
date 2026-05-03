@@ -20,6 +20,24 @@
 - [Decision that must be preserved in downstream planning]
 - [Compatibility, workflow, rollout, or validation decision that cannot be silently dropped]
 
+## Scenario Profile Inputs
+
+<!--
+  Copy the active scenario profile and profile obligations from spec.md,
+  alignment.md, and context.md. If no special profile applies, record Standard
+  Delivery and the absence of extra profile-driven constraints.
+-->
+
+### Active Profile
+
+- [Active profile name, routing reason, and whether it imposes reference fidelity obligations]
+- [Source artifact that records the profile decision, such as alignment.md or context.md]
+
+### Profile-Driven Implementation Constraints
+
+- [Profile obligation that changes implementation shape, task sequencing, or validation evidence]
+- [Reference fidelity contract, required evidence, or deviation rule that tasks and implementation must preserve]
+
 ## Technical Context
 
 <!--
@@ -44,7 +62,8 @@
   Promote architecture and boundary rules that implementation must not violate.
   This section turns "technical background" into explicit execution constraints.
   Use it for framework ownership, boundary patterns, forbidden rewrites, required
-  reference files, and review checks that downstream task generation must preserve.
+  reference files, active profile obligations, reference fidelity contract terms,
+  and review checks that downstream task generation must preserve.
 -->
 
 ### Architecture Invariants

@@ -6,7 +6,7 @@ description: "Task list template for feature implementation"
 # Tasks: [FEATURE NAME]
 
 **Input**: Design documents from `/specs/[###-feature-name]/`
-**Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
+**Prerequisites**: plan.md (required), spec.md (required for user stories), alignment.md and context.md when present or required for scenario profile inputs, research.md, data-model.md, contracts/
 
 **Tests**: The examples below include test tasks. If `.specify/testing/TESTING_CONTRACT.md` exists, tests are expected by default for affected behavior changes and bug fixes. Only omit them when the contract or plan explicitly justifies the omission.
 
@@ -16,6 +16,7 @@ description: "Task list template for feature implementation"
 
 - **Locked planning decisions**: Copy any non-negotiable implementation, compatibility, rollout, or validation constraints from `plan.md`, `spec.md`, and `alignment.md`
 - **Implementation constitution**: Carry forward architecture invariants, boundary ownership, forbidden drift, required references, and review focus from `plan.md`
+- **Scenario profile inputs**: Carry forward the active profile, profile-driven constraints, reference fidelity contract, allowed deviations, and required evidence from `plan.md`, `spec.md`, `alignment.md`, and `context.md`
 - **Alignment risks**: Carry forward unresolved but accepted risks so tasks can mitigate or explicitly acknowledge them
 - **Validation references**: Preserve `quickstart.md`, canonical references, and research-backed validation notes when they shape task ordering or completion criteria
 - Do not silently drop a locked planning decision; if it is deferred, say so explicitly in the phase or dependency notes
@@ -37,6 +38,8 @@ description: "Task list template for feature implementation"
 - Leave later phases at the coarser story or phase level when their exact shape depends on earlier join points, then refine them after the checkpoint instead of guessing too early.
 - Every task MUST carry the enriched subagent contract fields defined in the `sp-tasks` shell output contract: agent, depends_on, parallel_safe, context navigation table, scope boundaries (write_scope / read_scope / forbidden), expected outputs, anti_goals, acceptance criteria, verify commands, handoff format, and failure handling (retry_max, escalation).
 - Before finalizing a task, confirm the independent-executability gate: a single subagent, reading only this task body plus the pointed-to context files, can complete the work without asking the leader for clarification. If not, refine the task until it passes.
+- Fidelity Checkpoint: when the active profile has a reference fidelity contract, add an explicit checkpoint before implementation batches that can change fidelity-sensitive behavior, layout, workflow order, naming, or outputs.
+- Deviation Review: any task that intentionally departs from the reference object must name the allowed deviation, required evidence, reviewer or acceptance condition, and the downstream artifact where the decision is recorded.
 
 ## Format: `[ID] [P?] [Story] [Agent?] Description`
 
@@ -75,11 +78,12 @@ description: "Task list template for feature implementation"
 
 ## Phase 0: Implementation Guardrails
 
-**Purpose**: Freeze architecture constraints and boundary references before any code-writing batch starts
+**Purpose**: Freeze architecture constraints, scenario profile inputs, required evidence, and boundary references before any code-writing batch starts
 
 - [ ] T000 Read the boundary-defining files, contracts, and examples named in `plan.md` under `Required Implementation References`
 - [ ] T001 Record the active implementation guardrails for this feature: framework ownership, preserved boundary pattern, forbidden drift, and review checks
-- [ ] T002 Confirm the first implementation batch extends the existing boundary pattern instead of creating a parallel one
+- [ ] T002 Confirm the active scenario profile, reference fidelity contract if present, allowed deviations, and required evidence before implementation batches begin
+- [ ] T003 Confirm the first implementation batch extends the existing boundary pattern instead of creating a parallel one
 
 **Checkpoint**: Implementation guardrails captured - downstream batches now have explicit architecture constraints
 
@@ -89,9 +93,9 @@ description: "Task list template for feature implementation"
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T003 Create project structure per implementation plan
-- [ ] T004 Initialize [language] project with [framework] dependencies
-- [ ] T005 [P] Configure linting and formatting tools
+- [ ] T004 Create project structure per implementation plan
+- [ ] T005 Initialize [language] project with [framework] dependencies
+- [ ] T006 [P] Configure linting and formatting tools
 
 ---
 
@@ -103,12 +107,12 @@ description: "Task list template for feature implementation"
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T006 Setup database schema and migrations framework
-- [ ] T007 [P] Implement authentication/authorization framework
-- [ ] T008 [P] Setup API routing and middleware structure
-- [ ] T009 Create base models/entities that all stories depend on
-- [ ] T010 Configure error handling and logging infrastructure
-- [ ] T011 Setup environment configuration management
+- [ ] T007 Setup database schema and migrations framework
+- [ ] T008 [P] Implement authentication/authorization framework
+- [ ] T009 [P] Setup API routing and middleware structure
+- [ ] T010 Create base models/entities that all stories depend on
+- [ ] T011 Configure error handling and logging infrastructure
+- [ ] T012 Setup environment configuration management
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -125,8 +129,8 @@ Examples of foundational tasks (adjust based on your project):
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
 **Parallel Batch 1.1**: Independent failing tests with non-overlapping write sets
-- [ ] T012 [P] [US1] [Agent: test-engineer] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T013 [P] [US1] [Agent: test-engineer] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T013 [P] [US1] [Agent: test-engineer] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T014 [P] [US1] [Agent: test-engineer] Integration test for [user journey] in tests/integration/test_[name].py
 **Join Point 1.1**: Confirm both tests fail for the expected reasons before writing production code
 Join Point Validation:
 - Validation target: failing contract and integration tests for User Story 1
@@ -136,17 +140,17 @@ Join Point Validation:
 ### Implementation for User Story 1
 
 **Parallel Batch 1.2**: Independent models or DTOs with isolated write sets
-- [ ] T014 [P] [US1] [Agent: executor] Create [Entity1] model in src/models/[entity1].py
-- [ ] T015 [P] [US1] [Agent: executor] Create [Entity2] model in src/models/[entity2].py
+- [ ] T015 [P] [US1] [Agent: executor] Create [Entity1] model in src/models/[entity1].py
+- [ ] T016 [P] [US1] [Agent: executor] Create [Entity2] model in src/models/[entity2].py
 **Join Point 1.2**: Resolve any shared exports, registrations, or schema indexes before service work
 Join Point Validation:
 - Validation target: shared exports, registrations, or schema indexes updated after the parallel model batch
 - Validation command: [Smallest trustworthy command or review check for the touched shared surface]
 - Pass condition: downstream service work sees one canonical shared surface update with no conflicting registrations or missing exports
-- [ ] T016 [US1] [Agent: executor] Implement [Service] in src/services/[service].py (depends on T014, T015)
-- [ ] T017 [US1] [Agent: security-reviewer] Implement [endpoint/feature] in src/[location]/[file].py while preserving the established boundary/framework pattern named in `plan.md`
-- [ ] T018 [US1] [Agent: executor] Add validation and error handling
-- [ ] T019 [US1] [Agent: executor] Add logging for user story 1 operations
+- [ ] T017 [US1] [Agent: executor] Implement [Service] in src/services/[service].py (depends on T015, T016)
+- [ ] T018 [US1] [Agent: security-reviewer] Implement [endpoint/feature] in src/[location]/[file].py while preserving the established boundary/framework pattern named in `plan.md`
+- [ ] T019 [US1] [Agent: executor] Add validation and error handling
+- [ ] T020 [US1] [Agent: executor] Add logging for user story 1 operations
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -160,15 +164,15 @@ Join Point Validation:
 
 ### Tests for User Story 2 (required when the testing contract applies) ⚠️
 
-- [ ] T020 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T021 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T021 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T022 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
 
 ### Implementation for User Story 2
 
-- [ ] T022 [P] [US2] Create [Entity] model in src/models/[entity].py
-- [ ] T023 [US2] Implement [Service] in src/services/[service].py
-- [ ] T024 [US2] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T025 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T023 [P] [US2] Create [Entity] model in src/models/[entity].py
+- [ ] T024 [US2] Implement [Service] in src/services/[service].py
+- [ ] T025 [US2] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T026 [US2] Integrate with User Story 1 components (if needed)
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -182,14 +186,14 @@ Join Point Validation:
 
 ### Tests for User Story 3 (required when the testing contract applies) ⚠️
 
-- [ ] T026 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T027 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T027 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T028 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
 
 ### Implementation for User Story 3
 
-- [ ] T028 [P] [US3] Create [Entity] model in src/models/[entity].py
-- [ ] T029 [US3] Implement [Service] in src/services/[service].py
-- [ ] T030 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T029 [P] [US3] Create [Entity] model in src/models/[entity].py
+- [ ] T030 [US3] Implement [Service] in src/services/[service].py
+- [ ] T031 [US3] Implement [endpoint/feature] in src/[location]/[file].py
 
 **Checkpoint**: All user stories should now be independently functional
 

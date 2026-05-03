@@ -904,6 +904,37 @@ def test_spec_template_defines_scope_boundaries_without_open_clarification_examp
     assert "viable mvp" not in content.lower()
 
 
+def test_shared_artifact_templates_include_profile_fidelity_overlays():
+    spec_content = _read("templates/spec-template.md")
+    spec_lowered = spec_content.lower()
+    assert "## Fidelity Requirements" in spec_content
+    _assert_contains_any(spec_lowered, "reference-implementation", "copy-exact")
+    assert "reference object" in spec_lowered
+
+    plan_lowered = _read("templates/plan-template.md").lower()
+    assert "reference fidelity contract" in plan_lowered
+    _assert_contains_any(
+        plan_lowered,
+        "profile-driven implementation constraints",
+        "profile obligations",
+    )
+
+    tasks_content = _read("templates/tasks-template.md")
+    tasks_lowered = tasks_content.lower()
+    prerequisites_match = re.search(r"(?m)^\*\*Prerequisites\*\*: (?P<value>.+)$", tasks_content)
+    assert prerequisites_match is not None
+    prerequisites = prerequisites_match.group("value")
+    assert "alignment.md" in prerequisites
+    assert "context.md" in prerequisites
+    assert re.search(
+        r"scenario profile inputs.*alignment\.md.*context\.md",
+        tasks_lowered,
+    )
+    assert "Fidelity Checkpoint" in tasks_content
+    assert "Deviation Review" in tasks_content
+    assert "required evidence" in tasks_lowered
+
+
 def test_context_template_exists_and_captures_planning_context():
     content = _read("templates/context-template.md")
 
