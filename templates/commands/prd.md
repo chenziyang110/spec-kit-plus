@@ -19,6 +19,8 @@ This summary is routing metadata only. The full workflow contract is the frontma
 
 ## Migration Path
 
+[AGENT] If an older doc, alias, or operator still calls `sp-prd`, route the work through the canonical flow instead and preserve compatibility wording only as a migration aid.
+
 If an older doc, alias, or operator still calls `sp-prd`, route the work through the canonical flow instead:
 
 ```text

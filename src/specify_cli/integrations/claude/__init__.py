@@ -31,6 +31,8 @@ ARGUMENT_HINTS: dict[str, str] = {
     "plan": "Optional guidance for the planning phase",
     "tasks": "Optional task generation constraints",
     "prd": "Describe the existing project or PRD extraction target to reverse-document",
+    "prd-scan": "Describe the existing project or reverse-PRD scan target to reconstruct into a scan package",
+    "prd-build": "Provide the validated PRD run ID or final synthesis target to compile into the PRD suite",
     "implement": "Optional implementation guidance or task filter",
     "integrate": "Optional feature lane or closeout focus for integration readiness",
     "implement-teams": "Optional implementation scope or coordination guidance for the Agent Teams run",
