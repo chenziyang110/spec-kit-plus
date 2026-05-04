@@ -1,14 +1,47 @@
 {
   "version": 1,
   "generated_by": "sp-test-build",
+  "control_plane_role": "coverage-baseline-json",
+  "owns": [
+    "module coverage baselines",
+    "hotspot context",
+    "coverage command-tier tracking"
+  ],
+  "must_not_become": [
+    "wave execution plan",
+    "newcomer command playbook",
+    "testing contract"
+  ],
   "modules": [
     {
       "name": "example-module",
+      "module_root": "src/example",
       "language": "python",
       "framework": "pytest",
       "baseline_percent": null,
       "target_percent": null,
       "status": "unknown",
+      "command_tiers": {
+        "fast_smoke": {
+          "label": "fast smoke",
+          "command": "REPLACE_WITH_FAST_SMOKE_COMMAND"
+        },
+        "focused": {
+          "label": "focused",
+          "command": "REPLACE_WITH_FOCUSED_COMMAND"
+        },
+        "full": {
+          "label": "full",
+          "command": "REPLACE_WITH_FULL_COMMAND"
+        }
+      },
+      "hotspots": [
+        {
+          "path": "src/example",
+          "reason": "Public contract or local integration seam still needs coverage evidence.",
+          "tier": "P0"
+        }
+      ],
       "notes": []
     }
   ]

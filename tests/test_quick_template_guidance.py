@@ -5,14 +5,37 @@ from .template_utils import read_template
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _assert_tier_roles(content: str) -> None:
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in content
+    fast_smoke_index = content.index("fast smoke")
+    focused_index = content.index("focused", fast_smoke_index)
+    full_index = content.index("full", focused_index)
+
+    fast_smoke_context = content[fast_smoke_index : fast_smoke_index + 200]
+    focused_context = content[focused_index : focused_index + 220]
+    full_context = content[full_index : full_index + 220]
+
+    assert "early signal" in fast_smoke_context or "first signal" in fast_smoke_context
+    assert "acceptance check" in focused_context or "acceptance command" in focused_context
+    assert (
+        "broader regression" in full_context
+        or "final verification" in full_context
+        or "regression-sensitive verification" in full_context
+    )
+
+
 def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     content = read_template("templates/commands/quick.md").lower()
+    raw_content = (PROJECT_ROOT / "templates/commands/quick.md").read_text(encoding="utf-8").lower()
 
     assert "dispatch mode follows command tier" in content
     assert "subagent-preferred" in content
     assert "execution_model: subagent-mandatory" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
+    assert "subagent-blocked" in content
+    assert "fall back to leader-inline" not in content
+    assert "dispatch to one subagent" not in raw_content
     assert "## leader role" in content
     assert "you are the quick-task leader" in content
     assert "you are not the default implementer for the quick task" in content
@@ -70,6 +93,7 @@ def test_quick_template_preserves_quality_guardrails() -> None:
 
 def test_quick_template_defines_capability_aware_execution_strategy() -> None:
     content = read_template("templates/commands/quick.md").lower()
+    raw_content = (PROJECT_ROOT / "templates/commands/quick.md").read_text(encoding="utf-8").lower()
 
     assert "choose_subagent_dispatch" in content
     assert "execution_model: subagent-mandatory" in content
@@ -78,6 +102,9 @@ def test_quick_template_defines_capability_aware_execution_strategy() -> None:
     assert "one-subagent" in content
     assert "parallel-subagents" in content
     assert "native-subagents" in content
+    assert "record `subagent-blocked`" in content
+    assert "fall back to leader-inline" not in content
+    assert "dispatch to one subagent" not in raw_content
     assert "leader" in content
     assert "join point" in content
     assert "task contract" in content
@@ -156,6 +183,9 @@ def test_quick_template_requires_self_recovery_before_blocking() -> None:
     assert "read additional local context" in content
     assert "run the smallest meaningful verification or repro command" in content
     assert "use `--research`-style focused investigation" in content or "focused investigation" in content
+    assert "use the native subagent workflow when subagent dispatch is unavailable" not in content
+    assert "retry or recompile the same native-subagent path when contract or context was insufficient" in content
+    assert "only then consider subagent-blocked status if no safe subagent path is currently available" in content
     assert "retry_attempts" in content
     assert "recovery_action" in content
     assert "blocker_reason" in content
@@ -200,9 +230,13 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "separate `verified` coverage from `not checked` coverage" in content
     assert "for each declared surface, give the terminal status conclusion" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in content
     assert "run `/sp-map-scan` followed by `/sp-map-build` before marking the quick task `resolved`" in content
-    assert "if you cannot complete that refresh in the current pass" in content
-    assert "mark `.specify/project-map/index/status.json` dirty" in content
+    assert "complete-refresh" in content
+    assert "successful-refresh finalizer" in content
+    assert "if a full refresh can be completed now" in content
+    assert "otherwise use" in content
+    assert "manual override/fallback" in content
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:
@@ -233,13 +267,15 @@ def test_quick_template_defines_empty_call_recovery_and_lifecycle_management() -
 
 def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent_marker() -> None:
     content = read_template("templates/commands/quick.md")
+    lowered = content.lower()
 
-    assert "**freshness**: treat `missing` and `stale` as blocking" in content.lower()
+    assert "**freshness**: treat `missing` and `stale` as blocking" in lowered
     assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`." in content or "must_refresh_topics" in content
     assert "ownership, placement, workflow, integration, or verification guidance" in content
-    assert "status.md" in content.lower()
+    assert "status.md" in lowered
     assert "[AGENT] Use the shared policy function before execution begins and again at each join point" in content
-    assert "review-learning" in content.lower() or "capture-learning" in content.lower()
+    assert "auto-capture learnings on resolution only" in lowered
+    assert "no review, no signal" in lowered
 
 
 def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
@@ -253,6 +289,7 @@ def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert "if no reliable automated test surface exists for the touched behavior" in content
     assert "bootstrap the smallest viable test surface first" in content
     assert "{{invoke:test-scan}}" in content or "/sp-test-scan" in content or "/sp-test" in content
+    _assert_tier_roles(content)
 
 
 def test_quick_template_routes_uncertain_bugfixes_into_debug() -> None:

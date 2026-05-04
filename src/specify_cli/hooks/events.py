@@ -25,8 +25,8 @@ WORKFLOW_LEARNING_CAPTURE = "workflow.learning.capture"
 WORKFLOW_LEARNING_INJECT = "workflow.learning.inject"
 DELEGATION_PACKET_VALIDATE = "delegation.packet.validate"
 DELEGATION_JOIN_VALIDATE = "delegation.join.validate"
-PROJECT_MAP_MARK_DIRTY = "project_map.mark_dirty"
-PROJECT_MAP_COMPLETE_REFRESH = "project_map.complete_refresh"
+PROJECT_MAP_MARK_DIRTY = "project_map.mark_dirty"  # manual dirty override/fallback
+PROJECT_MAP_COMPLETE_REFRESH = "project_map.complete_refresh"  # successful-refresh finalizer
 
 
 CANONICAL_HOOK_EVENTS = frozenset(

@@ -210,7 +210,7 @@ gate.
      - mark any `PH-###` item not consumed by the plan as `deferred`, `not applicable`, or `requires user decision`
    - Copy locked planning decisions from `alignment.md`, `context.md`, `spec.md`, and `deep-research.md` into planning constraints, assumptions, or design notes so they are not silently dropped
    - Copy implementation-chain constraints and synthesis decisions from `deep-research.md` into the implementation plan instead of rediscovering or weakening them
-   - If `.specify/testing/TESTING_CONTRACT.md` exists, copy the project-level testing rules into the implementation plan instead of treating tests as optional follow-up work
+   - If `.specify/testing/TESTING_CONTRACT.md` exists, copy the project-level testing rules into the implementation plan instead of treating tests as optional follow-up work. Preserve the stronger brownfield testing inputs carried from `sp-specify`: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`
    - If `.specify/testing/TESTING_PLAYBOOK.md` exists, preserve the canonical test, targeted-test, and coverage commands inside the generated plan artifacts
    - Promote framework and boundary rules from "technical background" into explicit implementation constraints rather than leaving them as implied context
    - Evaluate gates (ERROR if violations are unjustified)
@@ -227,7 +227,7 @@ gate.
     - generated artifacts
     - workflow-state path
     - recommended follow-up quality check: `{{invoke:checklist}}` for a requirements/plan package audit before moving on to decomposition
-    - if the planning pass introduces or sharpens new architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current handbook/project-map does not yet encode, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield implementation proceeds
+    - if the planning pass introduces or sharpens new architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current handbook/project-map does not yet encode, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield implementation proceeds
     - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
       - `active_command: sp-plan`
       - `phase_mode: design-only`

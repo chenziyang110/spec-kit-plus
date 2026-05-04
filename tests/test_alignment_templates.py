@@ -98,6 +98,8 @@ def test_core_sp_templates_use_learning_review_hooks():
     assert "{{specify-subcmd:hook review-learning --command quick --terminal-status <resolved|blocked> ...}}" in quick_content or "Before final completion or blocked reporting" in quick_content
 
     fast_content = _read("templates/commands/fast.md")
+    assert "Skip all learning hooks" in fast_content
+    assert "Do not run learning start, signal, review, or capture" in fast_content
     assert "{{specify-subcmd:learning capture --command fast ...}}" in fast_content
 
 
@@ -463,8 +465,9 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "What does the planner need to know to produce a high-quality implementation plan" in content
     assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
     assert "recommended follow-up quality check: `{{invoke:checklist}}`" in content
-    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
-    assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in content
+    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in lowered
+    assert "successful-refresh finalizer" in lowered
+    assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
     assert "specify -> clarify -> plan" not in lowered
 
@@ -581,8 +584,9 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "Planning inputs section" in content
     assert "before writing `tasks.md`" in content
     assert "before emitting canonical parallel batches and join points" in lowered
-    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
-    assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in content
+    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in lowered
+    assert "successful-refresh finalizer" in lowered
+    assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
 
 
@@ -945,8 +949,9 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
     assert "avoid implying an automatic handoff to `/sp.plan`" in lowered
     assert "default rescue lane" in lowered
     assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
-    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
-    assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in content
+    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in lowered
+    assert "successful-refresh finalizer" in lowered
+    assert "manual override/fallback" in lowered
 
 
 def test_spec_template_defines_scope_boundaries_without_open_clarification_examples():
@@ -1094,6 +1099,39 @@ def test_workflow_state_driven_templates_prefer_capture_auto_for_learning_closeo
         content = _read(rel_path).lower()
         assert f"capture-auto --command {cli_name}" in content
         assert "workflow-state.md" in content or "testing-state.md" in content
+
+
+def test_testing_workflow_commands_preserve_downstream_control_plane_semantics() -> None:
+    build_content = _read("templates/commands/test-build.md")
+    asset_block = _extract_outline_step_block(
+        build_content,
+        "11. **Generate durable testing assets**",
+        "12. **Push the contract back into the main workflow**",
+    ).lower()
+
+    contract_start = asset_block.find("write `.specify/testing/testing_contract.md` with:")
+    playbook_start = asset_block.find("write `.specify/testing/testing_playbook.md` with:")
+    baseline_start = asset_block.find("write `.specify/testing/coverage_baseline.json`", playbook_start)
+    assert contract_start != -1
+    assert playbook_start != -1
+    assert baseline_start != -1
+
+    contract_block = asset_block[contract_start:playbook_start]
+    playbook_block = asset_block[playbook_start:baseline_start]
+    assert "covered-module rules" in contract_block
+    assert "covered-module status values" in contract_block
+    assert "local integration seam expectations" in contract_block
+    assert "covered-module rules" in playbook_block
+    assert "adding or changing tests" in playbook_block
+    assert "local integration seam expectations and examples" in playbook_block
+    assert "preserve each lane's canonical `validation_command`" in asset_block
+    assert re.search(r"`validation_command`\s+remains the lane acceptance command", asset_block)
+    assert "compatibility field for existing packet consumers" in asset_block
+    assert "do not replace it with a command-tier map" in asset_block
+    assert re.search(r"`focused`\s+command should mirror the canonical `validation_command`", asset_block)
+    assert "unless the build plan records an explicit exception" in asset_block
+    assert "`full` command is the broader regression/final-verification tier" in asset_block
+    assert "must not be treated as the lane acceptance command" in asset_block
 
 
 def test_tasks_templates_default_to_phased_delivery_not_mvp():
@@ -1260,7 +1298,9 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
     assert "if you cannot complete that refresh in the current pass" in lowered
-    assert "mark `.specify/project-map/index/status.json` dirty" in lowered
+    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in lowered
+    assert "successful-refresh finalizer" in lowered
+    assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
     assert "auto-dispatch" not in lowered
     assert "codex runtime rule" not in lowered
@@ -1506,6 +1546,40 @@ def test_script_contracts_expose_context_artifact_paths():
     assert '--arg feature_dir "$FEATURE_DIR"' in sh_setup
     assert '"FEATURE_DIR":"%s"' in sh_setup
     assert '"CONTEXT":"%s"' in sh_setup
+
+
+def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
+    owned_surfaces = [
+        "README.md",
+        "docs/quickstart.md",
+        "templates/commands/specify.md",
+        "templates/commands/quick.md",
+        "templates/commands/implement.md",
+        "templates/commands/fast.md",
+        "templates/commands/debug.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+        "templates/commands/clarify.md",
+        "scripts/bash/update-agent-context.sh",
+        "scripts/powershell/update-agent-context.ps1",
+    ]
+
+    stale_normal_path_phrases = [
+        "should mark `.specify/project-map/index/status.json` dirty and run",
+        "mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend",
+        "prefer `{{specify-subcmd:hook mark-dirty --reason \"<reason>\"}}` as the shared dirty-mark path",
+    ]
+    for path in owned_surfaces:
+        lowered = _read(path).lower()
+        assert "git-baseline freshness" in lowered
+        assert "truth source" in lowered
+        assert "complete-refresh" in lowered
+        assert "successful-refresh finalizer" in lowered
+        assert "manual override/fallback" in lowered
+        assert "if a full refresh can be completed now" in lowered
+        assert "otherwise use" in lowered
+        for phrase in stale_normal_path_phrases:
+            assert phrase not in lowered
 
 
 def test_project_map_freshness_scripts_exist_and_share_status_contract():

@@ -4,6 +4,8 @@
 **Consumed By**: `sp-test-build`
 **Status**: draft | ready | blocked
 
+Control-plane role: executable wave plan for `.specify/testing/*`. This artifact owns wave join point sequencing and command-tier outcomes; it consumes scan evidence and must not redefine the project-wide testing contract, must not become the coverage baseline, and must not replace the newcomer playbook.
+
 ## Build Strategy
 
 - Objective:
@@ -24,14 +26,18 @@
 ### Wave 1: [Name]
 
 - Goal:
-- Join point:
+- Wave join point:
   - validation target:
   - validation command:
   - pass condition:
+  - command-tier outcomes:
+    - fast smoke:
+    - focused:
+    - full:
 
-| Lane ID | Readiness | Module | Risk Tier | Objective | Write Set | Validation Command | Done Condition |
-|---------|-----------|--------|-----------|-----------|-----------|--------------------|----------------|
-| [lane] | ready | [module] | P0 | [objective] | [paths] | [command] | [condition] |
+| Lane ID | Readiness | Module | Risk Tier | Objective | Write Set | Validation Command | Fast Smoke Command | Focused Command | Full Command | Done Condition |
+|---------|-----------|--------|-----------|-----------|-----------|--------------------|--------------------|-----------------|--------------|----------------|
+| [lane] | ready | [module] | P0 | [objective] | [paths] | [focused command] | [command] | [focused command] | [command] | [condition] |
 
 ## TestBuildPacket Inputs
 
@@ -44,7 +50,11 @@
 - write_set:
 - allowed_actions:
 - forbidden_actions:
-- validation_command:
+- validation_command: canonical lane validation command; must match the focused command in `command_tiers`.
+- command_tiers:
+  - fast smoke:
+  - focused:
+  - full:
 - done_condition:
 - result_handoff_path:
 

@@ -6,6 +6,21 @@ from .template_utils import read_template
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _assert_tier_roles(content: str) -> None:
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in content
+    fast_smoke_index = content.index("fast smoke")
+    focused_index = content.index("focused", fast_smoke_index)
+    full_index = content.index("full", focused_index)
+
+    fast_smoke_context = content[fast_smoke_index : fast_smoke_index + 180]
+    focused_context = content[focused_index : focused_index + 220]
+    full_context = content[full_index : full_index + 220]
+
+    assert "cheapest" in fast_smoke_context or "early signal" in fast_smoke_context
+    assert "accepting the fix" in focused_context or "acceptance" in focused_context
+    assert "regression risk" in full_context or "broader regression" in full_context
+
+
 def test_debug_template_documents_capability_aware_investigation() -> None:
     content = read_template("templates/commands/debug.md").lower()
 
@@ -121,13 +136,18 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "durable team workflow" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-scan` followed by `/sp-map-build` before moving to `awaiting_human_verify` or `resolved`" in content
-    assert "mark `.specify/project-map/index/status.json` dirty" in content
-    assert "if you cannot complete that refresh in the current pass" in content
+    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in content
+    assert "complete-refresh" in content
+    assert "successful-refresh finalizer" in content
+    assert "if a full refresh can be completed now" in content
+    assert "otherwise use" in content
+    assert "manual override/fallback" in content
     assert "highest-signal" in content
     assert "write a failing automated repro test before changing production code" in content
     assert "do not modify production behavior until the red state is proven" in content
     assert "if no reliable automated test surface exists for the failing behavior" in content
     assert "add the missing harness first or route through `/sp-test-scan`" in content
+    _assert_tier_roles(content)
     assert "record which plausible causes were considered and which were ruled out" in content
     assert "surface-only" in content
     assert "cannot satisfy the debug contract" in content

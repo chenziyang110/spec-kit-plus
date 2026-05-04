@@ -9,6 +9,7 @@ adapted for the ``sp-<name>/SKILL.md`` skills layout.
 """
 
 import os
+import re
 
 import yaml
 
@@ -18,6 +19,44 @@ from specify_cli.integrations.manifest import IntegrationManifest
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+
+
+def _assert_downstream_testing_control_plane(skill_content: str) -> None:
+    skill_lower = skill_content.lower()
+
+    assert "preserve each lane's canonical `validation_command`" in skill_lower
+    assert "`validation_command` remains the lane acceptance command" in skill_lower
+    assert "do not replace it with a command-tier map" in skill_lower
+    assert "lane's `focused` command should mirror the canonical `validation_command`" in skill_lower
+    assert "focused` command should mirror the canonical `validation_command`" in skill_lower
+    assert "unless the build plan records an explicit exception" in skill_lower
+
+    assert "validation_command` remains the lane acceptance command" in skill_lower
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in skill_lower
+    assert "including when each tier should be run" in skill_lower
+    assert re.search(
+        r"command-tier expectations for `fast smoke`, `focused`, and `full`,"
+        r" including when each tier should be run.*coverage commands.*ci commands",
+        skill_lower,
+        re.S,
+    )
+    assert "successful manual validation evidence" in skill_lower
+    assert re.search(
+        r"`full`[^.\n]*(broader regression|final verification|final or regression-sensitive)",
+        skill_lower,
+    )
+    for forbidden_full_acceptance in (
+        "`full` remains the lane acceptance command",
+        "`full` is the lane acceptance command",
+        "`full` command is the lane acceptance command",
+    ):
+        assert forbidden_full_acceptance not in skill_lower
+    assert "ci/presubmit gate policy" in skill_lower
+
+    assert "covered-module rules" in skill_lower
+    assert "mandatory testing rules for future work" in skill_lower
+    assert "coverage baseline and threshold policy" in skill_lower
+    assert "covered-module status values and the minimum evidence required" in skill_lower
 
 
 class SkillsIntegrationTests:
@@ -318,6 +357,14 @@ class SkillsIntegrationTests:
         assert "worker-results" in build_content
         assert "route back to `/sp-map-scan`" in build_content
 
+    def test_test_build_skill_surfaces_downstream_testing_control_plane(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        skill_content = (i.skills_dest(tmp_path) / "sp-test-build" / "SKILL.md").read_text(encoding="utf-8")
+        _assert_downstream_testing_control_plane(skill_content)
+
     def test_question_driven_skills_define_native_tool_preference_with_fallback(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
@@ -507,7 +554,9 @@ class SkillsIntegrationTests:
         assert ".specify/project-map/index/status.json" in content
         assert "## Map Maintenance" in content
         assert "refresh `PROJECT-HANDBOOK.md`" in content
-        assert "mark `.specify/project-map/index/status.json` dirty" in content
+        assert "git-baseline freshness" in content.lower()
+        assert "complete-refresh" in content
+        assert "manual override/fallback" in content.lower()
 
     def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner

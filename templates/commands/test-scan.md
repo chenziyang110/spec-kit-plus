@@ -35,6 +35,7 @@ Use `execution_surface: native-subagents`.
 ## Testing State Protocol
 
 - `TESTING_STATE_FILE=.specify/testing/testing-state.md` is the project-level testing-system source of truth for `sp-test-scan`.
+- `.specify/testing/status.json` records testing scan freshness. Treat dependency manifests, lockfiles, workflow files, test config, or coverage config changes as `full-stale`; treat `src/**` or `tests/**` module-local files as `targeted-stale`; treat an empty relevant changed-file set as `fresh`.
 - [AGENT] Create or resume `TESTING_STATE_FILE` before substantial testing analysis.
 - Read `.specify/templates/testing/testing-state-template.md`.
 - If `TESTING_STATE_FILE` exists with `active_command: sp-test-scan` and non-terminal scan state, resume from it instead of rebuilding intent from chat memory.
@@ -68,7 +69,7 @@ Use `execution_surface: native-subagents`.
 
 2. **Run the canonical inventory seed**
    - Run `{{specify-subcmd:testing inventory --format json}}` from the repository root.
-   - Treat the command output as the seed inventory for `module_root`, `module_name`, `module_kind`, `language`, `manifest_path`, `selected_skill`, `framework`, `framework_confidence`, `canonical_test_path`, `canonical_test_command`, `coverage_command`, `state`, and `classification_reason`.
+   - Treat the command output as the seed inventory for `module_root`, `module_name`, `module_kind`, `language`, `manifest_path`, `selected_skill`, `framework`, `framework_confidence`, `canonical_test_path`, `canonical_test_command`, `coverage_command`, `command_tiers`, `state`, and `classification_reason`.
    - If the command returns no modules, record the inventory gap, create a safe read-only recovery scan lane when one can be packetized, or stop with `subagent-blocked` for escalation instead of inventing fake module boundaries.
    - Record the raw inventory source and initial module list in `TESTING_STATE_FILE`.
 
@@ -117,8 +118,12 @@ Use `execution_surface: native-subagents`.
      - `truth_owning_files`
      - `public_entrypoints`
      - `existing_test_surface`
+     - covered-module status: `covered | partial | missing | unknown`
      - `missing_scenarios`
      - `risk_tier`
+     - candidate command tiers: `fast smoke`, `focused`, and `full`
+     - candidate layer mix: `small / medium / large`
+     - local integration seams and their local integration seam expectations
      - `recommended_build_lanes`
      - `validation_commands`
      - `blockers`
@@ -135,8 +140,12 @@ Use `execution_surface: native-subagents`.
          "truth_owning_files",
          "public_entrypoints",
          "existing_test_surface",
+         "covered_module_status",
          "missing_scenarios",
          "risk_tier",
+         "candidate_command_tiers",
+         "candidate_layer_mix",
+         "local_integration_seam_expectations",
          "recommended_build_lanes",
          "validation_commands",
          "blockers"
@@ -166,8 +175,12 @@ Use `execution_surface: native-subagents`.
      - public entrypoints and contracts
      - truth-owning logic and high-risk branches
      - existing test files and helpers
+     - covered-module status: `covered | partial | missing | unknown`, with evidence for the status instead of a raw coverage guess
      - missing happy-path, invalid-input, boundary, exception, state-transition, and local-integration scenarios
      - recommended `small / medium / large` test mix
+     - candidate layer mix across `small / medium / large` tests for the next build lane
+     - candidate command tiers: `fast smoke` for the cheapest confidence check, `focused` for the lane acceptance command, and `full` for the broader regression command
+     - local integration seam expectations, including the adapter, filesystem, process, network, database, CLI, or workflow seam that needs local fake/mock or integration-style coverage
      - mock/fake strategy
      - candidate validation and coverage commands
      - blocker or uncertainty when evidence is incomplete

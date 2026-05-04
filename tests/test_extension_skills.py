@@ -30,6 +30,44 @@ from specify_cli import SKILL_DESCRIPTIONS
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _assert_downstream_testing_control_plane(skill_body: str) -> None:
+    skill_lower = skill_body.lower()
+
+    assert "preserve each lane's canonical `validation_command`" in skill_lower
+    assert "`validation_command` remains the lane acceptance command" in skill_lower
+    assert "do not replace it with a command-tier map" in skill_lower
+    assert "lane's `focused` command should mirror the canonical `validation_command`" in skill_lower
+    assert "focused` command should mirror the canonical `validation_command`" in skill_lower
+    assert "unless the build plan records an explicit exception" in skill_lower
+
+    assert "validation_command` remains the lane acceptance command" in skill_lower
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in skill_lower
+    assert "including when each tier should be run" in skill_lower
+    assert re.search(
+        r"command-tier expectations for `fast smoke`, `focused`, and `full`,"
+        r" including when each tier should be run.*coverage commands.*ci commands",
+        skill_lower,
+        re.S,
+    )
+    assert "successful manual validation evidence" in skill_lower
+    assert re.search(
+        r"`full`[^.\n]*(broader regression|final verification|final or regression-sensitive)",
+        skill_lower,
+    )
+    for forbidden_full_acceptance in (
+        "`full` remains the lane acceptance command",
+        "`full` is the lane acceptance command",
+        "`full` command is the lane acceptance command",
+    ):
+        assert forbidden_full_acceptance not in skill_lower
+    assert "ci/presubmit gate policy" in skill_lower
+
+    assert "covered-module rules" in skill_lower
+    assert "mandatory testing rules for future work" in skill_lower
+    assert "coverage baseline and threshold policy" in skill_lower
+    assert "covered-module status values and the minimum evidence required" in skill_lower
+
+
 def _body_without_frontmatter(skill_path: Path) -> str:
     content = skill_path.read_text(encoding="utf-8")
     match = re.match(r"\A---\s*\r?\n.*?\r?\n---\s*\r?\n", content, re.S)
@@ -367,25 +405,22 @@ class TestBuiltInSkillGeneration:
         assert "/sp.clarify" in specify_body or "{{invoke:clarify}}" in specify_body
         assert "recommended review follow-up" in specify_body
         assert "without needing `/sp.clarify`" in specify_body
-        assert "mark `.specify/project-map/index/status.json` dirty" in specify_body.lower()
-        assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in specify_body
+        assert "git-baseline freshness" in specify_body.lower()
+        assert "complete-refresh" in specify_body
+        assert "manual override/fallback" in specify_body.lower()
+        assert "run `/sp-map-scan` followed by `/sp-map-build`" in specify_body
 
         prd_body = _body_without_frontmatter(skills_dir / "sp-prd" / "SKILL.md")
         prd_lower = prd_body.lower()
-        assert "existing project prd suite" in prd_lower
-        assert "peer workflow to `sp-specify`" in prd_lower
-        assert "current repository reality" in prd_lower
-        assert "evidence/inference/unknown" in prd_lower
-        assert ".specify/prd-runs/<run-id>/workflow-state.md" in prd_body
-        assert ".specify/prd-runs/<run-id>/coverage-matrix.md" in prd_body
-        assert "master/master-pack.md" in prd_body
+        assert "deprecated compatibility entrypoint" in prd_lower
+        assert "compatibility-only" in prd_lower
+        assert "route the work through the canonical flow instead" in prd_lower
+        assert "sp-prd-scan" in prd_body
+        assert "sp-prd-build" in prd_body
+        assert ".specify/prd-runs/<run-id>/prd-scan.md" in prd_body
         assert "exports/prd.md" in prd_body
-        assert "no automatic handoff into implementation planning" in prd_lower
-        assert "capability triage" in prd_lower
-        assert "targeted evidence harvest" in prd_lower
-        assert "depth-qualified" in prd_lower
-        assert "critical depth gate" in prd_lower
-
+        assert "old one-step semantics" in prd_lower
+        assert "do not skip `sp-prd-scan` and jump straight to `sp-prd-build`" in prd_lower
         plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         assert "Add `Implementation Constitution`" in plan_body
         assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_body
@@ -397,8 +432,10 @@ class TestBuiltInSkillGeneration:
         assert "phase_mode: design-only" in plan_body
         assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in plan_body
         assert "recommended follow-up quality check" in plan_body
-        assert "mark `.specify/project-map/index/status.json` dirty" in plan_body.lower()
-        assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in plan_body
+        assert "git-baseline freshness" in plan_body.lower()
+        assert "complete-refresh" in plan_body
+        assert "manual override/fallback" in plan_body.lower()
+        assert "run `/sp-map-scan` followed by `/sp-map-build`" in plan_body
 
         tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
         assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
@@ -415,8 +452,10 @@ class TestBuiltInSkillGeneration:
         assert "recommended next command" in tasks_body.lower()
         assert "implementation remains blocked until `/sp-analyze`" in tasks_body.lower()
         assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in tasks_body.lower()
-        assert "mark `.specify/project-map/index/status.json` dirty" in tasks_body.lower()
-        assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
+        assert "git-baseline freshness" in tasks_body.lower()
+        assert "complete-refresh" in tasks_body
+        assert "manual override/fallback" in tasks_body.lower()
+        assert "run `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body
@@ -596,8 +635,45 @@ class TestBuiltInSkillGeneration:
 class TestSkillDescriptions:
     """Built-in command descriptions should stay aligned with bundled templates."""
 
+    def test_claude_test_build_skill_surfaces_downstream_testing_control_plane(self, temp_dir):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project_dir = temp_dir / "claude-test-build-control-plane"
+        project_dir.mkdir()
+
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(project_dir)
+            result = CliRunner().invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--ai-skills",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+
+        test_build_body = _body_without_frontmatter(
+            project_dir / ".claude" / "skills" / "sp-test-build" / "SKILL.md"
+        )
+        _assert_downstream_testing_control_plane(test_build_body)
+
     def test_skill_descriptions_include_new_surfaces(self):
         for name, description in SKILL_DESCRIPTIONS.items():
+            if name == "prd":
+                continue
             assert description.startswith("Use when"), f"{name} description should be trigger-oriented"
 
         assert "guided requirement discovery" in SKILL_DESCRIPTIONS["specify"].lower()

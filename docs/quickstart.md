@@ -184,7 +184,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- **Support skills**: `map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`, `integrate`
+- **Support skills**: `map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
 - **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -206,8 +206,8 @@ Generated project navigation now follows the handbook system:
 - Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
 - Deep project knowledge lives under `.specify/project-map/`.
 - Treat the combined handbook/project-map surface as an atlas-style technical encyclopedia for dependency graph, runtime flows, state lifecycle, and change-impact view.
-- `.specify/project-map/index/status.json` records the current handbook freshness baseline and dirty state.
-- After a successful `map-build` run, use `project-map complete-refresh` as the standard completion hook to record the fresh baseline.
+- `.specify/project-map/index/status.json` records git-baseline freshness as the truth source for the current handbook freshness baseline and dirty state.
+- After a successful `map-build` run, use `project-map complete-refresh` as the standard successful-refresh finalizer to record the fresh baseline. If a full refresh can be completed now, do it; otherwise use `project-map mark-dirty` as a manual override/fallback and route the next brownfield workflow through `map-scan` followed by `map-build`.
 - Any code change that alters navigation meaning must update the handbook system.
 
 Use support skills when they solve a specific gap:
@@ -216,7 +216,7 @@ Use support skills when they solve a specific gap:
 - `auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
 - `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
-- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `map-scan` followed by `map-build` as the follow-up refresh workflow
+- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should complete the full `map-scan` followed by `map-build` refresh now when possible, then use `project-map complete-refresh`; otherwise use `project-map mark-dirty` only as the manual override/fallback
 - `clarify` when an existing spec still needs deeper analysis before planning
 - `deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `plan`; `research` is only its compatibility alias
 - `checklist` when you want to audit requirement quality after planning
@@ -227,7 +227,7 @@ Use support skills when they solve a specific gap:
 - `analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
 - `explain` when you want the current spec, plan, task, implement, or handbook/project-map atlas artifact restated in plain language
 
-If you're starting from an existing codebase, `map-scan` followed by `map-build` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use `.specify/project-map/index/status.json` to decide whether the existing map is fresh, possibly stale, or stale.
+If you're starting from an existing codebase, `map-scan` followed by `map-build` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use the git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for deciding whether the existing map is fresh, possibly stale, or stale.
 
 Use the lightweight routing rules consistently:
 

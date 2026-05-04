@@ -480,7 +480,7 @@ app.add_typer(testing_app, name="testing")
 
 project_map_app = typer.Typer(
     name="project-map",
-    help="Inspect and manage project-map freshness state",
+    help="Inspect git-baseline project-map freshness and finalize or override refresh state",
     add_completion=False,
 )
 app.add_typer(project_map_app, name="project-map")
@@ -494,7 +494,7 @@ app.add_typer(result_app, name="result")
 
 hook_app = typer.Typer(
     name="hook",
-    help="Run first-party workflow quality hooks",
+    help="Run first-party workflow quality hooks, including project-map refresh finalizers",
     add_completion=False,
 )
 app.add_typer(hook_app, name="hook")
@@ -912,6 +912,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Deep project knowledge lives under `.specify/project-map/`.",
             "- Before planning, debugging, or implementing against existing code, read `PROJECT-HANDBOOK.md` and the smallest relevant `.specify/project-map/*.md` files.",
             "- If handbook/project-map coverage is missing, stale, or too broad, run the runtime's `map-scan` workflow entrypoint followed by `map-build` before continuing.",
+            "- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source. If a full refresh can be completed now, do it and use `project-map complete-refresh` as the successful-refresh finalizer; otherwise use `project-map mark-dirty` as the manual override/fallback.",
             "",
             "## Project Memory",
             "",
@@ -948,12 +949,13 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.",
             "- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.",
             "- `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, and `.specify/testing/testing-state.md` constrain testing-system construction and brownfield testing-program routing when present.",
-            "- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh.",
+            "- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh and records git-baseline freshness as the truth source.",
             "",
             "## Map Maintenance",
             "",
             "- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.",
-            "- If that refresh cannot happen in the current pass, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.",
+            "- If a full refresh can be completed now, run `sp-map-scan` followed by `sp-map-build`, then use `project-map complete-refresh` as the successful-refresh finalizer.",
+            "- Otherwise use `project-map mark-dirty` as the manual override/fallback and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.",
             "- Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.",
             "",
             "- Preserve content outside this managed block.",
@@ -1407,7 +1409,7 @@ def testing_inventory_command(
 def project_map_check(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Inspect current project-map freshness for the working tree."""
+    """Inspect git-baseline project-map freshness for the working tree."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     result = inspect_project_map_freshness(project_root)
@@ -1419,10 +1421,10 @@ def project_map_check(
 
 @project_map_app.command("mark-dirty")
 def project_map_mark_dirty(
-    reason: str = typer.Argument(..., help="Why the current work invalidated the project map"),
+    reason: str = typer.Argument(..., help="Why the current work needs a manual dirty override/fallback"),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Mark the project map stale after runtime changes alter navigation meaning."""
+    """Mark the project map dirty as a manual override/fallback when refresh cannot complete now."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     mark_project_map_dirty(project_root, reason)
@@ -1453,7 +1455,7 @@ def project_map_record_refresh(
     reason: str = typer.Option("manual", "--reason", help="Why the map was refreshed"),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Record a fresh project-map baseline at the current HEAD."""
+    """Low-level/manual recovery path to record a fresh project-map baseline at the current HEAD."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _ensure_project_map_artifacts_exist(project_root)
@@ -1474,7 +1476,7 @@ def project_map_record_refresh(
 def project_map_complete_refresh(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Finalize a successful map-build run by recording a fresh baseline."""
+    """Finalize a successful full map refresh by recording a fresh git baseline."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _ensure_project_map_artifacts_exist(project_root)
@@ -2818,7 +2820,7 @@ SKILL_DESCRIPTIONS = {
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",
     "prd-build": "Use when a validated PRD scan package exists and the final PRD suite must be compiled from it without a second repository scan.",
-    "prd": "Deprecated compatibility entrypoint for reverse-PRD work; prefer prd-scan followed by prd-build and the config-contracts.json contract surface.",
+    "prd": "Use when an existing repository needs current-state PRD extraction without automatically handing off to planning; route legacy one-step habits through prd-scan followed by prd-build and the heavy reconstruction contract surface.",
     "clarify": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
     "deep-research": "Use when a planning-ready spec still has feasibility risk and needs coordinated research, evidence packets, a Planning Handoff, or a disposable demo before implementation planning.",
     "research": "Use when a compatibility alias is needed for deep-research; route to the canonical feasibility research gate without creating separate sp-research artifacts.",
@@ -5056,9 +5058,9 @@ def hook_inject_learning_command(
 
 @hook_app.command("mark-dirty")
 def hook_mark_dirty_command(
-    reason: str = typer.Option(..., "--reason", help="Why the current work invalidated the project map"),
+    reason: str = typer.Option(..., "--reason", help="Why the current work needs a manual dirty override/fallback"),
 ):
-    """Mark the project map dirty through the shared hook surface."""
+    """Mark the project map dirty as the shared manual override/fallback."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _run_hook_and_print(
@@ -5070,7 +5072,7 @@ def hook_mark_dirty_command(
 
 @hook_app.command("complete-refresh")
 def hook_complete_refresh_command():
-    """Finalize a project-map refresh through the shared hook surface."""
+    """Finalize a successful project-map refresh through the shared hook surface."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _run_hook_and_print(

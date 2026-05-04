@@ -163,6 +163,7 @@ render_speckit_managed_block() {
 - Deep project knowledge lives under `.specify/project-map/`.
 - Before planning, debugging, or implementing against existing code, read `PROJECT-HANDBOOK.md` and the smallest relevant `.specify/project-map/*.md` files.
 - If handbook/project-map coverage is missing, stale, or too broad, run the runtime's `map-scan` workflow entrypoint followed by `map-build` before continuing.
+- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source. If a full refresh can be completed now, do it and use `project-map complete-refresh` as the successful-refresh finalizer; otherwise use `project-map mark-dirty` as the manual override/fallback.
 
 ## Project Memory
 
@@ -212,12 +213,13 @@ render_speckit_managed_block() {
 - `plan.md` under the active feature directory is the implementation design source of truth once planning begins.
 - `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.
 - `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, and `.specify/testing/testing-state.md` constrain testing-system construction and brownfield testing-program routing when present.
-- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh.
+- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh and records git-baseline freshness as the truth source.
 
 ## Map Maintenance
 
 - If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files.
-- If that refresh cannot happen in the current pass, mark `.specify/project-map/index/status.json` dirty and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.
+- If a full refresh can be completed now, run `sp-map-scan` followed by `sp-map-build`, then use `project-map complete-refresh` as the successful-refresh finalizer.
+- Otherwise use `project-map mark-dirty` as the manual override/fallback and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.
 - Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.
 
 ## Spec Quality Gate (`spec-lint`)

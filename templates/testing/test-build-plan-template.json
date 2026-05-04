@@ -2,6 +2,17 @@
   "version": 1,
   "generated_by": "sp-test-scan",
   "consumed_by": "sp-test-build",
+  "control_plane_role": "wave-plan-json",
+  "owns": [
+    "machine-readable wave join points",
+    "lane command tiers",
+    "command-tier outcomes"
+  ],
+  "must_not_become": [
+    "project-wide testing contract",
+    "newcomer playbook",
+    "coverage baseline"
+  ],
   "status": "draft",
   "waves": [
     {
@@ -10,7 +21,12 @@
       "join_point": {
         "validation_target": "wave-1 targeted tests",
         "validation_command": "REPLACE_WITH_COMMAND",
-        "pass_condition": "All accepted lane validation commands pass or blockers are recorded."
+        "pass_condition": "All accepted lane validation commands pass or blockers are recorded.",
+        "command_tier_outcomes": {
+          "fast_smoke": "REPLACE_WITH_FAST_SMOKE_OUTCOME",
+          "focused": "REPLACE_WITH_FOCUSED_OUTCOME",
+          "full": "REPLACE_WITH_FULL_OUTCOME"
+        }
       },
       "lanes": [
         {
@@ -23,7 +39,12 @@
           "write_set": [],
           "allowed_actions": ["add tests", "add module-local fixtures"],
           "forbidden_actions": ["edit shared config", "rewrite existing tests", "edit production code"],
-          "validation_command": "REPLACE_WITH_COMMAND",
+          "validation_command": "REPLACE_WITH_FOCUSED_COMMAND",
+          "command_tiers": {
+            "fast_smoke": "REPLACE_WITH_FAST_SMOKE_COMMAND",
+            "focused": "REPLACE_WITH_FOCUSED_COMMAND",
+            "full": "REPLACE_WITH_FULL_COMMAND"
+          },
           "done_condition": "Public behavior is asserted and targeted validation passes.",
           "result_handoff_path": ".specify/testing/worker-results/example-lane.json"
         }
