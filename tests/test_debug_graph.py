@@ -11,7 +11,15 @@ from specify_cli.debug.graph import (
     VerifyingNode,
 )
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
-from specify_cli.debug.schema import CausalMapCandidate, DebugGraphState, DebugStatus
+from specify_cli.debug.schema import (
+    CausalMapCandidate,
+    DebugGraphState,
+    DebugStatus,
+    LogReadiness,
+    ObserverExpansionStatus,
+    ProjectRuntimeProfile,
+    SymptomShape,
+)
 
 
 def _populate_valid_dual_observer_state(state: DebugGraphState, *, mode: str = "full") -> None:
@@ -329,9 +337,243 @@ async def test_gathering_requests_contract_subagent_after_causal_map() -> None:
     assert state.contract_subagent_prompt is not None
     assert "contract subagent" in (state.current_focus.next_action or "").lower()
 
+
+@pytest.mark.asyncio
+async def test_gathering_classifies_runtime_phenomenon_and_suggests_expanded_observer() -> None:
+    state = DebugGraphState(trigger="UI occasionally shows stale order status after retry", slug="runtime-phenomenon")
+    state.symptoms.expected = "Order status updates to completed after retry"
+    state.symptoms.actual = "UI keeps showing processing with no precise failure location"
+    state.symptoms.reproduction_verified = True
+    _populate_valid_dual_observer_state(state)
+    state.observer_framing.summary = "Cross-layer symptom still needs runtime narrowing"
+    state.observer_framing.primary_suspected_loop = "ui-projection"
+    state.observer_framing.suspected_owning_layer = "publish/projection boundary"
+    state.observer_framing.suspected_truth_owner = "backend order state"
+    state.observer_framing.recommended_first_probe = "Correlate browser output with backend publish events"
+    state.observer_framing.contrarian_candidate = "Backend truth owner never transitions to completed"
+    state.observer_framing.alternative_cause_candidates = [
+        graph_module.ObserverCauseCandidate(
+            candidate="Projection layer serves stale order state",
+            failure_shape="projection_render",
+            would_rule_out="Published payload already contains the stale value",
+            recommended_first_probe="Compare published payload and rendered state",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="Backend publish boundary emits stale status",
+            failure_shape="truth_owner_logic",
+            would_rule_out="Backend truth owner shows the correct completed status before publish",
+            recommended_first_probe="Check backend status transition and publish output",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="Retry worker misses refresh event",
+            failure_shape="queue_async",
+            would_rule_out="Refresh event is present in worker/job traces for the repro window",
+            recommended_first_probe="Check retry worker completion and refresh emission logs",
+        ),
+    ]
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.project_runtime_profile == ProjectRuntimeProfile.FULL_STACK_WEB_APP
+    assert state.symptom_shape == SymptomShape.PHENOMENON_ONLY
+    assert state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
+    assert state.observer_expansion_reason is not None
+    assert "runtime" in state.observer_expansion_reason
+
+
+@pytest.mark.asyncio
+async def test_gathering_suggests_expanded_observer_for_runtime_cross_layer_case() -> None:
+    state = DebugGraphState(trigger="Status badge stays stale while worker marks job complete", slug="runtime-cross-layer")
+    state.symptoms.expected = "Completed jobs disappear from the queue badge"
+    state.symptoms.actual = "Worker reports completion but UI badge still shows the job"
+    state.symptoms.reproduction_verified = True
+    _populate_valid_dual_observer_state(state)
+    state.observer_framing.summary = "Symptom appears in UI but truth owner may live in worker/backend boundaries"
+    state.observer_framing.primary_suspected_loop = "scheduler-admission"
+    state.observer_framing.suspected_owning_layer = "queue worker publish boundary"
+    state.observer_framing.suspected_truth_owner = "queue worker"
+    state.observer_framing.recommended_first_probe = "Compare worker completion and badge refresh boundaries"
+    state.observer_framing.contrarian_candidate = "UI badge polls the wrong projection"
+    state.observer_framing.alternative_cause_candidates = [
+        graph_module.ObserverCauseCandidate(
+            candidate="Worker completion never emits queue-clear event",
+            failure_shape="truth_owner_logic",
+            would_rule_out="Worker completion traces show the queue-clear event emitted reliably",
+            recommended_first_probe="Inspect worker completion and publish traces",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="Projection refresh misses the queue-clear event",
+            failure_shape="projection_render",
+            would_rule_out="Projection refresh logs show the clear event arriving and being applied",
+            recommended_first_probe="Compare worker publish trace and projection refresh trace",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="Queue badge reads a stale cache layer",
+            failure_shape="cache_snapshot",
+            would_rule_out="Badge projection and cache both refresh to the new state in the repro window",
+            recommended_first_probe="Compare cache invalidation and badge read paths",
+        ),
+    ]
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.project_runtime_profile == ProjectRuntimeProfile.WORKER_QUEUE_CRON
+    assert state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
+    assert state.observer_expansion_reason == "runtime_cross_layer_symptom"
+
+
+@pytest.mark.asyncio
+async def test_gathering_suggests_expanded_observer_after_two_failed_rounds() -> None:
+    state = DebugGraphState(trigger="Intermittent runtime state drift after retry", slug="runtime-not-converging")
+    state.symptoms.expected = "Retry restores consistent state"
+    state.symptoms.actual = "State remains inconsistent after two attempted investigation rounds"
+    state.symptoms.reproduction_verified = True
+    _populate_valid_dual_observer_state(state)
+    state.project_runtime_profile = ProjectRuntimeProfile.FULL_STACK_WEB_APP
+    state.current_focus.hypothesis = "Projection cache is stale"
+    state.eliminated = [
+        {"hypothesis": "Projection cache is stale", "evidence": "Cache refresh fired but symptom persisted"},
+        {"hypothesis": "Retry worker never completed", "evidence": "Worker completion event is present"},
+    ]
+    state.observer_framing.summary = "Two runtime probes have not converged on a single owning-layer cause"
+    state.observer_framing.primary_suspected_loop = "cache-snapshot"
+    state.observer_framing.suspected_owning_layer = "publish/cache boundary"
+    state.observer_framing.suspected_truth_owner = "backend retry state"
+    state.observer_framing.recommended_first_probe = "Expand candidate surface before another local probe"
+    state.observer_framing.contrarian_candidate = "Retry never updates the truth owner"
+    state.observer_framing.alternative_cause_candidates = [
+        graph_module.ObserverCauseCandidate(candidate="Projection cache is stale", failure_shape="cache_snapshot", would_rule_out="Cache state matches backend truth owner", recommended_first_probe="Compare cache and backend state"),
+        graph_module.ObserverCauseCandidate(candidate="Retry never updates the truth owner", failure_shape="truth_owner_logic", would_rule_out="Backend truth owner update is recorded", recommended_first_probe="Inspect retry state transitions"),
+        graph_module.ObserverCauseCandidate(candidate="Async refresh misses retry completion", failure_shape="queue_async", would_rule_out="Async refresh executes after retry completion", recommended_first_probe="Inspect async refresh flow"),
+    ]
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
+    assert state.observer_expansion_reason == "hypothesis_not_converging"
+
+
+@pytest.mark.asyncio
+async def test_gathering_leaves_non_runtime_session_outside_runtime_expansion_scope() -> None:
+    state = DebugGraphState(trigger="Refactor parser helper for readability", slug="non-runtime")
+    state.symptoms.expected = "Helper returns the same computed token list"
+    state.symptoms.actual = "Refactor task only; no runtime repro or symptom investigation"
+    state.symptoms.errors = "mypy reports incompatible return type"
+    state.symptoms.reproduction_verified = True
+    _populate_valid_dual_observer_state(state)
+    state.observer_framing.summary = "Static typing issue with no runtime evidence surface"
+    state.observer_framing.primary_suspected_loop = "general"
+    state.observer_framing.suspected_owning_layer = "parser helper"
+    state.observer_framing.suspected_truth_owner = "parser helper"
+    state.observer_framing.recommended_first_probe = "Fix the type mismatch directly"
+    state.observer_framing.contrarian_candidate = "Signature drift in the caller"
+    state.observer_framing.alternative_cause_candidates = [
+        graph_module.ObserverCauseCandidate(candidate="Parser helper returns the wrong type", failure_shape="truth_owner_logic", would_rule_out="Helper return type matches the annotation", recommended_first_probe="Check helper signature"),
+        graph_module.ObserverCauseCandidate(candidate="Caller expects the wrong type alias", failure_shape="projection_render", would_rule_out="Caller type alias matches helper output", recommended_first_probe="Check caller typing"),
+        graph_module.ObserverCauseCandidate(candidate="Shared type alias drifted", failure_shape="config_flag_env", would_rule_out="Shared alias still matches the contract", recommended_first_probe="Inspect shared type alias"),
+    ]
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.project_runtime_profile is None
+    assert state.observer_expansion_status == ObserverExpansionStatus.NOT_APPLICABLE
+
+
+@pytest.mark.asyncio
+async def test_gathering_keeps_generic_request_command_words_out_of_runtime_scope() -> None:
+    state = DebugGraphState(
+        trigger="Refactor request command builder for the database response fixture script",
+        slug="non-runtime-generic-runtime-words",
+    )
+    state.symptoms.expected = "Refactor preserves the same helper output"
+    state.symptoms.actual = "This is a static cleanup task touching request helper naming and database fixture script naming only"
+    state.symptoms.errors = "ruff reports import ordering changes only"
+    state.symptoms.reproduction_verified = True
+    _populate_valid_dual_observer_state(state)
+    state.observer_framing.summary = "Static refactor task with generic nouns but no runtime evidence surface"
+    state.observer_framing.primary_suspected_loop = "general"
+    state.observer_framing.suspected_owning_layer = "helper naming and module structure"
+    state.observer_framing.suspected_truth_owner = "helper naming and module structure"
+    state.observer_framing.recommended_first_probe = "Apply the refactor without changing behavior"
+    state.observer_framing.contrarian_candidate = "Shared helper signature drift"
+    state.observer_framing.alternative_cause_candidates = [
+        graph_module.ObserverCauseCandidate(
+            candidate="Helper refactor changes import shape",
+            failure_shape="truth_owner_logic",
+            would_rule_out="Import graph stays identical after the rename",
+            recommended_first_probe="Inspect helper imports",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="Shared helper signature drift",
+            failure_shape="projection_render",
+            would_rule_out="Shared signature remains unchanged",
+            recommended_first_probe="Inspect helper signature",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="Formatting-only edits are incomplete",
+            failure_shape="config_flag_env",
+            would_rule_out="Formatter and linter report clean output",
+            recommended_first_probe="Run formatter and linter",
+        ),
+    ]
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.project_runtime_profile is None
+    assert state.observer_expansion_status == ObserverExpansionStatus.NOT_APPLICABLE
+
+
+@pytest.mark.asyncio
+async def test_gathering_ignores_runtime_like_feature_slug_for_static_task() -> None:
+    state = DebugGraphState(trigger="Rename helper constants for clarity", slug="non-runtime-feature-slug")
+    state.context.feature_id = "rename-worker-queue-helpers"
+    state.symptoms.expected = "Static rename keeps helper outputs unchanged"
+    state.symptoms.actual = "This is a naming cleanup with no runtime repro or production symptom"
+    state.symptoms.errors = "ruff reports unused import cleanup only"
+    state.symptoms.reproduction_verified = True
+    _populate_valid_dual_observer_state(state)
+    state.observer_framing.summary = "Static rename task; the feature slug happens to contain unrelated infrastructure words"
+    state.observer_framing.primary_suspected_loop = "general"
+    state.observer_framing.suspected_owning_layer = "helper naming and module structure"
+    state.observer_framing.suspected_truth_owner = "helper naming and module structure"
+    state.observer_framing.recommended_first_probe = "Apply the rename without changing behavior"
+    state.observer_framing.contrarian_candidate = "Shared helper references are incomplete"
+    state.observer_framing.alternative_cause_candidates = [
+        graph_module.ObserverCauseCandidate(
+            candidate="Rename misses one helper import",
+            failure_shape="truth_owner_logic",
+            would_rule_out="All helper imports are updated consistently",
+            recommended_first_probe="Inspect helper imports",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="Shared helper constant references are incomplete",
+            failure_shape="projection_render",
+            would_rule_out="All helper references use the renamed constant",
+            recommended_first_probe="Inspect helper references",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="Formatter-only cleanup is incomplete",
+            failure_shape="config_flag_env",
+            would_rule_out="Formatter and linter report clean output",
+            recommended_first_probe="Run formatter and linter",
+        ),
+    ]
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert isinstance(result, InvestigatingNode)
+    assert state.project_runtime_profile is None
+    assert state.observer_expansion_status == ObserverExpansionStatus.NOT_APPLICABLE
+
 @pytest.mark.asyncio
 async def test_investigating_to_fixing():
     state = DebugGraphState(trigger="test bug", slug="test-slug")
+    state.log_readiness = LogReadiness.SUFFICIENT_EXISTING_LOGS
     state.resolution.root_cause = {
         "summary": "Scheduler kept stale running ownership after slot release",
         "owning_layer": "scheduler",
@@ -391,6 +633,7 @@ async def test_investigating_to_fixing():
 @pytest.mark.asyncio
 async def test_fixing_to_verifying():
     state = DebugGraphState(trigger="test bug", slug="test-slug")
+    state.log_readiness = LogReadiness.SUFFICIENT_EXISTING_LOGS
     state.resolution.root_cause = {
         "summary": "Scheduler kept stale running ownership after slot release",
         "owning_layer": "scheduler",

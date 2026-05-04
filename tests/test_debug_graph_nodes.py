@@ -8,7 +8,11 @@ from specify_cli.debug.schema import (
     DebugStatus,
     EliminatedEntry,
     EvidenceEntry,
+    LogReadiness,
     ObserverCauseCandidate,
+    ObserverExpansionStatus,
+    ProjectRuntimeProfile,
+    SymptomShape,
 )
 from specify_cli.debug.graph import (
     AwaitingHumanNode,
@@ -261,6 +265,7 @@ async def test_investigating_node_elimination():
 @pytest.mark.asyncio
 async def test_investigating_node_finds_root_cause():
     state = DebugGraphState(slug="test", trigger="test")
+    state.log_readiness = LogReadiness.SUFFICIENT_EXISTING_LOGS
     state.resolution.root_cause = {
         "summary": "Parser upper bound excludes the final token",
         "owning_layer": "parser",
@@ -359,6 +364,7 @@ async def test_fixing_node_no_fix():
 @pytest.mark.asyncio
 async def test_fixing_node_with_fix():
     state = DebugGraphState(slug="test", trigger="test")
+    state.log_readiness = LogReadiness.SUFFICIENT_EXISTING_LOGS
     state.resolution.root_cause = {
         "summary": "Parser upper bound excludes the final token",
         "owning_layer": "parser",
@@ -399,6 +405,7 @@ async def test_fixing_node_with_fix():
 @pytest.mark.asyncio
 async def test_fixing_blocks_until_contrarian_candidate_is_resolved() -> None:
     state = DebugGraphState(slug="test", trigger="queue stuck")
+    state.log_readiness = LogReadiness.SUFFICIENT_EXISTING_LOGS
     state.resolution.root_cause = {
         "summary": "Scheduler does not clear slot ownership on release",
         "owning_layer": "scheduler",
@@ -631,8 +638,165 @@ async def test_fixing_node_blocks_without_required_framing():
 
 
 @pytest.mark.asyncio
+async def test_investigating_node_generates_user_log_request_packet_when_runtime_logs_are_inaccessible():
+    state = DebugGraphState(slug="runtime-logs", trigger="Order status stays stale after retry in production")
+    state.symptoms.expected = "Status becomes completed after retry succeeds"
+    state.symptoms.actual = "UI still shows processing and agent cannot access production logs directly"
+    state.symptoms.reproduction_verified = True
+    state.project_runtime_profile = ProjectRuntimeProfile.FULL_STACK_WEB_APP
+    state.symptom_shape = SymptomShape.PHENOMENON_ONLY
+    state.observer_expansion_status = ObserverExpansionStatus.SUGGESTED
+    state.log_readiness = LogReadiness.USER_MUST_PROVIDE_LOGS
+    state.investigation_contract.top_candidates = [
+        {
+            "candidate_id": "cand-publish-boundary",
+            "family": "publish_boundary",
+            "investigation_priority": 1,
+            "recommended_log_probe": "Server request logs around the retry request and browser console/network logs",
+        }
+    ]
+
+    result = await InvestigatingNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert state.expanded_observer.log_investigation_plan.user_request_packet
+    packet = state.expanded_observer.log_investigation_plan.user_request_packet[0]
+    assert "log" in packet.target_source.lower() or "console" in packet.target_source.lower()
+    assert packet.time_window
+    assert packet.keywords_or_fields
+    assert "candidate" in packet.why_this_matters.lower() or "distinguish" in packet.why_this_matters.lower()
+    assert packet.expected_signal_examples
+
+
+@pytest.mark.asyncio
+async def test_fixing_node_blocks_runtime_bug_when_log_readiness_is_insufficient():
+    state = DebugGraphState(slug="runtime-fix-gate", trigger="Queue item stays visible after completion")
+    state.project_runtime_profile = ProjectRuntimeProfile.WORKER_QUEUE_CRON
+    state.symptom_shape = SymptomShape.PHENOMENON_ONLY
+    state.log_readiness = LogReadiness.INSUFFICIENT_NEED_INSTRUMENTATION
+    state.resolution.root_cause = {
+        "summary": "Worker completion path likely misses dequeue publish event",
+        "owning_layer": "queue worker",
+        "broken_control_state": "job completion publish signal",
+        "failure_mechanism": "completed jobs may not emit the dequeue event that clears projections",
+        "loop_break": "state transition -> external observation",
+        "decisive_signal": "projection sometimes remains stale after completion",
+    }
+    state.truth_ownership = [{"layer": "queue worker", "owns": "job completion publish signal"}]
+    state.control_state = ["job completion publish signal"]
+    state.observation_state = ["queue projection"]
+    state.closed_loop.input_event = "job completion"
+    state.closed_loop.control_decision = "emit dequeue publish event"
+    state.closed_loop.resource_allocation = "mark worker slot complete"
+    state.closed_loop.state_transition = "queue projection clears completed item"
+    state.closed_loop.external_observation = "completed item disappears from queue UI"
+    state.closed_loop.break_point = "publish event may be missing"
+    state.resolution.decisive_signals = ["projection sometimes remains stale after completion"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Worker completion path misses dequeue publish event",
+        "Projection refresh is delayed but publish event exists",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Projection refresh is delayed but publish event exists",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
+    state.resolution.fix = "Force projection clear unconditionally on completion"
+    state.resolution.fix_scope = "truth-owner"
+
+    result = await FixingNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert "log readiness" in (state.current_focus.next_action or "").lower()
+    assert "instrumentation" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_fixing_node_blocks_runtime_bug_when_log_readiness_is_unknown():
+    state = DebugGraphState(slug="runtime-log-unknown", trigger="Order state remains stale after a runtime retry")
+    state.project_runtime_profile = ProjectRuntimeProfile.FULL_STACK_WEB_APP
+    state.symptom_shape = SymptomShape.PHENOMENON_ONLY
+    state.log_readiness = LogReadiness.UNKNOWN
+    state.resolution.root_cause = {
+        "summary": "Retry completion may not reach the publish boundary",
+        "owning_layer": "retry publish boundary",
+        "broken_control_state": "published order state",
+        "failure_mechanism": "publish path may not emit the completion update",
+        "loop_break": "state transition -> external observation",
+        "decisive_signal": "order state remains stale after retry completion",
+    }
+    state.truth_ownership = [{"layer": "retry publish boundary", "owns": "published order state"}]
+    state.control_state = ["published order state"]
+    state.observation_state = ["order status badge"]
+    state.closed_loop.input_event = "retry completion"
+    state.closed_loop.control_decision = "publish completed state"
+    state.closed_loop.resource_allocation = "mark retry workflow complete"
+    state.closed_loop.state_transition = "order status badge refreshes"
+    state.closed_loop.external_observation = "user sees completed"
+    state.closed_loop.break_point = "publish may not carry the completed state"
+    state.resolution.decisive_signals = ["order state remains stale after retry completion"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Retry completion may not reach the publish boundary",
+        "Badge polls stale cache data",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Badge polls stale cache data",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
+    state.resolution.fix = "Force a completed-state republish after retry"
+    state.resolution.fix_scope = "truth-owner"
+
+    result = await FixingNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert "log readiness" in (state.current_focus.next_action or "").lower()
+    assert "existing logs" in (state.current_focus.next_action or "").lower() or "assess" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_fixing_node_blocks_runtime_bug_when_log_readiness_is_unset():
+    state = DebugGraphState(slug="runtime-log-unset", trigger="Queue projection remains stale after job completion")
+    state.project_runtime_profile = ProjectRuntimeProfile.WORKER_QUEUE_CRON
+    state.symptom_shape = SymptomShape.PHENOMENON_ONLY
+    state.resolution.root_cause = {
+        "summary": "Queue-clear signal may not be emitted after completion",
+        "owning_layer": "queue worker",
+        "broken_control_state": "queue-clear signal",
+        "failure_mechanism": "completion path may skip the clear signal entirely",
+        "loop_break": "state transition -> external observation",
+        "decisive_signal": "completed item remains visible in queue projection",
+    }
+    state.truth_ownership = [{"layer": "queue worker", "owns": "queue-clear signal"}]
+    state.control_state = ["queue-clear signal"]
+    state.observation_state = ["queue projection"]
+    state.closed_loop.input_event = "job completion"
+    state.closed_loop.control_decision = "emit queue-clear signal"
+    state.closed_loop.resource_allocation = "release worker slot"
+    state.closed_loop.state_transition = "queue projection clears completed item"
+    state.closed_loop.external_observation = "queue UI removes the completed item"
+    state.closed_loop.break_point = "clear signal may be absent"
+    state.resolution.decisive_signals = ["completed item remains visible in queue projection"]
+    state.resolution.alternative_hypotheses_considered = [
+        "Queue-clear signal may not be emitted after completion",
+        "Projection refresh applies too late",
+    ]
+    state.resolution.alternative_hypotheses_ruled_out = [
+        "Projection refresh applies too late",
+    ]
+    state.resolution.root_cause_confidence = "confirmed"
+    state.resolution.fix = "Always emit queue-clear signal on completion"
+    state.resolution.fix_scope = "truth-owner"
+
+    result = await FixingNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert "log readiness" in (state.current_focus.next_action or "").lower()
+    assert "assess" in (state.current_focus.next_action or "").lower() or "existing logs" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
 async def test_fixing_node_blocks_surface_only_fix_scope():
     state = DebugGraphState(slug="test", trigger="test")
+    state.log_readiness = LogReadiness.SUFFICIENT_EXISTING_LOGS
     state.resolution.root_cause = {
         "summary": "Projection layer drops the final token",
         "owning_layer": "projection boundary",
