@@ -107,9 +107,13 @@ syntax generated for your selected integration rather than copying Claude-style
 examples into Codex or Kimi projects.
 
 Use the canonical `prd-scan -> prd-build` workflow when an existing repository
-needs a repository-first current-state PRD suite. It is a peer workflow path to
-`specify` and does not automatically hand off to `plan`. `prd` remains a
-deprecated compatibility entrypoint only.
+needs a repository-first current-state PRD reconstruction archive. It is the
+heavy reconstruction PRD lane: substantive `prd-scan` runs are
+subagent-mandatory, critical claims target `L4 Reconstruction-Ready`,
+`config-contracts.json` is part of the scan contract surface, and `prd-build`
+compiles from the scan package without a second repository scan. It remains a
+peer workflow path to `specify` and does not automatically hand off to `plan`.
+`prd` remains a deprecated compatibility entrypoint only.
 
 The `.specify/scripts` directory will contain both `.sh` and `.ps1` scripts.
 

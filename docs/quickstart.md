@@ -100,13 +100,17 @@ command family.
 
 For an existing repository that needs a current-state product requirements
 document instead of a new feature spec, run the peer `prd-scan -> prd-build`
-workflow pair. It reverse-extracts a PRD suite from repository evidence, writes
-`.specify/prd-runs/<run-id>/`, and does not automatically hand off to `plan`.
-`prd` remains a deprecated compatibility entrypoint only.
+workflow pair. It is the heavy reconstruction PRD lane: substantive
+`prd-scan` runs are subagent-mandatory, critical claims target
+`L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan
+contract surface, and `prd-build` compiles the expanded reconstruction archive
+from the scan package without performing a second repository scan. The workflow
+writes `.specify/prd-runs/<run-id>/` and does not automatically hand off to
+`plan`. `prd` remains a deprecated compatibility entrypoint only.
 
 ```markdown
-/sp-prd-scan Extract a reconstruction-grade PRD scan package for this repository.
-/sp-prd-build Compile the current-state PRD suite from the validated scan package.
+/sp-prd-scan Extract the heavy reconstruction PRD scan package for this repository.
+/sp-prd-build Compile the expanded reconstruction archive from the validated scan package without a second repository scan.
 ```
 
 ### Step 4: Plan the Implementation
@@ -210,7 +214,7 @@ Use support skills when they solve a specific gap:
 
 - `map-scan` followed by `map-build` as the required brownfield gate when you are working in an existing codebase; generate the complete scan package first, then refresh the handbook/project-map navigation system before deeper workflow steps
 - `auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
-- `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it writes `.specify/prd-runs/<run-id>/` and does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair
+- `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should mark `.specify/project-map/index/status.json` dirty and run `map-scan` followed by `map-build` as the follow-up refresh workflow
 - `clarify` when an existing spec still needs deeper analysis before planning
