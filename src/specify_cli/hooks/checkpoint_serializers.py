@@ -140,7 +140,10 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     profile_obligations = section_body(text, "Profile Obligations")
     next_action = section_body(text, "Next Action")
     next_command = section_body(text, "Next Command")
+    allowed_artifact_writes = section_body(text, "Allowed Artifact Writes")
+    forbidden_actions = section_body(text, "Forbidden Actions")
     authoritative_files = section_body(text, "Authoritative Files")
+    lane_context = section_body(text, "Lane Context")
     exit_criteria = section_body(text, "Exit Criteria")
     learning_signals = section_body(text, "Learning Signals")
     false_starts = section_body(text, "False Starts")
@@ -153,6 +156,7 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
         "active_command": extract_field(current_command, "active_command"),
         "status": extract_field(current_command, "status"),
         "phase_mode": extract_field(phase_mode, "phase_mode"),
+        "summary": extract_field(phase_mode, "summary"),
         "active_profile": extract_field(scenario_profile, "active_profile"),
         "routing_reason": extract_field(scenario_profile, "routing_reason"),
         "confidence_level": extract_field(scenario_profile, "confidence_level"),
@@ -163,7 +167,11 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
         "transition_policy": extract_field(profile_obligations, "transition_policy"),
         "next_action": extract_first_nonempty_line(next_action),
         "next_command": extract_first_nonempty_line(next_command),
+        "allowed_artifact_writes": extract_bullets(allowed_artifact_writes),
+        "forbidden_actions": extract_bullets(forbidden_actions),
         "authoritative_files": extract_bullets(authoritative_files),
+        "recovery_state": extract_field(lane_context, "recovery_state"),
+        "last_stable_checkpoint": extract_field(lane_context, "last_stable_checkpoint"),
         "exit_criteria": extract_bullets(exit_criteria),
         "route_reason": extract_field(learning_signals, "route_reason"),
         "blocked_reason": extract_field(learning_signals, "blocked_reason"),

@@ -176,8 +176,12 @@ def test_workflow_checkpoint_returns_resume_payload_for_workflow_state(tmp_path:
     assert checkpoint["state_kind"] == "workflow-state"
     assert checkpoint["active_command"] == "sp-plan"
     assert checkpoint["phase_mode"] == "design-only"
+    assert checkpoint["summary"] == "demo"
     assert checkpoint["next_action"] == "finish constitution checks"
     assert checkpoint["next_command"] == "/sp.tasks"
+    assert checkpoint["allowed_artifact_writes"] == ["spec.md"]
+    assert checkpoint["forbidden_actions"] == ["edit source code"]
+    assert checkpoint["authoritative_files"] == ["spec.md"]
 
 
 def test_workflow_checkpoint_returns_resume_payload_for_quick_status(tmp_path: Path):

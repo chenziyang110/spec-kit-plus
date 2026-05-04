@@ -50,6 +50,14 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
             errors.append(
                 f"phase_mode mismatch: expected {expected_phase}, got {checkpoint['phase_mode'] or 'missing'}"
             )
+        if not checkpoint["allowed_artifact_writes"]:
+            errors.append("workflow-state is missing allowed_artifact_writes")
+        if not checkpoint["forbidden_actions"]:
+            errors.append("workflow-state is missing forbidden_actions")
+        if not checkpoint["authoritative_files"]:
+            errors.append("workflow-state is missing authoritative_files")
+        if not checkpoint["next_command"]:
+            errors.append("workflow-state is missing next_command")
         if errors:
             return HookResult(
                 event=WORKFLOW_STATE_VALIDATE,
