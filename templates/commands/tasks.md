@@ -187,7 +187,7 @@ artifacts afterward, but it may not skip the atlas gate.
    - Phase 1: Setup tasks (project initialization)
    - Phase 2: Foundational tasks (blocking prerequisites for all user stories)
    - Phase 3+: One phase per user story (in priority order from spec.md)
-   - Each phase includes: story goal, independent test criteria, tests (if requested), implementation tasks
+   - Each phase includes: story goal, independent test criteria, required test tasks for behavior changes/bug fixes/refactors/regression-sensitive modules, implementation tasks
    - Final Phase: Polish & cross-cutting concerns
    - All tasks must follow the strict checklist format (see Task Generation Rules below)
    - Clear file paths for each task
@@ -238,6 +238,13 @@ The tasks.md should be immediately executable - each task must be specific enoug
 **CRITICAL**: Tasks MUST be organized by user story to enable independent implementation and testing.
 
 **Tests are contract-driven**: If `.specify/testing/TESTING_CONTRACT.md` exists, generate test tasks by default for affected behavior changes, bug fixes, and regression-sensitive modules. Only omit tests when the change is clearly docs-only/process-only or the testing contract explicitly allows the omission.
+
+When the testing control plane is present, generate test work that preserves its terminology:
+- `small tests`: narrow unit or helper-level checks that give cheap local confidence.
+- `medium tests`: local integration checks around adapter, filesystem, process, network, database, CLI, or workflow seams.
+- `fast smoke`: the cheapest command-tier signal for a lane or touched module.
+- `focused`: the lane acceptance command; validation_command remains the focused lane acceptance command.
+- `full`: the broader regression command for final or risk-sensitive verification.
 
 ### Checklist Format (REQUIRED)
 
@@ -293,12 +300,12 @@ Every task MUST strictly follow this format:
      - Models needed for that story
      - Services needed for that story
      - Interfaces/UI needed for that story
-     - If `.specify/testing/TESTING_CONTRACT.md` exists or the spec explicitly requires tests: Tests specific to that story
+     - Tests specific to that story for behavior changes, bug fixes, refactors, and regression-sensitive modules
    - Mark story dependencies (most stories should be independent)
 
 2. **From Contracts**:
    - Map each interface contract → to the user story it serves
-   - If `.specify/testing/TESTING_CONTRACT.md` exists or the spec explicitly requires tests: Each interface contract → contract test task [P] before implementation in that story's phase
+   - For behavior changes, bug fixes, refactors, and regression-sensitive modules: Each affected interface contract → contract test tasks by default before implementation in that story's phase
 
 3. **From Data Model**:
    - Map each entity to the user story(ies) that need it
@@ -328,6 +335,6 @@ Every task MUST strictly follow this format:
 - **Phase 1**: Setup (project initialization)
 - **Phase 2**: Foundational (blocking prerequisites - MUST complete before user stories)
 - **Phase 3+**: User Stories in priority order (P1, P2, P3...)
-  - Within each story: Tests (if requested) → Models → Services → Endpoints → Integration
+  - Within each story: Required tests → Models → Services → Endpoints → Integration
   - Each phase should be a complete, independently testable increment
 - **Final Phase**: Polish & Cross-Cutting Concerns

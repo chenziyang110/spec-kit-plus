@@ -563,11 +563,34 @@ def test_plan_template_consumes_testing_contract_when_present():
     assert ".specify/testing/COVERAGE_BASELINE.json".lower() in lowered
     assert "copy the project-level testing rules into the implementation plan" in lowered
     assert "canonical test, targeted-test, and coverage commands" in lowered
+    assert "module priority waves" in lowered
+    assert "covered-module policy" in lowered
+    assert "`small / medium / large` policy" in lowered
+    assert "scenario matrix expectations" in lowered
+    assert "local integration seam expectations" in lowered
+    assert "allowed testability refactors" in lowered
+    assert "coverage goals" in lowered
+    assert "ci gate expectations" in lowered
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in lowered
+
+
+def test_specify_template_preserves_brownfield_testing_control_plane_inputs():
+    content = _read("templates/commands/specify.md").lower()
+
+    assert ".specify/testing/unit_test_system_request.md" in content
+    assert "covered-module policy" in content
+    assert "scenario matrix expectations" in content
+    assert "local integration seam expectations" in content
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in content
+    assert "preserve these stronger brownfield testing inputs" in content
 
 
 def test_tasks_template_makes_tests_contract_driven():
     command_content = _read("templates/commands/tasks.md")
     template_content = _read("templates/tasks-template.md")
+    task_generation_rules = command_content[
+        command_content.index("## Task Generation Rules") :
+    ].lower()
 
     assert ".specify/testing/TESTING_CONTRACT.md" in command_content
     assert ".specify/testing/TESTING_PLAYBOOK.md" in command_content
@@ -576,7 +599,17 @@ def test_tasks_template_makes_tests_contract_driven():
     assert "treat tests as default deliverables" in command_content.lower()
     assert "whether or not `.specify/testing/testing_contract.md` exists" in command_content.lower()
     assert "behavior changes, bug fixes, and refactors" in command_content.lower()
+    assert "tests (if requested)" not in task_generation_rules
+    assert "or the spec explicitly requires tests" not in task_generation_rules
+    assert "tests specific to that story for behavior changes, bug fixes, refactors, and regression-sensitive modules" in task_generation_rules
+    assert "contract test tasks by default before implementation" in task_generation_rules
     assert "add explicit bootstrap tasks to establish the smallest runnable test surface first" in command_content.lower()
+    assert "small tests" in command_content.lower()
+    assert "medium tests" in command_content.lower()
+    assert "fast smoke" in command_content.lower()
+    assert "focused" in command_content.lower()
+    assert "full" in command_content.lower()
+    assert "validation_command remains the focused lane acceptance command" in command_content.lower()
     assert ".specify/testing/TESTING_CONTRACT.md" in template_content
     assert "tests are expected by default" in template_content.lower()
     assert "ensure they fail before implementation" in template_content.lower()
@@ -592,7 +625,11 @@ def test_implement_and_debug_templates_treat_testing_contract_as_binding():
     assert "add or update the required failing tests or regression tests" in implement_content
     assert "write the failing test first for every behavior-changing task, bug fix, or refactor" in implement_content
     assert "do not write production code for the batch until the red state is verified" in implement_content
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in implement_content
+    assert "run the focused tier as the lane acceptance check" in implement_content
     assert ".specify/testing/TESTING_CONTRACT.md".lower() in debug_content
     assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in debug_content
     assert "add or update a regression test" in debug_content
     assert "write a failing automated repro test before changing production code" in debug_content
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in debug_content
+    assert "use the fast smoke tier for the cheapest repro check" in debug_content

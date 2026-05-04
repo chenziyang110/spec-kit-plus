@@ -267,6 +267,7 @@ human_needed_checks:
    - **REQUIRED WHEN PRESENT**: Read `.specify/testing/TESTING_CONTRACT.md` before choosing the next batch so testing obligations are treated as binding execution constraints.
    - **REQUIRED WHEN PRESENT**: Read `.specify/testing/TESTING_PLAYBOOK.md` before verification so canonical test and coverage commands come from the project playbook instead of ad hoc guessing.
    - **REQUIRED WHEN PRESENT**: Read `.specify/testing/COVERAGE_BASELINE.json` before final validation when coverage policy exists for the touched modules.
+   - **COMMAND-TIER MODEL**: Preserve command-tier expectations for `fast smoke`, `focused`, and `full`; run the focused tier as the lane acceptance check, use fast smoke for early signal when useful, and reserve full for broader regression or final verification.
    - **IF `.planning/learnings/candidates.md` EXISTS**: Inspect only the entries relevant to implementation so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure

@@ -422,6 +422,7 @@ The session file must always make it clear:
   - the most relevant tests,
   - and any logging-enhanced repro flow needed to prove the mechanism changed.
 - If `.specify/testing/TESTING_CONTRACT.md` exists and the bug touches a covered module, add or update a regression test before considering the session resolved.
+- If `.specify/testing/TESTING_PLAYBOOK.md` defines command-tier expectations for `fast smoke`, `focused`, and `full`, use the fast smoke tier for the cheapest repro check, run the focused tier before accepting the fix, and use the full tier when regression risk remains.
 - Verify the full control loop, not only one function or field:
   - triggering input,
   - control decision,

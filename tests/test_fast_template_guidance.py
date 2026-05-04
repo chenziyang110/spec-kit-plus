@@ -6,11 +6,30 @@ from .template_utils import read_template
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _assert_tier_roles(content: str) -> None:
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in content
+    fast_smoke_index = content.index("fast smoke")
+    focused_index = content.index("focused", fast_smoke_index)
+    full_index = content.index("full", focused_index)
+
+    fast_smoke_context = content[fast_smoke_index : fast_smoke_index + 180]
+    focused_context = content[focused_index : focused_index + 220]
+    full_context = content[full_index : full_index + 220]
+
+    assert "early signal" in fast_smoke_context or "first signal" in fast_smoke_context
+    assert "acceptance check" in focused_context or "acceptance command" in focused_context
+    assert "broader regression" in full_context or "final verification" in full_context
+
+
 def test_fast_template_exists_and_defines_scope_gate() -> None:
     content = read_template("templates/commands/fast.md").lower()
 
     assert "dispatch mode follows command tier" in content
     assert "leader-direct" in content
+    assert "mandatory subagent execution" not in content
+    assert "## execution mode" in content
+    assert "delegated change" not in content
+    assert "delegate it through" not in content
     assert "project-map hard gate" in content
     assert "must pass an atlas gate before" in content
     assert "project-handbook.md" in content
@@ -27,7 +46,9 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert ".specify/testing/unit_test_system_request.md" in content or ".specify/testing/unit-test-system-request.md" in content
     assert "tiny harness, command, fixture, or helper repair" in content
     assert "## workflow contract summary" in content
-    assert "prepare the smallest task contract" in content
+    assert "leader performs the change directly" in content
+    assert "no subagent dispatch" in content
+    assert "no task contract" in content
     assert "allowed write scope local and explicit" in content
     assert "scope gate" in content
     assert "≤3 files touched" in content or "3 files touched" in content
@@ -36,17 +57,21 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "run `/sp-map-scan` followed by `/sp-map-build` before the final report" in content
     assert "if that refresh would break the fast-path scope" in content
     assert "mark `.specify/project-map/index/status.json` dirty" in content
-    assert "highest-signal" in content
+    assert "skip all learning hooks" in content
     assert "pass the atlas gate" in content
 
 
-def test_fast_template_uses_lightweight_subagent_contract() -> None:
+def test_fast_template_uses_leader_direct_contract() -> None:
     content = read_template("templates/commands/fast.md").lower()
 
     assert "no spec.md" in content or "do not create spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
-    assert "subagent" in content
-    assert "task contract" in content
+    assert "no subagent dispatch" in content
+    assert "no task contract" in content
+    assert "dispatch one subagent" not in content
+    assert "prepare the smallest task contract" not in content
+    assert "delegated change" not in content
+    assert "delegate it through" not in content
 
 
 def test_fast_template_defines_explicit_upgrade_triggers() -> None:
@@ -57,8 +82,8 @@ def test_fast_template_defines_explicit_upgrade_triggers() -> None:
     assert "shared surface" in content
     assert "change-propagation hotspot" in content
     assert "known unknowns" in content
-    assert "known unknowns that make direct execution unsafe" not in content
-    assert "safe packetized delegation unavailable" in content
+    assert "safe direct execution unavailable" in content
+    assert "safe packetized delegation unavailable" not in content
     assert "needs research" in content or "research or clarification" in content
     assert "upgrade to `/sp-specify` immediately if" in content
     assert "unit test system program" in content or "testing-system program" in content
@@ -68,9 +93,12 @@ def test_fast_template_defines_explicit_upgrade_triggers() -> None:
 
 
 def test_fast_template_marks_learning_and_fail_closed_routing_gates_with_agent_marker() -> None:
-    content = read_template("templates/commands/fast.md")
+    content = read_template("templates/commands/fast.md").lower()
 
-    assert "[AGENT] Before the final report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning" in content
+    assert "skip all learning hooks" in content
+    assert "do not run learning start, signal, review, or capture" in content
+    assert "learning capture --command fast" not in content
+    assert "capture any high-signal learning" not in content
 
 
 def test_fast_template_requires_tdd_gate_for_behavior_changes() -> None:
@@ -82,6 +110,10 @@ def test_fast_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert "docs-only" in content or "docs only" in content
     assert "if no reliable automated test surface exists" in content
     assert "/sp-test-scan" in content
+    _assert_tier_roles(content)
+    assert "use the fast smoke tier as the default fast-path verification" not in content
+    assert "if playbook command tiers exist" in content
+    assert "otherwise run the smallest meaningful local verification" in content
 
 
 def test_fast_template_routes_unknown_root_cause_bugfixes_to_debug() -> None:
