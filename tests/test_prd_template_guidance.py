@@ -18,153 +18,39 @@ def _frontmatter() -> dict:
     return yaml.safe_load(parts[1])
 
 
-def test_prd_template_defines_primary_workflow_contract() -> None:
+def test_prd_template_defines_deprecated_compatibility_contract() -> None:
     frontmatter = _frontmatter()
     contract = frontmatter["workflow_contract"]
 
-    assert frontmatter["description"].startswith("Use when")
-    assert "existing repository" in contract["when_to_use"]
-    assert "professional PRD suite" in contract["when_to_use"]
-    assert "delivery-grade PRD suite" in contract["primary_objective"]
-    assert "repository-backed product truth" in contract["primary_objective"]
-    assert ".specify/prd-runs/<run-id>/workflow-state.md" in contract["primary_outputs"]
-    assert ".specify/prd-runs/<run-id>/master/master-pack.md" in contract["primary_outputs"]
+    assert frontmatter["description"].startswith("Deprecated compatibility entrypoint")
+    assert "deprecated compatibility" in contract["when_to_use"].lower()
+    assert "sp-prd-scan" in contract["primary_objective"]
+    assert "sp-prd-build" in contract["primary_objective"]
+    assert ".specify/prd-runs/<run-id>/prd-scan.md" in contract["primary_outputs"]
     assert ".specify/prd-runs/<run-id>/exports/prd.md" in contract["primary_outputs"]
-    assert "No automatic handoff into implementation planning" in contract["default_handoff"]
+    assert "sp-prd-scan" in contract["default_handoff"]
+    assert "sp-prd-build" in contract["default_handoff"]
 
 
-def test_prd_template_uses_shared_command_sections() -> None:
+def test_prd_template_routes_to_scan_then_build() -> None:
     content = _content()
+    lowered = content.lower()
 
-    assert "## Objective" in content
-    assert "## Context" in content
-    assert "## Process" in content
-    assert "## Output Contract" in content
-    assert "## Guardrails" in content
+    assert "deprecated" in lowered
+    assert "compatibility" in lowered
+    assert "sp-prd-scan" in content
+    assert "sp-prd-build" in content
+    assert "instead" in lowered or "no longer" in lowered
     assert "## Workflow Contract Summary" in content
-    assert "routing metadata only" in content.lower()
+    assert "## Migration Path" in content
+    assert "## Guardrails" in content
 
 
-def test_prd_template_requires_brownfield_state_and_artifact_paths() -> None:
-    content = _content()
-
-    assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/index/status.json" in content
-    assert "workflow-state.md" in content
-    assert ".specify/prd-runs/<run-id>/" in content
-    assert ".specify/prd-runs/<run-id>/coverage-matrix.md" in content
-    assert ".specify/prd-runs/<run-id>/evidence/" in content
-    assert ".specify/prd-runs/<run-id>/master/master-pack.md" in content
-    assert ".specify/prd-runs/<run-id>/exports/prd.md" in content
-
-
-def test_prd_template_requires_mode_classification_and_confidence_marking() -> None:
+def test_prd_template_is_compatibility_only_not_primary_reverse_prd_lane() -> None:
     content = _content()
     lowered = content.lower()
 
-    assert "classify" in lowered
-    assert "`ui`" in content
-    assert "`service`" in content
-    assert "`mixed`" in content
-    assert "Evidence/Inference/Unknown" in content
-    assert "`Evidence`" in content
-    assert "`Inference`" in content
-    assert "`Unknown`" in content
-    assert "Unknowns must remain visible" in content
-
-
-def test_prd_template_keeps_master_pack_as_export_truth_source() -> None:
-    content = _content()
-    lowered = content.lower()
-
-    assert "master-pack.md" in content
-    assert "exports/prd.md" in content
-    assert "unified master pack" in lowered
-    assert "export completeness" in lowered
-    assert "every master capability appears in at least one export" in lowered
-    assert "No automatic handoff into implementation planning" in content
-
-
-def test_prd_template_requires_capability_triage_and_targeted_evidence_harvest() -> None:
-    content = _content().lower()
-
-    assert "capability triage" in content
-    assert "targeted evidence harvest" in content
-    assert "critical" in content
-    assert "high" in content
-    assert "standard" in content
-    assert "auxiliary" in content
-
-
-def test_prd_template_requires_depth_aware_coverage_and_quality_gates() -> None:
-    content = _content()
-    lowered = content.lower()
-
-    assert "depth-qualified" in lowered
-    assert "surface-covered" in lowered
-    assert "depth-gap" in lowered
-    assert "## Quality Gates" in content or "quality gates" in lowered
-    assert "Capability Triage Gate" in content
-    assert "Critical Depth Gate" in content
-    assert "Traceability Gate" in content
-    assert "Export Integrity Gate" in content
-
-
-def test_prd_template_references_optional_control_artifacts() -> None:
-    content = _content()
-
-    assert "capability-triage.md" in content
-    assert "depth-policy.md" in content
-    assert "quality-check.md" in content
-    assert "optional control artifacts" in content.lower()
-
-
-def test_prd_template_requires_writing_gate_results_back_to_quality_check() -> None:
-    content = _content()
-    lowered = content.lower()
-
-    assert "quality-check.md" in content
-    assert "record pass/fail status" in lowered
-    assert "gate results" in lowered or "quality-check" in lowered
-
-
-def test_prd_template_defines_reconstruction_rule() -> None:
-    content = _content()
-    lowered = content.lower()
-
-    assert "### Reconstruction Rule" in content
-    assert "reconstruct behavior" in lowered
-    assert "artifact found in repository" in lowered
-    assert "depth-gap" in lowered
-    assert "depth-qualified" in lowered
-
-
-def test_prd_template_requires_structure_level_targeted_evidence_harvest() -> None:
-    content = _content()
-    lowered = content.lower()
-
-    assert "what is inside it" in lowered
-    assert "who reads it" in lowered
-    assert "who writes it" in lowered
-    assert "negative-space rules" in lowered or "negative space" in lowered
-    assert "config snippet" in lowered
-    assert "schema fragment" in lowered
-
-
-def test_prd_template_requires_expanded_quality_gates() -> None:
-    content = _content()
-
-    assert "Content Coverage Gate" in content
-    assert "Producer-Consumer Gate" in content
-    assert "Contradiction Search Gate" in content
-    assert "Example Adequacy Gate" in content
-
-
-def test_prd_template_summary_quality_gates_match_expanded_gates() -> None:
-    content = _content()
-    summary_section = content.split("## Quality Gates", 1)[1]
-
-    assert "Content Coverage Gate" in summary_section
-    assert "Producer-Consumer Gate" in summary_section
-    assert "Contradiction Search Gate" in summary_section
-    assert "Example Adequacy Gate" in summary_section
+    assert "deprecated" in lowered
+    assert "compatibility" in lowered
+    assert "sp-prd-scan" in content
+    assert "sp-prd-build" in content
