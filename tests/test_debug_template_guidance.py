@@ -176,6 +176,7 @@ def test_debug_thinker_template_documents_expanded_observer_runtime_log_outputs(
     content = read_template("templates/worker-prompts/debug-thinker.md").lower()
 
     assert "expanded observer" in content
+    assert "expanded_observer:" in content
     assert "dimension_scan" in content
     assert "candidate_board" in content
     assert "top_candidates" in content

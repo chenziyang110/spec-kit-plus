@@ -149,56 +149,67 @@ causal_map:
       family: "truth_owner_logic"
       scope: "nearest-neighbor"
       falsifier: "Retry admission bypasses slot ownership state"
-dimension_scan:
-  symptom_layer: "UI symptom appears after background state drift"
-  caller_or_input_layer: "User action triggers a backend workflow"
-  truth_owner_or_business_layer: "Scheduler owns the authoritative admission truth"
-  storage_or_state_layer: "Persistent ownership or queue state may lag"
-  cache_queue_async_layer: "Async worker or cache snapshot may project stale state"
-  config_env_deploy_layer: "Environment-specific timing or config flags could alter handoff behavior"
-  external_boundary_layer: "Third-party queue or service response may delay reconciliation"
-  observability_layer: "Current report lacks decisive runtime signals"
-candidate_board:
-  - candidate_id: "cand-slot-ownership"
-    dimension_origin: "truth_owner_or_business_layer"
-    family: "truth_owner_logic"
-    candidate: "Scheduler does not clear slot ownership on release"
-    why_it_fits: "Queue remains blocked after release"
-    indirect_path: "Release looks successful at the surface but stale ownership truth keeps downstream admission blocked"
-    surface_vs_truth_owner_note: "Surface symptom appears in UI, but truth is owned by scheduler allocation state"
-    light_scores:
-      likelihood: 4
-      impact_radius: 4
-      falsifiability: 3
-      log_observability: 3
-top_candidates:
-  - candidate_id: "cand-slot-ownership"
-    family: "truth_owner_logic"
-    investigation_priority: 1
-    recommended_log_probe: "Check existing scheduler release and admission logs around the same request/session window"
-    engineering_scores:
-      cross_layer_span: 4
-      indirect_causality_risk: 4
-      evidence_gap: 3
-      investigation_cost: 2
-log_investigation_plan:
-  existing_log_targets:
-    - "application runtime logs for the failing request or job window"
-    - "stderr/stdout from the failing command, worker, or deploy target"
-  candidate_signal_map:
+expanded_observer:
+  dimension_scan:
+    symptom_layer: "UI symptom appears after background state drift"
+    caller_or_input_layer: "User action triggers a backend workflow"
+    truth_owner_or_business_layer: "Scheduler owns the authoritative admission truth"
+    storage_or_state_layer: "Persistent ownership or queue state may lag"
+    cache_queue_async_layer: "Async worker or cache snapshot may project stale state"
+    config_env_deploy_layer: "Environment-specific timing or config flags could alter handoff behavior"
+    external_boundary_layer: "Third-party queue or service response may delay reconciliation"
+    observability_layer: "Current report lacks decisive runtime signals"
+  candidate_board:
     - candidate_id: "cand-slot-ownership"
-      signals:
-        - "release recorded without a matching ownership clear"
-        - "subsequent admission denied by stale ownership state"
-  log_sufficiency_judgment: "Existing logs first; if they cannot separate top candidates, observability is insufficient and investigation must escalate before fixing."
-  missing_observability:
-    - "No decisive ownership-state transition log at release boundary"
-  instrumentation_targets:
-    - "truth-owner state transition at release and next admission"
-  instrumentation_style:
-    - "targeted boundary logs with correlation identifiers and before/after state summaries"
-  user_request_packet:
-    - "Provide the exact failing time window, request/job identifier, and the relevant runtime log excerpt covering release, admission, and resulting projection."
+      dimension_origin: "truth_owner_or_business_layer"
+      family: "truth_owner_logic"
+      candidate: "Scheduler does not clear slot ownership on release"
+      why_it_fits: "Queue remains blocked after release"
+      indirect_path: "Release looks successful at the surface but stale ownership truth keeps downstream admission blocked"
+      surface_vs_truth_owner_note: "Surface symptom appears in UI, but truth is owned by scheduler allocation state"
+      light_scores:
+        likelihood: 4
+        impact_radius: 4
+        falsifiability: 3
+        log_observability: 3
+  top_candidates:
+    - candidate_id: "cand-slot-ownership"
+      family: "truth_owner_logic"
+      investigation_priority: 1
+      recommended_log_probe: "Check existing scheduler release and admission logs around the same request/session window"
+      engineering_scores:
+        cross_layer_span: 4
+        indirect_causality_risk: 4
+        evidence_gap: 3
+        investigation_cost: 2
+  log_investigation_plan:
+    existing_log_targets:
+      - "application runtime logs for the failing request or job window"
+      - "stderr/stdout from the failing command, worker, or deploy target"
+    candidate_signal_map:
+      - candidate_id: "cand-slot-ownership"
+        signals:
+          - "release recorded without a matching ownership clear"
+          - "subsequent admission denied by stale ownership state"
+    log_sufficiency_judgment: "Existing logs first; if they cannot separate top candidates, observability is insufficient and investigation must escalate before fixing."
+    missing_observability:
+      - "No decisive ownership-state transition log at release boundary"
+    instrumentation_targets:
+      - "truth-owner state transition at release and next admission"
+    instrumentation_style:
+      - "targeted boundary logs with correlation identifiers and before/after state summaries"
+    user_request_packet:
+      - target_source: "application runtime log for the failing request path"
+        time_window: "The exact failing request window covering release and the next admission"
+        keywords_or_fields:
+          - "request_id"
+          - "job_id"
+          - "ownership clear"
+          - "admission denied"
+        why_this_matters: "This log slice separates stale truth-owner state from projection-only lag."
+        expected_signal_examples:
+          - "A release event without a matching ownership-clear event supports the slot-ownership candidate."
+          - "A clean ownership-clear event before projection refresh weakens the slot-ownership candidate."
 missing_questions:
   - "question 1"
   - "question 2"

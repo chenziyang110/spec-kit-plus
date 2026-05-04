@@ -8,6 +8,7 @@ from specify_cli.debug.schema import (
     DebugStatus,
     EliminatedEntry,
     EvidenceEntry,
+    UserRequestPacketEntry,
     LogReadiness,
     ObserverCauseCandidate,
     ObserverExpansionStatus,
@@ -666,6 +667,44 @@ async def test_investigating_node_generates_user_log_request_packet_when_runtime
     assert packet.keywords_or_fields
     assert "candidate" in packet.why_this_matters.lower() or "distinguish" in packet.why_this_matters.lower()
     assert packet.expected_signal_examples
+
+
+@pytest.mark.asyncio
+async def test_investigating_node_preserves_existing_contract_user_log_request_packet():
+    state = DebugGraphState(slug="runtime-logs-existing-contract", trigger="Order status stays stale after retry in production")
+    state.symptoms.expected = "Status becomes completed after retry succeeds"
+    state.symptoms.actual = "UI still shows processing and agent cannot access production logs directly"
+    state.symptoms.reproduction_verified = True
+    state.project_runtime_profile = ProjectRuntimeProfile.FULL_STACK_WEB_APP
+    state.symptom_shape = SymptomShape.PHENOMENON_ONLY
+    state.observer_expansion_status = ObserverExpansionStatus.ENABLED
+    state.log_readiness = LogReadiness.USER_MUST_PROVIDE_LOGS
+    state.investigation_contract.top_candidates = [
+        {
+            "candidate_id": "cand-publish-boundary",
+            "family": "publish_boundary",
+            "investigation_priority": 1,
+            "recommended_log_probe": "Use the tailored contract probe",
+        }
+    ]
+    state.investigation_contract.log_investigation_plan.user_request_packet = [
+        UserRequestPacketEntry(
+            target_source="tailored contract packet",
+            time_window="contract window",
+            keywords_or_fields=["request_id"],
+            why_this_matters="Tailored contract packet should win.",
+            expected_signal_examples=["tailored contract signal"],
+        )
+    ]
+
+    result = await InvestigatingNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert (
+        state.investigation_contract.log_investigation_plan.user_request_packet[0].target_source
+        == "tailored contract packet"
+    )
+    assert not state.expanded_observer.log_investigation_plan.user_request_packet
 
 
 @pytest.mark.asyncio

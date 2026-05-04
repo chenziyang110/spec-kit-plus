@@ -344,6 +344,97 @@ async def test_gathering_classifies_runtime_phenomenon_and_suggests_expanded_obs
     state.symptoms.expected = "Order status updates to completed after retry"
     state.symptoms.actual = "UI keeps showing processing with no precise failure location"
     state.symptoms.reproduction_verified = True
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert state.project_runtime_profile == ProjectRuntimeProfile.FULL_STACK_WEB_APP
+    assert state.symptom_shape == SymptomShape.PHENOMENON_ONLY
+    assert state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
+    assert state.observer_expansion_reason is not None
+    assert "runtime" in state.observer_expansion_reason
+    assert "enable or decline" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_gathering_suggests_expanded_observer_for_runtime_cross_layer_case() -> None:
+    state = DebugGraphState(trigger="Status badge stays stale while worker marks job complete", slug="runtime-cross-layer")
+    state.symptoms.expected = "Completed jobs disappear from the queue badge"
+    state.symptoms.actual = "Worker reports completion but UI badge still shows the job"
+    state.symptoms.reproduction_verified = True
+    state.observer_framing.summary = "Symptom appears in UI but truth owner may live in worker/backend boundaries"
+    state.observer_framing.primary_suspected_loop = "scheduler-admission"
+    state.observer_framing.suspected_owning_layer = "queue worker publish boundary"
+    state.observer_framing.suspected_truth_owner = "queue worker"
+    state.observer_framing.recommended_first_probe = "Compare worker completion and badge refresh boundaries"
+    state.observer_framing.contrarian_candidate = "UI badge polls the wrong projection"
+    state.observer_framing.alternative_cause_candidates = [
+        graph_module.ObserverCauseCandidate(
+            candidate="Worker completion never emits queue-clear event",
+            failure_shape="truth_owner_logic",
+            would_rule_out="Worker completion traces show the queue-clear event emitted reliably",
+            recommended_first_probe="Inspect worker completion and publish traces",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="Projection refresh misses the queue-clear event",
+            failure_shape="projection_render",
+            would_rule_out="Projection refresh logs show the clear event arriving and being applied",
+            recommended_first_probe="Compare worker publish trace and projection refresh trace",
+        ),
+        graph_module.ObserverCauseCandidate(
+            candidate="Queue badge reads a stale cache layer",
+            failure_shape="cache_snapshot",
+            would_rule_out="Badge projection and cache both refresh to the new state in the repro window",
+            recommended_first_probe="Compare cache invalidation and badge read paths",
+        ),
+    ]
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert state.project_runtime_profile == ProjectRuntimeProfile.WORKER_QUEUE_CRON
+    assert state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
+    assert state.observer_expansion_reason == "runtime_cross_layer_symptom"
+
+
+@pytest.mark.asyncio
+async def test_gathering_suggests_expanded_observer_after_two_failed_rounds() -> None:
+    state = DebugGraphState(trigger="Intermittent runtime state drift after retry", slug="runtime-not-converging")
+    state.symptoms.expected = "Retry restores consistent state"
+    state.symptoms.actual = "State remains inconsistent after two attempted investigation rounds"
+    state.symptoms.reproduction_verified = True
+    state.project_runtime_profile = ProjectRuntimeProfile.FULL_STACK_WEB_APP
+    state.current_focus.hypothesis = "Projection cache is stale"
+    state.eliminated = [
+        {"hypothesis": "Projection cache is stale", "evidence": "Cache refresh fired but symptom persisted"},
+        {"hypothesis": "Retry worker never completed", "evidence": "Worker completion event is present"},
+    ]
+    state.observer_framing.summary = "Two runtime probes have not converged on a single owning-layer cause"
+    state.observer_framing.primary_suspected_loop = "cache-snapshot"
+    state.observer_framing.suspected_owning_layer = "publish/cache boundary"
+    state.observer_framing.suspected_truth_owner = "backend retry state"
+    state.observer_framing.recommended_first_probe = "Expand candidate surface before another local probe"
+    state.observer_framing.contrarian_candidate = "Retry never updates the truth owner"
+    state.observer_framing.alternative_cause_candidates = [
+        graph_module.ObserverCauseCandidate(candidate="Projection cache is stale", failure_shape="cache_snapshot", would_rule_out="Cache state matches backend truth owner", recommended_first_probe="Compare cache and backend state"),
+        graph_module.ObserverCauseCandidate(candidate="Retry never updates the truth owner", failure_shape="truth_owner_logic", would_rule_out="Backend truth owner update is recorded", recommended_first_probe="Inspect retry state transitions"),
+        graph_module.ObserverCauseCandidate(candidate="Async refresh misses retry completion", failure_shape="queue_async", would_rule_out="Async refresh executes after retry completion", recommended_first_probe="Inspect async refresh flow"),
+    ]
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
+    assert state.observer_expansion_reason == "hypothesis_not_converging"
+
+
+@pytest.mark.asyncio
+async def test_gathering_continues_after_user_declines_expanded_observer() -> None:
+    state = DebugGraphState(trigger="UI occasionally shows stale order status after retry", slug="runtime-declined")
+    state.symptoms.expected = "Order status updates to completed after retry"
+    state.symptoms.actual = "UI keeps showing processing with no precise failure location"
+    state.symptoms.reproduction_verified = True
+    state.observer_expansion_status = ObserverExpansionStatus.USER_DECLINED
     _populate_valid_dual_observer_state(state)
     state.observer_framing.summary = "Cross-layer symptom still needs runtime narrowing"
     state.observer_framing.primary_suspected_loop = "ui-projection"
@@ -375,85 +466,7 @@ async def test_gathering_classifies_runtime_phenomenon_and_suggests_expanded_obs
     result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
 
     assert isinstance(result, InvestigatingNode)
-    assert state.project_runtime_profile == ProjectRuntimeProfile.FULL_STACK_WEB_APP
-    assert state.symptom_shape == SymptomShape.PHENOMENON_ONLY
-    assert state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
-    assert state.observer_expansion_reason is not None
-    assert "runtime" in state.observer_expansion_reason
-
-
-@pytest.mark.asyncio
-async def test_gathering_suggests_expanded_observer_for_runtime_cross_layer_case() -> None:
-    state = DebugGraphState(trigger="Status badge stays stale while worker marks job complete", slug="runtime-cross-layer")
-    state.symptoms.expected = "Completed jobs disappear from the queue badge"
-    state.symptoms.actual = "Worker reports completion but UI badge still shows the job"
-    state.symptoms.reproduction_verified = True
-    _populate_valid_dual_observer_state(state)
-    state.observer_framing.summary = "Symptom appears in UI but truth owner may live in worker/backend boundaries"
-    state.observer_framing.primary_suspected_loop = "scheduler-admission"
-    state.observer_framing.suspected_owning_layer = "queue worker publish boundary"
-    state.observer_framing.suspected_truth_owner = "queue worker"
-    state.observer_framing.recommended_first_probe = "Compare worker completion and badge refresh boundaries"
-    state.observer_framing.contrarian_candidate = "UI badge polls the wrong projection"
-    state.observer_framing.alternative_cause_candidates = [
-        graph_module.ObserverCauseCandidate(
-            candidate="Worker completion never emits queue-clear event",
-            failure_shape="truth_owner_logic",
-            would_rule_out="Worker completion traces show the queue-clear event emitted reliably",
-            recommended_first_probe="Inspect worker completion and publish traces",
-        ),
-        graph_module.ObserverCauseCandidate(
-            candidate="Projection refresh misses the queue-clear event",
-            failure_shape="projection_render",
-            would_rule_out="Projection refresh logs show the clear event arriving and being applied",
-            recommended_first_probe="Compare worker publish trace and projection refresh trace",
-        ),
-        graph_module.ObserverCauseCandidate(
-            candidate="Queue badge reads a stale cache layer",
-            failure_shape="cache_snapshot",
-            would_rule_out="Badge projection and cache both refresh to the new state in the repro window",
-            recommended_first_probe="Compare cache invalidation and badge read paths",
-        ),
-    ]
-
-    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
-
-    assert isinstance(result, InvestigatingNode)
-    assert state.project_runtime_profile == ProjectRuntimeProfile.WORKER_QUEUE_CRON
-    assert state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
-    assert state.observer_expansion_reason == "runtime_cross_layer_symptom"
-
-
-@pytest.mark.asyncio
-async def test_gathering_suggests_expanded_observer_after_two_failed_rounds() -> None:
-    state = DebugGraphState(trigger="Intermittent runtime state drift after retry", slug="runtime-not-converging")
-    state.symptoms.expected = "Retry restores consistent state"
-    state.symptoms.actual = "State remains inconsistent after two attempted investigation rounds"
-    state.symptoms.reproduction_verified = True
-    _populate_valid_dual_observer_state(state)
-    state.project_runtime_profile = ProjectRuntimeProfile.FULL_STACK_WEB_APP
-    state.current_focus.hypothesis = "Projection cache is stale"
-    state.eliminated = [
-        {"hypothesis": "Projection cache is stale", "evidence": "Cache refresh fired but symptom persisted"},
-        {"hypothesis": "Retry worker never completed", "evidence": "Worker completion event is present"},
-    ]
-    state.observer_framing.summary = "Two runtime probes have not converged on a single owning-layer cause"
-    state.observer_framing.primary_suspected_loop = "cache-snapshot"
-    state.observer_framing.suspected_owning_layer = "publish/cache boundary"
-    state.observer_framing.suspected_truth_owner = "backend retry state"
-    state.observer_framing.recommended_first_probe = "Expand candidate surface before another local probe"
-    state.observer_framing.contrarian_candidate = "Retry never updates the truth owner"
-    state.observer_framing.alternative_cause_candidates = [
-        graph_module.ObserverCauseCandidate(candidate="Projection cache is stale", failure_shape="cache_snapshot", would_rule_out="Cache state matches backend truth owner", recommended_first_probe="Compare cache and backend state"),
-        graph_module.ObserverCauseCandidate(candidate="Retry never updates the truth owner", failure_shape="truth_owner_logic", would_rule_out="Backend truth owner update is recorded", recommended_first_probe="Inspect retry state transitions"),
-        graph_module.ObserverCauseCandidate(candidate="Async refresh misses retry completion", failure_shape="queue_async", would_rule_out="Async refresh executes after retry completion", recommended_first_probe="Inspect async refresh flow"),
-    ]
-
-    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
-
-    assert isinstance(result, InvestigatingNode)
-    assert state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
-    assert state.observer_expansion_reason == "hypothesis_not_converging"
+    assert state.observer_expansion_status == ObserverExpansionStatus.USER_DECLINED
 
 
 @pytest.mark.asyncio
@@ -481,6 +494,37 @@ async def test_gathering_leaves_non_runtime_session_outside_runtime_expansion_sc
     assert isinstance(result, InvestigatingNode)
     assert state.project_runtime_profile is None
     assert state.observer_expansion_status == ObserverExpansionStatus.NOT_APPLICABLE
+
+
+@pytest.mark.asyncio
+async def test_gathering_requests_causal_map_after_user_enables_expanded_observer() -> None:
+    state = DebugGraphState(trigger="UI occasionally shows stale order status after retry", slug="runtime-enabled")
+    state.symptoms.expected = "Order status updates to completed after retry"
+    state.symptoms.actual = "UI keeps showing processing with no precise failure location"
+    state.symptoms.reproduction_verified = True
+    state.observer_expansion_status = ObserverExpansionStatus.ENABLED
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert state.think_subagent_prompt is not None
+    assert "populate `expanded_observer`" in (state.current_focus.next_action or "")
+    assert "observer_expansion_status=completed" in (state.current_focus.next_action or "")
+
+
+@pytest.mark.asyncio
+async def test_gathering_requests_causal_map_after_user_declines_expanded_observer() -> None:
+    state = DebugGraphState(trigger="UI occasionally shows stale order status after retry", slug="runtime-declined")
+    state.symptoms.expected = "Order status updates to completed after retry"
+    state.symptoms.actual = "UI keeps showing processing with no precise failure location"
+    state.symptoms.reproduction_verified = True
+    state.observer_expansion_status = ObserverExpansionStatus.USER_DECLINED
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert state.think_subagent_prompt is not None
+    assert "populate `expanded_observer`" not in (state.current_focus.next_action or "")
 
 
 @pytest.mark.asyncio
