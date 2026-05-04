@@ -1478,7 +1478,9 @@ class TestClaudeIntegration:
         assert ".specify/project-map/index/status.json" in content
         assert "## Map Maintenance" in content
         assert "refresh `PROJECT-HANDBOOK.md`" in content
-        assert "mark `.specify/project-map/index/status.json` dirty" in content
+        assert "git-baseline freshness" in content.lower()
+        assert "complete-refresh" in content
+        assert "manual override/fallback" in content.lower()
 
     def test_test_build_command_surfaces_downstream_testing_control_plane(self, tmp_path):
         claude = get_integration("claude")

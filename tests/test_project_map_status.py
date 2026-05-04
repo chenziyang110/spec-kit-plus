@@ -151,6 +151,24 @@ def test_complete_project_map_refresh_uses_map_codebase_reason(tmp_path):
     assert status.last_refresh_changed_files_basis == []
 
 
+def test_complete_project_map_refresh_clears_manual_override_and_writes_refresh_fields(tmp_path):
+    mod = _load_module()
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+    (tmp_path / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=tmp_path, check=True)
+
+    mod.mark_project_map_dirty(tmp_path, "workflow_contract_changed")
+    status = mod.complete_project_map_refresh(tmp_path)
+
+    assert status.manual_force_stale is False
+    assert status.manual_force_stale_reasons == []
+    assert status.last_refresh_commit
+    assert status.last_refresh_basis == "map-build"
+
+
 def test_mark_project_map_refreshed_accepts_partial_topic_scope(tmp_path):
     mod = _load_module()
 

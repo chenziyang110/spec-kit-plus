@@ -421,3 +421,13 @@ legacy_project_map_status_path() {
     local repo_root="${1:-$(get_repo_root)}"
     echo "$(project_map_dir "$repo_root")/status.json"
 }
+
+testing_dir() {
+    local repo_root="${1:-$(get_repo_root)}"
+    echo "$repo_root/.specify/testing"
+}
+
+testing_status_path() {
+    local repo_root="${1:-$(get_repo_root)}"
+    echo "$(testing_dir "$repo_root")/status.json"
+}

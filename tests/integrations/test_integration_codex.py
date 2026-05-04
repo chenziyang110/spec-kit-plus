@@ -428,7 +428,7 @@ def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):
         assert "[agent]" in content.lower()
 
     fast_content = (target / ".codex" / "skills" / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "[agent]" not in fast_content
+    assert "[agent]" in fast_content
     assert "leader-direct" in fast_content
 
 
@@ -648,7 +648,8 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-scan` followed by `/sp-map-build` before the final report" in content
-    assert "if that refresh would break the fast-path scope" in content
+    assert "if a full refresh can be completed now" in content
+    assert "manual override/fallback" in content.lower()
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
     assert "leader-direct" in content or "the leader performs the change directly" in content
