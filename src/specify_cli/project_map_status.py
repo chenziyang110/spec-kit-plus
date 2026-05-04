@@ -12,10 +12,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 import subprocess
 from typing import Any
+
+from specify_cli.scan_freshness import (
+    collect_git_changed_files,
+    read_scan_status,
+    write_scan_payload,
+)
 
 
 STATUS_FILENAME = "status.json"
@@ -574,6 +579,31 @@ class ProjectMapStatus:
     def dirty_reasons(self, value: list[str] | None) -> None:
         self.global_dirty_reasons = list(value or [])
 
+    @property
+    def manual_force_stale(self) -> bool:
+        return self.global_dirty
+
+    @manual_force_stale.setter
+    def manual_force_stale(self, value: bool) -> None:
+        self.global_dirty = value
+
+    @property
+    def manual_force_stale_reasons(self) -> list[str]:
+        return list(self.global_dirty_reasons or [])
+
+    @manual_force_stale_reasons.setter
+    def manual_force_stale_reasons(self, value: list[str] | None) -> None:
+        self.global_dirty_reasons = list(value or [])
+        self.global_stale_reasons = list(value or [])
+
+    @property
+    def last_refresh_commit(self) -> str:
+        return self.global_last_refresh_commit
+
+    @last_refresh_commit.setter
+    def last_refresh_commit(self, value: str) -> None:
+        self.global_last_refresh_commit = value
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "version": self.version,
@@ -652,25 +682,20 @@ def read_project_map_status(project_root: Path) -> ProjectMapStatus:
     for status_path in (project_map_status_path(project_root), legacy_project_map_status_path(project_root)):
         if not status_path.exists():
             continue
-        try:
-            payload = json.loads(status_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        shared_status = read_scan_status(status_path, status_family="project-map")
+        if not shared_status.raw_payload:
             continue
-        if not isinstance(payload, dict):
-            continue
-        return ProjectMapStatus.from_dict(payload)
+        return ProjectMapStatus.from_dict(shared_status.raw_payload)
     return ProjectMapStatus()
 
 
 def write_project_map_status(project_root: Path, status: ProjectMapStatus) -> Path:
     status_path = project_map_status_path(project_root)
-    status_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(status.to_dict(), indent=2) + "\n"
-    status_path.write_text(payload, encoding="utf-8")
+    payload = status.to_dict()
+    write_scan_payload(status_path, payload)
     legacy_path = legacy_project_map_status_path(project_root)
     if legacy_path != status_path:
-        legacy_path.parent.mkdir(parents=True, exist_ok=True)
-        legacy_path.write_text(payload, encoding="utf-8")
+        write_scan_payload(legacy_path, payload)
     return status_path
 
 
@@ -929,51 +954,11 @@ def has_git_repo(project_root: Path) -> bool:
 
 
 def collect_changed_files(project_root: Path, *, last_mapped_commit: str, head_commit: str) -> list[str]:
-    if not last_mapped_commit or not head_commit:
-        return []
-
-    commands = [
-        ["git", "-C", str(project_root), "diff", "--name-status", "--find-renames", f"{last_mapped_commit}..{head_commit}"],
-        ["git", "-C", str(project_root), "diff", "--name-status", "--find-renames", "--cached"],
-        ["git", "-C", str(project_root), "diff", "--name-status", "--find-renames"],
-        ["git", "-C", str(project_root), "ls-files", "--others", "--exclude-standard"],
-    ]
-
-    changed: list[str] = []
-    seen: set[str] = set()
-    for index, command in enumerate(commands):
-        try:
-            result = subprocess.run(
-                command,
-                check=True,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            continue
-
-        for raw_line in result.stdout.splitlines():
-            line = raw_line.strip()
-            if not line:
-                continue
-
-            if index == 3:
-                candidate = line
-            else:
-                parts = line.split("\t")
-                if len(parts) < 2:
-                    continue
-                status_code = parts[0]
-                candidate = parts[2] if status_code.startswith("R") and len(parts) >= 3 else parts[1]
-
-            normalized = candidate.replace("\\", "/")
-            if normalized not in seen:
-                seen.add(normalized)
-                changed.append(normalized)
-
-    return changed
+    return collect_git_changed_files(
+        project_root,
+        baseline_commit=last_mapped_commit,
+        head_commit=head_commit,
+    )
 
 
 def inspect_project_map_freshness(project_root: Path) -> dict[str, Any]:
