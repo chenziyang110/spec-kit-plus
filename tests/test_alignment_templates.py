@@ -1550,3 +1550,15 @@ def test_create_new_feature_scripts_scaffold_and_report_context():
     assert '"FEATURE_DIR":"%s"' in sh_create
     assert '"LANE_ID":"%s"' in sh_create
     assert '"LANE_WORKTREE":"%s"' in sh_create
+
+
+def test_agent_file_template_captures_lane_recovery_rules():
+    content = _read("templates/agent-file-template.md")
+    lowered = content.lower()
+
+    assert "## Workflow Recovery Rules" in content
+    assert "lane-first, not branch-first" in lowered
+    assert "durable lane state" in lowered
+    assert "explicit feature paths" in lowered
+    assert "/sp.plan" in content
+    assert ".specify/specs/<feature>/" in content

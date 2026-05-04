@@ -151,6 +151,12 @@ def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
     assert "raw task text" in lower
     assert "structured handoff" in lower
     assert "`sp-teams` only" in lower
+    assert "## lane recovery rules" in lower
+    assert "lane-first, not branch-first" in lower
+    assert "explicit `feature_dir`" in lower
+    assert "materialized worktree" in lower
+    assert "/sp.plan" in content
+    assert ".specify/specs/<feature>/" in content
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")

@@ -192,6 +192,17 @@ render_speckit_managed_block() {
 - Use leader-inline fallback only after recording why delegation is unavailable, unsafe, or not packetized.
 - Use `sp-teams` only when durable team state, explicit join-point tracking, result files, or lifecycle control are needed beyond one in-session subagent burst.
 
+## Lane Recovery Rules
+
+- Concurrent feature work is lane-first, not branch-first.
+- Do not assume the current branch name is the canonical feature directory slug.
+- For resumable `sp-*` commands, resolve the active feature through durable lane state or an explicit `feature_dir` before guessing from branch-only context.
+- If a workflow command can accept an explicit `feature_dir`, prefer that override over current-branch inference.
+- If lane resolution returns one safe candidate and a materialized worktree, continue from that isolated worktree context instead of the leader workspace.
+- Treat canonical workflow-state tokens such as `/sp.plan`, `/sp.tasks`, `/sp.deep-research`, and `/sp.implement` as normalized command identities during resume logic; never compare them as raw strings against bare command names.
+- Support legacy generated-project feature roots such as `.specify/specs/<feature>/` during recovery and repair paths when durable lane state or prefix matching points there.
+- Do not fail a resumable workflow only because the current branch is not a feature branch when explicit `feature_dir` or unique lane recovery already identifies the target feature safely.
+
 ## Artifact Priority
 
 - `.specify/memory/constitution.md` is the principle-level source of truth when present.

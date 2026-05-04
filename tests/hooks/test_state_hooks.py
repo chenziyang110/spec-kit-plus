@@ -1,5 +1,4 @@
 from pathlib import Path
-
 from specify_cli.hooks.engine import run_quality_hook
 
 
