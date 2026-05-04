@@ -242,6 +242,9 @@ def test_test_build_template_publishes_control_plane_without_replacing_lane_vali
     assert "preserve each lane's canonical `validation_command`" in durable_assets_block
     assert "`validation_command` remains the lane acceptance command" in durable_assets_block
     assert "do not replace it with a command-tier map" in durable_assets_block
+    assert "`focused` command should mirror the canonical `validation_command`" in durable_assets_block
+    assert "`full` command is the broader regression/final-verification tier" in durable_assets_block
+    assert "must not be treated as the lane acceptance command" in durable_assets_block
 
 
 def test_test_build_template_requires_coverage_uplift_iteration():

@@ -281,7 +281,7 @@ Use `execution_surface: native-subagents`.
      - CI commands
      - TDD loop guidance for this repository
      - where new tests belong, how they should be named, and which helper/fixture layers they should reuse
-   - Preserve each lane's canonical `validation_command` when publishing command tiers. `validation_command` remains the lane acceptance command and compatibility field for existing packet consumers; do not replace it with a command-tier map. When command tiers are present, the lane's `focused` command should mirror the canonical `validation_command` unless the build plan records an explicit exception.
+   - Preserve each lane's canonical `validation_command` when publishing command tiers. `validation_command` remains the lane acceptance command and compatibility field for existing packet consumers; do not replace it with a command-tier map. When command tiers are present, the lane's `focused` command should mirror the canonical `validation_command` unless the build plan records an explicit exception. The lane's `full` command is the broader regression/final-verification tier and must not be treated as the lane acceptance command.
    - Write `.specify/testing/COVERAGE_BASELINE.json` with current per-module baseline data and explicit unknowns where measurement is not yet reliable.
    - Write `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as the professional-grade brownfield unit-test system request for later planning work. It must capture:
      - current test-surface assessment by module

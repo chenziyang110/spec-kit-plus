@@ -30,6 +30,44 @@ from specify_cli import SKILL_DESCRIPTIONS
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _assert_downstream_testing_control_plane(skill_body: str) -> None:
+    skill_lower = skill_body.lower()
+
+    assert "preserve each lane's canonical `validation_command`" in skill_lower
+    assert "`validation_command` remains the lane acceptance command" in skill_lower
+    assert "do not replace it with a command-tier map" in skill_lower
+    assert "lane's `focused` command should mirror the canonical `validation_command`" in skill_lower
+    assert "focused` command should mirror the canonical `validation_command`" in skill_lower
+    assert "unless the build plan records an explicit exception" in skill_lower
+
+    assert "validation_command` remains the lane acceptance command" in skill_lower
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in skill_lower
+    assert "including when each tier should be run" in skill_lower
+    assert re.search(
+        r"command-tier expectations for `fast smoke`, `focused`, and `full`,"
+        r" including when each tier should be run.*coverage commands.*ci commands",
+        skill_lower,
+        re.S,
+    )
+    assert "successful manual validation evidence" in skill_lower
+    assert re.search(
+        r"`full`[^.\n]*(broader regression|final verification|final or regression-sensitive)",
+        skill_lower,
+    )
+    for forbidden_full_acceptance in (
+        "`full` remains the lane acceptance command",
+        "`full` is the lane acceptance command",
+        "`full` command is the lane acceptance command",
+    ):
+        assert forbidden_full_acceptance not in skill_lower
+    assert "ci/presubmit gate policy" in skill_lower
+
+    assert "covered-module rules" in skill_lower
+    assert "mandatory testing rules for future work" in skill_lower
+    assert "coverage baseline and threshold policy" in skill_lower
+    assert "covered-module status values and the minimum evidence required" in skill_lower
+
+
 def _body_without_frontmatter(skill_path: Path) -> str:
     content = skill_path.read_text(encoding="utf-8")
     match = re.match(r"\A---\s*\r?\n.*?\r?\n---\s*\r?\n", content, re.S)
@@ -370,22 +408,6 @@ class TestBuiltInSkillGeneration:
         assert "mark `.specify/project-map/index/status.json` dirty" in specify_body.lower()
         assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in specify_body
 
-        prd_body = _body_without_frontmatter(skills_dir / "sp-prd" / "SKILL.md")
-        prd_lower = prd_body.lower()
-        assert "existing project prd suite" in prd_lower
-        assert "peer workflow to `sp-specify`" in prd_lower
-        assert "current repository reality" in prd_lower
-        assert "evidence/inference/unknown" in prd_lower
-        assert ".specify/prd-runs/<run-id>/workflow-state.md" in prd_body
-        assert ".specify/prd-runs/<run-id>/coverage-matrix.md" in prd_body
-        assert "master/master-pack.md" in prd_body
-        assert "exports/prd.md" in prd_body
-        assert "no automatic handoff into implementation planning" in prd_lower
-        assert "capability triage" in prd_lower
-        assert "targeted evidence harvest" in prd_lower
-        assert "depth-qualified" in prd_lower
-        assert "critical depth gate" in prd_lower
-
         plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         assert "Add `Implementation Constitution`" in plan_body
         assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_body
@@ -596,14 +618,51 @@ class TestBuiltInSkillGeneration:
 class TestSkillDescriptions:
     """Built-in command descriptions should stay aligned with bundled templates."""
 
+    def test_claude_test_build_skill_surfaces_downstream_testing_control_plane(self, temp_dir):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project_dir = temp_dir / "claude-test-build-control-plane"
+        project_dir.mkdir()
+
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(project_dir)
+            result = CliRunner().invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--ai-skills",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+
+        test_build_body = _body_without_frontmatter(
+            project_dir / ".claude" / "skills" / "sp-test-build" / "SKILL.md"
+        )
+        _assert_downstream_testing_control_plane(test_build_body)
+
     def test_skill_descriptions_include_new_surfaces(self):
         for name, description in SKILL_DESCRIPTIONS.items():
+            if name == "prd":
+                continue
             assert description.startswith("Use when"), f"{name} description should be trigger-oriented"
 
         assert "guided requirement discovery" in SKILL_DESCRIPTIONS["specify"].lower()
         assert "planning-ready specification package" in SKILL_DESCRIPTIONS["specify"].lower()
-        assert "current-state prd extraction" in SKILL_DESCRIPTIONS["prd"].lower()
-        assert "without automatically handing off to planning" in SKILL_DESCRIPTIONS["prd"].lower()
+        assert "deprecated compatibility entrypoint" in SKILL_DESCRIPTIONS["prd"].lower()
+        assert "prefer prd-scan followed by prd-build" in SKILL_DESCRIPTIONS["prd"].lower()
         assert "planning-critical gaps" in SKILL_DESCRIPTIONS["clarify"].lower()
         assert "feasibility risk" in SKILL_DESCRIPTIONS["deep-research"].lower()
         assert "planning handoff" in SKILL_DESCRIPTIONS["deep-research"].lower()

@@ -1125,6 +1125,8 @@ def test_testing_workflow_commands_preserve_downstream_control_plane_semantics()
     assert "do not replace it with a command-tier map" in asset_block
     assert re.search(r"`focused`\s+command should mirror the canonical `validation_command`", asset_block)
     assert "unless the build plan records an explicit exception" in asset_block
+    assert "`full` command is the broader regression/final-verification tier" in asset_block
+    assert "must not be treated as the lane acceptance command" in asset_block
 
 
 def test_tasks_templates_default_to_phased_delivery_not_mvp():
