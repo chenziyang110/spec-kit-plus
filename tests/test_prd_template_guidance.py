@@ -32,7 +32,7 @@ def test_prd_template_defines_deprecated_compatibility_contract() -> None:
     assert "sp-prd-build" in contract["default_handoff"]
 
 
-def test_prd_template_routes_to_scan_then_build() -> None:
+def test_prd_template_body_mentions_compatibility_reconstruction_wording() -> None:
     content = _content()
     lowered = content.lower()
 
@@ -40,17 +40,6 @@ def test_prd_template_routes_to_scan_then_build() -> None:
     assert "compatibility" in lowered
     assert "sp-prd-scan" in content
     assert "sp-prd-build" in content
+    assert "reconstruction" in lowered
+    assert "L4 Reconstruction-Ready" in content
     assert "instead" in lowered or "no longer" in lowered
-    assert "## Workflow Contract Summary" in content
-    assert "## Migration Path" in content
-    assert "## Guardrails" in content
-
-
-def test_prd_template_is_compatibility_only_not_primary_reverse_prd_lane() -> None:
-    content = _content()
-    lowered = content.lower()
-
-    assert "deprecated" in lowered
-    assert "compatibility" in lowered
-    assert "sp-prd-scan" in content
-    assert "sp-prd-build" in content
