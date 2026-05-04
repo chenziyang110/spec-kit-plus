@@ -9,6 +9,7 @@ adapted for TOML output format.
 """
 
 import os
+import re
 import tomllib
 
 import pytest
@@ -18,6 +19,44 @@ from specify_cli.integrations.base import TomlIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
+
+
+def _assert_downstream_testing_control_plane(command_content: str) -> None:
+    command_lower = command_content.lower()
+
+    assert "preserve each lane's canonical `validation_command`" in command_lower
+    assert "`validation_command` remains the lane acceptance command" in command_lower
+    assert "do not replace it with a command-tier map" in command_lower
+    assert "lane's `focused` command should mirror the canonical `validation_command`" in command_lower
+    assert "focused` command should mirror the canonical `validation_command`" in command_lower
+    assert "unless the build plan records an explicit exception" in command_lower
+
+    assert "validation_command` remains the lane acceptance command" in command_lower
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in command_lower
+    assert "including when each tier should be run" in command_lower
+    assert re.search(
+        r"command-tier expectations for `fast smoke`, `focused`, and `full`,"
+        r" including when each tier should be run.*coverage commands.*ci commands",
+        command_lower,
+        re.S,
+    )
+    assert "successful manual validation evidence" in command_lower
+    assert re.search(
+        r"`full`[^.\n]*(broader regression|final verification|final or regression-sensitive)",
+        command_lower,
+    )
+    for forbidden_full_acceptance in (
+        "`full` remains the lane acceptance command",
+        "`full` is the lane acceptance command",
+        "`full` command is the lane acceptance command",
+    ):
+        assert forbidden_full_acceptance not in command_lower
+    assert "ci/presubmit gate policy" in command_lower
+
+    assert "covered-module rules" in command_lower
+    assert "mandatory testing rules for future work" in command_lower
+    assert "coverage baseline and threshold policy" in command_lower
+    assert "covered-module status values and the minimum evidence required" in command_lower
 
 
 class TomlIntegrationTests:
@@ -214,6 +253,14 @@ class TomlIntegrationTests:
         assert "mapbuildpacket" in build_content
         assert "worker-results" in build_content
         assert "route back to `/sp-map-scan`" in build_content
+
+    def test_test_build_command_surfaces_downstream_testing_control_plane(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        command_content = (i.commands_dest(tmp_path) / "sp.test-build.toml").read_text(encoding="utf-8")
+        _assert_downstream_testing_control_plane(command_content)
 
     def test_implement_command_has_shared_leader_gate(self, tmp_path):
         i = get_integration(self.KEY)

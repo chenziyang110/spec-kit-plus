@@ -2,8 +2,8 @@
 description: Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.
 workflow_contract:
   when_to_use: The work is genuinely local and low-risk enough to stay on the fast path.
-  primary_objective: Packetize the smallest safe low-risk change, delegate it through one subagent lane, and run the smallest meaningful verification without opening the full planning workflow.
-  primary_outputs: A tightly scoped delegated change plus a concise report of what changed, what was verified, and any remaining risk.
+  primary_objective: Complete the smallest safe low-risk change directly and run the smallest meaningful verification without opening the full planning workflow.
+  primary_outputs: A tightly scoped direct change plus a concise report of what changed, what was verified, and any remaining risk.
   default_handoff: Upgrade immediately to /sp-quick if scope, coupling, or uncertainty expands.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json
@@ -12,7 +12,7 @@ scripts:
 
 {{spec-kit-include: ../command-partials/fast/shell.md}}
 
-## Mandatory Subagent Execution
+## Execution Mode
 
 {{spec-kit-include: ../command-partials/common/dispatch-mode-gradient.md}}
 
@@ -39,7 +39,7 @@ If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
 Upgrade to `/sp-quick` immediately if:
 - The work expands to more than 3 files.
 - The change touches a shared surface such as a router table, registration file, export barrel, template registry, or other coordination point.
-- The handbook says the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make safe packetized delegation unavailable.
+- The handbook says the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make safe direct execution unavailable.
 - The requested work comes from `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and is larger than one tiny harness, command, fixture, or helper repair.
 - The task stops being obvious and needs research or clarification to proceed safely.
 - The task needs multiple subagent lanes, resumable tracking, or a written quick-task summary artifact.
@@ -76,21 +76,21 @@ Upgrade to `/sp-specify` immediately if:
      6. at least one relevant module overview document
    - Only after the atlas gate passes may you read the source files to change.
 
-3. **Dispatch the fast lane**
-   - Prepare the smallest task contract for the fast-path lane.
+3. **Execute the fast lane**
+   - Perform the fast-path change directly.
    - Keep the allowed write scope local and explicit.
    - Before reading any non-obvious path, prefer `{{specify-subcmd:hook validate-read-path --target-path "<candidate path>"}}` when you are unsure whether the path stays inside the repository or whether it may be a sensitive file.
    - If the task is behavior-changing rather than docs-only, write a failing targeted test or failing repro check before editing production code.
-   - The task contract must include that RED gate before production edits.
+   - The direct execution notes must include that RED gate before production edits.
    - Do not use manual sanity checks as a substitute for red when behavior changes.
    - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-test-scan` or `/sp-quick` instead of hand-waving the verification gap.
-   - For bug fixes and regressions, the task contract must record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
-   - Dispatch one subagent for the lane.
-   - Wait for the structured handoff before verification.
+   - If `.specify/testing/TESTING_PLAYBOOK.md` defines command-tier expectations for `fast smoke`, `focused`, and `full`, use fast smoke only as the cheapest early signal, run the focused tier as the fast-lane acceptance check, and reserve full for broader regression or final verification.
+   - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
    - Keep the change as small and local as possible.
 
 4. **Verify**
-   - Run the smallest meaningful verification for the change.
+   - If playbook command tiers exist, focused is the fast-lane acceptance check.
+   - Otherwise run the smallest meaningful local verification for the change.
    - Prefer targeted existing tests or a direct sanity check over broad workflows.
 
 5. **Report**
@@ -106,13 +106,12 @@ Upgrade to `/sp-specify` immediately if:
 
 - Keep the outcome to one tightly scoped change set plus the minimum truthful verification evidence.
 - Report what changed, how it was verified, and what residual risk remains.
-- Capture any high-signal learning surfaced by the pass before closing the task.
 
 ## Guardrails
 
 - No spec.md creation.
 - No plan.md creation.
 - No tasks.md creation.
-- Use one fast-path subagent lane only; if more lanes are needed, route to `/sp-quick`.
+- Use leader-direct execution only; if subagent lanes are needed, route to `/sp-quick`.
 - Do not add planning artifacts just to satisfy process formality.
 - If the task grows while working, stop and redirect to `/sp-quick`.

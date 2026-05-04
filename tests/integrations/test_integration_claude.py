@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from unittest.mock import patch
@@ -17,6 +18,44 @@ from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import render_hook_launcher_command
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
+
+
+def _assert_downstream_testing_control_plane(skill_content: str) -> None:
+    skill_lower = skill_content.lower()
+
+    assert "preserve each lane's canonical `validation_command`" in skill_lower
+    assert "`validation_command` remains the lane acceptance command" in skill_lower
+    assert "do not replace it with a command-tier map" in skill_lower
+    assert "lane's `focused` command should mirror the canonical `validation_command`" in skill_lower
+    assert "focused` command should mirror the canonical `validation_command`" in skill_lower
+    assert "unless the build plan records an explicit exception" in skill_lower
+
+    assert "validation_command` remains the lane acceptance command" in skill_lower
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in skill_lower
+    assert "including when each tier should be run" in skill_lower
+    assert re.search(
+        r"command-tier expectations for `fast smoke`, `focused`, and `full`,"
+        r" including when each tier should be run.*coverage commands.*ci commands",
+        skill_lower,
+        re.S,
+    )
+    assert "successful manual validation evidence" in skill_lower
+    assert re.search(
+        r"`full`[^.\n]*(broader regression|final verification|final or regression-sensitive)",
+        skill_lower,
+    )
+    for forbidden_full_acceptance in (
+        "`full` remains the lane acceptance command",
+        "`full` is the lane acceptance command",
+        "`full` command is the lane acceptance command",
+    ):
+        assert forbidden_full_acceptance not in skill_lower
+    assert "ci/presubmit gate policy" in skill_lower
+
+    assert "covered-module rules" in skill_lower
+    assert "mandatory testing rules for future work" in skill_lower
+    assert "coverage baseline and threshold policy" in skill_lower
+    assert "covered-module status values and the minimum evidence required" in skill_lower
 
 
 def _load_claude_hook_dispatch_module():
@@ -1443,6 +1482,16 @@ class TestClaudeIntegration:
         assert "complete-refresh" in content
         assert "manual override/fallback" in content.lower()
 
+    def test_test_build_command_surfaces_downstream_testing_control_plane(self, tmp_path):
+        claude = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        claude.setup(tmp_path, manifest)
+
+        skill_content = (tmp_path / ".claude" / "skills" / "sp-test-build" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        _assert_downstream_testing_control_plane(skill_content)
+
     def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -2038,7 +2087,7 @@ def test_claude_generated_skills_preserve_agent_required_marker_lines(tmp_path):
 
     assert result.exit_code == 0, result.output
 
-    for skill_name in ("sp-fast", "sp-quick", "sp-map-scan", "sp-map-build", "sp-implement", "sp-specify", "sp-plan", "sp-tasks", "sp-debug"):
+    for skill_name in ("sp-map-scan", "sp-map-build", "sp-implement", "sp-specify", "sp-plan", "sp-tasks", "sp-debug"):
         content = (target / ".claude" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
         assert "[AGENT]" in content
 

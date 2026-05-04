@@ -228,9 +228,9 @@ def test_fast_and_debug_templates_do_not_frame_fixes_as_direct_leader_implementa
     debug_content = _read_command("debug").lower()
 
     assert "apply the smallest direct change" not in fast_content
-    assert "packetize the smallest safe low-risk change" in fast_content
-    assert "delegate it through one subagent lane" in fast_content
-    assert "a tightly scoped delegated change" in fast_content
+    assert "the leader performs the change directly" in fast_content
+    assert "no subagent dispatch" in fast_content
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in fast_content
 
     assert "apply the smallest fix that addresses the confirmed root cause" not in debug_content
     assert "packetize the smallest safe fix that addresses the confirmed root cause" in debug_content

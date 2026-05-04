@@ -9,6 +9,8 @@ updated: [ISO timestamp]
 
 # Testing State
 
+control_plane_role: lifecycle and routing tracker for `.specify/testing/*`; do not duplicate scan evidence, build-plan lane packets, contract rules, or playbook instructions here.
+
 ## Current Focus
 
 - next_action:
@@ -47,6 +49,10 @@ updated: [ISO timestamp]
   - framework_confidence: high | medium | low
   - canonical_test_path:
   - canonical_test_command:
+  - command_tiers:
+    - fast smoke:
+    - focused:
+    - full:
   - coverage_command:
   - state: missing | partial | healthy | gap
   - classification_reason:
@@ -67,6 +73,11 @@ updated: [ISO timestamp]
   - threshold:
   - exceptions:
   - uncovered_hotspots:
+  - hotspot_context:
+  - command_tier_context:
+    - fast smoke:
+    - focused:
+    - full:
 
 ## Validation Evidence
 

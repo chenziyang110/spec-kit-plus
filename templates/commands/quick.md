@@ -18,7 +18,7 @@ scripts:
 
 **This command tier: light. Dispatch mode: subagent-preferred.**
 
-Dispatch to one subagent with a task contract. If subagent dispatch is unavailable, record reason and fall back to leader-inline.
+Dispatch one safe validated lane as `one-subagent` or multiple safe isolated lanes as `parallel-subagents`; otherwise record `subagent-blocked` with the concrete reason and stop for escalation or recovery.
 
 
 ## Leader Role
@@ -261,8 +261,8 @@ resume_decision: [resume here | blocked waiting | resolved]
 - Record each recovery step in `STATUS.md` under `recovery_action` and increment `retry_attempts`.
 - If subagent execution is failing, attempt the next safe path before switching to subagent-blocked status:
   - retry the bounded subagent lane when the failure looks transient
-  - use the native subagent workflow when subagent dispatch is unavailable for the current batch
-  - only then consider subagent-blocked status if no subagent path is currently available
+  - retry or recompile the same native-subagent path when contract or context was insufficient
+  - only then consider subagent-blocked status if no safe subagent path is currently available
 - Escalate to `blocked` only when:
   - required credentials, services, permissions, or external systems are unavailable
   - the requirement remains high-impact ambiguous after the minimum safe clarification pass
@@ -360,12 +360,13 @@ resume_decision: [resume here | blocked waiting | resolved]
    - Keep local planning shallow until the first subagent batch has been launched.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` is the upstream source, record which single module, risk tranche, or coverage wave this quick-task pass is consuming before implementation starts.
    - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts.
-- For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
-- Do not write production code until the RED state is captured and recorded in `STATUS.md`.
-- If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `{{invoke:test-scan}}`.
-- For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `{{invoke:debug}}` instead of applying a quick symptom patch.
-- A `surface-only` or symptom-only change cannot satisfy the quick-task contract for a bug fix unless the user explicitly scoped the work to temporary mitigation.
-- Name the affected surfaces for this quick-task pass and decide how each one will be checked.
+   - For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
+   - Do not write production code until the RED state is captured and recorded in `STATUS.md`.
+   - If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface first. If that bootstrap is no longer a bounded quick-task step, stop and escalate to `{{invoke:test-scan}}`.
+   - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `{{invoke:debug}}` instead of applying a quick symptom patch.
+   - A `surface-only` or symptom-only change cannot satisfy the quick-task contract for a bug fix unless the user explicitly scoped the work to temporary mitigation.
+   - Name the affected surfaces for this quick-task pass and decide how each one will be checked.
+   - If `.specify/testing/TESTING_PLAYBOOK.md` defines command-tier expectations for `fast smoke`, `focused`, and `full`, use the focused tier as the default quick-task acceptance check, run fast smoke first when it gives useful early signal, and reserve the full tier for final or regression-sensitive verification.
    - If multiple safe lanes would materially improve throughput, plan the first fan-out as parallel subagents instead of defaulting to serial execution.
    - If the task includes a propagating change, write the minimal sweep plan first and list the affected surfaces that must be checked before completion.
 

@@ -144,6 +144,7 @@ Use `execution_surface: native-subagents`.
      - `canonical_test_path`
      - `canonical_test_command`
      - `coverage_command`
+     - `command_tiers`
      - `state`
      - `classification_reason`
    - If the command returns no modules, record the inventory gap, create a safe read-only recovery scan lane when one can be packetized, or stop with `subagent-blocked` for escalation instead of inventing fake module boundaries.
@@ -261,20 +262,27 @@ Use `execution_surface: native-subagents`.
    - Read `.specify/templates/testing/testing-contract-template.md`, `.specify/templates/testing/testing-playbook-template.md`, `.specify/templates/testing/coverage-baseline-template.json`, `.specify/templates/testing/unit-test-system-request-template.md`, `.specify/templates/testing/test-scan-template.md`, `.specify/templates/testing/test-build-plan-template.md`, and `.specify/templates/testing/test-build-plan-template.json`.
    - Write `.specify/testing/TESTING_CONTRACT.md` with:
      - project testing scope
+     - covered-module rules, including covered-module status values and the minimum evidence required before a module can be treated as covered
      - mandatory testing rules for future work
      - module-level framework ownership
      - test update triggers
      - regression-test requirements for bug fixes
+     - command-tier expectations for `fast smoke`, `focused`, and `full` commands
+     - local integration seam expectations for module seams that require local fake/mock or integration-style coverage
      - coverage baseline and threshold policy
    - Write `.specify/testing/TESTING_PLAYBOOK.md` with:
      - environment setup
      - install/build commands
      - run-all-tests command
      - targeted module/file test commands
+     - command-tier expectations for `fast smoke`, `focused`, and `full`, including when each tier should be run
+     - covered-module rules that explain how to interpret covered-module status when adding or changing tests
+     - local integration seam expectations and examples for adapter, filesystem, process, network, database, CLI, or workflow seams
      - coverage commands
      - CI commands
      - TDD loop guidance for this repository
      - where new tests belong, how they should be named, and which helper/fixture layers they should reuse
+   - Preserve each lane's canonical `validation_command` when publishing command tiers. `validation_command` remains the lane acceptance command and compatibility field for existing packet consumers; do not replace it with a command-tier map. When command tiers are present, the lane's `focused` command should mirror the canonical `validation_command` unless the build plan records an explicit exception. The lane's `full` command is the broader regression/final-verification tier and must not be treated as the lane acceptance command.
    - Write `.specify/testing/COVERAGE_BASELINE.json` with current per-module baseline data and explicit unknowns where measurement is not yet reliable.
    - Write `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as the professional-grade brownfield unit-test system request for later planning work. It must capture:
      - current test-surface assessment by module

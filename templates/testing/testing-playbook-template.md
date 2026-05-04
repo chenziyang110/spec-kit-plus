@@ -2,6 +2,8 @@
 
 This playbook defines the canonical local and CI testing workflow for this repository.
 
+Control-plane role: newcomer-usable operating guide for where tests belong and which commands to run. Keep binding policy in `TESTING_CONTRACT.md`; keep scan evidence in `TEST_SCAN.md`.
+
 ## Environment Setup
 
 - Required toolchains:
@@ -17,6 +19,9 @@ This playbook defines the canonical local and CI testing workflow for this repos
 
 ## Run Tests
 
+- fast smoke:
+- focused:
+- full:
 - Run all unit tests:
 - Run one module/package:
 - Run one file:
@@ -24,9 +29,16 @@ This playbook defines the canonical local and CI testing workflow for this repos
 
 ## Add New Tests
 
-- Where new tests belong:
+- Where tests belong:
+  - small tests:
+  - medium tests:
+  - large tests:
 - Naming conventions for new test files:
 - Shared fixtures, mocks, or factories to reuse:
+- Covered-module status guidance:
+  - Interpret `covered | partial | missing | unknown` before adding or changing tests:
+- Local integration seam expectations:
+  - Cover relevant adapter, filesystem, process, network, database, CLI, or workflow seams with local fakes/mocks or integration-style tests:
 - Smallest RED-first command to run before implementation:
 - Full validation command after adding tests:
 
@@ -57,8 +69,10 @@ This playbook defines the canonical local and CI testing workflow for this repos
 
 - Framework:
 - Test path:
-- Fast local command:
-- Full validation command:
+- fast smoke command:
+- focused command:
+- full command:
+- Local integration seam examples:
 - Coverage notes:
 
 ## Known Gaps

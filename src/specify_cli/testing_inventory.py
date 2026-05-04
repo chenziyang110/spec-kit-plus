@@ -345,7 +345,9 @@ def _detect_framework(module_root: Path, manifest_path: Path, language: str) -> 
     return "unknown", "low"
 
 
-def _canonical_commands(module_root: Path, manifest_path: Path, language: str, framework: str) -> tuple[str | None, str | None]:
+def _canonical_commands(
+    module_root: Path, manifest_path: Path, language: str, framework: str, test_path: str | None
+) -> tuple[str | None, str | None]:
     if language == "python":
         if framework == "pytest":
             return "pytest", "pytest --cov"
@@ -356,12 +358,19 @@ def _canonical_commands(module_root: Path, manifest_path: Path, language: str, f
     if language == "javascript":
         package_json = _load_json(manifest_path)
         scripts = _package_scripts(package_json)
-        test_command = scripts.get("test") or ("vitest run" if framework == "vitest" else None)
+        test_command = scripts.get("test")
+        if not test_command:
+            if framework == "vitest":
+                test_command = "vitest run"
+            elif framework == "jest":
+                test_command = "npm exec -- jest"
+            elif framework == "node-test" and test_path:
+                test_command = "node --test"
         coverage_command = scripts.get("coverage") or scripts.get("test:coverage")
         if not coverage_command and framework == "vitest":
             coverage_command = "vitest run --coverage"
         elif not coverage_command and framework == "jest":
-            coverage_command = "jest --coverage"
+            coverage_command = "npm exec -- jest --coverage"
         return test_command, coverage_command
 
     if language == "go":
@@ -391,6 +400,33 @@ def _canonical_commands(module_root: Path, manifest_path: Path, language: str, f
     if language == "zig":
         return "zig test", "zig test"
     return None, None
+
+
+def _command_tiers(
+    language: str,
+    framework: str,
+    scripts: dict[str, str],
+    test_command: str | None,
+    coverage_command: str | None,
+) -> dict[str, str | None]:
+    if language == "javascript":
+        return {
+            "fast_smoke": scripts.get("test:smoke") or scripts.get("smoke") or test_command,
+            "focused": scripts.get("test:unit") or scripts.get("test:focused") or test_command,
+            "full": scripts.get("test") or test_command,
+        }
+    if language == "python":
+        fast_smoke = "pytest -q" if framework == "pytest" else test_command
+        return {
+            "fast_smoke": fast_smoke,
+            "focused": test_command,
+            "full": coverage_command or test_command,
+        }
+    return {
+        "fast_smoke": None,
+        "focused": test_command,
+        "full": coverage_command or test_command,
+    }
 
 
 def _module_state(framework: str, test_path: str | None, test_command: str | None, coverage_command: str | None) -> str:
@@ -432,7 +468,8 @@ def build_testing_inventory(project_root: Path) -> dict[str, Any]:
         module_kind, classification_reason = _module_kind(project_root, manifest_path, language)
         framework, framework_confidence = _detect_framework(module_root, manifest_path, language)
         test_path = _detect_test_path(module_root, language)
-        test_command, coverage_command = _canonical_commands(module_root, manifest_path, language, framework)
+        test_command, coverage_command = _canonical_commands(module_root, manifest_path, language, framework, test_path)
+        scripts = _package_scripts(_load_json(manifest_path)) if language == "javascript" else {}
         state = _module_state(framework, test_path, test_command, coverage_command)
 
         modules.append(
@@ -448,6 +485,7 @@ def build_testing_inventory(project_root: Path) -> dict[str, Any]:
                 "canonical_test_path": test_path,
                 "canonical_test_command": test_command,
                 "coverage_command": coverage_command,
+                "command_tiers": _command_tiers(language, framework, scripts, test_command, coverage_command),
                 "state": state,
                 "classification_reason": classification_reason,
             }

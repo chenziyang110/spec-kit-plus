@@ -350,10 +350,20 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
 
     prd_content = (skills_dir / "sp-prd" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert "deprecated compatibility entrypoint" in prd_content
-    assert "sp-prd-scan" in prd_content
-    assert "sp-prd-build" in prd_content
-    assert "compatibility" in prd_content
-    assert "do not keep one-step semantics alive" in prd_content
+    assert "sp-prd-scan -> sp-prd-build" in prd_content
+    assert "do not describe `sp-prd` as the preferred workflow" in prd_content
+
+    prd_scan_content = (skills_dir / "sp-prd-scan" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "current repository reality" in prd_scan_content
+    assert ".specify/prd-runs/<run-id>/" in prd_scan_content
+    assert "capability triage" in prd_scan_content
+    assert "critical depth gate" in prd_scan_content
+    assert "reconstruction-grade scan package" in prd_scan_content
+    assert "evidence label gate" in prd_scan_content
+
+    prd_build_content = (skills_dir / "sp-prd-build" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "reverse coverage validation" in prd_build_content
+    assert "no new facts gate" in prd_build_content
 
     constitution_content = (skills_dir / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert ".specify/memory/project-rules.md" in constitution_content
@@ -413,9 +423,13 @@ def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):
 
     assert result.exit_code == 0, result.output
 
-    for skill_name in ("sp-fast", "sp-quick", "sp-map-scan", "sp-map-build", "sp-implement", "sp-specify", "sp-prd", "sp-plan", "sp-tasks", "sp-debug"):
+    for skill_name in ("sp-quick", "sp-map-scan", "sp-map-build", "sp-implement", "sp-specify", "sp-prd", "sp-plan", "sp-tasks", "sp-debug"):
         content = (target / ".codex" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
-        assert "[AGENT]" in content
+        assert "[agent]" in content.lower()
+
+    fast_content = (target / ".codex" / "skills" / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "[agent]" in fast_content
+    assert "leader-direct" in fast_content
 
 
 def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrails(tmp_path):

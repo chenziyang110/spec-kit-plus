@@ -132,16 +132,23 @@ def _context_bundle_from_project_docs(
         (
             ".specify/testing/TESTING_CONTRACT.md",
             "testing_contract",
-            "Project-level testing obligations that are binding for behavior changes and bug fixes.",
+            "Project-level testing control plane for covered-module obligations and regression requirements.",
             ["validation", "forbidden_drift"],
             "testing contract constrains what counts as complete",
         ),
         (
             ".specify/testing/TESTING_PLAYBOOK.md",
             "testing_playbook",
-            "Canonical commands for targeted and full verification during execution.",
+            "Testing control-plane command-tier guidance for targeted and full verification during execution.",
             ["validation"],
             "testing playbook provides runnable verification commands",
+        ),
+        (
+            ".specify/testing/COVERAGE_BASELINE.json",
+            "coverage_baseline",
+            "Testing control-plane coverage baseline for current covered-module status and coverage gaps.",
+            ["validation"],
+            "coverage baseline captures current covered-module status",
         ),
     ]
 

@@ -210,7 +210,7 @@ gate.
      - mark any `PH-###` item not consumed by the plan as `deferred`, `not applicable`, or `requires user decision`
    - Copy locked planning decisions from `alignment.md`, `context.md`, `spec.md`, and `deep-research.md` into planning constraints, assumptions, or design notes so they are not silently dropped
    - Copy implementation-chain constraints and synthesis decisions from `deep-research.md` into the implementation plan instead of rediscovering or weakening them
-   - If `.specify/testing/TESTING_CONTRACT.md` exists, copy the project-level testing rules into the implementation plan instead of treating tests as optional follow-up work
+   - If `.specify/testing/TESTING_CONTRACT.md` exists, copy the project-level testing rules into the implementation plan instead of treating tests as optional follow-up work. Preserve the stronger brownfield testing inputs carried from `sp-specify`: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`
    - If `.specify/testing/TESTING_PLAYBOOK.md` exists, preserve the canonical test, targeted-test, and coverage commands inside the generated plan artifacts
    - Promote framework and boundary rules from "technical background" into explicit implementation constraints rather than leaving them as implied context
    - Evaluate gates (ERROR if violations are unjustified)
