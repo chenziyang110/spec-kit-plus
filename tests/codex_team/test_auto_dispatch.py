@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 import re
 import time
+import os
+import tempfile
 
 import pytest
 
@@ -18,6 +20,7 @@ from specify_cli.codex_team.state_paths import (
     dispatch_record_path,
     result_record_path,
     runtime_session_path,
+    task_record_path,
     worker_heartbeat_path,
 )
 from specify_cli.execution import worker_task_result_payload
@@ -676,6 +679,33 @@ def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(
         lambda name: r"C:\tool.exe" if name in {"tmux", "node"} else None,
     )
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+    write_calls: list[Path] = []
+
+    def _tracking_write_json(path: Path, payload: dict) -> Path:
+        write_calls.append(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=path.parent,
+                prefix=f"{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as handle:
+                temp_path = Path(handle.name)
+                handle.write(json.dumps(payload, indent=2) + "\n")
+            os.replace(temp_path, path)
+        finally:
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+        return path
+
+    monkeypatch.setattr("specify_cli.codex_team.task_ops.write_json", _tracking_write_json, raising=False)
+    monkeypatch.setattr("specify_cli.codex_team.batch_ops.write_json", _tracking_write_json, raising=False)
+    monkeypatch.setattr("specify_cli.codex_team.auto_dispatch.write_json", _tracking_write_json, raising=False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.write_json", _tracking_write_json, raising=False)
 
     feature_dir = _write_feature_tasks(
         codex_team_project_root,
@@ -716,6 +746,13 @@ def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(
     task_payload = get_task(codex_team_project_root, "T002")
     assert task_payload.metadata["worker_result"]["status"] == "success"
     assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "complete"
+    expected_atomic_paths = {
+        batch_record_path(codex_team_project_root, result.batch_id),
+        runtime_session_path(codex_team_project_root, "default"),
+        task_record_path(codex_team_project_root, "T002"),
+        task_record_path(codex_team_project_root, "T003"),
+    }
+    assert expected_atomic_paths <= set(write_calls)
 
 
 def test_complete_dispatched_batch_tolerates_result_submission_after_task_already_completed(

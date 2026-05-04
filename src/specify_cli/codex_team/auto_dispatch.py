@@ -649,28 +649,23 @@ def _write_batch_record(
     review_status: str,
 ) -> None:
     path = batch_record_path(project_root, batch_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            batch_record_payload(
-                batch_id=batch_id,
-                batch_name=batch_name,
-                session_id=session_id,
-                feature_dir=feature_dir.as_posix(),
-                task_ids=task_ids,
-                request_ids=request_ids,
-                join_point_name=join_point_name,
-                batch_classification=batch_classification,
-                safe_preparation=safe_preparation,
-                review_required=review_required,
-                peer_review_lane_recommended=peer_review_lane_recommended,
-                review_reason=review_reason,
-                review_status=review_status,
-            ),
-            ensure_ascii=False,
-            indent=2,
+    write_json(
+        path,
+        batch_record_payload(
+            batch_id=batch_id,
+            batch_name=batch_name,
+            session_id=session_id,
+            feature_dir=feature_dir.as_posix(),
+            task_ids=task_ids,
+            request_ids=request_ids,
+            join_point_name=join_point_name,
+            batch_classification=batch_classification,
+            safe_preparation=safe_preparation,
+            review_required=review_required,
+            peer_review_lane_recommended=peer_review_lane_recommended,
+            review_reason=review_reason,
+            review_status=review_status,
         ),
-        encoding="utf-8",
     )
 
 
@@ -1230,7 +1225,7 @@ def complete_dispatched_batch(
     else:
         payload["status"] = "completed"
     path = batch_record_path(project_root, batch_id)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json(path, payload)
     monitor_summary(project_root, session_id=session_id)
 
     next_batch_id = ""

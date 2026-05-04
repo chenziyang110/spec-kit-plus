@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +9,7 @@ from pathlib import Path
 from specify_cli.codex_team.manifests import runtime_session_from_json, runtime_state_payload
 from specify_cli.codex_team.runtime_state import BatchRecord, batch_record_from_json, task_record_from_json
 from specify_cli.codex_team.state_paths import batch_record_path, runtime_session_path, task_record_path
+from specify_cli.orchestration.state_store import write_json
 
 
 def _utc_now() -> str:
@@ -25,8 +25,7 @@ def _load_batch(project_root: Path, batch_id: str) -> BatchRecord | None:
 
 def _save_batch(project_root: Path, batch: BatchRecord) -> None:
     path = batch_record_path(project_root, batch.batch_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(asdict(batch), ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json(path, asdict(batch))
 
 
 def _load_task(project_root: Path, task_id: str):
@@ -38,7 +37,7 @@ def _load_task(project_root: Path, task_id: str):
 
 def _save_task(project_root: Path, record) -> None:
     path = task_record_path(project_root, record.task_id)
-    path.write_text(json.dumps(asdict(record), ensure_ascii=False), encoding="utf-8")
+    write_json(path, asdict(record))
 
 
 def _load_runtime_session(project_root: Path, session_id: str):
@@ -50,8 +49,7 @@ def _load_runtime_session(project_root: Path, session_id: str):
 
 def _save_runtime_session(project_root: Path, session) -> None:
     path = runtime_session_path(project_root, session.session_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(runtime_state_payload(session)["session"], ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json(path, runtime_state_payload(session)["session"])
 
 
 def _set_join_point_status(project_root: Path, task_id: str, join_point_name: str, status: str) -> None:
