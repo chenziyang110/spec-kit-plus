@@ -4,6 +4,8 @@
 **Status**: scanning | blocked | complete
 **Scope**: Read-only testing-system evidence and build blueprint
 
+`.specify/testing/*` is the single downstream testing control plane for test-system evidence, build coordination, contract rules, playbook commands, coverage baseline, and lifecycle state. This artifact owns strict module evidence only; do not turn it into the executable contract or newcomer playbook.
+
 ## Executive Summary
 
 - Scan objective:
@@ -20,16 +22,23 @@
 
 ## Module Evidence
 
+Each module entry must expose strict module evidence before it can feed `TEST_BUILD_PLAN.md`: module root, public entrypoints / contracts, covered module status, candidate layer mix, and candidate command tiers.
+
 ### [Module Name]
 
 - Module root:
 - Language:
 - Risk tier: P0 | P1 | P2 | P3
+- Covered module status: covered | partial | uncovered | audit-only | gap
 - Selected bundled testing skill:
 - Key files inspected:
 - Public entrypoints / contracts:
 - Truth-owning behavior:
 - Existing test surface:
+- Candidate layer mix:
+  - small tests:
+  - medium tests:
+  - large tests:
 - Missing scenarios:
   - happy path:
   - invalid input:
@@ -37,7 +46,10 @@
   - exception handling:
   - state transitions:
   - local integration seams:
-- Candidate validation commands:
+- Candidate command tiers:
+  - fast smoke:
+  - focused:
+  - full:
 - Coverage command:
 - Blockers or uncertainty:
 
