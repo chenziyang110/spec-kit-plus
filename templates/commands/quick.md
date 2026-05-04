@@ -299,8 +299,9 @@ resume_decision: [resume here | blocked waiting | resolved]
   - any unverified surface or remaining gap is called out explicitly instead of being implied away
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
-- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-scan` followed by `/sp-map-build` before marking the quick task `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass.
-- If you cannot complete that refresh in the current pass, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before the next brownfield workflow proceeds.
+- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for the handbook/project-map atlas.
+- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, run `/sp-map-scan` followed by `/sp-map-build` before marking the quick task `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
+- If a full refresh can be completed now, do it; otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and recommend `/sp-map-scan` followed by `/sp-map-build` before the next brownfield workflow proceeds.
 
 ## Propagating Change Rule
 

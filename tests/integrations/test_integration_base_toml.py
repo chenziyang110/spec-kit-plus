@@ -662,7 +662,9 @@ class TomlIntegrationTests:
         assert ".specify/project-map/index/status.json" in content
         assert "## Map Maintenance" in content
         assert "refresh `PROJECT-HANDBOOK.md`" in content
-        assert "mark `.specify/project-map/index/status.json` dirty" in content
+        assert "git-baseline freshness" in content.lower()
+        assert "complete-refresh" in content
+        assert "manual override/fallback" in content.lower()
 
     def test_init_augments_existing_context_file_with_managed_guidance(self, tmp_path):
         from typer.testing import CliRunner

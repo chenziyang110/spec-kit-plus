@@ -216,7 +216,7 @@ artifacts afterward, but it may not skip the atlas gate.
     - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
     - workflow-state path
     - Recommended next command: `{{invoke:analyze}}`
-    - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the handbook/project-map, mark `.specify/project-map/index/status.json` dirty and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield implementation proceeds.
+    - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the handbook/project-map, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield implementation proceeds.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`

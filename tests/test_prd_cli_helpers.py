@@ -278,6 +278,13 @@ def test_python_prd_helper_wrapper_runs_helper_from_current_project(tmp_path: Pa
     assert payload["mode"] == "init"
     assert payload["slug"] == "billing-portal"
     assert Path(payload["workspace_path"]).is_dir()
+    assert payload["status_file"] == str(project / ".specify" / "prd" / "status.json")
+    assert payload["freshness"]["status_file_exists"] is True
+    assert payload["freshness"]["freshness"] == "missing"
+    assert payload["freshness"]["latest_run"] == payload["workspace"]
+    status_payload = json.loads((project / ".specify" / "prd" / "status.json").read_text(encoding="utf-8"))
+    assert status_payload["freshness"] == "missing"
+    assert status_payload["last_refresh_basis"] == "prd-scan-init"
     assert payload["surfaces"]["prd_scan"] is True
     assert payload["surfaces"]["coverage_ledger_json"] is True
     assert payload["surfaces"]["capability_ledger_json"] is True
@@ -303,6 +310,13 @@ def test_python_prd_helper_wrapper_supports_prd_scan_mode(tmp_path: Path):
         os.chdir(old_cwd)
 
     assert payload["mode"] == "init-scan"
+    assert payload["status_file"] == str(project / ".specify" / "prd" / "status.json")
+    assert payload["freshness"]["status_file_exists"] is True
+    assert payload["freshness"]["freshness"] == "missing"
+    assert payload["freshness"]["latest_run"] == payload["workspace"]
+    status_payload = json.loads((project / ".specify" / "prd" / "status.json").read_text(encoding="utf-8"))
+    assert status_payload["freshness"] == "missing"
+    assert status_payload["last_refresh_basis"] == "prd-scan-init"
     assert payload["surfaces"]["prd_scan"] is True
     assert payload["surfaces"]["coverage_ledger_json"] is True
     assert payload["surfaces"]["capability_ledger_json"] is True

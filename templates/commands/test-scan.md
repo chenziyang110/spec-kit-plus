@@ -35,6 +35,7 @@ Use `execution_surface: native-subagents`.
 ## Testing State Protocol
 
 - `TESTING_STATE_FILE=.specify/testing/testing-state.md` is the project-level testing-system source of truth for `sp-test-scan`.
+- `.specify/testing/status.json` records testing scan freshness. Treat dependency manifests, lockfiles, workflow files, test config, or coverage config changes as `full-stale`; treat `src/**` or `tests/**` module-local files as `targeted-stale`; treat an empty relevant changed-file set as `fresh`.
 - [AGENT] Create or resume `TESTING_STATE_FILE` before substantial testing analysis.
 - Read `.specify/templates/testing/testing-state-template.md`.
 - If `TESTING_STATE_FILE` exists with `active_command: sp-test-scan` and non-terminal scan state, resume from it instead of rebuilding intent from chat memory.

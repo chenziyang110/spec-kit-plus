@@ -178,6 +178,17 @@ def test_test_scan_and_build_templates_use_handbook_and_project_map_gates():
         assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" in content
 
 
+def test_test_scan_template_records_testing_status_freshness_guidance():
+    content = _read("templates/commands/test-scan.md")
+
+    assert "`.specify/testing/status.json`" in content
+    assert "full-stale" in content
+    assert "targeted-stale" in content
+    assert "fresh" in content
+    assert "dependency manifests, lockfiles, workflow files, test config, or coverage config" in content
+    assert "`src/**` or `tests/**` module-local files" in content
+
+
 def test_test_template_emits_result_driven_handoff_recommendation():
     content = _read("templates/commands/test-build.md")
     lowered = content.lower()

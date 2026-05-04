@@ -73,6 +73,10 @@ def now_utc() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def prd_status_path(project_root: Path) -> Path:
+    return project_root / ".specify" / "prd" / "status.json"
+
+
 def slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.strip().lower())
     slug = slug.strip("-")
@@ -224,6 +228,60 @@ def init_scan_artifacts(run_dir: Path) -> None:
     )
 
 
+def latest_run_id(project_root: Path) -> str:
+    runs_dir = project_root / ".specify" / "prd-runs"
+    if not runs_dir.is_dir():
+        return ""
+    runs = sorted(path.name for path in runs_dir.iterdir() if path.is_dir())
+    return runs[-1] if runs else ""
+
+
+def stable_freshness_payload(project_root: Path, workspace: str = "") -> dict[str, object]:
+    status_path = prd_status_path(project_root)
+    freshness = "missing"
+    if status_path.is_file():
+        try:
+            payload = json.loads(status_path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                freshness = str(payload.get("freshness", "missing"))
+        except (OSError, json.JSONDecodeError):
+            freshness = "missing"
+    return {
+        "status_file_exists": status_path.is_file(),
+        "freshness": freshness,
+        "latest_run": latest_run_id(project_root),
+        "current_run": workspace,
+    }
+
+
+def seed_prd_status_if_missing(project_root: Path, workspace: str) -> None:
+    status_path = prd_status_path(project_root)
+    if status_path.exists():
+        return
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    status_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "status_family": "prd",
+                "freshness": "missing",
+                "last_refresh_commit": "",
+                "last_refresh_branch": "",
+                "last_refresh_at": now_utc(),
+                "last_refresh_scope": "full",
+                "last_refresh_basis": "prd-scan-init",
+                "last_refresh_changed_files_basis": [],
+                "manual_force_stale": False,
+                "manual_force_stale_reasons": [],
+                "latest_run": workspace,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def init_run(project_root: Path, requested_slug: str, active_command: str, payload_mode: str) -> dict[str, object]:
     date_value = run_date()
     slug = slugify(requested_slug)
@@ -233,6 +291,7 @@ def init_run(project_root: Path, requested_slug: str, active_command: str, paylo
 
     write_file_if_missing(run_dir / "workflow-state.md", scan_workflow_state(workspace, slug, active_command))
     init_scan_artifacts(run_dir)
+    seed_prd_status_if_missing(project_root, workspace)
 
     surfaces = surface_status(run_dir)
     return {
@@ -241,6 +300,8 @@ def init_run(project_root: Path, requested_slug: str, active_command: str, paylo
         "slug": slug,
         "workspace": workspace,
         "workspace_path": str(run_dir.resolve()),
+        "status_file": str(prd_status_path(project_root)),
+        "freshness": stable_freshness_payload(project_root, workspace),
         "surfaces": surfaces,
         "complete": all(surfaces[key] for key in SCAN_SURFACE_KEYS),
     }
@@ -262,6 +323,8 @@ def status_run(project_root: Path, run_id: str, payload_mode: str, surface_keys:
         "mode": payload_mode,
         "workspace": run_dir.name,
         "workspace_path": str(run_dir.resolve()),
+        "status_file": str(prd_status_path(project_root)),
+        "freshness": stable_freshness_payload(project_root, run_dir.name),
         "surfaces": surfaces,
         "complete": all(surfaces[key] for key in surface_keys),
     }

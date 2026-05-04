@@ -134,6 +134,8 @@ function Write-Status {
         last_refresh_scope = $LastRefreshScope
         last_refresh_basis = $LastRefreshBasis
         last_refresh_changed_files_basis = @($LastRefreshChangedFilesBasis)
+        manual_force_stale = $Dirty
+        manual_force_stale_reasons = @($DirtyReasons)
         dirty = $Dirty
         dirty_reasons = @($DirtyReasons)
     }
@@ -336,6 +338,8 @@ function Emit-CheckResult {
         freshness = $Freshness
         head_commit = $HeadCommit
         last_mapped_commit = $LastMappedCommit
+        manual_force_stale = $Dirty
+        manual_force_stale_reasons = @($DirtyReasons)
         dirty = $Dirty
         dirty_reasons = @($DirtyReasons)
         reasons = @($Reasons)
@@ -356,8 +360,8 @@ function Invoke-Check {
     }
 
     $lastMappedCommit = [string](Get-StatusValue -Status $status -Key "last_mapped_commit" -Default "")
-    $dirty = [bool](Get-StatusValue -Status $status -Key "dirty" -Default $false)
-    $dirtyReasons = @((Get-StatusValue -Status $status -Key "dirty_reasons" -Default @()))
+    $dirty = [bool](Get-StatusValue -Status $status -Key "manual_force_stale" -Default (Get-StatusValue -Status $status -Key "dirty" -Default $false))
+    $dirtyReasons = @((Get-StatusValue -Status $status -Key "manual_force_stale_reasons" -Default (Get-StatusValue -Status $status -Key "dirty_reasons" -Default @())))
 
     if ($dirty) {
         $mustRefreshTopics = New-Object System.Collections.Generic.List[string]
@@ -479,7 +483,7 @@ switch ($Command) {
     "mark-dirty" {
         $status = Read-Status
         $dirtyReasons = New-Object System.Collections.Generic.List[string]
-        foreach ($item in @((Get-StatusValue -Status $status -Key "dirty_reasons" -Default @()))) {
+        foreach ($item in @((Get-StatusValue -Status $status -Key "manual_force_stale_reasons" -Default (Get-StatusValue -Status $status -Key "dirty_reasons" -Default @())))) {
             if (-not [string]::IsNullOrWhiteSpace([string]$item)) {
                 $dirtyReasons.Add([string]$item)
             }

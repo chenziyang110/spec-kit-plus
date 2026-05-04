@@ -273,6 +273,73 @@ def test_bash_complete_refresh_uses_map_codebase_reason(git_repo: Path):
     assert payload["last_refresh_changed_files_basis"] == []
 
 
+def test_complete_refresh_clears_manual_force_stale_fields_in_shell_helpers(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+
+    _run_bash(git_repo, "record-refresh", "manual")
+    bash_dirty = _run_bash(git_repo, "mark-dirty", "workflow_contract_changed")
+    assert bash_dirty["manual_force_stale"] is True
+    assert bash_dirty["manual_force_stale_reasons"] == ["workflow_contract_changed"]
+    assert bash_dirty["dirty"] is True
+    assert bash_dirty["dirty_reasons"] == ["workflow_contract_changed"]
+
+    bash_refreshed = _run_bash(git_repo, "complete-refresh")
+    assert bash_refreshed["manual_force_stale"] is False
+    assert bash_refreshed["manual_force_stale_reasons"] == []
+    assert bash_refreshed["dirty"] is False
+    assert bash_refreshed["dirty_reasons"] == []
+
+    _run_powershell(git_repo, "mark-dirty", "workflow_contract_changed")
+    ps_refreshed = _run_powershell(git_repo, "complete-refresh")
+    assert ps_refreshed["manual_force_stale"] is False
+    assert ps_refreshed["manual_force_stale_reasons"] == []
+    assert ps_refreshed["dirty"] is False
+    assert ps_refreshed["dirty_reasons"] == []
+
+    payload = json.loads((git_repo / ".specify" / "project-map" / "index" / "status.json").read_text(encoding="utf-8"))
+    assert payload["manual_force_stale"] is False
+    assert payload["manual_force_stale_reasons"] == []
+    assert payload["dirty"] is False
+    assert payload["dirty_reasons"] == []
+
+
+def test_bash_prefers_present_empty_manual_force_stale_reasons_over_legacy_dirty_reasons(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+
+    status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    status_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "last_mapped_commit": subprocess.run(["git", "rev-parse", "HEAD"], cwd=git_repo, check=True, capture_output=True, text=True).stdout.strip(),
+                "last_mapped_at": "2026-04-21T00:00:00Z",
+                "last_mapped_branch": "main",
+                "freshness": "stale",
+                "last_refresh_reason": "manual",
+                "last_refresh_topics": [],
+                "last_refresh_scope": "full",
+                "last_refresh_basis": "manual",
+                "last_refresh_changed_files_basis": [],
+                "manual_force_stale": False,
+                "manual_force_stale_reasons": [],
+                "dirty": False,
+                "dirty_reasons": ["workflow_contract_changed"],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _run_bash(git_repo, "mark-dirty", "shared_surface_changed")
+
+    assert result["dirty_reasons"] == ["shared_surface_changed"]
+    assert result["manual_force_stale_reasons"] == ["shared_surface_changed"]
+
+
 def test_bash_mark_dirty_normalizes_human_reason(git_repo: Path):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
