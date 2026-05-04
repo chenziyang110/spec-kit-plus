@@ -617,6 +617,8 @@ class ProjectMapStatus:
                 "last_refresh_scope": self.global_last_refresh_scope,
                 "last_refresh_basis": self.global_last_refresh_basis,
                 "last_refresh_changed_files_basis": list(self.global_last_refresh_changed_files_basis or []),
+                "manual_force_stale": self.global_dirty,
+                "manual_force_stale_reasons": list(self.global_dirty_reasons or []),
                 "dirty": self.global_dirty,
                 "dirty_reasons": list(self.global_dirty_reasons or []),
                 "stale_reasons": list(self.global_dirty_reasons or []),
@@ -633,6 +635,8 @@ class ProjectMapStatus:
             "last_refresh_scope": self.last_refresh_scope,
             "last_refresh_basis": self.last_refresh_basis,
             "last_refresh_changed_files_basis": self.last_refresh_changed_files_basis,
+            "manual_force_stale": self.manual_force_stale,
+            "manual_force_stale_reasons": self.manual_force_stale_reasons,
             "dirty": self.dirty,
             "dirty_reasons": self.dirty_reasons,
             "stale_reasons": self.dirty_reasons,
@@ -643,6 +647,11 @@ class ProjectMapStatus:
     def from_dict(cls, data: dict[str, Any]) -> "ProjectMapStatus":
         global_payload = data.get("global")
         if isinstance(global_payload, dict):
+            manual_force_stale = global_payload.get("manual_force_stale", global_payload.get("dirty", False))
+            manual_force_stale_reasons = global_payload.get(
+                "manual_force_stale_reasons",
+                global_payload.get("dirty_reasons", global_payload.get("stale_reasons", [])),
+            )
             return cls(
                 version=int(data.get("version", 2)),
                 global_freshness=str(global_payload.get("freshness", "missing")),
@@ -654,13 +663,18 @@ class ProjectMapStatus:
                 global_last_refresh_scope=str(global_payload.get("last_refresh_scope", "full")),
                 global_last_refresh_basis=str(global_payload.get("last_refresh_basis", "")),
                 global_last_refresh_changed_files_basis=list(global_payload.get("last_refresh_changed_files_basis", []) or []),
-                global_dirty=bool(global_payload.get("dirty", False)),
-                global_dirty_reasons=list(global_payload.get("dirty_reasons", []) or []),
+                global_dirty=bool(manual_force_stale),
+                global_dirty_reasons=list(manual_force_stale_reasons or []),
                 global_stale_reasons=list(global_payload.get("stale_reasons", []) or []),
                 global_affected_root_docs=list(global_payload.get("affected_root_docs", []) or []),
                 modules=dict(data.get("modules", {}) or {}),
             )
 
+        manual_force_stale = data.get("manual_force_stale", data.get("dirty", False))
+        manual_force_stale_reasons = data.get(
+            "manual_force_stale_reasons",
+            data.get("dirty_reasons", data.get("stale_reasons", [])),
+        )
         return cls(
             version=int(data.get("version", 1)),
             last_mapped_commit=str(data.get("last_mapped_commit", "")),
@@ -672,8 +686,8 @@ class ProjectMapStatus:
             last_refresh_scope=str(data.get("last_refresh_scope", "full")),
             last_refresh_basis=str(data.get("last_refresh_basis", "")),
             last_refresh_changed_files_basis=list(data.get("last_refresh_changed_files_basis", []) or []),
-            dirty=bool(data.get("dirty", False)),
-            dirty_reasons=list(data.get("dirty_reasons", []) or []),
+            dirty=bool(manual_force_stale),
+            dirty_reasons=list(manual_force_stale_reasons or []),
             modules=dict(data.get("modules", {}) or {}),
         )
 
@@ -764,13 +778,13 @@ def refresh_project_map_topics(
 
 def mark_project_map_dirty(project_root: Path, reason: str) -> ProjectMapStatus:
     status = read_project_map_status(project_root)
-    reasons = list(status.dirty_reasons or [])
+    reasons = list(status.manual_force_stale_reasons or [])
     canonical_reason = normalize_dirty_reason(reason)
     if canonical_reason and canonical_reason not in reasons:
         reasons.append(canonical_reason)
-    status.dirty = True
+    status.manual_force_stale = True
+    status.manual_force_stale_reasons = reasons
     status.freshness = "stale"
-    status.dirty_reasons = reasons
     if not status.last_mapped_at:
         status.last_mapped_at = iso_now()
     if not status.last_refresh_reason:
@@ -781,9 +795,9 @@ def mark_project_map_dirty(project_root: Path, reason: str) -> ProjectMapStatus:
 
 def clear_project_map_dirty(project_root: Path) -> ProjectMapStatus:
     status = read_project_map_status(project_root)
-    status.dirty = False
+    status.manual_force_stale = False
+    status.manual_force_stale_reasons = []
     status.freshness = "fresh"
-    status.dirty_reasons = []
     write_project_map_status(project_root, status)
     return status
 
@@ -803,6 +817,8 @@ def assess_project_map_freshness(
             "status_path": str(project_map_status_path(project_root)),
             "head_commit": head_commit,
             "last_mapped_commit": "",
+            "manual_force_stale": False,
+            "manual_force_stale_reasons": [],
             "dirty": False,
             "dirty_reasons": [],
             "reasons": ["project-map status missing"],
@@ -821,6 +837,8 @@ def assess_project_map_freshness(
             "status_path": str(project_map_status_path(project_root)),
             "head_commit": head_commit,
             "last_mapped_commit": status.last_mapped_commit,
+            "manual_force_stale": True,
+            "manual_force_stale_reasons": list(status.manual_force_stale_reasons or []),
             "dirty": True,
             "dirty_reasons": list(status.dirty_reasons or []),
             "reasons": list(status.dirty_reasons or []),
@@ -838,6 +856,8 @@ def assess_project_map_freshness(
             "status_path": str(project_map_status_path(project_root)),
             "head_commit": head_commit,
             "last_mapped_commit": status.last_mapped_commit,
+            "manual_force_stale": False,
+            "manual_force_stale_reasons": [],
             "dirty": False,
             "dirty_reasons": [],
             "reasons": ["git baseline unavailable for project-map freshness"],
@@ -896,6 +916,8 @@ def assess_project_map_freshness(
         "status_path": str(project_map_status_path(project_root)),
         "head_commit": head_commit,
         "last_mapped_commit": status.last_mapped_commit,
+        "manual_force_stale": False,
+        "manual_force_stale_reasons": [],
         "dirty": False,
         "dirty_reasons": [],
         "reasons": reasons,

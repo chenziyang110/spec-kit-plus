@@ -142,6 +142,32 @@ PY
     echo "[]"
 }
 
+status_has_key() {
+    local field="$1"
+    local read_path
+    read_path="$(status_read_path)"
+    if [[ ! -f "$read_path" ]]; then
+        return 1
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+        STATUS_READ_PATH="$read_path" FIELD="$field" python3 - <<'PY'
+import json, os, sys
+path = os.environ["STATUS_READ_PATH"]
+field = os.environ["FIELD"]
+try:
+    with open(path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    sys.exit(1)
+sys.exit(0 if field in data else 1)
+PY
+        return $?
+    fi
+
+    grep -q "\"$field\"[[:space:]]*:" "$read_path" 2>/dev/null
+}
+
 write_status() {
     local last_mapped_commit="$1"
     local last_mapped_at="$2"
@@ -168,6 +194,8 @@ write_status() {
   "last_refresh_scope": "$(json_escape "$last_refresh_scope")",
   "last_refresh_basis": "$(json_escape "$last_refresh_basis")",
   "last_refresh_changed_files_basis": $last_refresh_changed_files_basis_json,
+  "manual_force_stale": $dirty,
+  "manual_force_stale_reasons": $dirty_reasons_json,
   "dirty": $dirty,
   "dirty_reasons": $dirty_reasons_json
 }
@@ -480,6 +508,8 @@ emit_check_json() {
   "freshness": "$(json_escape "$freshness")",
   "head_commit": "$(json_escape "$head_commit")",
   "last_mapped_commit": "$(json_escape "$last_mapped_commit")",
+  "manual_force_stale": $dirty,
+  "manual_force_stale_reasons": $dirty_reasons_json,
   "dirty": $dirty,
   "dirty_reasons": $dirty_reasons_json,
   "reasons": $reasons_json,
@@ -501,8 +531,14 @@ run_check() {
     fi
 
     last_mapped_commit="$(read_status_field "last_mapped_commit")"
-    dirty="$(read_status_field "dirty")"
-    dirty_reasons_json="$(read_status_array "dirty_reasons")"
+    dirty="$(read_status_field "manual_force_stale")"
+    dirty_reasons_json="$(read_status_array "manual_force_stale_reasons")"
+    if [[ -z "$dirty" ]]; then
+        dirty="$(read_status_field "dirty")"
+    fi
+    if ! status_has_key "manual_force_stale_reasons"; then
+        dirty_reasons_json="$(read_status_array "dirty_reasons")"
+    fi
     [[ -n "$dirty" ]] || dirty="false"
 
     if [[ "$dirty" == "true" ]]; then
@@ -741,7 +777,11 @@ mark_dirty() {
     last_refresh_reason="$(read_status_field "last_refresh_reason")"
     local canonical_reason
     canonical_reason="$(normalize_dirty_reason "$reason")"
-    dirty_reasons_json="$(append_reason_json "$(read_status_array "dirty_reasons")" "$canonical_reason")"
+    dirty_reasons_json="$(read_status_array "manual_force_stale_reasons")"
+    if ! status_has_key "manual_force_stale_reasons"; then
+        dirty_reasons_json="$(read_status_array "dirty_reasons")"
+    fi
+    dirty_reasons_json="$(append_reason_json "$dirty_reasons_json" "$canonical_reason")"
 
     if [[ -z "$last_mapped_at" ]]; then
         last_mapped_at="$(iso_now)"
