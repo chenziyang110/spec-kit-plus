@@ -96,6 +96,10 @@ class TestBuildThinkSubagentPrompt:
         assert "adjacent_risk_targets" in prompt
         assert "break_edges" in prompt
         assert "bypass_paths" in prompt
+        assert "observer_expansion_status" in prompt
+        assert "project_runtime_profile" in prompt
+        assert "log_investigation_plan" in prompt
+        assert "user_request_packet" in prompt
 
 
 class TestParseThinkSubagentResult:
@@ -226,6 +230,98 @@ causal_map:
         assert result["causal_map"]["candidates"][0]["candidate_id"] == "cand-parser-boundary"
         assert result["causal_map"]["candidates"][0]["family"] == "truth_owner_logic"
         assert result["causal_map"]["adjacent_risk_targets"][0]["target"] == "projection-boundary"
+
+    def test_parse_think_subagent_result_extracts_expanded_observer_payload(self) -> None:
+        raw = """Cross-layer runtime symptom with incomplete observability.
+
+---
+observer_mode: "full"
+observer_expansion_status: "enabled"
+observer_expansion_reason: "runtime_cross_layer_symptom"
+project_runtime_profile: "full-stack/web-app"
+symptom_shape: "phenomenon_only"
+log_readiness: "user_must_provide_logs"
+expanded_observer:
+  dimension_scan:
+    symptom_layer: "UI shows the stale badge"
+    caller_or_input_layer: "User release action starts the flow"
+    truth_owner_or_business_layer: "Scheduler owns slot state"
+    storage_or_state_layer: "Ownership state may remain stale"
+    cache_queue_async_layer: "Projection cache could lag behind"
+    config_env_deploy_layer: "Deployment timing differences could change sequencing"
+    external_boundary_layer: "Queue service handoff may delay reconciliation"
+    observability_layer: "Current report lacks a request-scoped runtime trace"
+  candidate_board:
+    - candidate_id: "cand-slot-ownership"
+      dimension_origin: "truth_owner_or_business_layer"
+      family: "truth_owner_logic"
+      candidate: "Scheduler does not clear slot ownership on release"
+      why_it_fits: "Queue remains blocked after release"
+      indirect_path: "Surface success hides stale truth-owner state"
+      surface_vs_truth_owner_note: "The UI symptom is downstream of scheduler state"
+      light_scores:
+        likelihood: 4
+        impact_radius: 4
+        falsifiability: 3
+        log_observability: 2
+  top_candidates:
+    - candidate_id: "cand-slot-ownership"
+      family: "truth_owner_logic"
+      investigation_priority: 1
+      recommended_log_probe: "Check release and admission logs in the same request window"
+      engineering_scores:
+        cross_layer_span: 4
+        indirect_causality_risk: 4
+        evidence_gap: 3
+        investigation_cost: 2
+  log_investigation_plan:
+    existing_log_targets:
+      - "application runtime logs for the failing request window"
+    candidate_signal_map:
+      - candidate_id: "cand-slot-ownership"
+        signals:
+          - "release recorded without ownership clear"
+    log_sufficiency_judgment: "Existing logs are insufficient to separate candidates."
+    missing_observability:
+      - "No correlated ownership transition logs"
+    instrumentation_targets:
+      - "slot ownership transition boundaries"
+    instrumentation_style:
+      - "correlation-scoped before/after state logs"
+    user_request_packet:
+      - target_source: "application runtime log for the failing request path"
+        time_window: "The exact failing request window covering release and the next admission"
+        keywords_or_fields:
+          - "request_id"
+          - "job_id"
+          - "ownership clear"
+          - "admission denied"
+        why_this_matters: "This log slice separates stale truth-owner state from projection-only lag."
+        expected_signal_examples:
+          - "A release event without a matching ownership-clear event supports the slot-ownership candidate."
+          - "A clean ownership-clear event before projection refresh weakens the slot-ownership candidate."
+"""
+
+        result = parse_think_subagent_result(raw)
+
+        assert result["observer_expansion_status"] == "enabled"
+        assert result["project_runtime_profile"] == "full-stack/web-app"
+        assert result["symptom_shape"] == "phenomenon_only"
+        assert result["log_readiness"] == "user_must_provide_logs"
+        assert (
+            result["expanded_observer"]["dimension_scan"]["truth_owner_or_business_layer"]
+            == "Scheduler owns slot state"
+        )
+        assert result["expanded_observer"]["candidate_board"][0]["dimension_origin"] == "truth_owner_or_business_layer"
+        assert result["expanded_observer"]["top_candidates"][0]["investigation_priority"] == 1
+        assert (
+            result["expanded_observer"]["log_investigation_plan"]["user_request_packet"][0]["target_source"]
+            == "application runtime log for the failing request path"
+        )
+        assert (
+            result["expanded_observer"]["log_investigation_plan"]["user_request_packet"][0]["keywords_or_fields"]
+            == ["request_id", "job_id", "ownership clear", "admission denied"]
+        )
 
     def test_no_yaml_block_returns_empty_dict(self) -> None:
         raw = "Just some free text without any YAML block."

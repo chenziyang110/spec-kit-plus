@@ -47,6 +47,35 @@ class RelatedRiskStatus(str, Enum):
     CLEARED = "cleared"
     NEEDS_FOLLOWUP = "needs_followup"
 
+
+class ObserverExpansionStatus(str, Enum):
+    NOT_APPLICABLE = "not_applicable"
+    SUGGESTED = "suggested"
+    USER_DECLINED = "user_declined"
+    ENABLED = "enabled"
+    COMPLETED = "completed"
+
+
+class ProjectRuntimeProfile(str, Enum):
+    FRONTEND_WEB_UI = "frontend/web-ui"
+    BACKEND_API_SERVICE = "backend/api-service"
+    FULL_STACK_WEB_APP = "full-stack/web-app"
+    WORKER_QUEUE_CRON = "worker/queue/cron"
+    CLI_AUTOMATION = "cli/automation"
+    DATA_PIPELINE_INTEGRATION = "data-pipeline/integration"
+
+
+class SymptomShape(str, Enum):
+    EXACT_ERROR = "exact_error"
+    PHENOMENON_ONLY = "phenomenon_only"
+
+
+class LogReadiness(str, Enum):
+    UNKNOWN = "unknown"
+    SUFFICIENT_EXISTING_LOGS = "sufficient_existing_logs"
+    INSUFFICIENT_NEED_INSTRUMENTATION = "insufficient_need_instrumentation"
+    USER_MUST_PROVIDE_LOGS = "user_must_provide_logs"
+
 class Focus(BaseModel):
     hypothesis: Optional[str] = None
     test: Optional[str] = None
@@ -108,6 +137,90 @@ class CausalCoverageState(BaseModel):
     closeout_ready: bool = False
 
 
+class ExpandedObserverLightScores(BaseModel):
+    likelihood: Optional[int] = None
+    impact_radius: Optional[int] = None
+    falsifiability: Optional[int] = None
+    log_observability: Optional[int] = None
+
+
+class ExpandedObserverEngineeringScores(BaseModel):
+    cross_layer_span: Optional[int] = None
+    indirect_causality_risk: Optional[int] = None
+    evidence_gap: Optional[int] = None
+    investigation_cost: Optional[int] = None
+
+
+class ExpandedObserverCandidateBoardEntry(BaseModel):
+    candidate_id: str
+    dimension_origin: str
+    family: str
+    candidate: str
+    why_it_fits: Optional[str] = None
+    indirect_path: Optional[str] = None
+    surface_vs_truth_owner_note: Optional[str] = None
+    light_scores: ExpandedObserverLightScores = Field(default_factory=ExpandedObserverLightScores)
+
+
+class ExpandedObserverTopCandidate(BaseModel):
+    candidate_id: str
+    family: str
+    investigation_priority: int
+    recommended_log_probe: Optional[str] = None
+    engineering_scores: ExpandedObserverEngineeringScores = Field(
+        default_factory=ExpandedObserverEngineeringScores
+    )
+
+
+class LogCandidateSignalMapEntry(BaseModel):
+    candidate_id: str
+    signals: List[str] = Field(default_factory=list)
+
+
+class UserRequestPacketEntry(BaseModel):
+    target_source: str
+    time_window: str
+    keywords_or_fields: List[str] = Field(default_factory=list)
+    why_this_matters: str
+    expected_signal_examples: List[str] = Field(default_factory=list)
+
+
+class LogInvestigationPlanState(BaseModel):
+    existing_log_targets: List[str] = Field(default_factory=list)
+    candidate_signal_map: List[LogCandidateSignalMapEntry] = Field(default_factory=list)
+    log_sufficiency_judgment: Optional[str] = None
+    missing_observability: List[str] = Field(default_factory=list)
+    instrumentation_targets: List[str] = Field(default_factory=list)
+    instrumentation_style: List[str] = Field(default_factory=list)
+    user_request_packet: List[UserRequestPacketEntry] = Field(default_factory=list)
+
+
+class ObserverTopCandidateSummary(BaseModel):
+    candidate_id: str
+    family: Optional[str] = None
+    investigation_priority: Optional[int] = None
+    recommended_log_probe: Optional[str] = None
+    why_it_fits: Optional[str] = None
+
+
+class ExpandedObserverDimensionScan(BaseModel):
+    symptom_layer: Optional[str] = None
+    caller_or_input_layer: Optional[str] = None
+    truth_owner_or_business_layer: Optional[str] = None
+    storage_or_state_layer: Optional[str] = None
+    cache_queue_async_layer: Optional[str] = None
+    config_env_deploy_layer: Optional[str] = None
+    external_boundary_layer: Optional[str] = None
+    observability_layer: Optional[str] = None
+
+
+class ExpandedObserverState(BaseModel):
+    dimension_scan: ExpandedObserverDimensionScan = Field(default_factory=ExpandedObserverDimensionScan)
+    candidate_board: List[ExpandedObserverCandidateBoardEntry] = Field(default_factory=list)
+    top_candidates: List[ExpandedObserverTopCandidate] = Field(default_factory=list)
+    log_investigation_plan: LogInvestigationPlanState = Field(default_factory=LogInvestigationPlanState)
+
+
 class InvestigationContractState(BaseModel):
     primary_candidate_id: Optional[str] = None
     candidate_queue: List[InvestigationCandidate] = Field(default_factory=list)
@@ -115,6 +228,8 @@ class InvestigationContractState(BaseModel):
     investigation_mode: InvestigationMode = InvestigationMode.NORMAL
     escalation_reason: Optional[str] = None
     causal_coverage_state: CausalCoverageState = Field(default_factory=CausalCoverageState)
+    top_candidates: List[ExpandedObserverTopCandidate] = Field(default_factory=list)
+    log_investigation_plan: LogInvestigationPlanState = Field(default_factory=LogInvestigationPlanState)
 
 
 class CausalMapCandidate(BaseModel):
@@ -154,6 +269,11 @@ class ObserverFramingState(BaseModel):
     suspected_truth_owner: Optional[str] = None
     recommended_first_probe: Optional[str] = None
     contrarian_candidate: Optional[str] = None
+    project_runtime_profile: Optional[ProjectRuntimeProfile] = None
+    symptom_shape: Optional[SymptomShape] = None
+    log_readiness: Optional[LogReadiness] = None
+    top_candidate_summary: Optional[ObserverTopCandidateSummary] = None
+    surface_truth_owner_distinction: Optional[str] = None
     missing_questions: List[str] = Field(default_factory=list)
     alternative_cause_candidates: List[ObserverCauseCandidate] = Field(default_factory=list)
 
@@ -290,6 +410,11 @@ class DebugGraphState(BaseModel):
     causal_map_completed: bool = False
     contract_generation_completed: bool = False
     observer_mode: Optional[str] = None
+    observer_expansion_status: Optional[ObserverExpansionStatus] = None
+    observer_expansion_reason: Optional[str] = None
+    project_runtime_profile: Optional[ProjectRuntimeProfile] = None
+    symptom_shape: Optional[SymptomShape] = None
+    log_readiness: Optional[LogReadiness] = None
     observer_framing_completed: bool = False
     framing_gate_passed: bool = False
     skip_observer_reason: Optional[str] = None
@@ -301,6 +426,7 @@ class DebugGraphState(BaseModel):
     symptoms: Symptoms = Field(default_factory=Symptoms)
     causal_map: CausalMapState = Field(default_factory=CausalMapState)
     observer_framing: ObserverFramingState = Field(default_factory=ObserverFramingState)
+    expanded_observer: ExpandedObserverState = Field(default_factory=ExpandedObserverState)
     transition_memo: TransitionMemoState = Field(default_factory=TransitionMemoState)
     eliminated: List[EliminatedEntry] = Field(default_factory=list)
     evidence: List[EvidenceEntry] = Field(default_factory=list)

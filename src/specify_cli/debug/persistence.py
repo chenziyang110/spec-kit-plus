@@ -14,15 +14,37 @@ def debug_research_path(debug_dir: Path, slug: str) -> Path:
     return debug_dir / f"{slug}.research.md"
 
 
+def _effective_log_plan(state: DebugGraphState):
+    contract_plan = state.investigation_contract.log_investigation_plan
+    if any(
+        (
+            contract_plan.existing_log_targets,
+            contract_plan.candidate_signal_map,
+            contract_plan.log_sufficiency_judgment,
+            contract_plan.missing_observability,
+            contract_plan.instrumentation_targets,
+            contract_plan.instrumentation_style,
+            contract_plan.user_request_packet,
+        )
+    ):
+        return contract_plan
+    return state.expanded_observer.log_investigation_plan
+
+
 def build_research_checkpoint(state: DebugGraphState) -> str:
     root_cause = state.resolution.root_cause.display_text() if state.resolution.root_cause else "Not confirmed"
     fix = state.resolution.fix or "No fix recorded"
     profile = state.diagnostic_profile or "Not classified"
+    log_plan = _effective_log_plan(state)
     lines = [
         f"# Debug Research: {state.slug}",
         "",
         f"- Trigger: {state.trigger}",
         f"- Diagnostic profile: {profile}",
+        f"- Observer expansion status: {state.observer_expansion_status.value if state.observer_expansion_status else 'Not recorded'}",
+        f"- Observer expansion reason: {state.observer_expansion_reason or 'Not recorded'}",
+        f"- Project runtime profile: {state.project_runtime_profile.value if state.project_runtime_profile else 'Not recorded'}",
+        f"- Log readiness: {state.log_readiness.value if state.log_readiness else 'Not recorded'}",
         f"- Failed verification attempts: {state.resolution.fail_count}",
         f"- Agent verification failures: {state.resolution.agent_fail_count}",
         f"- Human reopen count: {state.resolution.human_reopen_count}",
@@ -58,6 +80,57 @@ def build_research_checkpoint(state: DebugGraphState) -> str:
     else:
         lines.append("- No decisive evidence recorded yet.")
 
+    if any(
+        (
+            log_plan.existing_log_targets,
+            log_plan.candidate_signal_map,
+            log_plan.log_sufficiency_judgment,
+            log_plan.missing_observability,
+            log_plan.instrumentation_targets,
+            log_plan.instrumentation_style,
+            log_plan.user_request_packet,
+        )
+    ):
+        lines.extend(["", "## Runtime Log Investigation Context", ""])
+        if log_plan.existing_log_targets:
+            lines.append("- Existing log targets:")
+            for target in log_plan.existing_log_targets:
+                lines.append(f"  - {target}")
+        if log_plan.candidate_signal_map:
+            lines.append("- Candidate signal map:")
+            for entry in log_plan.candidate_signal_map:
+                lines.append(f"  - {entry.candidate_id}")
+                for signal in entry.signals:
+                    lines.append(f"    - {signal}")
+        if log_plan.log_sufficiency_judgment:
+            lines.append(f"- Log sufficiency judgment: {log_plan.log_sufficiency_judgment}")
+        if log_plan.missing_observability:
+            lines.append("- Missing observability:")
+            for item in log_plan.missing_observability:
+                lines.append(f"  - {item}")
+        if log_plan.instrumentation_targets:
+            lines.append("- Instrumentation targets:")
+            for item in log_plan.instrumentation_targets:
+                lines.append(f"  - {item}")
+        if log_plan.instrumentation_style:
+            lines.append("- Instrumentation style:")
+            for item in log_plan.instrumentation_style:
+                lines.append(f"  - {item}")
+        if log_plan.user_request_packet:
+            lines.append("- User log request packet:")
+            for packet in log_plan.user_request_packet:
+                lines.append(f"  - target source: {packet.target_source}")
+                lines.append(f"    - time window: {packet.time_window}")
+                if packet.keywords_or_fields:
+                    lines.append(
+                        f"    - keywords or fields: {', '.join(packet.keywords_or_fields)}"
+                    )
+                lines.append(f"    - why this matters: {packet.why_this_matters}")
+                if packet.expected_signal_examples:
+                    lines.append("    - expected signal examples:")
+                    for example in packet.expected_signal_examples:
+                        lines.append(f"      - {example}")
+
     lines.extend(["", "## Sources To Verify", ""])
     if state.context.modified_files:
         for path in state.context.modified_files[:5]:
@@ -83,11 +156,17 @@ def build_research_checkpoint(state: DebugGraphState) -> str:
 
 def build_handoff_report(state: DebugGraphState) -> str:
     root_cause = state.resolution.root_cause.display_text() if state.resolution.root_cause else "Not confirmed"
+    log_plan = _effective_log_plan(state)
     lines = [
         "## Awaiting Human Review",
         "",
         f"- Trigger: {state.trigger}",
         f"- Diagnostic profile: {state.diagnostic_profile or 'Not classified'}",
+        f"- Observer expansion status: {state.observer_expansion_status.value if state.observer_expansion_status else 'Not recorded'}",
+        f"- Observer expansion reason: {state.observer_expansion_reason or 'Not recorded'}",
+        f"- Project runtime profile: {state.project_runtime_profile.value if state.project_runtime_profile else 'Not recorded'}",
+        f"- Symptom shape: {state.symptom_shape.value if state.symptom_shape else 'Not recorded'}",
+        f"- Log readiness: {state.log_readiness.value if state.log_readiness else 'Not recorded'}",
         f"- Root cause: {root_cause}",
         f"- Attempted fix: {state.resolution.fix or 'No fix recorded'}",
         f"- Agent verification status: {state.resolution.verification or 'unknown'}",
@@ -226,6 +305,68 @@ def build_handoff_report(state: DebugGraphState) -> str:
     ):
         lines.append("- Not recorded")
 
+    lines.extend(["", "### Expanded Observer"])
+    if state.expanded_observer.dimension_scan.symptom_layer:
+        lines.append(f"- Symptom layer: {state.expanded_observer.dimension_scan.symptom_layer}")
+    if state.expanded_observer.dimension_scan.caller_or_input_layer:
+        lines.append(f"- Caller or input layer: {state.expanded_observer.dimension_scan.caller_or_input_layer}")
+    if state.expanded_observer.dimension_scan.truth_owner_or_business_layer:
+        lines.append(
+            f"- Truth owner or business layer: {state.expanded_observer.dimension_scan.truth_owner_or_business_layer}"
+        )
+    if state.expanded_observer.dimension_scan.storage_or_state_layer:
+        lines.append(f"- Storage or state layer: {state.expanded_observer.dimension_scan.storage_or_state_layer}")
+    if state.expanded_observer.dimension_scan.cache_queue_async_layer:
+        lines.append(
+            f"- Cache, queue, or async layer: {state.expanded_observer.dimension_scan.cache_queue_async_layer}"
+        )
+    if state.expanded_observer.dimension_scan.config_env_deploy_layer:
+        lines.append(
+            f"- Config, env, or deploy layer: {state.expanded_observer.dimension_scan.config_env_deploy_layer}"
+        )
+    if state.expanded_observer.dimension_scan.external_boundary_layer:
+        lines.append(f"- External boundary layer: {state.expanded_observer.dimension_scan.external_boundary_layer}")
+    if state.expanded_observer.dimension_scan.observability_layer:
+        lines.append(f"- Observability layer: {state.expanded_observer.dimension_scan.observability_layer}")
+    if state.expanded_observer.top_candidates:
+        lines.append("- Top candidates:")
+        for candidate in state.expanded_observer.top_candidates:
+            lines.append(
+                f"  - {candidate.candidate_id} [{candidate.family}] (priority {candidate.investigation_priority})"
+            )
+            if candidate.recommended_log_probe:
+                lines.append(f"    - recommended log probe: {candidate.recommended_log_probe}")
+    if state.expanded_observer.candidate_board:
+        lines.append("- Candidate board:")
+        for candidate in state.expanded_observer.candidate_board:
+            lines.append(
+                f"  - {candidate.candidate_id}: {candidate.candidate} "
+                f"[{candidate.family}] from {candidate.dimension_origin}"
+            )
+            if candidate.why_it_fits:
+                lines.append(f"    - why it fits: {candidate.why_it_fits}")
+            if candidate.indirect_path:
+                lines.append(f"    - indirect path: {candidate.indirect_path}")
+            if candidate.surface_vs_truth_owner_note:
+                lines.append(
+                    f"    - surface vs truth owner: {candidate.surface_vs_truth_owner_note}"
+                )
+    if not any(
+        (
+            state.expanded_observer.dimension_scan.symptom_layer,
+            state.expanded_observer.dimension_scan.caller_or_input_layer,
+            state.expanded_observer.dimension_scan.truth_owner_or_business_layer,
+            state.expanded_observer.dimension_scan.storage_or_state_layer,
+            state.expanded_observer.dimension_scan.cache_queue_async_layer,
+            state.expanded_observer.dimension_scan.config_env_deploy_layer,
+            state.expanded_observer.dimension_scan.external_boundary_layer,
+            state.expanded_observer.dimension_scan.observability_layer,
+            state.expanded_observer.top_candidates,
+            state.expanded_observer.candidate_board,
+        )
+    ):
+        lines.append("- Not recorded")
+
     lines.extend(["", "### Transition Memo"])
     if state.transition_memo.first_candidate_to_test:
         lines.append(f"- First candidate to test: {state.transition_memo.first_candidate_to_test}")
@@ -263,6 +404,14 @@ def build_handoff_report(state: DebugGraphState) -> str:
             )
     else:
         lines.append("- Candidate queue: not recorded")
+    if state.investigation_contract.top_candidates:
+        lines.append("- Top candidates:")
+        for candidate in state.investigation_contract.top_candidates:
+            lines.append(
+                f"  - {candidate.candidate_id} [{candidate.family}] (priority {candidate.investigation_priority})"
+            )
+            if candidate.recommended_log_probe:
+                lines.append(f"    - recommended log probe: {candidate.recommended_log_probe}")
 
     lines.extend(["", "### Related Risk Targets"])
     if state.investigation_contract.related_risk_targets:
@@ -270,6 +419,58 @@ def build_handoff_report(state: DebugGraphState) -> str:
             lines.append(
                 f"- {target.target} ({target.scope}, {target.status.value}): {target.reason}"
             )
+    else:
+        lines.append("- Not recorded")
+
+    lines.extend(["", "### Runtime Log Investigation Plan"])
+    if log_plan.existing_log_targets:
+        lines.append("- Existing log targets:")
+        for target in log_plan.existing_log_targets:
+            lines.append(f"  - {target}")
+    if log_plan.candidate_signal_map:
+        lines.append("- Candidate signal map:")
+        for entry in log_plan.candidate_signal_map:
+            lines.append(f"  - {entry.candidate_id}")
+            for signal in entry.signals:
+                lines.append(f"    - {signal}")
+    if log_plan.log_sufficiency_judgment:
+        lines.append(f"- Log sufficiency judgment: {log_plan.log_sufficiency_judgment}")
+    if log_plan.missing_observability:
+        lines.append("- Missing observability:")
+        for item in log_plan.missing_observability:
+            lines.append(f"  - {item}")
+    if log_plan.instrumentation_targets:
+        lines.append("- Instrumentation targets:")
+        for item in log_plan.instrumentation_targets:
+            lines.append(f"  - {item}")
+    if log_plan.instrumentation_style:
+        lines.append("- Instrumentation style:")
+        for item in log_plan.instrumentation_style:
+            lines.append(f"  - {item}")
+    if not any(
+        (
+            log_plan.existing_log_targets,
+            log_plan.candidate_signal_map,
+            log_plan.log_sufficiency_judgment,
+            log_plan.missing_observability,
+            log_plan.instrumentation_targets,
+            log_plan.instrumentation_style,
+        )
+    ):
+        lines.append("- Not recorded")
+
+    lines.extend(["", "### User Log Request Packet"])
+    if log_plan.user_request_packet:
+        for packet in log_plan.user_request_packet:
+            lines.append(f"- Target source: {packet.target_source}")
+            lines.append(f"  - time window: {packet.time_window}")
+            if packet.keywords_or_fields:
+                lines.append(f"  - keywords or fields: {', '.join(packet.keywords_or_fields)}")
+            lines.append(f"  - why this matters: {packet.why_this_matters}")
+            if packet.expected_signal_examples:
+                lines.append("  - expected signal examples:")
+                for example in packet.expected_signal_examples:
+                    lines.append(f"    - {example}")
     else:
         lines.append("- Not recorded")
 
@@ -415,6 +616,11 @@ class MarkdownPersistenceHandler:
             "causal_map_completed": state.causal_map_completed,
             "contract_generation_completed": state.contract_generation_completed,
             "observer_mode": state.observer_mode,
+            "observer_expansion_status": state.observer_expansion_status.value if state.observer_expansion_status else None,
+            "observer_expansion_reason": state.observer_expansion_reason,
+            "project_runtime_profile": state.project_runtime_profile.value if state.project_runtime_profile else None,
+            "symptom_shape": state.symptom_shape.value if state.symptom_shape else None,
+            "log_readiness": state.log_readiness.value if state.log_readiness else None,
             "observer_framing_completed": state.observer_framing_completed,
             "framing_gate_passed": state.framing_gate_passed,
             "skip_observer_reason": state.skip_observer_reason,
@@ -432,6 +638,7 @@ class MarkdownPersistenceHandler:
             ("Symptoms", state.symptoms.model_dump(mode="json")),
             ("Causal Map", state.causal_map.model_dump(mode="json")),
             ("Observer Framing", state.observer_framing.model_dump(mode="json")),
+            ("Expanded Observer", state.expanded_observer.model_dump(mode="json")),
             ("Transition Memo", state.transition_memo.model_dump(mode="json")),
             ("Investigation Contract", state.investigation_contract.model_dump(mode="json")),
             ("Suggested Evidence Lanes", [lane.model_dump(mode="json") for lane in state.suggested_evidence_lanes]),
@@ -521,6 +728,11 @@ class MarkdownPersistenceHandler:
                 "causal_map_completed": frontmatter.get("causal_map_completed", False),
                 "contract_generation_completed": frontmatter.get("contract_generation_completed", False),
                 "observer_mode": frontmatter.get("observer_mode"),
+                "observer_expansion_status": frontmatter.get("observer_expansion_status"),
+                "observer_expansion_reason": frontmatter.get("observer_expansion_reason"),
+                "project_runtime_profile": frontmatter.get("project_runtime_profile"),
+                "symptom_shape": frontmatter.get("symptom_shape"),
+                "log_readiness": frontmatter.get("log_readiness"),
                 "observer_framing_completed": frontmatter.get("observer_framing_completed", False),
                 "framing_gate_passed": frontmatter.get("framing_gate_passed", False),
                 "skip_observer_reason": frontmatter.get("skip_observer_reason"),
@@ -531,6 +743,7 @@ class MarkdownPersistenceHandler:
                 "symptoms": sections.get("Symptoms") or {},
                 "causal_map": sections.get("Causal Map") or {},
                 "observer_framing": sections.get("Observer Framing") or {},
+                "expanded_observer": sections.get("Expanded Observer") or {},
                 "transition_memo": sections.get("Transition Memo") or {},
                 "investigation_contract": sections.get("Investigation Contract") or {},
                 "suggested_evidence_lanes": sections.get("Suggested Evidence Lanes") or [],

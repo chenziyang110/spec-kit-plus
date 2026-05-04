@@ -725,6 +725,47 @@ def test_debug_template_reads_constitution_and_feature_context_before_fixing() -
     assert "`context.md` exists for the active feature" in content
 
 
+def test_debug_templates_lock_expanded_observer_and_runtime_log_contract() -> None:
+    debug_command = _read("templates/commands/debug.md").lower()
+    debug_thinker = _read("templates/worker-prompts/debug-thinker.md").lower()
+
+    assert "optional expanded observer" in debug_command
+    assert "recommend enabling expanded observer" in debug_command
+    assert "runtime bug" in debug_command
+    assert "phenomenon-only symptom" in debug_command or "phenomenon_only" in debug_command
+    assert "cross-layer" in debug_command
+    assert "expanded observer" in debug_command
+    assert "log investigation plan" in debug_command
+    assert "logs are a first-class evidence source" in debug_command
+    assert "existing logs" in debug_command
+    assert "cannot directly enter fixing" in debug_command or "cannot enter fixing" in debug_command
+
+    assert "log investigation plan" in debug_thinker
+    assert "logs are a first-class evidence source" in debug_thinker
+    assert "existing logs" in debug_thinker
+    assert "dimension_scan" in debug_thinker
+    assert "candidate_board" in debug_thinker
+    assert "top_candidates" in debug_thinker
+    assert "existing_log_targets" in debug_thinker
+    assert "candidate_signal_map" in debug_thinker
+    assert "log_sufficiency_judgment" in debug_thinker
+    assert "missing_observability" in debug_thinker
+    assert "instrumentation_targets" in debug_thinker
+    assert "instrumentation_style" in debug_thinker
+    assert "user_request_packet" in debug_thinker
+    assert "light_scores" in debug_thinker
+    assert "engineering_scores" in debug_thinker
+    assert "likelihood" in debug_thinker
+    assert "impact_radius" in debug_thinker
+    assert "falsifiability" in debug_thinker
+    assert "log_observability" in debug_thinker
+    assert "cross_layer_span" in debug_thinker
+    assert "indirect_causality_risk" in debug_thinker
+    assert "evidence_gap" in debug_thinker
+    assert "investigation_cost" in debug_thinker
+    assert "recommended_log_probe" in debug_thinker
+
+
 def test_new_analysis_workflow_command_templates_exist():
     command_dir = PROJECT_ROOT / "templates" / "commands"
     template_stems = {path.stem for path in command_dir.glob("*.md")}

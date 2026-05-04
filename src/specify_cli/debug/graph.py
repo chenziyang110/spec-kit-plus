@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 from typing import Union
 from pydantic_graph import BaseNode, Graph, GraphRunContext, End
 from .schema import (
@@ -8,8 +9,13 @@ from .schema import (
     EliminatedEntry,
     EvidenceEntry,
     InvestigationMode,
+    LogReadiness,
     ObserverCauseCandidate,
+    ObserverExpansionStatus,
+    ProjectRuntimeProfile,
     SuggestedEvidenceLane,
+    SymptomShape,
+    UserRequestPacketEntry,
     ValidationCheck,
 )
 from .persistence import MarkdownPersistenceHandler, build_handoff_report
@@ -195,6 +201,268 @@ def _build_suggested_evidence_lanes(state: DebugGraphState) -> list[SuggestedEvi
 
 def _refresh_lane_plan(state: DebugGraphState) -> None:
     state.suggested_evidence_lanes = _build_suggested_evidence_lanes(state)
+
+
+def _runtime_text(state: DebugGraphState) -> str:
+    return " ".join(
+        part.lower()
+        for part in (
+            state.trigger,
+            state.symptoms.expected,
+            state.symptoms.actual,
+            state.symptoms.errors,
+            state.symptoms.reproduction,
+            state.symptoms.reproduction_command,
+            state.observer_framing.summary,
+            state.observer_framing.suspected_owning_layer,
+            state.observer_framing.suspected_truth_owner,
+        )
+        if part
+    )
+
+
+def _text_has_any_term(text: str, terms: tuple[str, ...]) -> bool:
+    for term in terms:
+        if " " in term or "-" in term or "/" in term:
+            if term in text:
+                return True
+            continue
+        if re.search(rf"\b{re.escape(term)}\b", text):
+            return True
+    return False
+
+
+def _classify_project_runtime_profile(state: DebugGraphState) -> ProjectRuntimeProfile | None:
+    if state.project_runtime_profile:
+        return state.project_runtime_profile
+
+    profile = _debug_profile(state)
+    text = _runtime_text(state)
+    has_ui_signal = _text_has_any_term(
+        text,
+        ("browser", "frontend", "ui", "web", "render", "display", "view model", "projection", "publish"),
+    )
+    has_scheduler_signal = _text_has_any_term(
+        text,
+        ("worker", "queue", "cron", "scheduler", "job", "slot", "admission"),
+    )
+    has_cache_signal = _text_has_any_term(
+        text,
+        ("cache", "snapshot", "stale", "polling", "task table", "event stream", "projection drift"),
+    )
+    has_cli_signal = _text_has_any_term(
+        text,
+        ("cli", "stderr", "stdout", "exit code", "subprocess", "shell"),
+    )
+    has_backend_signal = _text_has_any_term(
+        text,
+        ("backend", "api", "server", "endpoint", "http", "graphql", "rest service"),
+    )
+
+    if profile == "scheduler-admission" and has_scheduler_signal:
+        return ProjectRuntimeProfile.WORKER_QUEUE_CRON
+    if profile == "cache-snapshot" and has_cache_signal:
+        return ProjectRuntimeProfile.FULL_STACK_WEB_APP
+    if profile == "ui-projection" and has_ui_signal:
+        return ProjectRuntimeProfile.FULL_STACK_WEB_APP
+    if has_ui_signal:
+        return ProjectRuntimeProfile.FRONTEND_WEB_UI
+    if has_scheduler_signal:
+        return ProjectRuntimeProfile.WORKER_QUEUE_CRON
+    if _text_has_any_term(text, ("pipeline", "etl", "connector", "sync")):
+        return ProjectRuntimeProfile.DATA_PIPELINE_INTEGRATION
+    if has_cli_signal:
+        return ProjectRuntimeProfile.CLI_AUTOMATION
+    if has_backend_signal:
+        return ProjectRuntimeProfile.BACKEND_API_SERVICE
+    return None
+
+
+def _classify_symptom_shape(state: DebugGraphState) -> SymptomShape:
+    if state.symptom_shape:
+        return state.symptom_shape
+
+    text = " ".join(
+        part.lower()
+        for part in (
+            state.symptoms.errors,
+            state.trigger,
+            state.symptoms.actual,
+        )
+        if part
+    )
+    if any(token in text for token in ("traceback", "stack trace", "exception", "panic", "segfault", "line ")):
+        return SymptomShape.EXACT_ERROR
+    if state.symptoms.errors:
+        return SymptomShape.EXACT_ERROR
+    return SymptomShape.PHENOMENON_ONLY
+
+
+def _is_runtime_bug(state: DebugGraphState) -> bool:
+    runtime_profile = _classify_project_runtime_profile(state)
+    if runtime_profile is None:
+        return False
+    return runtime_profile in {
+        ProjectRuntimeProfile.FRONTEND_WEB_UI,
+        ProjectRuntimeProfile.BACKEND_API_SERVICE,
+        ProjectRuntimeProfile.FULL_STACK_WEB_APP,
+        ProjectRuntimeProfile.WORKER_QUEUE_CRON,
+        ProjectRuntimeProfile.CLI_AUTOMATION,
+        ProjectRuntimeProfile.DATA_PIPELINE_INTEGRATION,
+    }
+
+
+def _looks_cross_layer(state: DebugGraphState) -> bool:
+    text = _runtime_text(state)
+    if any(token in text for token in ("frontend", "ui", "browser")) and any(
+        token in text for token in ("backend", "server", "worker", "queue", "cache", "database", "publish")
+    ):
+        return True
+    profile = _debug_profile(state)
+    if profile in {"scheduler-admission", "cache-snapshot", "ui-projection"}:
+        return True
+    layers = [
+        state.observer_framing.suspected_owning_layer or "",
+        state.observer_framing.suspected_truth_owner or "",
+        state.observer_framing.summary or "",
+    ]
+    combined = " ".join(part.lower() for part in layers if part)
+    return any(token in combined for token in ("boundary", "publish", "projection", "cache", "queue", "worker", "backend"))
+
+
+def _non_converging_rounds(state: DebugGraphState) -> bool:
+    return len(state.eliminated) >= 2 or state.resolution.fail_count >= 2
+
+
+def _suggest_expanded_observer_if_needed(state: DebugGraphState) -> None:
+    if not _is_runtime_bug(state):
+        if state.observer_expansion_status is None:
+            state.observer_expansion_status = ObserverExpansionStatus.NOT_APPLICABLE
+        return
+
+    state.project_runtime_profile = _classify_project_runtime_profile(state)
+    state.symptom_shape = _classify_symptom_shape(state)
+    state.observer_framing.project_runtime_profile = state.project_runtime_profile
+    state.observer_framing.symptom_shape = state.symptom_shape
+
+    if state.observer_expansion_status in {
+        ObserverExpansionStatus.USER_DECLINED,
+        ObserverExpansionStatus.ENABLED,
+        ObserverExpansionStatus.COMPLETED,
+    }:
+        return
+
+    reason: str | None = None
+    if _non_converging_rounds(state):
+        reason = "hypothesis_not_converging"
+    elif _looks_cross_layer(state):
+        reason = "runtime_cross_layer_symptom"
+    elif state.symptom_shape == SymptomShape.PHENOMENON_ONLY:
+        reason = "runtime_phenomenon_symptom"
+    elif state.log_readiness in {
+        LogReadiness.INSUFFICIENT_NEED_INSTRUMENTATION,
+        LogReadiness.USER_MUST_PROVIDE_LOGS,
+    }:
+        reason = "runtime_logs_insufficient"
+
+    if reason:
+        state.observer_expansion_status = ObserverExpansionStatus.SUGGESTED
+        state.observer_expansion_reason = reason
+
+
+def _expanded_observer_confirmation_needed(state: DebugGraphState) -> bool:
+    return (
+        state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
+        and not state.causal_map_completed
+        and not state.contract_generation_completed
+    )
+
+
+def _expanded_observer_confirmation_message(state: DebugGraphState) -> str:
+    runtime_profile = (
+        state.project_runtime_profile.value
+        if state.project_runtime_profile is not None
+        else "runtime investigation"
+    )
+    reason = state.observer_expansion_reason or "runtime symptom needs wider observer framing"
+    return (
+        "Expanded observer is recommended before causal-map generation.\n"
+        f"- Runtime profile: {runtime_profile}\n"
+        f"- Reason: {reason}\n"
+        "- Ask the user whether to enable or decline expanded observer.\n"
+        "- Record the response by setting `observer_expansion_status` to `enabled` or `user_declined`, then continue."
+    )
+
+
+def _runtime_log_gate_gaps(state: DebugGraphState) -> list[str]:
+    if not _is_runtime_bug(state):
+        return []
+    if state.log_readiness is None:
+        return ["log readiness: existing logs not yet assessed"]
+    if state.log_readiness == LogReadiness.UNKNOWN:
+        return ["log readiness: unknown"]
+    if state.log_readiness in {
+        LogReadiness.INSUFFICIENT_NEED_INSTRUMENTATION,
+        LogReadiness.USER_MUST_PROVIDE_LOGS,
+    }:
+        return [f"log readiness: {state.log_readiness.value}"]
+    return []
+
+
+def _ensure_user_log_request_packet(state: DebugGraphState) -> None:
+    if state.log_readiness != LogReadiness.USER_MUST_PROVIDE_LOGS:
+        return
+    if state.investigation_contract.log_investigation_plan.user_request_packet:
+        return
+    if state.expanded_observer.log_investigation_plan.user_request_packet:
+        return
+
+    runtime_profile = _classify_project_runtime_profile(state)
+    if runtime_profile is None:
+        return
+    top_probe = None
+    if state.investigation_contract.top_candidates:
+        first_candidate = state.investigation_contract.top_candidates[0]
+        top_probe = (
+            first_candidate.get("recommended_log_probe")
+            if isinstance(first_candidate, dict)
+            else first_candidate.recommended_log_probe
+        )
+
+    target_source = {
+        ProjectRuntimeProfile.FULL_STACK_WEB_APP: "Browser console/network logs and correlated server request logs for the failing repro window",
+        ProjectRuntimeProfile.FRONTEND_WEB_UI: "Browser console/network logs for the failing repro window",
+        ProjectRuntimeProfile.WORKER_QUEUE_CRON: "Worker/job logs and scheduler output around the failing job window",
+        ProjectRuntimeProfile.CLI_AUTOMATION: "CLI stderr/stdout for the failing command window",
+        ProjectRuntimeProfile.DATA_PIPELINE_INTEGRATION: "Pipeline/connector logs for the failing batch window",
+        ProjectRuntimeProfile.BACKEND_API_SERVICE: "Application request logs around the failing request window",
+    }[runtime_profile]
+    keywords = {
+        ProjectRuntimeProfile.FULL_STACK_WEB_APP: ["request_id", "order_id", "status transition", "retry"],
+        ProjectRuntimeProfile.FRONTEND_WEB_UI: ["request_id", "console error", "network response", "status"],
+        ProjectRuntimeProfile.WORKER_QUEUE_CRON: ["job_id", "retry", "ack", "dequeue"],
+        ProjectRuntimeProfile.CLI_AUTOMATION: ["command args", "stderr", "exit code", "env"],
+        ProjectRuntimeProfile.DATA_PIPELINE_INTEGRATION: ["batch_id", "record_id", "schema", "connector error"],
+        ProjectRuntimeProfile.BACKEND_API_SERVICE: ["request_id", "status", "error_code", "upstream response"],
+    }[runtime_profile]
+    why = (
+        f"These logs distinguish the current top candidates by showing whether the signal appears at the truth owner, boundary, or observation layer. "
+        f"Preferred first probe: {top_probe or 'collect the highest-signal runtime logs first'}."
+    )
+    examples = [
+        "If the truth-owner transition is present but the observation layer is stale, boundary/projection candidates strengthen.",
+        "If the expected transition never appears in the source logs, the owning-layer candidate strengthens and projection-only candidates weaken.",
+    ]
+
+    packet = UserRequestPacketEntry(
+        target_source=target_source,
+        time_window="From 2 minutes before repro until 2 minutes after the stale symptom is observed",
+        keywords_or_fields=keywords,
+        why_this_matters=why,
+        expected_signal_examples=examples,
+    )
+    state.expanded_observer.log_investigation_plan.user_request_packet = [packet]
+    state.investigation_contract.log_investigation_plan.user_request_packet = [packet]
 
 
 def _strong_low_level_evidence_present(state: DebugGraphState) -> tuple[bool, str | None]:
@@ -421,6 +689,7 @@ def _root_cause_readiness_gaps(state: DebugGraphState) -> list[str]:
             gaps.append("ruled-out alternative causes")
     if state.resolution.root_cause_confidence != "confirmed":
         gaps.append("root cause confidence set to confirmed")
+    gaps.extend(_runtime_log_gate_gaps(state))
     return gaps
 
 
@@ -459,8 +728,14 @@ def _fix_scope_readiness_gaps(state: DebugGraphState) -> list[str]:
 
 
 def _fix_scope_checklist_message(state: DebugGraphState) -> str:
+    runtime_gaps = _runtime_log_gate_gaps(state)
+    title = (
+        "Fixing is blocked until runtime log readiness is sufficient. Assess existing logs first, then raise observability with instrumentation or obtain the required log packet before proposing another fix."
+        if runtime_gaps
+        else "Fixing is blocked until the proposed change is classified as a root-cause fix rather than a surface-only patch. Surface-only fixes cannot satisfy the debug contract."
+    )
     return _format_checklist(
-        "Fixing is blocked until the proposed change is classified as a root-cause fix rather than a surface-only patch. Surface-only fixes cannot satisfy the debug contract.",
+        title,
         _fix_scope_readiness_gaps(state),
         intro="Fill in the missing items below before advancing:",
     )
@@ -791,6 +1066,15 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['InvestigatingNode', End]:
         ctx.state.status = DebugStatus.GATHERING
         ctx.state.current_node_id = "GatheringNode"
+        ctx.state.project_runtime_profile = _classify_project_runtime_profile(ctx.state)
+        ctx.state.symptom_shape = _classify_symptom_shape(ctx.state)
+        _suggest_expanded_observer_if_needed(ctx.state)
+
+        if _expanded_observer_confirmation_needed(ctx.state):
+            return _await_input(
+                ctx.state,
+                _expanded_observer_confirmation_message(ctx.state),
+            )
         
         # 1. Load context
         loader = ContextLoader()
@@ -807,12 +1091,19 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         if not ctx.state.causal_map_completed:
             prompt = build_think_subagent_prompt(ctx.state)
             ctx.state.think_subagent_prompt = prompt
+            continuation = (
+                "If `observer_expansion_status` is `enabled`, parse the returned `expanded_observer` container, "
+                "populate `expanded_observer`, `project_runtime_profile`, `symptom_shape`, and `log_readiness`, "
+                "then set `observer_expansion_status=completed` before continuing. "
+                if ctx.state.observer_expansion_status == ObserverExpansionStatus.ENABLED
+                else ""
+            )
             return _await_input(
                 ctx.state,
                 "Causal map needed. Spawn a think subagent with think_subagent_prompt. "
                 "Wait for its structured result, then parse the YAML block after '---' and populate "
                 "causal_map, observer_mode, and any observer summary fields it returned. "
-                "Set causal_map_completed=True and continue.",
+                f"{continuation}Set causal_map_completed=True and continue.",
             )
 
         # 2B. Stage 1B: investigation contract
@@ -869,6 +1160,10 @@ class InvestigatingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['FixingNode', End]:
         ctx.state.status = DebugStatus.INVESTIGATING
         ctx.state.current_node_id = "InvestigatingNode"
+        ctx.state.project_runtime_profile = _classify_project_runtime_profile(ctx.state)
+        ctx.state.symptom_shape = _classify_symptom_shape(ctx.state)
+        _suggest_expanded_observer_if_needed(ctx.state)
+        _ensure_user_log_request_packet(ctx.state)
 
         if ctx.state.investigation_contract.primary_candidate_id:
             active = [
@@ -951,6 +1246,10 @@ class FixingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
     async def run(self, ctx: GraphRunContext[DebugGraphState, MarkdownPersistenceHandler]) -> Union['VerifyingNode', End]:
         ctx.state.status = DebugStatus.FIXING
         ctx.state.current_node_id = "FixingNode"
+        ctx.state.project_runtime_profile = _classify_project_runtime_profile(ctx.state)
+        ctx.state.symptom_shape = _classify_symptom_shape(ctx.state)
+        _suggest_expanded_observer_if_needed(ctx.state)
+        _ensure_user_log_request_packet(ctx.state)
         if not ctx.state.resolution.fix:
             return _await_input(
                 ctx.state,

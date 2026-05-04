@@ -246,6 +246,113 @@ def _print_investigation_contract_summary(state: DebugGraphState) -> None:
             console.print(f"  - {target_id} ({status})")
 
 
+def _print_expanded_observer_summary(state: DebugGraphState) -> None:
+    expanded = state.expanded_observer
+    top_candidates = state.investigation_contract.top_candidates or expanded.top_candidates
+    contract_log_plan = state.investigation_contract.log_investigation_plan
+    expanded_log_plan = expanded.log_investigation_plan
+
+    def _has_log_plan(plan) -> bool:
+        return any(
+            (
+                plan.existing_log_targets,
+                plan.candidate_signal_map,
+                plan.log_sufficiency_judgment,
+                plan.missing_observability,
+                plan.instrumentation_targets,
+                plan.instrumentation_style,
+                plan.user_request_packet,
+            )
+        )
+
+    log_plan = contract_log_plan if _has_log_plan(contract_log_plan) else expanded_log_plan
+    if not any(
+        (
+            state.observer_expansion_status,
+            state.observer_expansion_reason,
+            state.project_runtime_profile,
+            state.log_readiness,
+            top_candidates,
+            _has_log_plan(log_plan),
+        )
+    ):
+        return
+
+    console.print("[bold]Expanded Observer[/bold]")
+    if state.observer_expansion_status:
+        console.print(f"- Observer expansion status: {state.observer_expansion_status.value}")
+    if state.observer_expansion_reason:
+        console.print(f"- Observer expansion reason: {state.observer_expansion_reason}")
+    if state.project_runtime_profile:
+        console.print(f"- Project runtime profile: {state.project_runtime_profile.value}")
+    if state.log_readiness:
+        console.print(f"- Log readiness: {state.log_readiness.value}")
+
+    if top_candidates:
+        console.print("- Top candidates:")
+        for candidate in top_candidates:
+            console.print(
+                f"  - {candidate.candidate_id} ({candidate.family}, priority {candidate.investigation_priority})"
+            )
+            if candidate.recommended_log_probe:
+                console.print(f"    Probe: {candidate.recommended_log_probe}")
+            scores = candidate.engineering_scores
+            score_parts: list[str] = []
+            if scores.cross_layer_span is not None:
+                score_parts.append(f"cross-layer span: {scores.cross_layer_span}")
+            if scores.indirect_causality_risk is not None:
+                score_parts.append(
+                    f"indirect causality risk: {scores.indirect_causality_risk}"
+                )
+            if scores.evidence_gap is not None:
+                score_parts.append(f"evidence gap: {scores.evidence_gap}")
+            if scores.investigation_cost is not None:
+                score_parts.append(f"investigation cost: {scores.investigation_cost}")
+            if score_parts:
+                console.print(f"    Engineering scores: {', '.join(score_parts)}")
+
+    if _has_log_plan(log_plan):
+        console.print("[bold]Runtime Log Investigation Plan[/bold]")
+        if log_plan.existing_log_targets:
+            console.print("- Existing log targets:")
+            for target in log_plan.existing_log_targets:
+                console.print(f"  - {target}")
+        if log_plan.candidate_signal_map:
+            console.print("- Candidate signal map:")
+            for entry in log_plan.candidate_signal_map:
+                signals = ", ".join(entry.signals) if entry.signals else "no signals recorded"
+                console.print(f"  - {entry.candidate_id}: {signals}")
+        if log_plan.log_sufficiency_judgment:
+            console.print(f"- Log sufficiency judgment: {log_plan.log_sufficiency_judgment}")
+        if log_plan.missing_observability:
+            console.print("- Missing observability:")
+            for item in log_plan.missing_observability:
+                console.print(f"  - {item}")
+        if log_plan.instrumentation_targets:
+            console.print("- Instrumentation targets:")
+            for item in log_plan.instrumentation_targets:
+                console.print(f"  - {item}")
+        if log_plan.instrumentation_style:
+            console.print("- Instrumentation style:")
+            for item in log_plan.instrumentation_style:
+                console.print(f"  - {item}")
+        if log_plan.user_request_packet:
+            console.print("- User log request packet:")
+            for packet in log_plan.user_request_packet:
+                console.print(f"  - Target source: {packet.target_source}")
+                console.print(f"    Time window: {packet.time_window}")
+                if packet.keywords_or_fields:
+                    console.print(
+                        f"    Keywords/fields: {', '.join(packet.keywords_or_fields)}"
+                    )
+                console.print(f"    Why this matters: {packet.why_this_matters}")
+                if packet.expected_signal_examples:
+                    console.print(
+                        "    Expected signals: "
+                        + ", ".join(packet.expected_signal_examples)
+                    )
+
+
 def _missing_root_cause_fields(state: DebugGraphState) -> list[str]:
     root_cause = state.resolution.root_cause
     if not root_cause:
@@ -315,6 +422,7 @@ def _print_session_checkpoint(state: DebugGraphState, handler: MarkdownPersisten
                 console.print(f"- {task.lane_name}: {task.agent_type} ({task.reasoning_effort})")
     _print_causal_map_summary(state)
     _print_observer_framing_summary(state)
+    _print_expanded_observer_summary(state)
     _print_transition_memo(state)
     _print_investigation_contract_summary(state)
     _print_root_cause_summary(state)

@@ -152,6 +152,14 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "surface-only" in content
     assert "cannot satisfy the debug contract" in content
     assert "loop restoration proof" in content
+    assert "optional expanded observer" in content
+    assert "recommend enabling expanded observer" in content
+    assert "user can agree or decline" in content or "user can decline" in content
+    assert "phenomenon_only" in content
+    assert "log investigation plan" in content
+    assert "logs are a first-class evidence source" in content
+    assert "existing logs" in content
+    assert "do not enter fixing" in content or "cannot directly enter fixing" in content
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:
@@ -182,6 +190,37 @@ def test_debug_template_keeps_shared_guidance_integration_neutral() -> None:
     assert "wait_agent" not in content
     assert "close_agent" not in content
     assert "specify team" not in content
+
+
+def test_debug_thinker_template_documents_expanded_observer_runtime_log_outputs() -> None:
+    content = read_template("templates/worker-prompts/debug-thinker.md").lower()
+
+    assert "expanded observer" in content
+    assert "expanded_observer:" in content
+    assert "dimension_scan" in content
+    assert "candidate_board" in content
+    assert "top_candidates" in content
+    assert "log investigation plan" in content
+    assert "existing_log_targets" in content
+    assert "candidate_signal_map" in content
+    assert "log_sufficiency_judgment" in content
+    assert "missing_observability" in content
+    assert "instrumentation_targets" in content
+    assert "instrumentation_style" in content
+    assert "user_request_packet" in content
+    assert "light_scores" in content
+    assert "engineering_scores" in content
+    assert "likelihood" in content
+    assert "impact_radius" in content
+    assert "falsifiability" in content
+    assert "log_observability" in content
+    assert "cross_layer_span" in content
+    assert "indirect_causality_risk" in content
+    assert "evidence_gap" in content
+    assert "investigation_cost" in content
+    assert "logs are a first-class evidence source" in content
+    assert "existing logs" in content
+    assert "recommended_log_probe" in content
 
 
 def test_debug_session_template_captures_control_plane_debugging_fields() -> None:

@@ -12,13 +12,23 @@ from specify_cli.debug.schema import (
     DebugGraphState,
     DebugStatus,
     EvidenceEntry,
+    ExpandedObserverCandidateBoardEntry,
+    ExpandedObserverEngineeringScores,
+    ExpandedObserverLightScores,
+    ExpandedObserverTopCandidate,
     InvestigationCandidate,
     InvestigationMode,
+    LogCandidateSignalMapEntry,
+    LogReadiness,
     ObserverCauseCandidate,
+    ObserverExpansionStatus,
     OwnershipEntry,
+    ProjectRuntimeProfile,
     RelatedRiskStatus,
     RelatedRiskTarget,
+    SymptomShape,
     SuggestedEvidenceLane,
+    UserRequestPacketEntry,
 )
 
 
@@ -357,6 +367,30 @@ def test_research_checkpoint_is_written_for_repeated_failures(tmp_path):
     state.resolution.fail_count = 2
     state.resolution.fix = "Try another parser boundary tweak"
     state.resolution.root_cause = {"summary": "Parser boundary issue"}
+    state.observer_expansion_status = ObserverExpansionStatus.SUGGESTED
+    state.project_runtime_profile = ProjectRuntimeProfile.WORKER_QUEUE_CRON
+    state.log_readiness = LogReadiness.INSUFFICIENT_NEED_INSTRUMENTATION
+    state.investigation_contract.log_investigation_plan.existing_log_targets = [
+        "worker scheduler logs",
+        "queue retry logs",
+    ]
+    state.investigation_contract.log_investigation_plan.log_sufficiency_judgment = (
+        "Current logs do not show whether dequeue and ack are paired."
+    )
+    state.investigation_contract.log_investigation_plan.instrumentation_targets = [
+        "worker ack boundary"
+    ]
+    state.investigation_contract.log_investigation_plan.user_request_packet = [
+        UserRequestPacketEntry(
+            target_source="worker retry logs for failing job",
+            time_window="single retry window",
+            keywords_or_fields=["job_id", "retry_count", "ack_status"],
+            why_this_matters="Separates retry churn from missing ack completion.",
+            expected_signal_examples=[
+                "retry_count increments while ack_status remains pending"
+            ],
+        )
+    ]
     state.evidence.append(
         EvidenceEntry(
             checked="python tests/repro.py",
@@ -372,6 +406,13 @@ def test_research_checkpoint_is_written_for_repeated_failures(tmp_path):
     assert "# Debug Research: session" in content
     assert "Failed verification attempts: 2" in content
     assert "Try another parser boundary tweak" in content
+    assert "Observer expansion status: suggested" in content
+    assert "Project runtime profile: worker/queue/cron" in content
+    assert "Log readiness: insufficient_need_instrumentation" in content
+    assert "Runtime Log Investigation Context" in content
+    assert "worker scheduler logs" in content
+    assert "worker ack boundary" in content
+    assert "worker retry logs for failing job" in content
     assert "Research Questions" in content
     assert "Exit Criteria" in content
 
@@ -442,6 +483,277 @@ def test_persistence_round_trips_investigation_contract_fields(tmp_path):
     assert restored.investigation_contract.candidate_queue[0].status == "active"
     assert restored.investigation_contract.related_risk_targets[0].status == "pending"
     assert restored.investigation_contract.causal_coverage_state.closeout_ready is False
+
+
+def test_persistence_round_trips_expanded_observer_runtime_log_fields(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="runtime log expansion")
+    state.observer_expansion_status = ObserverExpansionStatus.COMPLETED
+    state.observer_expansion_reason = "runtime_cross_layer_symptom"
+    state.project_runtime_profile = ProjectRuntimeProfile.FULL_STACK_WEB_APP
+    state.symptom_shape = SymptomShape.PHENOMENON_ONLY
+    state.log_readiness = LogReadiness.USER_MUST_PROVIDE_LOGS
+    state.expanded_observer.dimension_scan.symptom_layer = "UI shows stale queue badge after retry"
+    state.expanded_observer.dimension_scan.truth_owner_or_business_layer = (
+        "Scheduler admission state owns queue truth"
+    )
+    state.expanded_observer.candidate_board = [
+        ExpandedObserverCandidateBoardEntry(
+            candidate_id="cand-scheduler-truth-owner",
+            dimension_origin="truth_owner_or_business_layer",
+            family="truth_owner_logic",
+            candidate="Scheduler ownership state never clears after release",
+            why_it_fits="Cross-layer symptom persists after worker release",
+            indirect_path="release event -> stale ownership -> stale projection",
+            surface_vs_truth_owner_note="UI is surface; scheduler is truth owner",
+            light_scores=ExpandedObserverLightScores(
+                likelihood=5,
+                impact_radius=4,
+                falsifiability=5,
+                log_observability=3,
+            ),
+        )
+    ]
+    state.expanded_observer.top_candidates = [
+        ExpandedObserverTopCandidate(
+            candidate_id="cand-scheduler-truth-owner",
+            family="truth_owner_logic",
+            investigation_priority=1,
+            recommended_log_probe="Correlate release and ownership-clearing logs by request id",
+            engineering_scores=ExpandedObserverEngineeringScores(
+                cross_layer_span=5,
+                indirect_causality_risk=4,
+                evidence_gap=3,
+                investigation_cost=2,
+            ),
+        )
+    ]
+    state.expanded_observer.log_investigation_plan.existing_log_targets = [
+        "browser console around retry flow",
+        "server application log for release handler",
+    ]
+    state.expanded_observer.log_investigation_plan.candidate_signal_map = [
+        LogCandidateSignalMapEntry(
+            candidate_id="cand-scheduler-truth-owner",
+            signals=[
+                "release request logged without ownership-clear event",
+                "projection refresh runs before ownership mutation",
+            ],
+        )
+    ]
+    state.expanded_observer.log_investigation_plan.log_sufficiency_judgment = (
+        "Current logs miss the ownership-clear transition."
+    )
+    state.expanded_observer.log_investigation_plan.missing_observability = [
+        "No structured field for ownership set size after release"
+    ]
+    state.expanded_observer.log_investigation_plan.instrumentation_targets = [
+        "scheduler.release_slot",
+        "queue projection refresh",
+    ]
+    state.expanded_observer.log_investigation_plan.instrumentation_style = [
+        "structured application logs",
+        "request-scoped correlation ids",
+    ]
+    state.expanded_observer.log_investigation_plan.user_request_packet = [
+        UserRequestPacketEntry(
+            target_source="server release-handler logs",
+            time_window="from retry click through next queue refresh",
+            keywords_or_fields=["request_id", "slot_id", "ownership_set_size"],
+            why_this_matters="Distinguishes scheduler truth-owner drift from a UI-only projection bug.",
+            expected_signal_examples=[
+                "If release is logged without ownership_set_size dropping, candidate stays active.",
+                "If ownership_set_size drops before refresh, deprioritize scheduler truth-owner drift.",
+            ],
+        )
+    ]
+
+    handler.save(state)
+    restored = handler.load(tmp_path / "session.md")
+
+    assert restored.observer_expansion_status == "completed"
+    assert restored.observer_expansion_reason == "runtime_cross_layer_symptom"
+    assert restored.project_runtime_profile == "full-stack/web-app"
+    assert restored.symptom_shape == "phenomenon_only"
+    assert restored.log_readiness == "user_must_provide_logs"
+    assert restored.expanded_observer.dimension_scan.symptom_layer == "UI shows stale queue badge after retry"
+    assert restored.expanded_observer.candidate_board[0].light_scores.likelihood == 5
+    assert restored.expanded_observer.top_candidates[0].engineering_scores.cross_layer_span == 5
+    assert restored.expanded_observer.log_investigation_plan.candidate_signal_map[0].signals == [
+        "release request logged without ownership-clear event",
+        "projection refresh runs before ownership mutation",
+    ]
+    assert (
+        restored.expanded_observer.log_investigation_plan.user_request_packet[0].target_source
+        == "server release-handler logs"
+    )
+    assert (
+        restored.expanded_observer.log_investigation_plan.user_request_packet[0].expected_signal_examples[1]
+        == "If ownership_set_size drops before refresh, deprioritize scheduler truth-owner drift."
+    )
+
+
+def test_handoff_report_includes_expanded_observer_runtime_log_summary(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="runtime handoff")
+    state.observer_expansion_status = ObserverExpansionStatus.ENABLED
+    state.observer_expansion_reason = "logs_insufficient"
+    state.project_runtime_profile = ProjectRuntimeProfile.BACKEND_API_SERVICE
+    state.symptom_shape = SymptomShape.EXACT_ERROR
+    state.log_readiness = LogReadiness.INSUFFICIENT_NEED_INSTRUMENTATION
+    state.expanded_observer.top_candidates = [
+        ExpandedObserverTopCandidate(
+            candidate_id="cand-api-cache",
+            family="cache_snapshot",
+            investigation_priority=1,
+            recommended_log_probe="Inspect cache invalidation logs around POST /release",
+        )
+    ]
+    state.expanded_observer.log_investigation_plan.existing_log_targets = [
+        "api server logs around POST /release"
+    ]
+    state.expanded_observer.log_investigation_plan.instrumentation_targets = [
+        "cache invalidation branch"
+    ]
+    state.expanded_observer.log_investigation_plan.log_sufficiency_judgment = (
+        "Existing API logs do not reveal whether cache invalidation ran."
+    )
+    state.expanded_observer.log_investigation_plan.user_request_packet = [
+        UserRequestPacketEntry(
+            target_source="production API logs for POST /release",
+            time_window="2026-05-05T09:00Z to 2026-05-05T09:10Z",
+            keywords_or_fields=["request_id", "cache_key", "invalidated"],
+            why_this_matters="Shows whether cache invalidation executed after the release handler.",
+            expected_signal_examples=[
+                "Missing invalidated=true keeps cache candidate active."
+            ],
+        )
+    ]
+
+    report = handler.build_handoff_report(state)
+
+    assert "Observer expansion status: enabled" in report
+    assert "Observer expansion reason: logs_insufficient" in report
+    assert "Project runtime profile: backend/api-service" in report
+    assert "Symptom shape: exact_error" in report
+    assert "Log readiness: insufficient_need_instrumentation" in report
+    assert "Expanded Observer" in report
+    assert "cand-api-cache" in report
+    assert "Inspect cache invalidation logs around POST /release" in report
+    assert "Runtime Log Investigation Plan" in report
+    assert "api server logs around POST /release" in report
+    assert "cache invalidation branch" in report
+    assert "User Log Request Packet" in report
+    assert "production API logs for POST /release" in report
+
+
+def test_handoff_report_prefers_investigation_contract_runtime_log_plan(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="contract log handoff")
+    state.expanded_observer.log_investigation_plan.existing_log_targets = [
+        "stale expanded observer log target"
+    ]
+    state.expanded_observer.log_investigation_plan.user_request_packet = [
+        UserRequestPacketEntry(
+            target_source="stale expanded observer packet",
+            time_window="obsolete window",
+            keywords_or_fields=["obsolete"],
+            why_this_matters="Old observer copy should not drive the active handoff.",
+            expected_signal_examples=["ignore this packet"],
+        )
+    ]
+    state.investigation_contract.log_investigation_plan.existing_log_targets = [
+        "current investigation log target"
+    ]
+    state.investigation_contract.log_investigation_plan.candidate_signal_map = [
+        LogCandidateSignalMapEntry(
+            candidate_id="cand-live-contract",
+            signals=["current signal for the active investigation contract"],
+        )
+    ]
+    state.investigation_contract.log_investigation_plan.log_sufficiency_judgment = (
+        "Current investigation logs still miss the state transition."
+    )
+    state.investigation_contract.log_investigation_plan.instrumentation_targets = [
+        "current instrumentation target"
+    ]
+    state.investigation_contract.log_investigation_plan.user_request_packet = [
+        UserRequestPacketEntry(
+            target_source="current contract packet",
+            time_window="active repro window",
+            keywords_or_fields=["request_id", "state_transition"],
+            why_this_matters="This is the active log request for the current investigation phase.",
+            expected_signal_examples=["transition missing after request_id is logged"],
+        )
+    ]
+
+    report = handler.build_handoff_report(state)
+
+    assert "Runtime Log Investigation Plan" in report
+    assert "current investigation log target" in report
+    assert "current signal for the active investigation contract" in report
+    assert "Current investigation logs still miss the state transition." in report
+    assert "current instrumentation target" in report
+    assert "User Log Request Packet" in report
+    assert "current contract packet" in report
+    assert "active repro window" in report
+    assert "request_id, state_transition" in report
+    assert "stale expanded observer log target" not in report
+    assert "stale expanded observer packet" not in report
+
+
+def test_persistence_round_trips_investigation_contract_user_log_request_packet(tmp_path):
+    handler = MarkdownPersistenceHandler(tmp_path)
+    state = DebugGraphState(slug="session", trigger="contract log packet")
+    state.investigation_contract.top_candidates = [
+        ExpandedObserverTopCandidate(
+            candidate_id="cand-worker-retry",
+            family="queue_retry",
+            investigation_priority=2,
+            recommended_log_probe="Check retry dequeue and ack logs in the same job window",
+        )
+    ]
+    state.investigation_contract.log_investigation_plan.existing_log_targets = [
+        "worker retry logs",
+        "scheduler ack logs",
+    ]
+    state.investigation_contract.log_investigation_plan.candidate_signal_map = [
+        LogCandidateSignalMapEntry(
+            candidate_id="cand-worker-retry",
+            signals=["retry logged without ack completion"],
+        )
+    ]
+    state.investigation_contract.log_investigation_plan.user_request_packet = [
+        UserRequestPacketEntry(
+            target_source="worker retry command output",
+            time_window="single failing retry attempt",
+            keywords_or_fields=["job_id", "retry_count", "ack_status"],
+            why_this_matters="Separates worker retry loss from scheduler acknowledgment drift.",
+            expected_signal_examples=[
+                "retry_count increments while ack_status stays pending"
+            ],
+        )
+    ]
+
+    handler.save(state)
+    restored = handler.load(tmp_path / "session.md")
+
+    assert restored.investigation_contract.top_candidates[0].candidate_id == "cand-worker-retry"
+    assert restored.investigation_contract.top_candidates[0].recommended_log_probe == (
+        "Check retry dequeue and ack logs in the same job window"
+    )
+    assert restored.investigation_contract.log_investigation_plan.existing_log_targets == [
+        "worker retry logs",
+        "scheduler ack logs",
+    ]
+    assert restored.investigation_contract.log_investigation_plan.candidate_signal_map[0].signals == [
+        "retry logged without ack completion"
+    ]
+    assert restored.investigation_contract.log_investigation_plan.user_request_packet[0].keywords_or_fields == [
+        "job_id",
+        "retry_count",
+        "ack_status",
+    ]
 
 def test_handoff_report_shows_evidence_source_metadata(tmp_path):
     handler = MarkdownPersistenceHandler(tmp_path)
