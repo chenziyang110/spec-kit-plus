@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 import re
 import time
+import os
+import tempfile
 
 import pytest
 
@@ -18,6 +20,7 @@ from specify_cli.codex_team.state_paths import (
     dispatch_record_path,
     result_record_path,
     runtime_session_path,
+    task_record_path,
     worker_heartbeat_path,
 )
 from specify_cli.execution import worker_task_result_payload
@@ -676,6 +679,33 @@ def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(
         lambda name: r"C:\tool.exe" if name in {"tmux", "node"} else None,
     )
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+    write_calls: list[Path] = []
+
+    def _tracking_write_json(path: Path, payload: dict) -> Path:
+        write_calls.append(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=path.parent,
+                prefix=f"{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as handle:
+                temp_path = Path(handle.name)
+                handle.write(json.dumps(payload, indent=2) + "\n")
+            os.replace(temp_path, path)
+        finally:
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+        return path
+
+    monkeypatch.setattr("specify_cli.codex_team.task_ops.write_json", _tracking_write_json, raising=False)
+    monkeypatch.setattr("specify_cli.codex_team.batch_ops.write_json", _tracking_write_json, raising=False)
+    monkeypatch.setattr("specify_cli.codex_team.auto_dispatch.write_json", _tracking_write_json, raising=False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.write_json", _tracking_write_json, raising=False)
 
     feature_dir = _write_feature_tasks(
         codex_team_project_root,
@@ -714,6 +744,127 @@ def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(
 
     assert completion.status == "completed"
     task_payload = get_task(codex_team_project_root, "T002")
+    assert task_payload.metadata["worker_result"]["status"] == "success"
+    assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "complete"
+    expected_atomic_paths = {
+        batch_record_path(codex_team_project_root, result.batch_id),
+        runtime_session_path(codex_team_project_root, "default"),
+        task_record_path(codex_team_project_root, "T002"),
+        task_record_path(codex_team_project_root, "T003"),
+    }
+    assert expected_atomic_paths <= set(write_calls)
+
+
+def test_complete_dispatched_batch_tolerates_result_submission_after_task_already_completed(
+    monkeypatch,
+    codex_team_project_root: Path,
+):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+
+**Join Point 1.1**: merge before T004
+""",
+    )
+
+    route_ready_parallel_batch(
+        codex_team_project_root,
+        feature_dir=feature_dir,
+        session_id="default",
+    )
+
+    for task_id in ("T002", "T003"):
+        request_id = f"default-parallel-batch-1-1-{task_id.lower()}"
+        result_path = result_record_path(codex_team_project_root, request_id)
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result = WorkerTaskResult(
+            task_id=task_id,
+            status="success",
+            changed_files=[f"src/{task_id.lower()}.py"],
+            validation_results=[
+                ValidationResult(
+                    command="pytest tests/unit/test_auth_service.py -q",
+                    status="passed",
+                    output="1 passed",
+                )
+            ],
+            summary=f"{task_id} finished cleanly",
+            rule_acknowledgement=RuleAcknowledgement(
+                required_references_read=True,
+                forbidden_drift_respected=True,
+                context_bundle_read=True,
+                paths_read=["src/contracts/auth.py"],
+            ),
+        )
+        result_path.write_text(
+            json.dumps(worker_task_result_payload(result), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    from specify_cli.codex_team.runtime_bridge import submit_runtime_result as real_submit_runtime_result
+
+    raced_request_ids: set[str] = set()
+
+    def _submit_after_external_completion(project_root: Path, *, session_id: str, request_id: str, result: object):
+        if request_id.endswith("t003") and request_id not in raced_request_ids:
+            raced_request_ids.add(request_id)
+            record = get_task(project_root, "T003")
+            token = claim_task(
+                project_root,
+                task_id="T003",
+                worker_id="t003-worker",
+                expected_version=record.version,
+            )
+            in_progress = transition_task_status(
+                project_root,
+                task_id="T003",
+                new_status="in_progress",
+                owner="t003-worker",
+                expected_version=record.version + 1,
+                claim_token=token,
+            )
+            transition_task_status(
+                project_root,
+                task_id="T003",
+                new_status="completed",
+                owner="t003-worker",
+                expected_version=in_progress.version,
+                claim_token=token,
+            )
+
+        return real_submit_runtime_result(
+            project_root,
+            session_id=session_id,
+            request_id=request_id,
+            result=result,
+        )
+
+    monkeypatch.setattr(
+        "specify_cli.codex_team.auto_dispatch.submit_runtime_result",
+        _submit_after_external_completion,
+    )
+
+    completion = complete_dispatched_batch(
+        codex_team_project_root,
+        batch_id="default-parallel-batch-1-1",
+        session_id="default",
+    )
+
+    assert completion.status == "completed"
+    task_payload = get_task(codex_team_project_root, "T003")
+    assert task_payload.status == "completed"
     assert task_payload.metadata["worker_result"]["status"] == "success"
     assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "complete"
 

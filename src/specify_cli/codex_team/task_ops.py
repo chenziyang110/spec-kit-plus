@@ -17,6 +17,7 @@ from specify_cli.codex_team.runtime_state import (
     task_record_payload,
 )
 from specify_cli.codex_team.state_paths import codex_team_state_root, task_claim_path, task_record_path
+from specify_cli.orchestration.state_store import write_json
 
 TASK_STATUS_PENDING = "pending"
 TASK_STATUS_IN_PROGRESS = "in_progress"
@@ -84,9 +85,8 @@ def _canonical_claim_for_record(project_root: Path, record: Any) -> dict[str, An
 
 def _save_task_record(project_root: Path, record: Any) -> None:
     path = _task_record_path(project_root, record.task_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = asdict(record)
-    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    write_json(path, payload)
 
 
 def _log_task_event(project_root: Path, *, kind: str, payload: dict[str, Any]) -> None:
@@ -157,8 +157,7 @@ def create_task(
         summary=summary,
         metadata=metadata,
     )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    write_json(path, payload)
 
     record = task_record_from_json(path.read_text(encoding="utf-8"))
     _log_task_event(
@@ -262,8 +261,7 @@ def claim_task(
     )
 
     claim_path = _claim_record_path(project_root, claim_id)
-    claim_path.parent.mkdir(parents=True, exist_ok=True)
-    claim_path.write_text(json.dumps(claim_payload, ensure_ascii=False), encoding="utf-8")
+    write_json(claim_path, claim_payload)
 
     metadata["current_claim"] = {
         "claim_id": claim_payload["claim_id"],

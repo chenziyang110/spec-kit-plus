@@ -18,6 +18,7 @@ from specify_cli.integrations.base import SkillsIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
+SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
 
 
 def _assert_downstream_testing_control_plane(skill_content: str) -> None:
@@ -719,6 +720,7 @@ class SkillsIntegrationTests:
                 ".specify/scripts/powershell/setup-plan.ps1",
                 ".specify/scripts/powershell/update-agent-context.ps1",
             ]
+        files.append(SHARED_PRD_HELPER)
         # Templates
         files += [f".specify/templates/{name}" for name in self._template_files()]
         return sorted(files)

@@ -265,6 +265,98 @@ def test_submit_runtime_result_writes_canonical_result_and_updates_dispatch(monk
     assert stored_result == worker_task_result_payload(result)
 
 
+def test_submit_runtime_result_rejects_mismatched_terminal_failure_bucket(monkeypatch, codex_team_project_root: Path):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    bootstrap_runtime_session(codex_team_project_root, "blocked-session")
+    packet_path = codex_team_project_root / ".specify" / "codex-team" / "state" / "packets" / "req-blocked.json"
+    packet_path.parent.mkdir(parents=True, exist_ok=True)
+    packet_path.write_text(
+        """
+{
+  "feature_id": "001-feature",
+  "task_id": "T001",
+  "story_id": "US1",
+  "objective": "Implement thing",
+  "scope": {"write_scope": ["src/app.py"], "read_scope": ["src/contracts.py"]},
+  "required_references": [{"path": "src/contracts.py", "reason": "preserve contract"}],
+  "hard_rules": ["do not drift"],
+  "forbidden_drift": ["no parallel stack"],
+  "validation_gates": ["pytest -q"],
+  "done_criteria": ["works"],
+  "handoff_requirements": ["return changed files"],
+  "dispatch_policy": {"mode": "hard_fail", "must_acknowledge_rules": true},
+  "packet_version": 1
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    dispatch_runtime_task(
+        codex_team_project_root,
+        session_id="blocked-session",
+        request_id="req-blocked",
+        target_worker="worker-1",
+        packet_path=str(packet_path),
+        delegation_metadata={"structured_results_expected": True},
+    )
+
+    task_ops.create_task(
+        codex_team_project_root,
+        task_id="T001",
+        summary="Implement thing",
+        metadata={"source": "blocked-test"},
+    )
+
+    record = task_ops.get_task(codex_team_project_root, "T001")
+    token = task_ops.claim_task(
+        codex_team_project_root,
+        task_id="T001",
+        worker_id="worker-1",
+        expected_version=record.version,
+    )
+    in_progress = task_ops.transition_task_status(
+        codex_team_project_root,
+        task_id="T001",
+        new_status=task_ops.TASK_STATUS_IN_PROGRESS,
+        owner="worker-1",
+        expected_version=record.version + 1,
+        claim_token=token,
+    )
+    task_ops.transition_task_status(
+        codex_team_project_root,
+        task_id="T001",
+        new_status=task_ops.TASK_STATUS_FAILED,
+        owner="worker-1",
+        expected_version=in_progress.version,
+        claim_token=token,
+        failure_class="",
+    )
+
+    blocked_result = WorkerTaskResult(
+        task_id="T001",
+        status="blocked",
+        changed_files=[],
+        validation_results=[],
+        summary="blocked",
+        blockers=["upstream service did not acknowledge completion"],
+        failed_assumptions=["expected the task to still be non-terminal before late result submission"],
+        suggested_recovery_actions=["re-run only if the task is still in progress; otherwise keep the existing terminal state"],
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+        ),
+    )
+
+    with pytest.raises(RuntimeEnvironmentError, match="already reached terminal status failed"):
+        submit_runtime_result(
+            codex_team_project_root,
+            session_id="blocked-session",
+            request_id="req-blocked",
+            result=blocked_result,
+        )
+
+
 def test_submit_runtime_result_normalizes_done_with_concerns_payload(monkeypatch, codex_team_project_root: Path):
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
     monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")

@@ -44,6 +44,71 @@ def _run_module_in_project(project: Path, args: list[str]):
     )
 
 
+def _write_prd_build_ready_scan_artifacts(run_dir: Path) -> None:
+    for relative, content in {
+        "workflow-state.md": "# Workflow State\n",
+        "prd-scan.md": "# PRD Scan\n",
+        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
+        "capability-ledger.json": (
+            "{\"capabilities\": [{\"id\": \"CAP-HEAVY\", \"tier\": \"critical\", "
+            "\"status\": \"reconstruction-ready\"}]}\n"
+        ),
+        "artifact-contracts.json": "{\"artifacts\": [{\"id\": \"ART-HEAVY\", \"status\": \"landed\"}]}\n",
+        "reconstruction-checklist.json": "{\"checks\": [{\"id\": \"CHK-HEAVY\"}]}\n",
+        "entrypoint-ledger.json": "{\"entrypoints\": []}\n",
+        "config-contracts.json": "{\"configs\": []}\n",
+        "protocol-contracts.json": "{\"protocols\": []}\n",
+        "state-machines.json": "{\"machines\": []}\n",
+        "error-semantics.json": "{\"errors\": []}\n",
+        "verification-surfaces.json": "{\"surfaces\": []}\n",
+    }.items():
+        (run_dir / relative).write_text(content, encoding="utf-8")
+    (run_dir / "scan-packets").mkdir()
+    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
+    (run_dir / "evidence").mkdir()
+    (run_dir / "evidence" / "api").mkdir()
+    (run_dir / "worker-results").mkdir()
+    (run_dir / "worker-results" / "lane-a.json").write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "paths_read": ["src/app.py"],
+                "unknowns": [],
+                "confidence": "high",
+                "recommended_ledger_updates": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_legacy_prd_build_exports(run_dir: Path) -> None:
+    master_dir = run_dir / "master"
+    master_dir.mkdir(exist_ok=True)
+    (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
+    exports_dir = run_dir / "exports"
+    exports_dir.mkdir(exist_ok=True)
+    (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
+    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
+    (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
+    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
+    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+
+
+def _write_heavy_prd_build_exports(run_dir: Path) -> None:
+    _write_legacy_prd_build_exports(run_dir)
+    for relative, heading in {
+        "config-contracts.md": "# Config Contracts\n",
+        "protocol-contracts.md": "# Protocol Contracts\n",
+        "state-machines.md": "# State Machines\n",
+        "error-semantics.md": "# Error Semantics\n",
+        "verification-surface.md": "# Verification Surface\n",
+        "reconstruction-risks.md": "# Reconstruction Risks\n",
+    }.items():
+        (run_dir / "exports" / relative).write_text(heading, encoding="utf-8")
+
+
 def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -760,34 +825,12 @@ def test_hook_validate_artifacts_supports_prd_build_positive_path(tmp_path: Path
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-ok"
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
-    (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    _write_prd_build_ready_scan_artifacts(run_dir)
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-003\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        "{\"capabilities\": [{\"id\": \"CAP-003\", \"tier\": \"critical\", \"status\": \"L4 Reconstruction-Ready\"}]}\n",
         encoding="utf-8",
     )
-    (run_dir / "artifact-contracts.json").write_text(
-        "{\"artifacts\": [{\"id\": \"ART-001\", \"status\": \"landed\"}]}\n",
-        encoding="utf-8",
-    )
-    (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": [{\"id\": \"CHK-001\"}]}\n", encoding="utf-8")
-    (run_dir / "scan-packets").mkdir()
-    (run_dir / "evidence").mkdir()
-    (run_dir / "worker-results").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
-    (run_dir / "evidence" / "api").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
-    master_dir = run_dir / "master"
-    master_dir.mkdir()
-    (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
-    exports_dir = run_dir / "exports"
-    exports_dir.mkdir()
-    (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
-    (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    _write_heavy_prd_build_exports(run_dir)
 
     result = _invoke_in_project(
         project,
@@ -797,6 +840,50 @@ def test_hook_validate_artifacts_supports_prd_build_positive_path(tmp_path: Path
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.artifacts.validate"
     assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_blocks_prd_build_when_heavy_exports_are_missing(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-missing-heavy-exports"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    _write_prd_build_ready_scan_artifacts(run_dir)
+    _write_legacy_prd_build_exports(run_dir)
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("exports/config-contracts.md" in message for message in payload["errors"])
+    assert any("exports/protocol-contracts.md" in message for message in payload["errors"])
+    assert any("exports/state-machines.md" in message for message in payload["errors"])
+    assert any("exports/error-semantics.md" in message for message in payload["errors"])
+    assert any("exports/verification-surface.md" in message for message in payload["errors"])
+    assert any("exports/reconstruction-risks.md" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_prd_build_when_worker_result_lacks_required_fields(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-worker-result-shallow"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    _write_prd_build_ready_scan_artifacts(run_dir)
+    _write_legacy_prd_build_exports(run_dir)
+    _write_heavy_prd_build_exports(run_dir)
+    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any(
+        "worker-results/lane-a.json" in message and "paths_read" in message for message in payload["errors"]
+    )
+    assert any("worker-results/lane-a.json" in message and "unknowns" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_blocks_prd_build_when_scan_directories_are_empty(tmp_path: Path):
@@ -928,34 +1015,16 @@ def test_hook_validate_artifacts_allows_critical_artifact_entries_without_invent
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-critical-artifact-entry"
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
-    (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    _write_prd_build_ready_scan_artifacts(run_dir)
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-013\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        "{\"capabilities\": [{\"id\": \"CAP-013\", \"tier\": \"critical\", \"status\": \"L4 Reconstruction-Ready\"}]}\n",
         encoding="utf-8",
     )
     (run_dir / "artifact-contracts.json").write_text(
         "{\"artifacts\": [{\"id\": \"ART-009\", \"tier\": \"critical\", \"status\": \"producer-consumer-traced\"}]}\n",
         encoding="utf-8",
     )
-    (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": [{\"id\": \"CHK-009\"}]}\n", encoding="utf-8")
-    (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
-    (run_dir / "evidence").mkdir()
-    (run_dir / "evidence" / "api").mkdir()
-    (run_dir / "worker-results").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
-    master_dir = run_dir / "master"
-    master_dir.mkdir()
-    (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
-    exports_dir = run_dir / "exports"
-    exports_dir.mkdir()
-    (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
-    (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    _write_heavy_prd_build_exports(run_dir)
 
     result = _invoke_in_project(
         project,
@@ -1373,6 +1442,23 @@ def test_prd_command_help_marks_compatibility_only(tmp_path: Path):
     assert "Deprecated compatibility entrypoint" in help_text
     assert "prd-scan" in help_text
     assert "prd-build" in help_text
+    assert "heavy reconstruction" in help_text.lower()
+    assert "L4 Reconstruction-Ready" in help_text
+    assert "subagent-mandatory" in help_text
+    assert "config-contracts.json" in help_text
+
+
+def test_prd_build_command_help_mentions_build_only_reconstruction_contract(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = _run_module_in_project(project, ["prd-build", "--help"])
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    help_text = result.stdout
+    normalized = " ".join(help_text.lower().split())
+    assert "heavy reconstruction" in normalized
+    assert "second repository scan" in normalized
+    assert "critical evidence" in normalized or "critical-evidence" in normalized
 
 
 def test_hook_validate_artifacts_blocks_prd_build_when_critical_capability_is_not_reconstruction_ready(tmp_path: Path):

@@ -19,10 +19,10 @@ def test_quickstart_teaches_specify_to_plan_mainline():
 
     assert "move directly from `specify` to `plan`" in quickstart
     assert "$sp-specify" in quickstart
-    assert "$sp-prd" in quickstart
+    assert "$sp-prd-scan -> $sp-prd-build" in quickstart
     assert "/skill:sp-plan" in quickstart
     assert "/sp.specify" in quickstart
-    assert "/sp.prd" in quickstart
+    assert "/sp.prd-scan" in quickstart
     assert "`specify -> plan` as the default path" in quickstart
     assert "`specify` -> `deep-research` -> `plan`" in quickstart
 
@@ -34,11 +34,11 @@ def test_quickstart_declares_integration_specific_invocation_syntax():
 
     assert "Invocation syntax depends on the integration:" in quickstart
     assert "$sp-specify" in quickstart
-    assert "$sp-prd" in quickstart
+    assert "$sp-prd-scan -> $sp-prd-build" in quickstart
     assert "/skill:sp-specify" in quickstart
-    assert "/skill:sp-prd" in quickstart
+    assert "/skill:sp-prd-scan -> /skill:sp-prd-build" in quickstart
     assert "/sp.specify" in quickstart
-    assert "/sp.prd" in quickstart
+    assert "/sp.prd-scan" in quickstart
     assert "Canonical workflow names are integration-neutral" in quickstart
     assert "Slash-dot command integrations" in readme
     assert "Slash-dot command integrations" in quickstart
@@ -51,11 +51,11 @@ def test_quickstart_declares_integration_specific_invocation_syntax():
         assert "`/sp-*` is not universal for skills-backed integrations" in content
         assert "canonical workflow names" in content.lower()
         assert "$sp-plan" in content
-        assert "$sp-prd" in content
+        assert "$sp-prd-scan -> $sp-prd-build" in content
         assert "/skill:sp-plan" in content
-        assert "/skill:sp-prd" in content
+        assert "/skill:sp-prd-scan -> /skill:sp-prd-build" in content
         assert "/sp.plan" in content
-        assert "/sp.prd" in content
+        assert "/sp.prd-scan" in content
 
 
 def test_upgrade_doc_mentions_project_launcher_binding():
@@ -114,6 +114,10 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "`map-scan` followed by `map-build`" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
     assert "`prd-scan` followed by `prd-build` as the existing-project reverse PRD lane" in support_guidance
+    assert "heavy reconstruction workflow" in support_guidance
+    assert "`L4 Reconstruction-Ready`" in support_guidance
+    assert "`config-contracts.json`" in support_guidance
+    assert "second repository scan" in support_guidance
     assert "does not automatically hand off to `plan`" in support_guidance
     assert "`analyze` as the required gate before implementation once `tasks.md` exists" in support_guidance
     assert "`fast` is only for trivial local fixes" in support_guidance

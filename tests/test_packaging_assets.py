@@ -87,6 +87,12 @@ def test_wheel_force_include_bundles_shared_hook_launcher_assets() -> None:
     assert '"src/specify_cli/shared_hooks" = "specify_cli/core_pack/shared_hooks"' in pyproject
 
 
+def test_wheel_force_include_bundles_shared_prd_state_helper() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert '"scripts/shared" = "specify_cli/core_pack/scripts/shared"' in pyproject
+
+
 def test_internal_codex_team_runtime_cargo_lock_is_tracked_for_force_include() -> None:
     tracked = subprocess.run(
         ["git", "ls-files", "extensions/agent-teams/engine/Cargo.lock"],
@@ -135,6 +141,8 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     (core_pack / "shared_hooks" / "specify-hook.py").write_text("print('hook')\n", encoding="utf-8")
     (core_pack / "scripts" / "powershell").mkdir(parents=True)
     (core_pack / "scripts" / "powershell" / "common.ps1").write_text("# common\n", encoding="utf-8")
+    (core_pack / "scripts" / "shared").mkdir(parents=True)
+    (core_pack / "scripts" / "shared" / "prd-state.py").write_text("print('prd')\n", encoding="utf-8")
 
     monkeypatch.setattr("specify_cli._locate_core_pack", lambda: core_pack)
 
@@ -150,4 +158,5 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     assert (project_root / ".specify" / "templates" / "project-map" / "QUICK-NAV.md").exists()
     assert (project_root / ".specify" / "templates" / "project-map" / "root" / "ARCHITECTURE.md").exists()
     assert (project_root / ".specify" / "templates" / "worker-prompts" / "implementer.md").exists()
+    assert (project_root / ".specify" / "scripts" / "shared" / "prd-state.py").exists()
     assert not (project_root / ".specify" / "bin" / "specify-hook.py").exists()

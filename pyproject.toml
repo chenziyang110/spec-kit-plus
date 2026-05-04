@@ -60,6 +60,7 @@ packages = ["src/specify_cli"]
 "src/specify_cli/shared_hooks" = "specify_cli/core_pack/shared_hooks"
 "scripts/bash" = "specify_cli/core_pack/scripts/bash"
 "scripts/powershell" = "specify_cli/core_pack/scripts/powershell"
+"scripts/shared" = "specify_cli/core_pack/scripts/shared"
 "extensions/agent-teams/engine/Cargo.toml" = "specify_cli/core_pack/extensions/agent-teams/engine/Cargo.toml"
 "extensions/agent-teams/engine/Cargo.lock" = "specify_cli/core_pack/extensions/agent-teams/engine/Cargo.lock"
 "extensions/agent-teams/engine/package.json" = "specify_cli/core_pack/extensions/agent-teams/engine/package.json"

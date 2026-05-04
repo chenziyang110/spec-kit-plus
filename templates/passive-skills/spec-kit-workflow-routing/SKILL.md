@@ -50,7 +50,11 @@ complete and proceed.
   and the user wants to continue without naming the exact workflow manually.
 - Use `sp-specify` for new capability, behavior, or requirement changes that need an
   aligned spec package before implementation.
-- Use `sp-prd-scan -> sp-prd-build` when an existing repository needs a current-state PRD suite reverse-extracted from code, docs, tests, routes, UI/API surfaces, and project-map evidence. Treat that pair as a peer workflow path to `sp-specify`, not as a pre-plan requirement, and do not automatically hand off to planning.
+- Use `sp-prd-scan -> sp-prd-build` when an existing repository needs a current-state PRD suite reverse-extracted from code, docs, tests, routes, UI/API surfaces, and project-map evidence. Treat that pair as the canonical heavy reconstruction PRD lane, a peer workflow path to `sp-specify`, not as a pre-plan requirement, and do not automatically hand off to planning.
+- Require the PRD lane to follow `subagent-mandatory` scan semantics for
+  substantive runs, carry contract artifacts such as `config-contracts.json`,
+  and keep critical claims blocked until `L4 Reconstruction-Ready`.
+- Treat `sp-prd-build` as a build-only compilation step: it must not reread the repository, and it must block completion when critical evidence gaps remain.
 - Treat `sp-prd` as a deprecated compatibility alias that must route into the
   canonical `sp-prd-scan -> sp-prd-build` flow instead of acting as the primary
   reverse-PRD lane.

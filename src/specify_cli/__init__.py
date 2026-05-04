@@ -839,6 +839,9 @@ def _run_prd_helper(
         run_slug,
     ]
 
+    env = os.environ.copy()
+    env.setdefault("SPECIFY_PYTHON", sys.executable)
+
     result = subprocess.run(
         cmd,
         capture_output=True,
@@ -846,6 +849,7 @@ def _run_prd_helper(
         encoding="utf-8",
         errors="replace",
         check=False,
+        env=env,
     )
     if result.returncode != 0:
         error_output = (result.stderr or result.stdout or "").strip() or "PRD helper failed"
@@ -894,7 +898,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Treat `specify -> plan` as the default path.",
             "- Use `clarify` only when an existing spec needs deeper analysis before planning.",
             "- Use `deep-research` only when requirements are clear but feasibility or the implementation chain must be proven before planning; its research findings, demo evidence, and Planning Handoff become inputs to `plan`.",
-            "- Use `prd-scan -> prd-build` as the canonical existing-project reverse PRD lane when the user needs repository-first current-state product documentation; keep `prd` only as a deprecated compatibility entrypoint.",
+            "- Use `prd-scan -> prd-build` as the canonical existing-project reverse PRD lane when the user needs repository-first current-state product documentation; this is a heavy reconstruction workflow where scan is `subagent-mandatory`, critical claims must reach `L4 Reconstruction-Ready`, and `config-contracts.json` is part of the contract surface. Keep `prd` only as a deprecated compatibility entrypoint.",
             "",
             "## Workflow Activation Discipline",
             "",
@@ -922,7 +926,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.",
             "- Use `sp-auto` when repository state already records the recommended next step and the user wants one continue entrypoint instead of naming the exact workflow manually.",
             "- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.",
-            "- Use `sp-prd-scan` when an existing repository needs read-only reconstruction scan outputs before final PRD synthesis, and `sp-prd-build` once that package is ready to compile final PRD exports.",
+            "- Use `sp-prd-scan` when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis, and `sp-prd-build` once that `subagent-mandatory` package is ready to compile final PRD exports.",
             "- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.",
             "- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.",
             "- Use `sp-test-scan` for project-level testing evidence and build planning, and `sp-test-build` for leader-managed testing-system construction.",
@@ -940,7 +944,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- `.specify/memory/constitution.md` is the principle-level source of truth when present.",
             "- `workflow-state.md` under the active feature directory is the stage/status source of truth for resumable workflow progress.",
             "- `alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning.",
-            "- `.specify/prd-runs/<run-id>/workflow-state.md`, `prd-scan.md`, `coverage-ledger.*`, `capability-ledger.json`, `artifact-contracts.json`, `reconstruction-checklist.json`, `master/master-pack.md`, and `exports/*.md` carry current-state PRD reconstruction artifacts from `sp-prd-scan -> sp-prd-build`; they are documentation outputs, not implicit planning inputs.",
+            "- `.specify/prd-runs/<run-id>/workflow-state.md`, `prd-scan.md`, `coverage-ledger.*`, `capability-ledger.json`, `artifact-contracts.json`, `config-contracts.json`, `reconstruction-checklist.json`, `master/master-pack.md`, and `exports/*.md` carry current-state PRD reconstruction artifacts from `sp-prd-scan -> sp-prd-build`; they are documentation outputs, not implicit planning inputs.",
             "- `deep-research.md`, its traceable `Planning Handoff`, and `research-spikes/` under the active feature directory carry feasibility evidence IDs, recommended approach, constraints, rejected options, and demo results from `sp-deep-research` into planning.",
             "- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.",
             "- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.",
@@ -1175,7 +1179,7 @@ def prd_scan_command(
     status: bool = typer.Option(False, "--status", help="Show an existing PRD scan run surface status"),
     json_output: bool = typer.Option(False, "--json", help="Print the helper payload as JSON"),
 ):
-    """Initialize or inspect a reconstruction-grade PRD scan run."""
+    """Initialize or inspect a heavy reconstruction PRD scan run with subagent-mandatory L4 Reconstruction-Ready evidence and config-contracts.json."""
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_prd_helper("status-scan" if status else "init-scan", run_slug=run_slug)
     _render_prd_payload(payload, json_output=json_output)
@@ -1189,7 +1193,7 @@ def prd_build_command(
     ),
     json_output: bool = typer.Option(False, "--json", help="Print the helper payload as JSON"),
 ):
-    """Inspect a validated PRD build workspace before or during final export compilation."""
+    """Inspect a validated heavy reconstruction PRD build workspace; compile exports from the scan package without a second repository scan and block when critical-evidence gaps remain."""
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_prd_helper("status-build", run_slug=run_slug)
     _render_prd_payload(payload, json_output=json_output)
@@ -1199,12 +1203,12 @@ def prd_build_command(
 def prd_command(
     run_slug: str = typer.Argument(
         "prd-run",
-        help="Compatibility entrypoint: run slug to initialize, or run ID when using --status",
+        help="Compatibility entrypoint for the heavy reconstruction lane: run slug to initialize, or run ID when using --status",
     ),
-    status: bool = typer.Option(False, "--status", help="Show the compatibility PRD scan surface status"),
+    status: bool = typer.Option(False, "--status", help="Show status; requires L4 Reconstruction-Ready."),
     json_output: bool = typer.Option(False, "--json", help="Print the helper payload as JSON"),
 ):
-    """Deprecated compatibility entrypoint for reverse-PRD work; prefer `prd-scan` then `prd-build`."""
+    """Deprecated compatibility entrypoint; prefer `prd-scan` then `prd-build` for heavy reconstruction, subagent-mandatory scan evidence, L4 Reconstruction-Ready critical claims, and config-contracts.json."""
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_prd_helper("status" if status else "init", run_slug=run_slug)
     _render_prd_payload(payload, json_output=json_output)
@@ -2444,6 +2448,23 @@ def _install_shared_infra(
                         shutil.copy2(src_path, dst_path)
                         rel = dst_path.relative_to(project_path).as_posix()
                         manifest.record_existing(rel)
+        shared_src = scripts_src / "shared"
+        if shared_src.is_dir():
+            dest_shared = dest_scripts / "shared"
+            dest_shared.mkdir(parents=True, exist_ok=True)
+            for src_path in shared_src.rglob("*"):
+                if "__pycache__" in src_path.parts or src_path.suffix == ".pyc":
+                    continue
+                if src_path.is_file():
+                    rel_path = src_path.relative_to(shared_src)
+                    dst_path = dest_shared / rel_path
+                    if dst_path.exists() and not overwrite_existing:
+                        skipped_files.append(str(dst_path.relative_to(project_path)))
+                    else:
+                        dst_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(src_path, dst_path)
+                        rel = dst_path.relative_to(project_path).as_posix()
+                        manifest.record_existing(rel)
 
     # Page templates (not command templates, not vscode-settings.json)
     if core and (core / "templates").is_dir():
@@ -2797,9 +2818,9 @@ DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
-    "prd-scan": "Use when an existing repository needs read-only reconstruction scan outputs before final PRD synthesis.",
-    "prd-build": "Use when a validated PRD scan package exists and the final PRD suite must be compiled from it.",
-    "prd": "Use when an existing repository needs current-state PRD extraction without automatically handing off to planning; route legacy one-step habits through prd-scan followed by prd-build.",
+    "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",
+    "prd-build": "Use when a validated PRD scan package exists and the final PRD suite must be compiled from it without a second repository scan.",
+    "prd": "Use when an existing repository needs current-state PRD extraction without automatically handing off to planning; route legacy one-step habits through prd-scan followed by prd-build and the heavy reconstruction contract surface.",
     "clarify": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
     "deep-research": "Use when a planning-ready spec still has feasibility risk and needs coordinated research, evidence packets, a Planning Handoff, or a disposable demo before implementation planning.",
     "research": "Use when a compatibility alias is needed for deep-research; route to the canonical feasibility research gate without creating separate sp-research artifacts.",
@@ -3411,8 +3432,8 @@ def init(
     steps_lines.append(f"   - [cyan]{_display_cmd('test-scan')}[/] - Deep-scan the testing surface and produce build-ready lanes")
     steps_lines.append(f"   - [cyan]{_display_cmd('test-build')}[/] - Build the unit testing system from scan-approved lanes with leader/subagent coordination")
     steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
-    steps_lines.append(f"   - [cyan]{_display_cmd('prd-scan')}[/] - Produce reconstruction-grade PRD scan outputs for an existing repository before final synthesis")
-    steps_lines.append(f"   - [cyan]{_display_cmd('prd-build')}[/] - Compile the final PRD suite from a validated PRD scan package")
+    steps_lines.append(f"   - [cyan]{_display_cmd('prd-scan')}[/] - Produce heavy reconstruction PRD scan outputs with subagent-mandatory L4 Reconstruction-Ready evidence and config-contracts.json")
+    steps_lines.append(f"   - [cyan]{_display_cmd('prd-build')}[/] - Compile the final PRD suite from a validated PRD scan package without a second repository scan")
     steps_lines.append(f"   - [cyan]{_display_cmd('prd')}[/] - Deprecated compatibility entrypoint; routes older reverse-PRD habits to the scan/build flow")
     steps_lines.append(f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work")
     steps_lines.append(f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning")
@@ -3449,7 +3470,7 @@ def init(
             f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Produce a complete scan package before deeper brownfield specification, planning, task generation, or implementation resumes",
             f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Generate or refresh the handbook/project-map atlas-style encyclopedia from the complete scan package",
             f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",
-            f"○ [cyan]{_display_cmd('prd-scan')}[/] [bright_black](existing-project PRD scan)[/bright_black] - Produce the reconstruction-grade scan package for reverse-PRD work before final synthesis",
+            f"○ [cyan]{_display_cmd('prd-scan')}[/] [bright_black](existing-project PRD scan)[/bright_black] - Produce the heavy reconstruction scan package for reverse-PRD work before final synthesis, including subagent-mandatory evidence and config-contracts.json",
             f"○ [cyan]{_display_cmd('prd-build')}[/] [bright_black](after prd-scan)[/bright_black] - Compile the final PRD suite from a validated scan package without turning build back into an ad hoc scan",
             f"○ [cyan]{_display_cmd('prd')}[/] [bright_black](deprecated compatibility)[/bright_black] - Compatibility entrypoint only; prefer the canonical [cyan]{_display_cmd('prd-scan')}[/] -> [cyan]{_display_cmd('prd-build')}[/] flow",
             f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",

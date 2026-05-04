@@ -15,12 +15,24 @@ professional current-state PRD suite reconstructed from the repository that
 already exists. `sp-prd` is deprecated and remains compatibility-only for older
 surfaces that have not been updated yet.
 
+The canonical PRD lane is a heavy reconstruction workflow:
+`sp-prd-scan` runs with `execution_model: subagent-mandatory`, critical claims
+must reach `L4 Reconstruction-Ready`, and the scan package includes contract
+artifacts such as `config-contracts.json` before `sp-prd-build` compiles exports.
+`sp-prd-build` is build-only: it must compile from the scan package instead of
+starting a second repository scan, and it must block completion when critical
+evidence is still missing.
+
 ## Required Behavior
 
 - Route existing-project reverse PRD requests to `sp-prd-scan`, then
   `sp-prd-build`, before repository inspection.
 - Treat `sp-prd-scan -> sp-prd-build` as the depth-aware current-state
   extraction workflow, not a flat repo summary pass.
+- Treat the canonical lane as heavy reconstruction work with
+  `subagent-mandatory` scan execution, not leader-only summarization.
+- Treat `sp-prd-build` as a build-only compilation step. It must not reread the
+  repository, and it must refuse completion when critical evidence gaps remain.
 - Treat `sp-prd` as a deprecated compatibility-only entrypoint that must route
   into the canonical `sp-prd-scan -> sp-prd-build` flow.
 - Ground the PRD in current implementation reality: code, docs, tests, routes,
@@ -29,7 +41,7 @@ surfaces that have not been updated yet.
 - Require capability triage before claiming the PRD suite is complete.
 - Use targeted evidence harvest for `critical` and `high` capabilities.
 - Keep `critical capabilities` visible until they are depth-aware and
-  `depth-qualified` rather than merely surface-covered.
+  `L4 Reconstruction-Ready` rather than merely surface-covered.
 - Preserve the distinction between Evidence, Inference, and Unknown.
 - Treat `.specify/prd-runs/<run-id>/workflow-state.md` as the resumable state
   source for the PRD run.
@@ -61,6 +73,7 @@ The active workflow should produce a current-state PRD suite, typically:
 - `.specify/prd-runs/<run-id>/coverage-ledger.json`
 - `.specify/prd-runs/<run-id>/capability-ledger.json`
 - `.specify/prd-runs/<run-id>/artifact-contracts.json`
+- `.specify/prd-runs/<run-id>/config-contracts.json`
 - `.specify/prd-runs/<run-id>/reconstruction-checklist.json`
 - `.specify/prd-runs/<run-id>/evidence/`
 - `.specify/prd-runs/<run-id>/master/master-pack.md`

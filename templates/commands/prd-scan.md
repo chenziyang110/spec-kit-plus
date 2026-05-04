@@ -3,8 +3,8 @@ description: Use when an existing repository needs reconstruction-grade scan out
 workflow_contract:
   when_to_use: Use for an existing repository that needs read-only reconstruction investigation before final PRD synthesis.
   primary_objective: Produce a reconstruction-grade scan package that captures capability, artifact, and boundary truth strongly enough for `sp-prd-build`.
-  primary_outputs: '`.specify/prd-runs/<run-id>/workflow-state.md`, `.specify/prd-runs/<run-id>/prd-scan.md`, `.specify/prd-runs/<run-id>/coverage-ledger.md`, `.specify/prd-runs/<run-id>/coverage-ledger.json`, `.specify/prd-runs/<run-id>/capability-ledger.json`, `.specify/prd-runs/<run-id>/artifact-contracts.json`, `.specify/prd-runs/<run-id>/reconstruction-checklist.json`, `.specify/prd-runs/<run-id>/scan-packets/<lane-id>.md`, `.specify/prd-runs/<run-id>/evidence/**`, and `.specify/prd-runs/<run-id>/worker-results/**`.'
-  default_handoff: /sp-prd-build after the scan package passes reconstruction readiness checks.
+  primary_outputs: '`.specify/prd-runs/<run-id>/workflow-state.md`, `.specify/prd-runs/<run-id>/prd-scan.md`, `.specify/prd-runs/<run-id>/coverage-ledger.md`, `.specify/prd-runs/<run-id>/coverage-ledger.json`, `.specify/prd-runs/<run-id>/capability-ledger.json`, `.specify/prd-runs/<run-id>/artifact-contracts.json`, `.specify/prd-runs/<run-id>/reconstruction-checklist.json`, `.specify/prd-runs/<run-id>/entrypoint-ledger.json`, `.specify/prd-runs/<run-id>/config-contracts.json`, `.specify/prd-runs/<run-id>/protocol-contracts.json`, `.specify/prd-runs/<run-id>/state-machines.json`, `.specify/prd-runs/<run-id>/error-semantics.json`, `.specify/prd-runs/<run-id>/verification-surfaces.json`, `.specify/prd-runs/<run-id>/scan-packets/<lane-id>.md`, `.specify/prd-runs/<run-id>/evidence/**`, and `.specify/prd-runs/<run-id>/worker-results/**`.'
+  default_handoff: sp-prd-build after the scan package passes reconstruction readiness checks.
 ---
 
 # `/sp.prd-scan` Reconstruction Scan
@@ -23,7 +23,7 @@ This summary is routing metadata only. The full workflow contract is the frontma
 
 [AGENT] Produce a reconstruction-grade scan package that lets `sp-prd-build` compile a PRD suite without rereading the repository.
 
-The scan phase is a read-only reconstruction investigation. It must harvest enough grounded detail about each `capability`, `artifact`, and `boundary` to prove whether the package is reconstruction-ready or blocked-by-gap.
+The scan phase is a read-only reconstruction investigation. It must harvest enough grounded detail about each `capability`, `artifact`, and `boundary` to prove whether the package is reconstruction-ready or should be marked `blocked-by-gap`.
 Every consequential claim must preserve `Evidence`, `Inference`, and `Unknown` labeling semantics instead of collapsing them into one unmarked narrative.
 
 ## Context
@@ -35,6 +35,31 @@ Required context inputs:
 - `.specify/prd/status.json` as the stable PRD scan freshness record when present.
 - Current repository evidence from code, docs, tests, routes, UI surfaces, service surfaces, data models, integrations, configuration, and deployment surfaces.
 - Existing `workflow-state.md` under `.specify/prd-runs/<run-id>/` when resuming an interrupted run.
+
+## Mandatory Subagent Execution
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+Each delegated lane produces a `PrdScanPacket`: a read-only evidence packet with enough cited detail for the build step to synthesize the final archive without rereading the repository.
+
+## Unified Critical Item Families
+
+1. Main Capability Chains
+2. External Entrypoints and Command Surfaces
+3. State Machines and Flow Control
+4. Data and Persistence Contracts
+5. Configuration and Behavior Switches
+6. Protocol and Boundary Contracts
+7. Error Semantics and Recovery Behavior
+8. Verification and Regression Entrypoints
+
+## Evidence Depth Model
+
+- `L1 Exists`: the item is discovered and tied to at least one repository surface.
+- `L2 Surface`: the user-visible, command, API, config, data, or boundary shape is captured.
+- `L3 Behavioral`: normal behavior, edge behavior, state changes, and failure behavior are grounded in evidence.
+- `L4 Reconstruction-Ready`: enough structure, contracts, and verification evidence exist to recreate the behavior without critical unknowns.
 
 ## Hard Boundary
 
@@ -68,10 +93,18 @@ The scan phase writes only the reconstruction package:
 - `.specify/prd-runs/<run-id>/capability-ledger.json`
 - `.specify/prd-runs/<run-id>/artifact-contracts.json`
 - `.specify/prd-runs/<run-id>/reconstruction-checklist.json`
+- `.specify/prd-runs/<run-id>/entrypoint-ledger.json`
+- `.specify/prd-runs/<run-id>/config-contracts.json`
+- `.specify/prd-runs/<run-id>/protocol-contracts.json`
+- `.specify/prd-runs/<run-id>/state-machines.json`
+- `.specify/prd-runs/<run-id>/error-semantics.json`
+- `.specify/prd-runs/<run-id>/verification-surfaces.json`
 - `.specify/prd-runs/<run-id>/scan-packets/<lane-id>.md`
 - `.specify/prd-runs/<run-id>/evidence/**`
 - `.specify/prd-runs/<run-id>/worker-results/**`
 - `.specify/prd/status.json` when initializing a successful scan and the stable status file is absent
+
+These artifacts are the authoritative scan bundle for `sp-prd-build`; they are not draft exports.
 
 ## Quality Gates
 
