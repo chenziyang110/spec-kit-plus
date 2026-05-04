@@ -1455,9 +1455,10 @@ def test_prd_build_command_help_mentions_build_only_reconstruction_contract(tmp_
 
     assert result.returncode == 0, result.stderr or result.stdout
     help_text = result.stdout
-    assert "heavy reconstruction" in help_text.lower()
-    assert "second repository scan" in help_text.lower()
-    assert "critical evidence" in help_text.lower()
+    normalized = " ".join(help_text.lower().split())
+    assert "heavy reconstruction" in normalized
+    assert "second repository scan" in normalized
+    assert "critical evidence" in normalized or "critical-evidence" in normalized
 
 
 def test_hook_validate_artifacts_blocks_prd_build_when_critical_capability_is_not_reconstruction_ready(tmp_path: Path):

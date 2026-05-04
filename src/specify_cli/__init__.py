@@ -1193,7 +1193,7 @@ def prd_build_command(
     ),
     json_output: bool = typer.Option(False, "--json", help="Print the helper payload as JSON"),
 ):
-    """Inspect a validated heavy reconstruction PRD build workspace; compile exports from the scan package without a second repository scan and block when critical evidence gaps remain."""
+    """Inspect a validated heavy reconstruction PRD build workspace; compile exports from the scan package without a second repository scan and block when critical-evidence gaps remain."""
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_prd_helper("status-build", run_slug=run_slug)
     _render_prd_payload(payload, json_output=json_output)
