@@ -2,12 +2,61 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
+from typing import Any
 
 from .checkpoint_serializers import normalize_command_name, serialize_workflow_state
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
 from .types import HookResult, QualityHookError
+
+FILE_REQUIRED_ARTIFACTS = {
+    "constitution": ("workflow-state.md",),
+    "specify": ("spec.md", "alignment.md", "context.md", "workflow-state.md"),
+    "deep-research": ("deep-research.md", "workflow-state.md"),
+    "plan": ("plan.md", "workflow-state.md"),
+    "tasks": ("tasks.md", "workflow-state.md"),
+    "analyze": ("workflow-state.md",),
+    "prd-scan": (
+        "workflow-state.md",
+        "prd-scan.md",
+        "coverage-ledger.md",
+        "coverage-ledger.json",
+        "capability-ledger.json",
+        "artifact-contracts.json",
+        "reconstruction-checklist.json",
+    ),
+    "prd-build": (
+        "workflow-state.md",
+        "prd-scan.md",
+        "coverage-ledger.json",
+        "capability-ledger.json",
+        "artifact-contracts.json",
+        "reconstruction-checklist.json",
+        "master/master-pack.md",
+        "exports/prd.md",
+        "exports/reconstruction-appendix.md",
+        "exports/data-model.md",
+        "exports/integration-contracts.md",
+        "exports/runtime-behaviors.md",
+    ),
+    "prd": (
+        "workflow-state.md",
+        "prd-scan.md",
+        "coverage-ledger.md",
+        "coverage-ledger.json",
+        "capability-ledger.json",
+        "artifact-contracts.json",
+        "reconstruction-checklist.json",
+    ),
+}
+
+DIRECTORY_REQUIRED_ARTIFACTS = {
+    "prd-scan": ("scan-packets", "evidence", "worker-results"),
+    "prd-build": ("scan-packets", "evidence", "worker-results"),
+    "prd": ("scan-packets", "evidence", "worker-results"),
+}
 
 
 REQUIRED_ARTIFACTS = {
@@ -17,12 +66,42 @@ REQUIRED_ARTIFACTS = {
     "plan": ("plan.md", "workflow-state.md"),
     "tasks": ("tasks.md", "workflow-state.md"),
     "analyze": ("workflow-state.md",),
-    "prd": (
+    "prd-scan": (
         "workflow-state.md",
-        "coverage-matrix.md",
+        "prd-scan.md",
+        "coverage-ledger.md",
+        "coverage-ledger.json",
+        "capability-ledger.json",
+        "artifact-contracts.json",
+        "reconstruction-checklist.json",
+        "scan-packets",
+        "evidence",
+        "worker-results",
+    ),
+    "prd-build": (
+        "workflow-state.md",
+        "prd-scan.md",
+        "coverage-ledger.json",
+        "capability-ledger.json",
+        "artifact-contracts.json",
+        "reconstruction-checklist.json",
+        "scan-packets",
+        "evidence",
+        "worker-results",
         "master/master-pack.md",
         "exports/prd.md",
-        "master/exports",
+    ),
+    "prd": (
+        "workflow-state.md",
+        "prd-scan.md",
+        "coverage-ledger.md",
+        "coverage-ledger.json",
+        "capability-ledger.json",
+        "artifact-contracts.json",
+        "reconstruction-checklist.json",
+        "scan-packets",
+        "evidence",
+        "worker-results",
     ),
 }
 
@@ -60,10 +139,11 @@ DEEP_RESEARCH_NOT_NEEDED_REQUIRED_SECTIONS = (
     "## Next Command",
 )
 
-PRD_MASTER_PACK_REQUIRED_SECTIONS = (
-    "## Capability Inventory",
-    "## Critical Capability Dossiers",
-    "## Coverage and Export Map",
+PRD_BUILD_REQUIRED_EXPORTS = (
+    "exports/reconstruction-appendix.md",
+    "exports/data-model.md",
+    "exports/integration-contracts.md",
+    "exports/runtime-behaviors.md",
 )
 
 PRD_EXPORT_REQUIRED_SECTIONS = (
@@ -107,7 +187,6 @@ PRD_OPTIONAL_CONTROL_ARTIFACTS: dict[str, tuple[Path, tuple[str, ...]]] = {
         ("## Gates",),
     ),
 }
-
 DEEP_RESEARCH_NOT_NEEDED_STATUS_RE = re.compile(
     r"(?im)^\*\*Status\*\*:\s*(?:\[)?Not needed(?:\])?\s*$"
 )
@@ -138,6 +217,21 @@ def _validate_markdown_headings(path: Path, required_headings: tuple[str, ...], 
         for heading in required_headings
         if heading not in present_headings
     ]
+
+
+def _read_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8", errors="replace"))
+
+
+def _read_json_artifact(path: Path, label: str) -> tuple[Any | None, list[str]]:
+    if path.exists() and path.is_dir():
+        return None, [f"{label} must be a file, not a directory"]
+    try:
+        return _read_json(path), []
+    except OSError as exc:
+        return None, [f"{label} could not be read: {exc}"]
+    except json.JSONDecodeError as exc:
+        return None, [f"{label} is not valid JSON: {exc}"]
 
 
 def _extract_handoff_ids(content: str) -> set[str]:
@@ -255,37 +349,144 @@ def _validate_plan_consumes_deep_research(feature_dir: Path) -> list[str]:
     return errors
 
 
-def _validate_prd_artifacts(feature_dir: Path) -> list[str]:
+def _validate_prd_scan_artifacts(feature_dir: Path) -> list[str]:
     errors: list[str] = []
-    master_exports_dir = feature_dir / "master" / "exports"
-    if master_exports_dir.exists() and not master_exports_dir.is_dir():
-        errors.append("master/exports must be a directory")
+    for directory_name in ("scan-packets", "evidence", "worker-results"):
+        target = feature_dir / directory_name
+        if target.exists() and not target.is_dir():
+            errors.append(f"{directory_name} must be a directory")
 
-    coverage_path = feature_dir / "coverage-matrix.md"
-    coverage_content = coverage_path.read_text(encoding="utf-8", errors="replace")
-    missing_coverage = [token for token in PRD_COVERAGE_REQUIRED_TOKENS if token not in coverage_content]
-    if missing_coverage:
-        joined = ", ".join(missing_coverage)
-        errors.append(f"coverage-matrix.md is missing depth-aware columns or fields: {joined}")
+    coverage_payload, coverage_errors = _read_json_artifact(feature_dir / "coverage-ledger.json", "coverage-ledger.json")
+    if coverage_errors:
+        errors.extend(coverage_errors)
+        return errors
+    if not isinstance(coverage_payload, dict):
+        errors.append("coverage-ledger.json must contain a top-level JSON object")
+    elif not isinstance(coverage_payload.get("rows"), list):
+        errors.append("coverage-ledger.json must define a top-level rows array")
 
-    errors.extend(
-        _validate_markdown_contains(
-            feature_dir / "master" / "master-pack.md",
-            PRD_MASTER_PACK_REQUIRED_SECTIONS,
-            "master/master-pack.md",
-        )
+    capability_payload, capability_errors = _read_json_artifact(
+        feature_dir / "capability-ledger.json", "capability-ledger.json"
     )
-    errors.extend(
-        _validate_markdown_contains(
-            feature_dir / "exports" / "prd.md",
-            PRD_EXPORT_REQUIRED_SECTIONS,
-            "exports/prd.md",
-        )
+    if capability_errors:
+        errors.extend(capability_errors)
+        return errors
+    if not isinstance(capability_payload, dict):
+        errors.append("capability-ledger.json must contain a top-level JSON object")
+    elif not isinstance(capability_payload.get("capabilities"), list):
+        errors.append("capability-ledger.json must define a top-level capabilities array")
+
+    artifact_payload, artifact_errors = _read_json_artifact(feature_dir / "artifact-contracts.json", "artifact-contracts.json")
+    if artifact_errors:
+        errors.extend(artifact_errors)
+        return errors
+    if not isinstance(artifact_payload, dict):
+        errors.append("artifact-contracts.json must contain a top-level JSON object")
+    elif not isinstance(artifact_payload.get("artifacts"), list):
+        errors.append("artifact-contracts.json must define a top-level artifacts array")
+
+    checklist_payload, checklist_errors = _read_json_artifact(
+        feature_dir / "reconstruction-checklist.json", "reconstruction-checklist.json"
     )
-    for label, (relative_path, required_sections) in PRD_OPTIONAL_CONTROL_ARTIFACTS.items():
-        artifact_path = feature_dir / relative_path
-        if artifact_path.exists():
-            errors.extend(_validate_markdown_contains(artifact_path, required_sections, label))
+    if checklist_errors:
+        errors.extend(checklist_errors)
+        return errors
+    if not isinstance(checklist_payload, dict):
+        errors.append("reconstruction-checklist.json must contain a top-level JSON object")
+    elif not isinstance(checklist_payload.get("checks"), list):
+        errors.append("reconstruction-checklist.json must define a top-level checks array")
+
+    return errors
+
+
+def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    missing_exports = [relative_path for relative_path in PRD_BUILD_REQUIRED_EXPORTS if not (feature_dir / relative_path).exists()]
+    errors.extend(f"missing required artifact: {relative_path}" for relative_path in missing_exports)
+
+    coverage_payload, coverage_errors = _read_json_artifact(feature_dir / "coverage-ledger.json", "coverage-ledger.json")
+    if coverage_errors:
+        return coverage_errors
+    if not isinstance(coverage_payload, dict):
+        return ["coverage-ledger.json must contain a top-level JSON object"]
+    if not isinstance(coverage_payload.get("rows"), list):
+        return ["coverage-ledger.json must define a top-level rows array"]
+
+    capability_payload, capability_errors = _read_json_artifact(
+        feature_dir / "capability-ledger.json", "capability-ledger.json"
+    )
+    if capability_errors:
+        return capability_errors
+    if not isinstance(capability_payload, dict):
+        return ["capability-ledger.json must contain a top-level JSON object"]
+
+    capabilities = capability_payload.get("capabilities")
+    if not isinstance(capabilities, list):
+        return ["capability-ledger.json must define a top-level capabilities array"]
+
+    critical_capabilities = [item for item in capabilities if isinstance(item, dict) and item.get("tier") == "critical"]
+    if not critical_capabilities:
+        errors.append("capability-ledger.json must include at least one critical capability before prd-build can pass")
+    else:
+        non_ready = [
+            str(item.get("status") or "").strip() or "missing"
+            for item in critical_capabilities
+            if str(item.get("status") or "").strip() != "reconstruction-ready"
+        ]
+        if non_ready:
+            joined = ", ".join(sorted(set(non_ready)))
+            errors.append(
+                "prd-build is blocked because critical capabilities must be reconstruction-ready; "
+                f"found: {joined}"
+            )
+
+    artifact_payload, artifact_errors = _read_json_artifact(feature_dir / "artifact-contracts.json", "artifact-contracts.json")
+    if artifact_errors:
+        errors.extend(artifact_errors)
+        return errors
+    if not isinstance(artifact_payload, dict):
+        errors.append("artifact-contracts.json must contain a top-level JSON object")
+        return errors
+
+    artifacts = artifact_payload.get("artifacts")
+    if not isinstance(artifacts, list):
+        errors.append("artifact-contracts.json must define a top-level artifacts array")
+    elif not artifacts:
+        errors.append("artifact-contracts.json must include at least one artifact before prd-build can pass")
+
+    checklist_payload, checklist_errors = _read_json_artifact(
+        feature_dir / "reconstruction-checklist.json", "reconstruction-checklist.json"
+    )
+    if checklist_errors:
+        errors.extend(checklist_errors)
+        return errors
+    if not isinstance(checklist_payload, dict):
+        errors.append("reconstruction-checklist.json must contain a top-level JSON object")
+        return errors
+    checks = checklist_payload.get("checks")
+    if not isinstance(checks, list):
+        errors.append("reconstruction-checklist.json must define a top-level checks array")
+    elif not checks:
+        errors.append("reconstruction-checklist.json must include at least one check before prd-build can pass")
+
+    scan_packets_dir = feature_dir / "scan-packets"
+    if not scan_packets_dir.is_dir():
+        errors.append("scan-packets must be a directory")
+    elif not any(scan_packets_dir.iterdir()):
+        errors.append("scan-packets must contain at least one packet file before prd-build can pass")
+
+    worker_results_dir = feature_dir / "worker-results"
+    if not worker_results_dir.is_dir():
+        errors.append("worker-results must be a directory")
+    elif not any(worker_results_dir.iterdir()):
+        errors.append("worker-results must contain at least one result file before prd-build can pass")
+
+    evidence_dir = feature_dir / "evidence"
+    if not evidence_dir.is_dir():
+        errors.append("evidence must be a directory")
+    elif not any(evidence_dir.iterdir()):
+        errors.append("evidence must contain at least one file or subdirectory entry before prd-build can pass")
+
     return errors
 
 
@@ -329,16 +530,25 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         feature_dir = (project_root / feature_dir).resolve()
 
     missing = [name for name in REQUIRED_ARTIFACTS[command_name] if not (feature_dir / name).exists()]
+    type_errors: list[str] = []
+    for relative_path in FILE_REQUIRED_ARTIFACTS.get(command_name, ()):
+        target = feature_dir / relative_path
+        if target.exists() and not target.is_file():
+            type_errors.append(f"required artifact must be a file: {relative_path}")
+    for relative_path in DIRECTORY_REQUIRED_ARTIFACTS.get(command_name, ()):
+        target = feature_dir / relative_path
+        if target.exists() and not target.is_dir():
+            type_errors.append(f"required artifact must be a directory: {relative_path}")
     if command_name == "constitution":
         constitution_path = project_root / ".specify" / "memory" / "constitution.md"
         if not constitution_path.exists():
             missing.append(".specify/memory/constitution.md")
-    if missing:
+    if missing or type_errors:
         return HookResult(
             event=WORKFLOW_ARTIFACTS_VALIDATE,
             status="blocked",
             severity="critical",
-            errors=[f"missing required artifact: {name}" for name in missing],
+            errors=[*([f"missing required artifact: {name}" for name in missing]), *type_errors],
             data={"feature_dir": str(feature_dir)},
         )
     validation_errors: list[str] = []
@@ -348,8 +558,12 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":
         validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
+    if command_name == "prd-scan":
+        validation_errors.extend(_validate_prd_scan_artifacts(feature_dir))
+    if command_name == "prd-build":
+        validation_errors.extend(_validate_prd_build_artifacts(feature_dir))
     if command_name == "prd":
-        validation_errors.extend(_validate_prd_artifacts(feature_dir))
+        validation_errors.extend(_validate_prd_scan_artifacts(feature_dir))
     if validation_errors:
         return HookResult(
             event=WORKFLOW_ARTIFACTS_VALIDATE,

@@ -22,6 +22,8 @@ EXPECTED_WORKFLOW_STATE = {
     "plan": ("sp-plan", "design-only"),
     "tasks": ("sp-tasks", "task-generation-only"),
     "analyze": ("sp-analyze", "analysis-only"),
+    "prd-scan": ("sp-prd-scan", "analysis-only"),
+    "prd-build": ("sp-prd-build", "analysis-only"),
     "prd": ("sp-prd", "analysis-only"),
 }
 

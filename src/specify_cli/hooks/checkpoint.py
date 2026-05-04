@@ -20,7 +20,7 @@ from .types import HookResult, QualityHookError
 def checkpoint_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
     command_name = normalize_command_name(str(payload.get("command_name") or ""))
 
-    if command_name in {"constitution", "specify", "deep-research", "plan", "tasks", "analyze", "prd"}:
+    if command_name in {"constitution", "specify", "deep-research", "plan", "tasks", "analyze", "prd-scan", "prd-build", "prd"}:
         feature_dir = _required_path(project_root, payload, "feature_dir")
         target = feature_dir / "workflow-state.md"
         if not target.exists():
