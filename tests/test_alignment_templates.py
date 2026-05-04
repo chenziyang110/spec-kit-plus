@@ -98,7 +98,9 @@ def test_core_sp_templates_use_learning_review_hooks():
     assert "{{specify-subcmd:hook review-learning --command quick --terminal-status <resolved|blocked> ...}}" in quick_content or "Before final completion or blocked reporting" in quick_content
 
     fast_content = _read("templates/commands/fast.md")
-    assert "{{specify-subcmd:learning capture --command fast ...}}" in fast_content
+    assert "Skip all learning hooks" in fast_content
+    assert "Do not run learning start, signal, review, or capture" in fast_content
+    assert "{{specify-subcmd:learning capture --command fast ...}}" not in fast_content
 
 
 def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_placeholders() -> None:
