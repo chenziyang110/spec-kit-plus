@@ -167,6 +167,82 @@ def test_compile_worker_task_packet_accepts_materialized_task_input(
     assert packet.validation_gates == ["pytest tests/unit/test_bll_manager.py -q"]
 
 
+def test_compile_worker_task_packet_preserves_testing_control_plane_context(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    (project_root / ".specify" / "memory").mkdir(parents=True)
+    (project_root / ".specify" / "testing").mkdir(parents=True)
+    (project_root / ".specify" / "memory" / "constitution.md").write_text(
+        "# Constitution\n\n- MUST add tests for public behavior\n",
+        encoding="utf-8",
+    )
+    (project_root / ".specify" / "testing" / "TESTING_CONTRACT.md").write_text(
+        "# Testing Contract\n",
+        encoding="utf-8",
+    )
+    (project_root / ".specify" / "testing" / "TESTING_PLAYBOOK.md").write_text(
+        "# Testing Playbook\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan.md").write_text(
+        "\n".join(
+            [
+                "## Required Implementation References",
+                "",
+                "- `src/contracts/auth.py`",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "## Validation Gates",
+                "",
+                "- pytest tests/unit/test_auth_service.py -q",
+                "",
+                "- [ ] T017 [US1] Implement auth flow in src/services/auth_service.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T017",
+    )
+
+    context_by_path = {item.path: item for item in packet.context_bundle}
+    assert ".specify/testing/TESTING_CONTRACT.md" in packet.scope.read_scope
+    assert ".specify/testing/TESTING_PLAYBOOK.md" in packet.scope.read_scope
+    assert (
+        ".specify/testing/TESTING_CONTRACT.md" in context_by_path
+    ), "testing contract must remain in the execution context bundle"
+    assert (
+        ".specify/testing/TESTING_PLAYBOOK.md" in context_by_path
+    ), "testing playbook must remain in the execution context bundle"
+    testing_contract = context_by_path[".specify/testing/TESTING_CONTRACT.md"]
+    testing_playbook = context_by_path[".specify/testing/TESTING_PLAYBOOK.md"]
+    assert testing_contract.kind == "testing_contract"
+    assert testing_contract.required_for == ["validation", "forbidden_drift"]
+    assert testing_contract.must_read is True
+    assert (
+        testing_contract.selection_reason
+        == "testing contract constrains what counts as complete"
+    )
+    assert testing_playbook.kind == "testing_playbook"
+    assert testing_playbook.required_for == ["validation"]
+    assert testing_playbook.must_read is True
+    assert (
+        testing_playbook.selection_reason
+        == "testing playbook provides runnable verification commands"
+    )
+
+
 def test_compile_worker_task_packet_requires_explicit_validation_gates(
     tmp_path: Path,
 ) -> None:
