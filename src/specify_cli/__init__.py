@@ -118,7 +118,6 @@ from specify_cli.project_map_status import (
     refresh_project_map_topics,
     write_project_map_status,
 )
-from specify_cli.testing_scan_status import testing_status_path
 from specify_cli.lanes import (
     LaneRecord,
     assess_integration_readiness,
