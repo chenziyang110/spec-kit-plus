@@ -29,7 +29,7 @@ Each module entry must expose strict module evidence before it can feed `TEST_BU
 - Module root:
 - Language:
 - Risk tier: P0 | P1 | P2 | P3
-- Covered module status: covered | partial | uncovered | audit-only | gap
+- Covered module status: covered | partial | missing | unknown
 - Selected bundled testing skill:
 - Key files inspected:
 - Public entrypoints / contracts:

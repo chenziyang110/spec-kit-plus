@@ -68,7 +68,7 @@ Use `execution_surface: native-subagents`.
 
 2. **Run the canonical inventory seed**
    - Run `{{specify-subcmd:testing inventory --format json}}` from the repository root.
-   - Treat the command output as the seed inventory for `module_root`, `module_name`, `module_kind`, `language`, `manifest_path`, `selected_skill`, `framework`, `framework_confidence`, `canonical_test_path`, `canonical_test_command`, `coverage_command`, `state`, and `classification_reason`.
+   - Treat the command output as the seed inventory for `module_root`, `module_name`, `module_kind`, `language`, `manifest_path`, `selected_skill`, `framework`, `framework_confidence`, `canonical_test_path`, `canonical_test_command`, `coverage_command`, `command_tiers`, `state`, and `classification_reason`.
    - If the command returns no modules, record the inventory gap, create a safe read-only recovery scan lane when one can be packetized, or stop with `subagent-blocked` for escalation instead of inventing fake module boundaries.
    - Record the raw inventory source and initial module list in `TESTING_STATE_FILE`.
 
@@ -117,7 +117,7 @@ Use `execution_surface: native-subagents`.
      - `truth_owning_files`
      - `public_entrypoints`
      - `existing_test_surface`
-     - covered-module status: `covered` / `partial` / `missing` / `unknown`
+     - covered-module status: `covered | partial | missing | unknown`
      - `missing_scenarios`
      - `risk_tier`
      - candidate command tiers: `fast smoke`, `focused`, and `full`
@@ -174,7 +174,7 @@ Use `execution_surface: native-subagents`.
      - public entrypoints and contracts
      - truth-owning logic and high-risk branches
      - existing test files and helpers
-     - covered-module status: `covered` / `partial` / `missing` / `unknown`, with evidence for the status instead of a raw coverage guess
+     - covered-module status: `covered | partial | missing | unknown`, with evidence for the status instead of a raw coverage guess
      - missing happy-path, invalid-input, boundary, exception, state-transition, and local-integration scenarios
      - recommended `small / medium / large` test mix
      - candidate layer mix across `small / medium / large` tests for the next build lane

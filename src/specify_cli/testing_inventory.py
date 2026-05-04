@@ -370,7 +370,7 @@ def _canonical_commands(
         if not coverage_command and framework == "vitest":
             coverage_command = "vitest run --coverage"
         elif not coverage_command and framework == "jest":
-            coverage_command = "npm exec -- jest -- --coverage"
+            coverage_command = "npm exec -- jest --coverage"
         return test_command, coverage_command
 
     if language == "go":

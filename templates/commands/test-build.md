@@ -144,6 +144,7 @@ Use `execution_surface: native-subagents`.
      - `canonical_test_path`
      - `canonical_test_command`
      - `coverage_command`
+     - `command_tiers`
      - `state`
      - `classification_reason`
    - If the command returns no modules, record the inventory gap, create a safe read-only recovery scan lane when one can be packetized, or stop with `subagent-blocked` for escalation instead of inventing fake module boundaries.

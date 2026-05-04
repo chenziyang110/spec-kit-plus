@@ -36,7 +36,7 @@ Control-plane role: newcomer-usable operating guide for where tests belong and w
 - Naming conventions for new test files:
 - Shared fixtures, mocks, or factories to reuse:
 - Covered-module status guidance:
-  - Interpret `covered / partial / missing / unknown` before adding or changing tests:
+  - Interpret `covered | partial | missing | unknown` before adding or changing tests:
 - Local integration seam expectations:
   - Cover relevant adapter, filesystem, process, network, database, CLI, or workflow seams with local fakes/mocks or integration-style tests:
 - Smallest RED-first command to run before implementation:

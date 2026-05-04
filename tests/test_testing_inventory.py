@@ -158,7 +158,7 @@ def test_build_testing_inventory_reports_scriptless_jest_defaults(tmp_path):
 
     assert module["framework"] == "jest"
     assert module["canonical_test_command"] == "npm exec -- jest"
-    assert module["coverage_command"] == "npm exec -- jest -- --coverage"
+    assert module["coverage_command"] == "npm exec -- jest --coverage"
     assert module["command_tiers"]["fast_smoke"] == "npm exec -- jest"
     assert module["command_tiers"]["focused"] == "npm exec -- jest"
     assert module["command_tiers"]["full"] == "npm exec -- jest"

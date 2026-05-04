@@ -143,6 +143,13 @@ def _context_bundle_from_project_docs(
             ["validation"],
             "testing playbook provides runnable verification commands",
         ),
+        (
+            ".specify/testing/COVERAGE_BASELINE.json",
+            "coverage_baseline",
+            "Testing control-plane coverage baseline for current covered-module status and coverage gaps.",
+            ["validation"],
+            "coverage baseline captures current covered-module status",
+        ),
     ]
 
     items: list[ContextBundleItem] = []

@@ -32,6 +32,48 @@ def _assert_command_tier_labels_in_markdown(content: str) -> None:
     assert "- full:" in lines
 
 
+def _assert_inventory_seed_fields(content: str) -> None:
+    lowered = content.lower()
+    inventory_block = _section_between(
+        lowered,
+        "treat the command output as",
+        "if the command returns no modules",
+    )
+
+    for field in (
+        "module_root",
+        "module_name",
+        "module_kind",
+        "language",
+        "manifest_path",
+        "selected_skill",
+        "framework",
+        "framework_confidence",
+        "canonical_test_path",
+        "canonical_test_command",
+        "coverage_command",
+        "command_tiers",
+        "state",
+        "classification_reason",
+    ):
+        assert field in inventory_block
+
+
+def _assert_covered_module_status_enum(content: str) -> None:
+    lowered = content.lower()
+    status_lines = [
+        line.strip()
+        for line in lowered.splitlines()
+        if "covered module status:" in line
+        or "covered-module status:" in line
+        or "interpret `covered" in line
+    ]
+
+    assert any("covered | partial | missing | unknown" in line for line in status_lines)
+    for stale_status in ("uncovered", "audit-only", "gap"):
+        assert all(stale_status not in line for line in status_lines)
+
+
 def _section_between(content: str, heading: str, next_heading: str) -> str:
     start = content.find(heading)
     assert start != -1
@@ -99,6 +141,7 @@ def test_test_scan_template_deep_scans_and_emits_build_plan():
     assert "test-build-plan-template.md" in lowered
     assert "test-build-plan-template.json" in lowered
     assert "unit-test-system-request-template.md" in lowered
+    _assert_inventory_seed_fields(content)
 
 
 def test_test_scan_template_generates_downstream_control_plane_fields():
@@ -116,7 +159,7 @@ def test_test_scan_template_generates_downstream_control_plane_fields():
     )
 
     assert "covered-module status" in packet_block
-    assert "`covered` / `partial` / `missing` / `unknown`" in packet_block
+    assert "`covered | partial | missing | unknown`" in packet_block
     assert "covered_module_status" in packet_block
     assert "candidate command tiers" in packet_block
     assert "`fast smoke`, `focused`, and `full`" in packet_block
@@ -189,6 +232,7 @@ def test_test_build_template_consumes_scan_and_dispatches_build_packets():
     assert "reported_status: done | done_with_concerns | blocked | needs_context" in lowered
     assert "idle subagent is not an accepted result" in lowered
     assert "test-quality review lane" in lowered
+    _assert_inventory_seed_fields(content)
 
 
 def test_test_build_template_requires_manual_execution_evidence_and_assets():
@@ -294,6 +338,7 @@ def test_downstream_testing_scan_and_build_plan_roles_are_distinct():
     assert "module root" in scan_template
     assert "public entrypoints / contracts" in scan_template
     assert "covered module status" in scan_template
+    _assert_covered_module_status_enum(scan_template)
     assert "candidate layer mix" in scan_template
     assert "candidate command tiers" in scan_template
     assert "strict module evidence" in scan_template
@@ -374,7 +419,8 @@ def test_downstream_testing_contract_and_playbook_roles_are_distinct():
     _assert_command_tier_labels_in_markdown(playbook_template)
     _assert_command_tier_labels_in_markdown(playbook_run_tests)
     assert "- covered-module status guidance:" in playbook_lines
-    assert "covered / partial / missing / unknown" in playbook_add_tests
+    assert "covered | partial | missing | unknown" in playbook_add_tests
+    _assert_covered_module_status_enum(playbook_add_tests)
     assert "adding or changing tests" in playbook_add_tests
     assert "- local integration seam expectations:" in playbook_lines
     assert "adapter" in playbook_add_tests
