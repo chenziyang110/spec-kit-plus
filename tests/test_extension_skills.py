@@ -367,24 +367,22 @@ class TestBuiltInSkillGeneration:
         assert "/sp.clarify" in specify_body or "{{invoke:clarify}}" in specify_body
         assert "recommended review follow-up" in specify_body
         assert "without needing `/sp.clarify`" in specify_body
-        assert "mark `.specify/project-map/index/status.json` dirty" in specify_body.lower()
-        assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in specify_body
+        assert "git-baseline freshness" in specify_body.lower()
+        assert "complete-refresh" in specify_body
+        assert "manual override/fallback" in specify_body.lower()
+        assert "run `/sp-map-scan` followed by `/sp-map-build`" in specify_body
 
         prd_body = _body_without_frontmatter(skills_dir / "sp-prd" / "SKILL.md")
         prd_lower = prd_body.lower()
-        assert "existing project prd suite" in prd_lower
-        assert "peer workflow to `sp-specify`" in prd_lower
-        assert "current repository reality" in prd_lower
-        assert "evidence/inference/unknown" in prd_lower
-        assert ".specify/prd-runs/<run-id>/workflow-state.md" in prd_body
-        assert ".specify/prd-runs/<run-id>/coverage-matrix.md" in prd_body
-        assert "master/master-pack.md" in prd_body
+        assert "deprecated compatibility entrypoint" in prd_lower
+        assert "compatibility-only" in prd_lower
+        assert "route the work through the canonical flow instead" in prd_lower
+        assert "sp-prd-scan" in prd_body
+        assert "sp-prd-build" in prd_body
+        assert ".specify/prd-runs/<run-id>/prd-scan.md" in prd_body
         assert "exports/prd.md" in prd_body
-        assert "no automatic handoff into implementation planning" in prd_lower
-        assert "capability triage" in prd_lower
-        assert "targeted evidence harvest" in prd_lower
-        assert "depth-qualified" in prd_lower
-        assert "critical depth gate" in prd_lower
+        assert "old one-step semantics" in prd_lower
+        assert "do not skip `sp-prd-scan` and jump straight to `sp-prd-build`" in prd_lower
 
         plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         assert "Add `Implementation Constitution`" in plan_body
@@ -397,8 +395,10 @@ class TestBuiltInSkillGeneration:
         assert "phase_mode: design-only" in plan_body
         assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in plan_body
         assert "recommended follow-up quality check" in plan_body
-        assert "mark `.specify/project-map/index/status.json` dirty" in plan_body.lower()
-        assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in plan_body
+        assert "git-baseline freshness" in plan_body.lower()
+        assert "complete-refresh" in plan_body
+        assert "manual override/fallback" in plan_body.lower()
+        assert "run `/sp-map-scan` followed by `/sp-map-build`" in plan_body
 
         tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
         assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
@@ -415,8 +415,10 @@ class TestBuiltInSkillGeneration:
         assert "recommended next command" in tasks_body.lower()
         assert "implementation remains blocked until `/sp-analyze`" in tasks_body.lower()
         assert "do not hand off directly to `/sp-implement` from `sp-tasks`" in tasks_body.lower()
-        assert "mark `.specify/project-map/index/status.json` dirty" in tasks_body.lower()
-        assert "recommend `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
+        assert "git-baseline freshness" in tasks_body.lower()
+        assert "complete-refresh" in tasks_body
+        assert "manual override/fallback" in tasks_body.lower()
+        assert "run `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
 
         implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
         assert "Extract `Implementation Constitution` from `plan.md`" in implement_body

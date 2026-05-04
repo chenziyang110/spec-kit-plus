@@ -22,7 +22,8 @@ def test_prd_template_defines_deprecated_compatibility_contract() -> None:
     frontmatter = _frontmatter()
     contract = frontmatter["workflow_contract"]
 
-    assert frontmatter["description"].startswith("Deprecated compatibility entrypoint")
+    assert frontmatter["description"].startswith("Use when")
+    assert "deprecated `sp-prd` compatibility entrypoint" in frontmatter["description"]
     assert "deprecated compatibility" in contract["when_to_use"].lower()
     assert "sp-prd-scan" in contract["primary_objective"]
     assert "sp-prd-build" in contract["primary_objective"]

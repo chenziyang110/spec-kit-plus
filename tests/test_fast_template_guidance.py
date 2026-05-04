@@ -34,8 +34,9 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-scan` followed by `/sp-map-build` before the final report" in content
-    assert "if that refresh would break the fast-path scope" in content
-    assert "mark `.specify/project-map/index/status.json` dirty" in content
+    assert "if a full refresh can be completed now" in content
+    assert "complete-refresh" in content
+    assert "manual override/fallback" in content
     assert "highest-signal" in content
     assert "pass the atlas gate" in content
 

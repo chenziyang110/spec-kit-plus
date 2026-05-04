@@ -2799,7 +2799,7 @@ SKILL_DESCRIPTIONS = {
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only reconstruction scan outputs before final PRD synthesis.",
     "prd-build": "Use when a validated PRD scan package exists and the final PRD suite must be compiled from it.",
-    "prd": "Deprecated compatibility entrypoint for reverse-PRD work; prefer prd-scan followed by prd-build.",
+    "prd": "Use when an existing repository needs current-state PRD extraction without automatically handing off to planning; route legacy one-step habits through prd-scan followed by prd-build.",
     "clarify": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
     "deep-research": "Use when a planning-ready spec still has feasibility risk and needs coordinated research, evidence packets, a Planning Handoff, or a disposable demo before implementation planning.",
     "research": "Use when a compatibility alias is needed for deep-research; route to the canonical feasibility research gate without creating separate sp-research artifacts.",
