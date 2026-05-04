@@ -44,6 +44,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **One active hypothesis at a time**: Parallel evidence gathering is allowed; parallel root-cause theories are not.
 - **Observability before speculation**: Read existing logs and outputs first. If they are too weak to explain the failure, improve logging or tracing before attempting a fix.
 - **Logs are a first-class evidence source**: When existing logs, stderr/stdout, test output, or trace files materially narrow the issue, append it to `Evidence` with `source_type: log` (or the closest concrete source type) and a concrete `source_ref`.
+- **Existing logs first**: Before asking for new output or adding new probes, check whether the repository, runtime, deploy target, browser console, worker output, or prior test artifacts already contain decisive signals for the active candidate queue.
 - **Control state is not observation state**: Keep scheduling, admission, allocation, and ownership state separate from UI, logs, event streams, caches, and snapshots.
 - **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Update it before each action.
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
@@ -175,6 +176,7 @@ or source-code reads begin.
 - The think subagent must not inspect logs or runtime output; keep the analysis at the system-map level.
 - The think subagent must not run reproduction commands, test commands, or instrumentation.
 - The think subagent uses only the user report plus the current system map to reason about likely owning layers, truth owners, workflow boundaries, and possible failure loops.
+- The think subagent can recommend enabling expanded observer when the issue is a runtime bug, a phenomenon-only report, or a cross-layer symptom where logs must later separate multiple plausible truth-owning candidates.
 - If the user already supplied strong low-level evidence such as a full stack trace, explicit failing command, explicit failing file, explicit repro command, or precise error text with location, use **compressed observer framing** rather than skipping the observer stage.
 - If critical information is still missing during observer framing, ask at most one concise missing-information question before moving on.
 
@@ -207,6 +209,14 @@ This stage is now split into Stage 1A and Stage 1B, but remains the same top-lev
   4. Parse the YAML block after `---` and populate the `causal_map` fields plus `observer_mode`.
   5. Set `observer_mode: full` (unless the subagent output indicates `compressed` with a `skip_observer_reason`).
 - The think subagent produces a causal map based on the user report plus the current system map. It does NOT read source code, logs, or run commands.
+- Optional expanded observer: when the issue is a runtime bug, `phenomenon_only`, or looks cross-layer, recommend enabling expanded observer so the observer output also includes project runtime profiling, a widened candidate board, top candidates, and a `log_investigation_plan` log investigation plan.
+- Recommend enabling expanded observer when any of these hold:
+  - the report is runtime behavior rather than a compile/static failure,
+  - the symptom is described mainly as a phenomenon rather than an exact failing location,
+  - the likely truth owner may live in a different layer than the visible symptom,
+  - existing logs are likely necessary to distinguish top candidates,
+  - or two investigation rounds have not converged.
+- User can agree or decline the optional expanded observer suggestion flow.
 - The causal map must include:
   - `symptom_anchor`
   - `closed_loop_path`
@@ -222,6 +232,17 @@ This stage is now split into Stage 1A and Stage 1B, but remains the same top-lev
 - Full framing: at least 3 alternative cause candidates.
 - Compressed framing: at least 2 for compressed framing.
 - Each family must include a falsifier, not just a plausible guess.
+- Expanded observer outputs, when enabled, must also include:
+  - `observer_expansion_status`
+  - `observer_expansion_reason`
+  - `project_runtime_profile`
+  - `symptom_shape`
+  - `log_readiness`
+  - `dimension_scan`
+  - `candidate_board`
+  - `top_candidates`
+  - `log_investigation_plan`
+- Expanded observer is still observer-only work: no source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`.
 
 ### Stage 1B: Investigation Contract
 
@@ -238,6 +259,7 @@ This stage is now split into Stage 1A and Stage 1B, but remains the same top-lev
   - `candidate_queue`
   - `related_risk_targets`
   - `transition_memo`
+- When expanded observer artifacts are present, the contract planner must preserve the top candidate ordering and the `log_investigation_plan` log investigation plan in the investigation contract instead of collapsing them into a generic probe note.
 - Stage 1B must still leave the session with a clear `contrarian candidate`, a `recommended first probe`, and a transition memo that can automatically continue into evidence investigation.
 - Compressed framing still requires the full observer framing section; compression lowers certainty expectations, not delivery requirements.
 
@@ -268,6 +290,7 @@ This stage is now split into Stage 1A and Stage 1B, but remains the same top-lev
 
 ### Stage 4: Log Review
 - Inspect existing logs, error output, and test output before changing code.
+- Logs are a first-class evidence source and existing logs come first.
 - Treat logs as evidence, not background noise: if a log line materially changes the hypothesis space, record it in the session `Evidence` section with its source path/command.
 - Identify whether the current observability already shows:
   - where the failure occurs,
@@ -278,6 +301,11 @@ This stage is now split into Stage 1A and Stage 1B, but remains the same top-lev
 - If `context.md` exists for the active feature, read it before proposing a fix so locked decisions, canonical references, and user-signaled constraints are not bypassed during debugging.
 - Read `.specify/testing/TESTING_CONTRACT.md` if present before validating a fix so bug-resolution expectations include any project-wide regression-test requirements.
 - Read `.specify/testing/TESTING_PLAYBOOK.md` if present before final verification so the canonical debug-side test commands come from the repository playbook.
+- For runtime bugs, use the investigation contract's `log_investigation_plan` log investigation plan to decide:
+  - which existing log targets to inspect first,
+  - which candidate-specific signals should appear there,
+  - whether logs are sufficient,
+  - and whether instrumentation or a user log request must happen before fixing.
 
 ### Required Framing Before Hypothesis
 - Before committing to a root-cause theory, write a **Truth Ownership Map** in the debug session:
@@ -294,6 +322,7 @@ This stage is now split into Stage 1A and Stage 1B, but remains the same top-lev
 ### Stage 5: Observability Assessment
 - If the current logs cannot answer those questions, treat observability as insufficient.
 - During `investigating`, you may add or refine diagnostic logging, tracing, or instrumentation, then rerun the reproduction or tests to collect stronger evidence.
+- If logs are insufficient during a runtime bug investigation, you cannot directly enter fixing until the work either extracts decisive signals from existing logs or records an instrumentation / user log request escalation.
 - Prefer diagnostic logging that clarifies boundaries, inputs, branches, outputs, and state transitions.
 - Prefer **decisive signals** over broad debug noise:
   - queue contents,
@@ -305,6 +334,7 @@ This stage is now split into Stage 1A and Stage 1B, but remains the same top-lev
   - **scheduler/admission**: queues, running/admitted sets, slot counters, promotion handoffs
   - **cache/snapshot drift**: authoritative state versus cached state, invalidation timing, refresh paths
   - **UI projection**: source-of-truth state, publish boundary, transformed view-model state, render/polling output
+- For runtime bug investigations where the leader cannot access the needed logs directly, produce a concrete user log request packet before fixing. Include the time window, target system, identifiers or correlation keys, exact log sources, and the expected candidate-separating signals.
 - If two hypothesis/experiment cycles fail to converge, escalate observability explicitly. Add instrumentation that can directly falsify the remaining competing explanations instead of applying another surface-level fix.
 
 ### Stage 6: Hypothesis Formation
