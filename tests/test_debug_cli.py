@@ -4,7 +4,18 @@ from specify_cli import app
 import re
 from specify_cli.debug.schema import CausalMapRiskTarget, DebugStatus
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
-from specify_cli.debug.schema import DebugGraphState, ObserverCauseCandidate, SuggestedEvidenceLane
+from specify_cli.debug.schema import (
+    DebugGraphState,
+    ExpandedObserverEngineeringScores,
+    ExpandedObserverTopCandidate,
+    LogCandidateSignalMapEntry,
+    LogReadiness,
+    ObserverCauseCandidate,
+    ObserverExpansionStatus,
+    ProjectRuntimeProfile,
+    SuggestedEvidenceLane,
+    UserRequestPacketEntry,
+)
 
 runner = CliRunner()
 
@@ -295,6 +306,173 @@ def test_debug_checkpoint_renders_causal_map_section(clean_debug_dir, monkeypatc
     assert "causal map" in result.stdout.lower()
     assert "family coverage" in result.stdout.lower()
     assert "release-retry-loop" in result.stdout.lower()
+
+
+def test_debug_checkpoint_renders_expanded_observer_runtime_log_summary(clean_debug_dir, monkeypatch):
+    import specify_cli.debug.cli as cli_module
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        state.status = DebugStatus.INVESTIGATING
+        state.observer_expansion_status = ObserverExpansionStatus.COMPLETED
+        state.observer_expansion_reason = "runtime_cross_layer_symptom"
+        state.project_runtime_profile = ProjectRuntimeProfile.FULL_STACK_WEB_APP
+        state.log_readiness = LogReadiness.USER_MUST_PROVIDE_LOGS
+        state.expanded_observer.top_candidates = [
+            ExpandedObserverTopCandidate(
+                candidate_id="cand-slot-ownership",
+                family="truth_owner_logic",
+                investigation_priority=1,
+                recommended_log_probe="Check release-handler logs for ownership-clear and queue-refresh events.",
+                engineering_scores=ExpandedObserverEngineeringScores(
+                    cross_layer_span=5,
+                    indirect_causality_risk=4,
+                    evidence_gap=3,
+                    investigation_cost=2,
+                ),
+            ),
+            ExpandedObserverTopCandidate(
+                candidate_id="cand-cache-projection",
+                family="cache_snapshot",
+                investigation_priority=2,
+                recommended_log_probe="Inspect cache invalidation logs around POST /release.",
+            ),
+        ]
+        state.expanded_observer.log_investigation_plan.existing_log_targets = [
+            "browser console for release retry path",
+            "server release-handler logs",
+        ]
+        state.expanded_observer.log_investigation_plan.candidate_signal_map = [
+            LogCandidateSignalMapEntry(
+                candidate_id="cand-slot-ownership",
+                signals=["ownership clear missing before queue refresh"],
+            )
+        ]
+        state.expanded_observer.log_investigation_plan.log_sufficiency_judgment = (
+            "Current logs do not connect the UI symptom to the server-side ownership reset."
+        )
+        state.expanded_observer.log_investigation_plan.instrumentation_targets = [
+            "ownership clear branch in release handler",
+        ]
+        state.expanded_observer.log_investigation_plan.user_request_packet = [
+            UserRequestPacketEntry(
+                target_source="server release-handler logs",
+                time_window="from retry click through next queue refresh",
+                keywords_or_fields=["request_id", "slot_id", "ownership_set_size"],
+                why_this_matters="Distinguishes truth-owner failure from stale projection.",
+                expected_signal_examples=[
+                    "ownership clear is absent before queue refresh",
+                ],
+            )
+        ]
+        handler.save(state)
+
+    monkeypatch.setattr(cli_module, "generate_slug", lambda _: "expanded-observer")
+    monkeypatch.setattr(cli_module, "run_debug_session", fake_run_debug_session)
+
+    result = runner.invoke(app, ["debug", "release retry remains stuck in queue"])
+
+    assert result.exit_code == 0
+    lowered = result.stdout.lower()
+    assert "expanded observer" in lowered
+    assert "observer expansion status: completed" in lowered
+    assert "project runtime profile: full-stack/web-app" in lowered
+    assert "log readiness: user_must_provide_logs" in lowered
+    assert "top candidates" in lowered
+    assert "cand-slot-ownership" in lowered
+    assert "truth_owner_logic" in lowered
+    assert "priority 1" in lowered
+    assert "cross-layer span: 5" in lowered
+    assert "runtime log investigation plan" in lowered
+    assert "browser console for release retry path" in lowered
+    assert "ownership clear missing before queue refresh" in lowered
+    assert "ownership clear branch in release handler" in lowered
+    assert "server release-handler logs" in lowered
+    assert "from retry click through next queue refresh" in lowered
+
+
+def test_debug_checkpoint_prefers_contract_top_candidates_and_log_plan(clean_debug_dir, monkeypatch):
+    import specify_cli.debug.cli as cli_module
+
+    async def fake_run_debug_session(state, handler, *, resumed=False):
+        state.status = DebugStatus.INVESTIGATING
+        state.observer_expansion_status = ObserverExpansionStatus.COMPLETED
+        state.project_runtime_profile = ProjectRuntimeProfile.WORKER_QUEUE_CRON
+        state.log_readiness = LogReadiness.INSUFFICIENT_NEED_INSTRUMENTATION
+        state.expanded_observer.top_candidates = [
+            ExpandedObserverTopCandidate(
+                candidate_id="cand-stale-observer",
+                family="stale_projection",
+                investigation_priority=9,
+                recommended_log_probe="Do not show this stale observer probe.",
+            )
+        ]
+        state.expanded_observer.log_investigation_plan.existing_log_targets = [
+            "stale observer log target",
+        ]
+        state.expanded_observer.log_investigation_plan.user_request_packet = [
+            UserRequestPacketEntry(
+                target_source="stale observer packet",
+                time_window="obsolete repro window",
+                keywords_or_fields=["obsolete"],
+                why_this_matters="Should not appear once the contract is populated.",
+                expected_signal_examples=["stale signal"],
+            )
+        ]
+        state.investigation_contract.top_candidates = [
+            ExpandedObserverTopCandidate(
+                candidate_id="cand-live-contract",
+                family="queue_retry",
+                investigation_priority=1,
+                recommended_log_probe="Inspect worker retry logs for ack completion.",
+                engineering_scores=ExpandedObserverEngineeringScores(
+                    cross_layer_span=4,
+                    indirect_causality_risk=3,
+                    evidence_gap=2,
+                    investigation_cost=1,
+                ),
+            )
+        ]
+        state.investigation_contract.log_investigation_plan.existing_log_targets = [
+            "worker retry logs for failing job",
+        ]
+        state.investigation_contract.log_investigation_plan.candidate_signal_map = [
+            LogCandidateSignalMapEntry(
+                candidate_id="cand-live-contract",
+                signals=["retry logged without ack completion"],
+            )
+        ]
+        state.investigation_contract.log_investigation_plan.log_sufficiency_judgment = (
+            "Current investigation logs still miss the final ack transition."
+        )
+        state.investigation_contract.log_investigation_plan.instrumentation_targets = [
+            "ack completion boundary in worker retry path",
+        ]
+        state.investigation_contract.log_investigation_plan.user_request_packet = [
+            UserRequestPacketEntry(
+                target_source="worker retry command output",
+                time_window="single failing retry attempt",
+                keywords_or_fields=["job_id", "retry_count", "ack_status"],
+                why_this_matters="Differentiates retry-loop failure from stale queue projection.",
+                expected_signal_examples=["retry logged without ack completion"],
+            )
+        ]
+        handler.save(state)
+
+    monkeypatch.setattr(cli_module, "generate_slug", lambda _: "contract-precedence")
+    monkeypatch.setattr(cli_module, "run_debug_session", fake_run_debug_session)
+
+    result = runner.invoke(app, ["debug", "worker retry never clears"])
+
+    assert result.exit_code == 0
+    lowered = result.stdout.lower()
+    assert "cand-live-contract" in lowered
+    assert "inspect worker retry logs for ack completion." in lowered
+    assert "worker retry logs for failing job" in lowered
+    assert "retry logged without ack completion" in lowered
+    assert "worker retry command output" in lowered
+    assert "cand-stale-observer" not in lowered
+    assert "stale observer log target" not in lowered
+    assert "stale observer packet" not in lowered
 
 
 def test_debug_prints_missing_root_cause_fields(clean_debug_dir, monkeypatch):
