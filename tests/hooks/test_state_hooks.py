@@ -321,7 +321,7 @@ def test_validate_state_blocks_when_active_command_does_not_match(tmp_path: Path
     assert any("active_command" in message for message in result.errors)
 
 
-def test_validate_state_blocks_when_recovery_fields_are_missing(tmp_path: Path):
+def test_validate_state_blocks_when_required_phase_contract_sections_are_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)

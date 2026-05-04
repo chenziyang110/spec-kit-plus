@@ -75,6 +75,21 @@ def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
                 "  - API contract",
                 "- required_evidence:",
                 "  - Contract test output",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
                 "",
             ]
         ),
@@ -97,8 +112,11 @@ def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.state.validate"
     assert payload["status"] == "ok"
+    assert payload["data"]["checkpoint"]["summary"] == "demo"
     assert payload["data"]["checkpoint"]["active_profile"] == "greenfield-api"
     assert payload["data"]["checkpoint"]["required_sections"] == ["API contract"]
+    assert payload["data"]["checkpoint"]["allowed_artifact_writes"] == ["spec.md"]
+    assert payload["data"]["checkpoint"]["forbidden_actions"] == ["edit source code"]
 
 
 def test_hook_validate_state_supports_constitution_command(tmp_path: Path):
@@ -119,6 +137,22 @@ def test_hook_validate_state_supports_constitution_command(tmp_path: Path):
                 "",
                 "- phase_mode: `planning-only`",
                 "- summary: constitution amendment",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- constitution.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- constitution.md",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
                 "",
             ]
         ),
@@ -161,6 +195,22 @@ def test_hook_validate_state_supports_prd_command(tmp_path: Path):
                 "",
                 "- phase_mode: `analysis-only`",
                 "- summary: reverse PRD extraction",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- prd.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- workflow-state.md",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
                 "",
             ]
         ),
