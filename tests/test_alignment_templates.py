@@ -1096,6 +1096,37 @@ def test_workflow_state_driven_templates_prefer_capture_auto_for_learning_closeo
         assert "workflow-state.md" in content or "testing-state.md" in content
 
 
+def test_testing_workflow_commands_preserve_downstream_control_plane_semantics() -> None:
+    build_content = _read("templates/commands/test-build.md")
+    asset_block = _extract_outline_step_block(
+        build_content,
+        "11. **Generate durable testing assets**",
+        "12. **Push the contract back into the main workflow**",
+    ).lower()
+
+    contract_start = asset_block.find("write `.specify/testing/testing_contract.md` with:")
+    playbook_start = asset_block.find("write `.specify/testing/testing_playbook.md` with:")
+    baseline_start = asset_block.find("write `.specify/testing/coverage_baseline.json`", playbook_start)
+    assert contract_start != -1
+    assert playbook_start != -1
+    assert baseline_start != -1
+
+    contract_block = asset_block[contract_start:playbook_start]
+    playbook_block = asset_block[playbook_start:baseline_start]
+    assert "covered-module rules" in contract_block
+    assert "covered-module status values" in contract_block
+    assert "local integration seam expectations" in contract_block
+    assert "covered-module rules" in playbook_block
+    assert "adding or changing tests" in playbook_block
+    assert "local integration seam expectations and examples" in playbook_block
+    assert "preserve each lane's canonical `validation_command`" in asset_block
+    assert re.search(r"`validation_command`\s+remains the lane acceptance command", asset_block)
+    assert "compatibility field for existing packet consumers" in asset_block
+    assert "do not replace it with a command-tier map" in asset_block
+    assert re.search(r"`focused`\s+command should mirror the canonical `validation_command`", asset_block)
+    assert "unless the build plan records an explicit exception" in asset_block
+
+
 def test_tasks_templates_default_to_phased_delivery_not_mvp():
     command_content = _read("templates/commands/tasks.md")
     template_content = _read("templates/tasks-template.md")

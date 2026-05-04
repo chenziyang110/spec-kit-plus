@@ -35,6 +35,10 @@ Control-plane role: newcomer-usable operating guide for where tests belong and w
   - large tests:
 - Naming conventions for new test files:
 - Shared fixtures, mocks, or factories to reuse:
+- Covered-module status guidance:
+  - Interpret `covered / partial / missing / unknown` before adding or changing tests:
+- Local integration seam expectations:
+  - Cover relevant adapter, filesystem, process, network, database, CLI, or workflow seams with local fakes/mocks or integration-style tests:
 - Smallest RED-first command to run before implementation:
 - Full validation command after adding tests:
 
@@ -68,6 +72,7 @@ Control-plane role: newcomer-usable operating guide for where tests belong and w
 - fast smoke command:
 - focused command:
 - full command:
+- Local integration seam examples:
 - Coverage notes:
 
 ## Known Gaps

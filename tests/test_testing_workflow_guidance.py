@@ -32,6 +32,14 @@ def _assert_command_tier_labels_in_markdown(content: str) -> None:
     assert "- full:" in lines
 
 
+def _section_between(content: str, heading: str, next_heading: str) -> str:
+    start = content.find(heading)
+    assert start != -1
+    end = content.find(next_heading, start)
+    assert end != -1
+    return content[start:end]
+
+
 def _assert_json_role_metadata(
     artifact: dict[str, object],
     *,
@@ -91,6 +99,42 @@ def test_test_scan_template_deep_scans_and_emits_build_plan():
     assert "test-build-plan-template.md" in lowered
     assert "test-build-plan-template.json" in lowered
     assert "unit-test-system-request-template.md" in lowered
+
+
+def test_test_scan_template_generates_downstream_control_plane_fields():
+    content = _read("templates/commands/test-scan.md")
+    lowered = content.lower()
+    packet_block = _section_between(
+        lowered,
+        "5. **compile `testscanpacket` lanes**",
+        "6. **dispatch read-only scan subagents**",
+    )
+    module_evidence_block = _section_between(
+        lowered,
+        "7. **build module evidence records**",
+        "8. **compile build-ready lanes**",
+    )
+
+    assert "covered-module status" in packet_block
+    assert "`covered` / `partial` / `missing` / `unknown`" in packet_block
+    assert "covered_module_status" in packet_block
+    assert "candidate command tiers" in packet_block
+    assert "`fast smoke`, `focused`, and `full`" in packet_block
+    assert "candidate_command_tiers" in packet_block
+    assert "candidate layer mix" in packet_block
+    assert "`small / medium / large`" in packet_block
+    assert "candidate_layer_mix" in packet_block
+    assert "local integration seams and their local integration seam expectations" in packet_block
+    assert "local_integration_seam_expectations" in packet_block
+
+    assert "covered-module status" in module_evidence_block
+    assert "candidate layer mix across `small / medium / large` tests" in module_evidence_block
+    assert "candidate command tiers" in module_evidence_block
+    assert "`fast smoke` for the cheapest confidence check" in module_evidence_block
+    assert "`focused` for the lane acceptance command" in module_evidence_block
+    assert "`full` for the broader regression command" in module_evidence_block
+    assert "local integration seam expectations" in module_evidence_block
+    assert "adapter, filesystem, process, network, database, cli, or workflow seam" in module_evidence_block
 
 
 def test_test_scan_template_requires_read_only_subagent_evidence():
@@ -166,6 +210,38 @@ def test_test_build_template_requires_manual_execution_evidence_and_assets():
     assert "where tests belong" in playbook_template
     assert "critical public/module-facing behavior" in contract_template
     assert "last_manual_validation" in state_template
+
+
+def test_test_build_template_publishes_control_plane_without_replacing_lane_validation_command():
+    content = _read("templates/commands/test-build.md")
+    lowered = content.lower()
+    durable_assets_block = _section_between(
+        lowered,
+        "11. **generate durable testing assets**",
+        "12. **push the contract back into the main workflow**",
+    )
+    contract_block = _section_between(
+        durable_assets_block,
+        "write `.specify/testing/testing_contract.md` with:",
+        "write `.specify/testing/testing_playbook.md` with:",
+    )
+    playbook_block = _section_between(
+        durable_assets_block,
+        "write `.specify/testing/testing_playbook.md` with:",
+        "write `.specify/testing/coverage_baseline.json`",
+    )
+
+    assert "covered-module rules" in contract_block
+    assert "covered-module status values" in contract_block
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full` commands" in contract_block
+    assert "local integration seam expectations" in contract_block
+    assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in playbook_block
+    assert "covered-module rules" in playbook_block
+    assert "adding or changing tests" in playbook_block
+    assert "local integration seam expectations and examples" in playbook_block
+    assert "preserve each lane's canonical `validation_command`" in durable_assets_block
+    assert "`validation_command` remains the lane acceptance command" in durable_assets_block
+    assert "do not replace it with a command-tier map" in durable_assets_block
 
 
 def test_test_build_template_requires_coverage_uplift_iteration():
@@ -280,6 +356,10 @@ def test_downstream_testing_contract_and_playbook_roles_are_distinct():
     _assert_command_tier_labels_in_markdown(contract_template)
 
     playbook_lines = set(playbook_template.splitlines())
+    playbook_run_tests = _section_between(playbook_template, "## run tests", "## add new tests")
+    playbook_add_tests = _section_between(playbook_template, "## add new tests", "## coverage")
+    playbook_module_notes = _section_between(playbook_template, "## module notes", "## known gaps")
+
     assert "where tests belong" in playbook_template
     assert "newcomer" in playbook_template
     assert "- where tests belong:" in playbook_lines
@@ -289,6 +369,19 @@ def test_downstream_testing_contract_and_playbook_roles_are_distinct():
     assert "- naming conventions for new test files:" in playbook_lines
     assert "- shared fixtures, mocks, or factories to reuse:" in playbook_lines
     _assert_command_tier_labels_in_markdown(playbook_template)
+    _assert_command_tier_labels_in_markdown(playbook_run_tests)
+    assert "- covered-module status guidance:" in playbook_lines
+    assert "covered / partial / missing / unknown" in playbook_add_tests
+    assert "adding or changing tests" in playbook_add_tests
+    assert "- local integration seam expectations:" in playbook_lines
+    assert "adapter" in playbook_add_tests
+    assert "filesystem" in playbook_add_tests
+    assert "process" in playbook_add_tests
+    assert "network" in playbook_add_tests
+    assert "database" in playbook_add_tests
+    assert "cli" in playbook_add_tests
+    assert "workflow" in playbook_add_tests
+    assert "- local integration seam examples:" in playbook_module_notes
 
 
 def test_downstream_testing_request_and_state_roles_do_not_collapse():

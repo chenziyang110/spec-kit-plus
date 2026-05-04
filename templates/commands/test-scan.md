@@ -117,8 +117,12 @@ Use `execution_surface: native-subagents`.
      - `truth_owning_files`
      - `public_entrypoints`
      - `existing_test_surface`
+     - covered-module status: `covered` / `partial` / `missing` / `unknown`
      - `missing_scenarios`
      - `risk_tier`
+     - candidate command tiers: `fast smoke`, `focused`, and `full`
+     - candidate layer mix: `small / medium / large`
+     - local integration seams and their local integration seam expectations
      - `recommended_build_lanes`
      - `validation_commands`
      - `blockers`
@@ -135,8 +139,12 @@ Use `execution_surface: native-subagents`.
          "truth_owning_files",
          "public_entrypoints",
          "existing_test_surface",
+         "covered_module_status",
          "missing_scenarios",
          "risk_tier",
+         "candidate_command_tiers",
+         "candidate_layer_mix",
+         "local_integration_seam_expectations",
          "recommended_build_lanes",
          "validation_commands",
          "blockers"
@@ -166,8 +174,12 @@ Use `execution_surface: native-subagents`.
      - public entrypoints and contracts
      - truth-owning logic and high-risk branches
      - existing test files and helpers
+     - covered-module status: `covered` / `partial` / `missing` / `unknown`, with evidence for the status instead of a raw coverage guess
      - missing happy-path, invalid-input, boundary, exception, state-transition, and local-integration scenarios
      - recommended `small / medium / large` test mix
+     - candidate layer mix across `small / medium / large` tests for the next build lane
+     - candidate command tiers: `fast smoke` for the cheapest confidence check, `focused` for the lane acceptance command, and `full` for the broader regression command
+     - local integration seam expectations, including the adapter, filesystem, process, network, database, CLI, or workflow seam that needs local fake/mock or integration-style coverage
      - mock/fake strategy
      - candidate validation and coverage commands
      - blocker or uncertainty when evidence is incomplete
