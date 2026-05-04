@@ -17,8 +17,9 @@ def test_workflow_routing_references_map_gate_and_project_learning_roles() -> No
     assert "sp-test-build" in content
     assert "{{invoke:test}}" not in content
     assert "sp-auto" in content
-    assert "sp-prd" in content
-    assert "peer to `sp-specify`" in content
+    assert "sp-prd-scan" in content
+    assert "sp-prd-build" in content
+    assert "peer\n  workflow path to `sp-specify`" in content or "peer workflow path to `sp-specify`" in content
     assert "do not automatically hand off to planning" in content
     assert "sp-deep-research" in content
     assert "implementation chain" in content or "implementation-chain" in content
@@ -33,8 +34,9 @@ def test_workflow_routing_references_map_gate_and_project_learning_roles() -> No
 def test_project_to_prd_routes_existing_project_prd_extraction() -> None:
     content = _read("templates/passive-skills/project-to-prd/SKILL.md").lower()
 
-    assert "sp-prd" in content
-    assert "peer workflow to `sp-specify`" in content
+    assert "sp-prd-scan" in content
+    assert "sp-prd-build" in content
+    assert "deprecated" in content
     assert "current-state prd suite" in content
     assert "repository evidence" in content
     assert "evidence, inference, and unknown" in content
@@ -49,6 +51,23 @@ def test_project_to_prd_mentions_depth_aware_reconstruction() -> None:
     assert "targeted evidence harvest" in content
     assert "critical capabilities" in content
     assert "depth-aware" in content
+
+
+def test_project_to_prd_skill_routes_to_prd_scan_then_prd_build() -> None:
+    content = _read("templates/passive-skills/project-to-prd/SKILL.md")
+    lowered = content.lower()
+
+    assert "sp-prd-scan" in content
+    assert "sp-prd-build" in content
+    assert "deprecated" in lowered
+
+
+def test_workflow_routing_uses_prd_scan_then_prd_build_as_canonical_prd_flow() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md").lower()
+
+    assert "sp-prd-scan -> sp-prd-build" in content
+    assert "{{invoke:prd-scan}} -> {{invoke:prd-build}}" in content
+    assert "deprecated compatibility alias" in content
 
 
 def test_workflow_routing_forces_route_selection_before_any_action() -> None:

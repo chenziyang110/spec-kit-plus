@@ -42,9 +42,10 @@ persisted and which downstream workflow handoffs must preserve it.]
 
 ## Entry Points, Contracts, and Handoffs
 
-[Record `sp-prd` as a peer workflow to `sp-specify` when supported. It starts
-from current repository reality and reverse-extracts a PRD suite into
-`.specify/prd-runs/<run-id>/`; it does not automatically hand off to planning.]
+[Record `sp-prd-scan -> sp-prd-build` as the canonical peer workflow path to
+`sp-specify` when supported. It starts from current repository reality and
+reverse-extracts a PRD suite into `.specify/prd-runs/<run-id>/`; it does not
+automatically hand off to planning. `sp-prd` is deprecated compatibility-only.]
 
 ## State Transitions and Compatibility Notes
 
@@ -58,6 +59,7 @@ from current repository reality and reverse-extracts a PRD suite into
 
 ## Entry Commands and Handoffs
 
-[Include the `prd` entry command when present. Describe it as existing-project
-current-state PRD extraction grounded in repository evidence, not as a required
-pre-plan step.]
+[Include the `prd-scan` and `prd-build` entry commands when present. Describe
+them as the canonical existing-project current-state PRD extraction pair
+grounded in repository evidence, not as a required pre-plan step. If `prd` is
+present, describe it as deprecated compatibility-only routing into that pair.]

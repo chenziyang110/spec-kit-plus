@@ -7,19 +7,22 @@ origin: spec-kit-plus
 # Project To PRD
 
 Use this passive skill to recognize existing-project PRD extraction work and
-route it to the active `sp-prd` workflow.
+route it to `sp-prd-scan`, then `sp-prd-build`.
 
-`sp-prd` is a peer workflow to `sp-specify`. Use `sp-specify` when the user wants
-to align a new or changed feature intent before planning. Use `sp-prd` when the
-user wants a professional current-state PRD suite reconstructed from the
-repository that already exists.
+Use `sp-specify` when the user wants to align a new or changed feature intent
+before planning. Use `sp-prd-scan -> sp-prd-build` when the user wants a
+professional current-state PRD suite reconstructed from the repository that
+already exists. `sp-prd` is deprecated and remains compatibility-only for older
+surfaces that have not been updated yet.
 
 ## Required Behavior
 
-- Route existing-project reverse PRD requests to `sp-prd` before repository
-  inspection.
-- Treat `sp-prd` as a depth-aware current-state extraction workflow, not a flat
-  repo summary pass.
+- Route existing-project reverse PRD requests to `sp-prd-scan`, then
+  `sp-prd-build`, before repository inspection.
+- Treat `sp-prd-scan -> sp-prd-build` as the depth-aware current-state
+  extraction workflow, not a flat repo summary pass.
+- Treat `sp-prd` as a deprecated compatibility-only entrypoint that must route
+  into the canonical `sp-prd-scan -> sp-prd-build` flow.
 - Ground the PRD in current implementation reality: code, docs, tests, routes,
   UI surfaces, service/API surfaces, configuration, data models, domain terms,
   `PROJECT-HANDBOOK.md`, and project-map evidence when present.
@@ -37,7 +40,7 @@ repository that already exists.
 
 ## Routing Signals
 
-Use `sp-prd` for requests like:
+Use `sp-prd-scan`, then `sp-prd-build` for requests like:
 
 - "write a PRD for this existing app"
 - "extract product requirements from this repo"
@@ -53,7 +56,12 @@ future change that is not grounded in an existing repository surface.
 The active workflow should produce a current-state PRD suite, typically:
 
 - `.specify/prd-runs/<run-id>/workflow-state.md`
-- `.specify/prd-runs/<run-id>/coverage-matrix.md`
+- `.specify/prd-runs/<run-id>/prd-scan.md`
+- `.specify/prd-runs/<run-id>/coverage-ledger.md`
+- `.specify/prd-runs/<run-id>/coverage-ledger.json`
+- `.specify/prd-runs/<run-id>/capability-ledger.json`
+- `.specify/prd-runs/<run-id>/artifact-contracts.json`
+- `.specify/prd-runs/<run-id>/reconstruction-checklist.json`
 - `.specify/prd-runs/<run-id>/evidence/`
 - `.specify/prd-runs/<run-id>/master/master-pack.md`
 - `.specify/prd-runs/<run-id>/exports/prd.md`

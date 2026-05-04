@@ -97,18 +97,19 @@ Invocation syntax depends on the integration:
 
 | Integration surface | Specify | PRD | Plan | Tasks |
 | --- | --- | --- | --- | --- |
-| Codex skills | `$sp-specify` | `$sp-prd` | `$sp-plan` | `$sp-tasks` |
-| Kimi Code skills | `/skill:sp-specify` | `/skill:sp-prd` | `/skill:sp-plan` | `/skill:sp-tasks` |
-| Claude skills | `/sp-specify` | `/sp-prd` | `/sp-plan` | `/sp-tasks` |
-| Slash-dot command integrations | `/sp.specify` | `/sp.prd` | `/sp.plan` | `/sp.tasks` |
+| Codex skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | `$sp-tasks` |
+| Kimi Code skills | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | `/skill:sp-tasks` |
+| Claude skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-tasks` |
+| Slash-dot command integrations | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
 
 `/sp-*` is not universal for skills-backed integrations. Use the invocation
 syntax generated for your selected integration rather than copying Claude-style
 examples into Codex or Kimi projects.
 
-Use the canonical `prd` workflow when an existing repository needs a
-repository-first current-state PRD suite. It is a peer to `specify` and does not
-automatically hand off to `plan`.
+Use the canonical `prd-scan -> prd-build` workflow when an existing repository
+needs a repository-first current-state PRD suite. It is a peer workflow path to
+`specify` and does not automatically hand off to `plan`. `prd` remains a
+deprecated compatibility entrypoint only.
 
 The `.specify/scripts` directory will contain both `.sh` and `.ps1` scripts.
 
