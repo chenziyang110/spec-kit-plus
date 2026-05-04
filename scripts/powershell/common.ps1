@@ -408,3 +408,13 @@ function Get-LegacyProjectMapStatusPath {
     param([string]$RepoRoot = (Get-RepoRoot))
     return (Join-Path (Get-ProjectMapDir -RepoRoot $RepoRoot) "status.json")
 }
+
+function Get-TestingDir {
+    param([string]$RepoRoot = (Get-RepoRoot))
+    return (Join-Path $RepoRoot ".specify/testing")
+}
+
+function Get-TestingStatusPath {
+    param([string]$RepoRoot = (Get-RepoRoot))
+    return (Join-Path (Get-TestingDir -RepoRoot $RepoRoot) "status.json")
+}
