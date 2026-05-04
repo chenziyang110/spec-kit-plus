@@ -70,10 +70,13 @@ missing, copy the template first.
 
 - If repo-derived evidence is needed, read `PROJECT-HANDBOOK.md` as the root
   navigation artifact and use `.specify/project-map/index/status.json` to assess
-  freshness before trusting topical project-map files.
+  git-baseline freshness as the truth source before trusting topical project-map files.
 - If the navigation system is missing or stale for an existing codebase, run
   `/sp-map-scan` followed by `/sp-map-build` before continuing or mark the refresh as a blocking
   follow-up rather than fabricating repository context.
+- If an amendment affects handbook/project-map truth and a full refresh can be completed now,
+  do it and use `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer;
+  otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback.
 - If the amendment changes structure, ownership, workflows, testing strategy, integrations, or operator expectations, mark the related handbook/project-map surface for refresh in the Sync Impact Report even if the constitution update itself is complete. Use this exact framing: mark the related handbook/project-map surface for refresh.
 
 ## Downstream Re-entry Contract

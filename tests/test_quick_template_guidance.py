@@ -200,9 +200,13 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "separate `verified` coverage from `not checked` coverage" in content
     assert "for each declared surface, give the terminal status conclusion" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
+    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in content
     assert "run `/sp-map-scan` followed by `/sp-map-build` before marking the quick task `resolved`" in content
-    assert "if you cannot complete that refresh in the current pass" in content
-    assert "mark `.specify/project-map/index/status.json` dirty" in content
+    assert "complete-refresh" in content
+    assert "successful-refresh finalizer" in content
+    assert "if a full refresh can be completed now" in content
+    assert "otherwise use" in content
+    assert "manual override/fallback" in content
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:

@@ -349,14 +349,11 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert "wait_agent" in test_build_content
 
     prd_content = (skills_dir / "sp-prd" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "existing-project reverse prd extraction" in prd_content
-    assert "current repository reality" in prd_content
-    assert "no automatic handoff into implementation planning" in prd_content
-    assert ".specify/prd-runs/<run-id>/" in prd_content
-    assert "capability triage" in prd_content
-    assert "targeted evidence harvest" in prd_content
-    assert "depth-qualified" in prd_content
-    assert "critical depth gate" in prd_content
+    assert "deprecated compatibility entrypoint" in prd_content
+    assert "sp-prd-scan" in prd_content
+    assert "sp-prd-build" in prd_content
+    assert "compatibility" in prd_content
+    assert "do not keep one-step semantics alive" in prd_content
 
     constitution_content = (skills_dir / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert ".specify/memory/project-rules.md" in constitution_content
@@ -637,7 +634,8 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "run `/sp-map-scan` followed by `/sp-map-build` before the final report" in content
-    assert "if that refresh would break the fast-path scope" in content
+    assert "if a full refresh can be completed now" in content
+    assert "manual override/fallback" in content.lower()
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
     assert "leader-direct" in content or "the leader performs the change directly" in content

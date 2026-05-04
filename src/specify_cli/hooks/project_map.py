@@ -51,6 +51,8 @@ def project_map_freshness_result(project_root: Path, *, command_name: str) -> Ho
 
 
 def mark_dirty_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
+    """Record manual dirty fallback state when a complete refresh cannot finish now."""
+
     reason = str(payload.get("reason") or "").strip()
     if not reason:
         raise QualityHookError("reason is required for project_map.mark_dirty")
@@ -65,6 +67,8 @@ def mark_dirty_hook(project_root: Path, payload: dict[str, object]) -> HookResul
 
 
 def complete_refresh_hook(project_root: Path, _payload: dict[str, object]) -> HookResult:
+    """Finalize a successful full refresh against the current git baseline."""
+
     if not has_git_repo(project_root) or not git_head_commit(project_root):
         return HookResult(
             event=PROJECT_MAP_COMPLETE_REFRESH,

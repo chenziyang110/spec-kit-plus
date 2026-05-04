@@ -83,6 +83,7 @@ _HOOK_REGISTRY: dict[str, HookFn] = {
     PROJECT_MAP_MARK_DIRTY: mark_dirty_hook,
     PROJECT_MAP_COMPLETE_REFRESH: complete_refresh_hook,
 }
+# Project-map event names stay stable while wording treats complete-refresh as the finalizer.
 
 
 def run_quality_hook(

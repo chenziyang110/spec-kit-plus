@@ -172,7 +172,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first
    - whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning
    - updated `workflow-state.md` path
-   - if this repair pass proves the current handbook/project-map no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield implementation proceeds
+   - if this repair pass proves the current handbook/project-map no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield implementation proceeds
 
 ## Presentation Contract
 
