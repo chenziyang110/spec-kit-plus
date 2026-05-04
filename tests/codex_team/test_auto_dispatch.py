@@ -718,6 +718,120 @@ def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(
     assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "complete"
 
 
+def test_complete_dispatched_batch_tolerates_result_submission_after_task_already_completed(
+    monkeypatch,
+    codex_team_project_root: Path,
+):
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.shutil.which", lambda name: r"C:\tmux.exe")
+
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+
+**Join Point 1.1**: merge before T004
+""",
+    )
+
+    route_ready_parallel_batch(
+        codex_team_project_root,
+        feature_dir=feature_dir,
+        session_id="default",
+    )
+
+    for task_id in ("T002", "T003"):
+        request_id = f"default-parallel-batch-1-1-{task_id.lower()}"
+        result_path = result_record_path(codex_team_project_root, request_id)
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result = WorkerTaskResult(
+            task_id=task_id,
+            status="success",
+            changed_files=[f"src/{task_id.lower()}.py"],
+            validation_results=[
+                ValidationResult(
+                    command="pytest tests/unit/test_auth_service.py -q",
+                    status="passed",
+                    output="1 passed",
+                )
+            ],
+            summary=f"{task_id} finished cleanly",
+            rule_acknowledgement=RuleAcknowledgement(
+                required_references_read=True,
+                forbidden_drift_respected=True,
+                context_bundle_read=True,
+                paths_read=["src/contracts/auth.py"],
+            ),
+        )
+        result_path.write_text(
+            json.dumps(worker_task_result_payload(result), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    from specify_cli.codex_team.runtime_bridge import submit_runtime_result as real_submit_runtime_result
+
+    raced_request_ids: set[str] = set()
+
+    def _submit_after_external_completion(project_root: Path, *, session_id: str, request_id: str, result: object):
+        if request_id.endswith("t003") and request_id not in raced_request_ids:
+            raced_request_ids.add(request_id)
+            record = get_task(project_root, "T003")
+            token = claim_task(
+                project_root,
+                task_id="T003",
+                worker_id="t003-worker",
+                expected_version=record.version,
+            )
+            in_progress = transition_task_status(
+                project_root,
+                task_id="T003",
+                new_status="in_progress",
+                owner="t003-worker",
+                expected_version=record.version + 1,
+                claim_token=token,
+            )
+            transition_task_status(
+                project_root,
+                task_id="T003",
+                new_status="completed",
+                owner="t003-worker",
+                expected_version=in_progress.version,
+                claim_token=token,
+            )
+
+        return real_submit_runtime_result(
+            project_root,
+            session_id=session_id,
+            request_id=request_id,
+            result=result,
+        )
+
+    monkeypatch.setattr(
+        "specify_cli.codex_team.auto_dispatch.submit_runtime_result",
+        _submit_after_external_completion,
+    )
+
+    completion = complete_dispatched_batch(
+        codex_team_project_root,
+        batch_id="default-parallel-batch-1-1",
+        session_id="default",
+    )
+
+    assert completion.status == "completed"
+    task_payload = get_task(codex_team_project_root, "T003")
+    assert task_payload.status == "completed"
+    assert task_payload.metadata["worker_result"]["status"] == "success"
+    assert task_payload.metadata["join_points"]["Join Point 1.1"]["status"] == "complete"
+
+
 def test_route_ready_parallel_batch_rejects_explicit_batches_with_unknown_task_ids(
     monkeypatch, codex_team_project_root: Path
 ):

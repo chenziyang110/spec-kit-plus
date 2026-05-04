@@ -478,6 +478,12 @@ def _sync_task_state_from_result(
             metadata={"source": "submit_runtime_result"},
         )
 
+    final_status = (
+        task_ops.TASK_STATUS_COMPLETED
+        if validated.status == "success"
+        else task_ops.TASK_STATUS_FAILED
+    )
+    failure_class = "blocked" if validated.status == "blocked" else ""
     current_claim = (task_record.metadata or {}).get("current_claim")
     claim_token = current_claim.get("claim_id") if isinstance(current_claim, dict) else None
 
@@ -502,24 +508,30 @@ def _sync_task_state_from_result(
                 f"task {packet_task_id} is in progress but has no matching claim for worker {target_worker}"
             )
     elif task_record.status in task_ops.TERMINAL_STATUSES:
-        raise RuntimeEnvironmentError(f"task {packet_task_id} already reached terminal status {task_record.status}")
+        existing_failure_class = (task_record.metadata or {}).get("failure_class", "")
+        terminal_result_matches = (
+            task_record.status == final_status
+            and existing_failure_class == failure_class
+        )
+        if not terminal_result_matches:
+            raise RuntimeEnvironmentError(
+                f"task {packet_task_id} already reached terminal status {task_record.status}"
+            )
+        latest_record = task_record
+    else:
+        latest_record = task_record
 
-    final_status = (
-        task_ops.TASK_STATUS_COMPLETED
-        if validated.status == "success"
-        else task_ops.TASK_STATUS_FAILED
-    )
-    failure_class = "blocked" if validated.status == "blocked" else ""
-    task_ops.transition_task_status(
-        project_root,
-        task_id=packet_task_id,
-        new_status=final_status,
-        owner=target_worker,
-        expected_version=task_record.version,
-        claim_token=claim_token,
-        failure_class=failure_class,
-    )
-    latest_record = task_ops.get_task(project_root, packet_task_id)
+    if task_record.status not in task_ops.TERMINAL_STATUSES:
+        task_ops.transition_task_status(
+            project_root,
+            task_id=packet_task_id,
+            new_status=final_status,
+            owner=target_worker,
+            expected_version=task_record.version,
+            claim_token=claim_token,
+            failure_class=failure_class,
+        )
+        latest_record = task_ops.get_task(project_root, packet_task_id)
 
     validation_summary = summarize_validation_results(validated.validation_results)
     task_ops.update_task_metadata(
