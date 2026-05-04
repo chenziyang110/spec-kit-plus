@@ -17,6 +17,7 @@ from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import render_hook_launcher_command
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
+SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
 
 
 def _load_claude_hook_dispatch_module():
@@ -146,6 +147,7 @@ class TestClaudeIntegration:
                     ".specify/scripts/powershell/update-agent-context.ps1",
                 ]
             )
+        expected.append(SHARED_PRD_HELPER)
 
         expected.extend(f".specify/templates/{name}" for name in cls._template_files())
         return sorted(expected)

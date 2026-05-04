@@ -6,6 +6,8 @@ import os
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
 
+SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+
 
 class TestCopilotIntegration:
     @staticmethod
@@ -83,6 +85,7 @@ class TestCopilotIntegration:
                     ".specify/scripts/powershell/update-agent-context.ps1",
                 ]
             )
+        expected.append(SHARED_PRD_HELPER)
 
         expected.extend(f".specify/templates/{name}" for name in cls._template_files())
         return sorted(expected)

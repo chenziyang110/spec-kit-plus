@@ -839,6 +839,9 @@ def _run_prd_helper(
         run_slug,
     ]
 
+    env = os.environ.copy()
+    env.setdefault("SPECIFY_PYTHON", sys.executable)
+
     result = subprocess.run(
         cmd,
         capture_output=True,
@@ -846,6 +849,7 @@ def _run_prd_helper(
         encoding="utf-8",
         errors="replace",
         check=False,
+        env=env,
     )
     if result.returncode != 0:
         error_output = (result.stderr or result.stdout or "").strip() or "PRD helper failed"
@@ -2435,6 +2439,23 @@ def _install_shared_infra(
                 if src_path.is_file():
                     rel_path = src_path.relative_to(variant_src)
                     dst_path = dest_variant / rel_path
+                    if dst_path.exists() and not overwrite_existing:
+                        skipped_files.append(str(dst_path.relative_to(project_path)))
+                    else:
+                        dst_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(src_path, dst_path)
+                        rel = dst_path.relative_to(project_path).as_posix()
+                        manifest.record_existing(rel)
+        shared_src = scripts_src / "shared"
+        if shared_src.is_dir():
+            dest_shared = dest_scripts / "shared"
+            dest_shared.mkdir(parents=True, exist_ok=True)
+            for src_path in shared_src.rglob("*"):
+                if "__pycache__" in src_path.parts or src_path.suffix == ".pyc":
+                    continue
+                if src_path.is_file():
+                    rel_path = src_path.relative_to(shared_src)
+                    dst_path = dest_shared / rel_path
                     if dst_path.exists() and not overwrite_existing:
                         skipped_files.append(str(dst_path.relative_to(project_path)))
                     else:

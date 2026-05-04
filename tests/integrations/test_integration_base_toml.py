@@ -18,6 +18,7 @@ from specify_cli.integrations.base import TomlIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
+SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
 
 
 class TomlIntegrationTests:
@@ -561,6 +562,7 @@ class TomlIntegrationTests:
             for name in ["check-prerequisites.ps1", "common.ps1", "create-new-feature.ps1",
                          "prd-state.ps1", "project-map-freshness.ps1", "quick-state.ps1", "setup-plan.ps1", "sync-ecc-to-codex.ps1", "update-agent-context.ps1"]:
                 files.append(f".specify/scripts/powershell/{name}")
+        files.append(SHARED_PRD_HELPER)
 
         for name in self._template_files():
             files.append(f".specify/templates/{name}")
