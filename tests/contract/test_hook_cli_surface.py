@@ -1373,6 +1373,22 @@ def test_prd_command_help_marks_compatibility_only(tmp_path: Path):
     assert "Deprecated compatibility entrypoint" in help_text
     assert "prd-scan" in help_text
     assert "prd-build" in help_text
+    assert "heavy reconstruction" in help_text.lower()
+    assert "L4 Reconstruction-Ready" in help_text
+    assert "subagent-mandatory" in help_text
+    assert "config-contracts.json" in help_text
+
+
+def test_prd_build_command_help_mentions_build_only_reconstruction_contract(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = _run_module_in_project(project, ["prd-build", "--help"])
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    help_text = result.stdout
+    assert "heavy reconstruction" in help_text.lower()
+    assert "second repository scan" in help_text.lower()
+    assert "critical evidence" in help_text.lower()
 
 
 def test_hook_validate_artifacts_blocks_prd_build_when_critical_capability_is_not_reconstruction_ready(tmp_path: Path):

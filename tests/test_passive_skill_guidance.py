@@ -53,6 +53,18 @@ def test_project_to_prd_mentions_depth_aware_reconstruction() -> None:
     assert "depth-aware" in content
 
 
+def test_project_to_prd_mentions_heavy_reconstruction_contract() -> None:
+    content = _read("templates/passive-skills/project-to-prd/SKILL.md")
+    lowered = content.lower()
+
+    assert "heavy reconstruction" in lowered
+    assert "L4 Reconstruction-Ready" in content
+    assert "subagent-mandatory" in content
+    assert "config-contracts.json" in content
+    assert "second repository scan" in lowered
+    assert "critical evidence" in lowered
+
+
 def test_project_to_prd_skill_routes_to_prd_scan_then_prd_build() -> None:
     content = _read("templates/passive-skills/project-to-prd/SKILL.md")
     lowered = content.lower()
@@ -68,6 +80,18 @@ def test_workflow_routing_uses_prd_scan_then_prd_build_as_canonical_prd_flow() -
     assert "sp-prd-scan -> sp-prd-build" in content
     assert "{{invoke:prd-scan}} -> {{invoke:prd-build}}" in content
     assert "deprecated compatibility alias" in content
+
+
+def test_workflow_routing_mentions_heavy_prd_reconstruction_contract() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    lowered = content.lower()
+
+    assert "heavy reconstruction" in lowered
+    assert "L4 Reconstruction-Ready" in content
+    assert "subagent-mandatory" in content
+    assert "config-contracts.json" in content
+    assert "must not reread the repository" in lowered
+    assert "critical evidence gaps" in lowered
 
 
 def test_workflow_routing_forces_route_selection_before_any_action() -> None:
