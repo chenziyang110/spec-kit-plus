@@ -58,6 +58,42 @@ EXPECTED_PRD_TEMPLATES = {
         "Planning Handoff Notes",
         "Verification Clues",
     ],
+    "export-config-contracts-template.md": [
+        "# Configuration Contracts",
+        "Config Surface",
+        "Default Value",
+        "Precedence",
+    ],
+    "export-protocol-contracts-template.md": [
+        "# Protocol Contracts",
+        "Boundary",
+        "Field Mapping",
+        "Compatibility",
+    ],
+    "export-state-machines-template.md": [
+        "# State Machines",
+        "State Set",
+        "Transition Trigger",
+        "Recovery",
+    ],
+    "export-error-semantics-template.md": [
+        "# Error Semantics",
+        "Trigger",
+        "Exposure",
+        "Recovery Behavior",
+    ],
+    "export-verification-surface-template.md": [
+        "# Verification Surface",
+        "Minimum Verification Command",
+        "Locked Behavior",
+        "Parity Checkpoint",
+    ],
+    "export-reconstruction-risks-template.md": [
+        "# Reconstruction Risks",
+        "Critical Gap",
+        "Unknown",
+        "Fidelity Risk",
+    ],
 }
 
 
@@ -87,6 +123,12 @@ def test_prd_master_pack_template_is_export_truth_source() -> None:
     assert "Do not maintain export-only facts" in content
     assert "Export Completeness Check" in content
     assert "every master capability appears in at least one export" in content
+    assert "Config Dossiers" in content
+    assert "Protocol Dossiers" in content
+    assert "State Machine Dossiers" in content
+    assert "Error Semantic Dossiers" in content
+    assert "Verification Dossiers" in content
+    assert "Export Landing Map" in content
 
 
 def test_prd_master_pack_template_requires_tiered_capability_fields() -> None:
