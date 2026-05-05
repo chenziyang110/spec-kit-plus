@@ -13,6 +13,14 @@ This export is the primary reader-facing PRD. It must be derived from `master-pa
 - **Project mode**: [ui | service | mixed]
 - **Confidence summary**: [EVIDENCE_INFERENCE_UNKNOWN_BALANCE]
 
+## How To Use This PRD Suite
+
+Start with this document for product scope, major capabilities, and
+current-state boundaries. Use `README.md` when you need the package-level
+reading map. Jump to `integration-contracts.md`, `state-machines.md`,
+`verification-surface.md`, `config-contracts.md`, or
+`reconstruction-risks.md` when you need deeper topic-specific detail.
+
 ## Product Overview
 
 [Explain what the project is, what it does today, and what value it provides.]
@@ -80,10 +88,14 @@ This export is the primary reader-facing PRD. It must be derived from `master-pa
 
 - [Unknown that remains unresolved.]
 
-## Appendix Navigation
+## Related Documents
 
-- UI specification: `ui-spec.md`
-- Service specification: `service-spec.md`
-- Flows and information architecture: `flows-and-ia.md`
-- Data and rules appendix: `data-rules-appendix.md`
-- Internal implementation brief: `internal-implementation-brief.md`
+- `README.md`: package navigation entry and reading map for the whole PRD suite.
+- `integration-contracts.md`: system boundaries, dependencies, and cross-system seams.
+- `runtime-behaviors.md`: current runtime behavior, operational interaction, and execution posture.
+- `config-contracts.md`: behavior switches, defaults, and precedence rules.
+- `protocol-contracts.md`: field-level, payload-level, or boundary-level exchange details.
+- `state-machines.md`: lifecycle states, transition triggers, and recovery paths.
+- `error-semantics.md`: failure triggers, exposure, and recovery behavior.
+- `verification-surface.md`: minimum checks that lock current behavior.
+- `reconstruction-risks.md`: fidelity risks and unresolved reconstruction uncertainty.

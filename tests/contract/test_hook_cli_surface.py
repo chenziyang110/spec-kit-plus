@@ -125,6 +125,7 @@ def _write_legacy_prd_build_exports(run_dir: Path) -> None:
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
     exports_dir = run_dir / "exports"
     exports_dir.mkdir(exist_ok=True)
+    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
     (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
@@ -990,6 +991,24 @@ def test_hook_validate_artifacts_blocks_prd_build_when_heavy_exports_are_missing
     assert any("exports/error-semantics.md" in message for message in payload["errors"])
     assert any("exports/verification-surface.md" in message for message in payload["errors"])
     assert any("exports/reconstruction-risks.md" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_prd_build_when_export_navigation_is_missing(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-missing-export-readme"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    _write_prd_build_ready_scan_artifacts(run_dir)
+    _write_heavy_prd_build_exports(run_dir)
+    (run_dir / "exports" / "README.md").unlink()
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("exports/README.md" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_blocks_prd_build_when_worker_result_lacks_required_fields(tmp_path: Path):
