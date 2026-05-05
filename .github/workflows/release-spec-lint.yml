@@ -49,6 +49,6 @@ jobs:
           ls -lh bin/
 
       - name: Upload binaries to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: tools/spec-lint/bin/*
