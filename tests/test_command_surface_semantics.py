@@ -272,3 +272,20 @@ def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_comman
         content = path.read_text(encoding="utf-8")
         for fragment in forbidden_fragments:
             assert fragment not in content, f"{path} still contains fake runnable command fragment: {fragment}"
+
+
+def test_readme_learning_helper_surface_uses_command_shape_and_required_options() -> None:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
+
+    assert "command shape:" in readme
+    assert "required options:" in readme
+    assert "specify learning capture --command <workflow> ..." not in readme
+    assert "specify hook signal-learning --command <workflow> ..." not in readme
+    assert "specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> ..." not in readme
+
+
+def test_upgrade_guide_labels_agent_placeholder_upgrade_command_as_command_shape() -> None:
+    upgrade = (PROJECT_ROOT / "docs" / "upgrade.md").read_text(encoding="utf-8")
+
+    assert "Command shape:" in upgrade
+    assert "specify init --here --force --ai <your-agent>" in upgrade

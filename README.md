@@ -295,20 +295,29 @@ Passive project learning layer:
 - Low-level helper commands exist for the passive learning lifecycle:
 - `specify learning ensure --format json`
 - `specify learning status --format json`
-- `specify learning start --command <workflow> --format json`
-- `specify learning capture --command <workflow> ...`
-- `specify learning capture-auto --command <workflow> ...`
+- `specify learning start`
+  - Command shape: `specify learning start --command <workflow> --format json`
+- `specify learning capture`
+  - Required options: `--command`, `--type`, `--summary`, `--evidence`
+- `specify learning capture-auto`
+  - Command shape: `specify learning capture-auto --command <workflow> --format json`
 - `specify implement closeout --feature-dir <feature-dir> --format json`
 - `specify learning aggregate --format json`
-- `specify learning promote --recurrence-key <key> --target learning|rule`
-- `specify hook signal-learning --command <workflow> ...`
-- `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> ...`
-- `specify hook capture-learning --command <workflow> --type <type> --summary "..." --evidence "..."`
-- `specify hook inject-learning --command <workflow> --type <type> --summary "..."`
+- `specify learning promote`
+  - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
+- `specify hook signal-learning`
+  - Command shape: `specify hook signal-learning --command <workflow> --retry-attempts <n> --hypothesis-changes <n>`
+- `specify hook review-learning`
+  - Command shape: `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"`
+- `specify hook capture-learning`
+  - Required options: `--command`, `--type`, `--summary`, `--evidence`
+- `specify hook inject-learning`
+  - Command shape: `specify hook inject-learning --command <workflow> --type <type> --summary "<summary>"`
 - Use `specify learning aggregate` when you want a grouped, promotion-oriented summary of candidate, confirmed, and promoted learning patterns before deciding what should become a shared learning or rule.
 - This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across every `sp-*` workflow, with `review-learning` acting as the terminal learning gate and `capture-learning` preserving structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
 - Durable eval helpers turn promoted rules into local regression checks:
-  - `specify eval create --recurrence-key <key> ...`
+  - `specify eval create`
+    - Command shape: `specify eval create --recurrence-key <key> --summary "<summary>"`
   - `specify eval status --format json`
   - `specify eval run --format json`
 - Use `specify eval create` after a rule or learning becomes stable enough that the repository should keep proving it, not just remember it.
