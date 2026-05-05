@@ -44,6 +44,7 @@ packages = ["src/specify_cli"]
 "templates/project-rules-template.md" = "specify_cli/core_pack/templates/project-rules-template.md"
 "templates/research-template.md" = "specify_cli/core_pack/templates/research-template.md"
 "templates/references-template.md" = "specify_cli/core_pack/templates/references-template.md"
+"templates/specify-draft-template.md" = "specify_cli/core_pack/templates/specify-draft-template.md"
 "templates/spec-template.md" = "specify_cli/core_pack/templates/spec-template.md"
 "templates/tasks-template.md" = "specify_cli/core_pack/templates/tasks-template.md"
 "templates/workflow-state-template.md" = "specify_cli/core_pack/templates/workflow-state-template.md"

@@ -144,6 +144,7 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     forbidden_actions = section_body(text, "Forbidden Actions")
     authoritative_files = section_body(text, "Authoritative Files")
     lane_context = section_body(text, "Lane Context")
+    resume_checklist = section_body(text, "Resume Checklist")
     exit_criteria = section_body(text, "Exit Criteria")
     learning_signals = section_body(text, "Learning Signals")
     false_starts = section_body(text, "False Starts")
@@ -175,6 +176,10 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
         "worktree_path": extract_field(lane_context, "worktree_path"),
         "recovery_state": extract_field(lane_context, "recovery_state"),
         "last_stable_checkpoint": extract_field(lane_context, "last_stable_checkpoint"),
+        "draft_file": extract_field(resume_checklist, "draft_file"),
+        "coverage_mode": extract_field(resume_checklist, "coverage_mode"),
+        "observer_status": extract_field(resume_checklist, "observer_status"),
+        "last_observer_pass": extract_field(resume_checklist, "last_observer_pass"),
         "exit_criteria": extract_bullets(exit_criteria),
         "route_reason": extract_field(learning_signals, "route_reason"),
         "blocked_reason": extract_field(learning_signals, "blocked_reason"),

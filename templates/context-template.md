@@ -42,6 +42,12 @@
 - [Reusable component, module, or pattern relevant to this feature]
 - [Integration point or repository convention that should shape planning]
 
+## Change Propagation Matrix
+
+| Change Surface | Direct Consumers | Indirect Consumers | Risk |
+| --- | --- | --- | --- |
+| [surface] | [consumer] | [indirect consumer] | [risk summary] |
+
 ## Boundary Contracts and Lifecycle Notes
 
 - [Trigger/event source, boundary contract, or identifier/payload rule planners must preserve]
@@ -56,6 +62,10 @@
 
 - [Concrete preference, wording, example, or product reference from the user]
 - [Edge-case expectation, workflow nuance, or acceptance cue]
+
+## Observer-Carried Risks
+
+- [Risk surfaced by the observer that downstream planning must preserve]
 
 ## Outstanding Questions
 

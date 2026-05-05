@@ -13,7 +13,7 @@ from .types import HookResult, QualityHookError
 
 FILE_REQUIRED_ARTIFACTS = {
     "constitution": ("workflow-state.md",),
-    "specify": ("spec.md", "alignment.md", "context.md", "workflow-state.md"),
+    "specify": ("spec.md", "alignment.md", "context.md", "specify-draft.md", "workflow-state.md"),
     "deep-research": ("deep-research.md", "workflow-state.md"),
     "plan": ("plan.md", "workflow-state.md"),
     "tasks": ("tasks.md", "workflow-state.md"),
@@ -61,7 +61,7 @@ DIRECTORY_REQUIRED_ARTIFACTS = {
 
 REQUIRED_ARTIFACTS = {
     "constitution": ("workflow-state.md",),
-    "specify": ("spec.md", "alignment.md", "context.md", "workflow-state.md"),
+    "specify": ("spec.md", "alignment.md", "context.md", "specify-draft.md", "workflow-state.md"),
     "deep-research": ("deep-research.md", "workflow-state.md"),
     "plan": ("plan.md", "workflow-state.md"),
     "tasks": ("tasks.md", "workflow-state.md"),
@@ -137,6 +137,29 @@ DEEP_RESEARCH_NOT_NEEDED_REQUIRED_SECTIONS = (
     "## Feasibility Decision",
     "## Planning Handoff",
     "## Next Command",
+)
+
+SPECIFY_DRAFT_REQUIRED_HEADINGS = (
+    "## Recovery Capsule",
+    "## Observer Findings",
+)
+
+SPECIFY_ALIGNMENT_REQUIRED_HEADINGS = (
+    "## Observer Gate",
+    "## Coverage Mode Outcomes",
+)
+
+SPECIFY_CONTEXT_REQUIRED_HEADINGS = ("## Change Propagation Matrix",)
+
+SPECIFY_FULL_COVERAGE_TRIGGER_PHRASES = (
+    "cross-module impact",
+    "external boundary, contract, or integration behavior",
+    "migration or compatibility preservation",
+    "asynchronous, event-driven, queue, or state-propagation behavior",
+    "configuration-driven behavior",
+    "security, permission, or trust-boundary semantics",
+    "observability or rollback requirements",
+    "performance or capacity risk",
 )
 
 PRD_BUILD_REQUIRED_EXPORTS = (
@@ -251,6 +274,15 @@ def _validate_markdown_headings(path: Path, required_headings: tuple[str, ...], 
         for heading in required_headings
         if heading not in present_headings
     ]
+
+
+def _normalize_bullet_value(value: str) -> str:
+    cleaned = value.strip()
+    if cleaned.startswith("`") and cleaned.endswith("`") and len(cleaned) >= 2:
+        return cleaned[1:-1].strip()
+    if cleaned.startswith('"') and cleaned.endswith('"') and len(cleaned) >= 2:
+        return cleaned[1:-1].strip()
+    return cleaned
 
 
 def _read_json(path: Path) -> Any:
@@ -614,6 +646,56 @@ def _validate_specify_profile_artifacts(feature_dir: Path) -> list[str]:
     )
 
 
+def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    draft_path = feature_dir / "specify-draft.md"
+    alignment_path = feature_dir / "alignment.md"
+    context_path = feature_dir / "context.md"
+    workflow_state_path = feature_dir / "workflow-state.md"
+
+    errors.extend(_validate_markdown_headings(draft_path, SPECIFY_DRAFT_REQUIRED_HEADINGS, "specify-draft.md"))
+    errors.extend(_validate_markdown_headings(alignment_path, SPECIFY_ALIGNMENT_REQUIRED_HEADINGS, "alignment.md"))
+    errors.extend(_validate_markdown_headings(context_path, SPECIFY_CONTEXT_REQUIRED_HEADINGS, "context.md"))
+
+    checkpoint = serialize_workflow_state(workflow_state_path)
+    if checkpoint.get("draft_file") != "specify-draft.md":
+        errors.append("workflow-state.md is missing Resume Checklist field: draft_file: `specify-draft.md`")
+    if checkpoint.get("observer_status") == "blocked":
+        errors.append("workflow-state.md records observer_status as blocked; `Aligned: ready for plan` cannot pass")
+
+    draft_content = draft_path.read_text(encoding="utf-8", errors="replace")
+    alignment = alignment_path.read_text(encoding="utf-8", errors="replace").lower()
+    observer_gate = _extract_markdown_section(alignment_path.read_text(encoding="utf-8", errors="replace"), "Observer Gate")
+    if "**Status**: blocked" in observer_gate:
+        errors.append("alignment.md records Observer Gate status as blocked; planning-ready handoff is not allowed")
+
+    release_blockers_match = re.search(
+        r"(?ms)^###\s+Release Blockers\s*$\n(?P<body>.*?)(?=^##\s+|^###\s+|\Z)",
+        draft_content,
+    )
+    if release_blockers_match:
+        blocker_lines = [
+            _normalize_bullet_value(line.strip()[2:].strip())
+            for line in release_blockers_match.group("body").splitlines()
+            if line.strip().startswith("- ")
+        ]
+        nonempty_blockers = [line for line in blocker_lines if line and line.lower() not in {"none", "resolved"}]
+        if nonempty_blockers:
+            joined = ", ".join(nonempty_blockers)
+            errors.append(f"specify-draft.md still records unresolved release blockers: {joined}")
+
+    if "coverage mode" in alignment and "coverage mode**: core" in alignment:
+        hit_triggers = [phrase for phrase in SPECIFY_FULL_COVERAGE_TRIGGER_PHRASES if phrase in alignment]
+        if hit_triggers:
+            joined = ", ".join(hit_triggers)
+            errors.append(
+                "specify artifacts require full coverage evidence when escalation triggers were recorded: "
+                f"{joined}"
+            )
+
+    return errors
+
+
 def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
     command_name = normalize_command_name(str(payload.get("command_name") or ""))
     if command_name not in REQUIRED_ARTIFACTS:
@@ -650,6 +732,7 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         )
     validation_errors: list[str] = []
     if command_name == "specify":
+        validation_errors.extend(_validate_specify_draft_artifacts(feature_dir))
         validation_errors.extend(_validate_specify_profile_artifacts(feature_dir))
     if command_name == "deep-research":
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -72,12 +73,14 @@ def _run_module_in_project(project: Path, args: list[str]):
 
 def test_all_hook_commands_advertise_json_format_alias():
     runner = CliRunner()
+    ansi_re = re.compile(r"\x1b\[[0-9;]*m")
 
     for subcommand in HOOK_SUBCOMMANDS:
         result = runner.invoke(app, ["hook", subcommand, "--help"], catch_exceptions=False)
+        clean_output = ansi_re.sub("", result.output)
 
         assert result.exit_code == 0, result.output
-        assert "--format" in result.output, f"{subcommand} is missing --format in help output"
+        assert "--format" in clean_output, f"{subcommand} is missing --format in help output"
 
 
 def _write_prd_build_ready_scan_artifacts(run_dir: Path) -> None:
@@ -764,6 +767,25 @@ def test_hook_validate_artifacts_supports_constitution_command(tmp_path: Path):
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.artifacts.validate"
     assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_blocks_specify_when_semantic_ready_state_is_missing(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
+    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "specify", "--feature-dir", str(feature_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("specify-draft.md" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_supports_prd_command(tmp_path: Path):

@@ -64,6 +64,10 @@
 
 - Re-read this file first after compaction or session recovery.
 - Re-read the authoritative files before taking the next step.
+- draft_file: `specify-draft.md`
+- coverage_mode: `core | full`
+- observer_status: `not-run | pending | completed | blocked`
+- last_observer_pass: `global-entry | capability-closure | final-handoff`
 - If the next action conflicts with the current `phase_mode`, stop and repair the workflow state instead of improvising.
 - Native hook recovery may redirect the first phase jump back to this state; repeated or explicit phase jumps must be blocked by workflow policy.
 

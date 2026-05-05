@@ -194,6 +194,12 @@
 - [Idea captured during discovery that is intentionally out of scope for this feature]
 - [If none, remove this section rather than writing "None"]
 
+<!--
+  This file is the planning-ready result-state artifact.
+  Active clarification history, observer findings, and recovery details belong in `specify-draft.md`,
+  not as a running transcript here.
+-->
+
 ## Alignment State *(mandatory)*
 
 ### Confirmed
