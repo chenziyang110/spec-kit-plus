@@ -1,8 +1,8 @@
 # Specification Draft Ledger: [FEATURE NAME]
 
-**Feature Branch**: `[###-feature-name]`  
-**Created**: [DATE]  
-**Status**: Active draft  
+**Feature Branch**: `[###-feature-name]`
+**Created**: [DATE]
+**Status**: Active draft
 **Purpose**: Durable clarification ledger, observer findings, and resume anchor for `sp-specify`
 
 ## Current Focus
