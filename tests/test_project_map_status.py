@@ -83,13 +83,67 @@ def test_mark_project_map_dirty_appends_reason_once(tmp_path):
         reason="manual",
         mapped_at="2026-04-21T00:00:00Z",
     )
-    first = mod.mark_project_map_dirty(tmp_path, "shared_surface_changed")
+    first = mod.mark_project_map_dirty(
+        tmp_path,
+        "shared_surface_changed",
+        origin_command="implement",
+        origin_feature_dir="specs/001-demo",
+        origin_lane_id="lane-001",
+    )
     second = mod.mark_project_map_dirty(tmp_path, "shared_surface_changed")
 
     assert first.dirty is True
     assert first.freshness == "stale"
     assert first.dirty_reasons == ["shared_surface_changed"]
+    assert first.dirty_origin_command == "implement"
+    assert first.dirty_origin_feature_dir == "specs/001-demo"
+    assert first.dirty_origin_lane_id == "lane-001"
     assert second.dirty_reasons == ["shared_surface_changed"]
+
+
+def test_project_map_status_round_trip_preserves_dirty_origin_metadata(tmp_path):
+    mod = _load_module()
+
+    status = mod.ProjectMapStatus(
+        version=2,
+        global_freshness="stale",
+        global_last_refresh_commit="abc123",
+        global_last_refresh_at="2026-04-21T00:00:00Z",
+        global_dirty=True,
+        global_dirty_reasons=["workflow_contract_changed"],
+        global_dirty_origin_command="implement",
+        global_dirty_origin_feature_dir="specs/001-demo",
+        global_dirty_origin_lane_id="lane-001",
+    )
+
+    mod.write_project_map_status(tmp_path, status)
+    loaded = mod.read_project_map_status(tmp_path)
+
+    assert loaded.dirty is True
+    assert loaded.dirty_reasons == ["workflow_contract_changed"]
+    assert loaded.dirty_origin_command == "implement"
+    assert loaded.dirty_origin_feature_dir == "specs/001-demo"
+    assert loaded.dirty_origin_lane_id == "lane-001"
+
+
+def test_project_map_status_round_trip_preserves_dirty_scope_paths(tmp_path):
+    mod = _load_module()
+
+    status = mod.ProjectMapStatus(
+        version=2,
+        global_freshness="stale",
+        global_dirty=True,
+        global_dirty_reasons=["shared_surface_changed"],
+        global_dirty_scope_paths=["src/specify_cli/hooks/preflight.py", "templates/commands/implement.md"],
+    )
+
+    mod.write_project_map_status(tmp_path, status)
+    loaded = mod.read_project_map_status(tmp_path)
+
+    assert loaded.dirty_scope_paths == [
+        "src/specify_cli/hooks/preflight.py",
+        "templates/commands/implement.md",
+    ]
 
 
 def test_normalize_dirty_reason_maps_human_input_to_canonical_reason():

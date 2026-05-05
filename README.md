@@ -248,7 +248,7 @@ Conditional gates and follow-up commands:
 
 - `map-scan` followed by `map-build` is the required brownfield gate for an existing generated project or downstream codebase; generate the complete scan package first, then refresh `PROJECT-HANDBOOK.md` and that project's `.specify/project-map/` before specification, planning, task generation, or implementation continues
 - Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
-- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for whether the current atlas can be trusted. If a full refresh can be completed now, run `map-scan` followed by `map-build`, then use `project-map complete-refresh` as the successful-refresh finalizer. Otherwise use `project-map mark-dirty` as a manual override/fallback and route the next brownfield workflow through `map-scan` followed by `map-build`.
+- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for whether the current atlas can be trusted. If a full refresh can be completed now, run `map-scan` followed by `map-build`, then use `project-map complete-refresh` as the successful-refresh finalizer. Otherwise use `project-map mark-dirty` as a manual override/fallback and route the next brownfield workflow through `map-scan` followed by `map-build`. Same-lane `sp-implement` resume may continue with a warning only when the dirty fallback was recorded by that lane's prior `implement` run and the recorded dirty scope still overlaps the current packet scope; upstream brownfield entrypoints and other features remain blocked until refresh.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should complete the full `map-scan` followed by `map-build` refresh now when possible; otherwise use the dirty marker only as the fallback route above
 - `test-scan` to run a deep, read-only testing-system scan using leader-managed scout subagents, then write `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, and `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`
 - `test-build` to consume scan-approved lanes, coordinate leader/subagent test-building waves, update tests/fixtures/config as authorized by lane packets, bootstrap or refresh bundled language testing skills, establish a coverage baseline, capture manual validation evidence, and write the durable testing contract plus standard test/coverage playbook
@@ -367,8 +367,8 @@ First-party workflow quality hooks:
   - Command shape: `specify hook read-compaction --command <workflow> --feature-dir <dir>`
 - `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
 - `specify hook mark-dirty`
-  - Command shape: `specify hook mark-dirty --reason "<reason>"`
-- `specify hook complete-refresh` is the shared successful-refresh finalizer for project-map freshness updates after a full atlas refresh. `specify hook mark-dirty --reason "<reason>"` is the shared manual override/fallback when a full refresh cannot be completed in the current pass.
+  - Command shape: `specify hook mark-dirty --reason "<reason>" [--origin-command <workflow>] [--origin-feature-dir <dir>] [--origin-lane-id <lane-id>] [--packet-file <packet-json>]`
+- `specify hook complete-refresh` is the shared successful-refresh finalizer for project-map freshness updates after a full atlas refresh. `specify hook mark-dirty --reason "<reason>"` remains the shared manual override/fallback when a full refresh cannot be completed in the current pass; origin metadata and optional packet-derived dirty scope explain whether the stale state came from the current lane's `implement` resume or from another lane that should stay blocked.
 
 Claude Code integration note:
 
@@ -645,7 +645,7 @@ Navigation and technical truth are now handbook-first:
 - Treat the combined handbook/project-map surface as an atlas-style technical encyclopedia for dependency graph, runtime flows, state lifecycle, and change-impact view.
 - Layer 1 (`QUICK-NAV.md`) is now a dictionary-style atlas entry surface with task routes, symptom routes, shared-surface hotspots, verification routes, and propagation-risk routes.
 - In generated projects, `.specify/project-map/index/status.json` records git-baseline freshness as the truth source for freshness checks, including the last successful map refresh and dirty state.
-- After a successful `map-build` refresh, use `project-map complete-refresh` as the standard successful-refresh finalizer to record the new fresh baseline. Use `project-map mark-dirty` only as a manual override/fallback when the full refresh cannot be completed now.
+- After a successful `map-build` refresh, use `project-map complete-refresh` as the standard successful-refresh finalizer to record the new fresh baseline. Use `project-map mark-dirty` only as a manual override/fallback when the full refresh cannot be completed now. When that fallback comes from `sp-implement`, include origin metadata so same-feature resume can warn instead of self-blocking while upstream brownfield entrypoints and other features still require refresh.
 - Any code change that alters navigation meaning must update the handbook system.
 
 ## Documentation

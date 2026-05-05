@@ -4,7 +4,11 @@ param(
     [string]$RepoRoot = "",
     [ValidateSet("check", "record-refresh", "complete-refresh", "mark-dirty", "clear-dirty")]
     [string]$Command = "check",
-    [string]$Reason = ""
+    [string]$Reason = "",
+    [string]$OriginCommand = "",
+    [string]$OriginFeatureDir = "",
+    [string]$OriginLaneId = "",
+    [string]$DirtyScopePathsJson = "[]"
 )
 
 . (Join-Path $PSScriptRoot "common.ps1")
@@ -120,7 +124,11 @@ function Write-Status {
         [string]$LastRefreshBasis,
         [string[]]$LastRefreshChangedFilesBasis,
         [bool]$Dirty,
-        [string[]]$DirtyReasons
+        [string[]]$DirtyReasons,
+        [string]$DirtyOriginCommand = "",
+        [string]$DirtyOriginFeatureDir = "",
+        [string]$DirtyOriginLaneId = "",
+        [string[]]$DirtyScopePaths = @()
     )
 
     $payload = [ordered]@{
@@ -138,6 +146,10 @@ function Write-Status {
         manual_force_stale_reasons = @($DirtyReasons)
         dirty = $Dirty
         dirty_reasons = @($DirtyReasons)
+        dirty_origin_command = $DirtyOriginCommand
+        dirty_origin_feature_dir = $DirtyOriginFeatureDir
+        dirty_origin_lane_id = $DirtyOriginLaneId
+        dirty_scope_paths = @($DirtyScopePaths)
     }
 
     $json = $payload | ConvertTo-Json -Depth 5
@@ -330,7 +342,11 @@ function Emit-CheckResult {
         [object[]]$ChangedFiles,
         [object[]]$SuggestedTopics,
         [object[]]$MustRefreshTopics,
-        [object[]]$ReviewTopics
+        [object[]]$ReviewTopics,
+        [string]$DirtyOriginCommand = "",
+        [string]$DirtyOriginFeatureDir = "",
+        [string]$DirtyOriginLaneId = "",
+        [object[]]$DirtyScopePaths = @()
     )
 
     [ordered]@{
@@ -342,6 +358,10 @@ function Emit-CheckResult {
         manual_force_stale_reasons = @($DirtyReasons)
         dirty = $Dirty
         dirty_reasons = @($DirtyReasons)
+        dirty_origin_command = $DirtyOriginCommand
+        dirty_origin_feature_dir = $DirtyOriginFeatureDir
+        dirty_origin_lane_id = $DirtyOriginLaneId
+        dirty_scope_paths = @($DirtyScopePaths)
         reasons = @($Reasons)
         changed_files = @($ChangedFiles)
         suggested_topics = @($SuggestedTopics)
@@ -355,13 +375,17 @@ function Invoke-Check {
     $headCommit = Get-HeadCommit
 
     if (-not (Test-Path -LiteralPath (Get-StatusReadPath))) {
-        Emit-CheckResult -Freshness "missing" -HeadCommit $headCommit -LastMappedCommit "" -Dirty $false -DirtyReasons @() -Reasons @("project-map status missing") -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @()
+        Emit-CheckResult -Freshness "missing" -HeadCommit $headCommit -LastMappedCommit "" -Dirty $false -DirtyReasons @() -Reasons @("project-map status missing") -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @() -DirtyOriginCommand "" -DirtyOriginFeatureDir "" -DirtyOriginLaneId "" -DirtyScopePaths @()
         return
     }
 
     $lastMappedCommit = [string](Get-StatusValue -Status $status -Key "last_mapped_commit" -Default "")
     $dirty = [bool](Get-StatusValue -Status $status -Key "manual_force_stale" -Default (Get-StatusValue -Status $status -Key "dirty" -Default $false))
     $dirtyReasons = @((Get-StatusValue -Status $status -Key "manual_force_stale_reasons" -Default (Get-StatusValue -Status $status -Key "dirty_reasons" -Default @())))
+    $dirtyOriginCommand = [string](Get-StatusValue -Status $status -Key "dirty_origin_command" -Default "")
+    $dirtyOriginFeatureDir = [string](Get-StatusValue -Status $status -Key "dirty_origin_feature_dir" -Default "")
+    $dirtyOriginLaneId = [string](Get-StatusValue -Status $status -Key "dirty_origin_lane_id" -Default "")
+    $dirtyScopePaths = @((Get-StatusValue -Status $status -Key "dirty_scope_paths" -Default @()))
 
     if ($dirty) {
         $mustRefreshTopics = New-Object System.Collections.Generic.List[string]
@@ -379,12 +403,12 @@ function Invoke-Check {
         $orderedMustRefreshTopics = @($topicOrder | Where-Object { $mustRefreshTopics -contains $_ })
         $orderedReviewTopics = @($topicOrder | Where-Object { $reviewTopics -contains $_ })
         $suggestedTopics = @($topicOrder | Where-Object { $orderedMustRefreshTopics -contains $_ -or $orderedReviewTopics -contains $_ })
-        Emit-CheckResult -Freshness "stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $true -DirtyReasons $dirtyReasons -Reasons $dirtyReasons -ChangedFiles @() -SuggestedTopics $suggestedTopics -MustRefreshTopics $orderedMustRefreshTopics -ReviewTopics $orderedReviewTopics
+        Emit-CheckResult -Freshness "stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $true -DirtyReasons $dirtyReasons -Reasons $dirtyReasons -ChangedFiles @() -SuggestedTopics $suggestedTopics -MustRefreshTopics $orderedMustRefreshTopics -ReviewTopics $orderedReviewTopics -DirtyOriginCommand $dirtyOriginCommand -DirtyOriginFeatureDir $dirtyOriginFeatureDir -DirtyOriginLaneId $dirtyOriginLaneId -DirtyScopePaths $dirtyScopePaths
         return
     }
 
     if (-not (Test-HasGit) -or [string]::IsNullOrEmpty($lastMappedCommit) -or [string]::IsNullOrEmpty($headCommit)) {
-        Emit-CheckResult -Freshness "possibly_stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons @("git baseline unavailable for project-map freshness") -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @()
+        Emit-CheckResult -Freshness "possibly_stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons @("git baseline unavailable for project-map freshness") -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @() -DirtyOriginCommand $dirtyOriginCommand -DirtyOriginFeatureDir $dirtyOriginFeatureDir -DirtyOriginLaneId $dirtyOriginLaneId -DirtyScopePaths $dirtyScopePaths
         return
     }
 
@@ -400,7 +424,7 @@ function Invoke-Check {
     }
 
     if (-not $diffLines -or $diffLines.Count -eq 0) {
-        Emit-CheckResult -Freshness "fresh" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons @() -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @()
+        Emit-CheckResult -Freshness "fresh" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons @() -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @() -DirtyOriginCommand $dirtyOriginCommand -DirtyOriginFeatureDir $dirtyOriginFeatureDir -DirtyOriginLaneId $dirtyOriginLaneId -DirtyScopePaths $dirtyScopePaths
         return
     }
 
@@ -461,7 +485,7 @@ function Invoke-Check {
         }
     }
 
-    Emit-CheckResult -Freshness $worst -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons $reasons -ChangedFiles $changedFiles -SuggestedTopics $suggestedTopics -MustRefreshTopics $mustRefreshTopics -ReviewTopics $reviewTopics
+    Emit-CheckResult -Freshness $worst -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons $reasons -ChangedFiles $changedFiles -SuggestedTopics $suggestedTopics -MustRefreshTopics $mustRefreshTopics -ReviewTopics $reviewTopics -DirtyOriginCommand $dirtyOriginCommand -DirtyOriginFeatureDir $dirtyOriginFeatureDir -DirtyOriginLaneId $dirtyOriginLaneId -DirtyScopePaths $dirtyScopePaths
 }
 
 switch ($Command) {
@@ -471,13 +495,13 @@ switch ($Command) {
     "record-refresh" {
         $why = if ($Reason) { $Reason } else { "manual" }
         Assert-CanonicalMapFiles
-        Write-Status -LastMappedCommit (Get-HeadCommit) -LastMappedAt (Get-IsoNow) -LastMappedBranch (Get-BranchName) -Freshness "fresh" -LastRefreshReason $why -LastRefreshTopics @("ARCHITECTURE.md","STRUCTURE.md","CONVENTIONS.md","INTEGRATIONS.md","OPERATIONS.md","WORKFLOWS.md","TESTING.md") -LastRefreshScope "full" -LastRefreshBasis $why -LastRefreshChangedFilesBasis @() -Dirty $false -DirtyReasons @()
+        Write-Status -LastMappedCommit (Get-HeadCommit) -LastMappedAt (Get-IsoNow) -LastMappedBranch (Get-BranchName) -Freshness "fresh" -LastRefreshReason $why -LastRefreshTopics @("ARCHITECTURE.md","STRUCTURE.md","CONVENTIONS.md","INTEGRATIONS.md","OPERATIONS.md","WORKFLOWS.md","TESTING.md") -LastRefreshScope "full" -LastRefreshBasis $why -LastRefreshChangedFilesBasis @() -Dirty $false -DirtyReasons @() -DirtyOriginCommand "" -DirtyOriginFeatureDir "" -DirtyOriginLaneId "" -DirtyScopePaths @()
         Invoke-Check
     }
     "complete-refresh" {
         $why = if ($Reason) { $Reason } else { "map-build" }
         Assert-CanonicalMapFiles
-        Write-Status -LastMappedCommit (Get-HeadCommit) -LastMappedAt (Get-IsoNow) -LastMappedBranch (Get-BranchName) -Freshness "fresh" -LastRefreshReason $why -LastRefreshTopics @("ARCHITECTURE.md","STRUCTURE.md","CONVENTIONS.md","INTEGRATIONS.md","OPERATIONS.md","WORKFLOWS.md","TESTING.md") -LastRefreshScope "full" -LastRefreshBasis $why -LastRefreshChangedFilesBasis @() -Dirty $false -DirtyReasons @()
+        Write-Status -LastMappedCommit (Get-HeadCommit) -LastMappedAt (Get-IsoNow) -LastMappedBranch (Get-BranchName) -Freshness "fresh" -LastRefreshReason $why -LastRefreshTopics @("ARCHITECTURE.md","STRUCTURE.md","CONVENTIONS.md","INTEGRATIONS.md","OPERATIONS.md","WORKFLOWS.md","TESTING.md") -LastRefreshScope "full" -LastRefreshBasis $why -LastRefreshChangedFilesBasis @() -Dirty $false -DirtyReasons @() -DirtyOriginCommand "" -DirtyOriginFeatureDir "" -DirtyOriginLaneId "" -DirtyScopePaths @()
         Invoke-Check
     }
     "mark-dirty" {
@@ -495,12 +519,25 @@ switch ($Command) {
         }
         $lastMappedAt = [string](Get-StatusValue -Status $status -Key "last_mapped_at" -Default "")
         if (-not $lastMappedAt) { $lastMappedAt = Get-IsoNow }
-        Write-Status -LastMappedCommit ([string](Get-StatusValue -Status $status -Key "last_mapped_commit" -Default "")) -LastMappedAt $lastMappedAt -LastMappedBranch ([string](Get-StatusValue -Status $status -Key "last_mapped_branch" -Default "")) -Freshness "stale" -LastRefreshReason ([string](Get-StatusValue -Status $status -Key "last_refresh_reason" -Default "manual")) -LastRefreshTopics @((Get-StatusValue -Status $status -Key "last_refresh_topics" -Default @())) -LastRefreshScope ([string](Get-StatusValue -Status $status -Key "last_refresh_scope" -Default "full")) -LastRefreshBasis ([string](Get-StatusValue -Status $status -Key "last_refresh_basis" -Default "manual")) -LastRefreshChangedFilesBasis @((Get-StatusValue -Status $status -Key "last_refresh_changed_files_basis" -Default @())) -Dirty $true -DirtyReasons $dirtyReasons
+        $dirtyScopePaths = @()
+        try {
+            $parsedScope = $DirtyScopePathsJson | ConvertFrom-Json -ErrorAction Stop
+            if ($parsedScope -is [System.Collections.IEnumerable]) {
+                foreach ($item in $parsedScope) {
+                    if (-not [string]::IsNullOrWhiteSpace([string]$item)) {
+                        $dirtyScopePaths += [string]$item
+                    }
+                }
+            }
+        } catch {
+            $dirtyScopePaths = @()
+        }
+        Write-Status -LastMappedCommit ([string](Get-StatusValue -Status $status -Key "last_mapped_commit" -Default "")) -LastMappedAt $lastMappedAt -LastMappedBranch ([string](Get-StatusValue -Status $status -Key "last_mapped_branch" -Default "")) -Freshness "stale" -LastRefreshReason ([string](Get-StatusValue -Status $status -Key "last_refresh_reason" -Default "manual")) -LastRefreshTopics @((Get-StatusValue -Status $status -Key "last_refresh_topics" -Default @())) -LastRefreshScope ([string](Get-StatusValue -Status $status -Key "last_refresh_scope" -Default "full")) -LastRefreshBasis ([string](Get-StatusValue -Status $status -Key "last_refresh_basis" -Default "manual")) -LastRefreshChangedFilesBasis @((Get-StatusValue -Status $status -Key "last_refresh_changed_files_basis" -Default @())) -Dirty $true -DirtyReasons $dirtyReasons -DirtyOriginCommand $OriginCommand -DirtyOriginFeatureDir $OriginFeatureDir -DirtyOriginLaneId $OriginLaneId -DirtyScopePaths $dirtyScopePaths
         Invoke-Check
     }
     "clear-dirty" {
         $status = Read-Status
-        Write-Status -LastMappedCommit ([string](Get-StatusValue -Status $status -Key "last_mapped_commit" -Default "")) -LastMappedAt ([string](Get-StatusValue -Status $status -Key "last_mapped_at" -Default "")) -LastMappedBranch ([string](Get-StatusValue -Status $status -Key "last_mapped_branch" -Default "")) -Freshness "fresh" -LastRefreshReason ([string](Get-StatusValue -Status $status -Key "last_refresh_reason" -Default "manual")) -LastRefreshTopics @((Get-StatusValue -Status $status -Key "last_refresh_topics" -Default @())) -LastRefreshScope ([string](Get-StatusValue -Status $status -Key "last_refresh_scope" -Default "full")) -LastRefreshBasis ([string](Get-StatusValue -Status $status -Key "last_refresh_basis" -Default "manual")) -LastRefreshChangedFilesBasis @((Get-StatusValue -Status $status -Key "last_refresh_changed_files_basis" -Default @())) -Dirty $false -DirtyReasons @()
+        Write-Status -LastMappedCommit ([string](Get-StatusValue -Status $status -Key "last_mapped_commit" -Default "")) -LastMappedAt ([string](Get-StatusValue -Status $status -Key "last_mapped_at" -Default "")) -LastMappedBranch ([string](Get-StatusValue -Status $status -Key "last_mapped_branch" -Default "")) -Freshness "fresh" -LastRefreshReason ([string](Get-StatusValue -Status $status -Key "last_refresh_reason" -Default "manual")) -LastRefreshTopics @((Get-StatusValue -Status $status -Key "last_refresh_topics" -Default @())) -LastRefreshScope ([string](Get-StatusValue -Status $status -Key "last_refresh_scope" -Default "full")) -LastRefreshBasis ([string](Get-StatusValue -Status $status -Key "last_refresh_basis" -Default "manual")) -LastRefreshChangedFilesBasis @((Get-StatusValue -Status $status -Key "last_refresh_changed_files_basis" -Default @())) -Dirty $false -DirtyReasons @() -DirtyOriginCommand "" -DirtyOriginFeatureDir "" -DirtyOriginLaneId "" -DirtyScopePaths @()
         Invoke-Check
     }
 }

@@ -18,12 +18,20 @@ def test_mark_dirty_hook_normalizes_reason(tmp_path: Path):
     result = run_quality_hook(
         project,
         "project_map.mark_dirty",
-        {"reason": "workflow contract changed"},
+        {
+            "reason": "workflow contract changed",
+            "origin_command": "implement",
+            "origin_feature_dir": "specs/001-demo",
+            "origin_lane_id": "lane-001",
+        },
     )
 
     assert result.status == "ok"
     payload = json.loads((project / ".specify" / "project-map" / "status.json").read_text(encoding="utf-8"))
     assert payload["dirty_reasons"] == ["workflow_contract_changed"]
+    assert payload["dirty_origin_command"] == "implement"
+    assert payload["dirty_origin_feature_dir"] == "specs/001-demo"
+    assert payload["dirty_origin_lane_id"] == "lane-001"
 
 
 def test_complete_refresh_hook_requires_git_baseline(tmp_path: Path):

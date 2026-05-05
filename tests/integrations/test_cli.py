@@ -760,6 +760,48 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         project = tmp_path / "project-map-dirty"
         project.mkdir()
         runner = CliRunner()
+        packet_path = project / "packet.json"
+        packet_path.write_text(
+            json.dumps(
+                {
+                    "feature_id": "001-demo",
+                    "task_id": "T001",
+                    "story_id": "US1",
+                    "objective": "Implement demo behavior",
+                    "scope": {
+                        "write_scope": ["src/demo.py"],
+                        "read_scope": ["PROJECT-HANDBOOK.md"],
+                    },
+                    "context_bundle": [
+                        {
+                            "path": "PROJECT-HANDBOOK.md",
+                            "kind": "handbook",
+                            "purpose": "project routing context",
+                            "required_for": ["workflow_boundary"],
+                            "read_order": 1,
+                            "must_read": True,
+                            "selection_reason": "required project navigation",
+                        }
+                    ],
+                    "required_references": [{"path": "src/demo.py", "reason": "canonical implementation reference"}],
+                    "hard_rules": ["preserve boundary"],
+                    "forbidden_drift": ["do not skip tests"],
+                    "validation_gates": ["pytest tests/test_demo.py -q"],
+                    "done_criteria": ["feature behavior implemented"],
+                    "handoff_requirements": ["return changed files", "return validation results"],
+                    "platform_guardrails": ["respect supported platforms"],
+                    "intent": {
+                        "outcome": "Implement demo behavior",
+                        "constraints": ["preserve boundary"],
+                        "success_signals": ["feature behavior implemented"],
+                    },
+                    "dispatch_policy": {"mode": "hard_fail", "must_acknowledge_rules": True},
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
         old_cwd = os.getcwd()
         try:
@@ -780,7 +822,21 @@ def test_check_reports_workflow_contract_drift(tmp_path):
             )
             dirty_result = runner.invoke(
                 app,
-                ["project-map", "mark-dirty", "shared_surface_changed", "--format", "json"],
+                [
+                    "project-map",
+                    "mark-dirty",
+                    "shared_surface_changed",
+                    "--origin-command",
+                    "implement",
+                    "--origin-feature-dir",
+                    "specs/001-demo",
+                    "--origin-lane-id",
+                    "lane-001",
+                    "--packet-file",
+                    str(packet_path),
+                    "--format",
+                    "json",
+                ],
                 catch_exceptions=False,
             )
         finally:
@@ -793,6 +849,10 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert payload["freshness"] == "stale"
         assert payload["dirty"] is True
         assert payload["dirty_reasons"] == ["shared_surface_changed"]
+        assert payload["dirty_origin_command"] == "implement"
+        assert payload["dirty_origin_feature_dir"] == "specs/001-demo"
+        assert payload["dirty_origin_lane_id"] == "lane-001"
+        assert payload["dirty_scope_paths"] == ["src/demo.py", "PROJECT-HANDBOOK.md"]
         assert payload["must_refresh_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md"]
         assert payload["review_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
 

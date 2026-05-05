@@ -1734,6 +1734,10 @@ def test_project_map_freshness_scripts_exist_and_share_status_contract():
     assert "record-refresh" in sh_freshness
     assert "complete-refresh" in sh_freshness
     assert "mark-dirty" in sh_freshness
+    assert "ORIGIN_COMMAND" in sh_freshness
+    assert "dirty_origin_command" in sh_freshness
+    assert "DIRTY_SCOPE_PATHS_JSON" in sh_freshness
+    assert "dirty_scope_paths" in sh_freshness
     assert "clear-dirty" in sh_freshness
     assert '"freshness": "missing"' not in sh_freshness  # sanity: not hardcoded-only output
     assert "project-map status missing" in sh_freshness
@@ -1744,6 +1748,10 @@ def test_project_map_freshness_scripts_exist_and_share_status_contract():
     assert "record-refresh" in ps_freshness
     assert "complete-refresh" in ps_freshness
     assert "mark-dirty" in ps_freshness
+    assert "OriginCommand" in ps_freshness
+    assert "dirty_origin_command" in ps_freshness
+    assert "DirtyScopePathsJson" in ps_freshness
+    assert "dirty_scope_paths" in ps_freshness
     assert "clear-dirty" in ps_freshness
     assert "project-map status missing" in ps_freshness
     assert "high-impact project-map change" in ps_freshness

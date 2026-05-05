@@ -412,6 +412,10 @@ class ProjectMapStatus:
     global_last_refresh_changed_files_basis: list[str] | None
     global_dirty: bool
     global_dirty_reasons: list[str] | None
+    global_dirty_origin_command: str
+    global_dirty_origin_feature_dir: str
+    global_dirty_origin_lane_id: str
+    global_dirty_scope_paths: list[str] | None
     global_stale_reasons: list[str] | None
     global_affected_root_docs: list[str] | None
     modules: dict[str, dict[str, Any]] | None
@@ -431,6 +435,10 @@ class ProjectMapStatus:
         global_last_refresh_changed_files_basis: list[str] | None = None,
         global_dirty: bool = False,
         global_dirty_reasons: list[str] | None = None,
+        global_dirty_origin_command: str = "",
+        global_dirty_origin_feature_dir: str = "",
+        global_dirty_origin_lane_id: str = "",
+        global_dirty_scope_paths: list[str] | None = None,
         global_stale_reasons: list[str] | None = None,
         global_affected_root_docs: list[str] | None = None,
         modules: dict[str, dict[str, Any]] | None = None,
@@ -445,6 +453,10 @@ class ProjectMapStatus:
         last_refresh_changed_files_basis: list[str] | None = None,
         dirty: bool | None = None,
         dirty_reasons: list[str] | None = None,
+        dirty_origin_command: str | None = None,
+        dirty_origin_feature_dir: str | None = None,
+        dirty_origin_lane_id: str | None = None,
+        dirty_scope_paths: list[str] | None = None,
     ) -> None:
         self.version = int(version)
         self.global_freshness = freshness if freshness is not None else global_freshness
@@ -486,6 +498,18 @@ class ProjectMapStatus:
         )
         self.global_dirty_reasons = list(
             resolved_global_reasons or []
+        )
+        self.global_dirty_origin_command = (
+            dirty_origin_command if dirty_origin_command is not None else global_dirty_origin_command
+        )
+        self.global_dirty_origin_feature_dir = (
+            dirty_origin_feature_dir if dirty_origin_feature_dir is not None else global_dirty_origin_feature_dir
+        )
+        self.global_dirty_origin_lane_id = (
+            dirty_origin_lane_id if dirty_origin_lane_id is not None else global_dirty_origin_lane_id
+        )
+        self.global_dirty_scope_paths = list(
+            dirty_scope_paths if dirty_scope_paths is not None else (global_dirty_scope_paths or [])
         )
         self.global_stale_reasons = list(self.global_dirty_reasons)
         self.global_affected_root_docs = list(global_affected_root_docs or [])
@@ -597,6 +621,38 @@ class ProjectMapStatus:
         self.global_stale_reasons = list(value or [])
 
     @property
+    def dirty_origin_command(self) -> str:
+        return self.global_dirty_origin_command
+
+    @dirty_origin_command.setter
+    def dirty_origin_command(self, value: str) -> None:
+        self.global_dirty_origin_command = value
+
+    @property
+    def dirty_origin_feature_dir(self) -> str:
+        return self.global_dirty_origin_feature_dir
+
+    @dirty_origin_feature_dir.setter
+    def dirty_origin_feature_dir(self, value: str) -> None:
+        self.global_dirty_origin_feature_dir = value
+
+    @property
+    def dirty_origin_lane_id(self) -> str:
+        return self.global_dirty_origin_lane_id
+
+    @dirty_origin_lane_id.setter
+    def dirty_origin_lane_id(self, value: str) -> None:
+        self.global_dirty_origin_lane_id = value
+
+    @property
+    def dirty_scope_paths(self) -> list[str]:
+        return list(self.global_dirty_scope_paths or [])
+
+    @dirty_scope_paths.setter
+    def dirty_scope_paths(self, value: list[str] | None) -> None:
+        self.global_dirty_scope_paths = list(value or [])
+
+    @property
     def last_refresh_commit(self) -> str:
         return self.global_last_refresh_commit
 
@@ -621,6 +677,10 @@ class ProjectMapStatus:
                 "manual_force_stale_reasons": list(self.global_dirty_reasons or []),
                 "dirty": self.global_dirty,
                 "dirty_reasons": list(self.global_dirty_reasons or []),
+                "dirty_origin_command": self.global_dirty_origin_command,
+                "dirty_origin_feature_dir": self.global_dirty_origin_feature_dir,
+                "dirty_origin_lane_id": self.global_dirty_origin_lane_id,
+                "dirty_scope_paths": list(self.global_dirty_scope_paths or []),
                 "stale_reasons": list(self.global_dirty_reasons or []),
                 "affected_root_docs": list(self.global_affected_root_docs or []),
             },
@@ -639,6 +699,10 @@ class ProjectMapStatus:
             "manual_force_stale_reasons": self.manual_force_stale_reasons,
             "dirty": self.dirty,
             "dirty_reasons": self.dirty_reasons,
+            "dirty_origin_command": self.dirty_origin_command,
+            "dirty_origin_feature_dir": self.dirty_origin_feature_dir,
+            "dirty_origin_lane_id": self.dirty_origin_lane_id,
+            "dirty_scope_paths": self.dirty_scope_paths,
             "stale_reasons": self.dirty_reasons,
             "affected_root_docs": list(self.global_affected_root_docs or []),
         }
@@ -665,6 +729,10 @@ class ProjectMapStatus:
                 global_last_refresh_changed_files_basis=list(global_payload.get("last_refresh_changed_files_basis", []) or []),
                 global_dirty=bool(manual_force_stale),
                 global_dirty_reasons=list(manual_force_stale_reasons or []),
+                global_dirty_origin_command=str(global_payload.get("dirty_origin_command", "")),
+                global_dirty_origin_feature_dir=str(global_payload.get("dirty_origin_feature_dir", "")),
+                global_dirty_origin_lane_id=str(global_payload.get("dirty_origin_lane_id", "")),
+                global_dirty_scope_paths=list(global_payload.get("dirty_scope_paths", []) or []),
                 global_stale_reasons=list(global_payload.get("stale_reasons", []) or []),
                 global_affected_root_docs=list(global_payload.get("affected_root_docs", []) or []),
                 modules=dict(data.get("modules", {}) or {}),
@@ -688,6 +756,10 @@ class ProjectMapStatus:
             last_refresh_changed_files_basis=list(data.get("last_refresh_changed_files_basis", []) or []),
             dirty=bool(manual_force_stale),
             dirty_reasons=list(manual_force_stale_reasons or []),
+            dirty_origin_command=str(data.get("dirty_origin_command", "")),
+            dirty_origin_feature_dir=str(data.get("dirty_origin_feature_dir", "")),
+            dirty_origin_lane_id=str(data.get("dirty_origin_lane_id", "")),
+            dirty_scope_paths=list(data.get("dirty_scope_paths", []) or []),
             modules=dict(data.get("modules", {}) or {}),
         )
 
@@ -738,6 +810,10 @@ def mark_project_map_refreshed(
         global_last_refresh_changed_files_basis=list(changed_files_basis or []),
         global_dirty=False,
         global_dirty_reasons=[],
+        global_dirty_origin_command="",
+        global_dirty_origin_feature_dir="",
+        global_dirty_origin_lane_id="",
+        global_dirty_scope_paths=[],
     )
     write_project_map_status(project_root, status)
     return status
@@ -776,7 +852,15 @@ def refresh_project_map_topics(
     )
 
 
-def mark_project_map_dirty(project_root: Path, reason: str) -> ProjectMapStatus:
+def mark_project_map_dirty(
+    project_root: Path,
+    reason: str,
+    *,
+    origin_command: str = "",
+    origin_feature_dir: str = "",
+    origin_lane_id: str = "",
+    scope_paths: list[str] | None = None,
+) -> ProjectMapStatus:
     status = read_project_map_status(project_root)
     reasons = list(status.manual_force_stale_reasons or [])
     canonical_reason = normalize_dirty_reason(reason)
@@ -785,6 +869,14 @@ def mark_project_map_dirty(project_root: Path, reason: str) -> ProjectMapStatus:
     status.manual_force_stale = True
     status.manual_force_stale_reasons = reasons
     status.freshness = "stale"
+    if origin_command:
+        status.dirty_origin_command = origin_command
+    if origin_feature_dir:
+        status.dirty_origin_feature_dir = origin_feature_dir
+    if origin_lane_id:
+        status.dirty_origin_lane_id = origin_lane_id
+    if scope_paths is not None:
+        status.dirty_scope_paths = scope_paths
     if not status.last_mapped_at:
         status.last_mapped_at = iso_now()
     if not status.last_refresh_reason:
@@ -797,6 +889,10 @@ def clear_project_map_dirty(project_root: Path) -> ProjectMapStatus:
     status = read_project_map_status(project_root)
     status.manual_force_stale = False
     status.manual_force_stale_reasons = []
+    status.dirty_origin_command = ""
+    status.dirty_origin_feature_dir = ""
+    status.dirty_origin_lane_id = ""
+    status.dirty_scope_paths = []
     status.freshness = "fresh"
     write_project_map_status(project_root, status)
     return status
@@ -841,6 +937,10 @@ def assess_project_map_freshness(
             "manual_force_stale_reasons": list(status.manual_force_stale_reasons or []),
             "dirty": True,
             "dirty_reasons": list(status.dirty_reasons or []),
+            "dirty_origin_command": status.dirty_origin_command,
+            "dirty_origin_feature_dir": status.dirty_origin_feature_dir,
+            "dirty_origin_lane_id": status.dirty_origin_lane_id,
+            "dirty_scope_paths": status.dirty_scope_paths,
             "reasons": list(status.dirty_reasons or []),
             "changed_files": [],
             "must_refresh_topics": dirty_topic_plan["must_refresh_topics"],
@@ -920,6 +1020,10 @@ def assess_project_map_freshness(
         "manual_force_stale_reasons": [],
         "dirty": False,
         "dirty_reasons": [],
+        "dirty_origin_command": "",
+        "dirty_origin_feature_dir": "",
+        "dirty_origin_lane_id": "",
+        "dirty_scope_paths": [],
         "reasons": reasons,
         "changed_files": considered,
         "must_refresh_topics": must_refresh_topics,

@@ -393,6 +393,9 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "quick-task helper command shapes:" in readme
     assert "command shape: `specify quick status <id>`" in readme
     assert "command shape: `specify hook mark-dirty --reason " in readme
+    assert "--origin-command <workflow>" in readme
+    assert "--origin-feature-dir <dir>" in readme
+    assert "--packet-file <packet-json>" in readme
 
     assert "specify implement closeout --feature-dir <feature-dir> --format json" in quickstart
     assert "command shape:" in quickstart

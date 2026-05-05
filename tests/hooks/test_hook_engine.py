@@ -140,7 +140,12 @@ def test_project_map_mark_dirty_hook_updates_status_file(tmp_path: Path):
     result = run_quality_hook(
         project,
         "project_map.mark_dirty",
-        {"reason": "shared surface changed"},
+        {
+            "reason": "shared surface changed",
+            "origin_command": "implement",
+            "origin_feature_dir": "specs/001-demo",
+            "origin_lane_id": "lane-001",
+        },
     )
 
     assert result.status == "ok"
@@ -150,6 +155,9 @@ def test_project_map_mark_dirty_hook_updates_status_file(tmp_path: Path):
     assert payload["dirty"] is True
     assert payload["freshness"] == "stale"
     assert payload["dirty_reasons"] == ["shared_surface_changed"]
+    assert payload["dirty_origin_command"] == "implement"
+    assert payload["dirty_origin_feature_dir"] == "specs/001-demo"
+    assert payload["dirty_origin_lane_id"] == "lane-001"
 
 
 def test_workflow_checkpoint_returns_resume_payload_for_workflow_state(tmp_path: Path):

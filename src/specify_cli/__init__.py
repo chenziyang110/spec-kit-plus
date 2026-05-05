@@ -1423,12 +1423,31 @@ def project_map_check(
 @project_map_app.command("mark-dirty")
 def project_map_mark_dirty(
     reason: str = typer.Argument(..., help="Why the current work needs a manual dirty override/fallback"),
+    origin_command: str = typer.Option("", "--origin-command", help="Optional workflow command that created the dirty fallback"),
+    origin_feature_dir: str = typer.Option("", "--origin-feature-dir", help="Optional feature directory that created the dirty fallback"),
+    origin_lane_id: str = typer.Option("", "--origin-lane-id", help="Optional lane id that created the dirty fallback"),
+    packet_file: str = typer.Option("", "--packet-file", help="Optional WorkerTaskPacket JSON used to derive dirty scope paths"),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
     """Mark the project map dirty as a manual override/fallback when refresh cannot complete now."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
-    mark_project_map_dirty(project_root, reason)
+    scope_paths = None
+    if packet_file.strip():
+        from specify_cli.execution import worker_task_packet_from_json
+
+        resolved_packet = Path(str(_normalize_optional_repo_path(project_root, packet_file)))
+        packet = worker_task_packet_from_json(resolved_packet.read_text(encoding="utf-8"))
+        scope_paths = list(dict.fromkeys([*packet.scope.write_scope, *packet.scope.read_scope]))
+
+    mark_project_map_dirty(
+        project_root,
+        reason,
+        origin_command=origin_command.strip(),
+        origin_feature_dir=origin_feature_dir.strip(),
+        origin_lane_id=origin_lane_id.strip(),
+        scope_paths=scope_paths,
+    )
     result = inspect_project_map_freshness(project_root)
     if output_format.lower() == "json":
         print_json(result, indent=2)
@@ -5100,6 +5119,10 @@ def hook_inject_learning_command(
 @hook_app.command("mark-dirty")
 def hook_mark_dirty_command(
     reason: str = typer.Option(..., "--reason", help="Why the current work needs a manual dirty override/fallback"),
+    origin_command: str = typer.Option("", "--origin-command", help="Optional workflow command that created the dirty fallback"),
+    origin_feature_dir: str = typer.Option("", "--origin-feature-dir", help="Optional feature directory that created the dirty fallback"),
+    origin_lane_id: str = typer.Option("", "--origin-lane-id", help="Optional lane id that created the dirty fallback"),
+    packet_file: str = typer.Option("", "--packet-file", help="Optional WorkerTaskPacket JSON used to derive dirty scope paths"),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Mark the project map dirty as the shared manual override/fallback."""
@@ -5109,7 +5132,13 @@ def hook_mark_dirty_command(
     _run_hook_and_print(
         project_root,
         "project_map.mark_dirty",
-        {"reason": reason},
+        {
+            "reason": reason,
+            "origin_command": origin_command.strip(),
+            "origin_feature_dir": origin_feature_dir.strip(),
+            "origin_lane_id": origin_lane_id.strip(),
+            "packet_file": _normalize_optional_repo_path(project_root, packet_file),
+        },
     )
 
 

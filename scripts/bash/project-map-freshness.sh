@@ -8,6 +8,10 @@ source "$SCRIPT_DIR/common.sh"
 REPO_ROOT="${1:-$(get_repo_root)}"
 COMMAND="${2:-check}"
 REASON="${3:-}"
+ORIGIN_COMMAND="${4:-}"
+ORIGIN_FEATURE_DIR="${5:-}"
+ORIGIN_LANE_ID="${6:-}"
+DIRTY_SCOPE_PATHS_JSON="${7:-[]}"
 
 PROJECT_MAP_DIR="$(project_map_dir "$REPO_ROOT")"
 STATUS_PATH="$(project_map_status_path "$REPO_ROOT")"
@@ -180,6 +184,10 @@ write_status() {
     local last_refresh_changed_files_basis_json="$9"
     local dirty="${10}"
     local dirty_reasons_json="${11}"
+    local dirty_origin_command="${12:-}"
+    local dirty_origin_feature_dir="${13:-}"
+    local dirty_origin_lane_id="${14:-}"
+    local dirty_scope_paths_json="${15:-[]}"
 
     local payload
     payload="$(cat <<EOF
@@ -197,7 +205,11 @@ write_status() {
   "manual_force_stale": $dirty,
   "manual_force_stale_reasons": $dirty_reasons_json,
   "dirty": $dirty,
-  "dirty_reasons": $dirty_reasons_json
+  "dirty_reasons": $dirty_reasons_json,
+  "dirty_origin_command": "$(json_escape "$dirty_origin_command")",
+  "dirty_origin_feature_dir": "$(json_escape "$dirty_origin_feature_dir")",
+  "dirty_origin_lane_id": "$(json_escape "$dirty_origin_lane_id")",
+  "dirty_scope_paths": $dirty_scope_paths_json
 }
 EOF
 )"
@@ -501,6 +513,10 @@ emit_check_json() {
     local suggested_topics_json="$8"
     local must_refresh_json="$9"
     local review_json="${10}"
+    local dirty_origin_command="${11:-}"
+    local dirty_origin_feature_dir="${12:-}"
+    local dirty_origin_lane_id="${13:-}"
+    local dirty_scope_paths_json="${14:-[]}"
 
     cat <<EOF
 {
@@ -512,6 +528,10 @@ emit_check_json() {
   "manual_force_stale_reasons": $dirty_reasons_json,
   "dirty": $dirty,
   "dirty_reasons": $dirty_reasons_json,
+  "dirty_origin_command": "$(json_escape "$dirty_origin_command")",
+  "dirty_origin_feature_dir": "$(json_escape "$dirty_origin_feature_dir")",
+  "dirty_origin_lane_id": "$(json_escape "$dirty_origin_lane_id")",
+  "dirty_scope_paths": $dirty_scope_paths_json,
   "reasons": $reasons_json,
   "changed_files": $changed_files_json,
   "suggested_topics": $suggested_topics_json,
@@ -523,10 +543,11 @@ EOF
 
 run_check() {
     local head_commit last_mapped_commit dirty dirty_reasons_json
+    local dirty_origin_command dirty_origin_feature_dir dirty_origin_lane_id dirty_scope_paths_json
     head_commit="$(git_head_commit)"
 
     if [[ ! -f "$(status_read_path)" ]]; then
-        emit_check_json "missing" "$head_commit" "" "false" "[]" '["project-map status missing"]' "[]" "[]" "[]" "[]"
+        emit_check_json "missing" "$head_commit" "" "false" "[]" '["project-map status missing"]' "[]" "[]" "[]" "[]" "" "" "" "[]"
         return 0
     fi
 
@@ -539,6 +560,10 @@ run_check() {
     if ! status_has_key "manual_force_stale_reasons"; then
         dirty_reasons_json="$(read_status_array "dirty_reasons")"
     fi
+    dirty_origin_command="$(read_status_field "dirty_origin_command")"
+    dirty_origin_feature_dir="$(read_status_field "dirty_origin_feature_dir")"
+    dirty_origin_lane_id="$(read_status_field "dirty_origin_lane_id")"
+    dirty_scope_paths_json="$(read_status_array "dirty_scope_paths")"
     [[ -n "$dirty" ]] || dirty="false"
 
     if [[ "$dirty" == "true" ]]; then
@@ -581,17 +606,17 @@ PY
             review_json="[]"
             suggested_topics_json="[]"
         fi
-        emit_check_json "stale" "$head_commit" "$last_mapped_commit" "true" "$dirty_reasons_json" "$dirty_reasons_json" "[]" "$suggested_topics_json" "$must_refresh_json" "$review_json"
+        emit_check_json "stale" "$head_commit" "$last_mapped_commit" "true" "$dirty_reasons_json" "$dirty_reasons_json" "[]" "$suggested_topics_json" "$must_refresh_json" "$review_json" "$dirty_origin_command" "$dirty_origin_feature_dir" "$dirty_origin_lane_id" "$dirty_scope_paths_json"
         return 0
     fi
 
     if [[ -z "$last_mapped_commit" || -z "$head_commit" ]]; then
-        emit_check_json "possibly_stale" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" '["git baseline unavailable for project-map freshness"]' "[]" "[]" "[]" "[]"
+        emit_check_json "possibly_stale" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" '["git baseline unavailable for project-map freshness"]' "[]" "[]" "[]" "[]" "$dirty_origin_command" "$dirty_origin_feature_dir" "$dirty_origin_lane_id" "$dirty_scope_paths_json"
         return 0
     fi
 
     if ! has_git; then
-        emit_check_json "possibly_stale" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" '["git baseline unavailable for project-map freshness"]' "[]" "[]" "[]" "[]"
+        emit_check_json "possibly_stale" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" '["git baseline unavailable for project-map freshness"]' "[]" "[]" "[]" "[]" "$dirty_origin_command" "$dirty_origin_feature_dir" "$dirty_origin_lane_id" "$dirty_scope_paths_json"
         return 0
     fi
 
@@ -605,7 +630,7 @@ PY
         } | awk '!seen[$0]++'
     )"
     if [[ -z "$diff_output" ]]; then
-        emit_check_json "fresh" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" "[]" "[]" "[]" "[]" "[]"
+        emit_check_json "fresh" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" "[]" "[]" "[]" "[]" "[]" "$dirty_origin_command" "$dirty_origin_feature_dir" "$dirty_origin_lane_id" "$dirty_scope_paths_json"
         return 0
     fi
 
@@ -744,7 +769,7 @@ PY
         reasons_json="[]"
     fi
 
-    emit_check_json "$worst" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" "$reasons_json" "$changed_files_json" "$suggested_topics_json" "$must_refresh_json" "$review_json"
+    emit_check_json "$worst" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" "$reasons_json" "$changed_files_json" "$suggested_topics_json" "$must_refresh_json" "$review_json" "$dirty_origin_command" "$dirty_origin_feature_dir" "$dirty_origin_lane_id" "$dirty_scope_paths_json"
 }
 
 record_refresh() {
@@ -764,8 +789,8 @@ PY
     else
         topics_json='["ARCHITECTURE.md","STRUCTURE.md","CONVENTIONS.md","INTEGRATIONS.md","OPERATIONS.md","WORKFLOWS.md","TESTING.md"]'
     fi
-    write_status "$head_commit" "$now" "$branch" "fresh" "$reason" "$topics_json" "full" "$reason" "[]" "false" "[]"
-    emit_check_json "fresh" "$head_commit" "$head_commit" "false" "[]" "[]" "[]" "$topics_json" "$topics_json" "[]"
+    write_status "$head_commit" "$now" "$branch" "fresh" "$reason" "$topics_json" "full" "$reason" "[]" "false" "[]" "" "" "" "[]"
+    emit_check_json "fresh" "$head_commit" "$head_commit" "false" "[]" "[]" "[]" "$topics_json" "$topics_json" "[]" "" "" "" "[]"
 }
 
 mark_dirty() {
@@ -797,7 +822,7 @@ mark_dirty() {
     last_refresh_changed_files_basis_json="$(read_status_array "last_refresh_changed_files_basis")"
     [[ -n "$last_refresh_scope" ]] || last_refresh_scope="full"
     [[ -n "$last_refresh_basis" ]] || last_refresh_basis="$last_refresh_reason"
-    write_status "$last_mapped_commit" "$last_mapped_at" "$last_mapped_branch" "stale" "$last_refresh_reason" "$last_refresh_topics_json" "$last_refresh_scope" "$last_refresh_basis" "$last_refresh_changed_files_basis_json" "true" "$dirty_reasons_json"
+    write_status "$last_mapped_commit" "$last_mapped_at" "$last_mapped_branch" "stale" "$last_refresh_reason" "$last_refresh_topics_json" "$last_refresh_scope" "$last_refresh_basis" "$last_refresh_changed_files_basis_json" "true" "$dirty_reasons_json" "$ORIGIN_COMMAND" "$ORIGIN_FEATURE_DIR" "$ORIGIN_LANE_ID" "$DIRTY_SCOPE_PATHS_JSON"
     run_check
 }
 
@@ -814,7 +839,7 @@ clear_dirty() {
     last_refresh_changed_files_basis_json="$(read_status_array "last_refresh_changed_files_basis")"
     [[ -n "$last_refresh_scope" ]] || last_refresh_scope="full"
     [[ -n "$last_refresh_basis" ]] || last_refresh_basis="$last_refresh_reason"
-    write_status "$last_mapped_commit" "$last_mapped_at" "$last_mapped_branch" "fresh" "$last_refresh_reason" "$last_refresh_topics_json" "$last_refresh_scope" "$last_refresh_basis" "$last_refresh_changed_files_basis_json" "false" "[]"
+    write_status "$last_mapped_commit" "$last_mapped_at" "$last_mapped_branch" "fresh" "$last_refresh_reason" "$last_refresh_topics_json" "$last_refresh_scope" "$last_refresh_basis" "$last_refresh_changed_files_basis_json" "false" "[]" "" "" "" "[]"
     run_check
 }
 
@@ -835,7 +860,7 @@ case "$COMMAND" in
         clear_dirty
         ;;
     *)
-        echo "Usage: project-map-freshness.sh [repo_root] {check|record-refresh|complete-refresh|mark-dirty|clear-dirty} [reason]" >&2
+        echo "Usage: project-map-freshness.sh [repo_root] {check|record-refresh|complete-refresh|mark-dirty|clear-dirty} [reason] [origin_command] [origin_feature_dir] [origin_lane_id] [dirty_scope_paths_json]" >&2
         exit 1
         ;;
 esac

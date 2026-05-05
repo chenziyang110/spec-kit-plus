@@ -49,6 +49,9 @@ def test_execution_templates_reference_state_checkpoint_and_delegation_hook_help
     assert "hook checkpoint --command implement" in implement
     assert "hook build-compaction --command implement" in implement
     assert "hook mark-dirty --reason" in implement
+    assert "--origin-command implement" in implement
+    assert '--origin-feature-dir "$FEATURE_DIR"' in implement
+    assert "--packet-file <packet-json>" in implement
 
     assert "hook preflight --command quick" in quick
     assert "hook validate-state --command quick" in quick

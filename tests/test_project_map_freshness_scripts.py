@@ -145,10 +145,21 @@ def test_bash_project_map_freshness_lifecycle(git_repo: Path):
     assert refreshed["freshness"] == "fresh"
     assert refreshed["status_path"].endswith(".specify/project-map/index/status.json")
 
-    dirty = _run_bash(git_repo, "mark-dirty", "shared_surface_changed")
+    dirty = _run_bash(
+        git_repo,
+        "mark-dirty",
+        "shared_surface_changed",
+        "implement",
+        "specs/001-demo",
+        "lane-001",
+    )
     assert dirty["freshness"] == "stale"
     assert dirty["dirty"] is True
     assert dirty["dirty_reasons"] == ["shared_surface_changed"]
+    assert dirty["dirty_origin_command"] == "implement"
+    assert dirty["dirty_origin_feature_dir"] == "specs/001-demo"
+    assert dirty["dirty_origin_lane_id"] == "lane-001"
+    assert dirty["dirty_scope_paths"] == []
     assert dirty["must_refresh_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md"]
     assert dirty["review_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
 
@@ -278,30 +289,46 @@ def test_complete_refresh_clears_manual_force_stale_fields_in_shell_helpers(git_
     _commit_seeded_map(git_repo)
 
     _run_bash(git_repo, "record-refresh", "manual")
-    bash_dirty = _run_bash(git_repo, "mark-dirty", "workflow_contract_changed")
+    bash_dirty = _run_bash(git_repo, "mark-dirty", "workflow_contract_changed", "implement", "specs/001-demo", "lane-001")
     assert bash_dirty["manual_force_stale"] is True
     assert bash_dirty["manual_force_stale_reasons"] == ["workflow_contract_changed"]
     assert bash_dirty["dirty"] is True
     assert bash_dirty["dirty_reasons"] == ["workflow_contract_changed"]
+    assert bash_dirty["dirty_origin_command"] == "implement"
+    assert bash_dirty["dirty_origin_feature_dir"] == "specs/001-demo"
+    assert bash_dirty["dirty_origin_lane_id"] == "lane-001"
+    assert bash_dirty["dirty_scope_paths"] == []
 
     bash_refreshed = _run_bash(git_repo, "complete-refresh")
     assert bash_refreshed["manual_force_stale"] is False
     assert bash_refreshed["manual_force_stale_reasons"] == []
     assert bash_refreshed["dirty"] is False
     assert bash_refreshed["dirty_reasons"] == []
+    assert bash_refreshed["dirty_origin_command"] == ""
+    assert bash_refreshed["dirty_origin_feature_dir"] == ""
+    assert bash_refreshed["dirty_origin_lane_id"] == ""
+    assert bash_refreshed["dirty_scope_paths"] == []
 
-    _run_powershell(git_repo, "mark-dirty", "workflow_contract_changed")
+    _run_powershell(git_repo, "mark-dirty", "workflow_contract_changed", "implement", "specs/001-demo", "lane-001")
     ps_refreshed = _run_powershell(git_repo, "complete-refresh")
     assert ps_refreshed["manual_force_stale"] is False
     assert ps_refreshed["manual_force_stale_reasons"] == []
     assert ps_refreshed["dirty"] is False
     assert ps_refreshed["dirty_reasons"] == []
+    assert ps_refreshed["dirty_origin_command"] == ""
+    assert ps_refreshed["dirty_origin_feature_dir"] == ""
+    assert ps_refreshed["dirty_origin_lane_id"] == ""
+    assert ps_refreshed["dirty_scope_paths"] == []
 
     payload = json.loads((git_repo / ".specify" / "project-map" / "index" / "status.json").read_text(encoding="utf-8"))
     assert payload["manual_force_stale"] is False
     assert payload["manual_force_stale_reasons"] == []
     assert payload["dirty"] is False
     assert payload["dirty_reasons"] == []
+    assert payload["dirty_origin_command"] == ""
+    assert payload["dirty_origin_feature_dir"] == ""
+    assert payload["dirty_origin_lane_id"] == ""
+    assert payload["dirty_scope_paths"] == []
 
 
 def test_bash_prefers_present_empty_manual_force_stale_reasons_over_legacy_dirty_reasons(git_repo: Path):
