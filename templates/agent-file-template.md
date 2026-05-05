@@ -30,7 +30,7 @@ Auto-generated from all feature plans. Last updated: [DATE]
 - Resolve resumable workflow targets through durable lane state or explicit feature paths before guessing from the current branch name.
 - If a workflow records canonical next-command tokens like `/sp.plan` or `/sp.implement`, normalize them before comparing against bare command names.
 - If lane resolution returns a unique safe candidate and a materialized worktree, continue from that isolated worktree context instead of assuming the current workspace is correct.
-- Preserve compatibility with legacy feature roots such as `.specify/specs/<feature>/` when recovery logic or generated scripts need to reopen an existing feature package.
+- Prefer `.specify/features/<feature>/` as the canonical feature root. Preserve compatibility with legacy feature roots such as `specs/<feature>/` and `.specify/specs/<feature>/` when recovery logic or generated scripts need to reopen an existing feature package.
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

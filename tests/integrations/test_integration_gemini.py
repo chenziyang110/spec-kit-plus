@@ -16,6 +16,47 @@ from specify_cli.launcher import render_hook_launcher_command
 from .test_integration_base_toml import TomlIntegrationTests
 
 
+def _load_gemini_hook_dispatch_module():
+    import importlib.util
+
+    repo_root = Path(__file__).resolve().parents[2]
+    hook_path = repo_root / "src" / "specify_cli" / "integrations" / "gemini" / "hooks" / "gemini-hook-dispatch.py"
+    spec = importlib.util.spec_from_file_location("gemini_hook_dispatch_for_tests", hook_path)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_gemini_hook_infers_active_context_from_specify_features_root(tmp_path):
+    module = _load_gemini_hook_dispatch_module()
+    project_root = tmp_path / "gemini-hook-features-root"
+    feature_dir = project_root / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: executing",
+                "resume_decision: resume-here",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: batch-a",
+                "next_action: continue execution",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    inferred = module._infer_active_context(project_root)
+
+    assert inferred is not None
+    assert inferred["command_name"] == "implement"
+    assert inferred["feature_dir"] == str(feature_dir)
+
+
 class TestGeminiIntegration(TomlIntegrationTests):
     KEY = "gemini"
     FOLDER = ".gemini/"

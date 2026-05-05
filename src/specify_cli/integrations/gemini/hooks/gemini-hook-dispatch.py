@@ -340,25 +340,36 @@ def _candidate_sort_key(path: Path) -> float:
         return 0.0
 
 
+def _feature_root_candidates(project_root: Path) -> list[Path]:
+    return [
+        project_root / ".specify" / "features",
+        project_root / "specs",
+        project_root / ".specify" / "specs",
+    ]
+
+
 def _infer_active_context(project_root: Path) -> dict[str, str] | None:
     implement_candidates: list[tuple[float, dict[str, str]]] = []
-    for tracker_path in project_root.glob("specs/*/implement-tracker.md"):
-        text = _read_text(tracker_path)
-        if not text:
+    for root in _feature_root_candidates(project_root):
+        if not root.is_dir():
             continue
-        status = _extract_frontmatter_field(text, "status").lower()
-        if not status or status in TERMINAL_STATE_STATUSES:
-            continue
-        implement_candidates.append(
-            (
-                _candidate_sort_key(tracker_path),
-                {
-                    "command_name": "implement",
-                    "feature_dir": str(tracker_path.parent),
-                    "state_file": str(tracker_path),
-                },
+        for tracker_path in root.glob("*/implement-tracker.md"):
+            text = _read_text(tracker_path)
+            if not text:
+                continue
+            status = _extract_frontmatter_field(text, "status").lower()
+            if not status or status in TERMINAL_STATE_STATUSES:
+                continue
+            implement_candidates.append(
+                (
+                    _candidate_sort_key(tracker_path),
+                    {
+                        "command_name": "implement",
+                        "feature_dir": str(tracker_path.parent),
+                        "state_file": str(tracker_path),
+                    },
+                )
             )
-        )
     if implement_candidates:
         return max(implement_candidates, key=lambda item: item[0])[1]
 
@@ -384,25 +395,28 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
         return max(quick_candidates, key=lambda item: item[0])[1]
 
     workflow_candidates: list[tuple[float, dict[str, str]]] = []
-    for workflow_path in project_root.glob("specs/*/workflow-state.md"):
-        text = _read_text(workflow_path)
-        if not text:
+    for root in _feature_root_candidates(project_root):
+        if not root.is_dir():
             continue
-        active_command = _extract_field(text, "active_command").lower()
-        status = _extract_field(text, "status").lower()
-        mapped = WORKFLOW_COMMAND_MAP.get(active_command)
-        if not mapped or (status and status not in ACTIVE_STATE_STATUSES):
-            continue
-        workflow_candidates.append(
-            (
-                _candidate_sort_key(workflow_path),
-                {
-                    "command_name": mapped,
-                    "feature_dir": str(workflow_path.parent),
-                    "state_file": str(workflow_path),
-                },
+        for workflow_path in root.glob("*/workflow-state.md"):
+            text = _read_text(workflow_path)
+            if not text:
+                continue
+            active_command = _extract_field(text, "active_command").lower()
+            status = _extract_field(text, "status").lower()
+            mapped = WORKFLOW_COMMAND_MAP.get(active_command)
+            if not mapped or (status and status not in ACTIVE_STATE_STATUSES):
+                continue
+            workflow_candidates.append(
+                (
+                    _candidate_sort_key(workflow_path),
+                    {
+                        "command_name": mapped,
+                        "feature_dir": str(workflow_path.parent),
+                        "state_file": str(workflow_path),
+                    },
+                )
             )
-        )
     if workflow_candidates:
         return max(workflow_candidates, key=lambda item: item[0])[1]
 

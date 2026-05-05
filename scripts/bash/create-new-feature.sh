@@ -90,7 +90,7 @@ if [ -z "$FEATURE_DESCRIPTION" ]; then
     exit 1
 fi
 
-# Function to get highest number from specs directory
+# Function to get highest number from a feature root directory
 get_highest_from_specs() {
     local specs_dir="$1"
     local highest=0
@@ -203,9 +203,9 @@ fi
 
 cd "$REPO_ROOT"
 
-SPECS_DIR="$REPO_ROOT/specs"
+FEATURES_DIR="$REPO_ROOT/.specify/features"
 if [ "$DRY_RUN" != true ]; then
-    mkdir -p "$SPECS_DIR"
+    mkdir -p "$FEATURES_DIR"
 fi
 
 # Function to generate branch name with stop word filtering and length filtering
@@ -280,17 +280,17 @@ else
     if [ -z "$BRANCH_NUMBER" ]; then
         if [ "$DRY_RUN" = true ] && [ "$HAS_GIT" = true ]; then
             # Dry-run: query remotes via ls-remote (side-effect-free, no fetch)
-            BRANCH_NUMBER=$(check_existing_branches "$SPECS_DIR" true)
+            BRANCH_NUMBER=$(check_existing_branches "$FEATURES_DIR" true)
         elif [ "$DRY_RUN" = true ]; then
             # Dry-run without git: local spec dirs only
-            HIGHEST=$(get_highest_from_specs "$SPECS_DIR")
+            HIGHEST=$(get_highest_from_specs "$FEATURES_DIR")
             BRANCH_NUMBER=$((HIGHEST + 1))
         elif [ "$HAS_GIT" = true ]; then
             # Check existing branches on remotes
-            BRANCH_NUMBER=$(check_existing_branches "$SPECS_DIR")
+            BRANCH_NUMBER=$(check_existing_branches "$FEATURES_DIR")
         else
             # Fall back to local directory check
-            HIGHEST=$(get_highest_from_specs "$SPECS_DIR")
+            HIGHEST=$(get_highest_from_specs "$FEATURES_DIR")
             BRANCH_NUMBER=$((HIGHEST + 1))
         fi
     fi
@@ -322,7 +322,7 @@ if [ ${#BRANCH_NAME} -gt $MAX_BRANCH_LENGTH ]; then
     >&2 echo "[specify] Truncated to: $BRANCH_NAME (${#BRANCH_NAME} bytes)"
 fi
 
-FEATURE_DIR="$SPECS_DIR/$BRANCH_NAME"
+FEATURE_DIR="$FEATURES_DIR/$BRANCH_NAME"
 SPEC_FILE="$FEATURE_DIR/spec.md"
 CONTEXT_FILE="$FEATURE_DIR/context.md"
 LANE_ID="$BRANCH_NAME"

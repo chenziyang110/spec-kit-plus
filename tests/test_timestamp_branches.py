@@ -184,8 +184,8 @@ class TestTimestampBranch:
 class TestSequentialBranch:
     def test_sequential_default_with_existing_specs(self, git_repo: Path):
         """Test 2: Sequential default with existing specs."""
-        (git_repo / "specs" / "001-first-feat").mkdir(parents=True)
-        (git_repo / "specs" / "002-second-feat").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "001-first-feat").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "002-second-feat").mkdir(parents=True)
         result = run_script(git_repo, "--short-name", "new-feat", "New feature")
         assert result.returncode == 0, result.stderr
         branch = None
@@ -197,8 +197,8 @@ class TestSequentialBranch:
 
     def test_sequential_ignores_timestamp_dirs(self, git_repo: Path):
         """Sequential numbering skips timestamp dirs when computing next number."""
-        (git_repo / "specs" / "002-first-feat").mkdir(parents=True)
-        (git_repo / "specs" / "20260319-143022-ts-feat").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "002-first-feat").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "20260319-143022-ts-feat").mkdir(parents=True)
         result = run_script(git_repo, "--short-name", "next-feat", "Next feature")
         assert result.returncode == 0, result.stderr
         branch = None
@@ -209,8 +209,8 @@ class TestSequentialBranch:
 
     def test_sequential_supports_four_digit_prefixes(self, git_repo: Path):
         """Sequential numbering should continue past 999 without truncation."""
-        (git_repo / "specs" / "999-last-3digit").mkdir(parents=True)
-        (git_repo / "specs" / "1000-first-4digit").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "999-last-3digit").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "1000-first-4digit").mkdir(parents=True)
         result = run_script(git_repo, "--short-name", "next-feat", "Next feature")
         assert result.returncode == 0, result.stderr
         branch = None
@@ -274,30 +274,30 @@ class TestCheckFeatureBranch:
 class TestFindFeatureDirByPrefix:
     def test_timestamp_branch(self, tmp_path: Path):
         """Test 10: find_feature_dir_by_prefix with timestamp branch."""
-        (tmp_path / "specs" / "20260319-143022-user-auth").mkdir(parents=True)
+        (tmp_path / ".specify" / "features" / "20260319-143022-user-auth").mkdir(parents=True)
         result = source_and_call(
             f'find_feature_dir_by_prefix "{_bash_path(tmp_path)}" "20260319-143022-user-auth"'
         )
         assert result.returncode == 0
-        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/specs/20260319-143022-user-auth"
+        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/.specify/features/20260319-143022-user-auth"
 
     def test_cross_branch_prefix(self, tmp_path: Path):
         """Test 11: find_feature_dir_by_prefix cross-branch (different suffix, same timestamp)."""
-        (tmp_path / "specs" / "20260319-143022-original-feat").mkdir(parents=True)
+        (tmp_path / ".specify" / "features" / "20260319-143022-original-feat").mkdir(parents=True)
         result = source_and_call(
             f'find_feature_dir_by_prefix "{_bash_path(tmp_path)}" "20260319-143022-different-name"'
         )
         assert result.returncode == 0
-        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/specs/20260319-143022-original-feat"
+        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/.specify/features/20260319-143022-original-feat"
 
     def test_four_digit_sequential_prefix(self, tmp_path: Path):
         """find_feature_dir_by_prefix resolves 4+ digit sequential prefix."""
-        (tmp_path / "specs" / "1000-original-feat").mkdir(parents=True)
+        (tmp_path / ".specify" / "features" / "1000-original-feat").mkdir(parents=True)
         result = source_and_call(
             f'find_feature_dir_by_prefix "{_bash_path(tmp_path)}" "1000-different-name"'
         )
         assert result.returncode == 0
-        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/specs/1000-original-feat"
+        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/.specify/features/1000-original-feat"
 
     def test_legacy_spec_root(self, tmp_path: Path):
         """find_feature_dir_by_prefix should also search legacy .specify/specs roots."""
@@ -307,6 +307,17 @@ class TestFindFeatureDirByPrefix:
         )
         assert result.returncode == 0
         assert result.stdout.strip() == f"{_bash_path(tmp_path)}/.specify/specs/20260319-143022-original-feat"
+
+    def test_preferred_specify_features_root(self, tmp_path: Path):
+        """.specify/features should be preferred over specs and legacy roots for matching prefixes."""
+        (tmp_path / "specs" / "20260319-143022-specs-feat").mkdir(parents=True)
+        (tmp_path / ".specify" / "specs" / "20260319-143022-legacy-feat").mkdir(parents=True)
+        (tmp_path / ".specify" / "features" / "20260319-143022-canonical-feat").mkdir(parents=True)
+        result = source_and_call(
+            f'find_feature_dir_by_prefix "{_bash_path(tmp_path)}" "20260319-143022-different-name"'
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == f"{_bash_path(tmp_path)}/.specify/features/20260319-143022-canonical-feat"
 
 
 # ── get_current_branch Tests ─────────────────────────────────────────────────
@@ -329,7 +340,7 @@ class TestNoGitTimestamp:
         """Test 13: No-git repo + timestamp creates spec dir with warning."""
         result = run_script(no_git_dir, "--timestamp", "--short-name", "no-git-feat", "No git feature")
         assert result.returncode == 0, result.stderr
-        spec_dirs = list((no_git_dir / "specs").iterdir()) if (no_git_dir / "specs").exists() else []
+        spec_dirs = list((no_git_dir / ".specify" / "features").iterdir()) if (no_git_dir / ".specify" / "features").exists() else []
         assert len(spec_dirs) > 0, "spec dir not created"
         assert "git" in result.stderr.lower() or "warning" in result.stderr.lower()
 
@@ -391,7 +402,7 @@ class TestE2EFlow:
             text=True,
         ).stdout.strip()
         assert re.match(r"^\d{8}-\d{6}-e2e-ts$", branch), f"branch: {branch}"
-        assert (git_repo / "specs" / branch).is_dir()
+        assert (git_repo / ".specify" / "features" / branch).is_dir()
         val = source_and_call(f'check_feature_branch "{branch}" "true"')
         assert val.returncode == 0
 
@@ -405,7 +416,7 @@ class TestE2EFlow:
             text=True,
         ).stdout.strip()
         assert re.match(r"^\d{3,}-seq-feat$", branch), f"branch: {branch}"
-        assert (git_repo / "specs" / branch).is_dir()
+        assert (git_repo / ".specify" / "features" / branch).is_dir()
         val = source_and_call(f'check_feature_branch "{branch}" "true"')
         assert val.returncode == 0
 
@@ -463,8 +474,8 @@ class TestAllowExistingBranch:
             "--number", "6", "Spec dir feature",
         )
         assert result.returncode == 0, result.stderr
-        assert (git_repo / "specs" / "006-spec-dir").is_dir()
-        assert (git_repo / "specs" / "006-spec-dir" / "spec.md").exists()
+        assert (git_repo / ".specify" / "features" / "006-spec-dir").is_dir()
+        assert (git_repo / ".specify" / "features" / "006-spec-dir" / "spec.md").exists()
 
     def test_without_flag_still_errors(self, git_repo: Path):
         """T009: Verify backwards compatibility (error without flag)."""
@@ -561,8 +572,8 @@ class TestAllowExistingBranchPowerShell:
 class TestDryRun:
     def test_dry_run_sequential_outputs_name(self, git_repo: Path):
         """T009: Dry-run computes correct branch name with existing specs."""
-        (git_repo / "specs" / "001-first-feat").mkdir(parents=True)
-        (git_repo / "specs" / "002-second-feat").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "001-first-feat").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "002-second-feat").mkdir(parents=True)
         result = run_script(
             git_repo, "--dry-run", "--short-name", "new-feat", "New feature"
         )
@@ -589,17 +600,17 @@ class TestDryRun:
         assert branches.stdout.strip() == "", "branch should not exist after dry-run"
 
     def test_dry_run_no_spec_dir_created(self, git_repo: Path):
-        """T011: Dry-run does not create any directories (including root specs/)."""
-        specs_root = git_repo / "specs"
-        if specs_root.exists():
-            shutil.rmtree(specs_root)
-        assert not specs_root.exists(), "specs/ should not exist before dry-run"
+        """T011: Dry-run does not create any canonical feature directories."""
+        features_root = git_repo / ".specify" / "features"
+        if features_root.exists():
+            shutil.rmtree(features_root)
+        assert not features_root.exists(), ".specify/features should not exist before dry-run"
 
         result = run_script(
             git_repo, "--dry-run", "--short-name", "no-dir", "No dir feature"
         )
         assert result.returncode == 0, result.stderr
-        assert not specs_root.exists(), "specs/ should not be created during dry-run"
+        assert not features_root.exists(), ".specify/features should not be created during dry-run"
 
     def test_dry_run_empty_repo(self, git_repo: Path):
         """T012: Dry-run returns 001 prefix when no existing specs or branches."""
@@ -615,9 +626,9 @@ class TestDryRun:
 
     def test_dry_run_with_short_name(self, git_repo: Path):
         """T013: Dry-run with --short-name produces expected name."""
-        (git_repo / "specs" / "001-existing").mkdir(parents=True)
-        (git_repo / "specs" / "002-existing").mkdir(parents=True)
-        (git_repo / "specs" / "003-existing").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "001-existing").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "002-existing").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "003-existing").mkdir(parents=True)
         result = run_script(
             git_repo, "--dry-run", "--short-name", "user-auth", "Add user authentication"
         )
@@ -630,7 +641,7 @@ class TestDryRun:
 
     def test_dry_run_then_real_run_match(self, git_repo: Path):
         """T014: Dry-run name matches subsequent real creation."""
-        (git_repo / "specs" / "001-existing").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "001-existing").mkdir(parents=True)
         # Dry-run first
         dry_result = run_script(
             git_repo, "--dry-run", "--short-name", "match-test", "Match test"
@@ -653,7 +664,7 @@ class TestDryRun:
 
     def test_dry_run_accounts_for_remote_branches(self, git_repo: Path):
         """Dry-run queries remote refs via ls-remote (no fetch) for accurate numbering."""
-        (git_repo / "specs" / "001-existing").mkdir(parents=True)
+        (git_repo / ".specify" / "features" / "001-existing").mkdir(parents=True)
 
         # Set up a bare remote and push (use subdirs of git_repo for isolation)
         remote_dir = git_repo / "test-remote.git"
@@ -770,7 +781,7 @@ class TestDryRun:
 
     def test_dry_run_no_git(self, no_git_dir: Path):
         """T019: Dry-run works in non-git directory."""
-        (no_git_dir / "specs" / "001-existing").mkdir(parents=True)
+        (no_git_dir / ".specify" / "features" / "001-existing").mkdir(parents=True)
         result = run_script(
             no_git_dir, "--dry-run", "--short-name", "no-git-dry", "No git dry run"
         )
@@ -783,7 +794,7 @@ class TestDryRun:
         # Verify no spec dir created
         spec_dirs = [
             d.name
-            for d in (no_git_dir / "specs").iterdir()
+            for d in (no_git_dir / ".specify" / "features").iterdir()
             if d.is_dir() and "no-git-dry" in d.name
         ]
         assert len(spec_dirs) == 0
@@ -805,8 +816,8 @@ def _has_pwsh() -> bool:
 class TestPowerShellFeatureDirResolution:
     def test_common_ps_feature_paths_match_timestamp_prefix(self, tmp_path: Path):
         """PowerShell should resolve an existing timestamp-prefixed spec dir even when branch suffix differs."""
-        (tmp_path / "specs" / "20260319-143022-original-feat").mkdir(parents=True)
-        (tmp_path / ".specify").mkdir(parents=True)
+        (tmp_path / ".specify" / "features" / "20260319-143022-original-feat").mkdir(parents=True)
+        (tmp_path / ".specify").mkdir(parents=True, exist_ok=True)
         ps_dir = tmp_path / "scripts" / "powershell"
         ps_dir.mkdir(parents=True)
         shutil.copy(COMMON_PS, ps_dir / "common.ps1")
@@ -825,12 +836,12 @@ class TestPowerShellFeatureDirResolution:
         )
 
         assert result.returncode == 0, result.stderr
-        assert result.stdout.strip() == str(tmp_path / "specs" / "20260319-143022-original-feat")
+        assert result.stdout.strip() == str(tmp_path / ".specify" / "features" / "20260319-143022-original-feat")
 
     def test_common_ps_feature_paths_match_sequential_prefix(self, tmp_path: Path):
         """PowerShell should resolve an existing numeric-prefixed spec dir even when branch suffix differs."""
-        (tmp_path / "specs" / "1000-original-feat").mkdir(parents=True)
-        (tmp_path / ".specify").mkdir(parents=True)
+        (tmp_path / ".specify" / "features" / "1000-original-feat").mkdir(parents=True)
+        (tmp_path / ".specify").mkdir(parents=True, exist_ok=True)
         ps_dir = tmp_path / "scripts" / "powershell"
         ps_dir.mkdir(parents=True)
         shutil.copy(COMMON_PS, ps_dir / "common.ps1")
@@ -849,12 +860,12 @@ class TestPowerShellFeatureDirResolution:
         )
 
         assert result.returncode == 0, result.stderr
-        assert result.stdout.strip() == str(tmp_path / "specs" / "1000-original-feat")
+        assert result.stdout.strip() == str(tmp_path / ".specify" / "features" / "1000-original-feat")
 
     def test_common_ps_feature_paths_prefer_lane_state(self, tmp_path: Path):
         """PowerShell should recover the canonical feature dir from durable lane state before branch fallback."""
         (tmp_path / ".specify" / "lanes" / "001-hotfix-branch").mkdir(parents=True)
-        (tmp_path / "specs" / "001-canonical-feature").mkdir(parents=True)
+        (tmp_path / ".specify" / "features" / "001-canonical-feature").mkdir(parents=True)
         ps_dir = tmp_path / "scripts" / "powershell"
         ps_dir.mkdir(parents=True)
         shutil.copy(COMMON_PS, ps_dir / "common.ps1")
@@ -863,7 +874,7 @@ class TestPowerShellFeatureDirResolution:
                 {
                     "lane_id": "001-hotfix-branch",
                     "feature_id": "001-canonical-feature",
-                    "feature_dir": "specs/001-canonical-feature",
+                    "feature_dir": ".specify/features/001-canonical-feature",
                     "branch_name": "001-hotfix-branch",
                     "worktree_path": ".specify/lanes/worktrees/001-hotfix-branch",
                 }
@@ -885,7 +896,7 @@ class TestPowerShellFeatureDirResolution:
         )
 
         assert result.returncode == 0, result.stderr
-        assert result.stdout.strip() == str(tmp_path / "specs" / "001-canonical-feature")
+        assert result.stdout.strip() == str(tmp_path / ".specify" / "features" / "001-canonical-feature")
 
     def test_common_ps_feature_paths_support_legacy_spec_root(self, tmp_path: Path):
         """PowerShell should resolve legacy .specify/specs roots by prefix."""
@@ -909,6 +920,31 @@ class TestPowerShellFeatureDirResolution:
 
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip() == str(tmp_path / ".specify" / "specs" / "20260319-143022-original-feat")
+
+    def test_common_ps_feature_paths_prefer_specify_features_root(self, tmp_path: Path):
+        """PowerShell should prefer .specify/features over specs and legacy roots when prefixes match."""
+        (tmp_path / "specs" / "20260319-143022-specs-feat").mkdir(parents=True)
+        (tmp_path / ".specify" / "specs" / "20260319-143022-legacy-feat").mkdir(parents=True)
+        (tmp_path / ".specify" / "features" / "20260319-143022-canonical-feat").mkdir(parents=True)
+        ps_dir = tmp_path / "scripts" / "powershell"
+        ps_dir.mkdir(parents=True)
+        shutil.copy(COMMON_PS, ps_dir / "common.ps1")
+
+        script = (
+            f'. "{ps_dir / "common.ps1"}"; '
+            '$env:SPECIFY_FEATURE = "20260319-143022-different-name"; '
+            '$paths = Get-FeaturePathsEnv; '
+            'Write-Output $paths.FEATURE_DIR'
+        )
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command", script],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == str(tmp_path / ".specify" / "features" / "20260319-143022-canonical-feat")
 
 
 def run_ps_script(cwd: Path, *args: str) -> subprocess.CompletedProcess:
@@ -962,7 +998,7 @@ def ps_git_repo(tmp_path: Path) -> Path:
 class TestPowerShellDryRun:
     def test_ps_dry_run_outputs_name(self, ps_git_repo: Path):
         """PowerShell -DryRun computes correct branch name."""
-        (ps_git_repo / "specs" / "001-first").mkdir(parents=True)
+        (ps_git_repo / ".specify" / "features" / "001-first").mkdir(parents=True)
         result = run_ps_script(
             ps_git_repo, "-DryRun", "-ShortName", "ps-feat", "PS feature"
         )
@@ -989,17 +1025,17 @@ class TestPowerShellDryRun:
         assert branches.stdout.strip() == "", "branch should not exist after dry-run"
 
     def test_ps_dry_run_no_spec_dir_created(self, ps_git_repo: Path):
-        """PowerShell -DryRun does not create specs/ directory."""
-        specs_root = ps_git_repo / "specs"
-        if specs_root.exists():
-            shutil.rmtree(specs_root)
-        assert not specs_root.exists()
+        """PowerShell -DryRun does not create canonical feature directories."""
+        features_root = ps_git_repo / ".specify" / "features"
+        if features_root.exists():
+            shutil.rmtree(features_root)
+        assert not features_root.exists()
 
         result = run_ps_script(
             ps_git_repo, "-DryRun", "-ShortName", "no-ps-dir", "No dir"
         )
         assert result.returncode == 0, result.stderr
-        assert not specs_root.exists(), "specs/ should not be created during dry-run"
+        assert not features_root.exists(), ".specify/features should not be created during dry-run"
 
     def test_ps_dry_run_json_includes_field(self, ps_git_repo: Path):
         """PowerShell -DryRun JSON output includes DRY_RUN field."""

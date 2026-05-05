@@ -1794,7 +1794,7 @@ def test_agent_file_template_captures_lane_recovery_rules():
     assert "durable lane state" in lowered
     assert "explicit feature paths" in lowered
     assert "/sp.plan" in content
-    assert ".specify/specs/<feature>/" in content
+    assert ".specify/features/<feature>/" in content
 
 
 def test_prd_scan_template_uses_shared_subagent_dispatch_contract() -> None:

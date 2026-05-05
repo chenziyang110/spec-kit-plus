@@ -5,7 +5,7 @@ description: "Task list template for feature implementation"
 
 # Tasks: [FEATURE NAME]
 
-**Input**: Design documents from `/specs/[###-feature-name]/`
+**Input**: Design documents from `/.specify/features/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), alignment.md and context.md when present or required for scenario profile inputs, research.md, data-model.md, contracts/
 
 **Tests**: The examples below include test tasks. If `.specify/testing/TESTING_CONTRACT.md` exists, tests are expected by default for affected behavior changes and bug fixes. Only omit them when the contract or plan explicitly justifies the omission.

@@ -262,6 +262,11 @@ def test_check_reports_project_runtime_compatibility_issues(tmp_path):
         "function Get-FeaturePathsEnv { $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch }\n",
         encoding="utf-8",
     )
+    (project / ".specify" / "scripts" / "bash").mkdir(parents=True, exist_ok=True)
+    (project / ".specify" / "scripts" / "bash" / "common.sh").write_text(
+        'get_feature_dir() { echo "$1/specs/$2"; }\n',
+        encoding="utf-8",
+    )
     (project / ".claude").mkdir()
     (project / ".claude" / "settings.json").write_text(
         json.dumps(
@@ -294,6 +299,7 @@ def test_check_reports_project_runtime_compatibility_issues(tmp_path):
     assert "project compatibility" in result.output.lower()
     assert "persisted project launcher is configured but unavailable" in result.output.lower()
     assert "generated powershell workflow scripts are stale" in result.output.lower()
+    assert "generated shared workflow scripts still target legacy feature roots" in result.output.lower()
     assert "claude managed hook commands still use powershell-style" in result.output.lower()
     assert "bash-compatible launcher command" in result.output.lower()
 

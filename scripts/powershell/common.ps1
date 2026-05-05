@@ -48,6 +48,17 @@ function Get-RepoRoot {
     return (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "../../..")).Path
 }
 
+# Feature roots are ordered by current preference first, then compatibility fallbacks.
+function Get-FeatureSpecsRoots {
+    param([string]$RepoRoot)
+
+    @(
+        (Join-Path $RepoRoot ".specify/features")
+        (Join-Path $RepoRoot "specs")
+        (Join-Path $RepoRoot ".specify/specs")
+    )
+}
+
 function Get-CurrentBranch {
     # First check if SPECIFY_FEATURE environment variable is set
     if ($env:SPECIFY_FEATURE) {
@@ -67,13 +78,14 @@ function Get-CurrentBranch {
         }
     }
 
-    # For non-git repos, try to find the latest feature directory
-    $specsDir = Join-Path $repoRoot "specs"
-    
-    if (Test-Path $specsDir) {
-        $latestFeature = ""
-        $highest = 0
-        $latestTimestamp = ""
+    # For non-git repos, try to find the latest feature directory.
+    $latestFeature = ""
+    $highest = 0
+    $latestTimestamp = ""
+    foreach ($specsDir in (Get-FeatureSpecsRoots -RepoRoot $repoRoot)) {
+        if (-not (Test-Path $specsDir)) {
+            continue
+        }
 
         Get-ChildItem -Path $specsDir -Directory | ForEach-Object {
             if ($_.Name -match '^(\d{8}-\d{6})-') {
@@ -94,10 +106,10 @@ function Get-CurrentBranch {
                 }
             }
         }
+    }
 
-        if ($latestFeature) {
-            return $latestFeature
-        }
+    if ($latestFeature) {
+        return $latestFeature
     }
     
     # Final fallback
@@ -153,16 +165,7 @@ function Test-FeatureBranch {
 
 function Get-FeatureDir {
     param([string]$RepoRoot, [string]$Branch)
-    Join-Path $RepoRoot "specs/$Branch"
-}
-
-function Get-FeatureSpecsRoots {
-    param([string]$RepoRoot)
-
-    @(
-        (Join-Path $RepoRoot "specs")
-        (Join-Path $RepoRoot ".specify/specs")
-    )
+    Join-Path $RepoRoot ".specify/features/$Branch"
 }
 
 function Find-FeatureDirFromLaneState {
@@ -239,32 +242,29 @@ function Find-FeatureDirByPrefix {
     } elseif ($BranchName -match '^(\d{3,})-') {
         $prefix = $matches[1]
     } else {
-        return (Join-Path (Join-Path $RepoRoot "specs") $BranchName)
+        return (Join-Path (Join-Path $RepoRoot ".specify/features") $BranchName)
     }
 
-    $featureMatches = @()
     foreach ($specsDir in (Get-FeatureSpecsRoots -RepoRoot $RepoRoot)) {
         if (-not (Test-Path -LiteralPath $specsDir -PathType Container)) {
             continue
         }
-        $featureMatches += @(
+        $featureMatches = @(
             Get-ChildItem -LiteralPath $specsDir -Directory -ErrorAction SilentlyContinue |
                 Where-Object { $_.Name -like "$prefix-*" } |
                 Select-Object -ExpandProperty FullName
         )
+        if ($featureMatches.Count -eq 1) {
+            return $featureMatches[0]
+        }
+        if ($featureMatches.Count -gt 1) {
+            Write-Output "ERROR: Multiple spec directories found with prefix '$prefix' under '$specsDir': $($featureMatches -join ', ')"
+            Write-Output "Please ensure only one spec directory exists per prefix in the active feature root."
+            return $null
+        }
     }
 
-    if ($featureMatches.Count -eq 0) {
-        return (Join-Path (Join-Path $RepoRoot "specs") $BranchName)
-    }
-
-    if ($featureMatches.Count -eq 1) {
-        return $featureMatches[0]
-    }
-
-    Write-Output "ERROR: Multiple spec directories found with prefix '$prefix': $($featureMatches -join ', ')"
-    Write-Output "Please ensure only one spec directory exists per prefix."
-    return $null
+    return (Join-Path (Join-Path $RepoRoot ".specify/features") $BranchName)
 }
 
 function Get-FeaturePathsEnv {

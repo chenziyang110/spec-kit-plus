@@ -13,7 +13,7 @@ def test_root_agents_documents_lane_first_recovery_rules() -> None:
     assert "explicit `feature_dir`" in content
     assert "materialized worktree" in lowered
     assert "/sp.plan" in content
-    assert ".specify/specs/<feature>/" in content
+    assert ".specify/features/<feature>/" in content
 
 
 def test_root_claude_context_documents_lane_first_recovery_rules() -> None:
@@ -25,4 +25,4 @@ def test_root_claude_context_documents_lane_first_recovery_rules() -> None:
     assert "lane-first, not branch-first" in lowered
     assert "explicit `feature_dir`" in content
     assert "/sp.plan" in content
-    assert ".specify/specs/<feature>/" in content
+    assert ".specify/features/<feature>/" in content

@@ -17,8 +17,10 @@ context gates, and repository conventions.
 - Normalize canonical workflow-state tokens such as `/sp.plan`,
   `/sp.deep-research`, `/sp.tasks`, and `/sp.implement` before comparing them
   against bare command names.
-- Preserve compatibility with legacy generated-project feature roots such as
-  `.specify/specs/<feature>/` during recovery and repair flows.
+- Prefer `.specify/features/<feature>/` as the canonical generated-project
+  feature root. Preserve compatibility with legacy feature roots such as
+  `specs/<feature>/` and `.specify/specs/<feature>/` during recovery and
+  repair flows.
 - Do not fail a resumable workflow only because the current branch is not a
   feature branch when explicit `feature_dir` or unique lane recovery already
   identifies the target feature safely.

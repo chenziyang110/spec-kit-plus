@@ -13,6 +13,7 @@ from specify_cli.codex_team.auto_dispatch import (
     complete_dispatched_batch,
     find_next_ready_parallel_batch,
     parse_tasks_markdown,
+    run_notify_hook,
     route_ready_parallel_batch,
 )
 from specify_cli.codex_team.state_paths import (
@@ -159,6 +160,24 @@ def test_parse_tasks_markdown_finds_parallel_batches_and_statuses(codex_team_pro
     assert parsed.tasks[1].parallel is True
     assert parsed.parallel_batches[0].batch_name == "Parallel Batch 1.1"
     assert parsed.parallel_batches[0].task_ids == ["T002", "T003"]
+
+
+def test_run_notify_hook_scans_specify_features_root(monkeypatch, codex_team_project_root: Path):
+    feature_dir = codex_team_project_root / ".specify" / "features" / "001-test-feature"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "tasks.md").write_text("# Tasks\n", encoding="utf-8")
+
+    seen: list[Path] = []
+
+    def _route(project_root: Path, *, feature_dir: Path, session_id: str = "default"):
+        seen.append(feature_dir)
+        raise AutoDispatchError("stop after probe")
+
+    monkeypatch.setattr("specify_cli.codex_team.auto_dispatch.route_ready_parallel_batch", _route)
+
+    run_notify_hook({"cwd": str(codex_team_project_root), "session_id": "default"})
+
+    assert seen == [feature_dir]
 
 
 def test_parse_tasks_markdown_captures_agent_required_without_redefining_parallel(

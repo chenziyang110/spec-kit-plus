@@ -370,6 +370,17 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
         except OSError:
             return ""
 
+    def _uses_legacy_feature_root_contract(text: str) -> bool:
+        lowered = text.lower()
+        return ".specify/features" not in lowered and (
+            "specs/$branch" in lowered
+            or 'get_feature_dir() { echo "$1/specs/$2"; }' in lowered
+            or 'join-path $reporoot "specs/$branch"' in lowered
+            or ".specify/specs" in lowered
+            or 'features_dir="$repo_root/specs"' in lowered
+            or "$specsdir = join-path $reporoot 'specs'" in lowered
+        )
+
     launcher = load_project_specify_launcher(project_root)
     if launcher is not None and launcher.argv:
         launcher_entry = launcher.argv[0]
@@ -396,6 +407,24 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                     "repair": "Refresh the generated scripts by rerunning the `specify init --here --force` command surface with the active `--ai <agent>` option, or reinstall the active integration.",
                 }
             )
+
+    shared_runtime_scripts = (
+        project_root / ".specify" / "scripts" / "bash" / "common.sh",
+        project_root / ".specify" / "scripts" / "bash" / "create-new-feature.sh",
+        project_root / ".specify" / "scripts" / "powershell" / "common.ps1",
+        project_root / ".specify" / "scripts" / "powershell" / "create-new-feature.ps1",
+    )
+    if any(
+        script_path.exists() and _uses_legacy_feature_root_contract(_read_text_if_exists(script_path))
+        for script_path in shared_runtime_scripts
+    ):
+        issues.append(
+            {
+                "code": "stale-feature-root-contract",
+                "summary": "Generated shared workflow scripts still target legacy feature roots instead of the canonical `.specify/features/` contract.",
+                "repair": "Run `specify integration repair` (or re-run `specify init --here --force --ai <agent>`) so generated shared scripts and templates refresh to the canonical `.specify/features/` feature-root contract.",
+            }
+        )
 
     generated_analyze = project_root / ".specify" / "templates" / "commands" / "analyze.md"
     generated_analyze_text = _read_text_if_exists(generated_analyze)

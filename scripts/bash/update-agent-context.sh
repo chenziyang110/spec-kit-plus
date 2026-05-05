@@ -213,7 +213,7 @@ render_speckit_managed_block() {
 - If a workflow command can accept an explicit `feature_dir`, prefer that override over current-branch inference.
 - If lane resolution returns one safe candidate and a materialized worktree, continue from that isolated worktree context instead of the leader workspace.
 - Treat canonical workflow-state tokens such as `/sp.plan`, `/sp.tasks`, `/sp.deep-research`, and `/sp.implement` as normalized command identities during resume logic; never compare them as raw strings against bare command names.
-- Support legacy generated-project feature roots such as `.specify/specs/<feature>/` during recovery and repair paths when durable lane state or prefix matching points there.
+- Prefer `.specify/features/<feature>/` as the canonical generated-project feature root. Support legacy feature roots such as `specs/<feature>/` and `.specify/specs/<feature>/` during recovery and repair paths when durable lane state or prefix matching points there.
 - Do not fail a resumable workflow only because the current branch is not a feature branch when explicit `feature_dir` or unique lane recovery already identifies the target feature safely.
 
 ## Artifact Priority

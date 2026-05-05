@@ -39,7 +39,7 @@ For AI CLI workflows in this repository:
   - checking propagation across integrations,
   - or auditing the prompt/runtime product itself.
 - For normal maintenance of `spec-kit-plus`, follow the repository's actual source-of-truth surfaces: `AGENTS.md`, `PROJECT-HANDBOOK.md`, `templates/project-map/**`, relevant source code under `src/specify_cli/**`, scripts, tests, and release/config files.
-- If a generated workflow says to read or write downstream project artifacts under `.specify/specs/**`, feature-local `workflow-state.md`, or similar generated-project state, do not treat that as this repository's required execution path unless the current task is explicitly to test or simulate downstream generated-project behavior.
+- If a generated workflow says to read or write downstream project artifacts under `.specify/features/**`, legacy `.specify/specs/**`, `specs/**`, feature-local `workflow-state.md`, or similar generated-project state, do not treat that as this repository's required execution path unless the current task is explicitly to test or simulate downstream generated-project behavior.
 
 # AGENTS.md
 
@@ -702,7 +702,7 @@ When adding new agents:
 - If a workflow command can accept an explicit `feature_dir`, prefer that override over current-branch inference.
 - If lane resolution returns one safe candidate and a materialized worktree, continue from that isolated worktree context instead of the leader workspace.
 - Treat canonical workflow-state tokens such as `/sp.plan`, `/sp.tasks`, `/sp.deep-research`, and `/sp.implement` as normalized command identities during resume logic; never compare them as raw strings against bare command names.
-- Support legacy generated-project feature roots such as `.specify/specs/<feature>/` during recovery and repair paths when durable lane state or prefix matching points there.
+- Prefer `.specify/features/<feature>/` as the canonical generated-project feature root. Support legacy feature roots such as `specs/<feature>/` and `.specify/specs/<feature>/` during recovery and repair paths when durable lane state or prefix matching points there.
 - Do not fail a resumable workflow only because the current branch is not a feature branch when explicit `feature_dir` or unique lane recovery already identifies the target feature safely.
 
 ## Artifact Priority

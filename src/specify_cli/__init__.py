@@ -1031,7 +1031,7 @@ def _render_bootstrap_context_content(project_root: Path, context_path: Path) ->
         "[PROJECT NAME]": project_root.resolve().name,
         "[DATE]": date.today().isoformat(),
         "[EXTRACTED FROM ALL PLAN.MD FILES]": "- Bootstrap context only; run specify -> plan to capture active technologies",
-        "[ACTUAL STRUCTURE FROM PLANS]": ".specify/\nspecs/",
+        "[ACTUAL STRUCTURE FROM PLANS]": ".specify/\nfeatures/",
         "[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES]": "specify check\nspecify --help",
         "[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE]": "General: Follow existing repository conventions and refresh this file after the first plan.",
         "[LAST 3 FEATURES AND WHAT THEY ADDED]": "- Initial Spec Kit Plus scaffolding",
@@ -6015,12 +6015,12 @@ def integration_repair(
 
     if active_key:
         console.print(
-            f"[green]✓[/green] Refreshed shared assets and repaired runtime-managed surfaces for integration "
+            f"[green]OK[/green] Refreshed shared assets and repaired runtime-managed surfaces for integration "
             f"[cyan]{active_key}[/cyan]."
         )
         console.print(f"[dim]Tracked files refreshed: {tracked_files}[/dim]")
     else:
-        console.print("[green]✓[/green] Refreshed shared project assets. No active integration was installed.")
+        console.print("[green]OK[/green] Refreshed shared project assets. No active integration was installed.")
 
 
 # ===== Preset Commands =====

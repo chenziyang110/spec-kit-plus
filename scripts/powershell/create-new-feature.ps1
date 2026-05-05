@@ -174,9 +174,9 @@ $hasGit = Test-HasGit
 
 Set-Location $repoRoot
 
-$specsDir = Join-Path $repoRoot 'specs'
+$featuresDir = Join-Path $repoRoot '.specify/features'
 if (-not $DryRun) {
-    New-Item -ItemType Directory -Path $specsDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $featuresDir -Force | Out-Null
 }
 
 # Function to generate branch name with stop word filtering and length filtering
@@ -248,16 +248,16 @@ if ($Timestamp) {
     if ($Number -eq 0) {
         if ($DryRun -and $hasGit) {
             # Dry-run: query remotes via ls-remote (side-effect-free, no fetch)
-            $Number = Get-NextBranchNumber -SpecsDir $specsDir -SkipFetch
+            $Number = Get-NextBranchNumber -SpecsDir $featuresDir -SkipFetch
         } elseif ($DryRun) {
             # Dry-run without git: local spec dirs only
-            $Number = (Get-HighestNumberFromSpecs -SpecsDir $specsDir) + 1
+            $Number = (Get-HighestNumberFromSpecs -SpecsDir $featuresDir) + 1
         } elseif ($hasGit) {
             # Check existing branches on remotes
-            $Number = Get-NextBranchNumber -SpecsDir $specsDir
+            $Number = Get-NextBranchNumber -SpecsDir $featuresDir
         } else {
             # Fall back to local directory check
-            $Number = (Get-HighestNumberFromSpecs -SpecsDir $specsDir) + 1
+            $Number = (Get-HighestNumberFromSpecs -SpecsDir $featuresDir) + 1
         }
     }
 
@@ -287,7 +287,7 @@ if ($branchName.Length -gt $maxBranchLength) {
     Write-Warning "[specify] Truncated to: $branchName ($($branchName.Length) bytes)"
 }
 
-$featureDir = Join-Path $specsDir $branchName
+$featureDir = Join-Path $featuresDir $branchName
 $specFile = Join-Path $featureDir 'spec.md'
 $contextFile = Join-Path $featureDir 'context.md'
 $laneId = $branchName

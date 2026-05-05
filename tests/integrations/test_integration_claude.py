@@ -70,6 +70,34 @@ def _load_claude_hook_dispatch_module():
     return module
 
 
+def test_claude_hook_infers_active_context_from_specify_features_root(tmp_path):
+    module = _load_claude_hook_dispatch_module()
+    project_root = tmp_path / "claude-hook-features-root"
+    feature_dir = project_root / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: executing",
+                "resume_decision: resume-here",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: batch-a",
+                "next_action: continue execution",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    inferred = module._infer_active_context(project_root)
+
+    assert inferred is not None
+    assert inferred["command_name"] == "implement"
+    assert inferred["feature_dir"] == str(feature_dir)
+
+
 class TestClaudeIntegration:
     @staticmethod
     def _expected_launcher_command(route: str, *, script_type: str = "sh") -> str:

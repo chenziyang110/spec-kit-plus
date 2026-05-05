@@ -156,7 +156,7 @@ def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
     assert "explicit `feature_dir`" in lower
     assert "materialized worktree" in lower
     assert "/sp.plan" in content
-    assert ".specify/specs/<feature>/" in content
+    assert ".specify/features/<feature>/" in content
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")

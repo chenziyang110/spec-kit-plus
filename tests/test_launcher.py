@@ -217,6 +217,19 @@ def test_diagnose_project_runtime_compatibility_reports_stale_powershell_resolve
     assert "<agent>" in stale["repair"]
 
 
+def test_diagnose_project_runtime_compatibility_reports_stale_feature_root_contract(tmp_path):
+    bash_common = tmp_path / ".specify" / "scripts" / "bash" / "common.sh"
+    bash_common.parent.mkdir(parents=True)
+    bash_common.write_text('get_feature_dir() { echo "$1/specs/$2"; }\n', encoding="utf-8")
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-feature-root-contract" for issue in issues)
+    stale = next(issue for issue in issues if issue["code"] == "stale-feature-root-contract")
+    assert ".specify/features/" in stale["summary"]
+    assert "specify integration repair" in stale["repair"]
+
+
 def test_diagnose_project_runtime_compatibility_reports_workflow_contract_drift(tmp_path):
     common_path = tmp_path / ".specify" / "scripts" / "powershell" / "common.ps1"
     common_path.parent.mkdir(parents=True)

@@ -126,9 +126,14 @@ class BatchCompletionResult:
     next_batch_id: str = ""
     next_batch_name: str = ""
     next_dispatched_task_ids: list[str] | None = None
-    next_batch_id: str = ""
-    next_batch_name: str = ""
-    next_dispatched_task_ids: list[str] | None = None
+
+
+def _feature_root_candidates(project_root: Path) -> list[Path]:
+    return [
+        project_root / ".specify" / "features",
+        project_root / "specs",
+        project_root / ".specify" / "specs",
+    ]
 
 
 def _agent_teams_team_name(batch_id: str) -> str:
@@ -1080,9 +1085,9 @@ def run_notify_hook(payload: dict[str, Any]) -> None:
     project_root = Path(payload.get("cwd", ".")).resolve()
     session_id = payload.get("session_id", "default")
 
-    # Search for tasks.md in specs/* and docs/superpowers/specs/*
+    # Search feature roots in preference order, plus docs/superpowers/specs for brainstorming artifacts.
     search_dirs = [
-        project_root / "specs",
+        *_feature_root_candidates(project_root),
         project_root / "docs" / "superpowers" / "specs",
     ]
 

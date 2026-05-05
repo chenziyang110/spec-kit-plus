@@ -45,6 +45,14 @@ get_repo_root() {
     (cd "$script_dir/../../.." && pwd)
 }
 
+# Feature roots are ordered by current preference first, then compatibility fallbacks.
+feature_specs_roots() {
+    local repo_root="$1"
+    printf '%s\n' "$repo_root/.specify/features"
+    printf '%s\n' "$repo_root/specs"
+    printf '%s\n' "$repo_root/.specify/specs"
+}
+
 # Get current branch, with fallback for non-git repositories
 get_current_branch() {
     # First check if SPECIFY_FEATURE environment variable is set
@@ -60,14 +68,13 @@ get_current_branch() {
         return
     fi
 
-    # For non-git repos, try to find the latest feature directory
-    local specs_dir="$repo_root/specs"
-
-    if [[ -d "$specs_dir" ]]; then
-        local latest_feature=""
-        local highest=0
-        local latest_timestamp=""
-
+    # For non-git repos, try to find the latest feature directory.
+    local latest_feature=""
+    local highest=0
+    local latest_timestamp=""
+    local specs_dir=""
+    while IFS= read -r specs_dir; do
+        [[ -d "$specs_dir" ]] || continue
         for dir in "$specs_dir"/*; do
             if [[ -d "$dir" ]]; then
                 local dirname=$(basename "$dir")
@@ -91,11 +98,11 @@ get_current_branch() {
                 fi
             fi
         done
+    done < <(feature_specs_roots "$repo_root")
 
-        if [[ -n "$latest_feature" ]]; then
-            echo "$latest_feature"
-            return
-        fi
+    if [[ -n "$latest_feature" ]]; then
+        echo "$latest_feature"
+        return
     fi
 
     echo "main"  # Final fallback
@@ -139,13 +146,7 @@ check_feature_branch() {
     return 0
 }
 
-get_feature_dir() { echo "$1/specs/$2"; }
-
-feature_specs_roots() {
-    local repo_root="$1"
-    printf '%s\n' "$repo_root/specs"
-    printf '%s\n' "$repo_root/.specify/specs"
-}
+get_feature_dir() { echo "$1/.specify/features/$2"; }
 
 # Find feature directory from durable lane state before falling back to branch-prefix guessing.
 # This lets resumed workflows recover the canonical feature dir even when the
@@ -214,36 +215,34 @@ find_feature_dir_by_prefix() {
     elif [[ "$branch_name" =~ ^([0-9]{3,})- ]]; then
         prefix="${BASH_REMATCH[1]}"
     else
-        # If branch doesn't have a recognized prefix, fall back to exact match
-        echo "$repo_root/specs/$branch_name"
+        # If branch doesn't have a recognized prefix, fall back to the preferred root.
+        echo "$repo_root/.specify/features/$branch_name"
         return
     fi
 
-    # Search known feature roots for directories that start with this prefix.
-    local matches=()
+    # Search known feature roots in preference order and return the first match set.
     local specs_dir
     while IFS= read -r specs_dir; do
         [[ -d "$specs_dir" ]] || continue
+        local root_matches=()
         for dir in "$specs_dir"/"$prefix"-*; do
             if [[ -d "$dir" ]]; then
-                matches+=("$dir")
+                root_matches+=("$dir")
             fi
         done
+        if [[ ${#root_matches[@]} -eq 1 ]]; then
+            echo "${root_matches[0]}"
+            return
+        fi
+        if [[ ${#root_matches[@]} -gt 1 ]]; then
+            echo "ERROR: Multiple spec directories found with prefix '$prefix' under '$specs_dir': ${root_matches[*]}" >&2
+            echo "Please ensure only one spec directory exists per prefix in the active feature root." >&2
+            return 1
+        fi
     done < <(feature_specs_roots "$repo_root")
 
-    # Handle results
-    if [[ ${#matches[@]} -eq 0 ]]; then
-        # No match found - return the branch name path (will fail later with clear error)
-        echo "$repo_root/specs/$branch_name"
-    elif [[ ${#matches[@]} -eq 1 ]]; then
-        # Exactly one match - perfect!
-        echo "${matches[0]}"
-    else
-        # Multiple matches - this shouldn't happen with proper naming convention
-        echo "ERROR: Multiple spec directories found with prefix '$prefix': ${matches[*]}" >&2
-        echo "Please ensure only one spec directory exists per prefix." >&2
-        return 1
-    fi
+    # No match found - return the preferred root path (will fail later with clear error)
+    echo "$repo_root/.specify/features/$branch_name"
 }
 
 get_feature_paths() {
