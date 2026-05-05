@@ -53,7 +53,8 @@ missing, copy the template first.
   especially repeated workflow gaps, stable user defaults, or lower-order
   rules that may need promotion or retirement.
 - When constitution work exposes repeated decision debt, rule conflict, or
-  promotion friction, run `{{specify-subcmd:hook signal-learning --command constitution ...}}`
+  promotion friction, use the `signal-learning` helper surface
+  Command shape: `{{specify-subcmd:hook signal-learning --command constitution --user-corrections <n> --scope-changes <n> --route-changes <n>}}`
   so the workflow records reusable learning pressure instead of treating it as
   chat-only discussion.
 - Before final reporting, run

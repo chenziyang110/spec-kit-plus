@@ -31,7 +31,8 @@ handbook/project-map outputs.
 ## Passive Project Learning Layer
 
 - [AGENT] Run `{{specify-subcmd:learning start --command map-build --format json}}` when available so passive learning files exist, the current atlas build sees relevant shared project memory, and repeated high-signal candidates can be auto-promoted at start.
-- [AGENT] When atlas build friction appears, run `{{specify-subcmd:hook signal-learning --command map-build ...}}` with route-change, artifact-rewrite, false-start, hidden-dependency, scan-gap, or reverse-coverage-failure counts so atlas blind spots become explicit learning signals.
+- [AGENT] When atlas build friction appears, use the `signal-learning` helper surface with route-change, artifact-rewrite, false-start, hidden-dependency, scan-gap, or reverse-coverage-failure counts so atlas blind spots become explicit learning signals.
+  Command shape: `{{specify-subcmd:hook signal-learning --command map-build --route-changes <n> --artifact-rewrites <n> --validation-failures <n>}}`
 - [AGENT] Before reporting completion or a blocked build, use the `review-learning` helper surface; use `--decision none` only when no reusable `map_coverage_gap`, `workflow_gap`, `state_surface_gap`, or `project_constraint` exists.
   Command shape: `{{specify-subcmd:hook review-learning --command map-build --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
 - [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command map-build --feature-dir "$FEATURE_DIR" --format json}}` when workflow state already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
@@ -318,7 +319,8 @@ complete.
 
 ## Report Completion
 
-- [AGENT] Before reporting completion, capture any new `pitfall`, `workflow_gap`, `map_coverage_gap`, or `project_constraint` learning through `{{specify-subcmd:learning capture --command map-build ...}}`.
+- [AGENT] Before reporting completion, if auto-capture did not preserve a reusable `pitfall`, `workflow_gap`, `map_coverage_gap`, or `project_constraint`, use the manual `learning capture` helper surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - [AGENT] Before reporting completion, use the `review-learning` helper surface.
   Command shape: `{{specify-subcmd:hook review-learning --command map-build --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"}}`
 - [AGENT] After the refresh succeeds, finalize the refresh through the project-map freshness helper using `complete-refresh` so downstream workflows know the new baseline commit and refresh reason. Use `record-refresh` only for low-level/manual recovery when the standard completion path is unavailable.

@@ -75,7 +75,8 @@ Use `execution_surface: native-subagents`.
 - [AGENT] Run `{{specify-subcmd:learning start --command deep-research --format json}}` when available so the research pass sees relevant shared project memory.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains candidates relevant to feasibility, hidden dependencies, prototype failures, or repeated research gaps.
-- [AGENT] When feasibility friction appears, run `{{specify-subcmd:hook signal-learning --command deep-research ...}}` with route-change, false-start, hidden-dependency, command-failure, or validation-failure counts.
+- [AGENT] When feasibility friction appears, use the `signal-learning` helper surface with route-change, false-start, hidden-dependency, command-failure, or validation-failure counts.
+  Command shape: `{{specify-subcmd:hook signal-learning --command deep-research --route-changes <n> --command-failures <n> --validation-failures <n>}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface.
   Command shape: `{{specify-subcmd:hook review-learning --command deep-research --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
 - [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command deep-research --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
@@ -650,7 +651,8 @@ Use `execution_surface: native-subagents`.
     - updated alignment/context/reference paths
     - recommended next command
     - whether the feature is ready for `/sp.plan`
-    - [AGENT] before final completion text, capture any new `workflow_gap`, `project_constraint`, or `decision_debt` learning through `{{specify-subcmd:learning capture --command deep-research ...}}`
+    - [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap`, `project_constraint`, or `decision_debt`, use the manual `learning capture` helper surface.
+      Required options: `--command`, `--type`, `--summary`, `--evidence`
     - Use the user's current language for explanatory text while preserving literal command names, file paths, and fixed status values exactly as written.
 
 ## Readiness Refusal Rules

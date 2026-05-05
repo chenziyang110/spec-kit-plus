@@ -61,7 +61,8 @@ Use `execution_surface: native-subagents`.
 - [AGENT] Run `{{specify-subcmd:learning start --command test-build --format json}}` when available so passive learning files exist, the current testing-system build sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader testing-system analysis.
 - Review `.planning/learnings/candidates.md` only when it still contains testing-relevant candidate learnings after the passive start step, especially repeated flaky areas, framework constraints, or project defaults that should influence the generated testing contract.
-- [AGENT] When testing-system build friction appears, run `{{specify-subcmd:hook signal-learning --command test-build ...}}` with validation-failure, artifact-rewrite, false-start, or hidden-dependency counts.
+- [AGENT] When testing-system build friction appears, use the `signal-learning` helper surface with validation-failure, artifact-rewrite, false-start, or hidden-dependency counts.
+  Command shape: `{{specify-subcmd:hook signal-learning --command test-build --validation-failures <n> --artifact-rewrites <n> --false-start "<summary>"}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `verification_gap`, `state_surface_gap`, `pitfall`, `workflow_gap`, or `project_constraint` exists.
   Command shape: `{{specify-subcmd:hook review-learning --command test-build --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
 - [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command test-build --format json}}` when testing-state already captures reusable gaps, follow-up routing, or validation evidence.
@@ -318,7 +319,8 @@ Use `execution_surface: native-subagents`.
    - Include the recommended next command and one-line rationale in the final report so the workflow does not end in a dead-end audit summary.
    - When recommending `{{invoke:specify}}`, explicitly name `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` as required starting context for the brownfield testing-system program.
    - When recommending `{{invoke:quick}}` or `{{invoke:fast}}`, name the single module, risk tranche, coverage wave, or tiny harness/config/helper repair that should be executed next from the request.
-   - [AGENT] Before the final completion report, capture any new `pitfall`, `workflow_gap`, or `project_constraint` learning through `{{specify-subcmd:learning capture --command test-build ...}}`.
+- [AGENT] Before the final completion report, if auto-capture did not preserve a reusable `pitfall`, `workflow_gap`, or `project_constraint`, use the manual `learning capture` helper surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 
 14. **Check for extension hooks**
    - After reporting, check if `.specify/extensions.yml` exists in the project root.

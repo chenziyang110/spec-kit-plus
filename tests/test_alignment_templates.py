@@ -172,7 +172,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command specify --format json}}" in content
-    assert "{{specify-subcmd:learning capture --command specify ...}}" in content
+    assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/index/status.json" in content
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
@@ -402,7 +402,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command plan --format json}}" in content
-    assert "{{specify-subcmd:learning capture --command plan ...}}" in content
+    assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/index/status.json" in content
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
@@ -1178,7 +1178,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command implement --format json}}" in content
-    assert "{{specify-subcmd:learning capture --command implement ...}}" in content
+    assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
     assert ".specify/project-map/root/WORKFLOWS.md" in content
@@ -1449,7 +1449,7 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
-    assert "{{specify-subcmd:learning capture --command checklist ...}}" in lowered
+    assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
     assert "project-handbook.md" in lowered
     assert ".specify/project-map/index/status.json" in lowered
     assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in lowered

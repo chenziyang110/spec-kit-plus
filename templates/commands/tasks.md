@@ -38,7 +38,8 @@ scripts:
 - [AGENT] Run `{{specify-subcmd:learning start --command tasks --format json}}` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader task-generation context.
 - Review `.planning/learnings/candidates.md` only when it still contains task-generation-relevant candidate learnings after the passive start step, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
-- [AGENT] When task-shaping friction appears, run `{{specify-subcmd:hook signal-learning --command tasks ...}}` with artifact-rewrite, route-change, false-start, or hidden-dependency counts.
+- [AGENT] When task-shaping friction appears, use the `signal-learning` helper surface with artifact-rewrite, route-change, false-start, or hidden-dependency counts.
+  Command shape: `{{specify-subcmd:hook signal-learning --command tasks --artifact-rewrites <n> --route-changes <n> --false-start "<summary>"}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `routing_mistake`, `verification_gap`, `decision_debt`, or `project_constraint` exists.
   Command shape: `{{specify-subcmd:hook review-learning --command tasks --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
 - [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command tasks --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.

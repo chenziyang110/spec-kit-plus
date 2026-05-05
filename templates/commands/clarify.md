@@ -71,7 +71,8 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 ## Passive Project Learning Layer
 
 - Run `{{specify-subcmd:learning start --command clarify --format json}}` when available so this repair pass can consume existing project rules and learnings.
-- When clarification friction appears, run `{{specify-subcmd:hook signal-learning --command clarify ...}}` with user-correction, scope-change, route-change, false-start, or hidden-dependency counts.
+- When clarification friction appears, use the `signal-learning` helper surface with user-correction, scope-change, route-change, false-start, or hidden-dependency counts.
+  Command shape: `{{specify-subcmd:hook signal-learning --command clarify --user-corrections <n> --scope-changes <n> --route-changes <n>}}`
 - Before final completion or blocked reporting, use the `review-learning` helper surface.
   Command shape: `{{specify-subcmd:hook review-learning --command clarify --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
 - Prefer `{{specify-subcmd:learning capture-auto --command clarify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.

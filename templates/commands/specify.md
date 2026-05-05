@@ -41,7 +41,8 @@ scripts:
 - [AGENT] Run `{{specify-subcmd:learning start --command specify --format json}}` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains candidate learnings relevant to specification after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
-- [AGENT] When specification friction appears, run `{{specify-subcmd:hook signal-learning --command specify ...}}` with user-correction, route-change, scope-change, false-start, or hidden-dependency counts.
+- [AGENT] When specification friction appears, use the `signal-learning` helper surface with user-correction, route-change, scope-change, false-start, or hidden-dependency counts.
+  Command shape: `{{specify-subcmd:hook signal-learning --command specify --user-corrections <n> --route-changes <n> --scope-changes <n>}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `user_preference`, `decision_debt`, or `project_constraint` exists.
   Command shape: `{{specify-subcmd:hook review-learning --command specify --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
 - [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command specify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
@@ -820,7 +821,8 @@ For every profile decision, persist at least these fields for the active pass:
     - readiness for the next phase (`{{invoke:plan}}` for the mainline, `{{invoke:clarify}}` when deeper analysis is still needed, or `{{invoke:deep-research}}` when feasibility must be proven first)
     - recommended review follow-up: `{{invoke:clarify}}` when the user wants one more targeted repair pass over the written spec package before planning
     - if this pass reveals that the current atlas is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current handbook/project-map does not yet capture, mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield execution work proceeds
-    - [AGENT] before final completion text, capture any new `workflow_gap`, `user_preference`, or `project_constraint` learning through `{{specify-subcmd:learning capture --command specify ...}}`
+    - [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap`, `user_preference`, or `project_constraint`, use the manual `learning capture` helper surface.
+      Required options: `--command`, `--type`, `--summary`, `--evidence`
     - keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence
     - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or a repeated recurrence that should become shared project memory
     - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
