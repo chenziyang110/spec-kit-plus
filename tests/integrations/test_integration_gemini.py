@@ -674,6 +674,7 @@ class TestGeminiIntegration(TomlIntegrationTests):
         additional_context = payload["hookSpecificOutput"]["additionalContext"]
         assert "learning pain score" in additional_context
         assert "review-learning --command implement" in additional_context
+        assert "init --here --force ..." not in additional_context
 
     def test_install_uninstall_roundtrip(self, tmp_path):
         integration = get_integration("gemini")

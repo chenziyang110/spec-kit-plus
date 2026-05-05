@@ -196,6 +196,9 @@ def test_diagnose_project_runtime_compatibility_reports_broken_launcher(tmp_path
     issues = diagnose_project_runtime_compatibility(tmp_path)
 
     assert any(issue["code"] == "broken-project-launcher" for issue in issues)
+    broken = next(issue for issue in issues if issue["code"] == "broken-project-launcher")
+    assert "..." not in broken["repair"]
+    assert "<agent>" not in broken["repair"]
 
 
 def test_diagnose_project_runtime_compatibility_reports_stale_powershell_resolver(tmp_path):
@@ -209,6 +212,9 @@ def test_diagnose_project_runtime_compatibility_reports_stale_powershell_resolve
     issues = diagnose_project_runtime_compatibility(tmp_path)
 
     assert any(issue["code"] == "stale-powershell-feature-resolver" for issue in issues)
+    stale = next(issue for issue in issues if issue["code"] == "stale-powershell-feature-resolver")
+    assert "..." not in stale["repair"]
+    assert "<agent>" in stale["repair"]
 
 
 def test_diagnose_project_runtime_compatibility_reports_workflow_contract_drift(tmp_path):

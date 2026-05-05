@@ -885,6 +885,7 @@ class TestClaudeIntegration:
         assert hook_output["hookEventName"] == "PostToolUse"
         assert "learning pain score" in hook_output["additionalContext"]
         assert "review-learning --command plan" in hook_output["additionalContext"]
+        assert "init --here --force ..." not in hook_output["additionalContext"]
 
     def test_claude_hook_dispatch_blocks_stop_when_checkpoint_state_is_missing(self, tmp_path):
         integration = get_integration("claude")
@@ -1169,6 +1170,7 @@ class TestClaudeIntegration:
         assert "hookSpecificOutput" not in payload
         assert "learning pain score" in payload["systemMessage"]
         assert "review-learning --command plan" in payload["systemMessage"]
+        assert "init --here --force ..." not in payload["systemMessage"]
 
     def test_uninstall_preserves_user_settings_while_removing_managed_hooks(self, tmp_path):
         integration = get_integration("claude")
