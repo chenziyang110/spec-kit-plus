@@ -3522,6 +3522,9 @@ def _validate_hook_output_format(output_format: str) -> None:
         raise typer.Exit(2)
 
 
+HOOK_JSON_FORMAT_OPTION = typer.Option("json", "--format", help="Output format: json")
+
+
 def _normalize_optional_repo_path(project_root: Path, raw_value: str | None) -> str | None:
     if not raw_value:
         return None
@@ -4594,10 +4597,12 @@ def hook_preflight_command(
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
     workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Run the shared workflow preflight hook and return JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.preflight",
@@ -4616,10 +4621,12 @@ def hook_validate_state_command(
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
     workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate the current workflow source-of-truth state and return JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.state.validate",
@@ -4636,10 +4643,12 @@ def hook_validate_state_command(
 def hook_validate_artifacts_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
     feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory path"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate required workflow artifacts and return JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.artifacts.validate",
@@ -4656,10 +4665,12 @@ def hook_checkpoint_command(
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
     workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Build a recovery checkpoint payload from the workflow source of truth."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.checkpoint",
@@ -4675,10 +4686,12 @@ def hook_checkpoint_command(
 @hook_app.command("validate-packet")
 def hook_validate_packet_command(
     packet_file: str = typer.Option(..., "--packet-file", help="Path to WorkerTaskPacket JSON"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate a subagent execution packet and return JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "delegation.packet.validate",
@@ -4690,10 +4703,12 @@ def hook_validate_packet_command(
 def hook_validate_result_command(
     packet_file: str = typer.Option(..., "--packet-file", help="Path to WorkerTaskPacket JSON"),
     result_file: str = typer.Option(..., "--result-file", help="Path to subagent result JSON"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate a subagent result against its packet and return JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "delegation.join.validate",
@@ -4712,10 +4727,12 @@ def hook_monitor_context_command(
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
     trigger: str = typer.Option("turn-progress", "--trigger", help="Structural context-monitor trigger"),
     context_usage: int | None = typer.Option(None, "--context-usage", help="Optional context usage percentage"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Monitor context pressure and emit checkpoint recommendations as JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.context.monitor",
@@ -4736,10 +4753,12 @@ def hook_validate_session_state_command(
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
     workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate cross-file session state consistency and return JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.session_state.validate",
@@ -4758,10 +4777,12 @@ def hook_render_statusline_command(
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
     workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Render a compact workflow statusline summary and return JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.statusline.render",
@@ -4777,10 +4798,12 @@ def hook_render_statusline_command(
 @hook_app.command("validate-read-path")
 def hook_validate_read_path_command(
     target_path: str = typer.Option(..., "--target-path", help="Path the workflow wants to read"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate whether a read target stays inside workflow-safe path boundaries."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.read_guard.validate",
@@ -4791,10 +4814,12 @@ def hook_validate_read_path_command(
 @hook_app.command("validate-prompt")
 def hook_validate_prompt_command(
     prompt_text: str = typer.Option(..., "--prompt-text", help="Prompt text to validate"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate prompt text for explicit workflow-bypass or override language."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.prompt_guard.validate",
@@ -4806,10 +4831,12 @@ def hook_validate_prompt_command(
 def hook_validate_boundary_command(
     from_command: str = typer.Option(..., "--from-command", help="Current workflow command"),
     to_command: str = typer.Option(..., "--to-command", help="Requested next workflow command"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate whether a workflow command transition is allowed."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.boundary.validate",
@@ -4821,10 +4848,12 @@ def hook_validate_boundary_command(
 def hook_validate_phase_boundary_command(
     from_phase_mode: str = typer.Option(..., "--from-phase-mode", help="Current phase mode"),
     to_phase_mode: str = typer.Option(..., "--to-phase-mode", help="Requested next phase mode"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate whether a workflow phase transition is allowed."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.phase_boundary.validate",
@@ -4836,10 +4865,12 @@ def hook_validate_phase_boundary_command(
 def hook_validate_commit_command(
     commit_message: str = typer.Option(..., "--commit-message", help="Commit message to validate"),
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Optional feature directory for tracker validation"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate commit message and workflow terminal state before commit finalization."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.commit.validate",
@@ -4859,10 +4890,12 @@ def hook_workflow_policy_command(
     trigger: str = typer.Option("manual", "--trigger", help="Native or workflow trigger name"),
     requested_action: str | None = typer.Option(None, "--requested-action", help="Requested high-level action"),
     prior_redirect_count: int | None = typer.Option(None, "--prior-redirect-count", help="Number of prior redirect outcomes for this active workflow"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Evaluate workflow policy and return normalized enforcement JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     payload = {
         "command_name": command_name,
         "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
@@ -4887,10 +4920,12 @@ def hook_build_compaction_command(
     workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
     trigger: str = typer.Option("manual", "--trigger", help="Compaction trigger name"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Build a structured compaction artifact for resumable workflow recovery."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.compaction.build",
@@ -4910,10 +4945,12 @@ def hook_read_compaction_command(
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
     workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Read the latest structured compaction artifact for a workflow scope."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.compaction.read",
@@ -4939,10 +4976,12 @@ def hook_signal_learning_command(
     scope_changes: int = typer.Option(0, "--scope-changes", help="Scope changes observed"),
     false_starts: list[str] | None = typer.Option(None, "--false-start", help="Misleading first attempts or false leads"),
     hidden_dependencies: list[str] | None = typer.Option(None, "--hidden-dependency", help="Hidden dependencies discovered"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Detect workflow friction that should trigger a learning review."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.learning.signal",
@@ -4968,7 +5007,7 @@ def hook_review_learning_command(
     terminal_status: str = typer.Option(..., "--terminal-status", help="Terminal workflow status, for example resolved or blocked"),
     decision: str | None = typer.Option(None, "--decision", help="Learning review decision: none, captured, deferred, auto-captured, or manual-capture-needed"),
     rationale: str | None = typer.Option(None, "--rationale", help="Why no reusable learning exists or why capture was deferred"),
-    output_format: str = typer.Option("json", "--format", help="Output format: json"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Enforce a learning review before terminal workflow closeout."""
     project_root = Path.cwd()
@@ -5006,10 +5045,12 @@ def hook_capture_learning_command(
     root_cause_family: str | None = typer.Option(None, "--root-cause-family", help="Stable root-cause family label"),
     injection_targets: list[str] | None = typer.Option(None, "--injection-target", help="Workflow, document, or rule surface that should receive the learning"),
     promotion_hint: str | None = typer.Option(None, "--promotion-hint", help="When or how this candidate should be promoted"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Capture a structured learning candidate through the hook surface."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.learning.capture",
@@ -5039,10 +5080,12 @@ def hook_inject_learning_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
     learning_type: str = typer.Option(..., "--type", help="Learning type"),
     summary: str = typer.Option("", "--summary", help="One-line learning summary"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Derive prevention targets for a captured learning."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "workflow.learning.inject",
@@ -5057,10 +5100,12 @@ def hook_inject_learning_command(
 @hook_app.command("mark-dirty")
 def hook_mark_dirty_command(
     reason: str = typer.Option(..., "--reason", help="Why the current work needs a manual dirty override/fallback"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Mark the project map dirty as the shared manual override/fallback."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "project_map.mark_dirty",
@@ -5070,7 +5115,7 @@ def hook_mark_dirty_command(
 
 @hook_app.command("complete-refresh")
 def hook_complete_refresh_command(
-    output_format: str = typer.Option("json", "--format", help="Output format: json"),
+    output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Finalize a successful project-map refresh through the shared hook surface."""
     project_root = Path.cwd()

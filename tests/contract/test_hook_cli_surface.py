@@ -8,6 +8,32 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 
+HOOK_SUBCOMMANDS = [
+    "preflight",
+    "validate-state",
+    "validate-artifacts",
+    "checkpoint",
+    "validate-packet",
+    "validate-result",
+    "monitor-context",
+    "validate-session-state",
+    "render-statusline",
+    "validate-read-path",
+    "validate-prompt",
+    "validate-boundary",
+    "validate-phase-boundary",
+    "validate-commit",
+    "workflow-policy",
+    "build-compaction",
+    "read-compaction",
+    "signal-learning",
+    "review-learning",
+    "capture-learning",
+    "inject-learning",
+    "mark-dirty",
+    "complete-refresh",
+]
+
 
 def _create_project(tmp_path: Path) -> Path:
     project = tmp_path / "hook-cli-project"
@@ -42,6 +68,16 @@ def _run_module_in_project(project: Path, args: list[str]):
         capture_output=True,
         check=False,
     )
+
+
+def test_all_hook_commands_advertise_json_format_alias():
+    runner = CliRunner()
+
+    for subcommand in HOOK_SUBCOMMANDS:
+        result = runner.invoke(app, ["hook", subcommand, "--help"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert "--format" in result.output, f"{subcommand} is missing --format in help output"
 
 
 def _write_prd_build_ready_scan_artifacts(run_dir: Path) -> None:
