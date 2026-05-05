@@ -324,18 +324,35 @@ Passive project learning layer:
 
 First-party workflow quality hooks:
 
-- `specify hook preflight --command <workflow> ...` runs the shared product gate before a workflow continues.
-- `specify hook validate-state --command <workflow> ...` checks workflow state truth such as `workflow-state.md`, `implement-tracker.md`, or quick-task `STATUS.md`.
-- `specify hook validate-artifacts --command <workflow> --feature-dir <dir>` machine-checks the minimum artifact set instead of trusting chat progress.
-- `specify hook checkpoint --command <workflow> ...` emits a resume-safe checkpoint payload from the active source-of-truth state file.
-- `specify hook monitor-context --command <workflow> ...` recommends proactive checkpointing when context pressure or a risky structural transition appears.
-- `specify hook validate-session-state --command <workflow> ...` reconciles resume-critical state across the active workflow surfaces.
-- `specify hook render-statusline --command <workflow> ...` returns a compact operator-facing status summary.
-- `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` enforce the shared subagent execution contract.
-- `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` provide shared read-boundary and prompt-bypass guards.
+- `specify hook preflight`
+  - Command shape: `specify hook preflight --command <workflow> --feature-dir <dir>`
+- `specify hook validate-state`
+  - Command shape: `specify hook validate-state --command <workflow> --feature-dir <dir>`
+- `specify hook validate-artifacts`
+  - Command shape: `specify hook validate-artifacts --command <workflow> --feature-dir <dir>`
+- `specify hook checkpoint`
+  - Command shape: `specify hook checkpoint --command <workflow> --feature-dir <dir>`
+- `specify hook monitor-context`
+  - Command shape: `specify hook monitor-context --command <workflow> --feature-dir <dir>`
+- `specify hook validate-session-state`
+  - Command shape: `specify hook validate-session-state --command <workflow> --feature-dir <dir>`
+- `specify hook render-statusline`
+  - Command shape: `specify hook render-statusline --command <workflow> --feature-dir <dir>`
+- `specify hook validate-packet`
+  - Command shape: `specify hook validate-packet --packet-file <path>`
+- `specify hook validate-result`
+  - Command shape: `specify hook validate-result --packet-file <packet> --result-file <result>`
+- `specify hook validate-read-path`
+  - Command shape: `specify hook validate-read-path --target-path <path>`
+- `specify hook validate-prompt`
+  - Command shape: `specify hook validate-prompt --prompt-text "<text>"`
 - `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` cover workflow transitions and last-mile commit integrity.
-- `specify hook workflow-policy --command <workflow> ...` returns normalized workflow enforcement outcomes, including `repairable-block` for resumable but currently invalid execution state.
-- `specify hook build-compaction --command <workflow> ...` and `read-compaction --command <workflow> ...` manage structured recovery artifacts for bounded native-session resume cues.
+- `specify hook workflow-policy`
+  - Command shape: `specify hook workflow-policy --command <workflow> --feature-dir <dir>`
+- `specify hook build-compaction`
+  - Command shape: `specify hook build-compaction --command <workflow> --feature-dir <dir>`
+- `specify hook read-compaction`
+  - Command shape: `specify hook read-compaction --command <workflow> --feature-dir <dir>`
 - `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
 - `specify hook mark-dirty --reason "<reason>"` and `specify hook complete-refresh` are the shared product paths for project-map freshness updates.
 

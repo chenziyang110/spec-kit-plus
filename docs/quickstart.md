@@ -284,13 +284,23 @@ Passive project learning layer:
 
 First-party workflow quality hooks:
 
-- Use `specify hook preflight --command <workflow> ...` when you want the product-level gate result rather than relying only on prompt wording.
-- Use `specify hook validate-state --command <workflow> ...` and `specify hook validate-session-state --command <workflow> ...` to inspect or enforce the current source-of-truth workflow state.
-- Use `specify hook validate-artifacts --command <workflow> --feature-dir <dir>` to check that the promised artifact set really exists.
-- Use `specify hook checkpoint --command <workflow> ...` to build a resume-safe checkpoint from the active workflow state file.
-- Use `specify hook monitor-context --command <workflow> ...` to trigger proactive checkpointing before compaction or a risky transition.
-- Use `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` for subagent integrity.
-- Use `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` when path safety or workflow-bypass language is in doubt.
+- Use `specify hook preflight` when you want the product-level gate result rather than relying only on prompt wording.
+  - Command shape: `specify hook preflight --command <workflow> --feature-dir <dir>`
+- Use `specify hook validate-state` and `specify hook validate-session-state` to inspect or enforce the current source-of-truth workflow state.
+  - Command shape: `specify hook validate-state --command <workflow> --feature-dir <dir>`
+  - Command shape: `specify hook validate-session-state --command <workflow> --feature-dir <dir>`
+- Use `specify hook validate-artifacts` to check that the promised artifact set really exists.
+  - Command shape: `specify hook validate-artifacts --command <workflow> --feature-dir <dir>`
+- Use `specify hook checkpoint` to build a resume-safe checkpoint from the active workflow state file.
+  - Command shape: `specify hook checkpoint --command <workflow> --feature-dir <dir>`
+- Use `specify hook monitor-context` to trigger proactive checkpointing before compaction or a risky transition.
+  - Command shape: `specify hook monitor-context --command <workflow> --feature-dir <dir>`
+- Use `specify hook validate-packet` and `specify hook validate-result` for subagent integrity.
+  - Command shape: `specify hook validate-packet --packet-file <path>`
+  - Command shape: `specify hook validate-result --packet-file <packet> --result-file <result>`
+- Use `specify hook validate-read-path` and `specify hook validate-prompt` when path safety or workflow-bypass language is in doubt.
+  - Command shape: `specify hook validate-read-path --target-path <path>`
+  - Command shape: `specify hook validate-prompt --prompt-text "<text>"`
 - Use `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` to enforce workflow transitions and commit-time integrity.
 - Use `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` to turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
 

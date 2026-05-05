@@ -289,3 +289,20 @@ def test_upgrade_guide_labels_agent_placeholder_upgrade_command_as_command_shape
 
     assert "Command shape:" in upgrade
     assert "specify init --here --force --ai <your-agent>" in upgrade
+
+
+def test_readme_and_quickstart_label_workflow_hook_helper_surfaces_as_command_shapes() -> None:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
+    quickstart = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+
+    assert "specify hook preflight --command <workflow> ..." not in readme
+    assert "specify hook validate-state --command <workflow> ..." not in readme
+    assert "specify hook workflow-policy --command <workflow> ..." not in readme
+    assert "specify hook build-compaction --command <workflow> ..." not in readme
+    assert "command shape:" in readme
+
+    assert "use `specify hook preflight --command <workflow> ...`" not in quickstart
+    assert "use `specify hook validate-state --command <workflow> ...`" not in quickstart
+    assert "use `specify hook checkpoint --command <workflow> ...`" not in quickstart
+    assert "use `specify hook monitor-context --command <workflow> ...`" not in quickstart
+    assert "command shape:" in quickstart
