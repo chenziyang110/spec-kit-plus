@@ -2093,6 +2093,29 @@ def test_hook_review_learning_blocks_without_review_payload(tmp_path: Path):
     assert payload["status"] == "blocked"
 
 
+def test_hook_review_learning_accepts_json_format_alias(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "review-learning",
+            "--command",
+            "implement",
+            "--terminal-status",
+            "resolved",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.learning.review"
+    assert payload["status"] == "blocked"
+
+
 def test_hook_signal_learning_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)
 
@@ -2116,6 +2139,25 @@ def test_hook_signal_learning_outputs_parseable_json(tmp_path: Path):
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.learning.signal"
     assert payload["status"] == "warn"
+
+
+def test_hook_complete_refresh_accepts_json_format_alias(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "complete-refresh",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "project_map.complete_refresh"
+    assert payload["status"] == "blocked"
 
 
 def test_hook_capture_learning_records_candidate(tmp_path: Path):

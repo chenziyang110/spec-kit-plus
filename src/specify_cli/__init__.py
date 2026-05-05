@@ -3515,6 +3515,13 @@ def _run_hook_and_print(project_root: Path, event_name: str, payload: dict[str, 
     print_json(result.to_dict())
 
 
+def _validate_hook_output_format(output_format: str) -> None:
+    normalized = str(output_format or "").strip().lower()
+    if normalized != "json":
+        console.print("[red]Error:[/red] Hook commands only support --format json.")
+        raise typer.Exit(2)
+
+
 def _normalize_optional_repo_path(project_root: Path, raw_value: str | None) -> str | None:
     if not raw_value:
         return None
@@ -4961,10 +4968,12 @@ def hook_review_learning_command(
     terminal_status: str = typer.Option(..., "--terminal-status", help="Terminal workflow status, for example resolved or blocked"),
     decision: str | None = typer.Option(None, "--decision", help="Learning review decision: none, captured, deferred, auto-captured, or manual-capture-needed"),
     rationale: str | None = typer.Option(None, "--rationale", help="Why no reusable learning exists or why capture was deferred"),
+    output_format: str = typer.Option("json", "--format", help="Output format: json"),
 ):
     """Enforce a learning review before terminal workflow closeout."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     learning_review = None
     if decision is not None or rationale is not None:
         learning_review = {"decision": decision or "", "rationale": rationale or ""}
@@ -5060,10 +5069,13 @@ def hook_mark_dirty_command(
 
 
 @hook_app.command("complete-refresh")
-def hook_complete_refresh_command():
+def hook_complete_refresh_command(
+    output_format: str = typer.Option("json", "--format", help="Output format: json"),
+):
     """Finalize a successful project-map refresh through the shared hook surface."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
         "project_map.complete_refresh",
