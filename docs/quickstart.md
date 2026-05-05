@@ -239,10 +239,10 @@ Use the lightweight routing rules consistently:
 - Invoking `quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
 - Use `specify quick list` to inspect unfinished quick tasks by default.
 - Quick-task helper command shapes:
-  - `specify quick status <id>`
-  - `specify quick resume <id>`
-  - `specify quick close <id> --status resolved|blocked`
-  - `specify quick archive <id>`
+  - Command shape: `specify quick status <id>`
+  - Command shape: `specify quick resume <id>`
+  - Command shape: `specify quick close <id> --status resolved|blocked`
+  - Command shape: `specify quick archive <id>`
 - Upgrade to `specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 Required action markers:

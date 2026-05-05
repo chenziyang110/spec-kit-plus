@@ -277,10 +277,10 @@ Routing guide for lightweight work:
 - Invoking `sp-quick` with no arguments should resume unfinished quick work when possible. If only one unfinished quick task exists, continue it automatically. `blocked` quick tasks still count as resumable unfinished work.
 - Use `specify quick list` to inspect unfinished quick tasks by default.
 - Quick-task helper command shapes:
-  - `specify quick status <id>`
-  - `specify quick resume <id>`
-  - `specify quick close <id> --status resolved|blocked`
-  - `specify quick archive <id>`
+  - Command shape: `specify quick status <id>`
+  - Command shape: `specify quick resume <id>`
+  - Command shape: `specify quick close <id> --status resolved|blocked`
+  - Command shape: `specify quick archive <id>`
 - Move from `sp-quick` to `sp-specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 Required action markers:
@@ -360,7 +360,9 @@ First-party workflow quality hooks:
 - `specify hook read-compaction`
   - Command shape: `specify hook read-compaction --command <workflow> --feature-dir <dir>`
 - `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
-- `specify hook mark-dirty --reason "<reason>"` and `specify hook complete-refresh` are the shared product paths for project-map freshness updates.
+- `specify hook mark-dirty`
+  - Command shape: `specify hook mark-dirty --reason "<reason>"`
+- `specify hook complete-refresh` is the shared product path for project-map freshness updates after a full atlas refresh.
 
 Claude Code integration note:
 
@@ -563,17 +565,16 @@ Maintainer note:
 
 ## Key Commands
 
-```bash
-specify init <project> --ai <agent>
-specify check
-specify extension list
-specify preset list
-```
+- `specify init`
+  - Command shape: `specify init <project> --ai <agent>`
+- `specify check`
+- `specify extension list`
+- `specify preset list`
 
 Result helper command shapes:
 
-- `specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>`
-- `specify result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-file <path>`
+- Command shape: `specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>`
+- Command shape: `specify result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-file <path>`
 
 For the full CLI surface:
 

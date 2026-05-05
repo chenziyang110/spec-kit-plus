@@ -318,9 +318,12 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "result helper command shapes:" in readme
     assert "specify quick status <id>" in readme
     assert "quick-task helper command shapes:" in readme
+    assert "command shape: `specify quick status <id>`" in readme
+    assert "command shape: `specify hook mark-dirty --reason " in readme
 
     assert "specify implement closeout --feature-dir <feature-dir> --format json" in quickstart
     assert "command shape:" in quickstart
     assert "specify eval create --recurrence-key <key> --summary" in quickstart
     assert "specify eval create --recurrence-key <key> ..." not in quickstart
     assert "quick-task helper command shapes:" in quickstart
+    assert "command shape: `specify quick status <id>`" in quickstart
