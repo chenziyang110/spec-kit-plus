@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -9,6 +10,35 @@ from specify_cli.integrations.base import IntegrationBase
 from .template_utils import read_template
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _normalize_newlines(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _assert_managed_block_emitters_match_across_shells() -> None:
+    bash = (PROJECT_ROOT / "scripts" / "bash" / "update-agent-context.sh").read_text(encoding="utf-8")
+    ps = (PROJECT_ROOT / "scripts" / "powershell" / "update-agent-context.ps1").read_text(encoding="utf-8")
+
+    bash_match = re.search(
+        r"render_speckit_managed_block\(\)\s*\{\s*cat <<'EOF'\n(?P<block>.*?)\nEOF",
+        bash,
+        flags=re.S,
+    )
+    ps_match = re.search(
+        r"function Get-SpecKitManagedBlock\b.*?@\(\s*(?P<body>.*?)\s*\)\s*-join \$Newline",
+        ps,
+        flags=re.S,
+    )
+
+    assert bash_match is not None
+    assert ps_match is not None
+
+    bash_block = _normalize_newlines(bash_match.group("block"))
+    ps_block = _normalize_newlines(
+        "\n".join(s.replace("''", "'") for s in re.findall(r"'((?:''|[^'])*)'", ps_match.group("body")))
+    )
+    assert bash_block == ps_block
 
 
 def test_init_generated_codex_skill_includes_invocation_note_and_projected_handoff(tmp_path: Path):
@@ -327,3 +357,22 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "specify eval create --recurrence-key <key> ..." not in quickstart
     assert "quick-task helper command shapes:" in quickstart
     assert "command shape: `specify quick status <id>`" in quickstart
+
+
+def test_update_agent_context_managed_block_emitters_remain_cross_shell_equivalent() -> None:
+    _assert_managed_block_emitters_match_across_shells()
+
+
+def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_memory_semantics() -> None:
+    bash = read_template("scripts/bash/update-agent-context.sh").lower()
+
+    assert "treat `sp-*` names as canonical workflow identities" in bash
+    assert "treat the learning layer as workflow-execution infrastructure" in bash
+    assert "project-map complete-refresh" in bash
+    assert "project-map mark-dirty" in bash
+    assert "do not continue under known-stale atlas state without choosing one of those paths" in bash
+    assert "structured handoff, result file, or runtime-managed result" in bash
+    assert "`sp-teams` only" in bash
+    assert "possibly_stale" not in bash
+    assert "must_refresh_topics" not in bash
+    assert "review_topics" not in bash

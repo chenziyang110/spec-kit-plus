@@ -72,6 +72,98 @@ def _assert_reference_evidence_contract(text: str) -> None:
     assert "verification entry points" in lowered
 
 
+def _extract_bash_managed_block(script: str) -> str:
+    match = re.search(
+        r"render_speckit_managed_block\(\)\s*\{\s*cat <<'EOF'\n(?P<block>.*?)\nEOF",
+        script,
+        flags=re.S,
+    )
+    assert match is not None
+    return match.group("block")
+
+
+def _extract_powershell_managed_block(script: str) -> str:
+    match = re.search(
+        r"function Get-SpecKitManagedBlock\b.*?@\(\s*(?P<body>.*?)\s*\)\s*-join \$Newline",
+        script,
+        flags=re.S,
+    )
+    assert match is not None
+    lines = re.findall(r"'((?:''|[^'])*)'", match.group("body"))
+    assert lines
+    return "\n".join(line.replace("''", "'") for line in lines)
+
+
+def _assert_managed_block_v2_contract(block: str) -> None:
+    lowered = block.lower()
+
+    assert "## Spec Kit Plus Managed Rules" in block
+    assert "## Workflow Activation Discipline" in block
+    assert "1% chance" in block
+    assert "route before any response or action" in lowered
+    assert "repository inspection belongs inside the selected workflow" in lowered
+    assert "Treat `sp-*` names as canonical workflow identities." in block
+
+    assert "## Brownfield Context Gate" in block
+    assert "`PROJECT-HANDBOOK.md` is the root navigation artifact." in block
+    assert "Deep project knowledge lives under `.specify/project-map/`." in block
+    assert "read `PROJECT-HANDBOOK.md` and the smallest relevant `.specify/project-map/*.md` files" in block
+    assert "Read atlas content by role:" in block
+    assert "`PROJECT-HANDBOOK.md`: choose the smallest relevant topic set before broad source reads." in block
+    assert "`root/ARCHITECTURE.md`: architecture boundaries, truth ownership, change propagation, and core seams." in block
+    assert "`root/STRUCTURE.md`: directory ownership, shared write surfaces, and file-placement rules." in block
+    assert "`root/WORKFLOWS.md`: workflow paths, handoffs, state lifecycles, and recovery semantics." in block
+    assert "`root/TESTING.md`: smallest meaningful checks, regression-sensitive areas, and verification expectations." in block
+
+    assert "## Project Memory" in block
+    assert "Treat the learning layer as workflow-execution infrastructure, not as optional notes." in block
+    assert "`.specify/memory/constitution.md` is the principle-level source of truth when present." in block
+    assert "`.specify/memory/project-rules.md` holds stable defaults and reusable constraints." in block
+    assert "`.specify/memory/project-learnings.md` holds confirmed reusable lessons." in block
+    assert "`.planning/learnings/candidates.md` is a lower-confidence candidate layer and should influence work only when relevant to the touched area." in block
+
+    assert "## Delegated Execution Defaults" in block
+    assert "Dispatch native subagents by default for independent, bounded lanes when parallel work materially improves speed, quality, or verification confidence." in block
+    assert "Use a validated `WorkerTaskPacket` or equivalent execution contract before subagent work begins." in block
+    assert "Wait for each subagent's structured handoff, result file, or runtime-managed result before integrating or marking work complete. Idle state or a chat summary is not completion evidence." in block
+    assert "Use the integration's durable team/runtime surface only when durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst is required." in block
+    assert "For integrations that expose `sp-teams`, use `sp-teams` only in those cases." in block
+
+    assert "## Artifact Priority" in block
+    assert "`workflow-state.md` under the active feature directory is the stage/status source of truth" in block
+    assert "`alignment.md` and `context.md` under the active feature directory carry locked decisions from `sp-specify` into planning." in block
+    assert "`plan.md` under the active feature directory is the implementation design source of truth once planning begins." in block
+    assert "`tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins." in block
+    assert "Use `prd-scan -> prd-build` as the canonical existing-project reverse-PRD lane" in block
+    assert "`.specify/prd-runs/<run-id>/`, including its workflow state and scan/build artifacts, is the current-state PRD reconstruction truth surface." in block
+    assert "Treat it as documentation output unless later work explicitly adopts it as planning input." in block
+
+    assert "`.specify/testing/testing-state.md`" in block
+    assert "Treat testing artifacts by role:" in block
+    assert "`TEST_SCAN.md`: scan evidence and module risk findings, not the executable build contract." in block
+    assert "`TEST_BUILD_PLAN.md` / `.json`: build-ready testing-system lanes and validation commands; primary `sp-test-build` inputs." in block
+    assert "`UNIT_TEST_SYSTEM_REQUEST.md`: brownfield testing-program input for later scoped spec/planning work." in block
+    assert "`TESTING_CONTRACT.md`: durable downstream testing obligations that later workflows should honor automatically." in block
+    assert "`TESTING_PLAYBOOK.md`: operator and maintainer runbook for test execution." in block
+    assert "`COVERAGE_BASELINE.json`: observed baseline data, not acceptance proof by itself." in block
+
+    assert "## Execution and Closeout Rules" in block
+    assert "Do not substitute chat narration for workflow execution." in block
+    assert "read the relevant durable state surface first" in lowered
+    assert "do not claim completion until those artifacts exist" in lowered
+
+    assert "## Map Maintenance" in block
+    assert "refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files." in block
+    assert "If a full refresh can be completed now, run `sp-map-scan` followed by `sp-map-build`, then use `project-map complete-refresh` as the successful-refresh finalizer." in block
+    assert "Otherwise use `project-map mark-dirty` as the manual override/fallback and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`." in block
+    assert "Do not treat consumed handbook/project-map context as self-maintaining" in block
+
+    assert "possibly_stale" not in lowered
+    assert "must_refresh_topics" not in lowered
+    assert "review_topics" not in lowered
+    assert "## Spec Quality Gate (`spec-lint`)" not in block
+
+
 def test_core_sp_templates_use_learning_review_hooks():
     command_templates_with_signal = {
         "specify": "templates/commands/specify.md",
@@ -1656,6 +1748,17 @@ def test_project_map_freshness_scripts_exist_and_share_status_contract():
     assert "project-map status missing" in ps_freshness
     assert "high-impact project-map change" in ps_freshness
     assert "git baseline unavailable for project-map freshness" in ps_freshness
+
+
+def test_update_agent_context_emitters_share_managed_block_v2_contract() -> None:
+    bash_script = _read("scripts/bash/update-agent-context.sh")
+    powershell_script = _read("scripts/powershell/update-agent-context.ps1")
+
+    bash_block = _extract_bash_managed_block(bash_script)
+    powershell_block = _extract_powershell_managed_block(powershell_script)
+
+    _assert_managed_block_v2_contract(bash_block)
+    _assert_managed_block_v2_contract(powershell_block)
 
 
 def test_plan_shell_requires_anchorable_headings():
