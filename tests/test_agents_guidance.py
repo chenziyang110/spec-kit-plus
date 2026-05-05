@@ -10,6 +10,8 @@ def test_root_agents_documents_lane_first_recovery_rules() -> None:
 
     assert "specify --help" in content
     assert "generated create-feature script" in lowered
+    assert ".specify/scripts/bash/create-new-feature.sh" in lowered
+    assert ".specify/scripts/powershell/create-new-feature.ps1" in lowered
     assert "do not invent" in lowered
     assert "specify create-feature" in lowered
     assert "## Lane Recovery Rules" in content
@@ -27,6 +29,8 @@ def test_root_claude_context_documents_lane_first_recovery_rules() -> None:
     assert "AGENTS.md" in content
     assert "specify --help" in content
     assert "generated create-feature script" in lowered
+    assert ".specify/scripts/bash/create-new-feature.sh" in lowered
+    assert ".specify/scripts/powershell/create-new-feature.ps1" in lowered
     assert "do not invent" in lowered
     assert "specify create-feature" in lowered
     assert "## Lane Recovery Rules" in content

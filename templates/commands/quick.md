@@ -5,9 +5,6 @@ workflow_contract:
   primary_objective: Keep the task resumable and tracked while applying only the minimum planning, research, and validation depth it needs.
   primary_outputs: '`.planning/quick/<id>-<slug>/STATUS.md`, quick-task summary artifacts, and the scoped implementation changes for the task.'
   default_handoff: 'Resume the quick task until resolved, or escalate to /sp.specify if the scope grows into multi-capability or acceptance-criteria-heavy work.'
-scripts:
-  sh: scripts/bash/check-prerequisites.sh --json
-  ps: scripts/powershell/check-prerequisites.ps1 -Json
 ---
 
 {{spec-kit-include: ../command-partials/quick/shell.md}}

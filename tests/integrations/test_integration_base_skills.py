@@ -261,6 +261,28 @@ class SkillsIntegrationTests:
             assert "__AGENT__" not in content, f"{f.name} has unprocessed __AGENT__"
             assert "{ARGS}" not in content, f"{f.name} has unprocessed {{ARGS}}"
 
+    def test_feature_creation_surfaces_use_explicit_helper_paths_without_fake_cli(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        surfaces = [i.skills_dest(tmp_path) / "sp-specify" / "SKILL.md"]
+
+        context_path = tmp_path / self.CONTEXT_FILE
+        if context_path.exists():
+            surfaces.append(context_path)
+
+        routing_skill = i.skills_dest(tmp_path) / "spec-kit-workflow-routing" / "SKILL.md"
+        if routing_skill.exists():
+            surfaces.append(routing_skill)
+
+        for path in surfaces:
+            content = path.read_text(encoding="utf-8").lower()
+            assert ".specify/scripts/bash/create-new-feature.sh" in content, f"{path} missing bash helper path"
+            assert ".specify/scripts/powershell/create-new-feature.ps1" in content, f"{path} missing powershell helper path"
+            assert "run `specify create-feature`" not in content, f"{path} teaches fake runnable create-feature command"
+            assert "use `specify create-feature`" not in content, f"{path} teaches fake runnable create-feature command"
+
     def test_skill_body_has_content(self, tmp_path):
         """Each SKILL.md body should contain template content after the frontmatter."""
         i = get_integration(self.KEY)

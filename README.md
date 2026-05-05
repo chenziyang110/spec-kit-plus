@@ -203,8 +203,11 @@ specify -> plan
 ```
 
 Feature creation is driven by the `specify` workflow itself. Use `sp-specify`
-with the generated create-feature script and lane/runtime helpers that it
-invokes; do not look for or teach a separate branch-creation CLI family.
+with the generated create-feature script at
+`.specify/scripts/bash/create-new-feature.sh` or
+`.specify/scripts/powershell/create-new-feature.ps1`, plus the lane/runtime
+helpers that it invokes; do not look for or teach a separate branch-creation
+CLI family.
 
 Treat the live `specify --help` output as the only authoritative CLI command
 surface. Before suggesting or running a `specify <subcommand>` invocation,

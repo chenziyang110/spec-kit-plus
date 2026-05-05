@@ -109,10 +109,13 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Treat the live `specify --help` output as the only authoritative CLI command surface. Before suggesting or running any `specify <subcommand>` helper, verify it exists in `specify --help` or `specify <subcommand> --help`.
    - Treat `sp-specify` plus the generated create-feature script as the supported feature-creation path. Do not infer or recommend a separate branch-creation CLI family.
    - Do not invent unsupported CLI names such as `specify create-feature`, even as a shorthand or guessed compatibility alias.
+   - The generated feature-creation helpers live at `.specify/scripts/bash/create-new-feature.sh` and `.specify/scripts/powershell/create-new-feature.ps1`.
+   - Run `{SCRIPT}` from the repo root. Use the shell-appropriate `--json`/`-Json` and `--short-name`/`-ShortName` form instead of inventing a separate `specify` subcommand.
    - Before running the script, check if `.specify/init-options.json` exists and read `branch_numbering`.
    - If the value is `"timestamp"`, add `--timestamp` or `-Timestamp`.
    - If the value is `"sequential"` or missing, use default numbering.
    - Do not pass `--number`.
+   - If the feature-creation script exits non-zero, stop immediately. Surface the exact stderr/stdout failure to the user, do not guess fallback command names, and do not call `specify lane register` until `BRANCH_NAME`, `FEATURE_DIR`, `LANE_ID`, and `LANE_WORKTREE` were actually returned by the script.
    - Parse `BRANCH_NAME`, `SPEC_FILE`, `FEATURE_DIR`, `LANE_ID`, and `LANE_WORKTREE` from the JSON response.
    - Set `ALIGNMENT_FILE` to `FEATURE_DIR/alignment.md`.
    - Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`.

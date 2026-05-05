@@ -71,8 +71,10 @@ surface. Before you suggest or run a `specify <subcommand>` command, verify it
 exists in `specify --help` or `specify <subcommand> --help`.
 
 Do not invent unsupported CLI names such as `specify create-feature`. Feature
-creation must follow `sp-specify` plus the generated create-feature script, not
-an imagined standalone branch-creation command.
+creation must follow `sp-specify` plus the generated create-feature script at
+`.specify/scripts/bash/create-new-feature.sh` or
+`.specify/scripts/powershell/create-new-feature.ps1`, not an imagined
+standalone branch-creation command.
 
 ### Step 2: Define Your Constitution
 
@@ -100,7 +102,9 @@ Built-in profiles:
 
 **In the chat**, run the `specify` workflow to describe what you want to build. Focus on the **what** and **why**, not the tech stack.
 
-Treat `sp-specify` plus the generated create-feature script as the supported
+Treat `sp-specify` plus the generated create-feature script at
+`.specify/scripts/bash/create-new-feature.sh` or
+`.specify/scripts/powershell/create-new-feature.ps1` as the supported
 feature-creation path. Do not look for or teach a separate branch-creation
 command family.
 

@@ -5,9 +5,6 @@ workflow_contract:
   primary_objective: Build a resumable debug session that gathers evidence, identifies root cause, applies a fix, and verifies the result.
   primary_outputs: Debug-session state, evidence, verified fix artifacts when justified, and an honest blocked/resolved status.
   default_handoff: Stay inside the debug session until resolved or blocked; route back to execution only after the defect contract is satisfied.
-scripts:
-  sh: scripts/bash/check-prerequisites.sh --json
-  ps: scripts/powershell/check-prerequisites.ps1 -Json
 ---
 
 {{spec-kit-include: ../command-partials/debug/shell.md}}

@@ -38,7 +38,9 @@ Do not invent, paraphrase, or "normalize" unsupported CLI names such as
 `specify create-feature`.
 
 Feature creation must stay on `{{invoke:specify}}` plus the generated
-create-feature script, not an imagined standalone branch-creation command.
+create-feature script at `.specify/scripts/bash/create-new-feature.sh` or
+`.specify/scripts/powershell/create-new-feature.ps1`, not an imagined
+standalone branch-creation command.
 
 ## Complementary Passive Skills
 

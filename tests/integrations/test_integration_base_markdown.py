@@ -143,6 +143,28 @@ class MarkdownIntegrationTests:
             assert "\nscripts:\n" not in content, f"{f.name} has unstripped scripts: block"
             assert "\nagent_scripts:\n" not in content, f"{f.name} has unstripped agent_scripts: block"
 
+    def test_feature_creation_surfaces_use_explicit_helper_paths_without_fake_cli(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        surfaces = [i.commands_dest(tmp_path) / i.command_filename("specify")]
+
+        context_path = tmp_path / self.CONTEXT_FILE
+        if context_path.exists():
+            surfaces.append(context_path)
+
+        routing_md = i.commands_dest(tmp_path) / i.command_filename("spec-kit-workflow-routing")
+        if routing_md.exists():
+            surfaces.append(routing_md)
+
+        for path in surfaces:
+            content = path.read_text(encoding="utf-8").lower()
+            assert ".specify/scripts/bash/create-new-feature.sh" in content, f"{path} missing bash helper path"
+            assert ".specify/scripts/powershell/create-new-feature.ps1" in content, f"{path} missing powershell helper path"
+            assert "run `specify create-feature`" not in content, f"{path} teaches fake runnable create-feature command"
+            assert "use `specify create-feature`" not in content, f"{path} teaches fake runnable create-feature command"
+
     def test_research_alias_command_routes_to_deep_research(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)

@@ -205,6 +205,8 @@ def test_passive_workflow_skills_enforce_real_specify_command_surface() -> None:
     for content in (routing, map_gate):
         assert "specify --help" in content
         assert "generated\ncreate-feature script" in content or "generated create-feature script" in content
+        assert ".specify/scripts/bash/create-new-feature.sh" in content
+        assert ".specify/scripts/powershell/create-new-feature.ps1" in content
         assert "run `specify create-feature`" not in content
         assert "use `specify create-feature`" not in content
 
@@ -238,6 +240,8 @@ def test_command_surfaces_require_help_verification_and_do_not_invent_feature_co
     required = (
         "specify --help",
         "generated create-feature script",
+        ".specify/scripts/bash/create-new-feature.sh",
+        ".specify/scripts/powershell/create-new-feature.ps1",
     )
 
     for name, content in surfaces.items():
@@ -263,7 +267,103 @@ def test_specify_template_points_feature_creation_to_sp_specify_and_generated_sc
 
     assert "sp-specify" in content
     assert "generated create-feature script" in lowered
+    assert "run `{script}` from the repo root" in lowered
+    assert "if the feature-creation script exits non-zero" in lowered
+    assert "do not call `specify lane register`" in lowered
     assert "specify branch" not in lowered
+
+
+def test_command_templates_do_not_declare_unused_script_frontmatter() -> None:
+    commands_dir = PROJECT_ROOT / "templates" / "commands"
+
+    for path in sorted(commands_dir.glob("*.md")):
+        content = path.read_text(encoding="utf-8")
+        frontmatter, body = CommandRegistrar.parse_frontmatter(content)
+        scripts = frontmatter.get("scripts")
+        agent_scripts = frontmatter.get("agent_scripts")
+
+        if scripts:
+            assert "{SCRIPT}" in body, f"{path.name} declares scripts: but never consumes {{SCRIPT}}"
+        if agent_scripts:
+            assert "{AGENT_SCRIPT}" in body, f"{path.name} declares agent_scripts: but never consumes {{AGENT_SCRIPT}}"
+
+
+def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_stop_gate(tmp_path: Path):
+    target = tmp_path / "codex-specify-entrypoint"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(PROJECT_ROOT / "src"), env["PYTHONPATH"]]
+        if env.get("PYTHONPATH")
+        else [str(PROJECT_ROOT / "src")]
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path\n"
+                "from typer.testing import CliRunner\n"
+                "from specify_cli import app\n"
+                "import sys\n"
+                "target = Path(sys.argv[1])\n"
+                "result = CliRunner().invoke(app, ['init', str(target), '--ai', 'codex', '--no-git', '--ignore-agent-tools', '--script', 'sh'])\n"
+                "assert result.exit_code == 0, result.output\n"
+                "print((target / '.codex' / 'skills' / 'sp-specify' / 'SKILL.md').read_text(encoding='utf-8'))\n"
+            ),
+            str(target),
+        ],
+        cwd=PROJECT_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    content = result.stdout.lower()
+
+    assert ".specify/scripts/bash/create-new-feature.sh" in content
+    assert "run `.specify/scripts/bash/create-new-feature.sh \"$arguments\"` from the repo root" in content
+    assert "if the feature-creation script exits non-zero" in content
+    assert "do not call `specify lane register`" in content
+
+
+def test_generated_codex_passive_routing_skills_expose_create_feature_helper_paths(tmp_path: Path):
+    target = tmp_path / "codex-passive-skill-entrypoint"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(PROJECT_ROOT / "src"), env["PYTHONPATH"]]
+        if env.get("PYTHONPATH")
+        else [str(PROJECT_ROOT / "src")]
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path\n"
+                "from typer.testing import CliRunner\n"
+                "from specify_cli import app\n"
+                "import sys\n"
+                "target = Path(sys.argv[1])\n"
+                "result = CliRunner().invoke(app, ['init', str(target), '--ai', 'codex', '--no-git', '--ignore-agent-tools', '--script', 'sh'])\n"
+                "assert result.exit_code == 0, result.output\n"
+                "for name in ('spec-kit-workflow-routing', 'spec-kit-project-map-gate'):\n"
+                "    print(f'## {name}')\n"
+                "    print((target / '.codex' / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8'))\n"
+            ),
+            str(target),
+        ],
+        cwd=PROJECT_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    content = result.stdout.lower()
+
+    assert ".specify/scripts/bash/create-new-feature.sh" in content
+    assert ".specify/scripts/powershell/create-new-feature.ps1" in content
 
 
 def test_quickstart_uses_current_feature_creation_and_repair_guidance() -> None:
@@ -271,6 +371,8 @@ def test_quickstart_uses_current_feature_creation_and_repair_guidance() -> None:
     lowered = content.lower()
 
     assert "generated create-feature script" in lowered
+    assert ".specify/scripts/bash/create-new-feature.sh" in lowered
+    assert ".specify/scripts/powershell/create-new-feature.ps1" in lowered
     assert "specify check" in lowered
     assert "specify integration repair" in lowered
     assert "specify branch" not in lowered

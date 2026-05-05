@@ -286,6 +286,23 @@ class TestClaudeIntegration:
         assert "disable-model-invocation" not in parsed
         assert parsed["metadata"]["source"] == "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
 
+    def test_feature_creation_surfaces_use_explicit_helper_paths_without_fake_cli(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        surfaces = [
+            tmp_path / ".claude" / "skills" / "sp-specify" / "SKILL.md",
+            tmp_path / ".claude" / "skills" / "spec-kit-workflow-routing" / "SKILL.md",
+        ]
+
+        for path in surfaces:
+            content = path.read_text(encoding="utf-8").lower()
+            assert ".specify/scripts/bash/create-new-feature.sh" in content, f"{path} missing bash helper path"
+            assert ".specify/scripts/powershell/create-new-feature.ps1" in content, f"{path} missing powershell helper path"
+            assert "run `specify create-feature`" not in content, f"{path} teaches fake runnable create-feature command"
+            assert "use `specify create-feature`" not in content, f"{path} teaches fake runnable create-feature command"
+
     def test_setup_installs_update_context_scripts(self, tmp_path):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)

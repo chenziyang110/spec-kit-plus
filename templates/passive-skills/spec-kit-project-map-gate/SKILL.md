@@ -36,7 +36,7 @@ judgment in an established Spec Kit Plus repository:
 - Treat the live `specify --help` output as the only authoritative CLI command surface.
 - Before suggesting or running a `specify <subcommand>` invocation while satisfying this gate, verify that it exists in `specify --help` or `specify <subcommand> --help`.
 - Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
-- Feature creation remains `{{invoke:specify}}` plus the generated create-feature script, not a separate branch-creation command.
+- Feature creation remains `{{invoke:specify}}` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate branch-creation command.
 
 ## Missing Or Stale Context
 

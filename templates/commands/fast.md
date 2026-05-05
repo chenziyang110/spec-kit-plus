@@ -5,9 +5,6 @@ workflow_contract:
   primary_objective: Complete the smallest safe low-risk change directly and run the smallest meaningful verification without opening the full planning workflow.
   primary_outputs: A tightly scoped direct change plus a concise report of what changed, what was verified, and any remaining risk.
   default_handoff: Upgrade immediately to /sp-quick if scope, coupling, or uncertainty expands.
-scripts:
-  sh: scripts/bash/check-prerequisites.sh --json
-  ps: scripts/powershell/check-prerequisites.ps1 -Json
 ---
 
 {{spec-kit-include: ../command-partials/fast/shell.md}}
