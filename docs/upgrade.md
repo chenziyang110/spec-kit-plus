@@ -9,7 +9,7 @@
 | What to Upgrade | Command | When to Use |
 |----------------|---------|-------------|
 | **CLI Tool Only** | `python -m pip uninstall -y specify-cli` then `uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git` | Get latest CLI features without touching project files |
-| **Project Files** | `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai <your-agent>` | Update slash commands, templates, and scripts in your project without using a stale PATH executable |
+| **Project Files** | `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai codex` | Update slash commands, templates, and scripts in your project without using a stale PATH executable |
 | **Both** | Run CLI upgrade, then project update | Recommended for major version updates |
 
 ---
@@ -82,6 +82,8 @@ The `specs/` directory is completely excluded from template packages and will ne
 Run this inside your project directory. Prefer the `uvx --refresh` form when you
 want the latest fork commit and do not want to depend on whichever `specify`
 executable is currently first on PATH:
+
+Command shape:
 
 ```bash
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai <your-agent>

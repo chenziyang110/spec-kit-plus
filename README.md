@@ -276,7 +276,12 @@ Routing guide for lightweight work:
 - For brownfield repositories with weak legacy coverage, let `sp-test-scan` generate `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and treat it as the starting artifact for any testing-system program or coverage uplift program that must continue through `sp-specify`, `sp-quick`, or `sp-fast`; use `sp-test-build` only once build-ready lanes exist.
 - Quick workspaces now live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the task source of truth and `.planning/quick/index.json` as a derived management index.
 - Invoking `sp-quick` with no arguments should resume unfinished quick work when possible. If only one unfinished quick task exists, continue it automatically. `blocked` quick tasks still count as resumable unfinished work.
-- Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage tracked quick tasks. `specify quick list` defaults to unfinished quick tasks.
+- Use `specify quick list` to inspect unfinished quick tasks by default.
+- Quick-task helper command shapes:
+  - Command shape: `specify quick status <id>`
+  - Command shape: `specify quick resume <id>`
+  - Command shape: `specify quick close <id> --status resolved|blocked`
+  - Command shape: `specify quick archive <id>`
 - Move from `sp-quick` to `sp-specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 Required action markers:
@@ -296,40 +301,69 @@ Passive project learning layer:
 - Low-level helper commands exist for the passive learning lifecycle:
 - `specify learning ensure --format json`
 - `specify learning status --format json`
-- `specify learning start --command <workflow> --format json`
-- `specify learning capture --command <workflow> ...`
-- `specify learning capture-auto --command <workflow> ...`
-- `specify implement closeout --feature-dir <feature-dir> --format json`
+- `specify learning start`
+  - Command shape: `specify learning start --command <workflow> --format json`
+- `specify learning capture`
+  - Required options: `--command`, `--type`, `--summary`, `--evidence`
+- `specify learning capture-auto`
+  - Command shape: `specify learning capture-auto --command <workflow> --format json`
+- `specify implement closeout`
+  - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
 - `specify learning aggregate --format json`
-- `specify learning promote --recurrence-key <key> --target learning|rule`
-- `specify hook signal-learning --command <workflow> ...`
-- `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> ...`
-- `specify hook capture-learning --command <workflow> --type <type> --summary "..." --evidence "..."`
-- `specify hook inject-learning --command <workflow> --type <type> --summary "..."`
+- `specify learning promote`
+  - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
+- `specify hook signal-learning`
+  - Command shape: `specify hook signal-learning --command <workflow> --retry-attempts <n> --hypothesis-changes <n>`
+- `specify hook review-learning`
+  - Command shape: `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"`
+- `specify hook capture-learning`
+  - Required options: `--command`, `--type`, `--summary`, `--evidence`
+- `specify hook inject-learning`
+  - Command shape: `specify hook inject-learning --command <workflow> --type <type> --summary "<summary>"`
 - Use `specify learning aggregate` when you want a grouped, promotion-oriented summary of candidate, confirmed, and promoted learning patterns before deciding what should become a shared learning or rule.
 - This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across every `sp-*` workflow, with `review-learning` acting as the terminal learning gate and `capture-learning` preserving structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
 - Durable eval helpers turn promoted rules into local regression checks:
-  - `specify eval create --recurrence-key <key> ...`
+  - `specify eval create`
+    - Command shape: `specify eval create --recurrence-key <key> --summary "<summary>"`
   - `specify eval status --format json`
   - `specify eval run --format json`
 - Use `specify eval create` after a rule or learning becomes stable enough that the repository should keep proving it, not just remember it.
 
 First-party workflow quality hooks:
 
-- `specify hook preflight --command <workflow> ...` runs the shared product gate before a workflow continues.
-- `specify hook validate-state --command <workflow> ...` checks workflow state truth such as `workflow-state.md`, `implement-tracker.md`, or quick-task `STATUS.md`.
-- `specify hook validate-artifacts --command <workflow> --feature-dir <dir>` machine-checks the minimum artifact set instead of trusting chat progress.
-- `specify hook checkpoint --command <workflow> ...` emits a resume-safe checkpoint payload from the active source-of-truth state file.
-- `specify hook monitor-context --command <workflow> ...` recommends proactive checkpointing when context pressure or a risky structural transition appears.
-- `specify hook validate-session-state --command <workflow> ...` reconciles resume-critical state across the active workflow surfaces.
-- `specify hook render-statusline --command <workflow> ...` returns a compact operator-facing status summary.
-- `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` enforce the shared subagent execution contract.
-- `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` provide shared read-boundary and prompt-bypass guards.
+- `specify hook preflight`
+  - Command shape: `specify hook preflight --command <workflow> --feature-dir <dir>`
+- `specify hook validate-state`
+  - Command shape: `specify hook validate-state --command <workflow> --feature-dir <dir>`
+- `specify hook validate-artifacts`
+  - Command shape: `specify hook validate-artifacts --command <workflow> --feature-dir <dir>`
+- `specify hook checkpoint`
+  - Command shape: `specify hook checkpoint --command <workflow> --feature-dir <dir>`
+- `specify hook monitor-context`
+  - Command shape: `specify hook monitor-context --command <workflow> --feature-dir <dir>`
+- `specify hook validate-session-state`
+  - Command shape: `specify hook validate-session-state --command <workflow> --feature-dir <dir>`
+- `specify hook render-statusline`
+  - Command shape: `specify hook render-statusline --command <workflow> --feature-dir <dir>`
+- `specify hook validate-packet`
+  - Command shape: `specify hook validate-packet --packet-file <path>`
+- `specify hook validate-result`
+  - Command shape: `specify hook validate-result --packet-file <packet> --result-file <result>`
+- `specify hook validate-read-path`
+  - Command shape: `specify hook validate-read-path --target-path <path>`
+- `specify hook validate-prompt`
+  - Command shape: `specify hook validate-prompt --prompt-text "<text>"`
 - `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` cover workflow transitions and last-mile commit integrity.
-- `specify hook workflow-policy --command <workflow> ...` returns normalized workflow enforcement outcomes, including `repairable-block` for resumable but currently invalid execution state.
-- `specify hook build-compaction --command <workflow> ...` and `read-compaction --command <workflow> ...` manage structured recovery artifacts for bounded native-session resume cues.
+- `specify hook workflow-policy`
+  - Command shape: `specify hook workflow-policy --command <workflow> --feature-dir <dir>`
+- `specify hook build-compaction`
+  - Command shape: `specify hook build-compaction --command <workflow> --feature-dir <dir>`
+- `specify hook read-compaction`
+  - Command shape: `specify hook read-compaction --command <workflow> --feature-dir <dir>`
 - `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
-- `specify hook complete-refresh` is the shared successful-refresh finalizer for project-map freshness updates. `specify hook mark-dirty --reason "<reason>"` is the shared manual override/fallback when a full refresh cannot be completed in the current pass.
+- `specify hook mark-dirty`
+  - Command shape: `specify hook mark-dirty --reason "<reason>"`
+- `specify hook complete-refresh` is the shared successful-refresh finalizer for project-map freshness updates after a full atlas refresh. `specify hook mark-dirty --reason "<reason>"` is the shared manual override/fallback when a full refresh cannot be completed in the current pass.
 
 Claude Code integration note:
 
@@ -532,14 +566,16 @@ Maintainer note:
 
 ## Key Commands
 
-```bash
-specify init <project> --ai <agent>
-specify check
-specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>
-specify result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-file <path>
-specify extension list
-specify preset list
-```
+- `specify init`
+  - Command shape: `specify init <project> --ai <agent>`
+- `specify check`
+- `specify extension list`
+- `specify preset list`
+
+Result helper command shapes:
+
+- Command shape: `specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>`
+- Command shape: `specify result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-file <path>`
 
 For the full CLI surface:
 

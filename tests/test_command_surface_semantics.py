@@ -215,4 +215,115 @@ def test_learning_surfaces_do_not_reference_removed_origin_artifact_option() -> 
 
     assert "--origin-artifact" not in quickstart
     assert "--origin-artifact" not in learning_skill
-    assert "review-learning --command <command-name> --terminal-status <status>" in learning_skill
+    assert "command shape:" in quickstart
+    assert "required options:" in quickstart
+    assert "command shape:" in learning_skill
+    assert "required options:" in learning_skill
+    assert "run `{{specify-subcmd:hook review-learning" not in learning_skill
+    assert "run `{{specify-subcmd:hook capture-learning" not in learning_skill
+
+
+def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_commands() -> None:
+    learning_surface_paths = (
+        PROJECT_ROOT / "src" / "specify_cli" / "hooks" / "learning.py",
+        PROJECT_ROOT / "templates" / "command-partials" / "common" / "learning-layer.md",
+        PROJECT_ROOT / "templates" / "passive-skills" / "spec-kit-project-learning" / "SKILL.md",
+        PROJECT_ROOT / "docs" / "quickstart.md",
+    )
+    command_template_paths = (
+        PROJECT_ROOT / "templates" / "commands" / "analyze.md",
+        PROJECT_ROOT / "templates" / "commands" / "checklist.md",
+        PROJECT_ROOT / "templates" / "commands" / "clarify.md",
+        PROJECT_ROOT / "templates" / "commands" / "constitution.md",
+        PROJECT_ROOT / "templates" / "commands" / "debug.md",
+        PROJECT_ROOT / "templates" / "commands" / "deep-research.md",
+        PROJECT_ROOT / "templates" / "commands" / "fast.md",
+        PROJECT_ROOT / "templates" / "commands" / "implement.md",
+        PROJECT_ROOT / "templates" / "commands" / "map-build.md",
+        PROJECT_ROOT / "templates" / "commands" / "map-scan.md",
+        PROJECT_ROOT / "templates" / "commands" / "plan.md",
+        PROJECT_ROOT / "templates" / "commands" / "quick.md",
+        PROJECT_ROOT / "templates" / "commands" / "specify.md",
+        PROJECT_ROOT / "templates" / "commands" / "tasks.md",
+        PROJECT_ROOT / "templates" / "commands" / "test-build.md",
+        PROJECT_ROOT / "templates" / "commands" / "test-scan.md",
+    )
+
+    forbidden_fragments = (
+        "capture-learning --command analyze ...",
+        "capture-learning --command checklist ...",
+        "capture-learning --command clarify ...",
+        "capture-learning --command constitution ...",
+        "capture-learning --command deep-research ...",
+        "capture-learning --command debug ...",
+        "capture-learning --command implement ...",
+        "capture-learning --command map-build ...",
+        "capture-learning --command map-scan ...",
+        "capture-learning --command plan ...",
+        "capture-learning --command specify ...",
+        "capture-learning --command tasks ...",
+        "capture-learning --command test-build ...",
+        "capture-learning --command test-scan ...",
+        "learning capture --command fast ...",
+        "hook review-learning --command quick",
+    )
+
+    for path in (*learning_surface_paths, *command_template_paths):
+        content = path.read_text(encoding="utf-8")
+        for fragment in forbidden_fragments:
+            assert fragment not in content, f"{path} still contains fake runnable command fragment: {fragment}"
+
+
+def test_readme_learning_helper_surface_uses_command_shape_and_required_options() -> None:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
+
+    assert "command shape:" in readme
+    assert "required options:" in readme
+    assert "specify learning capture --command <workflow> ..." not in readme
+    assert "specify hook signal-learning --command <workflow> ..." not in readme
+    assert "specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> ..." not in readme
+
+
+def test_upgrade_guide_labels_agent_placeholder_upgrade_command_as_command_shape() -> None:
+    upgrade = (PROJECT_ROOT / "docs" / "upgrade.md").read_text(encoding="utf-8")
+
+    assert "Command shape:" in upgrade
+    assert "specify init --here --force --ai <your-agent>" in upgrade
+
+
+def test_readme_and_quickstart_label_workflow_hook_helper_surfaces_as_command_shapes() -> None:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
+    quickstart = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+
+    assert "specify hook preflight --command <workflow> ..." not in readme
+    assert "specify hook validate-state --command <workflow> ..." not in readme
+    assert "specify hook workflow-policy --command <workflow> ..." not in readme
+    assert "specify hook build-compaction --command <workflow> ..." not in readme
+    assert "command shape:" in readme
+
+    assert "use `specify hook preflight --command <workflow> ...`" not in quickstart
+    assert "use `specify hook validate-state --command <workflow> ...`" not in quickstart
+    assert "use `specify hook checkpoint --command <workflow> ...`" not in quickstart
+    assert "use `specify hook monitor-context --command <workflow> ...`" not in quickstart
+    assert "command shape:" in quickstart
+
+
+def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
+    quickstart = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+
+    assert "specify implement closeout --feature-dir <feature-dir> --format json" in readme
+    assert "command shape:" in readme
+    assert "specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>" in readme
+    assert "result helper command shapes:" in readme
+    assert "specify quick status <id>" in readme
+    assert "quick-task helper command shapes:" in readme
+    assert "command shape: `specify quick status <id>`" in readme
+    assert "command shape: `specify hook mark-dirty --reason " in readme
+
+    assert "specify implement closeout --feature-dir <feature-dir> --format json" in quickstart
+    assert "command shape:" in quickstart
+    assert "specify eval create --recurrence-key <key> --summary" in quickstart
+    assert "specify eval create --recurrence-key <key> ..." not in quickstart
+    assert "quick-task helper command shapes:" in quickstart
+    assert "command shape: `specify quick status <id>`" in quickstart

@@ -107,9 +107,12 @@ After checks complete, record results in `implement-tracker.md`:
 - [AGENT] Run `{{specify-subcmd:learning start --command implement --format json}}` when available so passive learning files exist, the current implementation run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader execution context.
 - Review `.planning/learnings/candidates.md` only when it still contains implementation-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
-- [AGENT] When implementation friction appears, run `{{specify-subcmd:hook signal-learning --command implement ...}}` with retry, validation-failure, route-change, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
-- [AGENT] Before terminal `resolved` or `blocked` reporting, run `{{specify-subcmd:hook review-learning --command implement --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `pitfall`, `recovery_path`, `verification_gap`, `state_surface_gap`, or `project_constraint` exists.
-- [AGENT] Prefer `{{specify-subcmd:hook capture-learning --command implement ...}}` for structured path learning when the run exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
+- [AGENT] When implementation friction appears, use the `signal-learning` helper surface with retry, validation-failure, route-change, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
+  Command shape: `{{specify-subcmd:hook signal-learning --command implement --retry-attempts <n> --validation-failures <n> --route-changes <n>}}`
+- [AGENT] Before terminal `resolved` or `blocked` reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `pitfall`, `recovery_path`, `verification_gap`, `state_surface_gap`, or `project_constraint` exists.
+  Command shape: `{{specify-subcmd:hook review-learning --command implement --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] For structured path learning when the run exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - Treat this as passive shared memory, not as a separate user-visible execution command.
 
 ## Implement Tracker Protocol
@@ -487,8 +490,10 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
    - If you cannot complete that refresh in the current pass, use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and recommend `/sp-map-scan` followed by `/sp-map-build` before the next brownfield workflow proceeds.
    - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
    - [AGENT] Before the final completion report, run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` so implementation session state is validated and retry-heavy patterns are auto-captured from `implement-tracker.md`.
-   - [AGENT] If the closeout auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `{{specify-subcmd:learning capture --command implement ...}}`.
-   - [AGENT] Before the final completion report, run `{{specify-subcmd:hook review-learning --command implement --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"}}` so the learning closeout gate cannot be skipped.
+- [AGENT] If the closeout auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- [AGENT] Before the final completion report, use the `review-learning` helper surface so the learning closeout gate cannot be skipped.
+  Command shape: `{{specify-subcmd:hook review-learning --command implement --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"}}`
    - Keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
    - Report final status with summary of completed work, remaining human-needed checks, and any unresolved gaps

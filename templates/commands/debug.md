@@ -65,9 +65,12 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - [AGENT] Run `{{specify-subcmd:learning start --command debug --format json}}` when available so passive learning files exist, the current debug run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains debug-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
-- [AGENT] When investigation friction appears, run `{{specify-subcmd:hook signal-learning --command debug ...}}` with retry, hypothesis-change, validation-failure, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
-- [AGENT] Before terminal `resolved`, `blocked`, or `awaiting_human_verify` reporting, run `{{specify-subcmd:hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> ...}}`; use `--decision none --rationale "..."` only when no reusable `pitfall`, `recovery_path`, `tooling_trap`, `false_lead_pattern`, or `project_constraint` exists.
-- [AGENT] Prefer `{{specify-subcmd:hook capture-learning --command debug ...}}` for structured path learning when the session exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets.
+- [AGENT] When investigation friction appears, use the `signal-learning` helper surface with retry, hypothesis-change, validation-failure, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
+  Command shape: `{{specify-subcmd:hook signal-learning --command debug --retry-attempts <n> --hypothesis-changes <n> --validation-failures <n>}}`
+- [AGENT] Before terminal `resolved`, `blocked`, or `awaiting_human_verify` reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `pitfall`, `recovery_path`, `tooling_trap`, `false_lead_pattern`, or `project_constraint` exists.
+  Command shape: `{{specify-subcmd:hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] For structured path learning when the session exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - Treat this as passive shared memory, not as a separate user-visible debug workflow.
 
 ## First-Party Workflow Quality Hooks
@@ -468,8 +471,10 @@ The session file must always make it clear:
 - If a full refresh can be completed now, do it; otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and recommend `/sp-map-scan` followed by `/sp-map-build` before later brownfield work proceeds.
 - [AGENT] Resolved debug sessions should auto-capture learning candidates from the persisted debug session state.
 - [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `{{specify-subcmd:learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json}}`.
-- [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, fall back to `{{specify-subcmd:learning capture --command debug ...}}`.
-- [AGENT] Before leaving the debug session in a terminal state, run `{{specify-subcmd:hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> --decision <captured|none|deferred> --rationale "<why>"}}` so the learning closeout gate cannot be skipped.
+- [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- [AGENT] Before leaving the debug session in a terminal state, use the `review-learning` helper surface so the learning closeout gate cannot be skipped.
+  Command shape: `{{specify-subcmd:hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> --decision <captured|none|deferred> --rationale "<why>"}}`
 - Keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
 - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 

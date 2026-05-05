@@ -59,9 +59,13 @@ When recommending manual implementation resumption to the user, tell them to run
 - After `WORKFLOW_STATE_FILE` is created or resumed, use `{{specify-subcmd:hook validate-state --command analyze --feature-dir "$FEATURE_DIR"}}` so the shared validator confirms `workflow-state.md` matches the `sp-analyze` contract.
 - Before final gate reporting, use `{{specify-subcmd:hook validate-artifacts --command analyze --feature-dir "$FEATURE_DIR"}}` so the required analyze-side artifact set is checked by the shared hook surface.
 - Before compaction-risk transitions or after large findings synthesis, use `{{specify-subcmd:hook checkpoint --command analyze --feature-dir "$FEATURE_DIR"}}` to emit a resume-safe checkpoint payload from `workflow-state.md`.
-- Run `{{specify-subcmd:learning start --command analyze --format json}}` when available, then use `{{specify-subcmd:hook signal-learning --command analyze ...}}` if the analysis exposes repeated artifact rewrites, route changes, false starts, or hidden dependencies.
-- Before final cleared or blocked gate reporting, run `{{specify-subcmd:hook review-learning --command analyze --terminal-status <resolved|blocked> ...}}`.
-- Prefer `{{specify-subcmd:learning capture-auto --command analyze --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command analyze ...}}` when the durable state does not capture the reusable lesson cleanly.
+- Run `{{specify-subcmd:learning start --command analyze --format json}}` when available, then use the `signal-learning` helper surface if the analysis exposes repeated artifact rewrites, route changes, false starts, or hidden dependencies.
+  Command shape: `{{specify-subcmd:hook signal-learning --command analyze --retry-attempts <n> --hypothesis-changes <n>}}`
+- Before final cleared or blocked gate reporting, use the `review-learning` helper surface.
+  Command shape: `{{specify-subcmd:hook review-learning --command analyze --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- Prefer `{{specify-subcmd:learning capture-auto --command analyze --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
+- When durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 
 ## Execution Steps
 

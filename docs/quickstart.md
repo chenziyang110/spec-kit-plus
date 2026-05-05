@@ -237,7 +237,12 @@ Use the lightweight routing rules consistently:
 - If the work is a bug fix or regression and the root cause is still unknown, route to `debug` instead of using `quick` for a symptom-only patch.
 - Quick workspaces live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the source of truth and `.planning/quick/index.json` as a derived management index.
 - Invoking `quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
-- Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage quick tasks. `specify quick list` defaults to unfinished quick tasks.
+- Use `specify quick list` to inspect unfinished quick tasks by default.
+- Quick-task helper command shapes:
+  - Command shape: `specify quick status <id>`
+  - Command shape: `specify quick resume <id>`
+  - Command shape: `specify quick close <id> --status resolved|blocked`
+  - Command shape: `specify quick archive <id>`
 - Upgrade to `specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 Required action markers:
@@ -257,32 +262,52 @@ Passive project learning layer:
 - Low-level helper commands exist for the passive lifecycle:
   - `specify learning ensure --format json`
   - `specify learning status --format json`
-  - `specify learning start --command <workflow> --format json`
-  - `specify learning capture --command <workflow> ...`
-  - `specify learning capture-auto --command <workflow> ...`
-  - `specify implement closeout --feature-dir <feature-dir> --format json`
+  - `specify learning start`
+    - Command shape: `specify learning start --command <workflow> --format json`
+  - `specify learning capture`
+    - Required options: `--command`, `--type`, `--summary`, `--evidence`
+  - `specify learning capture-auto`
+    - Command shape: `specify learning capture-auto --command <workflow> --format json`
+  - `specify implement closeout`
+    - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
   - `specify learning aggregate --format json`
-  - `specify learning promote --recurrence-key <key> --target learning|rule`
-  - `specify hook signal-learning --command <workflow> ...`
-  - `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> ...`
-  - `specify hook capture-learning --command <workflow> --type <type> --summary "..." --evidence "..."`
-  - `specify hook inject-learning --command <workflow> --type <type> --summary "..."`
+  - `specify learning promote`
+    - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
+  - `specify hook signal-learning`
+    - Command shape: `specify hook signal-learning --command <workflow> --retry-attempts <n> --hypothesis-changes <n>`
+  - `specify hook review-learning`
+    - Command shape: `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"`
+  - `specify hook capture-learning`
+    - Required options: `--command`, `--type`, `--summary`, `--evidence`
+  - `specify hook inject-learning`
+    - Command shape: `specify hook inject-learning --command <workflow> --type <type> --summary "<summary>"`
 - `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
 - Treat this as an internal/runtime helper surface, not as a separate daily slash workflow. `review-learning` is the terminal learning gate, and `capture-learning` preserves structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
 - Durable eval helpers exist once a rule should become executable proof instead of only remembered guidance:
-  - `specify eval create --recurrence-key <key> ...`
+  - `specify eval create`
+    - Command shape: `specify eval create --recurrence-key <key> --summary "<summary>"`
   - `specify eval status --format json`
   - `specify eval run --format json`
 
 First-party workflow quality hooks:
 
-- Use `specify hook preflight --command <workflow> ...` when you want the product-level gate result rather than relying only on prompt wording.
-- Use `specify hook validate-state --command <workflow> ...` and `specify hook validate-session-state --command <workflow> ...` to inspect or enforce the current source-of-truth workflow state.
-- Use `specify hook validate-artifacts --command <workflow> --feature-dir <dir>` to check that the promised artifact set really exists.
-- Use `specify hook checkpoint --command <workflow> ...` to build a resume-safe checkpoint from the active workflow state file.
-- Use `specify hook monitor-context --command <workflow> ...` to trigger proactive checkpointing before compaction or a risky transition.
-- Use `specify hook validate-packet --packet-file <path>` and `specify hook validate-result --packet-file <packet> --result-file <result>` for subagent integrity.
-- Use `specify hook validate-read-path --target-path <path>` and `specify hook validate-prompt --prompt-text "<text>"` when path safety or workflow-bypass language is in doubt.
+- Use `specify hook preflight` when you want the product-level gate result rather than relying only on prompt wording.
+  - Command shape: `specify hook preflight --command <workflow> --feature-dir <dir>`
+- Use `specify hook validate-state` and `specify hook validate-session-state` to inspect or enforce the current source-of-truth workflow state.
+  - Command shape: `specify hook validate-state --command <workflow> --feature-dir <dir>`
+  - Command shape: `specify hook validate-session-state --command <workflow> --feature-dir <dir>`
+- Use `specify hook validate-artifacts` to check that the promised artifact set really exists.
+  - Command shape: `specify hook validate-artifacts --command <workflow> --feature-dir <dir>`
+- Use `specify hook checkpoint` to build a resume-safe checkpoint from the active workflow state file.
+  - Command shape: `specify hook checkpoint --command <workflow> --feature-dir <dir>`
+- Use `specify hook monitor-context` to trigger proactive checkpointing before compaction or a risky transition.
+  - Command shape: `specify hook monitor-context --command <workflow> --feature-dir <dir>`
+- Use `specify hook validate-packet` and `specify hook validate-result` for subagent integrity.
+  - Command shape: `specify hook validate-packet --packet-file <path>`
+  - Command shape: `specify hook validate-result --packet-file <packet> --result-file <result>`
+- Use `specify hook validate-read-path` and `specify hook validate-prompt` when path safety or workflow-bypass language is in doubt.
+  - Command shape: `specify hook validate-read-path --target-path <path>`
+  - Command shape: `specify hook validate-prompt --prompt-text "<text>"`
 - Use `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` to enforce workflow transitions and commit-time integrity.
 - Use `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` to turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
 

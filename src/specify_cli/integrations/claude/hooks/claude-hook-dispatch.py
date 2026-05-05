@@ -147,7 +147,7 @@ def _run_shared_hook(project_root: Path, args: list[str]) -> dict[str, Any] | No
             "errors": ["project launcher is configured but unavailable"],
             "warnings": [],
             "actions": [
-                "repair `.specify/config.json` or re-run `specify init --here --force ...` from a trusted launcher source",
+                "repair `.specify/config.json`. If regeneration is required, use the `specify init --here --force` command surface from a trusted launcher source and supply the same integration-specific options that originally bootstrapped the project",
             ],
         }
 

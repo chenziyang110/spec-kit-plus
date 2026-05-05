@@ -38,9 +38,13 @@ scripts:
 - [AGENT] Run `{{specify-subcmd:learning start --command tasks --format json}}` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader task-generation context.
 - Review `.planning/learnings/candidates.md` only when it still contains task-generation-relevant candidate learnings after the passive start step, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
-- [AGENT] When task-shaping friction appears, run `{{specify-subcmd:hook signal-learning --command tasks ...}}` with artifact-rewrite, route-change, false-start, or hidden-dependency counts.
-- [AGENT] Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command tasks --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `routing_mistake`, `verification_gap`, `decision_debt`, or `project_constraint` exists.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command tasks --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command tasks ...}}` when the durable state does not capture the reusable lesson cleanly.
+- [AGENT] When task-shaping friction appears, use the `signal-learning` helper surface with artifact-rewrite, route-change, false-start, or hidden-dependency counts.
+  Command shape: `{{specify-subcmd:hook signal-learning --command tasks --artifact-rewrites <n> --route-changes <n> --false-start "<summary>"}}`
+- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `routing_mistake`, `verification_gap`, `decision_debt`, or `project_constraint` exists.
+  Command shape: `{{specify-subcmd:hook review-learning --command tasks --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command tasks --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
+- [AGENT] When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Workflow Phase Lock

@@ -71,9 +71,13 @@ coherent for all project-relevant surfaces.
 ## Passive Project Learning Layer
 
 - [AGENT] Run `{{specify-subcmd:learning start --command map-scan --format json}}` when available so passive learning files exist, the current scan sees relevant shared project memory, and repeated high-signal candidates can be auto-promoted at start.
-- [AGENT] When scan friction appears, run `{{specify-subcmd:hook signal-learning --command map-scan ...}}` with route-change, false-start, hidden-dependency, uncategorized-row, or packet-rewrite counts so atlas blind spots become explicit learning signals.
-- [AGENT] Before reporting completion or a blocked scan, run `{{specify-subcmd:hook review-learning --command map-scan --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `map_coverage_gap`, `workflow_gap`, `state_surface_gap`, or `project_constraint` exists.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command map-scan --feature-dir "$FEATURE_DIR" --format json}}` when workflow state already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command map-scan ...}}` for structured scan learnings when durable state does not capture the reusable lesson cleanly.
+- [AGENT] When scan friction appears, use the `signal-learning` helper surface with route-change, false-start, hidden-dependency, uncategorized-row, or packet-rewrite counts so atlas blind spots become explicit learning signals.
+  Command shape: `{{specify-subcmd:hook signal-learning --command map-scan --route-changes <n> --artifact-rewrites <n> --false-start "<summary>"}}`
+- [AGENT] Before reporting completion or a blocked scan, use the `review-learning` helper surface; use `--decision none` only when no reusable `map_coverage_gap`, `workflow_gap`, `state_surface_gap`, or `project_constraint` exists.
+  Command shape: `{{specify-subcmd:hook review-learning --command map-scan --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command map-scan --feature-dir "$FEATURE_DIR" --format json}}` when workflow state already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
+- [AGENT] When durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface for structured scan learnings.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 
 ## Output Contract
 
@@ -414,8 +418,10 @@ If any checklist item fails, continue scanning before handing off.
 
 ## Report Completion
 
-- [AGENT] Before reporting completion, capture any new `pitfall`, `workflow_gap`, `map_coverage_gap`, or `project_constraint` learning through `{{specify-subcmd:learning capture --command map-scan ...}}`.
-- [AGENT] Before reporting completion, run `{{specify-subcmd:hook review-learning --command map-scan --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"}}`.
+- [AGENT] Before reporting completion, if auto-capture did not preserve a reusable `pitfall`, `workflow_gap`, `map_coverage_gap`, or `project_constraint`, use the manual `learning capture` helper surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- [AGENT] Before reporting completion, use the `review-learning` helper surface.
+  Command shape: `{{specify-subcmd:hook review-learning --command map-scan --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"}}`
 - Summarize the scan-package outputs created or refreshed.
 - State whether `sp-map-build` is ready to begin.
 - Recommend `/sp-map-build` only when the build readiness checklist is green.

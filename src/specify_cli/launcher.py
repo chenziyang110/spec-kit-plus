@@ -379,7 +379,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                 {
                     "code": "broken-project-launcher",
                     "summary": "Persisted project launcher is configured but unavailable.",
-                    "repair": "Repair `.specify/config.json` or re-run `specify init --here --force ...` from a trusted launcher source.",
+                    "repair": "Repair `.specify/config.json`. If regeneration is required, use the `specify init --here --force` command surface from a trusted launcher source and supply the same integration-specific options that originally bootstrapped the project.",
                 }
             )
 
@@ -393,7 +393,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                 {
                     "code": "stale-powershell-feature-resolver",
                     "summary": "Generated PowerShell workflow scripts are stale and still rely on exact branch-to-feature-dir matching.",
-                    "repair": "Refresh the generated scripts by re-running `specify init --here --force --ai <agent>` or reinstalling the active integration.",
+                    "repair": "Refresh the generated scripts by rerunning the `specify init --here --force` command surface with the active `--ai <agent>` option, or reinstall the active integration.",
                 }
             )
 

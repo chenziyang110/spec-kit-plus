@@ -44,9 +44,13 @@ agent_scripts:
 - [AGENT] Run `{{specify-subcmd:learning start --command plan --format json}}` when available so passive learning files exist, the current planning run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader planning context.
 - Review `.planning/learnings/candidates.md` only when it still contains planning-relevant candidate learnings after the passive start step, especially repeated workflow gaps or project constraints that would otherwise be rediscovered during planning.
-- [AGENT] When planning friction appears, run `{{specify-subcmd:hook signal-learning --command plan ...}}` with route-change, artifact-rewrite, user-correction, false-start, or hidden-dependency counts.
-- [AGENT] Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command plan --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `routing_mistake`, `state_surface_gap`, `decision_debt`, or `project_constraint` exists.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command plan --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command plan ...}}` when the durable state does not capture the reusable lesson cleanly.
+- [AGENT] When planning friction appears, use the `signal-learning` helper surface with route-change, artifact-rewrite, user-correction, false-start, or hidden-dependency counts.
+  Command shape: `{{specify-subcmd:hook signal-learning --command plan --route-changes <n> --artifact-rewrites <n> --user-corrections <n>}}`
+- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `routing_mistake`, `state_surface_gap`, `decision_debt`, or `project_constraint` exists.
+  Command shape: `{{specify-subcmd:hook review-learning --command plan --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command plan --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
+- [AGENT] When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - Treat this as passive shared memory, not as a separate user-visible planning command.
 
 ## Workflow Phase Lock
@@ -235,7 +239,8 @@ gate.
      - exit criteria for planning completion
      - the next action required before handoff
      - `next_command: /sp.tasks`
-   - [AGENT] before final completion text, capture any new `workflow_gap` or `project_constraint` learning through `{{specify-subcmd:learning capture --command plan ...}}`
+- [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap` or `project_constraint`, use the manual `learning capture` helper surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
    - keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence
    - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory
    - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.

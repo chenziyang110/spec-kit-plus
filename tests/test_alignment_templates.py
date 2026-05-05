@@ -90,17 +90,18 @@ def test_core_sp_templates_use_learning_review_hooks():
 
     for command_name, template_path in command_templates_with_signal.items():
         content = _read(template_path)
-        assert f"{{{{specify-subcmd:hook signal-learning --command {command_name} ...}}}}" in content
+        assert "{{specify-subcmd:hook signal-learning" in content
         assert f"{{{{specify-subcmd:hook review-learning --command {command_name}" in content
 
     quick_content = _read("templates/commands/quick.md")
     assert "{{specify-subcmd:learning start --command quick --format json}}" in quick_content or "Passive Project Learning Layer" in quick_content
-    assert "{{specify-subcmd:hook review-learning --command quick --terminal-status <resolved|blocked> ...}}" in quick_content or "Before final completion or blocked reporting" in quick_content
+    assert "{{specify-subcmd:hook review-learning --command quick" not in quick_content
+    assert "Auto-capture learnings on resolution only. No review, no signal." in quick_content
 
     fast_content = _read("templates/commands/fast.md")
     assert "Skip all learning hooks" in fast_content
     assert "Do not run learning start, signal, review, or capture" in fast_content
-    assert "{{specify-subcmd:learning capture --command fast ...}}" in fast_content
+    assert "{{specify-subcmd:learning capture --command fast ...}}" not in fast_content
 
 
 def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_placeholders() -> None:
@@ -173,7 +174,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command specify --format json}}" in content
-    assert "{{specify-subcmd:learning capture --command specify ...}}" in content
+    assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/index/status.json" in content
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
@@ -184,7 +185,12 @@ def test_specify_template_uses_alignment_first_contract():
     assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md" in content
     assert "primary brownfield testing-program input" in content
     assert "module priority waves" in content
+    assert "covered-module policy" in lowered
     assert "small / medium / large" in lowered
+    assert "local integration seam expectations" in lowered
+    assert "fast smoke" in lowered
+    assert "focused" in lowered
+    assert "full" in lowered
     assert "project-map freshness helper" in lowered
     assert "freshness is `missing` or `stale`" in lowered
     assert "freshness is `possibly_stale`" in lowered
@@ -403,7 +409,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command plan --format json}}" in content
-    assert "{{specify-subcmd:learning capture --command plan ...}}" in content
+    assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/index/status.json" in content
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
@@ -1256,7 +1262,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command implement --format json}}" in content
-    assert "{{specify-subcmd:learning capture --command implement ...}}" in content
+    assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
     assert ".specify/project-map/root/WORKFLOWS.md" in content
@@ -1529,7 +1535,7 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
-    assert "{{specify-subcmd:learning capture --command checklist ...}}" in lowered
+    assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
     assert "project-handbook.md" in lowered
     assert ".specify/project-map/index/status.json" in lowered
     assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in lowered
