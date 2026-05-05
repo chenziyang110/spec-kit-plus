@@ -38,6 +38,12 @@ Required context inputs:
 
 ## Mandatory Subagent Execution
 
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read scope, forbidden actions, acceptance checks, verification evidence, and structured handoff format.
+
 Use `execution_model: subagent-mandatory`.
 Use `dispatch_shape: one-subagent | parallel-subagents`.
 Use `execution_surface: native-subagents`.
@@ -67,6 +73,30 @@ Each delegated lane produces a `PrdScanPacket`: a read-only evidence packet with
 - `sp-prd-scan` must not write `exports/**`.
 - `sp-prd-scan` must not claim the PRD suite is complete.
 
+## PRD Run State Protocol
+
+- `workflow-state.md` under `.specify/prd-runs/<run-id>/` is the resumable state surface for `sp-prd-scan` and `sp-prd-build`.
+- [AGENT] Create or resume `workflow-state.md` before substantial scan work.
+- If `workflow-state.md` exists with `active_command: sp-prd-scan` and a non-terminal scan state, resume from it instead of rebuilding intent from chat memory.
+- Track at least:
+  - `active_command: sp-prd-scan`
+  - `status: scanning | synthesizing | blocked | ready-for-build`
+  - `scan_status: pending | scanning | blocked | complete`
+  - `build_status`
+  - `freshness_mode`
+  - `classification`
+  - `selected_capabilities`
+  - `selected_boundaries`
+  - `selected_artifacts`
+  - `current_packet`
+  - `accepted_packet_results`
+  - `rejected_packet_results`
+  - `failed_readiness_checks`
+  - `next_action`
+  - `next_command`
+  - `handoff_reason`
+  - `open_gaps`
+
 ## Process
 
 1. Route and initialize the PRD run under `.specify/prd-runs/<run-id>/`.
@@ -77,10 +107,23 @@ Each delegated lane produces a `PrdScanPacket`: a read-only evidence packet with
 6. Route `full-stale` status to a full reconstruction scan across command, workflow, integration, configuration, and shared-runtime surfaces.
 7. Triage `capability`, `artifact`, and `boundary` objects before broad synthesis.
 8. Assign each capability a tier: `critical`, `high`, `standard`, or `auxiliary`.
-9. For `critical` and `high` capabilities, capture stronger reconstruction detail: structure, producers, consumers, constraints, compatibility behavior, and failure behavior.
-10. Build `.specify/prd-runs/<run-id>/artifact-contracts.json` and `.specify/prd-runs/<run-id>/reconstruction-checklist.json`.
-11. Generate scan packets and evidence notes that explain structure, producers, consumers, constraints, and failure behavior while preserving `Evidence`, `Inference`, and `Unknown`.
-12. Refuse handoff if any `critical` capability lacks reconstruction-ready support. `high` capabilities must not be waved through with path-only evidence; keep the status explicit as `blocked-by-gap` when evidence is insufficient.
+9. Before broad scan fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="prd-scan", snapshot, workload_shape)`.
+10. Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
+11. Decision order is fixed:
+    - One safe validated scan lane -> `one-subagent` on `native-subagents` when available.
+    - Two or more safe read-only scan lanes -> `parallel-subagents` on `native-subagents` when available.
+    - No safe lane, incomplete packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
+12. Compile a validated `PrdScanPacket` before dispatch or `subagent-blocked` status.
+13. For `one-subagent`, dispatch one read-only scan lane once a validated `PrdScanPacket` exists. If the packet is incomplete, compile the missing fields before dispatch; if dispatch is unavailable, record `subagent-blocked` with the blocker and stop for escalation or recovery before broad scan work continues.
+14. If collaboration is justified, keep `prd-scan` lanes read-only and limited to reconstruction evidence gathering, tier classification, and packet drafting.
+15. Required join points:
+    - before freezing ledgers and machine-readable contracts
+    - before declaring the package ready for `sp-prd-build`
+16. The leader owns final ledger normalization, contract updates, and packet quality even when subagents help with scan work.
+17. For `critical` and `high` capabilities, capture stronger reconstruction detail: structure, producers, consumers, constraints, compatibility behavior, and failure behavior.
+18. Build `.specify/prd-runs/<run-id>/artifact-contracts.json` and `.specify/prd-runs/<run-id>/reconstruction-checklist.json`.
+19. Generate scan packets and evidence notes that explain structure, producers, consumers, constraints, and failure behavior while preserving `Evidence`, `Inference`, and `Unknown`.
+20. Refuse handoff if any `critical` capability lacks reconstruction-ready support. `high` capabilities must not be waved through with path-only evidence; keep the status explicit as `blocked-by-gap` when evidence is insufficient.
 
 ## Output Contract
 
@@ -106,6 +149,53 @@ The scan phase writes only the reconstruction package:
 
 These artifacts are the authoritative scan bundle for `sp-prd-build`; they are not draft exports.
 
+## Compile And Validate PrdScanPacket Inputs
+
+- [AGENT] Compile a validated `PrdScanPacket` before dispatch or `subagent-blocked` status.
+- A valid `PrdScanPacket` must include:
+  - `lane_id`
+  - `mode: read_only`
+  - `scope`
+  - `capability_ids`
+  - `artifact_ids`
+  - `boundary_ids`
+  - `required_reads`
+  - `excluded_paths`
+  - `required_questions`
+  - `expected_outputs`
+  - `contract_targets`
+  - `forbidden_actions`
+  - `result_handoff_path`
+  - `join_points`
+  - `minimum_verification`
+  - `blocked_conditions`
+- Hard rule: do not dispatch from raw scan prose or broad chat instructions alone.
+
+## PrdScanPacket Dispatch
+
+- If no safe lane exists, the packet is incomplete, or delegation is unavailable, record `subagent-blocked` with the blocker and stop for escalation or recovery before broad scan work continues.
+- Raw inventory notes or raw chat summaries are not sufficient subagent inputs or outputs.
+- Each dispatched lane needs a validated `PrdScanPacket` and must return a structured handoff with inspected paths, key facts, confidence, blockers, and recommended contract updates.
+- Idle subagent output is not an accepted scan result.
+- The leader must wait for every dispatched lane and consume its structured handoff before finalizing ledgers, writing scan packets, or marking the scan complete.
+
+## Worker Result Contract
+
+Every scan-lane result must include:
+
+- `lane_id`
+- `reported_status: done | done_with_concerns | blocked | needs_context`
+- `paths_read`
+- `key_facts`
+- `evidence_refs`
+- `recommended_contract_updates`
+- `confidence`
+- `unknowns`
+- `minimum_verification`
+- `result_handoff_path`
+
+Reject results that omit `paths_read`, collapse evidence into prose-only summary, hide `unknowns`, or leave contract impact undefined where one is expected.
+
 ## Quality Gates
 
 - Stable Status Gate: `.specify/prd/status.json` must be consulted or initialized, and the run must record whether freshness is `fresh`, `targeted-stale`, or `full-stale`.
@@ -122,3 +212,4 @@ These artifacts are the authoritative scan bundle for `sp-prd-build`; they are n
 - Do not treat path discovery as sufficient reconstruction evidence.
 - Do not let `critical` or `high` capabilities pass with shallow evidence only.
 - Do not hide unknowns that block a later build step.
+- When refusal is required, report the smallest safe repair instead of softening the gap into narrative prose.

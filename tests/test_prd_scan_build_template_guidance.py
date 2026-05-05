@@ -168,3 +168,81 @@ def test_prd_build_template_mentions_reconstruction_readiness_gate_names() -> No
     assert "Critical Unknown Refusal Gate" in content
     assert "Traceability Gate" in content
     assert "Reconstruction Readiness Gate" in content
+
+
+def test_prd_scan_template_defines_state_dispatch_and_packet_contracts() -> None:
+    content = _content("templates/commands/prd-scan.md")
+    lowered = content.lower()
+
+    assert "project map state protocol" not in lowered
+    assert "prd run state protocol" in lowered
+    assert 'choose_subagent_dispatch(command_name="prd-scan"' in content
+    assert "execution_model: subagent-mandatory" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in content
+    assert "execution_surface: native-subagents" in content
+    assert "`subagent-blocked`" in content or "subagent-blocked" in content
+    assert "accepted_packet_results" in content
+    assert "rejected_packet_results" in content
+    assert "failed_readiness_checks" in content
+    assert "PrdScanPacket" in content
+    assert "lane_id" in content
+    assert "mode: read_only" in content
+    assert "required_reads" in content
+    assert "excluded_paths" in content
+    assert "required_questions" in content
+    assert "expected_outputs" in content
+    assert "contract_targets" in content
+    assert "forbidden_actions" in content
+    assert "result_handoff_path" in content
+    assert "join_points" in content
+    assert "minimum_verification" in content
+    assert "blocked_conditions" in content
+    assert "reported_status" in content
+    assert "paths_read" in content
+    assert "evidence_refs" in content
+    assert "recommended_contract_updates" in content
+    assert "unknowns" in content
+    assert "before freezing ledgers and machine-readable contracts" in content
+    assert "before declaring the package ready for `sp-prd-build`" in content
+    assert "idle subagent output is not an accepted scan result" in lowered
+    assert "smallest safe repair" in lowered
+
+
+def test_prd_build_template_defines_bundle_only_dispatch_and_traceability_contracts() -> None:
+    content = _content("templates/commands/prd-build.md")
+    lowered = content.lower()
+
+    assert 'choose_subagent_dispatch(command_name="prd-build"' in content
+    assert "prd run state protocol" in lowered
+    assert "execution_model: subagent-mandatory" in content
+    assert "dispatch_shape: one-subagent | parallel-subagents" in content
+    assert "execution_surface: native-subagents" in content
+    assert "`subagent-blocked`" in content or "subagent-blocked" in content
+    assert "PrdBuildPacket" in content
+    assert "lane_id" in content
+    assert "mode: bundle_only" in content
+    assert "packet_scope" in content
+    assert "required_scan_inputs" in content
+    assert "required_contract_files" in content
+    assert "required_worker_results" in content
+    assert "expected_exports" in content
+    assert "traceability_targets" in content
+    assert "forbidden_actions" in content
+    assert "minimum_verification" in content
+    assert "result_handoff_path" in content
+    assert "reported_status" in content
+    assert "bundle_inputs_read" in content
+    assert "traceability_findings" in content
+    assert "export_landing_findings" in content
+    assert "recommended_repairs" in content
+    assert "before writing `master/master-pack.md`" in content
+    assert "before writing or finalizing `exports/**`" in content
+    assert "before reverse coverage / traceability validation" in content
+    assert "accepted_packet_results" in content
+    assert "rejected_packet_results" in content
+    assert "failed_readiness_checks" in content
+    assert "failed_reverse_coverage_checks" in content
+    assert "report completion" in lowered
+    assert "must not become a second repository scan" in lowered
+    assert "must not reread the repository" in lowered or "new repository facts" in lowered
+    assert "smallest safe repair" in lowered

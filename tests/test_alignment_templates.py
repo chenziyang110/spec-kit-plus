@@ -1795,3 +1795,13 @@ def test_agent_file_template_captures_lane_recovery_rules():
     assert "explicit feature paths" in lowered
     assert "/sp.plan" in content
     assert ".specify/specs/<feature>/" in content
+
+
+def test_prd_scan_template_uses_shared_subagent_dispatch_contract() -> None:
+    content = _read("templates/commands/prd-scan.md")
+    _assert_subagent_dispatch_contract(content, "prd-scan")
+
+
+def test_prd_build_template_uses_shared_subagent_dispatch_contract() -> None:
+    content = _read("templates/commands/prd-build.md")
+    _assert_subagent_dispatch_contract(content, "prd-build")

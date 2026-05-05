@@ -47,6 +47,60 @@ Required build inputs:
 - Scan packets under `scan-packets/<lane-id>.md`
 - Project classification from the scan package: `ui`, `service`, or `mixed`
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed scope, forbidden actions, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+
+Build-support lanes operate on the run bundle, not the live repository.
+
+## Required Inputs
+
+Before writing final exports, read:
+
+- `.specify/prd-runs/<run-id>/workflow-state.md`
+- `.specify/prd-runs/<run-id>/prd-scan.md`
+- `.specify/prd-runs/<run-id>/coverage-ledger.json`
+- `.specify/prd-runs/<run-id>/capability-ledger.json`
+- `.specify/prd-runs/<run-id>/artifact-contracts.json`
+- `.specify/prd-runs/<run-id>/reconstruction-checklist.json`
+- `.specify/prd-runs/<run-id>/entrypoint-ledger.json`
+- `.specify/prd-runs/<run-id>/config-contracts.json`
+- `.specify/prd-runs/<run-id>/protocol-contracts.json`
+- `.specify/prd-runs/<run-id>/state-machines.json`
+- `.specify/prd-runs/<run-id>/error-semantics.json`
+- `.specify/prd-runs/<run-id>/verification-surfaces.json`
+- `.specify/prd-runs/<run-id>/scan-packets/<lane-id>.md`
+- `.specify/prd-runs/<run-id>/worker-results/**`
+
+## PRD Run State Protocol
+
+- `workflow-state.md` under `.specify/prd-runs/<run-id>/` is the resumable state surface for `sp-prd-scan` and `sp-prd-build`.
+- [AGENT] Create or resume `workflow-state.md` before substantial build work.
+- If `workflow-state.md` exists with `active_command: sp-prd-build` and a non-terminal build state, resume from it instead of rebuilding intent from chat memory.
+- Track at least:
+  - `active_command: sp-prd-build`
+  - `status: validating | executing-packets | synthesizing | reverse-validating | blocked | complete`
+  - `scan_status`
+  - `build_status: pending | executing | blocked | complete`
+  - `classification`
+  - `current_packet`
+  - `accepted_packet_results`
+  - `rejected_packet_results`
+  - `failed_readiness_checks`
+  - `failed_reverse_coverage_checks`
+  - `next_action`
+  - `next_command`
+  - `handoff_reason`
+  - `open_gaps`
+
 ## Process
 
 1. Validate that the `sp-prd-scan` package is complete enough to build.
@@ -56,6 +110,78 @@ Required build inputs:
 5. Respect classification-aware export semantics: `ui`, `service`, and `mixed` runs must keep the final package grounded in the scan classification even when the fixed export set is used.
 6. Run reverse coverage validation across capabilities, artifacts, field-level contracts, and `Evidence` / `Inference` / `Unknown` labels.
 7. Refuse completion and route back to `sp-prd-scan` when critical gaps remain.
+
+## Validate Scan Inputs Before Execution
+
+- Refuse build execution if required scan artifacts are missing or malformed.
+- Treat the scan workspace under `.specify/prd-runs/<run-id>/` as the only authoritative fact source for `sp-prd-build`.
+- Do not reread the repository to fill gaps.
+
+## Compile And Validate PrdBuildPacket Inputs
+
+- [AGENT] Compile a validated `PrdBuildPacket` before dispatch or `subagent-blocked` status.
+- A valid `PrdBuildPacket` must include:
+  - `lane_id`
+  - `mode: bundle_only`
+  - `packet_scope`
+  - `required_scan_inputs`
+  - `required_contract_files`
+  - `required_worker_results`
+  - `expected_exports`
+  - `traceability_targets`
+  - `forbidden_actions`
+  - `minimum_verification`
+  - `result_handoff_path`
+- Hard rule: do not dispatch from raw scan prose alone.
+
+## Readiness Refusal Rules
+
+`sp-prd-build` must refuse completion when:
+
+- required scan artifacts are missing or malformed
+- worker results are absent or structurally shallow
+- critical reconstruction claims cannot be traced back to scan-package evidence
+- export landing for critical artifacts is missing
+- unresolved critical unknowns remain in the bundle
+- the build would need new repository facts to complete honestly
+
+When refusal happens, report the smallest safe repair and route back to `sp-prd-scan`.
+
+## Execution Dispatch
+
+- [AGENT] Before build-support packet dispatch begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="prd-build", snapshot, workload_shape)`.
+- Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
+- Decision order is fixed:
+  - One safe validated intake or validation lane -> `one-subagent` on `native-subagents` when available.
+  - Two or more isolated bundle-processing lanes -> `parallel-subagents` on `native-subagents` when available.
+  - Any need for new repository facts, missing build packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
+
+## Build Packet Dispatch
+
+- `subagent-blocked` stops substantive build work. Record the blocker and stop for escalation or recovery. Do not continue by turning `sp-prd-build` into a second repository scan.
+- Required join points:
+  - before writing `master/master-pack.md`
+  - before writing or finalizing `exports/**`
+  - before reverse coverage / traceability validation
+- Idle subagent output is not an accepted result.
+- The leader must wait for every dispatched build-support lane and integrate the returned evidence before writing exports or declaring the build complete.
+
+## Build Worker Result Contract
+
+Every build-support lane result must include:
+
+- `lane_id`
+- `reported_status`
+- `bundle_inputs_read`
+- `traceability_findings`
+- `export_landing_findings`
+- `confidence`
+- `unknowns`
+- `recommended_repairs`
+- `minimum_verification`
+- `result_handoff_path`
+
+Reject any build-lane output that lacks concrete bundle inputs, omits critical unknowns, or relies on live repository rereads instead of bundle inputs.
 
 ## Output Contract
 
@@ -92,6 +218,17 @@ Classification-aware export rule:
 - Critical Unknown Refusal Gate: unresolved critical unknowns in the validated scan evidence bundle block final export completion.
 - Traceability Gate: every reconstruction claim in the master pack and exports must trace back to scan-package evidence.
 - Reconstruction Readiness Gate: the compiled archive must preserve enough L4-level detail to recreate critical behavior.
+
+## Traceability Validation
+
+- Every reconstruction claim in the master pack and exports must trace back to scan-package evidence.
+- Reject any build-lane output that relies on live repository rereads instead of bundle inputs.
+
+## Report Completion
+
+- Before reporting success, confirm that `workflow-state.md` records the final build status, accepted packet results, rejected packet results, readiness failures, reverse-coverage outcomes, and the final handoff decision.
+- Successful completion must name the bundle inputs read, the accepted packet results that informed `master/master-pack.md` and `exports/**`, and any remaining non-critical unknowns.
+- Blocked completion must name the failed readiness or traceability check, the affected packet or export target, and the smallest safe repair to resume through `sp-prd-scan` or the current build run.
 
 ## Guardrails
 

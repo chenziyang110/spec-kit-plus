@@ -82,6 +82,8 @@ def test_mandatory_subagent_templates_block_remaining_leader_path_fallbacks() ->
         "debug",
         "map-build",
         "map-scan",
+        "prd-build",
+        "prd-scan",
         "quick",
         "test-build",
         "test-scan",
