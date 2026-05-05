@@ -257,16 +257,24 @@ Passive project learning layer:
 - Low-level helper commands exist for the passive lifecycle:
   - `specify learning ensure --format json`
   - `specify learning status --format json`
-  - `specify learning start --command <workflow> --format json`
-  - `specify learning capture --command <workflow> ...`
-  - `specify learning capture-auto --command <workflow> ...`
+  - `specify learning start`
+    - Command shape: `specify learning start --command <workflow> --format json`
+  - `specify learning capture`
+    - Required options: `--command`, `--type`, `--summary`, `--evidence`
+  - `specify learning capture-auto`
+    - Command shape: `specify learning capture-auto --command <workflow> --format json`
   - `specify implement closeout --feature-dir <feature-dir> --format json`
   - `specify learning aggregate --format json`
-  - `specify learning promote --recurrence-key <key> --target learning|rule`
-  - `specify hook signal-learning --command <workflow> ...`
-  - `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> ...`
-  - `specify hook capture-learning --command <workflow> --type <type> --summary "..." --evidence "..."`
-  - `specify hook inject-learning --command <workflow> --type <type> --summary "..."`
+  - `specify learning promote`
+    - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
+  - `specify hook signal-learning`
+    - Command shape: `specify hook signal-learning --command <workflow> --retry-attempts <n> --hypothesis-changes <n>`
+  - `specify hook review-learning`
+    - Command shape: `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"`
+  - `specify hook capture-learning`
+    - Required options: `--command`, `--type`, `--summary`, `--evidence`
+  - `specify hook inject-learning`
+    - Command shape: `specify hook inject-learning --command <workflow> --type <type> --summary "<summary>"`
 - `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
 - Treat this as an internal/runtime helper surface, not as a separate daily slash workflow. `review-learning` is the terminal learning gate, and `capture-learning` preserves structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
 - Durable eval helpers exist once a rule should become executable proof instead of only remembered guidance:

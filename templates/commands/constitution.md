@@ -57,11 +57,14 @@ missing, copy the template first.
   so the workflow records reusable learning pressure instead of treating it as
   chat-only discussion.
 - Before final reporting, run
-  `{{specify-subcmd:hook review-learning --command constitution --terminal-status <resolved|blocked> ...}}`;
+- use the `review-learning` helper surface for terminal closeout;
+  Command shape: `{{specify-subcmd:hook review-learning --command constitution --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
   use `--decision none --rationale "..."` only when no reusable
   `decision_debt`, `workflow_gap`, `user_preference`, or `project_constraint`
   exists.
-- Prefer `{{specify-subcmd:learning capture-auto --command constitution --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command constitution ...}}` when the durable state does not capture the reusable lesson cleanly.
+- Prefer `{{specify-subcmd:learning capture-auto --command constitution --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
+- When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - Treat project rules or learnings that conflict with the amended constitution
   as mandatory follow-up work: either realign them in this run or flag them
   explicitly in the Sync Impact Report.

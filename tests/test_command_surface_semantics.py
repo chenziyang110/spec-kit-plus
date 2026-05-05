@@ -215,4 +215,60 @@ def test_learning_surfaces_do_not_reference_removed_origin_artifact_option() -> 
 
     assert "--origin-artifact" not in quickstart
     assert "--origin-artifact" not in learning_skill
-    assert "review-learning --command <command-name> --terminal-status <status>" in learning_skill
+    assert "command shape:" in quickstart
+    assert "required options:" in quickstart
+    assert "command shape:" in learning_skill
+    assert "required options:" in learning_skill
+    assert "run `{{specify-subcmd:hook review-learning" not in learning_skill
+    assert "run `{{specify-subcmd:hook capture-learning" not in learning_skill
+
+
+def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_commands() -> None:
+    learning_surface_paths = (
+        PROJECT_ROOT / "src" / "specify_cli" / "hooks" / "learning.py",
+        PROJECT_ROOT / "templates" / "command-partials" / "common" / "learning-layer.md",
+        PROJECT_ROOT / "templates" / "passive-skills" / "spec-kit-project-learning" / "SKILL.md",
+        PROJECT_ROOT / "docs" / "quickstart.md",
+    )
+    command_template_paths = (
+        PROJECT_ROOT / "templates" / "commands" / "analyze.md",
+        PROJECT_ROOT / "templates" / "commands" / "checklist.md",
+        PROJECT_ROOT / "templates" / "commands" / "clarify.md",
+        PROJECT_ROOT / "templates" / "commands" / "constitution.md",
+        PROJECT_ROOT / "templates" / "commands" / "debug.md",
+        PROJECT_ROOT / "templates" / "commands" / "deep-research.md",
+        PROJECT_ROOT / "templates" / "commands" / "fast.md",
+        PROJECT_ROOT / "templates" / "commands" / "implement.md",
+        PROJECT_ROOT / "templates" / "commands" / "map-build.md",
+        PROJECT_ROOT / "templates" / "commands" / "map-scan.md",
+        PROJECT_ROOT / "templates" / "commands" / "plan.md",
+        PROJECT_ROOT / "templates" / "commands" / "quick.md",
+        PROJECT_ROOT / "templates" / "commands" / "specify.md",
+        PROJECT_ROOT / "templates" / "commands" / "tasks.md",
+        PROJECT_ROOT / "templates" / "commands" / "test-build.md",
+        PROJECT_ROOT / "templates" / "commands" / "test-scan.md",
+    )
+
+    forbidden_fragments = (
+        "capture-learning --command analyze ...",
+        "capture-learning --command checklist ...",
+        "capture-learning --command clarify ...",
+        "capture-learning --command constitution ...",
+        "capture-learning --command deep-research ...",
+        "capture-learning --command debug ...",
+        "capture-learning --command implement ...",
+        "capture-learning --command map-build ...",
+        "capture-learning --command map-scan ...",
+        "capture-learning --command plan ...",
+        "capture-learning --command specify ...",
+        "capture-learning --command tasks ...",
+        "capture-learning --command test-build ...",
+        "capture-learning --command test-scan ...",
+        "learning capture --command fast ...",
+        "hook review-learning --command quick",
+    )
+
+    for path in (*learning_surface_paths, *command_template_paths):
+        content = path.read_text(encoding="utf-8")
+        for fragment in forbidden_fragments:
+            assert fragment not in content, f"{path} still contains fake runnable command fragment: {fragment}"

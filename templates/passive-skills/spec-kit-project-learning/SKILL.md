@@ -139,20 +139,28 @@ same memory guarantees.
 These are the memory-system primitives:
 
 - `{{specify-subcmd:learning status}}`
-- `{{specify-subcmd:learning start --command <command-name>}}`
-- `{{specify-subcmd:learning capture --command <command-name> --type <type> --summary "..." --evidence "..."}}`
-- `{{specify-subcmd:learning capture-auto --command <command-name> ...}}`
-- `{{specify-subcmd:learning promote --recurrence-key <key> --target <learning|rule>}}`
+- `{{specify-subcmd:learning start}}`
+  - Command shape: `{{specify-subcmd:learning start --command <command-name> --format json}}`
+- `{{specify-subcmd:learning capture}}`
+  - Required options: `--command`, `--type`, `--summary`, `--evidence`
+- `{{specify-subcmd:learning capture-auto}}`
+  - Command shape: `{{specify-subcmd:learning capture-auto --command <command-name> --format json}}`
+- `{{specify-subcmd:learning promote}}`
+  - Command shape: `{{specify-subcmd:learning promote --recurrence-key <key> --target <learning|rule>}}`
 
 ## First-Party Learning Hooks
 
 Use this hook surface when memory handling needs product-level enforcement or richer
 signal capture:
 
-- `{{specify-subcmd:hook signal-learning --command <command-name> ...}}`
-- `{{specify-subcmd:hook review-learning --command <command-name> --terminal-status <status> ...}}`
-- `{{specify-subcmd:hook capture-learning --command <command-name> --type <type> --summary "..." --evidence "..."}}`
-- `{{specify-subcmd:hook inject-learning --command <command-name> --type <type> --summary "..."}}`
+- `{{specify-subcmd:hook signal-learning}}`
+  - Command shape: `{{specify-subcmd:hook signal-learning --command <command-name> --retry-attempts <n> --hypothesis-changes <n>}}`
+- `{{specify-subcmd:hook review-learning}}`
+  - Command shape: `{{specify-subcmd:hook review-learning --command <command-name> --terminal-status <status> --decision <none|captured|deferred> --rationale "<why>"}}`
+- `{{specify-subcmd:hook capture-learning}}`
+  - Required options: `--command`, `--type`, `--summary`, `--evidence`
+- `{{specify-subcmd:hook inject-learning}}`
+  - Command shape: `{{specify-subcmd:hook inject-learning --command <command-name> --type <type> --summary "<summary>"}}`
 
 The terminal review-learning surface is intentionally narrow: use the real
 `review-learning` helper shape above and do not add removed artifact-origin

@@ -76,8 +76,11 @@ Use `execution_surface: native-subagents`.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains candidates relevant to feasibility, hidden dependencies, prototype failures, or repeated research gaps.
 - [AGENT] When feasibility friction appears, run `{{specify-subcmd:hook signal-learning --command deep-research ...}}` with route-change, false-start, hidden-dependency, command-failure, or validation-failure counts.
-- [AGENT] Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command deep-research --terminal-status <resolved|blocked> ...}}`.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command deep-research --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command deep-research ...}}` when the durable state does not capture the reusable lesson cleanly.
+- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface.
+  Command shape: `{{specify-subcmd:hook review-learning --command deep-research --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command deep-research --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
+- [AGENT] When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 
 ## Workflow Phase Lock
 

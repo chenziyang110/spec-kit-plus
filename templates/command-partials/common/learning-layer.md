@@ -21,6 +21,9 @@ Learning capture is proportional to command complexity:
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains relevant candidate learnings after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
 - When friction appears, signal it through `{{specify-subcmd:hook signal-learning}}` with relevant counts (retries, hypothesis-changes, validation-failures, false-starts, hidden-dependencies).
-- Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning}}` with the terminal status; use `--decision none` only when no reusable pitfall, recovery-path, or project-constraint exists.
-- Prefer `{{specify-subcmd:learning capture-auto}}` when the durable state already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning}}` when the durable state does not capture the reusable lesson cleanly.
+- Before final completion or blocked reporting, use the `review-learning` helper surface for terminal closeout.
+  Command shape: `{{specify-subcmd:hook review-learning --command <command-name> --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- Prefer `{{specify-subcmd:learning capture-auto}}` when the durable state already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
+- When durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface instead of auto-capture.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.

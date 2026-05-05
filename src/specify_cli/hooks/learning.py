@@ -218,7 +218,7 @@ def learning_signal_hook(project_root: Path, payload: dict[str, object]) -> Hook
         severity="warning",
         actions=[
             f"run `specify hook review-learning --command {command_name} --terminal-status resolved` before terminal closeout",
-            "capture a candidate learning if the friction exposed a reusable pitfall, workflow gap, hidden constraint, or tooling trap",
+            "if the friction exposed a reusable pitfall, workflow gap, hidden constraint, or tooling trap, capture it with `specify hook capture-learning` after supplying `--type`, `--summary`, and `--evidence`",
         ],
         warnings=[
             f"learning pain score {score} crossed threshold {PAIN_THRESHOLD}; this workflow has reusable-learning signal"
@@ -254,8 +254,8 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
                 "learning review is required before terminal workflow closeout; provide a review decision or capture a candidate learning"
             ],
             actions=[
-                f"run `specify hook review-learning --command {command_name} --terminal-status {terminal_status} --decision none --rationale \"...\"` when no reusable learning exists",
-                f"run `specify hook capture-learning --command {command_name} ...` when this run exposed reusable friction",
+                f"run `specify hook review-learning --command {command_name} --terminal-status {terminal_status} --decision none --rationale \"no reusable learning\"` when no reusable learning exists",
+                f"when this run exposed reusable friction, use `specify hook capture-learning --command {command_name}` with `--type`, `--summary`, and `--evidence`",
             ],
             data={"command": f"sp-{command_name}", "terminal_status": terminal_status},
         )
@@ -289,8 +289,8 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
                     "recent friction signal indicates reusable learning value; `decision=none` is not allowed until the learning is captured or explicitly deferred"
                 ],
                 actions=[
-                    f"run `specify hook capture-learning --command {command_name} ...` to preserve the reusable lesson",
-                    f"or rerun `specify hook review-learning --command {command_name} --terminal-status {terminal_status} --decision deferred --rationale \"...\"` when capture must wait",
+                    f"preserve the reusable lesson with `specify hook capture-learning --command {command_name}` after supplying `--type`, `--summary`, and `--evidence`",
+                    f"or rerun `specify hook review-learning --command {command_name} --terminal-status {terminal_status} --decision deferred --rationale \"capture deferred\"` when capture must wait",
                 ],
                 data={
                     "command": f"sp-{command_name}",

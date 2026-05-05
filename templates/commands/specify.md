@@ -42,8 +42,11 @@ scripts:
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
 - Review `.planning/learnings/candidates.md` only when it still contains candidate learnings relevant to specification after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
 - [AGENT] When specification friction appears, run `{{specify-subcmd:hook signal-learning --command specify ...}}` with user-correction, route-change, scope-change, false-start, or hidden-dependency counts.
-- [AGENT] Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command specify --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `user_preference`, `decision_debt`, or `project_constraint` exists.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command specify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command specify ...}}` when the durable state does not capture the reusable lesson cleanly.
+- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `user_preference`, `decision_debt`, or `project_constraint` exists.
+  Command shape: `{{specify-subcmd:hook review-learning --command specify --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command specify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
+- [AGENT] When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}

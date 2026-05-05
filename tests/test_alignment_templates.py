@@ -90,15 +90,16 @@ def test_core_sp_templates_use_learning_review_hooks():
 
     for command_name, template_path in command_templates_with_signal.items():
         content = _read(template_path)
-        assert f"{{{{specify-subcmd:hook signal-learning --command {command_name} ...}}}}" in content
+        assert "{{specify-subcmd:hook signal-learning" in content
         assert f"{{{{specify-subcmd:hook review-learning --command {command_name}" in content
 
     quick_content = _read("templates/commands/quick.md")
     assert "{{specify-subcmd:learning start --command quick --format json}}" in quick_content or "Passive Project Learning Layer" in quick_content
-    assert "{{specify-subcmd:hook review-learning --command quick --terminal-status <resolved|blocked> ...}}" in quick_content or "Before final completion or blocked reporting" in quick_content
+    assert "{{specify-subcmd:hook review-learning --command quick" not in quick_content
+    assert "Auto-capture learnings on resolution only. No review, no signal." in quick_content
 
     fast_content = _read("templates/commands/fast.md")
-    assert "{{specify-subcmd:learning capture --command fast ...}}" in fast_content
+    assert "{{specify-subcmd:learning capture --command fast ...}}" not in fast_content
 
 
 def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_placeholders() -> None:

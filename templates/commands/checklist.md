@@ -52,8 +52,11 @@ Use `execution_surface: native-subagents`.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader checklist shaping.
 - Review `.planning/learnings/candidates.md` only when it still contains checklist-relevant candidate learnings after the passive start step, especially repeated requirement gaps, review defaults, or project constraints that should shape the generated checklist.
 - [AGENT] When checklist-shaping friction appears, run `{{specify-subcmd:hook signal-learning --command checklist ...}}` with user-correction, artifact-rewrite, scope-change, false-start, or hidden-dependency counts.
-- [AGENT] Before final reporting, run `{{specify-subcmd:hook review-learning --command checklist --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `decision_debt`, or `project_constraint` exists.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command checklist --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command checklist ...}}` when the durable state does not capture the reusable lesson cleanly.
+- [AGENT] Before final reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `decision_debt`, or `project_constraint` exists.
+  Command shape: `{{specify-subcmd:hook review-learning --command checklist --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command checklist --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
+- [AGENT] When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - [AGENT] Before the final report, capture any new `workflow_gap` or `project_constraint` learning through `{{specify-subcmd:learning capture --command checklist ...}}` when the checklist exposes a reusable requirement-quality gap that should influence future workflows.
 
 ## Execution Steps

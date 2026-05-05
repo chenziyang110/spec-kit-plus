@@ -62,8 +62,11 @@ Use `execution_surface: native-subagents`.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader testing-system analysis.
 - Review `.planning/learnings/candidates.md` only when it still contains testing-relevant candidate learnings after the passive start step, especially repeated flaky areas, framework constraints, or project defaults that should influence the generated testing contract.
 - [AGENT] When testing-system build friction appears, run `{{specify-subcmd:hook signal-learning --command test-build ...}}` with validation-failure, artifact-rewrite, false-start, or hidden-dependency counts.
-- [AGENT] Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command test-build --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `verification_gap`, `state_surface_gap`, `pitfall`, `workflow_gap`, or `project_constraint` exists.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command test-build --format json}}` when testing-state already captures reusable gaps, follow-up routing, or validation evidence. Fall back to `{{specify-subcmd:hook capture-learning --command test-build ...}}` when `testing-state.md` does not capture the reusable lesson cleanly.
+- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `verification_gap`, `state_surface_gap`, `pitfall`, `workflow_gap`, or `project_constraint` exists.
+  Command shape: `{{specify-subcmd:hook review-learning --command test-build --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command test-build --format json}}` when testing-state already captures reusable gaps, follow-up routing, or validation evidence.
+- [AGENT] When `testing-state.md` does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Testing State Protocol

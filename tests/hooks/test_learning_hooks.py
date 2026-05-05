@@ -21,6 +21,11 @@ def test_learning_review_blocks_terminal_closeout_without_review(tmp_path: Path)
 
     assert result.status == "blocked"
     assert any("learning review" in message.lower() for message in result.errors)
+    assert all("..." not in action for action in result.actions)
+    assert all("<" not in action for action in result.actions)
+    assert any("--type" in action for action in result.actions)
+    assert any("--summary" in action for action in result.actions)
+    assert any("--evidence" in action for action in result.actions)
 
 
 def test_learning_review_allows_explicit_none_decision(tmp_path: Path):
@@ -73,6 +78,8 @@ def test_learning_review_blocks_none_decision_when_recent_friction_signal_exists
     assert signal_result.status == "warn"
     assert review_result.status == "blocked"
     assert any("recent friction signal" in message.lower() for message in review_result.errors)
+    assert all("..." not in action for action in review_result.actions)
+    assert any("--type" in action for action in review_result.actions)
 
 
 def test_learning_review_clears_recent_signal_after_non_none_decision(tmp_path: Path):

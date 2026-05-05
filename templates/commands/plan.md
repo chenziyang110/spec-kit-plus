@@ -45,8 +45,11 @@ agent_scripts:
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader planning context.
 - Review `.planning/learnings/candidates.md` only when it still contains planning-relevant candidate learnings after the passive start step, especially repeated workflow gaps or project constraints that would otherwise be rediscovered during planning.
 - [AGENT] When planning friction appears, run `{{specify-subcmd:hook signal-learning --command plan ...}}` with route-change, artifact-rewrite, user-correction, false-start, or hidden-dependency counts.
-- [AGENT] Before final completion or blocked reporting, run `{{specify-subcmd:hook review-learning --command plan --terminal-status <resolved|blocked> ...}}`; use `--decision none --rationale "..."` only when no reusable `workflow_gap`, `routing_mistake`, `state_surface_gap`, `decision_debt`, or `project_constraint` exists.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command plan --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints. Fall back to `{{specify-subcmd:hook capture-learning --command plan ...}}` when the durable state does not capture the reusable lesson cleanly.
+- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `routing_mistake`, `state_surface_gap`, `decision_debt`, or `project_constraint` exists.
+  Command shape: `{{specify-subcmd:hook review-learning --command plan --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command plan --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
+- [AGENT] When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
+  Required options: `--command`, `--type`, `--summary`, `--evidence`
 - Treat this as passive shared memory, not as a separate user-visible planning command.
 
 ## Workflow Phase Lock
