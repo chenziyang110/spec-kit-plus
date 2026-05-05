@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -72,12 +73,14 @@ def _run_module_in_project(project: Path, args: list[str]):
 
 def test_all_hook_commands_advertise_json_format_alias():
     runner = CliRunner()
+    ansi_re = re.compile(r"\x1b\[[0-9;]*m")
 
     for subcommand in HOOK_SUBCOMMANDS:
         result = runner.invoke(app, ["hook", subcommand, "--help"], catch_exceptions=False)
+        clean_output = ansi_re.sub("", result.output)
 
         assert result.exit_code == 0, result.output
-        assert "--format" in result.output, f"{subcommand} is missing --format in help output"
+        assert "--format" in clean_output, f"{subcommand} is missing --format in help output"
 
 
 def _write_prd_build_ready_scan_artifacts(run_dir: Path) -> None:
