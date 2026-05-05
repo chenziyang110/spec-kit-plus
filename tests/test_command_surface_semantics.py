@@ -306,3 +306,21 @@ def test_readme_and_quickstart_label_workflow_hook_helper_surfaces_as_command_sh
     assert "use `specify hook checkpoint --command <workflow> ...`" not in quickstart
     assert "use `specify hook monitor-context --command <workflow> ...`" not in quickstart
     assert "command shape:" in quickstart
+
+
+def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
+    quickstart = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+
+    assert "specify implement closeout --feature-dir <feature-dir> --format json" in readme
+    assert "command shape:" in readme
+    assert "specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>" in readme
+    assert "result helper command shapes:" in readme
+    assert "specify quick status <id>" in readme
+    assert "quick-task helper command shapes:" in readme
+
+    assert "specify implement closeout --feature-dir <feature-dir> --format json" in quickstart
+    assert "command shape:" in quickstart
+    assert "specify eval create --recurrence-key <key> --summary" in quickstart
+    assert "specify eval create --recurrence-key <key> ..." not in quickstart
+    assert "quick-task helper command shapes:" in quickstart

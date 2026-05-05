@@ -237,7 +237,12 @@ Use the lightweight routing rules consistently:
 - If the work is a bug fix or regression and the root cause is still unknown, route to `debug` instead of using `quick` for a symptom-only patch.
 - Quick workspaces live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the source of truth and `.planning/quick/index.json` as a derived management index.
 - Invoking `quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
-- Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage quick tasks. `specify quick list` defaults to unfinished quick tasks.
+- Use `specify quick list` to inspect unfinished quick tasks by default.
+- Quick-task helper command shapes:
+  - `specify quick status <id>`
+  - `specify quick resume <id>`
+  - `specify quick close <id> --status resolved|blocked`
+  - `specify quick archive <id>`
 - Upgrade to `specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 Required action markers:
@@ -263,7 +268,8 @@ Passive project learning layer:
     - Required options: `--command`, `--type`, `--summary`, `--evidence`
   - `specify learning capture-auto`
     - Command shape: `specify learning capture-auto --command <workflow> --format json`
-  - `specify implement closeout --feature-dir <feature-dir> --format json`
+  - `specify implement closeout`
+    - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
   - `specify learning aggregate --format json`
   - `specify learning promote`
     - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
@@ -278,7 +284,8 @@ Passive project learning layer:
 - `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
 - Treat this as an internal/runtime helper surface, not as a separate daily slash workflow. `review-learning` is the terminal learning gate, and `capture-learning` preserves structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
 - Durable eval helpers exist once a rule should become executable proof instead of only remembered guidance:
-  - `specify eval create --recurrence-key <key> ...`
+  - `specify eval create`
+    - Command shape: `specify eval create --recurrence-key <key> --summary "<summary>"`
   - `specify eval status --format json`
   - `specify eval run --format json`
 

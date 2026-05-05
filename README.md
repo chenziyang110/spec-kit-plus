@@ -275,7 +275,12 @@ Routing guide for lightweight work:
 - For brownfield repositories with weak legacy coverage, let `sp-test-scan` generate `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and treat it as the starting artifact for any testing-system program or coverage uplift program that must continue through `sp-specify`, `sp-quick`, or `sp-fast`; use `sp-test-build` only once build-ready lanes exist.
 - Quick workspaces now live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the task source of truth and `.planning/quick/index.json` as a derived management index.
 - Invoking `sp-quick` with no arguments should resume unfinished quick work when possible. If only one unfinished quick task exists, continue it automatically. `blocked` quick tasks still count as resumable unfinished work.
-- Use `specify quick list`, `specify quick status <id>`, `specify quick resume <id>`, `specify quick close <id> --status resolved|blocked`, and `specify quick archive <id>` to inspect and manage tracked quick tasks. `specify quick list` defaults to unfinished quick tasks.
+- Use `specify quick list` to inspect unfinished quick tasks by default.
+- Quick-task helper command shapes:
+  - `specify quick status <id>`
+  - `specify quick resume <id>`
+  - `specify quick close <id> --status resolved|blocked`
+  - `specify quick archive <id>`
 - Move from `sp-quick` to `sp-specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 Required action markers:
@@ -301,7 +306,8 @@ Passive project learning layer:
   - Required options: `--command`, `--type`, `--summary`, `--evidence`
 - `specify learning capture-auto`
   - Command shape: `specify learning capture-auto --command <workflow> --format json`
-- `specify implement closeout --feature-dir <feature-dir> --format json`
+- `specify implement closeout`
+  - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
 - `specify learning aggregate --format json`
 - `specify learning promote`
   - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
@@ -560,11 +566,14 @@ Maintainer note:
 ```bash
 specify init <project> --ai <agent>
 specify check
-specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>
-specify result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-file <path>
 specify extension list
 specify preset list
 ```
+
+Result helper command shapes:
+
+- `specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>`
+- `specify result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-file <path>`
 
 For the full CLI surface:
 
