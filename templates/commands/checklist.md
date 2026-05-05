@@ -60,6 +60,7 @@ Use `execution_surface: native-subagents`.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
 - [AGENT] Before the final report, when the checklist exposes a reusable requirement-quality gap that should influence future workflows and auto-capture did not preserve it, use the manual `learning capture` helper surface.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
+  Command shape: `specify learning capture --command checklist --type <workflow_gap|decision_debt|project_constraint> --summary "<summary>" --evidence "<evidence>"`
 
 ## Execution Steps
 
