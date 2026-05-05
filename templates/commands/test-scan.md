@@ -64,9 +64,9 @@ Use `execution_surface: native-subagents`.
    - Confirm the repository root and treat this workflow as project-level rather than feature-level.
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
-   - [AGENT] If freshness is `possibly_stale`, inspect changed paths, reasons, `must_refresh_topics`, and `review_topics`. If testing, workflow, integration, or architecture topics are stale, run `/sp-map-scan` followed by `/sp-map-build` before continuing.
-   - [AGENT] If `PROJECT-HANDBOOK.md` or required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If freshness is `possibly_stale`, inspect changed paths, reasons, `must_refresh_topics`, and `review_topics`. If testing, workflow, integration, or architecture topics are stale, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If `PROJECT-HANDBOOK.md` or required `.specify/project-map/` files are missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - [AGENT] Read `PROJECT-HANDBOOK.md`.
    - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.

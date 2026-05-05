@@ -249,8 +249,8 @@ class TestCopilotIntegration:
             assert "atlas.entry" in content
             assert "atlas.index.status" in content
             assert "atlas.index.atlas" in content
-            assert "/sp-map-scan" in content
-            assert "/sp-map-build" in content
+            assert "map-scan" in content
+            assert "map-build" in content
 
     def test_complete_file_inventory_sh(self, tmp_path):
         """Every file produced by specify init --integration copilot --script sh."""

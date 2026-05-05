@@ -554,7 +554,8 @@ def test_test_scan_and_build_templates_use_handbook_and_project_map_gates():
     build_content = _read("templates/commands/test-build.md")
 
     for content in (scan_content, build_content):
-        assert "[AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts." in content
+        assert "[AGENT] If freshness is `missing` or `stale`, stop and tell the user to run" in content
+        assert "`{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing." in content
         assert "freshness is `possibly_stale`" in content
         assert "PROJECT-HANDBOOK.md" in content
         assert "[AGENT] Read `PROJECT-HANDBOOK.md`." in content

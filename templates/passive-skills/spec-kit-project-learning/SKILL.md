@@ -159,6 +159,7 @@ signal capture:
   - Command shape: `{{specify-subcmd:hook review-learning --command <command-name> --terminal-status <status> --decision <none|captured|deferred> --rationale "<why>"}}`
 - `{{specify-subcmd:hook capture-learning}}`
   - Required options: `--command`, `--type`, `--summary`, `--evidence`
+  - Command shape: `{{specify-subcmd:hook capture-learning --command <command-name> --type <type> --summary "<summary>" --evidence "<evidence>"}}`
 - `{{specify-subcmd:hook inject-learning}}`
   - Command shape: `{{specify-subcmd:hook inject-learning --command <command-name> --type <type> --summary "<summary>"}}`
 

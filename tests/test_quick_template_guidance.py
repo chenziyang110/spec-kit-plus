@@ -231,7 +231,7 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "for each declared surface, give the terminal status conclusion" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
     assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before marking the quick task `resolved`" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before marking the quick task `resolved`" in content
     assert "complete-refresh" in content
     assert "successful-refresh finalizer" in content
     assert "if a full refresh can be completed now" in content

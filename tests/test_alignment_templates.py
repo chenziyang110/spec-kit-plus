@@ -273,7 +273,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert ".specify/project-map/root/WORKFLOWS.md" in content
     assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" in content
     assert "Use `Topic Map` to choose the smallest relevant topical documents" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
     assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md" in content
     assert "primary brownfield testing-program input" in content
     assert "module priority waves" in content
@@ -506,7 +506,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
     assert ".specify/project-map/root/WORKFLOWS.md" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -639,7 +639,7 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
     assert ".specify/project-map/root/WORKFLOWS.md" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -723,7 +723,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
     assert ".specify/project-map/root/WORKFLOWS.md" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -1358,7 +1358,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/project-map/root/ARCHITECTURE.md" in content
     assert ".specify/project-map/root/STRUCTURE.md" in content
     assert ".specify/project-map/root/WORKFLOWS.md" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -1433,7 +1433,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "one safe validated packet is ready" in lowered
     assert "multiple safe validated packets have isolated write sets" in lowered
     assert "`subagent-blocked` with a recorded reason" in lowered
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before final completion reporting" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before final completion reporting" in content.lower()
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
     assert "if you cannot complete that refresh in the current pass" in lowered
@@ -1630,7 +1630,7 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
     assert "project-handbook.md" in lowered
     assert ".specify/project-map/index/status.json" in lowered
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in lowered
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in lowered
     assert "if the checklist reveals planning-critical requirement gaps" in lowered
     assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered
     assert "recommend `/sp-plan`" in lowered

@@ -198,10 +198,53 @@ def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_exa
     assert "Use `sp-teams` only when Codex work needs durable team state" in parallel
 
 
+def test_passive_workflow_skills_enforce_real_specify_command_surface() -> None:
+    routing = read_template("templates/passive-skills/spec-kit-workflow-routing/SKILL.md").lower()
+    map_gate = read_template("templates/passive-skills/spec-kit-project-map-gate/SKILL.md").lower()
+
+    for content in (routing, map_gate):
+        assert "specify --help" in content
+        assert "generated\ncreate-feature script" in content or "generated create-feature script" in content
+        assert "run `specify create-feature`" not in content
+        assert "use `specify create-feature`" not in content
+
+
 def test_readme_does_not_teach_specify_branch_as_a_real_command() -> None:
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
 
     assert "specify branch" not in readme
+
+
+def test_command_surfaces_require_help_verification_and_do_not_invent_feature_commands() -> None:
+    surfaces = {
+        "README": (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower(),
+        "quickstart": (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower(),
+        "specify-template": (PROJECT_ROOT / "templates" / "commands" / "specify.md").read_text(encoding="utf-8").lower(),
+        "agent-template": (PROJECT_ROOT / "templates" / "agent-file-template.md").read_text(encoding="utf-8").lower(),
+        "managed-bash": read_template("scripts/bash/update-agent-context.sh").lower(),
+        "managed-powershell": read_template("scripts/powershell/update-agent-context.ps1").lower(),
+    }
+
+    forbidden = (
+        "run `specify create-feature`",
+        "use `specify create-feature`",
+        "run `specify create feature`",
+        "use `specify create feature`",
+        "run `specify new-feature`",
+        "use `specify new-feature`",
+        "run `specify new feature`",
+        "use `specify new feature`",
+    )
+    required = (
+        "specify --help",
+        "generated create-feature script",
+    )
+
+    for name, content in surfaces.items():
+        for needle in forbidden:
+            assert needle not in content, f"{name} still teaches invented command surface: {needle}"
+        for needle in required:
+            assert needle in content, f"{name} is missing required command-surface guidance: {needle}"
 
 
 def test_upgrade_guide_uses_current_runtime_repair_language() -> None:

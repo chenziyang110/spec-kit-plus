@@ -684,6 +684,13 @@ When adding new agents:
 - Use `sp-test-build` when scan-approved lanes should construct or refresh the unit testing system through leader/subagent execution.
 - Use `sp-tasks` to produce enriched task contracts with agent assignment, context navigation, scope boundaries, and verify commands — enabling subagents to execute without asking the leader for clarification.
 
+## Command Surface Rules
+
+- Treat the live `specify --help` output as the only authoritative CLI command surface.
+- Before suggesting or running a `specify <subcommand>` invocation, verify that `specify --help` or `specify <subcommand> --help` exposes it.
+- Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
+- Feature creation must follow `sp-specify` plus the generated create-feature script, not a separate imagined branch-creation command family.
+
 ## Delegated Execution Defaults
 
 - Use subagents-first execution for independent, bounded work when delegation preserves quality.

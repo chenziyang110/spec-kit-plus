@@ -4,6 +4,13 @@ This repository's broader operating guidance lives in [AGENTS.md](./AGENTS.md).
 Use that file as the primary source of truth for workflow routing, brownfield
 context gates, and repository conventions.
 
+## Command Surface Rules
+
+- Treat the live `specify --help` output as the only authoritative CLI command surface.
+- Before suggesting or running a `specify <subcommand>` invocation, verify that `specify --help` or `specify <subcommand> --help` exposes it.
+- Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
+- Feature creation must follow `sp-specify` plus the generated create-feature script, not a separate imagined branch-creation command family.
+
 ## Lane Recovery Rules
 
 - Treat concurrent feature work as lane-first, not branch-first.

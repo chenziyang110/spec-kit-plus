@@ -266,7 +266,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready" in content
     assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
     assert "selects the next executable phase and ready batch" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before final completion reporting" in content.lower()
+    assert "tell the user to run `$sp-map-scan`, then `$sp-map-build` before final completion reporting" in content.lower()
     assert "verification is truthfully green and no explicit blocker prevents completion" in content.lower()
     assert "including unresolved `open_gaps`" in content.lower()
     assert "shared implement template is the primary source of truth" in content
@@ -581,7 +581,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "alternative cause candidates" in content
     assert "transition memo" in content
     assert "if the handbook navigation system is missing" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before root-cause analysis continues" in content
+    assert "tell the user to run `$sp-map-scan`, then `$sp-map-build`; wait for that refresh before root-cause analysis continues" in content
     assert "truth-owning layers" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
@@ -647,7 +647,7 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "the leader performs the change directly" in content or "leader-direct" in content
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before the final report" in content
+    assert "tell the user to run `$sp-map-scan`, then `$sp-map-build` before the final report" in content
     assert "if a full refresh can be completed now" in content
     assert "manual override/fallback" in content.lower()
     assert "do not create spec.md" in content or "no spec.md" in content
@@ -711,7 +711,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "current focus" in content
     assert "next action" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before marking the quick task `resolved`" in content
+    assert "tell the user to run `$sp-map-scan`, then `$sp-map-build` before marking the quick task `resolved`" in content
     assert "resume" in content
     assert "resolved/" in content
     assert "status.md template" in content

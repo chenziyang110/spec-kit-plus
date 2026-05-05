@@ -82,6 +82,7 @@ from specify_cli.codex_team.runtime_bridge import (
     mark_runtime_failure,
     submit_runtime_result,
 )
+from specify_cli.cli_output import print_json
 from specify_cli.execution import (
     build_result_handoff_path,
     write_normalized_result_handoff,
@@ -911,7 +912,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- `PROJECT-HANDBOOK.md` is the root navigation artifact.",
             "- Deep project knowledge lives under `.specify/project-map/`.",
             "- Before planning, debugging, or implementing against existing code, read `PROJECT-HANDBOOK.md` and the smallest relevant `.specify/project-map/*.md` files.",
-            "- If handbook/project-map coverage is missing, stale, or too broad, run the runtime's `map-scan` workflow entrypoint followed by `map-build` before continuing.",
+            "- If handbook/project-map coverage is missing, stale, or too broad, stop and tell the user to run the runtime's `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.",
             "- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source. If a full refresh can be completed now, do it and use `project-map complete-refresh` as the successful-refresh finalizer; otherwise use `project-map mark-dirty` as the manual override/fallback.",
             "",
             "## Project Memory",
@@ -1146,7 +1147,7 @@ def _normalize_prd_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def _render_prd_payload(payload: dict[str, Any], *, json_output: bool = False) -> None:
     normalized = _normalize_prd_payload(payload)
     if json_output:
-        print(json.dumps(normalized, ensure_ascii=False))
+        print_json(normalized)
         return
 
     mode = str(normalized.get("mode") or "")
@@ -1333,7 +1334,7 @@ def implement_closeout(
     if hook_result.status == "blocked":
         payload = {"status": "blocked", "hook_result": hook_result.to_dict(), "feature_dir": str(resolved_feature_dir)}
         if output_format.lower() == "json":
-            print(json.dumps(payload, ensure_ascii=False, indent=2))
+            print_json(payload, indent=2)
         else:
             console.print("[red]Error:[/red] Implement closeout blocked by invalid session state.")
             for error in hook_result.errors:
@@ -1352,7 +1353,7 @@ def implement_closeout(
         "auto_capture": auto_payload,
     }
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
 
     rows = [
@@ -1376,7 +1377,7 @@ def testing_inventory_command(
     project_root = Path.cwd()
     payload = build_testing_inventory(project_root)
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
 
     rows = [
@@ -1414,7 +1415,7 @@ def project_map_check(
     _require_spec_kit_plus_project(project_root)
     result = inspect_project_map_freshness(project_root)
     if output_format.lower() == "json":
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print_json(result, indent=2)
         return
     _render_project_map_freshness(result)
 
@@ -1430,7 +1431,7 @@ def project_map_mark_dirty(
     mark_project_map_dirty(project_root, reason)
     result = inspect_project_map_freshness(project_root)
     if output_format.lower() == "json":
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print_json(result, indent=2)
         return
     _render_project_map_freshness(result)
 
@@ -1445,7 +1446,7 @@ def project_map_clear_dirty(
     clear_project_map_dirty(project_root)
     result = inspect_project_map_freshness(project_root)
     if output_format.lower() == "json":
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print_json(result, indent=2)
         return
     _render_project_map_freshness(result)
 
@@ -1467,7 +1468,7 @@ def project_map_record_refresh(
     )
     result = inspect_project_map_freshness(project_root)
     if output_format.lower() == "json":
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print_json(result, indent=2)
         return
     _render_project_map_freshness(result)
 
@@ -1483,7 +1484,7 @@ def project_map_complete_refresh(
     complete_project_map_refresh(project_root)
     result = inspect_project_map_freshness(project_root)
     if output_format.lower() == "json":
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print_json(result, indent=2)
         return
     _render_project_map_freshness(result)
 
@@ -1511,7 +1512,7 @@ def project_map_refresh_topics_command(
     payload = status.to_dict()
     payload["status_path"] = str(project_map_status_path(project_root))
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
     rows = [
         ("Refresh Scope", f"[cyan]{payload['last_refresh_scope']}[/cyan]"),
@@ -1532,7 +1533,7 @@ def project_map_status_command(
     status = read_project_map_status(project_root).to_dict()
     status["status_path"] = str(project_map_status_path(project_root))
     if output_format.lower() == "json":
-        print(json.dumps(status, ensure_ascii=False, indent=2))
+        print_json(status, indent=2)
         return
     rows = [
         ("Freshness", f"[cyan]{status['freshness']}[/cyan]"),
@@ -1567,7 +1568,7 @@ def learning_ensure_command(
     payload = learning_status_payload(project_root, include_runtime=include_runtime)
     payload["paths"] = paths.to_dict()
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
 
     rows = [
@@ -1593,7 +1594,7 @@ def learning_status_command(
     _require_spec_kit_plus_project(project_root)
     payload = learning_status_payload(project_root)
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
 
     rows = [
@@ -1615,7 +1616,7 @@ def learning_start_command(
     _require_spec_kit_plus_project(project_root)
     payload = start_learning_session(project_root, command_name=command_name)
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
 
     rows = [
@@ -1674,7 +1675,7 @@ def learning_capture_command(
         promotion_hint=promotion_hint,
     )
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
 
     entry = payload["entry"]
@@ -1706,7 +1707,7 @@ def _run_learning_capture_auto(
         session_file=Path(session_file) if session_file else None,
     )
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
 
     rows = [
@@ -1755,7 +1756,7 @@ def learning_promote_command(
         target=target,
     )
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
 
     entry = payload["entry"]
@@ -1786,7 +1787,7 @@ def learning_aggregate_command(
     if write_report:
         payload["report_path"] = str(write_learning_aggregate_report(project_root, payload))
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
 
     rows = [
@@ -1834,7 +1835,7 @@ def eval_create_command(
         "paths": payload["paths"].to_dict(),
     }
     if output_format.lower() == "json":
-        print(json.dumps(response, ensure_ascii=False, indent=2))
+        print_json(response, indent=2)
         return
     rows = [
         ("Eval Id", response["case"]["id"]),
@@ -1854,7 +1855,7 @@ def eval_status_command(
     _require_spec_kit_plus_project(project_root)
     payload = eval_status_payload(project_root)
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
     rows = [
         ("Cases", str(payload["counts"]["cases"])),
@@ -1876,7 +1877,7 @@ def eval_run_command(
     _require_spec_kit_plus_project(project_root)
     payload = run_eval_suite(project_root, recurrence_key=recurrence_key)
     if output_format.lower() == "json":
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print_json(payload, indent=2)
         return
     rows = [
         ("Total", str(payload["counts"]["total"])),
@@ -3511,7 +3512,7 @@ def _run_hook_and_print(project_root: Path, event_name: str, payload: dict[str, 
     from .hooks.engine import run_quality_hook
 
     result = run_quality_hook(project_root, event_name, payload)
-    print(json.dumps(result.to_dict(), ensure_ascii=False))
+    print_json(result.to_dict())
 
 
 def _normalize_optional_repo_path(project_root: Path, raw_value: str | None) -> str | None:
@@ -3570,7 +3571,7 @@ def _print_lane_resolution_json(result: Any) -> None:
             for candidate in result.candidates
         ],
     }
-    print(json.dumps(payload, ensure_ascii=False))
+    print_json(payload)
 
 
 def _find_lane_by_feature_dir(project_root: Path, feature_dir: Path) -> LaneRecord | None:
@@ -3775,24 +3776,21 @@ def lane_register(
         },
     )
     payload = rebuild_lane_index(project_root)
-    print(
-        json.dumps(
-            {
-                "status": "ok",
-                "lane_id": lane_id,
-                "feature_dir": record.feature_dir,
-                "branch_name": record.branch_name,
-                "worktree_path": record.worktree_path,
-                "lifecycle_state": record.lifecycle_state,
-                "recovery_state": record.recovery_state,
-                "verification_status": record.verification_status,
-                "materialize_status": worktree_result.status,
-                "checkout_mode": worktree_result.checkout_mode,
-                "materialize_reason": worktree_result.reason,
-                "index_lane_count": len(payload.get("lanes", [])),
-            },
-            ensure_ascii=False,
-        )
+    print_json(
+        {
+            "status": "ok",
+            "lane_id": lane_id,
+            "feature_dir": record.feature_dir,
+            "branch_name": record.branch_name,
+            "worktree_path": record.worktree_path,
+            "lifecycle_state": record.lifecycle_state,
+            "recovery_state": record.recovery_state,
+            "verification_status": record.verification_status,
+            "materialize_status": worktree_result.status,
+            "checkout_mode": worktree_result.checkout_mode,
+            "materialize_reason": worktree_result.reason,
+            "index_lane_count": len(payload.get("lanes", [])),
+        }
     )
 
 
@@ -3818,7 +3816,7 @@ def lane_resolve(
                 "feature_dir": resolved,
                 "candidates": [],
             }
-            print(json.dumps(payload, ensure_ascii=False))
+            print_json(payload)
             return
 
         payload = {
@@ -3851,9 +3849,7 @@ def lane_resolve(
                 "path": worktree_result.worktree_path,
                 "reason": worktree_result.reason,
             }
-        print(
-            json.dumps(payload, ensure_ascii=False)
-        )
+        print_json(payload)
         return
 
     result = resolve_lane_for_command(project_root, command_name=command_name)
@@ -3889,7 +3885,7 @@ def lane_resolve(
                     for candidate in result.candidates
                 ],
             }
-            print(json.dumps(payload, ensure_ascii=False))
+            print_json(payload)
             return
 
     _print_lane_resolution_json(result)
@@ -4437,16 +4433,15 @@ def team_result_template(
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
 
-    rendered = json.dumps(payload, ensure_ascii=False, indent=2)
     if not output:
-        print(rendered)
+        print_json(payload, indent=2)
         return
 
     output_path = Path(output)
     if not output_path.is_absolute():
         output_path = (project_root / output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(rendered, encoding="utf-8")
+    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     console.print(f"Wrote result template for [cyan]{request_id}[/cyan] to [cyan]{output_path}[/cyan].")
 
 
@@ -4475,7 +4470,7 @@ def team_api(
     except TeamApiError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
-    print(json.dumps(envelope, ensure_ascii=False, default=str))
+    print_json(envelope, default=str)
 
 
 @result_app.command("path")
@@ -4513,15 +4508,12 @@ def result_path_command(
         debug_session_slug=context["debug_session_slug"],
         lane_id=context["lane_id"],
     )
-    print(
-        json.dumps(
-            {
-                "command": command_name,
-                "integration": integration_key,
-                "path": str(path),
-            },
-            ensure_ascii=False,
-        )
+    print_json(
+        {
+            "command": command_name,
+            "integration": integration_key,
+            "path": str(path),
+        }
     )
 
 
@@ -4577,18 +4569,15 @@ def result_submit_command(
     except Exception as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
-    print(
-        json.dumps(
-            {
-                "status": "ok",
-                "command": command_name,
-                "integration": integration_key,
-                "path": str(path),
-                "worker_status": normalized.status,
-                "reported_status": normalized.reported_status,
-            },
-            ensure_ascii=False,
-        )
+    print_json(
+        {
+            "status": "ok",
+            "command": command_name,
+            "integration": integration_key,
+            "path": str(path),
+            "worker_status": normalized.status,
+            "reported_status": normalized.reported_status,
+        }
     )
 
 
@@ -5298,49 +5287,43 @@ def integrate(
                 if close and readiness.ready:
                     lane_payload = mark_lane_integrated(project_root, readiness.lane)
 
-        print(
-            json.dumps(
-                {
-                    "status": "ok"
-                    if lane_record is not None and (readiness is None or readiness.ready or not close)
-                    else "blocked",
-                    "mode": "targeted",
-                    "feature_dir": str(resolved) if resolved is not None else None,
-                    "closed": bool(close and readiness is not None and readiness.ready),
-                    "ready": readiness.ready if readiness is not None else None,
-                    "lane_id": lane_payload.lane_id if lane_payload is not None else None,
-                    "checks": readiness.checks if readiness is not None else [],
-                },
-                ensure_ascii=False,
-            )
+        print_json(
+            {
+                "status": "ok"
+                if lane_record is not None and (readiness is None or readiness.ready or not close)
+                else "blocked",
+                "mode": "targeted",
+                "feature_dir": str(resolved) if resolved is not None else None,
+                "closed": bool(close and readiness is not None and readiness.ready),
+                "ready": readiness.ready if readiness is not None else None,
+                "lane_id": lane_payload.lane_id if lane_payload is not None else None,
+                "checks": readiness.checks if readiness is not None else [],
+            }
         )
         return
 
     candidates = collect_integration_candidates(project_root)
-    print(
-        json.dumps(
-            {
-                "status": "ok",
-                "mode": "discovery",
-                "candidates": [
-                    (
-                        lambda readiness: {
-                            "lane_id": readiness.lane.lane_id,
-                            "feature_id": readiness.lane.feature_id,
-                            "feature_dir": readiness.lane.feature_dir,
-                            "branch_name": readiness.lane.branch_name,
-                            "recovery_state": readiness.lane.recovery_state,
-                            "verification_status": readiness.lane.verification_status,
-                            "ready": readiness.ready,
-                            "recommended_action": "close" if readiness.ready else "fix-prechecks",
-                            "checks": readiness.checks,
-                        }
-                    )(assess_integration_readiness(project_root, lane))
-                    for lane in candidates
-                ],
-            },
-            ensure_ascii=False,
-        )
+    print_json(
+        {
+            "status": "ok",
+            "mode": "discovery",
+            "candidates": [
+                (
+                    lambda readiness: {
+                        "lane_id": readiness.lane.lane_id,
+                        "feature_id": readiness.lane.feature_id,
+                        "feature_dir": readiness.lane.feature_dir,
+                        "branch_name": readiness.lane.branch_name,
+                        "recovery_state": readiness.lane.recovery_state,
+                        "verification_status": readiness.lane.verification_status,
+                        "ready": readiness.ready,
+                        "recommended_action": "close" if readiness.ready else "fix-prechecks",
+                        "checks": readiness.checks,
+                    }
+                )(assess_integration_readiness(project_root, lane))
+                for lane in candidates
+            ],
+        }
     )
 
 

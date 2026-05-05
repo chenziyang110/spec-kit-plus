@@ -1,10 +1,10 @@
 import typer
 import asyncio
-import json
 from typing import Optional
 from pathlib import Path
 from rich.console import Console
 
+from ..cli_output import print_json
 from .schema import DebugGraphState, DebugStatus
 from .persistence import MarkdownPersistenceHandler
 from .dispatch import (
@@ -570,7 +570,7 @@ async def _run_debug_dispatch(description: Optional[str], output_format: str) ->
             "diagnostic_profile": state.diagnostic_profile,
             "tasks": [task.model_dump(mode="json") for task in tasks],
         }
-        console.print(json.dumps(payload, indent=2))
+        print_json(payload, indent=2)
         return
     if output_format.lower() == "spawn-json":
         payload = {
@@ -578,7 +578,7 @@ async def _run_debug_dispatch(description: Optional[str], output_format: str) ->
             "diagnostic_profile": state.diagnostic_profile,
             "spawn_tasks": [task.model_dump(mode="json") for task in spawn_tasks],
         }
-        console.print(json.dumps(payload, indent=2))
+        print_json(payload, indent=2)
         return
 
     console.print(format_dispatch_plan(tasks))

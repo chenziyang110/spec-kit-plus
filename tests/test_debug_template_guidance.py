@@ -55,7 +55,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "learning start --command debug --format json" in content
-    assert "capture-learning --command debug" in content or "learning capture --command debug" in content
+    assert "manual `capture-learning` hook surface" in content
     assert "project-map hard gate" in content
     assert "must pass an atlas gate before" in content
     assert "read `project-handbook.md`" in content
@@ -81,7 +81,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "truth ownership" in content
     assert "read whichever of `architecture.md`, `workflows.md`, `integrations.md`, `testing.md`, and `operations.md` map to the failing area" in content
     assert "if the handbook navigation system is missing" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before root-cause analysis continues" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues" in content
     assert "task-relevant coverage is insufficient" in content
     assert "ownership or placement guidance" in content
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
@@ -135,7 +135,7 @@ def test_debug_template_documents_capability_aware_investigation() -> None:
     assert "dispatches bounded evidence-gathering subagents" in content
     assert "durable team workflow" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before moving to `awaiting_human_verify` or `resolved`" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before moving to `awaiting_human_verify` or `resolved`" in content
     assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in content
     assert "complete-refresh" in content
     assert "successful-refresh finalizer" in content

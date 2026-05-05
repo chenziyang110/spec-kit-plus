@@ -206,6 +206,11 @@ Feature creation is driven by the `specify` workflow itself. Use `sp-specify`
 with the generated create-feature script and lane/runtime helpers that it
 invokes; do not look for or teach a separate branch-creation CLI family.
 
+Treat the live `specify --help` output as the only authoritative CLI command
+surface. Before suggesting or running a `specify <subcommand>` invocation,
+verify it exists in `specify --help` or `specify <subcommand> --help`, and do
+not invent unsupported names such as `specify create-feature`.
+
 Optional feasibility branch when `sp-specify` finds an unproven implementation chain:
 
 ```text

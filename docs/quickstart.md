@@ -64,6 +64,16 @@ The concrete chat snippets below use Claude-style `/sp-*` examples for
 readability. Translate them through the matrix above when you are using Codex,
 Kimi, or a slash-dot command integration.
 
+### CLI Command Surface
+
+Treat the live `specify --help` output as the only authoritative CLI command
+surface. Before you suggest or run a `specify <subcommand>` command, verify it
+exists in `specify --help` or `specify <subcommand> --help`.
+
+Do not invent unsupported CLI names such as `specify create-feature`. Feature
+creation must follow `sp-specify` plus the generated create-feature script, not
+an imagined standalone branch-creation command.
+
 ### Step 2: Define Your Constitution
 
 `specify init` seeds a default constitution into `.specify/memory/constitution.md`. In your AI agent's chat interface, run the `constitution` workflow when that default constitution needs project-specific changes or when you need to establish or revise project principles before downstream planning work continues.

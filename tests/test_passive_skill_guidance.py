@@ -156,7 +156,7 @@ def test_project_learning_focuses_on_memory_triggers_storage_and_promotion() -> 
     assert "injection goal" in content
     assert "learning start --command <command-name>" in content
     assert "hook review-learning --command <command-name>" in content
-    assert "hook capture-learning --command <command-name>" in content
+    assert "command shape: `{{specify-subcmd:hook capture-learning --command <command-name>" in content
     assert "native hooks are an optional enhancement" in content
     assert "without native hooks" in content
     assert "single high-signal candidates should still appear in start-time warnings" in content

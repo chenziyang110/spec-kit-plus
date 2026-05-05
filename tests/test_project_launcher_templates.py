@@ -24,7 +24,7 @@ HIGH_RISK_TEMPLATE_FILES = [
 
 
 def test_high_risk_templates_do_not_use_bare_runtime_specify_calls():
-    forbidden = re.compile(r"`?specify (hook|learning|result|testing inventory)\b")
+    forbidden = re.compile(r"`?specify (hook|learning|result|testing inventory)\b", re.IGNORECASE)
     offenders = []
 
     for path in HIGH_RISK_TEMPLATE_FILES:

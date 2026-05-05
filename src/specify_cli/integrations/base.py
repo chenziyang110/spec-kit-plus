@@ -453,7 +453,7 @@ class IntegrationBase(ABC):
             "\n"
             f"## {agent_name} Project-Map Hard Gate\n\n"
             f"**Crucial First Step**: You MUST pass the logical atlas contract first by reading `PROJECT-HANDBOOK.md`, `atlas.entry`, `atlas.index.status`, `atlas.index.atlas`, the relevant root topic documents, and the relevant module overview documents {command_step}.\n"
-            "- If the handbook or required topical documents are missing, stale, or too broad for the touched area, run `/sp-map-scan` followed by `/sp-map-build` before continuing.\n"
+            "- If the handbook or required topical documents are missing, stale, or too broad for the touched area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.\n"
             "- Treat this as a logical atlas contract, not as a hardcoded physical path contract; generated projects and this repository may resolve the atlas through different files.\n"
             "- Treat this as a hard gate, not a best-effort reminder; do not continue on chat memory or local instincts when the project map should be the source of truth.\n"
         )

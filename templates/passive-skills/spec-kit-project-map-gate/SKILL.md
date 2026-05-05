@@ -31,12 +31,22 @@ judgment in an established Spec Kit Plus repository:
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.
 
+## Command Surface Discipline
+
+- Treat the live `specify --help` output as the only authoritative CLI command surface.
+- Before suggesting or running a `specify <subcommand>` invocation while satisfying this gate, verify that it exists in `specify --help` or `specify <subcommand> --help`.
+- Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
+- Feature creation remains `{{invoke:specify}}` plus the generated create-feature script, not a separate branch-creation command.
+
 ## Missing Or Stale Context
 
 - If the handbook, module docs, or root docs do not exist, are stale, or are too broad
   for the touched area, route through the canonical `sp-map-scan -> sp-map-build`
   workflow detour before continuing. When giving the user an explicit command to
   type, write `{{invoke:map-scan}} -> {{invoke:map-build}}`.
+- Treat that detour as a user-invoked workflow handoff. Do not silently switch into
+  `sp-map-scan` or `sp-map-build` yourself from another workflow; stop and tell the
+  user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - Treat `deep_stale` as a real warning: if the current task needs deep module detail and the module status says `deep_stale`, refresh or manually rebuild the required deep docs before trusting them.
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
   repository map should be the source of truth.

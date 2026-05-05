@@ -539,7 +539,7 @@ class TestBuiltInSkillGeneration:
         assert "parallel-subagents" in test_scan_body.lower()
         assert "native-subagents" in test_scan_body.lower()
         assert "read-only scan subagents" in test_scan_body.lower()
-        assert "if `project-handbook.md` or required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing" in test_scan_body.lower()
+        assert "stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in test_scan_body.lower()
         assert "read `project-handbook.md`." in test_scan_body.lower()
 
         test_build_body = _body_without_frontmatter(skills_dir / "sp-test-build" / "SKILL.md")
@@ -556,8 +556,8 @@ class TestBuiltInSkillGeneration:
         assert "managed-team" in test_build_body.lower()
         assert "testbuildpacket" in test_build_body.lower()
         assert "before mutating shared repository test framework/config files" in test_build_body.lower()
-        assert "if `project-handbook.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing" in test_build_body.lower()
-        assert "if testing-surface coverage is insufficient for the current repository, run `/sp-map-scan` followed by `/sp-map-build` before continuing" in test_build_body.lower()
+        assert "stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in test_build_body.lower()
+        assert "if testing-surface coverage is insufficient for the current repository, stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in test_build_body.lower()
         assert "read `project-handbook.md`." in test_build_body.lower()
         assert "classify the next workflow recommendation before the final report" in test_build_body.lower()
         assert "recommend exactly one next command" in test_build_body.lower()
@@ -596,7 +596,7 @@ class TestBuiltInSkillGeneration:
         assert "specify learning capture --command checklist" in checklist_lower
         assert "project-handbook.md" in checklist_lower
         assert ".specify/project-map/index/status.json" in checklist_lower
-        assert "run `/sp-map-scan` followed by `/sp-map-build` before continuing" in checklist_lower
+        assert "stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in checklist_lower
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
         assert "recommend `/sp-plan`" in checklist_lower
         assert "recommend `/sp-analyze`" in checklist_lower

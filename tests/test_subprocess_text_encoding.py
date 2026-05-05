@@ -3,6 +3,11 @@ from pathlib import Path
 import subprocess
 
 
+class _FakeTextStream:
+    def __init__(self, encoding: str | None):
+        self.encoding = encoding
+
+
 def test_cli_run_command_capture_uses_explicit_utf8(monkeypatch):
     import specify_cli as cli_module
 
@@ -134,3 +139,21 @@ def test_source_subprocess_text_calls_use_explicit_utf8():
                 violations.append(f"{py_file.relative_to(project_root)}:{node.lineno}")
 
     assert violations == []
+
+
+def test_render_json_for_stdout_preserves_unicode_on_utf8_stream():
+    from specify_cli.cli_output import render_json_for_stdout
+
+    rendered = render_json_for_stdout({"summary": "demo ✅"}, stream=_FakeTextStream("utf-8"))
+
+    assert "✅" in rendered
+    assert "\\u2705" not in rendered
+
+
+def test_render_json_for_stdout_falls_back_to_ascii_for_gbk_stream():
+    from specify_cli.cli_output import render_json_for_stdout
+
+    rendered = render_json_for_stdout({"summary": "demo ✅"}, stream=_FakeTextStream("gbk"))
+
+    assert "✅" not in rendered
+    assert "\\u2705" in rendered

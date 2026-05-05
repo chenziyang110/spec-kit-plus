@@ -106,7 +106,9 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Keep it descriptive and action-oriented when possible.
 
 3. Create the feature branch by running the script once with `--json`/`-Json` and `--short-name`/`-ShortName`.
+   - Treat the live `specify --help` output as the only authoritative CLI command surface. Before suggesting or running any `specify <subcommand>` helper, verify it exists in `specify --help` or `specify <subcommand> --help`.
    - Treat `sp-specify` plus the generated create-feature script as the supported feature-creation path. Do not infer or recommend a separate branch-creation CLI family.
+   - Do not invent unsupported CLI names such as `specify create-feature`, even as a shorthand or guessed compatibility alias.
    - Before running the script, check if `.specify/init-options.json` exists and read `branch_numbering`.
    - If the value is `"timestamp"`, add `--timestamp` or `-Timestamp`.
    - If the value is `"sequential"` or missing, use default numbering.
@@ -141,11 +143,11 @@ Generate the pre-analysis output as the first section of `context.md`.
 4. Ensure repository navigation system exists.
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
-   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, run `/sp-map-scan` followed by `/sp-map-build` before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
+   - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
    - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
    - Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
-   - [AGENT] If the navigation system is missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If the navigation system is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Task-relevant coverage is insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - Treat task-relevant coverage as a coverage-model check, not just a file-presence check. Coverage is also insufficient when the handbook/project-map set cannot yet tell you:
      - owning surfaces and truth locations
@@ -153,7 +155,7 @@ Generate the pre-analysis output as the first section of `context.md`.
      - change-propagation hotspots
      - verification entry points
      - known unknowns or stale evidence boundaries
-   - [AGENT] If task-relevant coverage is insufficient for the current request, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If task-relevant coverage is insufficient for the current request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Treat `PROJECT-HANDBOOK.md` as the root navigation artifact and use `Topic Map` to choose the smallest relevant topical documents for the touched area.
 
 5. Load context.

@@ -54,11 +54,11 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "≤3 files touched" in content or "3 files touched" in content
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "run `/sp-map-scan` followed by `/sp-map-build` before the final report" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before the final report" in content
     assert "if a full refresh can be completed now" in content
     assert "complete-refresh" in content
     assert "manual override/fallback" in content
-    assert "highest-signal" in content
+    assert "skip all learning hooks" in content
     assert "skip all learning hooks" in content
     assert "pass the atlas gate" in content
 
@@ -99,8 +99,8 @@ def test_fast_template_marks_learning_and_fail_closed_routing_gates_with_agent_m
 
     assert "skip all learning hooks" in content
     assert "do not run learning start, signal, review, or capture" in content
-    assert "learning capture --command fast" in content
-    assert "highest-signal" in content
+    assert "learning capture --command fast" not in content
+    assert "skip all learning hooks" in content
 
 
 def test_fast_template_requires_tdd_gate_for_behavior_changes() -> None:

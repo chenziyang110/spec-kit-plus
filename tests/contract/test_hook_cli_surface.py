@@ -184,6 +184,79 @@ def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
     assert payload["data"]["checkpoint"]["forbidden_actions"] == ["edit source code"]
 
 
+def test_hook_validate_state_escapes_unicode_for_non_utf8_stdout(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: demo ✅",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    repo_root = Path(__file__).resolve().parents[2]
+    env = os.environ.copy()
+    pythonpath_entries = [str(repo_root / "src")]
+    if env.get("PYTHONPATH"):
+        pythonpath_entries.append(env["PYTHONPATH"])
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+    env["PYTHONIOENCODING"] = "gbk"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "specify_cli",
+            "hook",
+            "validate-state",
+            "--command",
+            "specify",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+        cwd=project,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "\\u2705" in result.stdout
+    payload = json.loads(result.stdout.strip())
+    assert payload["status"] == "ok"
+    assert payload["data"]["checkpoint"]["summary"] == "demo ✅"
+
+
 def test_hook_validate_state_supports_constitution_command(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"

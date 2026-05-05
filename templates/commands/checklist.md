@@ -60,7 +60,7 @@ Use `execution_surface: native-subagents`.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
 - [AGENT] Before the final report, when the checklist exposes a reusable requirement-quality gap that should influence future workflows and auto-capture did not preserve it, use the manual `learning capture` helper surface.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
-  Command shape: `specify learning capture --command checklist --type <workflow_gap|decision_debt|project_constraint> --summary "<summary>" --evidence "<evidence>"`
+  Command shape: `{{specify-subcmd:learning capture --command checklist --type <workflow_gap|decision_debt|project_constraint> --summary "<summary>" --evidence "<evidence>"}}`
 
 ## Execution Steps
 
@@ -71,12 +71,12 @@ Use `execution_surface: native-subagents`.
 2. **Read brownfield navigation context before shaping the checklist**
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
-   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If checklist-relevant coverage is stale for the current feature area, run `/sp-map-scan` followed by `/sp-map-build` before continuing.
+   - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If checklist-relevant coverage is stale for the current feature area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - [AGENT] Read `PROJECT-HANDBOOK.md`.
-   - [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated navigation artifacts.
+   - [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` when they shape the checklist focus, review audience, or scenario coverage.
-   - Treat this as a coverage-model check, not a file-presence check. If the current handbook/project-map set cannot tell you the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, run `/sp-map-scan` followed by `/sp-map-build` before continuing.
+   - Treat this as a coverage-model check, not a file-presence check. If the current handbook/project-map set cannot tell you the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
 
 3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
    - Be generated from the user's phrasing + extracted signals from spec/plan/tasks

@@ -26,6 +26,20 @@ workflow or passive skill in one concise line, then continue under that contract
 If the user already invoked the correct `sp-*` skill, treat this routing check as
 complete and proceed.
 
+## Command Surface Discipline
+
+Treat the live `specify --help` output as the only authoritative CLI command
+surface.
+
+Before suggesting or running a `specify <subcommand>` invocation, verify that it
+exists in `specify --help` or `specify <subcommand> --help`.
+
+Do not invent, paraphrase, or "normalize" unsupported CLI names such as
+`specify create-feature`.
+
+Feature creation must stay on `{{invoke:specify}}` plus the generated
+create-feature script, not an imagined standalone branch-creation command.
+
 ## Complementary Passive Skills
 
 - `spec-kit-project-map-gate` is the hard brownfield context gate. Workflow routing
@@ -119,6 +133,11 @@ user what to type:
 - Keep `sp-*` workflows as the visible daily surface. This passive skill should guide
   into them, not become a competing workflow.
 - If the user is already invoking the correct `sp-*` skill, do not redirect.
+- If a required next step is a user-invoked workflow entrypoint rather than an
+  in-workflow action, stop the current flow and tell the user exactly what to run.
+- Do not self-execute a different explicit `sp-*` workflow just because the current
+  workflow discovered a stale gate or missing prerequisite. Hand off by telling the
+  user to run the projected invocation, then wait.
 
 ## Red Flags
 

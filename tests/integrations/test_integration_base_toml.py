@@ -225,8 +225,8 @@ class TomlIntegrationTests:
             assert "atlas.entry" in content
             assert "atlas.index.status" in content
             assert "atlas.index.atlas" in content
-            assert "/sp-map-scan" in content
-            assert "/sp-map-build" in content
+            assert "map-scan" in content
+            assert "map-build" in content
 
     def test_map_scan_build_commands_require_native_explorer_lanes_when_selected(self, tmp_path):
         i = get_integration(self.KEY)

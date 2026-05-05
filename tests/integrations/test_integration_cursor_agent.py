@@ -83,5 +83,5 @@ def test_cursor_runtime_commands_hard_gate_project_map_reads(tmp_path):
         assert "atlas.entry" in content
         assert "atlas.index.status" in content
         assert "atlas.index.atlas" in content
-        assert "/sp-map-scan" in content
-        assert "/sp-map-build" in content
+        assert "map-scan" in content
+        assert "map-build" in content
