@@ -1161,9 +1161,11 @@ def test_context_template_exists_and_captures_planning_context():
     assert "## Claude Discretion" in content
     assert "## Canonical References" in content
     assert "## Existing Code Insights" in content
+    assert "## Change Propagation Matrix" in content
     assert "## Boundary Contracts and Lifecycle Notes" in content
     assert "## Configuration Surface" in content
     assert "## Specific User Signals" in content
+    assert "## Observer-Carried Risks" in content
     assert "## Outstanding Questions" in content
     assert "## Deferred / Future Ideas" in content
 
@@ -1645,9 +1647,12 @@ def test_alignment_template_exists():
     assert "## Locked Decisions For Planning" in content
     assert "## Engineering Closure For Planning" in content
     assert "## Capability Checkpoints" in content
+    assert "## Observer Gate" in content
+    assert "## Coverage Mode Outcomes" in content
     assert "## High-Impact Decision Forks" in content
     assert "## Artifact Review Gate" in content
     assert "## Outstanding Questions" in content
+    assert "## Planning-Critical Blockers" in content
     assert "## Planning Gate Recommendation" in content
     assert "## Release Decision" in content
     assert "Aligned: ready for plan" in content
@@ -1669,9 +1674,11 @@ def test_script_contracts_expose_context_artifact_paths():
     assert 'PROJECT_MAP_HELPER = (Join-Path $paths.REPO_ROOT ".specify/scripts/powershell/project-map-freshness.ps1")' in ps_check
     assert "context.md" in ps_check
     assert "CONTEXT = $paths.CONTEXT" in ps_setup
+    assert "SPECIFY_DRAFT = Join-Path $featureDir 'specify-draft.md'" in ps_common
     assert "FEATURE_DIR = $paths.FEATURE_DIR" in ps_setup
     assert "[string]$FeatureDir" in ps_setup
     assert "CONTEXT=%q\\n" in sh_common
+    assert "SPECIFY_DRAFT=%q\\n" in sh_common
     assert "find_feature_dir_from_lane_state" in sh_common
     assert "feature_specs_roots" in sh_common
     assert "Find-FeatureDirFromLaneState" in ps_common
@@ -1780,17 +1787,65 @@ def test_create_new_feature_scripts_scaffold_and_report_context():
     sh_create = _read("scripts/bash/create-new-feature.sh")
 
     assert "$contextFile = Join-Path $featureDir 'context.md'" in ps_create
+    assert "$specifyDraftFile = Join-Path $featureDir 'specify-draft.md'" in ps_create
     assert "Resolve-Template -TemplateName 'context-template'" in ps_create
+    assert "Resolve-Template -TemplateName 'specify-draft-template'" in ps_create
     assert "CONTEXT_FILE = $contextFile" in ps_create
+    assert "SPECIFY_DRAFT_FILE = $specifyDraftFile" in ps_create
     assert "FEATURE_DIR = $featureDir" in ps_create
     assert "LANE_ID = $laneId" in ps_create
     assert "LANE_WORKTREE = $laneWorktree" in ps_create
     assert 'CONTEXT_FILE="$FEATURE_DIR/context.md"' in sh_create
+    assert 'SPECIFY_DRAFT_FILE="$FEATURE_DIR/specify-draft.md"' in sh_create
     assert 'resolve_template "context-template"' in sh_create
+    assert 'resolve_template "specify-draft-template"' in sh_create
     assert '"CONTEXT_FILE":"%s"' in sh_create
+    assert '"SPECIFY_DRAFT_FILE":"%s"' in sh_create
     assert '"FEATURE_DIR":"%s"' in sh_create
     assert '"LANE_ID":"%s"' in sh_create
     assert '"LANE_WORKTREE":"%s"' in sh_create
+
+
+def test_specify_draft_template_and_feature_scripts_scaffold_draft_artifact():
+    draft_template = _read("templates/specify-draft-template.md")
+    sh_create = _read("scripts/bash/create-new-feature.sh")
+    ps_create = _read("scripts/powershell/create-new-feature.ps1")
+    sh_common = _read("scripts/bash/common.sh")
+    ps_common = _read("scripts/powershell/common.ps1")
+    pyproject = _read("pyproject.toml")
+
+    assert "# Specification Draft Ledger:" in draft_template
+    assert "## Recovery Capsule" in draft_template
+    assert "## Observer Findings" in draft_template
+    assert "SPECIFY_DRAFT_FILE" in sh_create
+    assert "specify-draft-template" in sh_create
+    assert "$specifyDraftFile = Join-Path $featureDir 'specify-draft.md'" in ps_create
+    assert "Resolve-Template -TemplateName 'specify-draft-template'" in ps_create
+    assert "SPECIFY_DRAFT=%q\\n" in sh_common
+    assert "SPECIFY_DRAFT = Join-Path $featureDir 'specify-draft.md'" in ps_common
+    assert '"templates/specify-draft-template.md" = "specify_cli/core_pack/templates/specify-draft-template.md"' in pyproject
+
+
+def test_specify_template_requires_draft_sync_observer_passes_and_coverage_escalation():
+    content = _read("templates/commands/specify.md")
+    observer_prompt = _read("templates/worker-prompts/specify-observer.md")
+    codex = _read("src/specify_cli/integrations/codex/__init__.py")
+    lowered = content.lower()
+
+    assert "specify-draft.md" in content
+    assert "create or resume `specify_draft_file` immediately after `feature_dir` is known" in lowered
+    assert "after every clarification answer, update `specify_draft_file`" in lowered
+    assert "observer should run at exactly three fixed points" in lowered
+    assert "coverage_mode: `core | full`" in content
+    assert "cross-module impact" in lowered
+    assert "external boundary, contract, or integration behavior" in lowered
+    assert "performance or capacity risk" in lowered
+    assert "must not declare `aligned: ready for plan`" in lowered
+    assert "# Specify Observer Worker Prompt" in observer_prompt
+    assert "missing_questions" in observer_prompt
+    assert "release_blockers" in observer_prompt
+    assert "sp-specify" in codex
+    assert "before capability closure" in codex.lower()
 
 
 def test_agent_file_template_captures_lane_recovery_rules():

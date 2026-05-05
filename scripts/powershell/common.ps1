@@ -296,6 +296,7 @@ function Get-FeaturePathsEnv {
         FEATURE_DIR   = $featureDir
         FEATURE_SPEC  = Join-Path $featureDir 'spec.md'
         CONTEXT       = Join-Path $featureDir 'context.md'
+        SPECIFY_DRAFT = Join-Path $featureDir 'specify-draft.md'
         IMPL_PLAN     = Join-Path $featureDir 'plan.md'
         TASKS         = Join-Path $featureDir 'tasks.md'
         RESEARCH      = Join-Path $featureDir 'research.md'

@@ -290,6 +290,7 @@ if ($branchName.Length -gt $maxBranchLength) {
 $featureDir = Join-Path $featuresDir $branchName
 $specFile = Join-Path $featureDir 'spec.md'
 $contextFile = Join-Path $featureDir 'context.md'
+$specifyDraftFile = Join-Path $featureDir 'specify-draft.md'
 $laneId = $branchName
 $laneWorktree = Join-Path $repoRoot ".specify/lanes/worktrees/$laneId"
 
@@ -364,6 +365,15 @@ if (-not $DryRun) {
         }
     }
 
+    if (-not (Test-Path -PathType Leaf $specifyDraftFile)) {
+        $specifyDraftTemplate = Resolve-Template -TemplateName 'specify-draft-template' -RepoRoot $repoRoot
+        if ($specifyDraftTemplate -and (Test-Path $specifyDraftTemplate)) {
+            Copy-Item $specifyDraftTemplate $specifyDraftFile -Force
+        } else {
+            New-Item -ItemType File -Path $specifyDraftFile -Force | Out-Null
+        }
+    }
+
     # Set the SPECIFY_FEATURE environment variable for the current session
     $env:SPECIFY_FEATURE = $branchName
 }
@@ -374,6 +384,7 @@ if ($Json) {
         FEATURE_DIR = $featureDir
         SPEC_FILE = $specFile
         CONTEXT_FILE = $contextFile
+        SPECIFY_DRAFT_FILE = $specifyDraftFile
         LANE_ID = $laneId
         LANE_WORKTREE = $laneWorktree
         FEATURE_NUM = $featureNum
@@ -388,6 +399,7 @@ if ($Json) {
     Write-Output "FEATURE_DIR: $featureDir"
     Write-Output "SPEC_FILE: $specFile"
     Write-Output "CONTEXT_FILE: $contextFile"
+    Write-Output "SPECIFY_DRAFT_FILE: $specifyDraftFile"
     Write-Output "LANE_ID: $laneId"
     Write-Output "LANE_WORKTREE: $laneWorktree"
     Write-Output "FEATURE_NUM: $featureNum"

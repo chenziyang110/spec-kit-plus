@@ -2,8 +2,8 @@
 description: Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.
 workflow_contract:
   when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
-  primary_objective: 'Produce the specification artifact set grounded in repository reality: `spec.md`, `alignment.md`, `context.md`, and supporting references when needed.'
-  primary_outputs: '`FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
+  primary_objective: 'Produce a planning-ready specification package grounded in repository reality, while preserving active discovery in `specify-draft.md`.'
+  primary_outputs: '`FEATURE_DIR/specify-draft.md`, `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
   default_handoff: '/sp.plan once planning-critical ambiguity and feasibility risk are reduced far enough; otherwise stay in clarification, recommend /sp.clarify, or route uncertain implementation chains through /sp.deep-research.'
 handoffs:
   - label: Build Technical Plan
@@ -119,6 +119,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Parse `BRANCH_NAME`, `SPEC_FILE`, `FEATURE_DIR`, `LANE_ID`, and `LANE_WORKTREE` from the JSON response.
    - Set `ALIGNMENT_FILE` to `FEATURE_DIR/alignment.md`.
    - Set `CONTEXT_FILE` to `FEATURE_DIR/context.md`.
+   - Set `SPECIFY_DRAFT_FILE` to `FEATURE_DIR/specify-draft.md`.
    - Set `REFERENCES_FILE` to `FEATURE_DIR/references.md`.
    - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
    - Register or refresh the lane immediately with `{{specify-subcmd:lane register --lane-id "$LANE_ID" --feature-dir "$FEATURE_DIR" --branch "$BRANCH_NAME" --worktree "$LANE_WORKTREE" --command specify}}`.
@@ -137,9 +138,9 @@ Generate the pre-analysis output as the first section of `context.md`.
      - `task_shaping_rules`
      - `required_evidence`
      - `transition_policy`
-     - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, workflow-state.md, checklists/requirements.md`
+     - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, specify-draft.md, workflow-state.md, checklists/requirements.md`
      - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
-     - `authoritative_files: spec.md, alignment.md, context.md, references.md`
+     - `authoritative_files: spec.md, alignment.md, context.md, references.md, specify-draft.md`
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
    - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
@@ -179,6 +180,38 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
    - Read user-supplied references, examples, or linked material when they materially affect the requirement package.
+
+## Draft Capture and Resume Discipline
+
+- [AGENT] Create or resume `SPECIFY_DRAFT_FILE` immediately after `FEATURE_DIR` is known.
+- Treat `SPECIFY_DRAFT_FILE` as the durable clarification ledger and resume anchor for `sp-specify`.
+- After every clarification answer, update `SPECIFY_DRAFT_FILE` before asking the next question.
+- Record at least: current capability, current stage, coverage mode, observer status, confirmed facts, low-risk inferences, unresolved items, recent Q/A disposition, and the next question target.
+
+## Observer Challenge Stage
+
+- The observer should run at exactly three fixed points:
+  1. once after initial framing and repository/context loading
+  2. once before each capability is marked sufficiently aligned
+  3. once before the final handoff decision
+- Use `.specify/templates/worker-prompts/specify-observer.md` as the default read-only observer contract whenever the current integration can dispatch a specify observer lane.
+- The observer output must be written into `SPECIFY_DRAFT_FILE`.
+- The leader must not ignore observer blockers; each blocker must be resolved, inferred, deferred, or force-carried explicitly.
+
+## Coverage Mode Escalation
+
+- Persist the coverage mode using the literal field syntax: coverage_mode: `core | full`.
+- Every capability begins in `coverage_mode: core`.
+- Upgrade the capability to `coverage_mode: full` when any of these triggers are present:
+  - cross-module impact
+  - external boundary, contract, or integration behavior
+  - migration or compatibility preservation
+  - asynchronous, event-driven, queue, or state-propagation behavior
+  - configuration-driven behavior
+  - security, permission, or trust-boundary semantics
+  - observability or rollback requirements
+  - performance or capacity risk
+- If a capability escalates to `full`, do not close it until the full matrix questions were answered or explicitly force-carried.
 
 6. Run a codebase scout before clarification.
    - Treat `PROJECT-HANDBOOK.md` as the default scout artifact for understanding the existing system shape.
@@ -656,6 +689,8 @@ For every profile decision, persist at least these fields for the active pass:
     - Do not present `{{invoke:plan}}` as ready until the written artifact set passes this gate.
 
     Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions. Do not release for cross-boundary or event-driven features when trigger source, contract identifiers, lifecycle/retention, failure path, or configuration semantics are still fuzzy.
+    You must not declare `Aligned: ready for plan` while planning-critical observer blockers remain untreated.
+    You must not declare `Aligned: ready for plan` when a high-risk capability escalated to `full` but only `core` coverage was recorded.
 
 20. Write `spec.md` to `SPEC_FILE` using the template structure.
     Requirements:

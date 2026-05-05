@@ -124,6 +124,137 @@ def _reference_implementation_workflow_state(active_profile: str = "reference-im
     )
 
 
+def _write_valid_specify_semantic_artifacts(feature_dir: Path) -> None:
+    (feature_dir / "alignment.md").write_text(
+        "# Alignment\n\n"
+        "## Observer Gate\n\n"
+        "- **Status**: completed\n\n"
+        "## Coverage Mode Outcomes\n\n"
+        "- **Capability**: Demo\n"
+        "- **Coverage mode**: core\n"
+        "- **Escalation triggers hit**: none\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "context.md").write_text(
+        "# Context\n\n"
+        "## Change Propagation Matrix\n\n"
+        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
+        "| --- | --- | --- | --- |\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "specify-draft.md").write_text(
+        "# Specification Draft Ledger: Demo\n\n"
+        "## Recovery Capsule\n\n"
+        "- current_capability: Demo\n\n"
+        "## Observer Findings\n\n"
+        "### Release Blockers\n\n"
+        "- none\n",
+        encoding="utf-8",
+    )
+
+
+def _write_valid_specify_workflow_state(feature_dir: Path, *, observer_status: str = "completed") -> None:
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: demo",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "- alignment.md",
+                "- context.md",
+                "- specify-draft.md",
+                "- workflow-state.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "- alignment.md",
+                "- context.md",
+                "- specify-draft.md",
+                "",
+                "## Resume Checklist",
+                "",
+                "- draft_file: `specify-draft.md`",
+                "- coverage_mode: `core`",
+                f"- observer_status: `{observer_status}`",
+                "- last_observer_pass: `capability-closure`",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_valid_reference_specify_workflow_state(feature_dir: Path) -> None:
+    workflow_state = _reference_implementation_workflow_state().rstrip() + "\n\n" + "\n".join(
+        [
+            "## Allowed Artifact Writes",
+            "",
+            "- spec.md",
+            "- alignment.md",
+            "- context.md",
+            "- specify-draft.md",
+            "- workflow-state.md",
+            "",
+            "## Forbidden Actions",
+            "",
+            "- edit source code",
+            "",
+            "## Authoritative Files",
+            "",
+            "- spec.md",
+            "- alignment.md",
+            "- context.md",
+            "- specify-draft.md",
+            "",
+            "## Resume Checklist",
+            "",
+            "- draft_file: `specify-draft.md`",
+            "- coverage_mode: `core`",
+            "- observer_status: `completed`",
+            "- last_observer_pass: `capability-closure`",
+            "",
+        ]
+    )
+    (feature_dir / "workflow-state.md").write_text(workflow_state, encoding="utf-8")
+    (feature_dir / "context.md").write_text(
+        "# Context\n\n"
+        "## Change Propagation Matrix\n\n"
+        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
+        "| --- | --- | --- | --- |\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "specify-draft.md").write_text(
+        "# Specification Draft Ledger: Demo\n\n"
+        "## Recovery Capsule\n\n"
+        "- current_capability: Demo\n\n"
+        "## Observer Findings\n\n"
+        "### Release Blockers\n\n"
+        "- none\n",
+        encoding="utf-8",
+    )
+
+
 def test_validate_artifacts_blocks_when_specify_outputs_are_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -141,6 +272,271 @@ def test_validate_artifacts_blocks_when_specify_outputs_are_missing(tmp_path: Pa
     assert any("context.md" in message for message in result.errors)
 
 
+def test_validate_artifacts_blocks_specify_when_draft_artifact_is_missing(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
+    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("specify-draft.md" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_recovery_capsule_is_missing(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "alignment.md").write_text(
+        "# Alignment\n\n## Observer Gate\n\n- **Status**: completed\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "context.md").write_text(
+        "# Context\n\n## Change Propagation Matrix\n\n"
+        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
+        "| --- | --- | --- | --- |\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (feature_dir / "specify-draft.md").write_text("# Specification Draft Ledger: Demo\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("Recovery Capsule" in message for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_full_coverage_trigger_lacks_evidence(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "alignment.md").write_text(
+        "# Alignment\n\n## Observer Gate\n\n- **Status**: completed\n\n"
+        "## Coverage Mode Outcomes\n\n"
+        "- **Capability**: Sync API\n"
+        "- **Coverage mode**: core\n"
+        "- **Escalation triggers hit**: cross-module impact\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "context.md").write_text(
+        "# Context\n\n## Change Propagation Matrix\n\n"
+        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
+        "| --- | --- | --- | --- |\n"
+        "| API | UI | reporting | medium |\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (feature_dir / "specify-draft.md").write_text(
+        "# Specification Draft Ledger: Demo\n\n"
+        "## Recovery Capsule\n\n"
+        "- current_capability: Sync API\n\n"
+        "## Observer Findings\n\n"
+        "### Release Blockers\n\n"
+        "- none\n",
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("full coverage" in message.lower() for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_observer_gate_is_blocked(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "alignment.md").write_text(
+        "# Alignment\n\n## Observer Gate\n\n- **Status**: blocked\n\n"
+        "## Coverage Mode Outcomes\n\n"
+        "- **Capability**: Demo\n"
+        "- **Coverage mode**: core\n"
+        "- **Escalation triggers hit**: none\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "context.md").write_text(
+        "# Context\n\n## Change Propagation Matrix\n\n"
+        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
+        "| --- | --- | --- | --- |\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: demo",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "- alignment.md",
+                "- context.md",
+                "- specify-draft.md",
+                "- workflow-state.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "- alignment.md",
+                "- context.md",
+                "- specify-draft.md",
+                "",
+                "## Resume Checklist",
+                "",
+                "- draft_file: `specify-draft.md`",
+                "- coverage_mode: `core`",
+                "- observer_status: `blocked`",
+                "- last_observer_pass: `capability-closure`",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "specify-draft.md").write_text(
+        "# Specification Draft Ledger: Demo\n\n"
+        "## Recovery Capsule\n\n"
+        "- current_capability: Demo\n\n"
+        "## Observer Findings\n\n"
+        "### Release Blockers\n\n"
+        "- unresolved consumer impact\n",
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("observer gate status as blocked" in message.lower() for message in result.errors)
+
+
+def test_validate_artifacts_blocks_specify_when_security_trigger_lacks_full_coverage(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "alignment.md").write_text(
+        "# Alignment\n\n## Observer Gate\n\n- **Status**: completed\n\n"
+        "## Coverage Mode Outcomes\n\n"
+        "- **Capability**: Auth Sync\n"
+        "- **Coverage mode**: core\n"
+        "- **Escalation triggers hit**: security, permission, or trust-boundary semantics\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "context.md").write_text(
+        "# Context\n\n## Change Propagation Matrix\n\n"
+        "| Change Surface | Direct Consumers | Indirect Consumers | Risk |\n"
+        "| --- | --- | --- | --- |\n"
+        "| auth | api | audit-log | high |\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: demo",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "- alignment.md",
+                "- context.md",
+                "- specify-draft.md",
+                "- workflow-state.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "- alignment.md",
+                "- context.md",
+                "- specify-draft.md",
+                "",
+                "## Resume Checklist",
+                "",
+                "- draft_file: `specify-draft.md`",
+                "- coverage_mode: `core`",
+                "- observer_status: `completed`",
+                "- last_observer_pass: `capability-closure`",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "specify-draft.md").write_text(
+        "# Specification Draft Ledger: Demo\n\n"
+        "## Recovery Capsule\n\n"
+        "- current_capability: Auth Sync\n\n"
+        "## Observer Findings\n\n"
+        "### Release Blockers\n\n"
+        "- none\n",
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("security, permission, or trust-boundary semantics" in message for message in result.errors)
+
+
 def test_validate_artifacts_blocks_reference_implementation_spec_without_fidelity_requirements(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -149,12 +545,8 @@ def test_validate_artifacts_blocks_reference_implementation_spec_without_fidelit
         "# Spec\n\n## User Scenarios\n\nDemo scenario.\n",
         encoding="utf-8",
     )
-    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
-    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
-    (feature_dir / "workflow-state.md").write_text(
-        _reference_implementation_workflow_state(),
-        encoding="utf-8",
-    )
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_reference_specify_workflow_state(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -181,12 +573,8 @@ The text also mentions ### Reference Object and ### Required Fidelity inline.
 """,
         encoding="utf-8",
     )
-    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
-    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
-    (feature_dir / "workflow-state.md").write_text(
-        _reference_implementation_workflow_state(),
-        encoding="utf-8",
-    )
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_reference_specify_workflow_state(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -205,12 +593,8 @@ def test_validate_artifacts_skips_reference_sections_when_profile_is_not_active(
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n\n## User Scenarios\n\nDemo scenario.\n", encoding="utf-8")
-    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
-    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
-    (feature_dir / "workflow-state.md").write_text(
-        _reference_implementation_workflow_state(active_profile="greenfield-api"),
-        encoding="utf-8",
-    )
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -241,12 +625,8 @@ def test_validate_artifacts_accepts_reference_implementation_spec_with_fidelity_
 """,
         encoding="utf-8",
     )
-    (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
-    (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
-    (feature_dir / "workflow-state.md").write_text(
-        _reference_implementation_workflow_state(),
-        encoding="utf-8",
-    )
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_reference_specify_workflow_state(feature_dir)
 
     result = run_quality_hook(
         project,

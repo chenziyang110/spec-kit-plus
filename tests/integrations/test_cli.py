@@ -467,6 +467,42 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert (scripts_dir / "common.sh").read_text(encoding="utf-8") == custom_content
         assert (templates_dir / "spec-template.md").read_text(encoding="utf-8") == custom_template
 
+        # New shared templates should still be installed
+        assert (templates_dir / "specify-draft-template.md").exists()
+
+    def test_init_installs_specify_draft_template(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "draft-template-install"
+        project.mkdir()
+        scripts_dir = project / ".specify" / "scripts" / "bash"
+        templates_dir = project / ".specify" / "templates"
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "codex",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert (project / ".specify" / "templates" / "specify-draft-template.md").exists()
+
         # Other shared files should still be installed
         assert (scripts_dir / "setup-plan.sh").exists()
         assert (templates_dir / "alignment-template.md").exists()

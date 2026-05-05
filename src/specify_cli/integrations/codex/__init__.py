@@ -131,8 +131,8 @@ class CodexIntegration(SkillsIntegration):
                 "- Use `spawn_agent` for bounded lanes when `dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
                 "- Launch all independent lanes in the current `parallel-subagents` wave before waiting.\n"
                 "- Use `leader-inline-fallback` only after recording why Codex native subagents are unavailable or unsafe.\n"
-                "- Suggested bounded lanes include repository and local context analysis, references analysis, and ambiguity/risk analysis.\n"
-                f"- Use `wait_agent` only at the documented join points before capability decomposition and before writing `spec.md`, `alignment.md`, and `context.md`.\n"
+                "- Suggested bounded lanes include repository and local context analysis, references analysis, ambiguity/risk analysis, and the read-only specify observer pass.\n"
+                f"- Use `wait_agent` only at the documented join points before capability decomposition, before capability closure, and before the final packet consistency pass.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
                 "- Keep the shared workflow language integration-neutral in user-visible output.\n"
             ),

@@ -66,6 +66,18 @@
 - **Boundary and non-goals**: [What stays inside this capability versus adjacent capabilities]
 - **Acceptance proof**: [What evidence would show this capability is implemented correctly]
 
+## Observer Gate
+
+- **Status**: [not-run | completed | blocked | revised]
+- **Last observer pass**: [global-entry | capability-closure | final-handoff]
+- **Contrarian candidate**: [strongest competing interpretation the observer surfaced]
+
+## Coverage Mode Outcomes
+
+- **Capability**: [Name]
+- **Coverage mode**: [core | full]
+- **Escalation triggers hit**: [List of triggers that forced full coverage]
+
 ## Feasibility / Deep Research Gate
 
 - **Gate status**: [Not needed | Needed before plan | Completed | Blocked]
@@ -100,6 +112,10 @@
 
 - [Planning-critical question that is still unresolved]
 - [If empty for normal completion, remove this section rather than writing "None"]
+
+## Planning-Critical Blockers
+
+- [Blocker] -> [Disposition: resolved | inferred | deferred | force-carried] -> [Why this disposition is acceptable]
 
 ## Remaining Risks
 
