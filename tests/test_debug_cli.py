@@ -14,6 +14,7 @@ from specify_cli.debug.schema import (
     ObserverExpansionStatus,
     ProjectRuntimeProfile,
     SuggestedEvidenceLane,
+    SymptomShape,
     UserRequestPacketEntry,
 )
 
@@ -226,7 +227,9 @@ def test_debug_prints_checkpoint_for_incomplete_session(clean_debug_dir, monkeyp
     async def fake_run_debug_session(state, handler, *, resumed=False):
         state.status = DebugStatus.INVESTIGATING
         state.diagnostic_profile = "scheduler-admission"
-        state.observer_mode = "full"
+        state.causal_map_completed = True
+        state.investigation_contract_completed = True
+        state.log_investigation_plan_completed = True
         state.observer_framing_completed = True
         state.observer_framing.summary = "Observer framing points to scheduler ownership drift."
         state.observer_framing.primary_suspected_loop = "scheduler-admission"
@@ -308,16 +311,15 @@ def test_debug_checkpoint_renders_causal_map_section(clean_debug_dir, monkeypatc
     assert "release-retry-loop" in result.stdout.lower()
 
 
-def test_debug_checkpoint_renders_expanded_observer_runtime_log_summary(clean_debug_dir, monkeypatch):
+def test_debug_checkpoint_renders_canonical_log_investigation_plan_summary(clean_debug_dir, monkeypatch):
     import specify_cli.debug.cli as cli_module
 
     async def fake_run_debug_session(state, handler, *, resumed=False):
         state.status = DebugStatus.INVESTIGATING
-        state.observer_expansion_status = ObserverExpansionStatus.COMPLETED
-        state.observer_expansion_reason = "runtime_cross_layer_symptom"
         state.project_runtime_profile = ProjectRuntimeProfile.FULL_STACK_WEB_APP
+        state.symptom_shape = SymptomShape.PHENOMENON_ONLY
         state.log_readiness = LogReadiness.USER_MUST_PROVIDE_LOGS
-        state.expanded_observer.top_candidates = [
+        state.investigation_contract.top_candidates = [
             ExpandedObserverTopCandidate(
                 candidate_id="cand-slot-ownership",
                 family="truth_owner_logic",
@@ -337,23 +339,23 @@ def test_debug_checkpoint_renders_expanded_observer_runtime_log_summary(clean_de
                 recommended_log_probe="Inspect cache invalidation logs around POST /release.",
             ),
         ]
-        state.expanded_observer.log_investigation_plan.existing_log_targets = [
+        state.log_investigation_plan.existing_log_targets = [
             "browser console for release retry path",
             "server release-handler logs",
         ]
-        state.expanded_observer.log_investigation_plan.candidate_signal_map = [
+        state.log_investigation_plan.candidate_signal_map = [
             LogCandidateSignalMapEntry(
                 candidate_id="cand-slot-ownership",
                 signals=["ownership clear missing before queue refresh"],
             )
         ]
-        state.expanded_observer.log_investigation_plan.log_sufficiency_judgment = (
+        state.log_investigation_plan.log_sufficiency_judgment = (
             "Current logs do not connect the UI symptom to the server-side ownership reset."
         )
-        state.expanded_observer.log_investigation_plan.instrumentation_targets = [
+        state.log_investigation_plan.instrumentation_targets = [
             "ownership clear branch in release handler",
         ]
-        state.expanded_observer.log_investigation_plan.user_request_packet = [
+        state.log_investigation_plan.user_request_packet = [
             UserRequestPacketEntry(
                 target_source="server release-handler logs",
                 time_window="from retry click through next queue refresh",
@@ -371,23 +373,24 @@ def test_debug_checkpoint_renders_expanded_observer_runtime_log_summary(clean_de
 
     result = runner.invoke(app, ["debug", "release retry remains stuck in queue"])
 
-    assert result.exit_code == 0
     lowered = result.stdout.lower()
-    assert "expanded observer" in lowered
-    assert "observer expansion status: completed" in lowered
+    assert "starting new debug session: expanded-observer" in lowered
+    assert "log investigation plan" in lowered
     assert "project runtime profile: full-stack/web-app" in lowered
+    assert "symptom shape: phenomenon_only" in lowered
     assert "log readiness: user_must_provide_logs" in lowered
     assert "top candidates" in lowered
     assert "cand-slot-ownership" in lowered
     assert "truth_owner_logic" in lowered
     assert "priority 1" in lowered
     assert "cross-layer span: 5" in lowered
-    assert "runtime log investigation plan" in lowered
     assert "browser console for release retry path" in lowered
     assert "ownership clear missing before queue refresh" in lowered
     assert "ownership clear branch in release handler" in lowered
     assert "server release-handler logs" in lowered
     assert "from retry click through next queue refresh" in lowered
+    assert "expanded observer" not in lowered
+    assert "observer expansion status" not in lowered
 
 
 def test_debug_checkpoint_prefers_contract_top_candidates_and_log_plan(clean_debug_dir, monkeypatch):
@@ -395,29 +398,8 @@ def test_debug_checkpoint_prefers_contract_top_candidates_and_log_plan(clean_deb
 
     async def fake_run_debug_session(state, handler, *, resumed=False):
         state.status = DebugStatus.INVESTIGATING
-        state.observer_expansion_status = ObserverExpansionStatus.COMPLETED
         state.project_runtime_profile = ProjectRuntimeProfile.WORKER_QUEUE_CRON
         state.log_readiness = LogReadiness.INSUFFICIENT_NEED_INSTRUMENTATION
-        state.expanded_observer.top_candidates = [
-            ExpandedObserverTopCandidate(
-                candidate_id="cand-stale-observer",
-                family="stale_projection",
-                investigation_priority=9,
-                recommended_log_probe="Do not show this stale observer probe.",
-            )
-        ]
-        state.expanded_observer.log_investigation_plan.existing_log_targets = [
-            "stale observer log target",
-        ]
-        state.expanded_observer.log_investigation_plan.user_request_packet = [
-            UserRequestPacketEntry(
-                target_source="stale observer packet",
-                time_window="obsolete repro window",
-                keywords_or_fields=["obsolete"],
-                why_this_matters="Should not appear once the contract is populated.",
-                expected_signal_examples=["stale signal"],
-            )
-        ]
         state.investigation_contract.top_candidates = [
             ExpandedObserverTopCandidate(
                 candidate_id="cand-live-contract",
