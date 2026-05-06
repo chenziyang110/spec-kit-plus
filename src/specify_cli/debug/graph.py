@@ -330,67 +330,20 @@ def _looks_cross_layer(state: DebugGraphState) -> bool:
     return any(token in combined for token in ("boundary", "publish", "projection", "cache", "queue", "worker", "backend"))
 
 
-def _non_converging_rounds(state: DebugGraphState) -> bool:
-    return len(state.eliminated) >= 2 or state.resolution.fail_count >= 2
-
-
-def _suggest_expanded_observer_if_needed(state: DebugGraphState) -> None:
-    if not _is_runtime_bug(state):
-        if state.observer_expansion_status is None:
-            state.observer_expansion_status = ObserverExpansionStatus.NOT_APPLICABLE
-        return
-
-    state.project_runtime_profile = _classify_project_runtime_profile(state)
-    state.symptom_shape = _classify_symptom_shape(state)
-    state.observer_framing.project_runtime_profile = state.project_runtime_profile
-    state.observer_framing.symptom_shape = state.symptom_shape
-
-    if state.observer_expansion_status in {
-        ObserverExpansionStatus.USER_DECLINED,
-        ObserverExpansionStatus.ENABLED,
-        ObserverExpansionStatus.COMPLETED,
-    }:
-        return
-
-    reason: str | None = None
-    if _non_converging_rounds(state):
-        reason = "hypothesis_not_converging"
-    elif _looks_cross_layer(state):
-        reason = "runtime_cross_layer_symptom"
-    elif state.symptom_shape == SymptomShape.PHENOMENON_ONLY:
-        reason = "runtime_phenomenon_symptom"
-    elif state.log_readiness in {
-        LogReadiness.INSUFFICIENT_NEED_INSTRUMENTATION,
-        LogReadiness.USER_MUST_PROVIDE_LOGS,
-    }:
-        reason = "runtime_logs_insufficient"
-
-    if reason:
-        state.observer_expansion_status = ObserverExpansionStatus.SUGGESTED
-        state.observer_expansion_reason = reason
-
-
-def _expanded_observer_confirmation_needed(state: DebugGraphState) -> bool:
-    return (
-        state.observer_expansion_status == ObserverExpansionStatus.SUGGESTED
-        and not state.causal_map_completed
-        and not state.contract_generation_completed
+def _sync_intake_completion(state: DebugGraphState) -> None:
+    state.observer_framing_completed = (
+        state.causal_map_completed
+        and state.investigation_contract_completed
+        and state.log_investigation_plan_completed
     )
 
 
-def _expanded_observer_confirmation_message(state: DebugGraphState) -> str:
-    runtime_profile = (
-        state.project_runtime_profile.value
-        if state.project_runtime_profile is not None
-        else "runtime investigation"
-    )
-    reason = state.observer_expansion_reason or "runtime symptom needs wider observer framing"
+def _legacy_reintake_message(state: DebugGraphState) -> str:
     return (
-        "Expanded observer is recommended before causal-map generation.\n"
-        f"- Runtime profile: {runtime_profile}\n"
-        f"- Reason: {reason}\n"
-        "- Ask the user whether to enable or decline expanded observer.\n"
-        "- Record the response by setting `observer_expansion_status` to `enabled` or `user_declined`, then continue."
+        "legacy-session-needs-reintake: this resumed session predates the canonical intake contract.\n"
+        "- Re-run Stage 1A causal mapping.\n"
+        "- Re-run Stage 1B contract and log-plan generation.\n"
+        "- Do not resume evidence collection or fixing until the canonical intake artifacts are rewritten."
     )
 
 
@@ -463,21 +416,6 @@ def _ensure_user_log_request_packet(state: DebugGraphState) -> None:
     )
     state.expanded_observer.log_investigation_plan.user_request_packet = [packet]
     state.investigation_contract.log_investigation_plan.user_request_packet = [packet]
-
-
-def _strong_low_level_evidence_present(state: DebugGraphState) -> tuple[bool, str | None]:
-    haystacks = [
-        state.trigger,
-        state.symptoms.errors,
-        state.symptoms.reproduction_command,
-        state.current_focus.next_action,
-    ]
-    text = " ".join(part.lower() for part in haystacks if part)
-    if state.symptoms.reproduction_command:
-        return True, "user supplied an explicit reproduction command"
-    if any(token in text for token in ("traceback", "stack trace", "panic:", "segfault", ".py:", "exception", "line ")):
-        return True, "user supplied strong low-level failure evidence"
-    return False, None
 
 
 def _observer_candidates_for_profile(profile: str) -> list[ObserverCauseCandidate]:
@@ -564,60 +502,6 @@ def _observer_candidates_for_profile(profile: str) -> list[ObserverCauseCandidat
             would_rule_out="Evidence that all observation layers agree and still reflect a control-plane failure.",
         ),
     ]
-
-
-# Deprecated: use think subagent via build_think_subagent_prompt() instead.
-# Kept for backward compatibility and testing.
-def _populate_observer_framing(state: DebugGraphState) -> None:
-    if state.observer_framing_completed:
-        return
-
-    profile = _debug_profile(state)
-    compressed, reason = _strong_low_level_evidence_present(state)
-    state.observer_mode = "compressed" if compressed else "full"
-    state.skip_observer_reason = reason if compressed else None
-
-    profile_summary = {
-        "scheduler-admission": "The issue most likely lives in a scheduler/admission control loop rather than only in a projection layer.",
-        "cache-snapshot": "The issue most likely involves stale observation state, snapshot invalidation, or cache refresh rather than immediate business logic alone.",
-        "ui-projection": "The issue most likely sits in a UI/projection boundary, publish step, or render/poll observation layer.",
-        "general": "The issue needs an outsider pass to identify the likely truth owner and failure boundary before evidence collection begins.",
-    }[profile]
-
-    first_probe = {
-        "scheduler-admission": "Verify queue, slot, and ownership-set transitions before reading implementation details.",
-        "cache-snapshot": "Compare authoritative state versus snapshot/refresh boundaries before chasing code-level fixes.",
-        "ui-projection": "Check whether the source-of-truth state is already wrong before blaming the render layer.",
-        "general": "Start by validating the owning layer and the first control-to-observation handoff.",
-    }[profile]
-
-    state.observer_framing.summary = profile_summary
-    state.observer_framing.primary_suspected_loop = profile
-    state.observer_framing.suspected_owning_layer = {
-        "scheduler-admission": "scheduler/admission control",
-        "cache-snapshot": "authoritative state + snapshot boundary",
-        "ui-projection": "publish/projection boundary",
-        "general": "truth-owning control layer",
-    }[profile]
-    state.observer_framing.suspected_truth_owner = state.observer_framing.suspected_owning_layer
-    state.observer_framing.recommended_first_probe = first_probe
-    state.observer_framing.missing_questions = [
-        "What exact user-visible symptom persists if we ignore implementation details and only describe the workflow break?",
-    ]
-    state.observer_framing.alternative_cause_candidates = _observer_candidates_for_profile(profile)
-
-    state.transition_memo.first_candidate_to_test = (
-        state.observer_framing.alternative_cause_candidates[0].candidate
-        if state.observer_framing.alternative_cause_candidates
-        else None
-    )
-    state.transition_memo.why_first = "It best matches the current outsider framing and offers the narrowest first evidence probe."
-    state.transition_memo.evidence_unlock = ["reproduction", "logs", "code", "tests", "instrumentation"]
-    state.transition_memo.carry_forward_notes = [
-        "Do not discard the observer framing when code-level evidence appears.",
-        "Treat later hypotheses as confirmations or eliminations of observer candidates, not as a fresh unframed search.",
-    ]
-    state.observer_framing_completed = True
 
 
 def _prioritized_file_prompt(state: DebugGraphState) -> str | None:
@@ -853,7 +737,7 @@ def _unique_strings(values: list[str]) -> list[str]:
 
 
 def _framing_gate_count_requirement(state: DebugGraphState) -> int:
-    return 2 if state.observer_mode == "compressed" else 3
+    return 3
 
 
 def _framing_gate_diversity_gaps(state: DebugGraphState) -> list[str]:
@@ -871,7 +755,7 @@ def _framing_gate_gaps(state: DebugGraphState) -> list[str]:
     candidates = state.observer_framing.alternative_cause_candidates
     gaps: list[str] = []
     family_count = len(set(state.causal_map.family_coverage))
-    minimum_family_count = 2 if state.observer_mode == "compressed" else 3
+    minimum_family_count = 3
     if family_count < minimum_family_count:
         gaps.append(
             f"Causal map must cover at least {minimum_family_count} distinct failure families before investigation."
@@ -1068,12 +952,12 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         ctx.state.current_node_id = "GatheringNode"
         ctx.state.project_runtime_profile = _classify_project_runtime_profile(ctx.state)
         ctx.state.symptom_shape = _classify_symptom_shape(ctx.state)
-        _suggest_expanded_observer_if_needed(ctx.state)
+        _sync_intake_completion(ctx.state)
 
-        if _expanded_observer_confirmation_needed(ctx.state):
+        if ctx.state.legacy_session_needs_reintake:
             return _await_input(
                 ctx.state,
-                _expanded_observer_confirmation_message(ctx.state),
+                _legacy_reintake_message(ctx.state),
             )
         
         # 1. Load context
@@ -1091,33 +975,28 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         if not ctx.state.causal_map_completed:
             prompt = build_think_subagent_prompt(ctx.state)
             ctx.state.think_subagent_prompt = prompt
-            continuation = (
-                "If `observer_expansion_status` is `enabled`, parse the returned `expanded_observer` container, "
-                "populate `expanded_observer`, `project_runtime_profile`, `symptom_shape`, and `log_readiness`, "
-                "then set `observer_expansion_status=completed` before continuing. "
-                if ctx.state.observer_expansion_status == ObserverExpansionStatus.ENABLED
-                else ""
-            )
             return _await_input(
                 ctx.state,
                 "Causal map needed. Spawn a think subagent with think_subagent_prompt. "
-                "Wait for its structured result, then parse the YAML block after '---' and populate "
-                "causal_map, observer_mode, and any observer summary fields it returned. "
-                f"{continuation}Set causal_map_completed=True and continue.",
+                "Wait for its structured result, then parse the YAML block after '---', populate "
+                "causal_map, set causal_map_completed=True, and continue.",
             )
 
         # 2B. Stage 1B: investigation contract
-        if not ctx.state.contract_generation_completed:
+        if (
+            not ctx.state.investigation_contract_completed
+            or not ctx.state.log_investigation_plan_completed
+        ):
             prompt = build_contract_subagent_prompt(ctx.state)
             ctx.state.contract_subagent_prompt = prompt
             return _await_input(
                 ctx.state,
-                "Investigation contract needed. Spawn a contract subagent with contract_subagent_prompt. "
-                "Wait for its structured result, then populate observer_framing, transition_memo, and "
-                "investigation_contract. Set contract_generation_completed=True and continue.",
+                "Investigation contract and log investigation plan needed. Spawn a contract subagent with contract_subagent_prompt. "
+                "Wait for its structured result, then populate observer_framing, transition_memo, investigation_contract, "
+                "and log_investigation_plan. Set investigation_contract_completed=True and log_investigation_plan_completed=True and continue.",
             )
 
-        ctx.state.observer_framing_completed = True
+        _sync_intake_completion(ctx.state)
 
         framing_gaps = _framing_gate_gaps(ctx.state)
         if framing_gaps:
@@ -1162,7 +1041,6 @@ class InvestigatingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         ctx.state.current_node_id = "InvestigatingNode"
         ctx.state.project_runtime_profile = _classify_project_runtime_profile(ctx.state)
         ctx.state.symptom_shape = _classify_symptom_shape(ctx.state)
-        _suggest_expanded_observer_if_needed(ctx.state)
         _ensure_user_log_request_packet(ctx.state)
 
         if ctx.state.investigation_contract.primary_candidate_id:
@@ -1248,7 +1126,6 @@ class FixingNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         ctx.state.current_node_id = "FixingNode"
         ctx.state.project_runtime_profile = _classify_project_runtime_profile(ctx.state)
         ctx.state.symptom_shape = _classify_symptom_shape(ctx.state)
-        _suggest_expanded_observer_if_needed(ctx.state)
         _ensure_user_log_request_packet(ctx.state)
         if not ctx.state.resolution.fix:
             return _await_input(
