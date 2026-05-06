@@ -374,14 +374,14 @@ Repeated failure does not reopen observer-shape choices. It upgrades downstream 
 - During `investigating`, the current candidate queue is the execution contract for the stage. The leader should not drift into unrelated freeform probing while the active primary candidate is still unresolved.
 - Candidate queue entries must be consumed explicitly: confirm them, rule them out, or deprioritize them with evidence. Do not let high-priority candidates silently disappear from the session.
 
-- During `investigating`, decide whether the current investigation can use subagent evidence collection before running multiple independent evidence-gathering actions sequentially.
+- During `investigating`, determine whether the current investigation has one or more safe evidence-collection lanes before running multiple independent evidence-gathering actions sequentially.
 - [AGENT] Use the shared policy function with the current capability snapshot: `choose_subagent_dispatch(command_name="debug", snapshot, workload_shape)`.
 - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
-- Treat `snapshot.delegation_confidence` as a runtime/model reliability signal. If confidence is `low`, prefer native-subagents or subagent-blocked status over brittle native fan-out.
+- Treat runtime safety as a dispatch-blocking decision. If a validated evidence lane cannot be packetized or dispatched safely, use `subagent-blocked` and stop instead of widening brittle native fan-out.
 - Debug routing decision order:
   - One safe validated evidence lane -> `one-subagent` on `native-subagents` when available.
-  - Two or more independent evidence lanes -> `parallel-subagents` on `native-subagents` when available.  - No safe lane, shared mutable state, missing contract, low confidence, or unavailable delegation -> `subagent-blocked` with a recorded reason.
-- Dispatch that single subagent only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality.
+  - Two or more independent evidence lanes -> `parallel-subagents` on `native-subagents` when available.  - No safe lane, shared mutable state, missing contract, incomplete packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
+- Dispatch that single subagent only when the evidence-lane contract is complete: probe intent, required evidence, authoritative inputs, and validation targets must all be recorded before dispatch.
 - If that subagent-readiness bar is not met, compile the missing evidence-lane contract before dispatch; if the lane cannot be made safe, record `subagent-blocked` and stop for escalation or recovery.
 - `parallel-subagents` means the leader dispatches bounded evidence-gathering subagents and rejoins at an explicit join point.
 - `native-subagents` means the leader uses the current runtime native subagent surface for dispatched evidence lanes.

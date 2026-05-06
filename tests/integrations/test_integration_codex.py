@@ -284,6 +284,12 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "must not edit implementation files directly while subagent execution is active" in content.lower()
     assert "wait for every subagent's structured handoff" in content.lower()
     assert "do not treat an idle subagent as done work" in content.lower()
+    assert "Mark `subagent-blocked` and stop if any dispatch-blocking runtime condition is present" in content
+    assert "Do not use leader-inline execution as a fallback for any dispatch-blocking condition." in content
+    assert "A lane is dispatch-ready only if its validated `WorkerTaskPacket` includes" in content
+    assert "If any required packet field is missing, do not dispatch and do not execute inline." in content
+    assert "The only legal action is to repair the packet or stop as `subagent-blocked`." in content
+    assert "Dispatch failure is not permission to continue locally." in content
 
 
 def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guidance(tmp_path):
@@ -301,7 +307,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skills_dir = target / ".codex" / "skills"
-    for skill_name in ("sp-specify", "sp-plan", "sp-test-scan", "sp-test-build", "sp-tasks"):
+    for skill_name in ("sp-specify", "sp-plan", "sp-tasks"):
         content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
         assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
@@ -314,6 +320,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert ".specify/memory/project-rules.md" in content
         assert ".specify/memory/project-learnings.md" in content
         assert ".planning/learnings/candidates.md" in content
+        assert "if collaboration is justified" not in content
+        assert "would benefit from them" not in content
+        assert "make the next path explicit" not in content
 
     implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert "execution_model: subagent-mandatory" in implement_content or "execution model: `subagents-first`" in implement_content
@@ -450,9 +459,11 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
 
     plan_content = (skills_dir / "sp-plan" / "SKILL.md").read_text(encoding="utf-8")
     assert "Add `Implementation Constitution`" in plan_content
+    assert "`Implementation Constitution` MUST be added if any one of the following conditions is true" in plan_content
     assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_content
     assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_content
     assert "Dispatch Compilation Hints" in plan_content
+    assert "heuristics" not in plan_content.lower()
 
     tasks_content = (skills_dir / "sp-tasks" / "SKILL.md").read_text(encoding="utf-8")
     assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_content
@@ -485,8 +496,8 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "workflow-state.md" in analyze_content
     assert "analysis-only" in analyze_content.lower()
     assert "`next_command: /sp.implement`" in analyze_content
-    assert "If the highest-impact issue lives in `spec.md` or `context.md`" in analyze_content
-    assert "has already started or finished" in analyze_content
+    assert "If the highest invalid stage is `clarify`" in analyze_content
+    assert "If the remaining issue is execution-only, the re-entry chain MUST begin at `$sp-implement` or `$sp-debug`." in analyze_content
 
 
 def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_path):
@@ -747,7 +758,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "crucial first step" in content
     assert "the next concrete action must be dispatch" in content or "once the first lane is chosen" in content
     assert "materially improve throughput" in content
-    assert "leader-inline-fallback" in content
+    assert "subagent-blocked" in content
     assert "join point" in content
     assert "leader" in content
     assert "wait for every subagent's structured handoff" in content

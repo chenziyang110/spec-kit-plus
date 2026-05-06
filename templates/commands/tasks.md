@@ -128,29 +128,29 @@ before task breakdown continues. Task generation may stay focused on the plan
 artifacts afterward, but it may not skip the atlas gate.
 
 4. **Execute task generation workflow**:
-    - [AGENT] Before task decomposition begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="tasks", snapshot, workload_shape)`
+    - [AGENT] Before task decomposition begins, split work only into the supported task-generation lanes: `story and phase decomposition`, `dependency graph analysis`, and `write-set and parallel-safety analysis`.
+    - [AGENT] Before dispatch begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="tasks", snapshot, workload_shape)`
     - Before emitting high-risk batches, classify whether they need extra review: `classify_review_gate_policy(workload_shape)`
     - The chosen dispatch shape applies to the **current ready batch**, not automatically to the entire feature or task graph.
     - Primary decomposition goal: maximize safe native-subagent throughput for later `sp-implement` runs by isolating write sets and turning ready work into a dispatch-ready lane packet instead of a vague checklist.
     - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
     - Decision order is fixed:
-      - One safe validated lane -> `one-subagent` on `native-subagents` when available.
-      - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.
-      - No safe lane, overlapping writes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason.
-    - If collaboration is justified, keep `tasks` lanes limited to:
-      - story and phase decomposition
-      - dependency graph analysis
-      - write-set and parallel-safety analysis
+      - If exactly one validated isolated lane exists, dispatch `one-subagent`.
+      - If two or more validated isolated lanes exist, dispatch `parallel-subagents`.
+      - If overlap or missing contract prevents safe dispatch, mark `subagent-blocked` and stop.
+    - Leader-only decomposition is forbidden once a validated lane exists.
+    - Task-generation collaboration is determined only by validated lane count and write-set isolation. Do not make a separate judgment about whether collaboration is justified.
     - Required join points:
       - before writing `tasks.md`
       - before emitting canonical parallel batches and join points
-    - Record the chosen strategy, reason, any blocked dispatch or escalation decision, selected lanes, and join points in the generated report and implementation strategy section.
+    - Record the chosen dispatch shape, blocked reason if any, selected lanes, and join points in the generated report and implementation strategy section.
     - Extract the active profile, activated gates, task-shaping rules, and required evidence obligations from `workflow-state.md`; `sp-tasks` consumes the same profile contract or active profile that `sp-specify`/`sp-plan` persisted, not a newly invented taxonomy.
     - Keep `sp-tasks` aligned with the persisted first-release profile contract: `active_profile` must be one of the two supported profiles, `Standard Delivery` or `Reference-Implementation`.
     - If `workflow-state.md` presents an unsupported `active_profile` during first release, `sp-tasks` stops before decomposition and tells the operator to repair/re-run upstream routing state before task generation continues.
     - Treat `Scenario profile inputs` as task-shaping inputs: active profile, routing reason, activated gates, fidelity obligations, deviation review requirements, and required evidence.
     - Load plan.md and extract tech stack, libraries, project structure
     - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
+    - If `Reference Fidelity Inputs` or `Reference Behavior Inventory` exist, map every preserved or redesigned reference behavior to at least one task, checkpoint, join point, or explicit deferred note before `tasks.md` is finalized.
     - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.) plus capability decomposition
     - If alignment.md exists: treat `Locked Decisions For Planning`, `Outstanding Questions`, and `Remaining Risks` as task-shaping inputs rather than historical notes
     - If `.specify/memory/constitution.md` exists: treat its MUST/SHOULD principles as task-shaping constraints and preserve them explicitly in execution ordering, validation tasks, or phase notes
@@ -161,7 +161,9 @@ artifacts afterward, but it may not skip the atlas gate.
     - If quickstart.md exists: extract validation scenarios that should appear as verification-oriented tasks or explicit task completion criteria
     - If active profile is `Reference-Implementation`, add explicit fidelity checkpoints before implementation batches that can materially change the reference-preserved surface. Each fidelity checkpoint must identify the preserved surface, the reference evidence to compare against, the validation command or manual check, and the pass condition.
     - If implementation may intentionally diverge from the reference contract, add a `Deviation Review` join point before downstream work continues. The join point must capture the divergence rationale, affected contract or reference surface, approval or re-planning requirement, and downstream task adjustments.
-    - **Missing design artifacts**: If plan.md's expected artifacts (data-model.md, contracts/, research.md) are absent and the feature would benefit from them, stop and recommend re-running `{{invoke:plan}}` instead of generating tasks from incomplete design context.
+    - **Missing design artifacts**: If any design artifact required by the current scope is missing, stop and route back to `{{invoke:plan}}`.
+    - Do not generate `tasks.md` from an artifact set that is missing required design inputs.
+    - Only optional artifacts may be absent without blocking task generation.
     - Generate tasks organized by user story (see Task Generation Rules below)
     - Whether or not `.specify/testing/TESTING_CONTRACT.md` exists, treat tests as default deliverables for behavior changes, bug fixes, and refactors
     - If the testing contract names required regression or coverage work for an affected module, preserve that requirement explicitly in the task list
@@ -189,6 +191,7 @@ artifacts afterward, but it may not skip the atlas gate.
     - Create parallel execution examples per user story
     - Validate task completeness (each user story has all needed tasks, independently testable)
     - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly instead of silently dropping it
+    - Validate reference behavior preservation: if a preserved or redesigned reference behavior exists in the spec/plan package, at least one task, checkpoint, or explicit deferred note must account for it before task generation can complete
 
     **Feature delivery shape**: Classify the whole task graph in plain language (e.g., `serial phases with intra-phase parallel batches`, `mostly sequential`, `pipeline-heavy`, `parallel-ready after foundational work`). If later batches are parallelizable but the current batch is not, state that explicitly.
 

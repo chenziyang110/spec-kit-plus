@@ -14,20 +14,27 @@ description: "Task list template for feature implementation"
 
 ## Planning Inputs
 
-- **Locked planning decisions**: Copy any non-negotiable implementation, compatibility, rollout, or validation constraints from `plan.md`, `spec.md`, and `alignment.md`
-- **Implementation constitution**: Carry forward architecture invariants, boundary ownership, forbidden drift, required references, and review focus from `plan.md`
-- **Scenario profile inputs**: Carry forward the active profile, profile-driven constraints, reference fidelity contract, allowed deviations, and required evidence from `plan.md`, `spec.md`, `alignment.md`, and `context.md`
+- **Locked planning decisions**: Copy every non-negotiable implementation, compatibility, rollout, or validation constraint from `plan.md`, `spec.md`, and `alignment.md`. Do not silently drop any locked decision.
+- **Implementation constitution**: Carry forward all architecture invariants, boundary ownership rules, forbidden drift, required references, and review focus from `plan.md`.
+- **Scenario profile inputs**: Record exactly one active profile and carry forward every profile-driven constraint, reference fidelity rule, allowed deviation rule, and required evidence obligation from `plan.md`, `spec.md`, `alignment.md`, and `context.md`.
+- **Reference fidelity inventory**: When the spec/plan package defines reference behavior inventory items, map every preserved or redesigned behavior to at least one task, checkpoint, or explicit deferred note.
 - **Alignment risks**: Carry forward unresolved but accepted risks so tasks can mitigate or explicitly acknowledge them
 - **Validation references**: Preserve `quickstart.md`, canonical references, and research-backed validation notes when they shape task ordering or completion criteria
 - Do not silently drop a locked planning decision; if it is deferred, say so explicitly in the phase or dependency notes
-- If a feature touches an established framework or boundary pattern, add explicit guardrail tasks before implementation begins
+- If a feature touches an established framework or boundary pattern, guardrail tasks MUST be added before implementation begins.
 
 ## Task Guardrail Index
 
 - Map each implementation task to the delegated-execution rules it inherits from `plan.md`, `tasks.md`, and `.specify/memory/constitution.md`
 - Keep the mapping compact and task-specific so packet compilation can resolve applicable hard rules without copying the full constitution into every task body
 - Include task-to-guardrail mapping entries such as ``T017 -> G-PRESERVE-BOUNDARY, G-VALIDATE-AUTH`` when subagent execution needs explicit execution constraints
-- For each `[P]` task or explicit parallel batch, include enough detail that the leader can compile a bounded subagent execution packet: objective, write set, required references, forbidden drift, validation command, and done condition
+- Every `[P]` task or explicit parallel batch MUST include enough detail for a bounded subagent execution packet: objective, write set, required references, forbidden drift, validation command, and done condition
+
+## Reference Fidelity Mapping
+
+- Map each preserved or redesigned reference behavior inventory item to the task IDs, checkpoints, or join points that carry it forward.
+- If a reference behavior is intentionally deferred, record that explicitly instead of silently omitting it.
+- If a reference behavior is intentionally redesigned, point to the task or review checkpoint that must acknowledge the divergence.
 
 ## Task Shaping Rules
 
@@ -37,9 +44,9 @@ description: "Task list template for feature implementation"
 - Stop decomposition once the current executable window is atomic.
 - Leave later phases at the coarser story or phase level when their exact shape depends on earlier join points, then refine them after the checkpoint instead of guessing too early.
 - Every task MUST carry the enriched subagent contract fields defined in the `sp-tasks` shell output contract: agent, depends_on, parallel_safe, context navigation table, scope boundaries (write_scope / read_scope / forbidden), expected outputs, anti_goals, acceptance criteria, verify commands, handoff format, and failure handling (retry_max, escalation).
-- Before finalizing a task, confirm the independent-executability gate: a single subagent, reading only this task body plus the pointed-to context files, can complete the work without asking the leader for clarification. If not, refine the task until it passes.
-- Fidelity Checkpoint: when the active profile has a reference fidelity contract, add an explicit checkpoint before implementation batches that can change fidelity-sensitive behavior, layout, workflow order, naming, or outputs.
-- Deviation Review: any task that intentionally departs from the reference object must name the allowed deviation, required evidence, reviewer or acceptance condition, and the downstream artifact where the decision is recorded.
+- Before finalizing a task, confirm the independent-executability gate: a single subagent, reading only this task body plus the pointed-to context files, can complete the work without asking the leader for clarification. If not, the task MUST be refined before `tasks.md` can be finalized.
+- If the active profile has a reference fidelity contract, add an explicit Fidelity Checkpoint before any implementation batch that can change fidelity-sensitive behavior, layout, workflow order, naming, or outputs.
+- Any task that intentionally departs from the reference object MUST name the allowed deviation, required evidence, reviewer or acceptance condition, and the downstream artifact where the decision is recorded.
 
 ## Format: `[ID] [P?] [Story] [Agent?] Description`
 

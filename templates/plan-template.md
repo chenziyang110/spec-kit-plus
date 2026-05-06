@@ -20,12 +20,37 @@
 - [Decision that must be preserved in downstream planning]
 - [Compatibility, workflow, rollout, or validation decision that cannot be silently dropped]
 
+## Reference Fidelity Inputs
+
+<!--
+  Include this section when the upstream spec package carries `Fidelity Requirements`.
+  The plan MUST restate the reference object, the required fidelity boundaries,
+  and the behavior-level inventory that downstream tasks must preserve or
+  explicitly re-approve when they diverge.
+-->
+
+### Reference Object
+
+- [Reference implementation or behavior source carried forward from spec.md]
+
+### Behavior-Level Fidelity Inventory
+
+- [Behavior ID] [Preserved / redesigned / deferred behavior] -> [Where the plan preserves or handles it]
+- [Behavior ID] [Boundary, lifecycle, failure-path, or compatibility behavior] -> [Where the plan preserves or handles it]
+
 ## Scenario Profile Inputs
 
 <!--
   Copy the active scenario profile and profile obligations from spec.md,
-  alignment.md, and context.md. If no special profile applies, record Standard
-  Delivery and the absence of extra profile-driven constraints.
+  alignment.md, and context.md.
+
+  The generated plan MUST record:
+  - exactly one active profile
+  - the source artifact that established that profile
+  - every profile-driven implementation constraint that downstream tasks and implementation must preserve
+
+  If no special profile applies, record `Standard Delivery` explicitly.
+  Do not omit this section or replace it with general prose.
 -->
 
 ### Active Profile
@@ -35,8 +60,8 @@
 
 ### Profile-Driven Implementation Constraints
 
-- [Profile obligation that changes implementation shape, task sequencing, or validation evidence]
-- [Reference fidelity contract, required evidence, or deviation rule that tasks and implementation must preserve]
+- [Profile obligation that MUST change implementation shape, task sequencing, validation evidence, or completion criteria]
+- [Reference fidelity contract, required evidence, or deviation rule that downstream tasks and implementation MUST preserve]
 
 ## Technical Context
 
@@ -59,11 +84,12 @@
 ## Implementation Constitution
 
 <!--
-  Promote architecture and boundary rules that implementation must not violate.
-  This section turns "technical background" into explicit execution constraints.
-  Use it for framework ownership, boundary patterns, forbidden rewrites, required
-  reference files, active profile obligations, reference fidelity contract terms,
-  and review checks that downstream task generation must preserve.
+  This section is the execution-rule surface for downstream task generation and implementation.
+
+  If the feature hits a boundary-sensitive or profile-sensitive condition, this section MUST make the constraint explicit.
+  Do not leave boundary rules, forbidden drift, required references, or fidelity obligations implicit in surrounding prose.
+
+  Downstream `sp-tasks` and `sp-implement` MUST be able to consume this section without reconstructing the rules from other artifacts.
 -->
 
 ### Architecture Invariants
@@ -94,8 +120,8 @@
 ## Dispatch Compilation Hints
 
 <!--
-  Record the minimum data a subagent execution packet compiler needs so
-  downstream execution never has to infer boundary rules from loose context.
+  Record the minimum mandatory data a subagent execution packet compiler needs.
+  Downstream execution MUST NOT infer these rules from loose context or surrounding prose.
 -->
 
 ### Boundary Owner

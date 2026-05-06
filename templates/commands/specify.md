@@ -212,7 +212,9 @@ Generate the pre-analysis output as the first section of `context.md`.
   6. `acceptance-and-completeness-gap-closure`
 - A domain may be marked `closed-by-existing-evidence` when the user input plus repository evidence already closes it strongly, but the workflow must still record that domain in order.
 - `question-batch` rules:
-  - ask at most three questions in a batch
+  - for heavy, reference-sensitive, or boundary-sensitive ambiguity, ask exactly one unresolved high-impact question per turn
+  - grouped questions are allowed only when the current domain is already narrowed to a local low-risk scope that does not change architecture, boundaries, or acceptance shape
+  - do not ask a second high-impact question before the first one is closed
   - keep each batch within one active domain
   - do not open the next domain until the current domain is closed or explicitly reopened and re-closed
 - `batch-adversarial-review` rules:
@@ -409,6 +411,7 @@ Generate the pre-analysis output as the first section of `context.md`.
      - Record user-approved flexibility under `Claude Discretion`.
      - Record cited specs, ADRs, examples, or policies under `Canonical References`.
      - Record out-of-scope ideas surfaced during clarification under `Deferred / Future Ideas`.
+     - If repository evidence or user intent indicates reference-preserving or rewrite-style work, add `Fidelity Requirements` to `spec.md` and record a behavior-level `Reference Behavior Inventory` rather than only a module or feature label.
      - Synthesize these decisions into `context.md` so downstream planning does not rely on reconstructing them from prose alone.
 
 18. Run a high-impact ambiguity scan.
@@ -562,7 +565,9 @@ Generate the pre-analysis output as the first section of `context.md`.
     - contradictions or capability drift between artifacts
     - missing capability checkpoints or weak acceptance proof
     - requirement-vs-implementation language drift
-    - If the selected strategy supports collaboration and the workload justified it, use one read-only reviewer lane to inspect the draft artifact set for the same failure modes.
+    - If the current artifact review is marked high-risk by the workflow's fixed review trigger, a read-only reviewer lane MUST run before handoff.
+    - If no high-risk review trigger is present, a reviewer lane MUST NOT be added.
+    - Review routing is condition-triggered, not preference-triggered.
     - If planning-critical issues are found, revise current artifacts, re-run validation (Step 25), and repeat this self-review.
 
     **B. User Confirmation**: Present a grouped recap covering goal, users and roles, scope boundaries, locked decisions, technical constraints, and outstanding questions.
@@ -601,16 +606,18 @@ Generate the pre-analysis output as the first section of `context.md`.
     - [Open question / confirmation still needed]
     ```
 
-    **C. Release Decision**: Decide exactly one:
-    - `Aligned: ready for plan` — use when: mandatory clarity gates are resolved, capability decomposition is bounded, no unresolved high-impact ambiguity remains, no `[NEEDS CLARIFICATION]` markers exist, the spec can be planned and tested coherently.
-    - `Force proceed with known risks` — use only when the user explicitly accepts that unresolved planning risk will be carried into downstream work.
-    - If neither condition is met, continue clarification.
+    **C. Release Decision**: Decide exactly one release state.
+    - If mandatory clarity gates are resolved, capability decomposition is bounded, no unresolved high-impact ambiguity remains, and no feasibility-proof gate is active, release state MUST be `Aligned: ready for plan` and `next_command` MUST be `/sp.plan`.
+    - If planning-critical ambiguity remains, release state MUST remain unresolved and `next_command` MUST be `/sp.clarify`.
+    - If requirements are clear enough but implementation feasibility is still unproven, release state MUST remain unresolved and `next_command` MUST be `/sp.deep-research`.
+    - `Force proceed with known risks` is valid only when the user explicitly accepts the named unresolved risks.
+    - No alternative next command is valid for the current state.
 
-    After the release decision is made, ask the user to review the written artifact set and make the next path explicit:
-    - proceed with `{{invoke:plan}}`
-    - revise current artifacts
-    - continue analysis with `{{invoke:clarify}}`
-    - prove feasibility with `{{invoke:deep-research}}`
+    After the release decision is made, ask the user to review the written artifact set and report the single valid next path for the current state.
+    - If `next_command = /sp.plan`, tell the user the package is ready for `{{invoke:plan}}`.
+    - If `next_command = /sp.clarify`, tell the user the package must continue through `{{invoke:clarify}}`.
+    - If `next_command = /sp.deep-research`, tell the user the package must continue through `{{invoke:deep-research}}`.
+    - If the user requests artifact edits, remain in `sp-specify`, update the artifacts, and repeat the artifact review gate. Do not emit a second alternative next command.
 
 26. Run an artifact review gate before handoff.
     - Review the written artifact set before handoff, not just the conversational understanding.
@@ -619,14 +626,11 @@ Generate the pre-analysis output as the first section of `context.md`.
       - contradictions or capability drift
       - missing capability checkpoints
       - requirement-vs-implementation drift
-    - If the selected strategy supports collaboration and the workload justified it, use one read-only reviewer lane to inspect the draft artifact set for the same failure modes.
+    - If the current artifact review is marked high-risk by the workflow's fixed review trigger, a read-only reviewer lane MUST run before handoff.
+    - If no high-risk review trigger is present, a reviewer lane MUST NOT be added.
+    - Review routing is condition-triggered, not preference-triggered.
     - If the review finds planning-critical issues, revise current artifacts, re-run validation, and repeat the artifact review gate.
-    - Ask the user to review the written artifact set before handoff and make the next path explicit:
-      - proceed with `{{invoke:plan}}`
-      - revise current artifacts
-      - continue analysis with `{{invoke:clarify}}`
-      - prove feasibility with `{{invoke:deep-research}}`
-    - If the user requests changes, update the artifact set, re-run validation, and repeat the artifact review gate.
+    - Ask the user to review the written artifact set before handoff. If the user requests changes, remain in `sp-specify`, update the artifacts, re-run validation, and repeat the artifact review gate. Do not present multiple downstream command options; report only the single valid `next_command` for the current state.
     - Do not present `{{invoke:plan}}` as ready until the written artifact set passes this gate.
 
     Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions. Do not release for cross-boundary or event-driven features when trigger source, contract identifiers, lifecycle/retention, failure path, or configuration semantics are still fuzzy.
@@ -682,7 +686,8 @@ Generate the pre-analysis output as the first section of `context.md`.
     - specific user signals that would change implementation shape
     - outstanding questions when force proceeding
     - deferred or future ideas
-    - enough implementation context that downstream planning does not need to reconstruct these decisions from prose scattered across other artifacts
+      - enough implementation context that downstream planning does not need to reconstruct these decisions from prose scattered across other artifacts
+      - fidelity requirements and reference behavior inventory when the feature is reference-sensitive or rewrite-style
 
 23. Write `references.md` to `REFERENCES_FILE` when any meaningful source material was used.
     It must include, for each retained source:

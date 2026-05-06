@@ -257,12 +257,14 @@ REFERENCE_IMPLEMENTATION_SPEC_REQUIRED_SECTIONS = (
     "## Fidelity Requirements",
     "### Reference Object",
     "### Required Fidelity",
+    "### Reference Behavior Inventory",
 )
 
 REFERENCE_IMPLEMENTATION_SECTION_HEADINGS = {
     "fidelity requirements": "## Fidelity Requirements",
     "reference object": "### Reference Object",
     "required fidelity": "### Required Fidelity",
+    "reference behavior inventory": "### Reference Behavior Inventory",
     "reference fidelity": "## Fidelity Requirements",
 }
 
@@ -715,6 +717,33 @@ def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
     return errors
 
 
+def _workflow_state_active_profile(feature_dir: Path) -> str:
+    workflow_state_path = feature_dir / "workflow-state.md"
+    if not workflow_state_path.exists() or not workflow_state_path.is_file():
+        return ""
+    workflow_state_content = workflow_state_path.read_text(encoding="utf-8", errors="replace")
+    match = re.search(r"(?im)^\s*-\s*active_profile\s*:\s*`?([^`\r\n]+)`?\s*$", workflow_state_content)
+    if not match:
+        return ""
+    return match.group(1).strip().lower()
+
+
+def _validate_reference_implementation_spec(feature_dir: Path) -> list[str]:
+    spec_path = feature_dir / "spec.md"
+    spec_content = spec_path.read_text(encoding="utf-8", errors="replace")
+    if (
+        _workflow_state_active_profile(feature_dir) != REFERENCE_IMPLEMENTATION_PROFILE
+        and "## Fidelity Requirements" not in spec_content
+    ):
+        return []
+
+    return _validate_markdown_contains(
+        spec_path,
+        REFERENCE_IMPLEMENTATION_SPEC_REQUIRED_SECTIONS,
+        "spec.md",
+    )
+
+
 def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
     command_name = normalize_command_name(str(payload.get("command_name") or ""))
     if command_name not in REQUIRED_ARTIFACTS:
@@ -752,6 +781,7 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
     validation_errors: list[str] = []
     if command_name == "specify":
         validation_errors.extend(_validate_specify_draft_artifacts(feature_dir))
+        validation_errors.extend(_validate_reference_implementation_spec(feature_dir))
     if command_name == "deep-research":
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":

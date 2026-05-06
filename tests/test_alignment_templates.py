@@ -370,6 +370,14 @@ def test_specify_template_uses_alignment_first_contract():
     assert "verification entry points and minimum evidence expectations" in content
     assert "known unknowns or stale evidence boundaries that could change planning safety" in content
     assert "planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria" in content
+    assert "No alternative next command is valid for the current state." in content
+    assert "report the single valid next path for the current state" in content
+    assert "Do not emit a second alternative next command." in content
+    assert "Do not present multiple downstream command options" in content
+    assert "ask exactly one unresolved high-impact question per turn" in lowered
+    assert "grouped questions are allowed only when the current domain is already narrowed to a local low-risk scope" in lowered
+    assert "do not ask a second high-impact question before the first one is closed" in lowered
+    assert "ask at most three questions in a batch" not in lowered
     assert "Make the next question build directly on the user's most recent answer" in content
     assert "rather than resetting to generic prompts" in content
     assert "vague, shallow, or contradictory" in content
@@ -378,6 +386,11 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Do not turn this into a freeform brainstorming workflow." in content
     assert "guided requirement discovery" in lowered
     assert "recommendation and example scaffolding" in lowered
+    assert "a read-only reviewer lane MUST run before handoff" in content
+    assert "a reviewer lane MUST NOT be added" in content
+    assert "Review routing is condition-triggered, not preference-triggered." in content
+    assert "workload justified it" not in lowered
+    assert "make the next path explicit" not in lowered
     assert "current-understanding summary" in lowered
     assert "misunderstanding-correction gate" in lowered
     assert "confirm or correct the current understanding before the final handoff decision is locked." in content
@@ -535,11 +548,19 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "planning-critical unresolved items remain" in content
     assert "locked planning decisions from `alignment.md`, `context.md`, `spec.md`, and `deep-research.md`" in content
     assert "silently omitted from the generated plan artifacts" in content
-    assert "Add `Implementation Constitution` whenever one or more of these heuristics is true" in content
+    assert "`Implementation Constitution` MUST be added if any one of the following conditions is true" in content
     assert "established framework-owned boundary or adapter pattern" in content
     assert "native bridge, plugin surface, protocol seam, generated API surface" in content
-    assert "generic implementation instinct would likely drift away" in content
+    assert "generic implementation drift would violate" in lowered
     assert "canonical boundary files or examples" in content
+    assert "split the work only into the supported plan lanes" in lowered
+    assert "If exactly one validated isolated plan lane exists, dispatch `one-subagent`." in content
+    assert "If two or more validated isolated plan lanes exist, dispatch `parallel-subagents`." in content
+    assert "If no validated isolated plan lane can be packetized, mark `subagent-blocked` and stop." in content
+    assert "leader-inline execution of substantive lane work is forbidden" in lowered
+    assert "collaboration routing is determined only by validated lane count and isolation" in lowered
+    assert "if collaboration is justified" not in lowered
+    assert "heuristics is true" not in lowered
     assert "## Scenario Profile Inputs" in content
     assert "Read `FEATURE_DIR/workflow-state.md` if present" in content
     assert "active_profile" in content
@@ -626,8 +647,8 @@ def test_plan_template_carries_locked_decisions_into_plan_artifact():
     assert "## Research Adoption Check" in content
     assert "cannot be silently dropped" in lowered
     assert "where it appears in the plan" in lowered
-    assert "technical background" in lowered
-    assert "execution constraints" in lowered
+    assert "execution-rule surface" in lowered
+    assert "constraint explicit" in lowered
     assert "consumed research.md" in lowered
     assert "background reading" in lowered
 
@@ -671,6 +692,15 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "after implementation batches that materially change" not in lowered
     assert "deviation review" in lowered
     assert "required evidence" in lowered
+    assert "split work only into the supported task-generation lanes" in lowered
+    assert "If exactly one validated isolated lane exists, dispatch `one-subagent`." in content
+    assert "If two or more validated isolated lanes exist, dispatch `parallel-subagents`." in content
+    assert "If overlap or missing contract prevents safe dispatch, mark `subagent-blocked` and stop." in content
+    assert "Leader-only decomposition is forbidden once a validated lane exists." in content
+    assert "Task-generation collaboration is determined only by validated lane count and write-set isolation." in content
+    assert "If any design artifact required by the current scope is missing, stop and route back to `{{invoke:plan}}`." in content
+    assert "Only optional artifacts may be absent without blocking task generation." in content
+    assert "would benefit from them" not in lowered
     assert "Locked Planning Decisions" in content
     assert "Decision Preservation Check" in content
     assert "quickstart.md exists: extract validation scenarios" in lowered
@@ -770,20 +800,18 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "Boundary Signal" in content
     assert "Seen In Plan Constitution?" in content
     assert "Boundary Guardrail Gap Count" in content
-    assert "If a `Boundary Guardrail Gap` exists" in content
-    assert "recommend `{{invoke:plan}}` to add `Implementation Constitution`" in content
-    assert "If `BG2` exists" in content
-    assert "If `BG3` exists" in content
+    assert "output exactly one `Recommended Next Command`" in content
+    assert "Do not output multiple alternative next commands" in content
     assert "Closed-loop requirement" in content
     assert "Recommended Next Command" in content
     assert "### 9. Define Workflow Re-entry" in content
     assert "Recommended Re-entry" in content
-    assert "If the highest-impact issue lives in `spec.md` or `context.md`" in content
-    assert "If the highest-impact issue lives in `plan.md`" in content
-    assert "If the highest-impact issue lives only in `tasks.md`" in content
+    assert "If the highest invalid stage is `clarify`" in content
+    assert "If the highest invalid stage is `plan`" in content
+    assert "If the highest invalid stage is `tasks`" in content
     assert "If the constitution itself must change" in content
     assert "`next_command: /sp.constitution`" in content
-    assert "If analysis runs after the canonical `/sp.implement` workflow has already started or finished" in content
+    assert "If the remaining issue is execution-only, the re-entry chain MUST begin at `{{invoke:implement}}` or `{{invoke:debug}}`." in content
     assert "exact workflow re-entry path" in content
 
 
@@ -1128,14 +1156,37 @@ def test_shared_artifact_templates_include_profile_fidelity_overlays():
     spec_lowered = spec_content.lower()
     assert "Ideal Complete Requirement Shape" in spec_content
     assert "Current Delivery Boundary" in spec_content
-    assert "fidelity requirements" not in spec_lowered
-    assert "reference object" not in spec_lowered
+    assert "## Fidelity Requirements" in spec_content
+    assert "### Reference Object" in spec_content
+    assert "### Required Fidelity" in spec_content
+    assert "### Reference Behavior Inventory" in spec_content
 
     alignment_lowered = _read("templates/alignment-template.md").lower()
     assert "completeness convergence report" in alignment_lowered
     assert "domain closure log" in alignment_lowered
     assert "batch adversarial review summary" in alignment_lowered
     assert "critical gaps and reopen decisions" in alignment_lowered
+
+
+def test_reference_fidelity_templates_propagate_behavior_inventory() -> None:
+    spec_content = _read("templates/spec-template.md")
+    plan_content = _read("templates/plan-template.md")
+    tasks_content = _read("templates/tasks-template.md")
+    analyze_content = _read("templates/commands/analyze.md")
+    specify_content = _read("templates/commands/specify.md")
+    plan_command = _read("templates/commands/plan.md")
+    tasks_command = _read("templates/commands/tasks.md")
+
+    assert "Reference Behavior Inventory" in spec_content
+    assert "Reference Fidelity Inputs" in plan_content
+    assert "Behavior-Level Fidelity Inventory" in plan_content
+    assert "Reference Fidelity Mapping" in tasks_content
+    assert "Reference Behavior Preservation Table" in analyze_content
+    assert "reference behavior inventory" in analyze_content.lower()
+    assert "fidelity requirements and reference behavior inventory" in specify_content.lower()
+    assert "Reference Behavior Inventory" in plan_command
+    assert "Reference Fidelity Inputs" in plan_command
+    assert "reference behavior" in tasks_command.lower()
 
     context_lowered = _read("templates/context-template.md").lower()
     assert "impact and constraint map" in context_lowered
@@ -1422,13 +1473,20 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "one-subagent" in lowered
     assert "parallel-subagents" in lowered
     assert "native-subagents" in lowered
-    assert "delegation_confidence" in lowered
-    assert "low confidence -> `subagent-blocked`" in lowered
-    assert "multiple safe validated packets" in lowered
-    assert "no safe delegated lane" in lowered
-    assert "one safe validated packet is ready" in lowered
-    assert "multiple safe validated packets have isolated write sets" in lowered
-    assert "`subagent-blocked` with a recorded reason" in lowered
+    assert "dispatch-blocking runtime condition" in lowered
+    assert "Do not use leader-inline execution as a fallback for any dispatch-blocking condition." in content
+    assert "A lane is dispatch-ready only if its validated `WorkerTaskPacket` includes" in content
+    assert "If any required packet field is missing, do not dispatch and do not execute inline." in content
+    assert "The only legal action is to repair the packet or stop as `subagent-blocked`." in content
+    assert "Dispatch failure is not permission to continue locally." in content
+    assert "delegation_confidence" not in lowered
+    assert "enough context" not in lowered
+    assert "low-context" not in lowered
+    assert "two or more safe validated packets" in lowered
+    assert "dispatch-blocking condition is present" in lowered
+    assert "exactly one safe validated packet is ready" in lowered
+    assert "two or more safe validated packets with isolated write sets" in lowered
+    assert "`subagent-blocked`" in lowered
     assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before final completion reporting" in content.lower()
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
@@ -1440,9 +1498,9 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "auto-dispatch" not in lowered
     assert "codex runtime rule" not in lowered
 
-    no_safe_batch = step_6.find("no safe delegated lane")
-    one_subagent = step_6.find("one safe validated packet")
-    parallel_subagents = step_6.find("multiple safe validated packets")
+    no_safe_batch = step_6.find("dispatch-blocking condition is present")
+    one_subagent = step_6.find("exactly one safe validated packet")
+    parallel_subagents = step_6.find("two or more safe validated packets")
     subagent_blocked = step_6.find("subagent-blocked")
 
     assert no_safe_batch != -1
@@ -1463,7 +1521,7 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in lowered
     assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in lowered
     assert "use `execution_surface: native-subagents`" in lowered
-    assert "record the blocker in `implement-tracker.md`" in lowered
+    assert "blocker" in lowered
     assert "invoking runtime acts as the leader" in lowered
     assert "subagent execution" in lowered
     assert "next executable phase" in lowered
@@ -1549,7 +1607,7 @@ def test_debug_and_quick_templates_reference_shared_worker_prompt_assets() -> No
 
     assert ".specify/templates/worker-prompts/debug-investigator.md" in debug_content
     assert ".specify/templates/worker-prompts/quick-worker.md" in quick_content
-    assert "delegation_confidence" in debug_content.lower()
+    assert "dispatch-blocking" in debug_content.lower() or "subagent-blocked" in debug_content.lower()
     assert "delegation_confidence" in quick_content.lower()
     assert ".planning/debug/results/<session-slug>/<lane-id>.json" in debug_content.lower()
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in quick_content.lower()

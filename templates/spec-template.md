@@ -21,11 +21,16 @@
 
 This layer captures the complete useful feature form.
 
-This layer captures the most complete useful version of the user's intended
-capability that the workflow could justify from discovery, domain expectations,
-and repository evidence. It should describe the full usable shape the feature
-would need in order to feel complete within the product's natural boundaries,
-even when the current delivery slice is narrower.
+This layer captures the most complete useful version of the intended capability
+that discovery and repository evidence support.
+
+For reference-sensitive or rewrite-style work, this section MUST expand
+compressed feature labels into the concrete behaviors, supporting flows, and
+exception handling that make the capability usable.
+
+Do not describe only a module name, subsystem label, or high-level feature tag
+when repository evidence shows the capability contains multiple distinct
+behaviors.
 
 ### Complete Capability Shape
 
@@ -42,17 +47,23 @@ even when the current delivery slice is narrower.
 ### Domain-Expected Completeness Checks
 
 - [Normal domain expectation that would make the feature incomplete if omitted]
-- [Boundary, permission, data, dependency, or downstream expectation]
-- [Acceptance-level expectation for a genuinely complete capability]
+- [Boundary, permission, data, dependency, lifecycle, or downstream expectation that must be preserved]
+- [Acceptance-level expectation for a genuinely complete capability rather than a surface-level label]
 
 ## Current Delivery Boundary
 
 This layer captures the current project-bound delivery boundary.
 
 This layer translates the ideal requirement shape into the bounded slice this
-repository should currently plan and deliver. It should preserve the intended
-outcome while making the project boundary, release scope, and explicit
-non-goals visible so planning does not silently overcommit.
+repository should currently plan and deliver.
+
+It MUST preserve the intended outcome while making explicit:
+- what behavior remains in scope
+- what behavior is intentionally deferred
+- what constraints narrow the current slice
+
+Do not collapse a multi-behavior capability into a single feature label without
+naming the specific behaviors included in the current slice.
 
 ### In Scope
 
@@ -110,12 +121,12 @@ non-goals visible so planning does not silently overcommit.
 
 ### Capability Map
 
-- **Capability 1**: [Name and purpose]
+- **Capability 1**: [Behavior-oriented capability name and purpose]
   Supports: [Scenario(s) or usage paths]
   Depends on: [Capability, precondition, reference, or existing workflow]
   Delivery note: [Whether it is core, enabling, follow-on, or validation-oriented]
 
-- **Capability 2**: [Name and purpose]
+- **Capability 2**: [Behavior-oriented capability name and purpose]
   Supports: [Scenario(s) or usage paths]
   Depends on: [Capability, precondition, reference, or existing workflow]
   Delivery note: [Whether it is core, enabling, follow-on, or validation-oriented]
@@ -178,6 +189,25 @@ non-goals visible so planning does not silently overcommit.
 
 - [Spec, ADR, policy, or repository doc downstream work must read]
 - [Reference example, compatibility note, or external contract that constrains delivery]
+
+## Fidelity Requirements
+
+Include this section only when the active workflow profile is `Reference-Implementation`.
+
+### Reference Object
+
+- [Existing implementation, workflow, artifact set, or runtime behavior that this feature must preserve or consciously replace]
+- [Canonical code/doc entry points that define the reference behavior]
+
+### Required Fidelity
+
+- [Behavior that must remain equivalent in the rewrite or adaptation]
+- [Allowed divergence boundary, if any, and how it must be acknowledged downstream]
+
+### Reference Behavior Inventory
+
+- [Behavior ID] [Behavior-oriented capability or sub-behavior drawn from the reference object] -> [preserve | redesign | defer]
+- [Behavior ID] [Trigger / lifecycle / failure-path / compatibility behavior drawn from the reference object] -> [preserve | redesign | defer]
 
 ### Deferred / Future Ideas
 

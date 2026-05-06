@@ -263,7 +263,7 @@ class MarkdownIntegrationTests:
         assert "Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready" in content
         assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
         assert "delegation surface contract" in lowered
-        assert "leader-inline-fallback" in lowered
+        assert "subagent-blocked" in lowered
         assert "dispatch only from validated `workertaskpacket`" in lowered
         assert "must not edit implementation files directly while subagent execution is active" in lowered
 

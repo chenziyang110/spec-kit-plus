@@ -51,7 +51,7 @@ If technical blockers arise (build errors, missing toolchain components, environ
 
 - **Hard rule:** The leader must not edit implementation files directly while subagent execution is active
 - Do **not** fall through from subagent dispatch into local self-execution just because the implementation looks feasible
-- Do not dispatch a low-context subagent just to satisfy a routing preference — compile the missing contract first
+- Do not dispatch a subagent when required packet fields or required references are missing — repair the packet first or stop as `subagent-blocked`
 - Do not bypass tracker truth, result handoffs, or verification gates
 - Do not declare completion because tasks look checked off if the implementation contract is not actually satisfied
 
@@ -377,15 +377,25 @@ until the atlas gate has passed.
    - Use the shared policy function before each batch with the current agent capability snapshot: `choose_subagent_dispatch(command_name="implement", snapshot, workload_shape)`
    - Also classify whether the current batch needs a review gate before the join point: `classify_review_gate_policy(workload_shape)`
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
-   - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for subagent dispatch. If confidence is `low`, record `subagent-blocked` with concrete evidence and stop the batch for escalation or recovery; do not execute the substantive work inline.
+   - Mark `subagent-blocked` and stop if any dispatch-blocking runtime condition is present:
+      - overlapping write sets
+      - missing required packet fields
+      - unavailable native subagent runtime
+      - invalid or unvalidated packet
+      - missing required references or validation gates
+   - Do not use leader-inline execution as a fallback for any dispatch-blocking condition.
    - Decision order (must match policy):
-      - If overlapping write sets, no safe delegated lane, missing packet, unavailable runtime, or low confidence -> `subagent-blocked` with a recorded reason.
-      - If one safe validated packet is ready and native subagents are available -> `one-subagent` on `native-subagents`.
-      - If multiple safe validated packets have isolated write sets and native subagents are available -> `parallel-subagents` on `native-subagents`.
-      - If native subagents are unavailable -> `subagent-blocked` with a recorded reason; durable orchestration is a separate workflow surface reserved for durable team state, not an ordinary implement recovery path.
-   - For implementation work, substantive implementation lanes must be delegated once the lane has a validated `WorkerTaskPacket` and enough context to preserve or improve on leader quality; the leader owns sequencing, review, and acceptance.
-   - If that subagent-readiness bar is not met, do not dispatch a low-context lane just to satisfy a routing preference; compile the missing packet contract first, then dispatch or mark the batch `subagent-blocked`.
-   - If subagent dispatch is unavailable or low-confidence for the current batch, use `subagent-blocked`, record the blocker in `implement-tracker.md`, and stop before substantive implementation until the blocker is resolved or explicitly escalated.
+       - If any dispatch-blocking condition is present, mark `subagent-blocked` and stop.
+       - If exactly one safe validated packet is ready and native subagents are available, dispatch `one-subagent`.
+       - If two or more safe validated packets with isolated write sets are ready and native subagents are available, dispatch `parallel-subagents`.
+       - No other dispatch outcome is valid.
+   - A lane is dispatch-ready only if its validated `WorkerTaskPacket` includes: objective, authoritative inputs, read scope, write scope, forbidden drift, validation checks, and done condition.
+   - If any required packet field is missing, do not dispatch and do not execute inline.
+   - The only legal action is to repair the packet or stop as `subagent-blocked`.
+   - Do not classify lane readiness by judgment alone. A lane is incomplete only when one or more required packet fields or required references are missing.
+   - If subagent dispatch is unavailable for the current batch, the only legal action is `subagent-blocked`.
+   - Dispatch failure is not permission to continue locally.
+   - Resume only after the blocking runtime or packet condition is explicitly repaired.
    - Re-evaluate subagent dispatch at every new parallel batch or join point instead of choosing once for the whole feature
    - Refine only the current executable window after each join point. Do not pre-expand later batches when their exact shape depends on current batch evidence.
    - Grouped parallelism is the default when multiple ready tasks have isolated write sets and stable upstream inputs.

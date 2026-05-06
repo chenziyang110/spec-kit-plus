@@ -162,6 +162,7 @@ Create internal representations (do not include raw artifacts in output):
 
 - **Requirements inventory**: For each Functional Requirement (FR-###) and Success Criterion (SC-###), record a stable key. Use the explicit FR-/SC- identifier as the primary key when present, and optionally also derive an imperative-phrase slug for readability (e.g., "User can upload file" → `user-can-upload-file`). Include only Success Criteria items that require buildable work (e.g., load-testing infrastructure, security audit tooling), and exclude post-launch outcome metrics and business KPIs (e.g., "Reduce support tickets by 50%").
 - **Locked decision inventory**: Collect locked decisions from `spec.md`, `context.md`, and `plan.md`, then track whether each one survives into the task layer
+- **Reference behavior inventory**: When `Fidelity Requirements` exist, collect each reference behavior item and track whether it survives into the plan and task layers
 - **Boundary-sensitivity inventory**: Record established boundary patterns, framework-owned surfaces, required implementation references, and any signal that this feature should carry explicit implementation guardrails
 - **User story/action inventory**: Discrete user actions with acceptance criteria
 - **Task coverage mapping**: Map each task to one or more requirements or stories (inference by keyword / explicit reference patterns like IDs or key phrases)
@@ -197,6 +198,7 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
 - Requirements with zero associated tasks
 - Tasks with no mapped requirement/story
 - Success Criteria requiring buildable work (performance, security, availability) not reflected in tasks
+- Preserved or redesigned reference behavior items with zero associated plan handling or task coverage
 
 #### F. Locked Decision Drift
 
@@ -270,6 +272,11 @@ Output a Markdown report (no file writes) with the following structure:
 | Locked Decision | In Context? | In Plan? | In Tasks? | Notes |
 |-----------------|-------------|----------|-----------|-------|
 
+**Reference Behavior Preservation Table:** (if any)
+
+| Behavior ID | In Spec Fidelity? | In Plan? | In Tasks? | Notes |
+|-------------|-------------------|----------|-----------|-------|
+
 **Boundary Guardrail Table:** (if any)
 
 | Boundary Signal | Seen In Spec/Context? | Seen In Plan Constitution? | Seen In Tasks Guardrails? | Notes |
@@ -291,27 +298,28 @@ Output a Markdown report (no file writes) with the following structure:
 
 ### 8. Provide Next Actions
 
-At end of report, output a concise Next Actions block:
+At the end of the report, output exactly one `Recommended Next Command` based on the highest invalid workflow stage.
 
-- If CRITICAL issues exist: Recommend resolving before `{{invoke:implement}}`
-- If only LOW/MEDIUM: User may proceed, but provide improvement suggestions
-- If a `Boundary Guardrail Gap` exists: explicitly recommend `{{invoke:plan}}` to add `Implementation Constitution`, then `{{invoke:tasks}}` if task guardrails must be regenerated
-- If `BG2` exists: explicitly recommend regenerating or editing `tasks.md` before implementation starts
-- If `BG3` exists: explicitly recommend updating implementation guidance before `{{invoke:implement}}` continues
-- Always include one explicit `Recommended Next Command` and, when upstream remediation is required, list the downstream commands that must be rerun before implementation can resume
-- Provide explicit command suggestions using invocation placeholders, e.g., "Run {{invoke:specify}} with refinement", "Run {{invoke:plan}} to adjust architecture", "Manually edit tasks.md to add coverage for 'performance-metrics'"
+- If the highest-impact unresolved issue lives in `spec.md` or `context.md`, `Recommended Next Command` MUST be `{{invoke:clarify}}`.
+- If the highest-impact unresolved issue is a clear requirement whose implementation chain is still unproven, `Recommended Next Command` MUST be `{{invoke:deep-research}}`.
+- If the highest-impact unresolved issue lives in `plan.md`, `Recommended Next Command` MUST be `{{invoke:plan}}`.
+- If the highest-impact unresolved issue lives only in `tasks.md`, `Recommended Next Command` MUST be `{{invoke:tasks}}`.
+- If no upstream artifact is invalid and the remaining issue is execution-only, `Recommended Next Command` MUST be `{{invoke:implement}}` or `{{invoke:debug}}`, whichever matches the recorded execution problem.
+- Do not output multiple alternative next commands for the same analysis result.
 
 ### 9. Define Workflow Re-entry
 
-After `Next Actions`, output a short `Recommended Re-entry` block that names the highest workflow stage that must be reopened and the minimum downstream regeneration path. Use this routing table:
+After `Next Actions`, output a short `Recommended Re-entry` block that names:
+- the single highest workflow stage that must be reopened
+- the minimum downstream regeneration path from that stage
 
-- If the highest-impact issue lives in `spec.md` or `context.md`: record canonical `/sp.clarify` (or a targeted manual spec/context edit), then `/sp.plan`, then `/sp.tasks`, then `/sp.analyze`, then `/sp.implement` as the re-entry chain.
-- If the highest-impact issue is a clear requirement with an unproven implementation chain: record canonical `/sp.deep-research`, then `/sp.plan`, then `/sp.tasks`, then `/sp.analyze`, then `/sp.implement` as the re-entry chain.
-- If the highest-impact issue lives in `plan.md`: record canonical `/sp.plan`, then `/sp.tasks`, then `/sp.analyze`, then `/sp.implement` as the re-entry chain.
-- If the highest-impact issue lives only in `tasks.md`: record canonical `/sp.tasks`, then `/sp.analyze`, then `/sp.implement` as the re-entry chain.
-- If the issues are limited to execution evidence, subagent execution packets, runtime handoff state, or implementation-only verification gaps with no upstream artifact drift: route to canonical `/sp.implement` or `/sp.debug` as appropriate
-- When presenting a manual re-entry path to the user, render those canonical routes as `{{invoke:clarify}}`, `{{invoke:deep-research}}`, `{{invoke:plan}}`, `{{invoke:tasks}}`, `{{invoke:analyze}}`, `{{invoke:implement}}`, or `{{invoke:debug}}` as appropriate.
-- If analysis runs after the canonical `/sp.implement` workflow has already started or finished, do not frame findings as informational only. Reopen the highest invalid stage, regenerate downstream artifacts, and treat the current implementation output as provisional until the re-entry path has been completed
+Rules:
+- If the highest invalid stage is `clarify`, the re-entry chain MUST be `{{invoke:clarify}} -> {{invoke:plan}} -> {{invoke:tasks}} -> {{invoke:analyze}} -> {{invoke:implement}}`.
+- If the highest invalid stage is `deep-research`, the re-entry chain MUST be `{{invoke:deep-research}} -> {{invoke:plan}} -> {{invoke:tasks}} -> {{invoke:analyze}} -> {{invoke:implement}}`.
+- If the highest invalid stage is `plan`, the re-entry chain MUST be `{{invoke:plan}} -> {{invoke:tasks}} -> {{invoke:analyze}} -> {{invoke:implement}}`.
+- If the highest invalid stage is `tasks`, the re-entry chain MUST be `{{invoke:tasks}} -> {{invoke:analyze}} -> {{invoke:implement}}`.
+- If the remaining issue is execution-only, the re-entry chain MUST begin at `{{invoke:implement}}` or `{{invoke:debug}}`.
+- Do not output multiple alternative re-entry chains for the same result.
 
 ### 9.5 Persist Workflow Gate Result
 

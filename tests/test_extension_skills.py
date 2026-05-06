@@ -345,7 +345,7 @@ class TestBuiltInSkillGeneration:
         assert re.search(r"`tasks`: explain .*concrete work", explain_tui)
         assert re.search(r"`implement`: explain .*progress.*current scope.*active risks", explain_tui)
         assert "choose_subagent_dispatch" in explain_body.lower()
-        assert "leader-inline-fallback" in explain_body.lower()
+        assert "packetized and dispatched safely" in explain_body.lower()
         assert "supporting artifact cross-check" in explain_body.lower()
         assert "before rendering the final explanation" in explain_body.lower()
 
@@ -476,15 +476,15 @@ class TestBuiltInSkillGeneration:
         assert "DP3" in analyze_body
         assert "Boundary Guardrail Table" in analyze_body
         assert "Boundary Guardrail Gap Count" in analyze_body
-        assert "If a `Boundary Guardrail Gap` exists" in analyze_body
+        assert "output exactly one `Recommended Next Command`" in analyze_body
         assert "Closed-loop requirement" in analyze_body
         assert "Recommended Re-entry" in analyze_body
         assert "This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`." in analyze_body
         assert "this command may update `workflow-state.md` to record the cleared or blocked gate result" in analyze_body.lower()
         assert "analysis-only" in analyze_body.lower()
         assert "`next_command: /sp.implement`" in analyze_body
-        assert "If the highest-impact issue lives in `spec.md` or `context.md`" in analyze_body
-        assert "If analysis runs after the canonical `/sp.implement` workflow has already started or finished" in analyze_body or "If analysis runs after" in analyze_body
+        assert "If the highest invalid stage is `clarify`" in analyze_body
+        assert "If the remaining issue is execution-only, the re-entry chain MUST begin at" in analyze_body
         assert "exact workflow re-entry path" in analyze_body
 
         scan_body = _body_without_frontmatter(skills_dir / "sp-map-scan" / "SKILL.md")
@@ -553,7 +553,7 @@ class TestBuiltInSkillGeneration:
         assert 'choose_subagent_dispatch(command_name="test-build"' in test_build_body.lower()
         assert "one-subagent" in test_build_body.lower()
         assert "parallel-subagents" in test_build_body.lower()
-        assert "leader-inline-fallback" in test_build_body.lower()
+        assert "validated `testbuildpacket` with all required fields" in test_build_body.lower()
         assert "native-subagents" in test_build_body.lower()
         assert "managed-team" in test_build_body.lower()
         assert "testbuildpacket" in test_build_body.lower()

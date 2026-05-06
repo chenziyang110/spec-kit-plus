@@ -89,7 +89,8 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "one-subagent" in content
     assert "parallel-subagents" in content
     assert "native-subagents" in content
-    assert "dispatch that single subagent only when the leader has already recorded enough context, probe intent, and evidence expectations to preserve quality" in content
+    assert "dispatch that single subagent only when the evidence-lane contract is complete" in content
+    assert "enough context" not in content
     assert 'choose_subagent_dispatch(command_name="debug"' in content
     assert "leader-led" in content
     assert "debug file" in content

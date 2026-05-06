@@ -178,39 +178,41 @@ gate.
    - Treat the `Planning Handoff` section in `deep-research.md` as a direct planning input, not a status note. Preserve its `PH-###` IDs, recommended approach, architecture implications, module boundaries, API/library choices, data flow notes, demo artifacts, validation implications, rejected options, and residual risks.
    - Use the `Evidence Quality Rubric` and `Planning Traceability Index` from `deep-research.md` to distinguish blocking constraints from informative context.
    - Treat `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` as active planning inputs, not descriptive appendix material
+   - If `spec.md` includes `Fidelity Requirements`, treat `Reference Object`, `Required Fidelity`, and `Reference Behavior Inventory` as mandatory planning inputs rather than optional background.
    - Treat `context.md` as the primary implementation-context artifact that captures downstream planning decisions explicitly
    - Treat `workflow-state.md` scenario profile fields as active planning inputs. The plan consumes the existing supported profile contract persisted by upstream routing.
    - Do not perform a second informal task classification pass; `sp-plan` consumes `active_profile`, `required_sections`, `activated_gates`, `task_shaping_rules`, `required_evidence`, and `transition_policy` from `workflow-state.md`.
    - Do not introduce a separate clarification command as the normal next step for routine planning readiness
-   - [AGENT] Before research or design fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="plan", snapshot, workload_shape)`
+   - [AGENT] Before plan synthesis begins, split the work only into the supported plan lanes: `research`, `data model`, `contracts`, and `quickstart and validation scenarios`.
+   - [AGENT] Before dispatch begins, assess the current agent capability snapshot and apply the shared policy contract: `choose_subagent_dispatch(command_name="plan", snapshot, workload_shape)`.
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
    - Decision order is fixed:
-     - One safe validated lane -> `one-subagent` on `native-subagents` when available.
-     - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.     - No safe lane, overlapping writes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason.
-   - If collaboration is justified, keep `plan` lanes limited to:
-     - research
-     - data model
-     - contracts
-     - quickstart and validation scenarios
+     - If exactly one validated isolated plan lane exists, dispatch `one-subagent`.
+     - If two or more validated isolated plan lanes exist, dispatch `parallel-subagents`.
+     - If no validated isolated plan lane can be packetized, mark `subagent-blocked` and stop.
+   - Once a validated lane exists, leader-inline execution of substantive lane work is forbidden.
+   - Collaboration routing is determined only by validated lane count and isolation. Do not make a separate judgment about whether collaboration is justified.
    - Required join points:
      - before final constitution and risk re-check
      - before writing the consolidated implementation plan
-   - Record the chosen strategy, reason, any blocked dispatch or escalation decision, selected lanes, and join points in the planning artifacts you generate.
+   - Record the chosen dispatch shape, blocked reason if any, selected lanes, and join points in the planning artifacts you generate.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
 6. **Execute the plan workflow** using the IMPL_PLAN template:
    - Fill Technical Context (mark unknowns as `NEEDS CLARIFICATION`)
    - Add `Implementation Constitution` using architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus from repository evidence
-    - Add `Implementation Constitution` whenever one or more of these heuristics is true:
+    - `Implementation Constitution` MUST be added if any one of the following conditions is true:
       - the feature touches an established framework-owned boundary or adapter pattern
       - the touched area is a native bridge, plugin surface, protocol seam, generated API surface, or other contract-heavy boundary
-      - a generic implementation instinct would likely drift away from the repository's existing pattern
+      - generic implementation drift would violate an existing repository pattern
       - the repository already has canonical boundary files or examples that implementers must inspect before changing code safely
+    - If none of those conditions is true, the plan MAY omit `Implementation Constitution`.
     - Add `Dispatch Compilation Hints` whenever subagent execution would be unsafe without an explicit boundary owner, packet references, validation gates, or task-level quality floor
    - Fill Constitution Check from the constitution
    - Add a `Scenario Profile Inputs` section using `workflow-state.md` when present, including `active_profile`, `required_sections`, `activated_gates`, `task_shaping_rules`, `required_evidence`, and `transition_policy`.
    - Add a `Profile-Driven Implementation Constraints` section when `workflow-state.md` records profile-specific implementation obligations.
    - If `active_profile` is `Reference-Implementation`, promote fidelity-preservation rules, reference-object constraints, allowed-drift limits, and required evidence into `Implementation Constitution` so implementers preserve the reference instead of treating it as background inspiration.
+   - When `Reference Behavior Inventory` exists, copy each preserved or redesigned behavior into `Reference Fidelity Inputs` and ensure the consolidated plan names where that behavior is preserved, redesigned, or explicitly deferred.
    - Add an `Input Risks From Alignment` section using remaining risks from `alignment.md`
    - Add a `Feasibility Evidence From Deep Research` section when `deep-research.md` exists, preserving proven chains, research-agent findings, spike evidence, constraints, rejected options, and residual risks
    - Add a `Planning Handoff From Deep Research` section when `deep-research.md` contains `Planning Handoff`, and translate that handoff into implementation strategy, architecture implications, module boundaries, API/library choices, data flow notes, validation implications, and plan-level risks

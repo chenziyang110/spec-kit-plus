@@ -35,14 +35,14 @@ def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
     assert "cursor leader gate" in content
     assert "cursor subagent execution" in content
     assert "dispatch `one-subagent` or `parallel-subagents` before broad leader-inline repository analysis" in content
-    assert "leader-inline-fallback" in content
+    assert "subagent-blocked" in content
     assert "read `.specify/memory/constitution.md` first if it exists" in content
     assert "do **not** perform broad repository analysis" in content
     assert "use cursor's native subagent path for bounded lanes when available" in content
     assert "the next concrete action must be dispatch" in content
     assert "materially improve throughput" in content
     assert "managed-team" in content
-    assert "leader-inline-fallback" in content
+    assert "subagent-blocked" in content
     assert "use cursor's native subagent path" in content
     assert "status.md" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content

@@ -111,6 +111,7 @@ def _reference_implementation_workflow_state(active_profile: str = "reference-im
             "  - Fidelity Requirements",
             "  - Reference Object",
             "  - Required Fidelity",
+            "  - Reference Behavior Inventory",
             "",
             "## Next Action",
             "",
@@ -685,7 +686,9 @@ def test_validate_artifacts_accepts_fixed_lifecycle_state_and_draft_contract(tmp
         "### Reference Object\n\n"
         "- Existing implementation\n\n"
         "### Required Fidelity\n\n"
-        "- Preserve behavior\n",
+        "- Preserve behavior\n\n"
+        "### Reference Behavior Inventory\n\n"
+        "- RB-001 Preserve primary checkout workflow -> preserve\n",
         encoding="utf-8",
     )
     _write_valid_specify_semantic_artifacts(feature_dir)
@@ -711,6 +714,7 @@ def test_validate_artifacts_requires_reference_implementation_sections_as_headin
 This prose mentions ## Fidelity Requirements but not as a heading.
 
 The text also mentions ### Reference Object and ### Required Fidelity inline.
+The text also mentions ### Reference Behavior Inventory inline.
 """,
         encoding="utf-8",
     )
@@ -760,6 +764,10 @@ def test_validate_artifacts_accepts_reference_implementation_spec_with_fidelity_
 ### Required Fidelity
 
 - Preserve request and response behavior.
+
+### Reference Behavior Inventory
+
+- RB-001 Preserve request workflow -> preserve.
 """,
         encoding="utf-8",
     )
@@ -774,6 +782,40 @@ def test_validate_artifacts_accepts_reference_implementation_spec_with_fidelity_
 
     assert result.status == "ok"
     assert result.errors == []
+
+
+def test_validate_artifacts_blocks_reference_implementation_spec_without_reference_behavior_inventory(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text(
+        """# Spec
+
+## Fidelity Requirements
+
+### Reference Object
+
+- Existing checkout behavior.
+
+### Required Fidelity
+
+- Preserve request and response behavior.
+""",
+        encoding="utf-8",
+    )
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_reference_specify_workflow_state(feature_dir)
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("Reference Behavior Inventory" in message for message in result.errors)
 
 
 def test_validate_artifacts_accepts_tasks_outputs_when_present(tmp_path: Path):
