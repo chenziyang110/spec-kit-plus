@@ -108,6 +108,36 @@ Treat `sp-specify` plus the generated create-feature script at
 feature-creation path. Do not look for or teach a separate branch-creation
 command family.
 
+`sp-specify` now follows a fixed heavy discovery lifecycle. It does not switch
+between lighter and heavier requirement-discovery modes based on inferred task
+shape. Before it decides whether to hand off to `plan`, `clarify`, or
+`deep-research`, it always runs these six stages in order:
+
+1. `intent-analysis`
+2. `intent-confirmation`
+3. `question-batch`
+4. `batch-adversarial-review`
+5. `completeness-audit`
+6. `final-handoff-decision`
+
+The fixed role set is:
+
+- `intent-analyst`
+- `adversarial-reviewer`
+- `completeness-auditor`
+
+The fixed requirement domains are:
+
+1. `goal-and-users`
+2. `triggers-and-primary-flow`
+3. `boundaries-and-non-goals`
+4. `failure-paths-exceptions-and-permissions`
+5. `dependencies-constraints-and-upstream-downstream-impact`
+6. `acceptance-and-completeness-gap-closure`
+
+In practice, this means `specify` treats even short requests as potentially
+incomplete and closes requirement gaps before planning.
+
 ```markdown
 /sp-specify Build an application that can help me organize my photos in separate photo albums. Albums are grouped by date and can be re-organized by dragging and dropping on the main page. Albums are never in other nested albums. Within each album, photos are previewed in a tile-like interface.
 ```
@@ -138,7 +168,7 @@ writes `.specify/prd-runs/<run-id>/` and does not automatically hand off to
 Use `clarify` only when an existing spec needs deeper analysis before planning.
 Use `deep-research` only when the requirements are clear but feasibility still needs proof before planning, for example an unproven API, library, integration, algorithm, performance envelope, or platform behavior. It can coordinate parallel research tracks and disposable demo spikes, then writes a traceable `Planning Handoff` with evidence IDs that `plan` must consume. Skip it for minor changes to an existing capability that already has a clear implementation path.
 Use `research` only as a compatibility alias for `deep-research`; it should route into the same gate and must not create separate workflow artifacts.
-When `specify` records an unproven implementation chain, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
+When `specify` records an unproven implementation chain after the fixed heavy discovery lifecycle completes, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
 
 ### Step 5: Break Down and Implement
 
