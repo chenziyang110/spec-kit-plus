@@ -390,6 +390,27 @@ class IntegrationBase(ABC):
 
         return content + "\n".join(lines) + "\n"
 
+    def _append_specify_fixed_heavy_guidance(
+        self,
+        *,
+        content: str,
+    ) -> str:
+        """Append fixed-heavy `sp-specify` lifecycle guidance when absent."""
+
+        marker = "## Fixed Heavy Discovery Lifecycle"
+        if marker in content:
+            return content
+
+        addendum = (
+            "\n"
+            "## Fixed Heavy Discovery Lifecycle\n\n"
+            "- `sp-specify` always follows the same six stages: `intent-analysis`, `intent-confirmation`, `question-batch`, `batch-adversarial-review`, `completeness-audit`, and `final-handoff-decision`.\n"
+            "- Use the fixed role set: `intent-analyst`, `adversarial-reviewer`, and `completeness-auditor`.\n"
+            "- Walk the fixed domain order: `goal-and-users`, `triggers-and-primary-flow`, `boundaries-and-non-goals`, `failure-paths-exceptions-and-permissions`, `dependencies-constraints-and-upstream-downstream-impact`, and `acceptance-and-completeness-gap-closure`.\n"
+            "- Do not teach adaptive routing semantics for `sp-specify` such as `active_profile`, coverage escalation modes, observer gates, or alternate fallback lifecycles.\n"
+        )
+        return content + addendum
+
     def _append_delegation_surface_contract(
         self,
         *,
@@ -1689,6 +1710,10 @@ class SkillsIntegration(IntegrationBase):
                 agent_name=agent_name.replace(" CLI", ""),
                 command_name=command_name,
             )
+            if command_name == "specify":
+                skill_content = self._append_specify_fixed_heavy_guidance(
+                    content=skill_content,
+                )
 
             # Write sp-<name>/SKILL.md
             skill_dir = skills_dir / skill_name

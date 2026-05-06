@@ -136,6 +136,7 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     text = _read_text(path)
     current_command = section_body(text, "Current Command")
     phase_mode = section_body(text, "Phase Mode")
+    fixed_lifecycle_state = section_body(text, "Fixed Lifecycle State")
     scenario_profile = section_body(text, "Scenario Profile")
     profile_obligations = section_body(text, "Profile Obligations")
     next_action = section_body(text, "Next Action")
@@ -151,6 +152,8 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     hidden_dependencies = section_body(text, "Hidden Dependencies")
     reusable_constraints = section_body(text, "Reusable Constraints")
 
+    fixed_state_kind = bool(fixed_lifecycle_state)
+
     return {
         "state_kind": "workflow-state",
         "path": str(path),
@@ -158,15 +161,26 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
         "status": extract_field(current_command, "status"),
         "phase_mode": extract_field(phase_mode, "phase_mode"),
         "summary": extract_field(phase_mode, "summary"),
-        "active_profile": extract_field(scenario_profile, "active_profile"),
-        "routing_reason": extract_field(scenario_profile, "routing_reason"),
-        "confidence_level": extract_field(scenario_profile, "confidence_level"),
-        "required_sections": extract_nested_bullets_by_label(profile_obligations, "required_sections"),
-        "activated_gates": extract_nested_bullets_by_label(profile_obligations, "activated_gates"),
-        "task_shaping_rules": extract_nested_bullets_by_label(profile_obligations, "task_shaping_rules"),
-        "required_evidence": extract_nested_bullets_by_label(profile_obligations, "required_evidence"),
-        "transition_policy": extract_field(profile_obligations, "transition_policy"),
-        "next_action": extract_first_nonempty_line(next_action),
+        **(
+            {}
+            if fixed_state_kind
+            else {
+                "active_profile": extract_field(scenario_profile, "active_profile"),
+                "routing_reason": extract_field(scenario_profile, "routing_reason"),
+                "confidence_level": extract_field(scenario_profile, "confidence_level"),
+                "required_sections": extract_nested_bullets_by_label(profile_obligations, "required_sections"),
+                "activated_gates": extract_nested_bullets_by_label(profile_obligations, "activated_gates"),
+                "task_shaping_rules": extract_nested_bullets_by_label(profile_obligations, "task_shaping_rules"),
+                "required_evidence": extract_nested_bullets_by_label(profile_obligations, "required_evidence"),
+                "transition_policy": extract_field(profile_obligations, "transition_policy"),
+            }
+        ),
+        "current_stage": extract_field(fixed_lifecycle_state, "current_stage"),
+        "current_domain": extract_field(fixed_lifecycle_state, "current_domain"),
+        "next_action": extract_field(fixed_lifecycle_state, "next_action")
+        or extract_first_nonempty_line(next_action),
+        "blocker_reason": extract_field(fixed_lifecycle_state, "blocker_reason"),
+        "final_handoff_decision": extract_field(fixed_lifecycle_state, "final_handoff_decision"),
         "next_command": extract_first_nonempty_line(next_command),
         "allowed_artifact_writes": extract_bullets(allowed_artifact_writes),
         "forbidden_actions": extract_bullets(forbidden_actions),
@@ -176,10 +190,16 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
         "worktree_path": extract_field(lane_context, "worktree_path"),
         "recovery_state": extract_field(lane_context, "recovery_state"),
         "last_stable_checkpoint": extract_field(lane_context, "last_stable_checkpoint"),
-        "draft_file": extract_field(resume_checklist, "draft_file"),
-        "coverage_mode": extract_field(resume_checklist, "coverage_mode"),
-        "observer_status": extract_field(resume_checklist, "observer_status"),
-        "last_observer_pass": extract_field(resume_checklist, "last_observer_pass"),
+        **(
+            {}
+            if fixed_state_kind
+            else {
+                "draft_file": extract_field(resume_checklist, "draft_file"),
+                "coverage_mode": extract_field(resume_checklist, "coverage_mode"),
+                "observer_status": extract_field(resume_checklist, "observer_status"),
+                "last_observer_pass": extract_field(resume_checklist, "last_observer_pass"),
+            }
+        ),
         "exit_criteria": extract_bullets(exit_criteria),
         "route_reason": extract_field(learning_signals, "route_reason"),
         "blocked_reason": extract_field(learning_signals, "blocked_reason"),

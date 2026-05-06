@@ -159,23 +159,13 @@ def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
                 "- active_command: `sp-specify`",
                 "- status: `active`",
                 "",
-                "## Phase Mode",
+                "## Fixed Lifecycle State",
                 "",
-                "- phase_mode: `planning-only`",
-                "- summary: demo",
-                "",
-                "## Scenario Profile",
-                "",
-                "- active_profile: `greenfield-api`",
-                "- routing_reason: Requirements create a new API boundary.",
-                "- confidence_level: `high`",
-                "",
-                "## Profile Obligations",
-                "",
-                "- required_sections:",
-                "  - API contract",
-                "- required_evidence:",
-                "  - Contract test output",
+                "- current_stage: `intent-confirmation`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `Confirm the current understanding summary with the user.`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
                 "## Allowed Artifact Writes",
                 "",
                 "- spec.md",
@@ -213,9 +203,11 @@ def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.state.validate"
     assert payload["status"] == "ok"
-    assert payload["data"]["checkpoint"]["summary"] == "demo"
-    assert payload["data"]["checkpoint"]["active_profile"] == "greenfield-api"
-    assert payload["data"]["checkpoint"]["required_sections"] == ["API contract"]
+    assert payload["data"]["checkpoint"]["current_stage"] == "intent-confirmation"
+    assert payload["data"]["checkpoint"]["current_domain"] == "goal-and-users"
+    assert payload["data"]["checkpoint"]["next_action"] == "Confirm the current understanding summary with the user."
+    assert payload["data"]["checkpoint"]["blocker_reason"] == "none"
+    assert payload["data"]["checkpoint"]["final_handoff_decision"] == "pending"
     assert payload["data"]["checkpoint"]["allowed_artifact_writes"] == ["spec.md"]
     assert payload["data"]["checkpoint"]["forbidden_actions"] == ["edit source code"]
 
@@ -316,10 +308,13 @@ def test_hook_validate_state_escapes_unicode_for_non_utf8_stdout(tmp_path: Path)
                 "- active_command: `sp-specify`",
                 "- status: `active`",
                 "",
-                "## Phase Mode",
+                "## Fixed Lifecycle State",
                 "",
-                "- phase_mode: `planning-only`",
-                "- summary: demo ✅",
+                "- current_stage: `intent-confirmation`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `Confirm the current understanding summary with the user ✅.`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
                 "",
                 "## Allowed Artifact Writes",
                 "",
@@ -372,7 +367,7 @@ def test_hook_validate_state_escapes_unicode_for_non_utf8_stdout(tmp_path: Path)
     assert "\\u2705" in result.stdout
     payload = json.loads(result.stdout.strip())
     assert payload["status"] == "ok"
-    assert payload["data"]["checkpoint"]["summary"] == "demo ✅"
+    assert payload["data"]["checkpoint"]["next_action"] == "Confirm the current understanding summary with the user ✅."
 
 
 def test_hook_validate_state_supports_constitution_command(tmp_path: Path):
@@ -1876,10 +1871,13 @@ def test_hook_workflow_policy_outputs_redirect_payload(tmp_path: Path):
                 "- active_command: `sp-specify`",
                 "- status: `active`",
                 "",
-                "## Phase Mode",
+                "## Fixed Lifecycle State",
                 "",
-                "- phase_mode: `planning-only`",
-                "- summary: draft specification",
+                "- current_stage: `question-batch`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `refine scope`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
                 "",
                 "## Allowed Artifact Writes",
                 "",
@@ -1951,10 +1949,13 @@ def test_hook_workflow_policy_accepts_prior_redirect_count(tmp_path: Path):
                 "- active_command: `sp-specify`",
                 "- status: `active`",
                 "",
-                "## Phase Mode",
+                "## Fixed Lifecycle State",
                 "",
-                "- phase_mode: `planning-only`",
-                "- summary: draft specification",
+                "- current_stage: `question-batch`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `refine scope`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
                 "",
                 "## Allowed Artifact Writes",
                 "",
@@ -2026,10 +2027,13 @@ def test_hook_workflow_policy_uses_persisted_redirect_count_when_flag_omitted(tm
                 "- active_command: `sp-specify`",
                 "- status: `active`",
                 "",
-                "## Phase Mode",
+                "## Fixed Lifecycle State",
                 "",
-                "- phase_mode: `planning-only`",
-                "- summary: draft specification",
+                "- current_stage: `question-batch`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `refine scope`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
                 "",
                 "## Allowed Artifact Writes",
                 "",
