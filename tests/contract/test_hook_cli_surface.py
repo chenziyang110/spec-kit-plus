@@ -929,6 +929,7 @@ def test_hook_validate_artifacts_blocks_prd_build_when_scan_package_is_missing(t
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
+    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
     (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
@@ -1057,6 +1058,7 @@ def test_hook_validate_artifacts_blocks_prd_build_when_scan_directories_are_empt
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
+    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
     (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
@@ -1099,6 +1101,7 @@ def test_hook_validate_artifacts_blocks_prd_build_when_scan_surfaces_are_files_n
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
+    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
     (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
@@ -1141,6 +1144,7 @@ def test_hook_validate_artifacts_blocks_prd_build_when_artifacts_and_checks_are_
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
+    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
     (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
@@ -1206,6 +1210,7 @@ def test_hook_validate_artifacts_blocks_prd_build_when_artifact_contracts_top_le
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
+    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
     (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
@@ -1501,22 +1506,47 @@ def test_prd_build_command_supports_python_module_entrypoint(tmp_path: Path):
         "{\"checks\": [{\"id\": \"CHK-007\"}]}\n",
         encoding="utf-8",
     )
+    (run_dir / "entrypoint-ledger.json").write_text("{\"entrypoints\": []}\n", encoding="utf-8")
+    (run_dir / "config-contracts.json").write_text("{\"configs\": []}\n", encoding="utf-8")
+    (run_dir / "protocol-contracts.json").write_text("{\"protocols\": []}\n", encoding="utf-8")
+    (run_dir / "state-machines.json").write_text("{\"machines\": []}\n", encoding="utf-8")
+    (run_dir / "error-semantics.json").write_text("{\"errors\": []}\n", encoding="utf-8")
+    (run_dir / "verification-surfaces.json").write_text("{\"surfaces\": []}\n", encoding="utf-8")
     (run_dir / "scan-packets").mkdir()
     (run_dir / "evidence").mkdir()
     (run_dir / "worker-results").mkdir()
     (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
     (run_dir / "evidence" / "api").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
+    (run_dir / "worker-results" / "lane-a.json").write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "paths_read": ["src/app.py"],
+                "unknowns": [],
+                "confidence": "high",
+                "recommended_ledger_updates": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     master_dir = run_dir / "master"
     master_dir.mkdir()
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
+    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
     (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
     (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
     (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    (exports_dir / "config-contracts.md").write_text("# Config Contracts\n", encoding="utf-8")
+    (exports_dir / "protocol-contracts.md").write_text("# Protocol Contracts\n", encoding="utf-8")
+    (exports_dir / "state-machines.md").write_text("# State Machines\n", encoding="utf-8")
+    (exports_dir / "error-semantics.md").write_text("# Error Semantics\n", encoding="utf-8")
+    (exports_dir / "verification-surface.md").write_text("# Verification Surface\n", encoding="utf-8")
+    (exports_dir / "reconstruction-risks.md").write_text("# Reconstruction Risks\n", encoding="utf-8")
 
     result = _run_module_in_project(project, ["prd-build", run_id, "--json"])
 
@@ -1624,22 +1654,47 @@ def test_hook_validate_artifacts_blocks_prd_build_when_critical_capability_is_no
         encoding="utf-8",
     )
     (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": [{\"id\": \"CHK-004\"}]}\n", encoding="utf-8")
+    (run_dir / "entrypoint-ledger.json").write_text("{\"entrypoints\": []}\n", encoding="utf-8")
+    (run_dir / "config-contracts.json").write_text("{\"configs\": []}\n", encoding="utf-8")
+    (run_dir / "protocol-contracts.json").write_text("{\"protocols\": []}\n", encoding="utf-8")
+    (run_dir / "state-machines.json").write_text("{\"machines\": []}\n", encoding="utf-8")
+    (run_dir / "error-semantics.json").write_text("{\"errors\": []}\n", encoding="utf-8")
+    (run_dir / "verification-surfaces.json").write_text("{\"surfaces\": []}\n", encoding="utf-8")
     (run_dir / "scan-packets").mkdir()
     (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
     (run_dir / "evidence").mkdir()
     (run_dir / "evidence" / "api").mkdir()
     (run_dir / "worker-results").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
+    (run_dir / "worker-results" / "lane-a.json").write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "paths_read": ["src/app.py"],
+                "unknowns": [],
+                "confidence": "high",
+                "recommended_ledger_updates": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     master_dir = run_dir / "master"
     master_dir.mkdir()
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
+    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
     (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
     (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
     (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    (exports_dir / "config-contracts.md").write_text("# Config Contracts\n", encoding="utf-8")
+    (exports_dir / "protocol-contracts.md").write_text("# Protocol Contracts\n", encoding="utf-8")
+    (exports_dir / "state-machines.md").write_text("# State Machines\n", encoding="utf-8")
+    (exports_dir / "error-semantics.md").write_text("# Error Semantics\n", encoding="utf-8")
+    (exports_dir / "verification-surface.md").write_text("# Verification Surface\n", encoding="utf-8")
+    (exports_dir / "reconstruction-risks.md").write_text("# Reconstruction Risks\n", encoding="utf-8")
 
     result = _invoke_in_project(
         project,
