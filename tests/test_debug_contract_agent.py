@@ -26,25 +26,6 @@ def test_build_contract_subagent_prompt_uses_canonical_intake_payload() -> None:
             candidate="Scheduler does not clear slot ownership on release",
         )
     ]
-    state.causal_map.dimension_scan.truth_owner_or_business_layer = "Scheduler owns slot state"
-    state.causal_map.candidate_board = [
-        ExpandedObserverCandidateBoardEntry(
-            candidate_id="cand-slot-ownership",
-            dimension_origin="truth_owner_or_business_layer",
-            family="truth_owner_logic",
-            candidate="Scheduler does not clear slot ownership on release",
-            why_it_fits="Queue remains blocked after release",
-            indirect_path="Surface success hides stale truth-owner state",
-            surface_vs_truth_owner_note="UI symptom is downstream of scheduler state",
-            light_scores=ExpandedObserverLightScores(
-                likelihood=4,
-                impact_radius=4,
-                falsifiability=3,
-                log_observability=2,
-            ),
-        )
-    ]
-
     prompt = build_contract_subagent_prompt(state)
 
     assert "cand-slot-ownership" in prompt
@@ -53,6 +34,7 @@ def test_build_contract_subagent_prompt_uses_canonical_intake_payload() -> None:
     assert "fix_gate_conditions" in prompt
     assert "project_runtime_profile: full-stack/web-app" in prompt
     assert "candidate_board:" in prompt
+    assert "dimension_scan:" in prompt
     assert "log_investigation_plan:" in prompt
     assert "expanded_observer:" not in prompt
     assert "observer_expansion_status" not in prompt

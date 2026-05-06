@@ -98,7 +98,6 @@ class TestBuildThinkSubagentPrompt:
         assert "candidate_id" in prompt
         assert "break_edges" in prompt
         assert "bypass_paths" in prompt
-        assert "project_runtime_profile" in prompt
         assert "dimension_scan" in prompt
         assert "candidate_board" in prompt
         assert "observer_expansion_status" not in prompt

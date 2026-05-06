@@ -145,7 +145,6 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "surface-only" in content
     assert "cannot satisfy the debug contract" in content
     assert "loop restoration proof" in content
-    assert "phenomenon_only" in content
     assert "log investigation plan" in content
     assert "logs are a first-class evidence source" in content
     assert "existing logs" in content

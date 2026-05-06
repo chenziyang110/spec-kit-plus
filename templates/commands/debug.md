@@ -108,9 +108,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
    - Announce the current status, current hypothesis, and immediate next action.
 
 3. **Run the Investigation Protocol**
-   - Move through the investigation stages below, starting with observer framing and the transition memo before evidence collection begins.
-   - **Hard gate**: Do not enter Stage 3 (`Reproduction Gate`) or perform any code, log, test, or repro action until the observer gate has passed.
-   - The observer gate passes only when the debug session records `observer_framing_completed: true`, `observer_mode`, the required `Observer Framing` fields, and the required `Transition Memo` fields.
+   - Move through the investigation stages below, starting with the mandatory intake contract before evidence collection begins.
+   - **Hard gate**: Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the debug session records `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true`.
    - Update the debug file before each action.
    - Append every confirmed finding to `Evidence`.
    - Append every disproven theory to `Eliminated`.
@@ -153,7 +152,7 @@ or source-code reads begin.
 
 ## Investigation Protocol
 
-### Observer Framing Inputs
+### Intake Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
 - Check whether `.specify/project-map/index/status.json` exists.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
@@ -170,34 +169,40 @@ or source-code reads begin.
 - Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
 - Read `.specify/memory/project-learnings.md` if present before forming or validating a fix.
 - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to the failing area so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
-- Observer framing is performed by a **think subagent** (dispatched automatically by the graph engine at Stage 1). The constraints below apply to that subagent, not to the leader.
+- The causal map is produced by a **think subagent** (dispatched automatically by the graph engine at Stage 1A). The constraints below apply to that subagent, not to the leader.
 - During observer framing, the think subagent must not read source files, test files, log files, or feature-specific planning artifacts such as `spec.md`, `plan.md`, `tasks.md`, or `context.md`.
 - The think subagent must not read test files or test outputs; save those for the investigator phase.
 - The think subagent must not inspect logs or runtime output; keep the analysis at the system-map level.
 - The think subagent must not run reproduction commands, test commands, or instrumentation.
 - The think subagent uses only the user report plus the current system map to reason about likely owning layers, truth owners, workflow boundaries, and possible failure loops.
-- The think subagent can recommend enabling expanded observer when the issue is a runtime bug, a phenomenon-only report, or a cross-layer symptom where logs must later separate multiple plausible truth-owning candidates.
-- If the user already supplied strong low-level evidence such as a full stack trace, explicit failing command, explicit failing file, explicit repro command, or precise error text with location, use **compressed observer framing** rather than skipping the observer stage.
 - If critical information is still missing during observer framing, ask at most one concise missing-information question before moving on.
 
 {{spec-kit-include: ../command-partials/common/pre-analysis-protocol.md}}
 
-## Fast-Path Gate (before Observer Framing)
+## Mandatory Intake Contract
 
-Check these three conditions. If ALL are true, you may fast-path past the think subagent:
+All new `sp-debug` sessions follow this fixed intake path:
 
-1. **Exact error location known**: File path + line number or function name
-2. **Clear reproduction steps**: User provided or trivially inferable
-3. **Impact surface bounded**: Single module, no cross-module IPC or shared state
+`Stage 1A Causal Map -> Stage 1B Investigation Contract + Log Investigation Plan -> Evidence Investigation -> Fixing -> Verifying -> Human Verify`
 
-If fast-path: manually set `observer_framing_completed: true`, fill minimal `observer_framing` fields, record `observer_mode: compressed` with `skip_observer_reason`, then re-enter GatheringNode — the graph engine will skip the think-subagent gate and proceed to Stage 3 (Reproduction Gate).
+Canonical stage map:
 
-Record: "Fast-path: error at [location], repro [steps], impact bounded to [module]."
-If not: proceed to Stage 1 (Observer Framing).
+- `Stage 1A: Causal Map`
+- `Stage 1B: Investigation Contract + Log Investigation Plan`
+- `Stage 2: Evidence Investigation`
+- `Stage 3: Fix`
+- `Stage 4: Verify`
 
-### Stage 1: Observer Framing
+Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the session records all of the following:
 
-This stage is now split into Stage 1A and Stage 1B, but remains the same top-level observer-framing phase for workflow semantics.
+- `causal_map_completed: true`
+- `investigation_contract_completed: true`
+- `log_investigation_plan_completed: true`
+- `observer_framing_completed: true`
+
+Repeated failure does not reopen observer-shape choices. It upgrades downstream investigation strength only, including `root_cause` mode and stronger instrumentation requirements.
+
+### Stage 1: Mandatory Intake
 
 ### Stage 1A: Causal Map (Think Subagent)
 
@@ -206,52 +211,35 @@ This stage is now split into Stage 1A and Stage 1B, but remains the same top-lev
   1. Dispatch a think subagent with the exact prompt text (use your runtime's subagent dispatch mechanism).
   2. Wait for the subagent's structured result.
   3. The result is hybrid: free-text analysis followed by `---` and a YAML block.
-  4. Parse the YAML block after `---` and populate the `causal_map` fields plus `observer_mode`.
-  5. Set `observer_mode: full` (unless the subagent output indicates `compressed` with a `skip_observer_reason`).
+  4. Parse the YAML block after `---` and populate `causal_map`, including `dimension_scan` and `candidate_board`.
+  5. Set `causal_map_completed: true`.
 - The think subagent produces a causal map based on the user report plus the current system map. It does NOT read source code, logs, or run commands.
-- Optional expanded observer: when the issue is a runtime bug, `phenomenon_only`, or looks cross-layer, recommend enabling expanded observer so the observer output also includes project runtime profiling, a widened candidate board, top candidates, and a `log_investigation_plan` log investigation plan.
-- Recommend enabling expanded observer when any of these hold:
-  - the report is runtime behavior rather than a compile/static failure,
-  - the symptom is described mainly as a phenomenon rather than an exact failing location,
-  - the likely truth owner may live in a different layer than the visible symptom,
-  - existing logs are likely necessary to distinguish top candidates,
-  - or two investigation rounds have not converged.
-- User can agree or decline the optional expanded observer suggestion flow.
 - The causal map must include:
   - `symptom_anchor`
   - `closed_loop_path`
   - `break_edges`
+  - `bypass_paths`
   - `family_coverage`
   - `candidates`
   - `adjacent_risk_targets`
-- The causal map candidates are the widened alternative cause candidates for the observer-framing phase.
-- Full framing: cover at least 3 failure families.
-- Compressed framing: cover at least 2 failure families.
-- Full framing: at least 3 candidates.
-- Compressed framing: at least 2 candidates.
-- Full framing: at least 3 alternative cause candidates.
-- Compressed framing: at least 2 for compressed framing.
-- Each family must include a falsifier, not just a plausible guess.
-- Expanded observer outputs, when enabled, must also include:
-  - `observer_expansion_status`
-  - `observer_expansion_reason`
-  - `project_runtime_profile`
-  - `symptom_shape`
-  - `log_readiness`
   - `dimension_scan`
   - `candidate_board`
-  - `top_candidates`
-  - `log_investigation_plan`
-- Expanded observer is still observer-only work: no source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`.
+- The causal map candidates are the widened alternative cause candidates for the observer-framing phase.
+- Cover at least 3 failure families.
+- Produce at least 3 candidates.
+- Produce at least 3 alternative cause candidates.
+- Each family must include a falsifier, not just a plausible guess.
+- Stage 1A is still intake-only work: no source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`.
 
-### Stage 1B: Investigation Contract
+### Stage 1B: Investigation Contract + Log Investigation Plan
 
 - After Stage 1A completes, Gathering returns an `await_input` containing `contract_subagent_prompt`.
 - **Leader's responsibility**: When you receive `contract_subagent_prompt`:
   1. Dispatch a contract-planner subagent with the exact prompt text.
   2. Wait for the structured result.
-  3. Parse the YAML block after `---` and populate `observer_framing`, `transition_memo`, and `investigation_contract`.
-  4. Set `contract_generation_completed: true`.
+  3. Parse the YAML block after `---` and populate `observer_framing`, `transition_memo`, `investigation_contract`, and top-level `log_investigation_plan`.
+  4. Set `investigation_contract_completed: true` and `log_investigation_plan_completed: true`.
+  5. Set `observer_framing_completed: true` only after Stage 1A and Stage 1B artifacts are present.
 - The contract planner does not widen the hypothesis space. It converts the causal map into:
   - `primary suspected loop`
   - `primary_candidate`
@@ -259,27 +247,29 @@ This stage is now split into Stage 1A and Stage 1B, but remains the same top-lev
   - `candidate_queue`
   - `related_risk_targets`
   - `transition_memo`
-- When expanded observer artifacts are present, the contract planner must preserve the top candidate ordering and the `log_investigation_plan` log investigation plan in the investigation contract instead of collapsing them into a generic probe note.
+  - `top_candidates`
+  - `log_investigation_plan`
+- The contract planner must preserve candidate-board ordering and runtime-log intent instead of collapsing them into a generic probe note.
 - Stage 1B must still leave the session with a clear `contrarian candidate`, a `recommended first probe`, and a transition memo that can automatically continue into evidence investigation.
-- Compressed framing still requires the full observer framing section; compression lowers certainty expectations, not delivery requirements.
 
-### Stage 2: Transition Memo
+### Stage 2: Evidence Investigation
 
-- The transition memo is produced by the think subagent as part of its YAML output (included in the `---` block).
-- **Leader's responsibility**: After parsing the subagent result, populate `transition_memo` fields: `first_candidate_to_test`, `why_first`, `evidence_unlock`, and `carry_forward_notes`.
-- Record whether this pass used `full observer framing` or `compressed observer framing`, and why.
-- After writing the transition memo, automatically continue into evidence investigation. Do not stop for confirmation unless human action is required.
+- The transition memo is produced by the contract-planner subagent as part of its YAML output (included in the `---` block).
+- **Leader's responsibility**: After parsing the contract-planner result, populate `transition_memo` fields: `first_candidate_to_test`, `why_first`, `evidence_unlock`, and `carry_forward_notes`.
+- After writing the Stage 1B package, automatically continue into evidence investigation. Do not stop for confirmation unless human action is required.
 - Treat the transition memo as the bridge between the outsider view and the investigator view. The later evidence phase must carry the observer framing forward instead of discarding it.
-- After the transition memo is written, build or refresh the runtime investigation contract so the second stage has an explicit candidate queue, primary candidate, and related risk targets.
-- If `observer_mode` is `compressed`, fill `skip_observer_reason` with the decisive low-level evidence that justified compression.
 
 ### Observer Gate
-- Before Stage 3 begins, verify all of the following in the debug session:
+- Before evidence investigation begins, verify all of the following in the debug session:
+  - `causal_map_completed: true`
+  - `investigation_contract_completed: true`
+  - `log_investigation_plan_completed: true`
   - `observer_framing_completed: true`
-  - `observer_mode` is set to `full` or `compressed`
-  - `skip_observer_reason` is filled when `observer_mode` is `compressed`
+  - `Causal Map` contains `dimension_scan`, `candidate_board`, family coverage, and falsifiers
   - `Observer Framing` contains the required outsider-analysis fields
   - `Transition Memo` contains `first_candidate_to_test`, `why_first`, and at least one `evidence_unlock` entry
+  - `Investigation Contract` contains `primary_candidate_id`, `candidate_queue`, and related-risk targets
+  - `Log Investigation Plan` contains existing log targets, candidate signal mapping, and observability escalation guidance
 - If any observer-gate item is missing, return to Stage 1 or Stage 2 instead of reading code, logs, tests, or running reproduction.
 - No source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`.
 
@@ -413,9 +403,11 @@ This stage is now split into Stage 1A and Stage 1B, but remains the same top-lev
 ## Debug File Protocol
 
 - **Location**: `.planning/debug/[slug].md`
-- **observer_framing_completed**: `false` until Observer Framing and Transition Memo are both written and the observer gate is satisfied.
-- **observer_mode**: must be set to `full` or `compressed` before Stage 3.
-- **skip_observer_reason**: required whenever `observer_mode` is `compressed`.
+- **causal_map_completed**: `false` until the Stage 1A causal map, dimension scan, and candidate board are written.
+- **investigation_contract_completed**: `false` until the Stage 1B investigation contract is written.
+- **log_investigation_plan_completed**: `false` until the Stage 1B log investigation plan is written as its own section.
+- **observer_framing_completed**: `false` until the canonical intake package is complete.
+- **legacy_session_needs_reintake**: `true` only when a resumed legacy session cannot safely satisfy the canonical intake gate.
 - **Current Focus**: OVERWRITE on every update. Reflects exactly what the leader is doing now.
 - **Evidence**: APPEND confirmed findings only.
 - **Eliminated**: APPEND disproven theories only.

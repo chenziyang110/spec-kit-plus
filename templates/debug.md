@@ -13,11 +13,11 @@ status: gathering | investigating | fixing | verifying | awaiting_human_verify |
 trigger: "[verbatim user input]"
 diagnostic_profile: scheduler-admission | cache-snapshot | ui-projection | general
 causal_map_completed: [true only after the Stage 1A causal map is written]
-contract_generation_completed: [true only after the Stage 1B contract planner finishes]
-observer_mode: full | compressed
-observer_framing_completed: [true only after observer framing and transition memo are both written and the observer gate passes]
-framing_gate_passed: [true only after candidate count, diversity, contrarian candidate, and transition memo requirements pass]
-skip_observer_reason: [required when observer framing was compressed]
+investigation_contract_completed: [true only after the Stage 1B contract planner finishes]
+log_investigation_plan_completed: [true only after the Stage 1B log plan is written]
+observer_framing_completed: [true only after the canonical intake package is complete]
+framing_gate_passed: [true only after family coverage, candidate queue, and related-risk gate checks pass]
+legacy_session_needs_reintake: [true only when a resumed legacy session cannot satisfy the new intake contract safely]
 waiting_on_child_human_followup: [true when a parent session is blocked on a derived child issue]
 atlas_read_completed: [true only after the atlas gate is complete]
 current_node_id: [ID of the active graph node]
@@ -146,6 +146,36 @@ causal_coverage_state:
   boundary_break_localized: [true|false]
   related_risk_scan_completed: [true|false]
   closeout_ready: [true|false]
+top_candidates:
+  - candidate_id: [stable candidate id]
+    family: [failure family]
+    investigation_priority: [numeric priority order]
+    recommended_log_probe: [candidate-specific log probe]
+
+## Log Investigation Plan
+<!-- OVERWRITE/REFINE - Stage 1B plan for existing logs, candidate signals, and observability gaps -->
+
+existing_log_targets:
+  - [existing runtime log, stderr/stdout, trace file, browser console, worker output, or prior artifact to inspect first]
+candidate_signal_map:
+  - candidate_id: [stable candidate id]
+    signals:
+      - [signal that would support or weaken this candidate]
+log_sufficiency_judgment: [whether existing logs are likely sufficient, and what must happen before fixing if not]
+missing_observability:
+  - [candidate-separating signal not currently observable]
+instrumentation_targets:
+  - [boundary, transition, or state owner that needs targeted instrumentation]
+instrumentation_style:
+  - [preferred targeted logging/tracing style]
+user_request_packet:
+  - target_source: [log source the user must provide if inaccessible]
+    time_window: [specific failing window]
+    keywords_or_fields:
+      - [identifier or field]
+    why_this_matters: [candidate-separating reason]
+    expected_signal_examples:
+      - [example signal and interpretation]
 
 ## Suggested Evidence Lanes
 <!-- OVERWRITE/REFINE - recommended fan-out lanes for delegated or manual evidence collection -->
@@ -284,7 +314,6 @@ loop_restoration_proof:
 - Do not use code files, test files, logs, or direct repro results here
 - Capture an outsider analysis, not a final root-cause verdict
 - This section is incomplete until `summary`, `primary_suspected_loop`, `suspected_owning_layer`, `suspected_truth_owner`, `recommended_first_probe`, and at least one `alternative_cause_candidate` are filled
-- Compressed framing still requires the full Observer Framing section; compression only changes why the phase was shortened
 
 **Transition Memo:**
 - OVERWRITE/REFINE after observer framing
@@ -300,9 +329,16 @@ loop_restoration_proof:
 - `related_risk_targets` records the nearest-neighbor paths that must be reviewed before closeout
 - `causal_coverage_state.related_risk_scan_completed` should stay `false` until the nearest-neighbor review is actually complete
 
+**Log Investigation Plan:**
+- OVERWRITE/REFINE after Stage 1B
+- Records existing logs to inspect first, expected candidate-separating signals, sufficiency judgment, missing observability, instrumentation targets, and user log request packet
+- This section is incomplete until `existing_log_targets`, `candidate_signal_map`, and `log_sufficiency_judgment` are filled
+- Do not read logs while creating this plan; log review begins only after the canonical intake package is complete
+
 **Observer Gate:**
-- Set `observer_framing_completed: true` only after Stage 1A (`Causal Map`) and Stage 1B (`Observer Framing` + `Transition Memo`) are complete
-- If `observer_mode` is `compressed`, `skip_observer_reason` must be non-empty
+- Set `observer_framing_completed: true` only after Stage 1A (`Causal Map`) and Stage 1B (`Observer Framing` + `Transition Memo` + `Investigation Contract` + `Log Investigation Plan`) are complete
+- The canonical intake completion fields are `causal_map_completed`, `investigation_contract_completed`, `log_investigation_plan_completed`, and derived `observer_framing_completed`
+- If `legacy_session_needs_reintake` is true, re-run Stage 1A and Stage 1B before evidence collection resumes
 - No source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`
 
 **Suggested Evidence Lanes:**
