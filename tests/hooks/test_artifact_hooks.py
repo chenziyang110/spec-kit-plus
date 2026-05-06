@@ -255,6 +255,73 @@ def _write_valid_reference_specify_workflow_state(feature_dir: Path) -> None:
     )
 
 
+def _write_fixed_lifecycle_specify_workflow_state(feature_dir: Path) -> None:
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Fixed Lifecycle State",
+                "",
+                "- current_stage: `question-batch`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `Ask the next bounded domain question batch.`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "- alignment.md",
+                "- context.md",
+                "- specify-draft.md",
+                "- workflow-state.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "- alignment.md",
+                "- context.md",
+                "- specify-draft.md",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_fixed_lifecycle_specify_draft(feature_dir: Path) -> None:
+    (feature_dir / "specify-draft.md").write_text(
+        "# Specification Draft Ledger: Demo\n\n"
+        "## Intent Analysis Record\n\n"
+        "- initial feature hypothesis\n\n"
+        "## Domain Progress Ledger\n\n"
+        "- goal-and-users: in-progress\n\n"
+        "## Question Batch Ledger\n\n"
+        "- Batch 1: pending\n\n"
+        "## Adversarial Review Ledger\n\n"
+        "- No contradictions recorded yet.\n\n"
+        "## Completeness Gap Register\n\n"
+        "- None recorded.\n\n"
+        "## Final Audit Inputs\n\n"
+        "- Pending completeness audit.\n",
+        encoding="utf-8",
+    )
+
+
 def test_validate_artifacts_blocks_when_specify_outputs_are_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -558,6 +625,60 @@ def test_validate_artifacts_blocks_reference_implementation_spec_without_fidelit
     assert any("Fidelity Requirements" in message for message in result.errors)
     assert any("Reference Object" in message for message in result.errors)
     assert any("Required Fidelity" in message for message in result.errors)
+
+
+def test_fixed_lifecycle_templates_lock_state_and_draft_contracts() -> None:
+    workflow_state_template = (Path(__file__).resolve().parents[2] / "templates" / "workflow-state-template.md").read_text(
+        encoding="utf-8"
+    )
+    specify_draft_template = (Path(__file__).resolve().parents[2] / "templates" / "specify-draft-template.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "## Fixed Lifecycle State" in workflow_state_template
+    assert "current_stage" in workflow_state_template
+    assert "current_domain" in workflow_state_template
+    assert "next_action" in workflow_state_template
+    assert "blocker_reason" in workflow_state_template
+    assert "final_handoff_decision" in workflow_state_template
+    assert "active_profile" not in workflow_state_template
+    assert "coverage_mode" not in workflow_state_template
+    assert "observer_status" not in workflow_state_template
+
+    assert "## Intent Analysis Record" in specify_draft_template
+    assert "## Domain Progress Ledger" in specify_draft_template
+    assert "## Question Batch Ledger" in specify_draft_template
+    assert "## Adversarial Review Ledger" in specify_draft_template
+    assert "## Completeness Gap Register" in specify_draft_template
+    assert "## Final Audit Inputs" in specify_draft_template
+    assert "## Recovery Capsule" not in specify_draft_template
+    assert "## Observer Findings" not in specify_draft_template
+
+
+def test_validate_artifacts_accepts_fixed_lifecycle_state_and_draft_contract(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text(
+        "# Feature Specification: Demo\n\n"
+        "## Fidelity Requirements\n\n"
+        "### Reference Object\n\n"
+        "- Existing implementation\n\n"
+        "### Required Fidelity\n\n"
+        "- Preserve behavior\n",
+        encoding="utf-8",
+    )
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_fixed_lifecycle_specify_workflow_state(feature_dir)
+    _write_fixed_lifecycle_specify_draft(feature_dir)
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
 
 
 def test_validate_artifacts_requires_reference_implementation_sections_as_headings(tmp_path: Path):

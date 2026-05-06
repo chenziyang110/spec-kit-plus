@@ -1815,8 +1815,12 @@ def test_specify_draft_template_and_feature_scripts_scaffold_draft_artifact():
     pyproject = _read("pyproject.toml")
 
     assert "# Specification Draft Ledger:" in draft_template
-    assert "## Recovery Capsule" in draft_template
-    assert "## Observer Findings" in draft_template
+    assert "## Intent Analysis Record" in draft_template
+    assert "## Domain Progress Ledger" in draft_template
+    assert "## Question Batch Ledger" in draft_template
+    assert "## Adversarial Review Ledger" in draft_template
+    assert "## Completeness Gap Register" in draft_template
+    assert "## Final Audit Inputs" in draft_template
     assert "SPECIFY_DRAFT_FILE" in sh_create
     assert "specify-draft-template" in sh_create
     assert "$specifyDraftFile = Join-Path $featureDir 'specify-draft.md'" in ps_create
@@ -1826,7 +1830,7 @@ def test_specify_draft_template_and_feature_scripts_scaffold_draft_artifact():
     assert '"templates/specify-draft-template.md" = "specify_cli/core_pack/templates/specify-draft-template.md"' in pyproject
 
 
-def test_specify_template_requires_draft_sync_observer_passes_and_coverage_escalation():
+def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
     content = _read("templates/commands/specify.md")
     observer_prompt = _read("templates/worker-prompts/specify-observer.md")
     codex = _read("src/specify_cli/integrations/codex/__init__.py")
@@ -1834,18 +1838,70 @@ def test_specify_template_requires_draft_sync_observer_passes_and_coverage_escal
 
     assert "specify-draft.md" in content
     assert "create or resume `specify_draft_file` immediately after `feature_dir` is known" in lowered
-    assert "after every clarification answer, update `specify_draft_file`" in lowered
-    assert "observer should run at exactly three fixed points" in lowered
-    assert "coverage_mode: `core | full`" in content
-    assert "cross-module impact" in lowered
-    assert "external boundary, contract, or integration behavior" in lowered
-    assert "performance or capacity risk" in lowered
-    assert "must not declare `aligned: ready for plan`" in lowered
+    assert "content ledger for the whole discovery run" in lowered
+    assert "current active domain" in lowered
+    assert "question batches and answer summaries" in lowered
+    assert "adversarial-review findings" in lowered
+    assert "domain statuses" in lowered
+    assert "reopen reasons" in lowered
+    assert "unresolved completeness gaps" in lowered
+    assert "final audit inputs" in lowered
     assert "# Specify Observer Worker Prompt" in observer_prompt
     assert "missing_questions" in observer_prompt
     assert "release_blockers" in observer_prompt
     assert "sp-specify" in codex
-    assert "before capability closure" in codex.lower()
+    assert "intent-analysis" in codex.lower() or "fixed heavy discovery" in codex.lower()
+
+
+def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> None:
+    content = _read("templates/commands/specify.md")
+    lowered = content.lower()
+
+    assert "intent-analysis" in content
+    assert "intent-confirmation" in content
+    assert "question-batch" in content
+    assert "batch-adversarial-review" in content
+    assert "completeness-audit" in content
+    assert "final-handoff-decision" in content
+
+    assert "intent-analyst" in content
+    assert "adversarial-reviewer" in content
+    assert "completeness-auditor" in content
+
+    assert "goal-and-users" in content
+    assert "triggers-and-primary-flow" in content
+    assert "boundaries-and-non-goals" in content
+    assert "failure-paths-exceptions-and-permissions" in content
+    assert "dependencies-constraints-and-upstream-downstream-impact" in content
+    assert "acceptance-and-completeness-gap-closure" in content
+
+    assert "task classification" not in lowered
+    assert "active_profile" not in content
+    assert "coverage_mode" not in content
+    assert "observer gate" not in lowered
+
+
+def test_specify_artifact_templates_lock_fixed_heavy_discovery_shapes() -> None:
+    alignment = _read("templates/alignment-template.md")
+    alignment_lowered = alignment.lower()
+    spec = _read("templates/spec-template.md")
+
+    assert "completeness convergence report" in alignment_lowered
+    assert "initial intent analysis" in alignment_lowered
+    assert "domain closure log" in alignment_lowered
+    assert "batch adversarial review summary" in alignment_lowered
+    assert "Critical Gaps and Reopen Decisions" in alignment
+    assert "completeness audit outcome" in alignment_lowered
+    assert "High-Impact Decision Forks" not in alignment
+    assert "active_profile" not in alignment
+    assert "task classification" not in alignment_lowered
+    assert "coverage mode" not in alignment_lowered
+    assert "observer gate" not in alignment_lowered
+
+    assert "Ideal Complete Requirement Shape" in spec
+    assert "Current Delivery Boundary" in spec
+    assert "This layer captures the complete useful feature form" in spec
+    assert "This layer captures the current project-bound delivery boundary" in spec
 
 
 def test_agent_file_template_captures_lane_recovery_rules():
