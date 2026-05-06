@@ -390,6 +390,27 @@ class IntegrationBase(ABC):
 
         return content + "\n".join(lines) + "\n"
 
+    def _append_specify_fixed_heavy_guidance(
+        self,
+        *,
+        content: str,
+    ) -> str:
+        """Append fixed-heavy `sp-specify` lifecycle guidance when absent."""
+
+        marker = "## Fixed Heavy Discovery Lifecycle"
+        if marker in content:
+            return content
+
+        addendum = (
+            "\n"
+            "## Fixed Heavy Discovery Lifecycle\n\n"
+            "- `sp-specify` always follows the same six stages: `intent-analysis`, `intent-confirmation`, `question-batch`, `batch-adversarial-review`, `completeness-audit`, and `final-handoff-decision`.\n"
+            "- Use the fixed role set: `intent-analyst`, `adversarial-reviewer`, and `completeness-auditor`.\n"
+            "- Walk the fixed domain order: `goal-and-users`, `triggers-and-primary-flow`, `boundaries-and-non-goals`, `failure-paths-exceptions-and-permissions`, `dependencies-constraints-and-upstream-downstream-impact`, and `acceptance-and-completeness-gap-closure`.\n"
+            "- Do not teach adaptive routing semantics for `sp-specify` such as `active_profile`, coverage escalation modes, observer gates, or alternate fallback lifecycles.\n"
+        )
+        return content + addendum
+
     def _append_delegation_surface_contract(
         self,
         *,
@@ -1689,6 +1710,10 @@ class SkillsIntegration(IntegrationBase):
                 agent_name=agent_name.replace(" CLI", ""),
                 command_name=command_name,
             )
+            if command_name == "specify":
+                skill_content = self._append_specify_fixed_heavy_guidance(
+                    content=skill_content,
+                )
 
             # Write sp-<name>/SKILL.md
             skill_dir = skills_dir / skill_name
@@ -1884,13 +1909,12 @@ class SkillsIntegration(IntegrationBase):
                 "- Use `wait_agent` to wait for the think subagent's result.\n"
                 "- The result is hybrid: free-text analysis followed by `---` and a YAML block.\n"
                 "- Parse the YAML block after `---` and populate these fields in the debug state:\n"
-                "  - `causal_map` (symptom_anchor, closed_loop_path, break_edges, family_coverage, candidates, adjacent_risk_targets)\n"
-                "  - `observer_mode`\n"
-                "- Ensure full framing covers at least 3 families, compressed framing at least 2, and every family includes a falsifier.\n"
+                "  - `causal_map` (symptom_anchor, closed_loop_path, break_edges, bypass_paths, family_coverage, candidates, adjacent_risk_targets, dimension_scan, candidate_board)\n"
+                "- Ensure Stage 1A covers at least 3 families and every family includes a falsifier.\n"
                 "- These Stage 1A candidates are still the observer-framing alternative cause candidates; do not collapse them into one family too early.\n"
                 "- Set `causal_map_completed` to `True`.\n"
                 "- Then continue the debug session — the next GatheringNode run will request the contract planner stage.\n"
-                "- If Gathering returns `contract_subagent_prompt`, use it for the contract-planner subagent and feed its result back into `observer_framing`, `transition_memo`, and `investigation_contract`.\n"
+                "- If Gathering returns `contract_subagent_prompt`, use it for the contract-planner subagent and feed its result back into `observer_framing`, `transition_memo`, `investigation_contract`, and top-level `log_investigation_plan`.\n"
                 "- Treat the causal-map output as Stage 1A and the contract-planner output as Stage 1B. Investigation starts only after both stages are complete.\n"
                 "- Stage 1B must still produce a primary suspected loop, a contrarian candidate, and a recommended first probe before investigation begins.\n"
                 "- Do NOT skip the think subagent. Context isolation is the purpose of this step.\n"

@@ -139,3 +139,28 @@ def test_quickstart_taskify_walkthrough_frames_literal_sp_examples_as_claude_sty
     assert "Define Requirements with `/sp-specify`" not in walkthrough
     assert "Once `/sp-specify`" not in walkthrough
     assert "using the `/sp-" not in walkthrough
+
+
+def test_guidance_docs_teach_fixed_heavy_specify_lifecycle() -> None:
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    for content in (readme, quickstart):
+        lowered = content.lower()
+        assert "fixed heavy discovery" in lowered
+        assert "intent-analysis" in content
+        assert "intent-confirmation" in content
+        assert "question-batch" in content
+        assert "batch-adversarial-review" in content
+        assert "completeness-audit" in content
+        assert "final-handoff-decision" in content
+        assert "intent-analyst" in content
+        assert "adversarial-reviewer" in content
+        assert "completeness-auditor" in content
+        assert "goal-and-users" in content
+        assert "triggers-and-primary-flow" in content
+        assert "boundaries-and-non-goals" in content
+        assert "failure-paths-exceptions-and-permissions" in content
+        assert "dependencies-constraints-and-upstream-downstream-impact" in content
+        assert "acceptance-and-completeness-gap-closure" in content
+        assert "task classification" not in lowered

@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
   primary_objective: 'Produce a planning-ready specification package grounded in repository reality, while preserving active discovery in `specify-draft.md`.'
   primary_outputs: '`FEATURE_DIR/specify-draft.md`, `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
-  default_handoff: '/sp.plan once planning-critical ambiguity and feasibility risk are reduced far enough; otherwise stay in clarification, recommend /sp.clarify, or route uncertain implementation chains through /sp.deep-research.'
+  default_handoff: '`final-handoff-decision` chooses `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` after the fixed heavy discovery lifecycle completes.'
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -78,14 +78,11 @@ continues.
 - Set or update the state for this run with at least:
   - `active_command: sp-specify`
   - `phase_mode: planning-only`
-  - `active_profile`
-  - `routing_reason`
-  - `confidence_level`
-  - `required_sections`
-  - `activated_gates`
-  - `task_shaping_rules`
-  - `required_evidence`
-  - `transition_policy`
+  - `current_stage: intent-analysis`
+  - `current_domain: goal-and-users`
+  - `next_action`
+  - `blocker_reason`
+  - `final_handoff_decision: pending`
   - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
 - Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
@@ -130,14 +127,11 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Persist at least these fields for the active pass:
      - `active_command: sp-specify`
      - `phase_mode: planning-only`
-     - `active_profile`
-     - `routing_reason`
-     - `confidence_level`
-     - `required_sections`
-     - `activated_gates`
-     - `task_shaping_rules`
-     - `required_evidence`
-     - `transition_policy`
+     - `current_stage: intent-analysis`
+     - `current_domain: goal-and-users`
+     - `next_action`
+     - `blocker_reason`
+     - `final_handoff_decision: pending`
      - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, specify-draft.md, workflow-state.md, checklists/requirements.md`
      - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
      - `authoritative_files: spec.md, alignment.md, context.md, references.md, specify-draft.md`
@@ -192,32 +186,53 @@ Generate the pre-analysis output as the first section of `context.md`.
 - [AGENT] Create or resume `SPECIFY_DRAFT_FILE` immediately after `FEATURE_DIR` is known.
 - Treat `SPECIFY_DRAFT_FILE` as the durable clarification ledger and resume anchor for `sp-specify`.
 - After every clarification answer, update `SPECIFY_DRAFT_FILE` before asking the next question.
-- Record at least: current capability, current stage, coverage mode, observer status, confirmed facts, low-risk inferences, unresolved items, recent Q/A disposition, and the next question target.
+- Record at least: the intent-analysis summary, current stage, current domain, confirmed facts, low-risk inferences, unresolved items, recent question-batch disposition, adversarial-review findings, completeness gaps, and the next question target.
 
-## Observer Challenge Stage
+## Fixed Heavy Discovery Lifecycle
 
-- The observer should run at exactly three fixed points:
-  1. once after initial framing and repository/context loading
-  2. once before each capability is marked sufficiently aligned
-  3. once before the final handoff decision
-- Use `.specify/templates/worker-prompts/specify-observer.md` as the default read-only observer contract whenever the current integration can dispatch a specify observer lane.
-- The observer output must be written into `SPECIFY_DRAFT_FILE`.
-- The leader must not ignore observer blockers; each blocker must be resolved, inferred, deferred, or force-carried explicitly.
+- Treat `SPECIFY_DRAFT_FILE` as the content ledger for the whole discovery run, not as a per-capability scratchpad.
+- `sp-specify` uses a fixed heavy discovery lifecycle. Do not switch into lighter or alternative internal flows based on perceived request simplicity.
+- Always execute these six stages in order:
+  1. `intent-analysis`
+  2. `intent-confirmation`
+  3. `question-batch`
+  4. `batch-adversarial-review`
+  5. `completeness-audit`
+  6. `final-handoff-decision`
+- Use only these three bounded subagent roles for this command:
+  - `intent-analyst`
+  - `adversarial-reviewer`
+  - `completeness-auditor`
+- Use the fixed six-domain order and do not skip a domain entirely:
+  1. `goal-and-users`
+  2. `triggers-and-primary-flow`
+  3. `boundaries-and-non-goals`
+  4. `failure-paths-exceptions-and-permissions`
+  5. `dependencies-constraints-and-upstream-downstream-impact`
+  6. `acceptance-and-completeness-gap-closure`
+- A domain may be marked `closed-by-existing-evidence` when the user input plus repository evidence already closes it strongly, but the workflow must still record that domain in order.
+- `question-batch` rules:
+  - ask at most three questions in a batch
+  - keep each batch within one active domain
+  - do not open the next domain until the current domain is closed or explicitly reopened and re-closed
+- `batch-adversarial-review` rules:
+  - run after every answered question batch
+  - write the findings into `SPECIFY_DRAFT_FILE`
+  - reopen the current domain when contradiction, hidden dependency, project-boundary conflict, or a completeness-threatening omission is found
+- `completeness-audit` rules:
+  - run only after all six domains were processed
+  - evaluate the whole feature for missing capability, missing boundaries, missing adjacent effects, and domain-normal omissions that would make the feature unusable
+- Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
 
-## Coverage Mode Escalation
+## Adversarial Review Contract
 
-- Persist the coverage mode using the literal field syntax: coverage_mode: `core | full`.
-- Every capability begins in `coverage_mode: core`.
-- Upgrade the capability to `coverage_mode: full` when any of these triggers are present:
-  - cross-module impact
-  - external boundary, contract, or integration behavior
-  - migration or compatibility preservation
-  - asynchronous, event-driven, queue, or state-propagation behavior
-  - configuration-driven behavior
-  - security, permission, or trust-boundary semantics
-  - observability or rollback requirements
-  - performance or capacity risk
-- If a capability escalates to `full`, do not close it until the full matrix questions were answered or explicitly force-carried.
+- Use `.specify/templates/worker-prompts/specify-observer.md` as the default read-only adversarial-review contract whenever the current integration can dispatch the `adversarial-reviewer` lane.
+- The adversarial review output must be written into `SPECIFY_DRAFT_FILE`.
+- The leader must not ignore adversarial blockers; each blocker must be resolved, inferred, deferred, or force-carried explicitly before the domain can close.
+
+## Fixed Lifecycle State
+
+- Preserve one fixed-heavy lifecycle for all `sp-specify` runs and persist lifecycle state through `current_stage`, `current_domain`, `next_action`, `blocker_reason`, and `final_handoff_decision`.
 
 6. Run a codebase scout before clarification.
    - Treat `PROJECT-HANDBOOK.md` as the default scout artifact for understanding the existing system shape.
@@ -235,57 +250,47 @@ Generate the pre-analysis output as the first section of `context.md`.
    - If the topical coverage is too broad, stale, or silent on the touched area, read the minimum targeted live files needed to replace guesswork with evidence.
    - Use the scout summary to eliminate low-value questions, sharpen gray areas, and detect when the user's request conflicts with existing repository patterns.
 
-7. Infer task classification.
-   Infer exactly one:
-   - greenfield project
-   - existing feature addition
-   - bug fix
-   - technical refactor
-   - docs/config/process change
-   - Task classification changes which requirement dimensions are probed. Use the inferred class to choose the questioning path instead of reusing one generic flow for every request.
+7. Run `intent-analysis`.
+   Build a top-down understanding grounded in the project handbook and touched-area topical map plus any targeted live-file reads. It must cover:
+   - what the user is probably trying to achieve
+   - what a complete usable version of the capability likely includes
+   - intended users and roles
+   - first-release scope boundaries
+   - critical constraints and assumptions
+   - dependencies or preconditions that materially affect planning
+   - the currently owning modules, services, screens, commands, or workflows that this request would extend, replace, or bypass
+   - the truth-owning surfaces, consumer surfaces, and change-propagation hotspots that shape how this request spreads through the current system
+   - reusable code paths or existing patterns that should shape the questioning instead of forcing the user to rediscover repository facts
+   - the verification entry points and regression-sensitive surfaces that will need proof before release
+   - the known unknowns, stale evidence boundaries, or weakly mapped surfaces that could force more clarification
 
-   Briefly tell the user your inferred classification and allow correction before continuing.
+8. Run `intent-confirmation`.
+   - Give the user a short current-understanding summary naming the likely intended outcome and the major affected surfaces.
+   - Treat this as a cheap misunderstanding-correction gate, not a full approval ceremony.
 
-## Scenario Profile Routing
+9. Choose collaboration strategy for the fixed roles.
+   - [AGENT] Before domain questioning begins, assess the current workload shape and agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="specify", snapshot, workload_shape)`.
+   - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
+   - Keep delegated `sp-specify` lanes limited to the fixed lifecycle roles:
+     - `intent-analyst`
+     - `adversarial-reviewer`
+     - `completeness-auditor`
+   - Record the chosen strategy, reason, any blocked dispatch decision, selected lanes, and join points in `alignment.md`.
+   - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
-Before deeper decomposition, infer exactly one `active_profile` for the full feature lifecycle and persist the routing result in `WORKFLOW_STATE_FILE`, `alignment.md`, and `context.md`. Use the first matching profile in this priority order:
-1. Explicit user profile: use only when the user directly names the scenario profile to run.
-2. Reference-Implementation: use when the request is to reproduce, port, match, compare against, or preserve fidelity to a named reference object. If the success criterion is fidelity to a reference object, this profile wins over ordinary enhancement or bug-fix routing.
-3. Debug / Repair: use when diagnosis, regression repair, broken behavior, or root-cause proof is the main lifecycle driver.
-4. Brownfield Enhancement: use when an existing capability is extended without reference-fidelity or repair as the dominant success criterion.
-5. Standard Delivery: use for ordinary new or changed capability delivery when no higher-priority profile applies.
+10. Run the fixed domain sequence through `question-batch` and `batch-adversarial-review`.
+   - Process the domains in this exact order:
+     - `goal-and-users`
+     - `triggers-and-primary-flow`
+     - `boundaries-and-non-goals`
+     - `failure-paths-exceptions-and-permissions`
+     - `dependencies-constraints-and-upstream-downstream-impact`
+     - `acceptance-and-completeness-gap-closure`
+   - Each `question-batch` may ask at most three questions and must stay within one domain.
+   - Use repository and handbook evidence to close obvious items, but do not skip domain recording.
+   - After every answered batch, run `batch-adversarial-review` before proceeding.
 
-First release support: actively support only `Standard Delivery` and `Reference-Implementation`. `active_profile` must always be the supported profile whose obligations are persisted downstream in `required_sections`, `activated_gates`, `task_shaping_rules`, `required_evidence`, and `transition_policy`.
-
-If routing identifies `Debug / Repair` or `Brownfield Enhancement`, record the inferred unsupported taxonomy profile separately from `active_profile` as an inferred/unsupported routing note in `alignment.md` and `context.md`, then persist `active_profile: Standard Delivery` unless the request also meets `Reference-Implementation`. Do not persist `active_profile` as an unsupported profile in first release, and do not leave a state where `active_profile` names one profile while `required_sections`, `activated_gates`, or `transition_policy` describe another.
-
-If an explicit user profile request is unsupported in first release, or if an inferred profile is narrowed to a supported profile, surface every profile narrowing to the user and allow correction before proceeding. The user-facing note must name the requested or inferred unsupported profile, the supported `active_profile` that will be persisted for obligations, and the reason for narrowing.
-
-Document the first-release obligation mapping inline:
-- `Standard Delivery`:
-  - `required_sections`: goal, users and roles, first-release scope, capability decomposition, acceptance scenarios, constraints, risks, and planning handoff.
-  - `activated_gates`: atlas gate, classification gate, decomposition gate, clarification gate, confirmation gate, artifact self-review, and spec-lint readiness.
-  - `task_shaping_rules`: favor coherent delivery slices and testable user value.
-  - `required_evidence`: repository scout evidence, confirmed decisions, unresolved risks, and verification entry points.
-  - `transition_policy`: permit `/sp.plan` when no planning-critical ambiguity remains.
-- `Reference-Implementation`:
-  - `required_sections`: reference object identity, fidelity dimensions, allowed deviations, comparison method, acceptance proof, constraints, risks, and planning handoff.
-  - `activated_gates`: atlas gate, reference capture gate, fidelity criteria gate, deviation approval gate, confirmation gate, artifact self-review, and spec-lint readiness.
-  - `task_shaping_rules`: prioritize behavior, UX, data, and API fidelity over generic enhancement shaping.
-  - `required_evidence`: reference source evidence, fidelity criteria, difference inventory, accepted deviations, and verification entry points.
-  - `transition_policy`: permit `/sp.plan` only when the reference object and fidelity criteria are specific enough to test.
-
-For every profile decision, persist at least these fields for the active pass:
-- `active_profile`
-- `routing_reason`
-- `confidence_level`
-- `required_sections`
-- `activated_gates`
-- `task_shaping_rules`
-- `required_evidence`
-- `transition_policy`
-
-8. Analyze the whole feature before decomposing it.
+11. Analyze the whole feature before decomposing it.
    Build a top-down understanding grounded in the project handbook and touched-area topical map plus any targeted live-file reads. It must cover:
    - the feature goal
    - intended users and roles
@@ -300,25 +305,7 @@ For every profile decision, persist at least these fields for the active pass:
    - the known unknowns, stale evidence boundaries, or weakly mapped surfaces that could force more clarification
    - release-shaping risks or external references
 
-9. Choose alignment mode and collaboration strategy.
-   - Lightweight mode for local, context-rich changes.
-   - Deep mode for greenfield, multi-capability, or materially ambiguous work.
-   - [AGENT] Before decomposition begins, assess the current workload shape and agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="specify", snapshot, workload_shape)`.
-   - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
-   - Decision order is fixed:
-     - One safe validated lane -> `one-subagent` on `native-subagents` when available.
-     - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.     - No safe lane, overlapping writes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason.
-   - If collaboration is justified, keep `specify` lanes limited to:
-     - repository and local context analysis
-     - external references and supporting material analysis
-     - ambiguity, risk, and gap analysis
-   - Required join points:
-     - before capability decomposition
-     - before writing `spec.md`, `alignment.md`, and `context.md`
-   - Record the chosen strategy, reason, any blocked dispatch or escalation decision, selected lanes, and join points in `alignment.md`.
-   - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
-
-10. Decomposition gate.
+12. Decomposition gate.
    - If the request spans multiple independent subsystems, business domains, or release tracks, do not continue as though it were one bounded feature.
    - Default to one spec with capability decomposition when the work still belongs to one coherent feature boundary.
    - Stop and help the user decompose it into bounded capabilities inside the same spec first.
@@ -330,7 +317,7 @@ For every profile decision, persist at least these fields for the active pass:
    - Only continue once the current spec scope is narrow enough to be planned and tested coherently.
    - If the request is already one bounded capability, say so briefly and continue inside the current spec.
 
-11. Capability decomposition.
+13. Capability decomposition.
     - Decompose the analyzed feature into bounded capabilities.
     - For brownfield testing-system work seeded by `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, default capability decomposition to foundation work plus module priority waves instead of vague subsystem buckets.
     - Record the purpose of each capability, what scenarios it supports, and how it depends on other capabilities or prerequisites.
@@ -346,65 +333,15 @@ For every profile decision, persist at least these fields for the active pass:
     - If any checkpoint still depends on fuzzy language, reopen clarification for that capability instead of moving on to a sibling capability.
     - If capability boundaries remain unclear, continue clarifying until the decomposition is planning-ready or the user explicitly force proceeds.
 
-12. Run task-type mandatory clarity gates.
+14. Run `completeness-audit`.
+    - Run this only after all six fixed domains have been processed.
+    - Evaluate the whole feature, not only the most recent domain.
+    - Explicitly test for missing capability, missing boundaries, missing adjacent effects, and domain-normal omissions that would make the feature unusable.
+    - If a critical gap remains, reopen the relevant domain and return to `question-batch` instead of forcing a handoff.
 
-    Greenfield project:
-    - target users
-    - core problem
-    - first-release scope
-    - out-of-scope boundary
-    - core user flows
-    - key domain entities
-    - success criteria
-    - hard constraints if any
+15. Run implementation-oriented completeness checks.
 
-    Existing feature addition:
-    - affected module or workflow
-    - impacted surfaces and consumers
-    - intended users
-    - relationship to existing behavior
-    - compatibility expectations
-    - data/state impact
-    - trigger/event source when behavior depends on a cross-component signal
-    - contract/protocol boundary when the feature crosses services, processes, runtimes, or stored event seams
-    - retry/dedup/idempotency expectations for async or event-driven behavior
-    - acceptance criteria
-
-    Bug fix:
-    - current incorrect behavior
-    - expected correct behavior
-    - reproduction conditions
-    - impact scope
-    - affected surfaces and change-propagation path
-    - regression-sensitive areas
-    - completion criteria
-
-    Technical refactor:
-    - reason for change
-    - change boundary
-    - affected surfaces and compatibility boundaries
-    - behavior that must remain unchanged
-    - risk tolerance
-    - migration/transition allowance
-    - completion criteria
-
-    Docs/config/process change:
-    - Treat this as a planning-critical questioning surface, not a passive cleanup request.
-    - Before normal alignment release, collect every planning-critical dimension below: changed artifact, change objective, affected users or teams, compatibility/process constraints, validation method, and completion criteria.
-    - Ask for the changed artifact.
-    - Ask for the change objective.
-    - Ask for the affected users or teams.
-    - Ask for compatibility/process constraints.
-    - Ask for the validation method.
-    - Ask for completion criteria.
-    - Do not treat missing answers in this path as passive housekeeping detail or low-priority cleanup context.
-
-    Rules:
-    - If an item is already clear from context, do not ask.
-    - If it is low-risk and inferable, adopt a default silently and record it later under `Analysis Confidence -> Low-Risk Inferences`.
-    - If it is high-impact and unclear, ask.
-
-13. Run an implementation-oriented analysis pass before concluding alignment.
+16. Run an implementation-oriented analysis pass before concluding alignment.
     Cover at minimum:
     - scenario and usage path coverage
     - capability sequencing or dependency constraints
@@ -417,7 +354,7 @@ For every profile decision, persist at least these fields for the active pass:
     - acceptance-test shaping details
     - planning-sensitive risks and gaps
 
-13b. Run an engineering-completeness gate for boundary-sensitive work.
+16b. Run an engineering-completeness gate for boundary-sensitive work.
     - Trigger this gate when the feature crosses a service/process/runtime boundary, depends on async or event delivery, creates user-visible persisted state, or adds configuration that changes delivery behavior.
     - Confirm or explicitly defer, with reason, at minimum:
       - trigger or event source
@@ -431,23 +368,21 @@ For every profile decision, persist at least these fields for the active pass:
     - If the user gives a broad answer such as "we can make the internals detailed later", either turn it into a concrete checklist for confirmation or mark it as an explicit deferred risk.
     - Do not treat this gate as implementation brainstorming; stay at the level of requirement-shaping contracts, lifecycle expectations, and planning safety.
 
-13c. Run a feasibility and implementation-chain gate.
+16c. Run a feasibility and implementation-chain gate.
     - For each capability, decide whether the implementation chain is already credible enough for planning.
     - Treat the chain as credible when repository evidence, retained references, or prior working behavior clearly show:
       - trigger/input
       - owning module, API, service, library, or integration surface
       - state/output path
       - validation evidence or acceptance proof
-    - Route to the canonical workflow token `/sp.deep-research` before `/sp.plan` when a capability depends on an unproven API, library, algorithm, platform behavior, data volume, permission boundary, external integration, native/plugin bridge, generated-code workflow, performance envelope, or other unknown where planning would otherwise guess.
-    - Prefer the canonical workflow token `/sp.deep-research` when the real question is "can this work?" and a small disposable demo under `FEATURE_DIR/research-spikes/` would prove the path.
-    - Treat `/sp.deep-research` as a research-to-plan handoff path: its `deep-research.md` must preserve findings, demo evidence, rejected options, constraints, and a `Planning Handoff` that `/sp.plan` can consume.
-    - If the requirements are clear but a planning-critical implementation chain remains unproven, record `/sp.deep-research` as the canonical next command instead of `/sp.plan`.
-    - When giving the user a manual next-step recommendation for that route, tell them to run `{{invoke:deep-research}}` instead of `{{invoke:plan}}`.
-    - Do not require `/sp.deep-research` for minor adjustments to capabilities that already exist in the project and have a clear implementation path.
+    - If a capability depends on an unproven API, library, algorithm, platform behavior, data volume, permission boundary, external integration, native/plugin bridge, generated-code workflow, performance envelope, or other unknown where planning would otherwise guess, mark it as a feasibility concern that must be resolved before planning.
+    - Prefer a disposable proof under `FEATURE_DIR/research-spikes/` when the real question is "can this work?" and evidence is still missing.
+    - Treat deep research as the research-to-plan proof path when feasibility evidence is required: its `deep-research.md` must preserve findings, demo evidence, rejected options, constraints, and a `Planning Handoff` that `/sp.plan` can consume.
+    - Do not require deep research for minor adjustments to capabilities that already exist in the project and have a clear implementation path.
     - Record feasibility status in `alignment.md` as `Not needed`, `Needed before plan`, `Completed`, or `Blocked`.
-    - If feasibility risk is actually a requirement ambiguity, keep it in `sp-specify` or record `/sp.clarify` as the canonical next command instead of treating it as research.
+    - If the issue is actually requirement ambiguity rather than implementation proof, keep resolving it inside `sp-specify` until `final-handoff-decision` determines the appropriate next command.
 
-14. Identify gray areas before concluding alignment.
+17. Identify gray areas before concluding alignment.
    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
    - Derive gray areas from the combination of user intent, `PROJECT-HANDBOOK.md`, and targeted repository evidence instead of from a generic question catalog.
    - Prefer feature-specific decision surfaces over generic categories.
@@ -476,7 +411,7 @@ For every profile decision, persist at least these fields for the active pass:
      - Record out-of-scope ideas surfaced during clarification under `Deferred / Future Ideas`.
      - Synthesize these decisions into `context.md` so downstream planning does not rely on reconstructing them from prose alone.
 
-15. Run a high-impact ambiguity scan.
+18. Run a high-impact ambiguity scan.
     Detect unresolved ambiguity affecting:
     - scope
     - users/roles
@@ -493,7 +428,7 @@ For every profile decision, persist at least these fields for the active pass:
     The user saying "I already explained it" is not sufficient reason to stop. Judge clarity from the perspective of a future planner, implementer, and tester.
     If planning-critical ambiguity remains around scope, workflow behavior, constraints, or success criteria, continue clarification instead of releasing normal alignment.
 
-16. Clarification loop.
+19. Clarification loop.
     - **Question output hard gate**: before generating any clarification question, confirmation, or bounded selection, check whether a native structured question tool is available in the current runtime.
     - If a native structured question tool is available, you MUST use it.
     - Do not render the textual fallback block when the native tool is available.
@@ -577,16 +512,16 @@ For every profile decision, persist at least these fields for the active pass:
     - Do not turn this into a freeform brainstorming workflow.
     - each clarification turn should contain at most one short checkpoint or one grouped recap, plus one question block.
 
-17. Apply a current-understanding or confirmation gate before release.
+20. Apply `final-handoff-decision`.
     - Before releasing `Aligned: ready for plan`, provide a grouped recap that covers goal, users and roles, scope boundaries, locked decisions, technical constraints or assumptions, and outstanding questions.
-    - Explicitly ask the user to confirm or correct the current understanding before `Aligned: ready for plan`.
+    - Explicitly ask the user to confirm or correct the current understanding before the final handoff decision is locked.
     - Treat this as an explicit pre-release check rather than a courtesy recap.
     - If the user corrects the recap, update the active understanding and continue clarification.
     - If planning-critical gaps remain after the recap, do not release `Aligned: ready for plan`.
-    - common docs/config/process-change flows can reach planning-ready alignment inside `sp-specify` when this gate passes and no planning-critical ambiguity remains.
-    - keep this path inside `sp-specify`, without needing `/sp.clarify`.
-    - If planning-critical gaps remain but the spec package is still salvageable, record `/sp.clarify` as the canonical next command instead of `/sp.plan`.
-    - When giving the user that manual next-step recommendation, tell them to run `{{invoke:clarify}}` instead of `{{invoke:plan}}`.
+    - Only this stage may record `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` as the canonical next command.
+    - Use `/sp.plan` when the requirement package is planning-ready.
+    - Use `/sp.clarify` when the package is salvageable but planning-critical ambiguity still remains.
+    - Use `/sp.deep-research` when the requirements are clear enough but a planning-critical implementation chain still needs external proof or a disposable demo.
 
     Use this open question block structure in the user's current language when rendering the textual fallback block.
     Use this fallback open question block structure when the native structured question tool is unavailable:
@@ -619,7 +554,7 @@ For every profile decision, persist at least these fields for the active pass:
     Reply naturally, for example: "A", "选 C", "我选推荐项"
     ```
 
-17. Final Validation & Release.
+21. Final Validation & Release.
     This single gate replaces the old multi-step release sequence. Complete all three sub-checks before reporting completion.
 
     **A. Artifact Self-Review**: Review the written `spec.md`, `alignment.md`, and `context.md` for:
@@ -695,8 +630,8 @@ For every profile decision, persist at least these fields for the active pass:
     - Do not present `{{invoke:plan}}` as ready until the written artifact set passes this gate.
 
     Do not release `Aligned: ready for plan` when the current understanding still depends on taste words, implicit defaults, or untested assumptions. Do not release for cross-boundary or event-driven features when trigger source, contract identifiers, lifecycle/retention, failure path, or configuration semantics are still fuzzy.
-    You must not declare `Aligned: ready for plan` while planning-critical observer blockers remain untreated.
-    You must not declare `Aligned: ready for plan` when a high-risk capability escalated to `full` but only `core` coverage was recorded.
+    You must not declare `Aligned: ready for plan` while planning-critical adversarial-review blockers remain untreated.
+    You must not declare `Aligned: ready for plan` when the fixed domain sequence or completeness audit still leaves a planning-critical omission unresolved.
 
 20. Write `spec.md` to `SPEC_FILE` using the template structure.
     Requirements:
@@ -716,7 +651,7 @@ For every profile decision, persist at least these fields for the active pass:
 
 21. Write `alignment.md` to `ALIGNMENT_FILE`.
     It must include:
-    - task classification
+    - fixed heavy discovery lifecycle summary
     - current aligned understanding
     - confirmed facts
     - low-risk inferences
@@ -759,14 +694,11 @@ For every profile decision, persist at least these fields for the active pass:
     - After the artifact set is current, write or update `WORKFLOW_STATE_FILE` so it records:
       - `active_command: sp-specify`
       - `phase_mode: planning-only`
-      - `active_profile`
-      - `routing_reason`
-      - `confidence_level`
-      - `required_sections`
-      - `activated_gates`
-      - `task_shaping_rules`
-      - `required_evidence`
-      - `transition_policy`
+      - `current_stage`
+      - `current_domain`
+      - `next_action`
+      - `blocker_reason`
+      - `final_handoff_decision`
       - current authoritative files
       - exit criteria for planning readiness
       - the next action required before handoff
@@ -781,7 +713,7 @@ For every profile decision, persist at least these fields for the active pass:
     **Created**: [DATE]
     **Feature**: [Link to spec.md]
     **Alignment Report**: [Link to alignment.md]
-    **Tier**: light | standard | deep (choose based on task classification and boundary sensitivity)
+    **Lifecycle**: fixed heavy discovery
 
     ## Content Quality
 
@@ -831,7 +763,7 @@ For every profile decision, persist at least these fields for the active pass:
     - [ ] alignment.md exists
     - [ ] context.md exists
     - [ ] workflow-state.md exists
-    - [ ] Task classification is recorded
+    - [ ] Fixed lifecycle state is recorded
     - [ ] Release decision is recorded
     - [ ] Release decision is either `Aligned: ready for plan` or `Force proceed with known risks`
     - [ ] High-risk capabilities have checkpoints for purpose, boundary, and acceptance proof

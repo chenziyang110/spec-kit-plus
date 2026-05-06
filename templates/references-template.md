@@ -9,13 +9,15 @@
 
 - **Source**: [URL, document path, repository, issue, interview note, or artifact name]
 - **Description**: [What this source is]
-- **Relevance**: [Why it matters to the current feature analysis]
-- **Reusable Insights**:
-  - [Insight, pattern, constraint, or example that can be reused]
-  - [Additional reusable takeaway if needed]
-- **Spec Impact Mapping**:
-  - [Which section, capability, scenario, or risk in `spec.md` this source informed]
-  - [Which confirmed fact, inference, or unresolved item in `alignment.md` it supports]
+- **Relevance**: [Why it matters to current discovery]
+- **Completeness Evidence Mapping**:
+  - [Which completeness judgment, missing-capability check, or domain-expected expectation this source supports]
+  - [Which part of the ideal complete requirement shape in `spec.md` this source informed]
+- **Boundary Evidence Mapping**:
+  - [Which current delivery boundary, project constraint, or non-goal this source supports]
+  - [Which impact surface, dependency, or compatibility conclusion in `context.md` this source supports]
+- **Compatibility / Impact Notes**:
+  - [Any compatibility, dependency, or adjacent-effect takeaway preserved from this source]
 
 ### Additional References
 
@@ -26,11 +28,13 @@ Repeat the following entry structure once for each retained source:
 
 - **Source**: [URL, document path, repository, issue, interview note, or artifact name]
 - **Description**: [What this source is]
-- **Relevance**: [Why it matters to the current feature analysis]
-- **Reusable Insights**:
-  - [Insight, pattern, constraint, or example that can be reused]
-  - [Additional reusable takeaway if needed]
-- **Spec Impact Mapping**:
-  - [Which section, capability, scenario, or risk in `spec.md` this source informed]
-  - [Which confirmed fact, inference, or unresolved item in `alignment.md` it supports]
+- **Relevance**: [Why it matters to current discovery]
+- **Completeness Evidence Mapping**:
+  - [Which completeness judgment, missing-capability check, or domain-expected expectation this source supports]
+  - [Which part of the ideal complete requirement shape in `spec.md` this source informed]
+- **Boundary Evidence Mapping**:
+  - [Which current delivery boundary, project constraint, or non-goal this source supports]
+  - [Which impact surface, dependency, or compatibility conclusion in `context.md` this source supports]
+- **Compatibility / Impact Notes**:
+  - [Any compatibility, dependency, or adjacent-effect takeaway preserved from this source]
 ```

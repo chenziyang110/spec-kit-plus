@@ -577,7 +577,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert ".specify/project-map/root/operations.md" in content
     assert "observer framing" in content
     assert "compressed observer framing" in content
-    assert "full observer framing" in content
+    assert "mandatory intake contract" in content
+    assert "stage 1a: causal map" in content
     assert "same_issue" in content
     assert "derived_issue" in content
     assert "unrelated_issue" in content
@@ -603,6 +604,45 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "do not treat an idle subagent as done work" in content
     assert "candidate queue" in content
     assert "root-cause mode" in content
+
+
+def test_codex_generated_sp_specify_uses_fixed_heavy_discovery_wording(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-specify-fixed-heavy"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
+    lowered = content.lower()
+
+    assert "intent-analysis" in content
+    assert "intent-confirmation" in content
+    assert "question-batch" in content
+    assert "batch-adversarial-review" in content
+    assert "completeness-audit" in content
+    assert "final-handoff-decision" in content
+    assert "intent-analyst" in content
+    assert "adversarial-reviewer" in content
+    assert "completeness-auditor" in content
+    assert "goal-and-users" in content
+    assert "triggers-and-primary-flow" in content
+    assert "boundaries-and-non-goals" in content
+    assert "failure-paths-exceptions-and-permissions" in content
+    assert "dependencies-constraints-and-upstream-downstream-impact" in content
+    assert "acceptance-and-completeness-gap-closure" in content
+    assert "task classification" not in lowered
+    assert "active_profile" not in content
+    assert "coverage_mode" not in content
+    assert "observer gate" not in lowered
+    assert "leader-inline-fallback" not in lowered
 
 
 def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):

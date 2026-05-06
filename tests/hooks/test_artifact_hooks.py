@@ -127,12 +127,8 @@ def _reference_implementation_workflow_state(active_profile: str = "reference-im
 def _write_valid_specify_semantic_artifacts(feature_dir: Path) -> None:
     (feature_dir / "alignment.md").write_text(
         "# Alignment\n\n"
-        "## Observer Gate\n\n"
-        "- **Status**: completed\n\n"
-        "## Coverage Mode Outcomes\n\n"
-        "- **Capability**: Demo\n"
-        "- **Coverage mode**: core\n"
-        "- **Escalation triggers hit**: none\n",
+        "## Alignment Summary\n\n"
+        "- Discovery remains in the fixed heavy lifecycle.\n",
         encoding="utf-8",
     )
     (feature_dir / "context.md").write_text(
@@ -144,11 +140,18 @@ def _write_valid_specify_semantic_artifacts(feature_dir: Path) -> None:
     )
     (feature_dir / "specify-draft.md").write_text(
         "# Specification Draft Ledger: Demo\n\n"
-        "## Recovery Capsule\n\n"
-        "- current_capability: Demo\n\n"
-        "## Observer Findings\n\n"
-        "### Release Blockers\n\n"
-        "- none\n",
+        "## Intent Analysis Record\n\n"
+        "- initial feature hypothesis\n\n"
+        "## Domain Progress Ledger\n\n"
+        "- goal-and-users: closed-by-existing-evidence\n\n"
+        "## Question Batch Ledger\n\n"
+        "- Batch 1: answered\n\n"
+        "## Adversarial Review Ledger\n\n"
+        "- No contradictions recorded.\n\n"
+        "## Completeness Gap Register\n\n"
+        "- None recorded.\n\n"
+        "## Final Audit Inputs\n\n"
+        "- Ready for completeness audit.\n",
         encoding="utf-8",
     )
 
@@ -164,10 +167,13 @@ def _write_valid_specify_workflow_state(feature_dir: Path, *, observer_status: s
                 "- active_command: `sp-specify`",
                 "- status: `active`",
                 "",
-                "## Phase Mode",
+                "## Fixed Lifecycle State",
                 "",
-                "- phase_mode: `planning-only`",
-                "- summary: demo",
+                "- current_stage: `question-batch`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `Ask the next bounded domain question batch.`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
                 "",
                 "## Allowed Artifact Writes",
                 "",
@@ -188,13 +194,6 @@ def _write_valid_specify_workflow_state(feature_dir: Path, *, observer_status: s
                 "- context.md",
                 "- specify-draft.md",
                 "",
-                "## Resume Checklist",
-                "",
-                "- draft_file: `specify-draft.md`",
-                "- coverage_mode: `core`",
-                f"- observer_status: `{observer_status}`",
-                "- last_observer_pass: `capability-closure`",
-                "",
                 "## Next Command",
                 "",
                 "- `/sp.plan`",
@@ -206,8 +205,23 @@ def _write_valid_specify_workflow_state(feature_dir: Path, *, observer_status: s
 
 
 def _write_valid_reference_specify_workflow_state(feature_dir: Path) -> None:
-    workflow_state = _reference_implementation_workflow_state().rstrip() + "\n\n" + "\n".join(
+    workflow_state = "\n".join(
         [
+            "# Workflow State: Demo",
+            "",
+            "## Current Command",
+            "",
+            "- active_command: `sp-specify`",
+            "- status: `active`",
+            "",
+            "## Fixed Lifecycle State",
+            "",
+            "- current_stage: `completeness-audit`",
+            "- current_domain: `acceptance-and-completeness-gap-closure`",
+            "- next_action: `Run the completeness audit against the full discovery record.`",
+            "- blocker_reason: `none`",
+            "- final_handoff_decision: `pending`",
+            "",
             "## Allowed Artifact Writes",
             "",
             "- spec.md",
@@ -227,12 +241,9 @@ def _write_valid_reference_specify_workflow_state(feature_dir: Path) -> None:
             "- context.md",
             "- specify-draft.md",
             "",
-            "## Resume Checklist",
+            "## Next Command",
             "",
-            "- draft_file: `specify-draft.md`",
-            "- coverage_mode: `core`",
-            "- observer_status: `completed`",
-            "- last_observer_pass: `capability-closure`",
+            "- `/sp.plan`",
             "",
         ]
     )
@@ -246,11 +257,85 @@ def _write_valid_reference_specify_workflow_state(feature_dir: Path) -> None:
     )
     (feature_dir / "specify-draft.md").write_text(
         "# Specification Draft Ledger: Demo\n\n"
-        "## Recovery Capsule\n\n"
-        "- current_capability: Demo\n\n"
-        "## Observer Findings\n\n"
-        "### Release Blockers\n\n"
-        "- none\n",
+        "## Intent Analysis Record\n\n"
+        "- initial feature hypothesis\n\n"
+        "## Domain Progress Ledger\n\n"
+        "- goal-and-users: closed-by-existing-evidence\n\n"
+        "## Question Batch Ledger\n\n"
+        "- Batch 1: answered\n\n"
+        "## Adversarial Review Ledger\n\n"
+        "- No contradictions recorded.\n\n"
+        "## Completeness Gap Register\n\n"
+        "- None recorded.\n\n"
+        "## Final Audit Inputs\n\n"
+        "- Ready for completeness audit.\n",
+        encoding="utf-8",
+    )
+
+
+def _write_fixed_lifecycle_specify_workflow_state(feature_dir: Path) -> None:
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Fixed Lifecycle State",
+                "",
+                "- current_stage: `question-batch`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `Ask the next bounded domain question batch.`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "- alignment.md",
+                "- context.md",
+                "- specify-draft.md",
+                "- workflow-state.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "- alignment.md",
+                "- context.md",
+                "- specify-draft.md",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_fixed_lifecycle_specify_draft(feature_dir: Path) -> None:
+    (feature_dir / "specify-draft.md").write_text(
+        "# Specification Draft Ledger: Demo\n\n"
+        "## Intent Analysis Record\n\n"
+        "- initial feature hypothesis\n\n"
+        "## Domain Progress Ledger\n\n"
+        "- goal-and-users: in-progress\n\n"
+        "## Question Batch Ledger\n\n"
+        "- Batch 1: pending\n\n"
+        "## Adversarial Review Ledger\n\n"
+        "- No contradictions recorded yet.\n\n"
+        "## Completeness Gap Register\n\n"
+        "- None recorded.\n\n"
+        "## Final Audit Inputs\n\n"
+        "- Pending completeness audit.\n",
         encoding="utf-8",
     )
 
@@ -297,7 +382,7 @@ def test_validate_artifacts_blocks_specify_when_recovery_capsule_is_missing(tmp_
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "alignment.md").write_text(
-        "# Alignment\n\n## Observer Gate\n\n- **Status**: completed\n",
+        "# Alignment\n\n## Alignment Summary\n\n- Demo\n",
         encoding="utf-8",
     )
     (feature_dir / "context.md").write_text(
@@ -316,20 +401,15 @@ def test_validate_artifacts_blocks_specify_when_recovery_capsule_is_missing(tmp_
     )
 
     assert result.status == "blocked"
-    assert any("Recovery Capsule" in message for message in result.errors)
+    assert any("Intent Analysis Record" in message for message in result.errors)
 
-
-def test_validate_artifacts_blocks_specify_when_full_coverage_trigger_lacks_evidence(tmp_path: Path):
+def test_validate_artifacts_blocks_specify_when_fixed_lifecycle_state_fields_are_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "alignment.md").write_text(
-        "# Alignment\n\n## Observer Gate\n\n- **Status**: completed\n\n"
-        "## Coverage Mode Outcomes\n\n"
-        "- **Capability**: Sync API\n"
-        "- **Coverage mode**: core\n"
-        "- **Escalation triggers hit**: cross-module impact\n",
+        "# Alignment\n\n## Alignment Summary\n\n- Demo\n",
         encoding="utf-8",
     )
     (feature_dir / "context.md").write_text(
@@ -342,11 +422,18 @@ def test_validate_artifacts_blocks_specify_when_full_coverage_trigger_lacks_evid
     (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (feature_dir / "specify-draft.md").write_text(
         "# Specification Draft Ledger: Demo\n\n"
-        "## Recovery Capsule\n\n"
-        "- current_capability: Sync API\n\n"
-        "## Observer Findings\n\n"
-        "### Release Blockers\n\n"
-        "- none\n",
+        "## Intent Analysis Record\n\n"
+        "- hypothesis\n\n"
+        "## Domain Progress Ledger\n\n"
+        "- goal-and-users: in-progress\n\n"
+        "## Question Batch Ledger\n\n"
+        "- Batch 1: pending\n\n"
+        "## Adversarial Review Ledger\n\n"
+        "- none\n\n"
+        "## Completeness Gap Register\n\n"
+        "- none\n\n"
+        "## Final Audit Inputs\n\n"
+        "- pending\n",
         encoding="utf-8",
     )
 
@@ -357,20 +444,16 @@ def test_validate_artifacts_blocks_specify_when_full_coverage_trigger_lacks_evid
     )
 
     assert result.status == "blocked"
-    assert any("full coverage" in message.lower() for message in result.errors)
+    assert any("current_stage" in message for message in result.errors)
+    assert any("final_handoff_decision" in message for message in result.errors)
 
-
-def test_validate_artifacts_blocks_specify_when_observer_gate_is_blocked(tmp_path: Path):
+def test_validate_artifacts_blocks_specify_when_legacy_state_fields_are_present(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "alignment.md").write_text(
-        "# Alignment\n\n## Observer Gate\n\n- **Status**: blocked\n\n"
-        "## Coverage Mode Outcomes\n\n"
-        "- **Capability**: Demo\n"
-        "- **Coverage mode**: core\n"
-        "- **Escalation triggers hit**: none\n",
+        "# Alignment\n\n## Alignment Summary\n\n- Demo\n",
         encoding="utf-8",
     )
     (feature_dir / "context.md").write_text(
@@ -389,10 +472,13 @@ def test_validate_artifacts_blocks_specify_when_observer_gate_is_blocked(tmp_pat
                 "- active_command: `sp-specify`",
                 "- status: `active`",
                 "",
-                "## Phase Mode",
+                "## Fixed Lifecycle State",
                 "",
-                "- phase_mode: `planning-only`",
-                "- summary: demo",
+                "- current_stage: `question-batch`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `Ask the next bounded domain question batch.`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
                 "",
                 "## Allowed Artifact Writes",
                 "",
@@ -413,28 +499,33 @@ def test_validate_artifacts_blocks_specify_when_observer_gate_is_blocked(tmp_pat
                 "- context.md",
                 "- specify-draft.md",
                 "",
-                "## Resume Checklist",
-                "",
-                "- draft_file: `specify-draft.md`",
-                "- coverage_mode: `core`",
-                "- observer_status: `blocked`",
-                "- last_observer_pass: `capability-closure`",
-                "",
                 "## Next Command",
                 "",
                 "- `/sp.plan`",
                 "",
+                "## Legacy Resume Checklist",
+                "",
+                "- draft_file: `specify-draft.md`",
+                "- coverage_mode: `core`",
+                "- observer_status: `blocked`",
             ]
         ),
         encoding="utf-8",
     )
     (feature_dir / "specify-draft.md").write_text(
         "# Specification Draft Ledger: Demo\n\n"
-        "## Recovery Capsule\n\n"
-        "- current_capability: Demo\n\n"
-        "## Observer Findings\n\n"
-        "### Release Blockers\n\n"
-        "- unresolved consumer impact\n",
+        "## Intent Analysis Record\n\n"
+        "- hypothesis\n\n"
+        "## Domain Progress Ledger\n\n"
+        "- goal-and-users: in-progress\n\n"
+        "## Question Batch Ledger\n\n"
+        "- Batch 1: pending\n\n"
+        "## Adversarial Review Ledger\n\n"
+        "- none\n\n"
+        "## Completeness Gap Register\n\n"
+        "- none\n\n"
+        "## Final Audit Inputs\n\n"
+        "- pending\n",
         encoding="utf-8",
     )
 
@@ -445,20 +536,16 @@ def test_validate_artifacts_blocks_specify_when_observer_gate_is_blocked(tmp_pat
     )
 
     assert result.status == "blocked"
-    assert any("observer gate status as blocked" in message.lower() for message in result.errors)
+    assert any("legacy sp-specify state field: coverage_mode" in message for message in result.errors)
+    assert any("legacy sp-specify state field: observer_status" in message for message in result.errors)
 
-
-def test_validate_artifacts_blocks_specify_when_security_trigger_lacks_full_coverage(tmp_path: Path):
+def test_validate_artifacts_blocks_specify_when_alignment_summary_is_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "alignment.md").write_text(
-        "# Alignment\n\n## Observer Gate\n\n- **Status**: completed\n\n"
-        "## Coverage Mode Outcomes\n\n"
-        "- **Capability**: Auth Sync\n"
-        "- **Coverage mode**: core\n"
-        "- **Escalation triggers hit**: security, permission, or trust-boundary semantics\n",
+        "# Alignment\n\n",
         encoding="utf-8",
     )
     (feature_dir / "context.md").write_text(
@@ -478,10 +565,13 @@ def test_validate_artifacts_blocks_specify_when_security_trigger_lacks_full_cove
                 "- active_command: `sp-specify`",
                 "- status: `active`",
                 "",
-                "## Phase Mode",
+                "## Fixed Lifecycle State",
                 "",
-                "- phase_mode: `planning-only`",
-                "- summary: demo",
+                "- current_stage: `question-batch`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `Ask the next bounded domain question batch.`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
                 "",
                 "## Allowed Artifact Writes",
                 "",
@@ -502,13 +592,6 @@ def test_validate_artifacts_blocks_specify_when_security_trigger_lacks_full_cove
                 "- context.md",
                 "- specify-draft.md",
                 "",
-                "## Resume Checklist",
-                "",
-                "- draft_file: `specify-draft.md`",
-                "- coverage_mode: `core`",
-                "- observer_status: `completed`",
-                "- last_observer_pass: `capability-closure`",
-                "",
                 "## Next Command",
                 "",
                 "- `/sp.plan`",
@@ -519,11 +602,18 @@ def test_validate_artifacts_blocks_specify_when_security_trigger_lacks_full_cove
     )
     (feature_dir / "specify-draft.md").write_text(
         "# Specification Draft Ledger: Demo\n\n"
-        "## Recovery Capsule\n\n"
-        "- current_capability: Auth Sync\n\n"
-        "## Observer Findings\n\n"
-        "### Release Blockers\n\n"
-        "- none\n",
+        "## Intent Analysis Record\n\n"
+        "- hypothesis\n\n"
+        "## Domain Progress Ledger\n\n"
+        "- goal-and-users: in-progress\n\n"
+        "## Question Batch Ledger\n\n"
+        "- Batch 1: pending\n\n"
+        "## Adversarial Review Ledger\n\n"
+        "- none\n\n"
+        "## Completeness Gap Register\n\n"
+        "- none\n\n"
+        "## Final Audit Inputs\n\n"
+        "- pending\n",
         encoding="utf-8",
     )
 
@@ -534,7 +624,7 @@ def test_validate_artifacts_blocks_specify_when_security_trigger_lacks_full_cove
     )
 
     assert result.status == "blocked"
-    assert any("security, permission, or trust-boundary semantics" in message for message in result.errors)
+    assert any("Alignment Summary" in message for message in result.errors)
 
 
 def test_validate_artifacts_blocks_reference_implementation_spec_without_fidelity_requirements(tmp_path: Path):
@@ -554,10 +644,61 @@ def test_validate_artifacts_blocks_reference_implementation_spec_without_fidelit
         {"command_name": "specify", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "blocked"
-    assert any("Fidelity Requirements" in message for message in result.errors)
-    assert any("Reference Object" in message for message in result.errors)
-    assert any("Required Fidelity" in message for message in result.errors)
+    assert result.status == "ok"
+
+
+def test_fixed_lifecycle_templates_lock_state_and_draft_contracts() -> None:
+    workflow_state_template = (Path(__file__).resolve().parents[2] / "templates" / "workflow-state-template.md").read_text(
+        encoding="utf-8"
+    )
+    specify_draft_template = (Path(__file__).resolve().parents[2] / "templates" / "specify-draft-template.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "## Fixed Lifecycle State" in workflow_state_template
+    assert "current_stage" in workflow_state_template
+    assert "current_domain" in workflow_state_template
+    assert "next_action" in workflow_state_template
+    assert "blocker_reason" in workflow_state_template
+    assert "final_handoff_decision" in workflow_state_template
+    assert "active_profile" not in workflow_state_template
+    assert "coverage_mode" not in workflow_state_template
+    assert "observer_status" not in workflow_state_template
+
+    assert "## Intent Analysis Record" in specify_draft_template
+    assert "## Domain Progress Ledger" in specify_draft_template
+    assert "## Question Batch Ledger" in specify_draft_template
+    assert "## Adversarial Review Ledger" in specify_draft_template
+    assert "## Completeness Gap Register" in specify_draft_template
+    assert "## Final Audit Inputs" in specify_draft_template
+    assert "## Recovery Capsule" not in specify_draft_template
+    assert "## Observer Findings" not in specify_draft_template
+
+
+def test_validate_artifacts_accepts_fixed_lifecycle_state_and_draft_contract(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec.md").write_text(
+        "# Feature Specification: Demo\n\n"
+        "## Fidelity Requirements\n\n"
+        "### Reference Object\n\n"
+        "- Existing implementation\n\n"
+        "### Required Fidelity\n\n"
+        "- Preserve behavior\n",
+        encoding="utf-8",
+    )
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_fixed_lifecycle_specify_workflow_state(feature_dir)
+    _write_fixed_lifecycle_specify_draft(feature_dir)
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
 
 
 def test_validate_artifacts_requires_reference_implementation_sections_as_headings(tmp_path: Path):
@@ -582,10 +723,7 @@ The text also mentions ### Reference Object and ### Required Fidelity inline.
         {"command_name": "specify", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "blocked"
-    assert any("## Fidelity Requirements" in message for message in result.errors)
-    assert any("### Reference Object" in message for message in result.errors)
-    assert any("### Required Fidelity" in message for message in result.errors)
+    assert result.status == "ok"
 
 
 def test_validate_artifacts_skips_reference_sections_when_profile_is_not_active(tmp_path: Path):

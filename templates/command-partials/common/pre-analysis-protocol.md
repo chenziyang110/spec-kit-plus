@@ -15,13 +15,6 @@ Each command defines only its specialized phases; this format is the common outp
 
 If a pre-analysis output already exists from a prior command (e.g., sp-specify completed before sp-debug), read that output. Do not re-analyze the same surface. Add only the specialized analysis your command requires.
 
-### Fast-Path (debug only)
+### Debug Note
 
-When all three conditions are met, observer framing can be fast-pathed:
-1. Exact error location is known (file + line or function)
-2. Clear reproduction steps are provided
-3. Impact surface is bounded (single module, no cross-module coupling)
-
-If fast-path: manually set `observer_framing_completed: true`, fill minimal `observer_framing` fields (summary, primary_suspected_loop, etc.), and record `observer_mode: compressed` with `skip_observer_reason`. The graph engine will skip the think-subagent gate and proceed directly to the reproduction gate.
-
-Record the fast-path decision with: "Fast-path: error location known, repro steps clear, impact bounded to [module]."
+`sp-debug` now uses a mandatory single-path intake contract. Do not use this shared partial to justify bypassing Stage 1A or Stage 1B. Reproduction, log review, test inspection, source-code reads, evidence collection, and fixing still wait on the canonical intake artifacts described by the debug workflow itself.

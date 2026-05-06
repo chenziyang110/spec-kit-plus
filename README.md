@@ -203,12 +203,45 @@ Mainline pre-planning flow:
 specify -> plan
 ```
 
-Feature creation is driven by the `specify` workflow itself. Use `sp-specify`
-with the generated create-feature script at
+Feature creation is driven by the `specify` workflow itself. `sp-specify` now
+uses a fixed heavy discovery contract rather than adaptive discovery routing or
+lighter discovery modes. Use `sp-specify` with the generated create-feature
+script at
 `.specify/scripts/bash/create-new-feature.sh` or
 `.specify/scripts/powershell/create-new-feature.ps1`, plus the lane/runtime
 helpers that it invokes; do not look for or teach a separate branch-creation
 CLI family.
+
+The fixed heavy discovery lifecycle always runs the same six stages in the same
+order before it decides whether to hand off to `plan`, `clarify`, or
+`deep-research`:
+
+1. `intent-analysis`
+2. `intent-confirmation`
+3. `question-batch`
+4. `batch-adversarial-review`
+5. `completeness-audit`
+6. `final-handoff-decision`
+
+The workflow uses three fixed roles:
+
+- `intent-analyst`
+- `adversarial-reviewer`
+- `completeness-auditor`
+
+It also walks the same six requirement domains in order:
+
+1. `goal-and-users`
+2. `triggers-and-primary-flow`
+3. `boundaries-and-non-goals`
+4. `failure-paths-exceptions-and-permissions`
+5. `dependencies-constraints-and-upstream-downstream-impact`
+6. `acceptance-and-completeness-gap-closure`
+
+This means even short prompts are treated as potentially incomplete requirement
+inputs. `sp-specify` does not choose a lighter path based on inferred task
+shape; it runs the full fixed heavy discovery lifecycle, then selects the
+correct handoff.
 
 Treat the live `specify --help` output as the only authoritative CLI command
 surface. Before suggesting or running a `specify <subcommand>` invocation,

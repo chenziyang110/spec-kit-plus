@@ -26,13 +26,11 @@ from specify_cli.debug.graph import (
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 
 
-def _populate_valid_observer_framing(state: DebugGraphState, *, mode: str = "full") -> None:
+def _populate_valid_observer_framing(state: DebugGraphState) -> None:
     state.causal_map_completed = True
-    state.contract_generation_completed = True
+    state.investigation_contract_completed = True
+    state.log_investigation_plan_completed = True
     state.observer_framing_completed = True
-    state.observer_mode = mode
-    if mode == "compressed":
-        state.skip_observer_reason = "Strong low-level evidence present"
     state.causal_map.symptom_anchor = "Caller output is missing the final token"
     state.causal_map.closed_loop_path = [
         "parse request",
@@ -43,7 +41,7 @@ def _populate_valid_observer_framing(state: DebugGraphState, *, mode: str = "ful
     ]
     state.causal_map.break_edges = ["compute token bounds -> token list update"]
     state.causal_map.bypass_paths = ["stale projection cache serves a truncated token list"]
-    state.causal_map.family_coverage = ["truth_owner_logic", "projection_render"]
+    state.causal_map.family_coverage = ["truth_owner_logic", "projection_render", "config_flag_env"]
     state.causal_map.candidates = [
         CausalMapCandidate(
             candidate_id="cand-parser-boundary",
@@ -59,18 +57,14 @@ def _populate_valid_observer_framing(state: DebugGraphState, *, mode: str = "ful
             falsifier="Projection input already lacks final token",
             recommended_first_probe="Compare parser output and rendered output",
         ),
-    ]
-    if mode != "compressed":
-        state.causal_map.family_coverage.append("config_flag_env")
-        state.causal_map.candidates.append(
-            CausalMapCandidate(
-                candidate_id="cand-config-gate",
-                family="config_flag_env",
-                candidate="Configuration gate trims final token",
-                falsifier="Relevant parsing flag is disabled",
-                recommended_first_probe="Inspect active parsing flags",
-            )
+        CausalMapCandidate(
+            candidate_id="cand-config-gate",
+            family="config_flag_env",
+            candidate="Configuration gate trims final token",
+            falsifier="Relevant parsing flag is disabled",
+            recommended_first_probe="Inspect active parsing flags",
         )
+    ]
     state.causal_map.adjacent_risk_targets = [
         {
             "target": "projection-boundary",
@@ -99,16 +93,13 @@ def _populate_valid_observer_framing(state: DebugGraphState, *, mode: str = "ful
             would_rule_out="Projection input already lacks final token",
             recommended_first_probe="Compare parser output and rendered output",
         ),
+        ObserverCauseCandidate(
+            candidate="Configuration gate trims final token",
+            failure_shape="config_flag_env",
+            would_rule_out="Relevant parsing flag is disabled",
+            recommended_first_probe="Inspect active parsing flags",
+        ),
     ]
-    if mode != "compressed":
-        state.observer_framing.alternative_cause_candidates.append(
-            ObserverCauseCandidate(
-                candidate="Configuration gate trims final token",
-                failure_shape="config_flag_env",
-                would_rule_out="Relevant parsing flag is disabled",
-                recommended_first_probe="Inspect active parsing flags",
-            )
-        )
     state.investigation_contract.primary_candidate_id = "cand-parser-boundary"
     state.investigation_contract.candidate_queue = [
         {
@@ -123,16 +114,16 @@ def _populate_valid_observer_framing(state: DebugGraphState, *, mode: str = "ful
             "family": "projection_render",
             "status": "pending",
         },
+        {
+            "candidate_id": "cand-config-gate",
+            "candidate": "Configuration gate trims final token",
+            "family": "config_flag_env",
+            "status": "pending",
+        },
     ]
-    if mode != "compressed":
-        state.investigation_contract.candidate_queue.append(
-            {
-                "candidate_id": "cand-config-gate",
-                "candidate": "Configuration gate trims final token",
-                "family": "config_flag_env",
-                "status": "pending",
-            }
-        )
+    state.log_investigation_plan.existing_log_targets = [
+        "application runtime logs for the failing request window"
+    ]
     state.transition_memo.first_candidate_to_test = "cand-parser-boundary"
     state.transition_memo.why_first = "Best matches the outsider framing."
     state.transition_memo.evidence_unlock = ["reproduction", "code"]
@@ -186,13 +177,14 @@ async def test_gathering_node_with_verified_reproduction():
 
 
 @pytest.mark.asyncio
-async def test_gathering_blocks_until_dual_observer_is_complete() -> None:
+async def test_gathering_blocks_until_log_plan_completion() -> None:
     state = DebugGraphState(slug="test", trigger="queue stuck")
     state.symptoms.expected = "queue drains"
     state.symptoms.actual = "queue remains non-empty"
     state.symptoms.reproduction_verified = True
     state.causal_map_completed = True
-    state.contract_generation_completed = False
+    state.investigation_contract_completed = True
+    state.log_investigation_plan_completed = False
     state.causal_map.family_coverage = [
         "truth_owner_logic",
         "cache_snapshot",
@@ -211,6 +203,20 @@ async def test_gathering_blocks_until_dual_observer_is_complete() -> None:
     assert result.data == "Awaiting more debugging input"
     assert state.observer_framing_completed is False
     assert state.contract_subagent_prompt is not None
+    assert "log investigation plan" in (state.current_focus.next_action or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_gathering_blocks_unsafe_legacy_resume_until_reintake() -> None:
+    state = DebugGraphState(slug="legacy", trigger="legacy session")
+    state.legacy_session_needs_reintake = True
+
+    result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
+
+    assert result.data == "Awaiting more debugging input"
+    assert state.legacy_session_needs_reintake is True
+    assert state.causal_map_completed is False
+    assert "Causal map needed" in (state.current_focus.next_action or "")
 
 @pytest.mark.asyncio
 async def test_investigating_node_prioritization():
@@ -660,8 +666,8 @@ async def test_investigating_node_generates_user_log_request_packet_when_runtime
     result = await InvestigatingNode().run(GraphRunContext(state=state, deps=None))
 
     assert result.data == "Awaiting more debugging input"
-    assert state.expanded_observer.log_investigation_plan.user_request_packet
-    packet = state.expanded_observer.log_investigation_plan.user_request_packet[0]
+    assert state.log_investigation_plan.user_request_packet
+    packet = state.log_investigation_plan.user_request_packet[0]
     assert "log" in packet.target_source.lower() or "console" in packet.target_source.lower()
     assert packet.time_window
     assert packet.keywords_or_fields
@@ -704,7 +710,7 @@ async def test_investigating_node_preserves_existing_contract_user_log_request_p
         state.investigation_contract.log_investigation_plan.user_request_packet[0].target_source
         == "tailored contract packet"
     )
-    assert not state.expanded_observer.log_investigation_plan.user_request_packet
+    assert not state.log_investigation_plan.user_request_packet
 
 
 @pytest.mark.asyncio

@@ -48,7 +48,18 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
             errors.append(
                 f"active_command mismatch: expected {expected_command}, got {checkpoint['active_command'] or 'missing'}"
             )
-        if checkpoint["phase_mode"] != expected_phase:
+        if command_name == "specify":
+            required_fixed_fields = (
+                "current_stage",
+                "current_domain",
+                "next_action",
+                "blocker_reason",
+                "final_handoff_decision",
+            )
+            for field in required_fixed_fields:
+                if not str(checkpoint.get(field) or "").strip():
+                    errors.append(f"workflow-state is missing Fixed Lifecycle State field: {field}")
+        elif checkpoint["phase_mode"] != expected_phase:
             errors.append(
                 f"phase_mode mismatch: expected {expected_phase}, got {checkpoint['phase_mode'] or 'missing'}"
             )

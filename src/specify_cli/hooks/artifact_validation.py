@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .checkpoint_serializers import normalize_command_name, serialize_workflow_state
+from .checkpoint_serializers import extract_field, normalize_command_name, serialize_workflow_state
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
 from .types import HookResult, QualityHookError
 
@@ -191,27 +191,17 @@ DEEP_RESEARCH_NOT_NEEDED_REQUIRED_SECTIONS = (
 )
 
 SPECIFY_DRAFT_REQUIRED_HEADINGS = (
-    "## Recovery Capsule",
-    "## Observer Findings",
+    "## Intent Analysis Record",
+    "## Domain Progress Ledger",
+    "## Question Batch Ledger",
+    "## Adversarial Review Ledger",
+    "## Completeness Gap Register",
+    "## Final Audit Inputs",
 )
 
-SPECIFY_ALIGNMENT_REQUIRED_HEADINGS = (
-    "## Observer Gate",
-    "## Coverage Mode Outcomes",
-)
+SPECIFY_ALIGNMENT_REQUIRED_HEADINGS = ("## Alignment Summary",)
 
 SPECIFY_CONTEXT_REQUIRED_HEADINGS = ("## Change Propagation Matrix",)
-
-SPECIFY_FULL_COVERAGE_TRIGGER_PHRASES = (
-    "cross-module impact",
-    "external boundary, contract, or integration behavior",
-    "migration or compatibility preservation",
-    "asynchronous, event-driven, queue, or state-propagation behavior",
-    "configuration-driven behavior",
-    "security, permission, or trust-boundary semantics",
-    "observability or rollback requirements",
-    "performance or capacity risk",
-)
 
 PRD_BUILD_REQUIRED_EXPORTS = (
     "exports/README.md",
@@ -693,33 +683,6 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
     return errors
 
 
-def _validate_specify_profile_artifacts(feature_dir: Path) -> list[str]:
-    checkpoint = serialize_workflow_state(feature_dir / "workflow-state.md")
-    active_profile = checkpoint.get("active_profile")
-    required_sections = checkpoint.get("required_sections")
-    if not isinstance(required_sections, list):
-        required_sections = []
-
-    if active_profile != REFERENCE_IMPLEMENTATION_PROFILE:
-        return []
-
-    persisted_required_headings = {
-        heading
-        for section_name in required_sections
-        if (heading := REFERENCE_IMPLEMENTATION_SECTION_HEADINGS.get(str(section_name).strip().lower()))
-    }
-    mapped_headings = [
-        heading for heading in REFERENCE_IMPLEMENTATION_SPEC_REQUIRED_SECTIONS if heading in persisted_required_headings
-    ]
-    required_headings = tuple(dict.fromkeys([*mapped_headings, *REFERENCE_IMPLEMENTATION_SPEC_REQUIRED_SECTIONS]))
-
-    return _validate_markdown_headings(
-        feature_dir / "spec.md",
-        required_headings,
-        "spec.md reference-implementation profile",
-    )
-
-
 def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
     errors: list[str] = []
     draft_path = feature_dir / "specify-draft.md"
@@ -731,41 +694,23 @@ def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
     errors.extend(_validate_markdown_headings(alignment_path, SPECIFY_ALIGNMENT_REQUIRED_HEADINGS, "alignment.md"))
     errors.extend(_validate_markdown_headings(context_path, SPECIFY_CONTEXT_REQUIRED_HEADINGS, "context.md"))
 
-    checkpoint = serialize_workflow_state(workflow_state_path)
-    if checkpoint.get("draft_file") != "specify-draft.md":
-        errors.append("workflow-state.md is missing Resume Checklist field: draft_file: `specify-draft.md`")
-    if checkpoint.get("observer_status") == "blocked":
-        errors.append("workflow-state.md records observer_status as blocked; `Aligned: ready for plan` cannot pass")
-
-    draft_content = draft_path.read_text(encoding="utf-8", errors="replace")
-    alignment = alignment_path.read_text(encoding="utf-8", errors="replace").lower()
-    observer_gate = _extract_markdown_section(alignment_path.read_text(encoding="utf-8", errors="replace"), "Observer Gate")
-    if "**Status**: blocked" in observer_gate:
-        errors.append("alignment.md records Observer Gate status as blocked; planning-ready handoff is not allowed")
-
-    release_blockers_match = re.search(
-        r"(?ms)^###\s+Release Blockers\s*$\n(?P<body>.*?)(?=^##\s+|^###\s+|\Z)",
-        draft_content,
+    workflow_state_content = workflow_state_path.read_text(encoding="utf-8", errors="replace")
+    fixed_lifecycle_state = _extract_markdown_section(workflow_state_content, "Fixed Lifecycle State")
+    required_state_fields = (
+        "current_stage",
+        "current_domain",
+        "next_action",
+        "blocker_reason",
+        "final_handoff_decision",
     )
-    if release_blockers_match:
-        blocker_lines = [
-            _normalize_bullet_value(line.strip()[2:].strip())
-            for line in release_blockers_match.group("body").splitlines()
-            if line.strip().startswith("- ")
-        ]
-        nonempty_blockers = [line for line in blocker_lines if line and line.lower() not in {"none", "resolved"}]
-        if nonempty_blockers:
-            joined = ", ".join(nonempty_blockers)
-            errors.append(f"specify-draft.md still records unresolved release blockers: {joined}")
+    for field in required_state_fields:
+        value = extract_field(fixed_lifecycle_state, field)
+        if not value.strip():
+            errors.append(f"workflow-state.md is missing Fixed Lifecycle State field: {field}")
 
-    if "coverage mode" in alignment and "coverage mode**: core" in alignment:
-        hit_triggers = [phrase for phrase in SPECIFY_FULL_COVERAGE_TRIGGER_PHRASES if phrase in alignment]
-        if hit_triggers:
-            joined = ", ".join(hit_triggers)
-            errors.append(
-                "specify artifacts require full coverage evidence when escalation triggers were recorded: "
-                f"{joined}"
-            )
+    for legacy_field in ("active_profile", "coverage_mode", "observer_status", "last_observer_pass", "draft_file"):
+        if re.search(rf"(?im)^\s*-\s*{re.escape(legacy_field)}\s*:", workflow_state_content):
+            errors.append(f"workflow-state.md still uses legacy sp-specify state field: {legacy_field}")
 
     return errors
 
@@ -807,7 +752,6 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
     validation_errors: list[str] = []
     if command_name == "specify":
         validation_errors.extend(_validate_specify_draft_artifacts(feature_dir))
-        validation_errors.extend(_validate_specify_profile_artifacts(feature_dir))
     if command_name == "deep-research":
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":

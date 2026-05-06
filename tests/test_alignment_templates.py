@@ -299,30 +299,10 @@ def test_specify_template_uses_alignment_first_contract():
     assert "verification entry points" in lowered
     assert "known unknowns or stale evidence boundaries" in lowered
 
-    assert "## Scenario Profile Routing" in content
-    assert "active_profile" in content
-    assert "routing_reason" in content
-    assert "Reference-Implementation" in content
-    assert "Standard Delivery" in content
-    assert "Debug / Repair" in content
-    assert "Brownfield Enhancement" in content
-    assert "If the success criterion is fidelity to a reference object" in content
-    assert "persist at least these fields for the active pass" in lowered
-    assert "required_sections" in content
-    assert "activated_gates" in content
-    assert "`active_profile` must always be the supported profile whose obligations are persisted downstream" in content
-    assert "record the inferred unsupported taxonomy profile separately from `active_profile`" in content
-    assert "surface every profile narrowing to the user and allow correction before proceeding" in lowered
-    assert re.search(r"`Standard Delivery`:\s+- `required_sections`:", content)
-    assert re.search(r"`Standard Delivery`:[\s\S]*?- `transition_policy`: permit `/sp\.plan`", content)
-    assert re.search(r"`Reference-Implementation`:\s+- `required_sections`:", content)
-    assert re.search(r"`Reference-Implementation`:[\s\S]*?- `transition_policy`: permit `/sp\.plan` only", content)
-
     assert "alignment.md" in content
     assert "aligned: ready for plan" in lowered
     assert "Aligned: ready for plan" in content
     assert "Force proceed with known risks" in content
-    assert "Task Classification" in content or "task classification" in lowered
     assert "user's current language" in lowered
     assert "Business Goals" in content
     assert "Users & Roles" in content
@@ -367,20 +347,25 @@ def test_specify_template_uses_alignment_first_contract():
     assert "If the request is already one bounded capability, say so briefly and continue inside the current spec." in content
     assert "first-release scope" in lowered
     assert "mvp scope" not in lowered
-    _assert_subagent_dispatch_contract(content, "specify")
-    assert "repository and local context analysis" in lowered
-    assert "external references and supporting material analysis" in lowered
-    assert "ambiguity, risk, and gap analysis" in lowered
-    assert "before capability decomposition" in lowered
-    assert "before writing `spec.md`, `alignment.md`, and `context.md`" in content
+    assert 'choose_subagent_dispatch(command_name="specify"' in content
+    assert "execution_model: subagent-mandatory" in lowered
+    assert "dispatch_shape: one-subagent | parallel-subagents" in lowered
+    assert "execution_surface: native-subagents" in lowered
+    assert "one-subagent" in lowered
+    assert "parallel-subagents" in lowered
+    assert "native-subagents" in lowered
+    assert "targeted repository evidence" in lowered
+    assert "user-supplied references, examples, or linked material" in lowered
+    assert "high-impact ambiguity scan" in lowered
+    assert "decompose it into capabilities" in lowered
+    assert "Review the written `spec.md`, `alignment.md`, and `context.md`" in content
     assert "specify team" not in lowered
-    assert "Docs/config/process change:" in content
-    assert "compatibility/process constraints" in content
-    assert "completion criteria" in content
-    assert "Task classification changes which requirement dimensions are probed" in content
-    assert "impacted surfaces and consumers" in content
-    assert "affected surfaces and change-propagation path" in content
-    assert "affected surfaces and compatibility boundaries" in content
+    assert "the starting point, not the finished requirement package" in lowered
+    assert "analyze the whole feature first" in lowered
+    assert "planning-ready requirement package" in lowered
+    assert "Identify 3-5 planning-relevant gray areas" in content
+    assert "impacted surfaces and change-propagation expectations" in content
+    assert "major affected surfaces" in content
     assert "impacted surfaces and change-propagation expectations" in content
     assert "verification entry points and minimum evidence expectations" in content
     assert "known unknowns or stale evidence boundaries that could change planning safety" in content
@@ -393,8 +378,9 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Do not turn this into a freeform brainstorming workflow." in content
     assert "guided requirement discovery" in lowered
     assert "recommendation and example scaffolding" in lowered
-    assert "current-understanding or confirmation gate" in lowered
-    assert "confirm or correct the current understanding before `Aligned: ready for plan`" in content
+    assert "current-understanding summary" in lowered
+    assert "misunderstanding-correction gate" in lowered
+    assert "confirm or correct the current understanding before the final handoff decision is locked." in content
     assert "Identify 3-5 planning-relevant gray areas" in content
     assert "Derive gray areas from the combination of user intent, `PROJECT-HANDBOOK.md`, and targeted repository evidence" in content
     assert 'Do not use generic labels like "UX", "behavior", or "data handling"' in content
@@ -408,6 +394,28 @@ def test_specify_template_uses_alignment_first_contract():
     assert "desired happy-path behavior" in content
     assert "edge case or failure-path behavior" in content
     assert "compatibility, migration, or neighboring-workflow impact" in content
+    assert "fixed heavy discovery lifecycle" in lowered
+    assert "always execute these six stages in order" in lowered
+    assert "intent-analysis" in content
+    assert "intent-confirmation" in content
+    assert "question-batch" in content
+    assert "batch-adversarial-review" in content
+    assert "completeness-audit" in content
+    assert "final-handoff-decision" in content
+    assert "intent-analyst" in content
+    assert "adversarial-reviewer" in content
+    assert "completeness-auditor" in content
+    assert "goal-and-users" in content
+    assert "triggers-and-primary-flow" in content
+    assert "boundaries-and-non-goals" in content
+    assert "failure-paths-exceptions-and-permissions" in content
+    assert "dependencies-constraints-and-upstream-downstream-impact" in content
+    assert "acceptance-and-completeness-gap-closure" in content
+    assert "Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in content
+    assert "## Scenario Profile Routing" not in content
+    assert "active_profile" not in content
+    assert "coverage_mode" not in content
+    assert "Task Classification" not in content
 
 
 def test_core_planning_templates_use_logical_atlas_references() -> None:
@@ -792,22 +800,26 @@ def test_workflow_state_template_supports_analyze_gate_phase():
     content = _read("templates/workflow-state-template.md")
     lowered = content.lower()
 
-    assert "analysis-only" in lowered
-    assert "research-only" in lowered
-    assert "/sp.analyze" in content
+    assert "fixed lifecycle state" in lowered
+    assert "intent-analysis" in content
+    assert "question-batch" in content
+    assert "final-handoff-decision" in content
+    assert "/sp.plan" in content
+    assert "/sp.clarify" in content
     assert "/sp.deep-research" in content
-    assert "/sp.constitution" in content
+    assert "/sp.constitution" not in content
 
 
 def test_workflow_state_template_includes_lane_context():
     content = _read("templates/workflow-state-template.md")
 
-    assert "## Lane Context" in content
-    assert "lane_id:" in content
-    assert "branch_name:" in content
-    assert "worktree_path:" in content
-    assert "recovery_state:" in content
-    assert "last_stable_checkpoint:" in content
+    assert "## Fixed Lifecycle State" in content
+    assert "current_stage:" in content
+    assert "current_domain:" in content
+    assert "next_action:" in content
+    assert "blocker_reason:" in content
+    assert "final_handoff_decision:" in content
+    assert "## Lane Context" not in content
 
 
 def test_debug_template_reads_constitution_and_feature_context_before_fixing() -> None:
@@ -823,45 +835,38 @@ def test_debug_template_reads_constitution_and_feature_context_before_fixing() -
     assert "`context.md` exists for the active feature" in content
 
 
-def test_debug_templates_lock_expanded_observer_and_runtime_log_contract() -> None:
+def test_debug_templates_lock_single_path_intake_contract() -> None:
     debug_command = _read("templates/commands/debug.md").lower()
     debug_thinker = _read("templates/worker-prompts/debug-thinker.md").lower()
+    debug_contract_planner = _read("templates/worker-prompts/debug-contract-planner.md").lower()
 
-    assert "optional expanded observer" in debug_command
-    assert "recommend enabling expanded observer" in debug_command
-    assert "runtime bug" in debug_command
-    assert "phenomenon-only symptom" in debug_command or "phenomenon_only" in debug_command
-    assert "cross-layer" in debug_command
-    assert "expanded observer" in debug_command
+    assert "mandatory intake contract" in debug_command
+    assert "stage 1a: causal map" in debug_command
+    assert "stage 1b: investigation contract + log investigation plan" in debug_command
     assert "log investigation plan" in debug_command
     assert "logs are a first-class evidence source" in debug_command
     assert "existing logs" in debug_command
     assert "cannot directly enter fixing" in debug_command or "cannot enter fixing" in debug_command
+    assert "optional expanded observer" not in debug_command
+    assert "recommend enabling expanded observer" not in debug_command
 
-    assert "log investigation plan" in debug_thinker
-    assert "logs are a first-class evidence source" in debug_thinker
-    assert "existing logs" in debug_thinker
+    assert "causal-map-only" in debug_thinker
+    assert "causal_map:" in debug_thinker
     assert "dimension_scan" in debug_thinker
     assert "candidate_board" in debug_thinker
-    assert "top_candidates" in debug_thinker
-    assert "existing_log_targets" in debug_thinker
-    assert "candidate_signal_map" in debug_thinker
-    assert "log_sufficiency_judgment" in debug_thinker
-    assert "missing_observability" in debug_thinker
-    assert "instrumentation_targets" in debug_thinker
-    assert "instrumentation_style" in debug_thinker
-    assert "user_request_packet" in debug_thinker
     assert "light_scores" in debug_thinker
-    assert "engineering_scores" in debug_thinker
     assert "likelihood" in debug_thinker
     assert "impact_radius" in debug_thinker
     assert "falsifiability" in debug_thinker
     assert "log_observability" in debug_thinker
-    assert "cross_layer_span" in debug_thinker
-    assert "indirect_causality_risk" in debug_thinker
-    assert "evidence_gap" in debug_thinker
-    assert "investigation_cost" in debug_thinker
-    assert "recommended_log_probe" in debug_thinker
+    assert "log_investigation_plan:" not in debug_thinker
+    assert "expanded_observer:" not in debug_thinker
+    assert "observer_mode:" not in debug_thinker
+
+    assert "top-level log investigation plan" in debug_contract_planner
+    assert "log_investigation_plan" in debug_contract_planner
+    assert "top_candidate_summary:" in debug_contract_planner
+    assert "expanded_observer" not in debug_contract_planner
 
 
 def test_new_analysis_workflow_command_templates_exist():
@@ -974,13 +979,10 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
     specify = _read("templates/commands/specify.md")
     plan = _read("templates/commands/plan.md")
 
-    assert "Run a feasibility and implementation-chain gate." in specify
     assert "label: Prove Feasibility Before Plan" in specify
     assert "agent: sp.deep-research" in specify
-    assert "record `/sp.deep-research` as the canonical next command instead of `/sp.plan`" in specify
-    assert "tell them to run `{{invoke:deep-research}}` instead of `{{invoke:plan}}`" in specify
-    assert "minor adjustments to capabilities that already exist" in specify
-    assert "research-to-plan handoff path" in specify
+    assert "Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`." in specify
+    assert "Use `/sp.deep-research` when the requirements are clear enough but a planning-critical implementation chain still needs external proof or a disposable demo." in specify
     assert "Feasibility Evidence From Deep Research" in plan
     assert "Planning Handoff From Deep Research" in plan
     assert "Deep Research Traceability Matrix" in plan
@@ -1095,111 +1097,103 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
 
 def test_spec_template_defines_scope_boundaries_without_open_clarification_examples():
     content = _read("templates/spec-template.md")
+    lowered = content.lower()
 
-    assert "## Scope Boundaries" in content
+    assert "## Ideal Complete Requirement Shape" in content
+    assert "### Complete Capability Shape" in content
+    assert "### Complete Usage Expectations" in content
+    assert "### Domain-Expected Completeness Checks" in content
+    assert "## Current Delivery Boundary" in content
     assert "### In Scope" in content
     assert "### Out of Scope" in content
+    assert "### Boundary Constraints" in content
     assert "## Decision Capture" in content
     assert "### Locked Decisions" in content
     assert "### Claude Discretion" in content
     assert "### Canonical References" in content
     assert "### Deferred / Future Ideas" in content
-    assert "planning-facing analysis, not an implementation prescription" in content
-    assert "If the feature touches an established boundary pattern" in content
-    assert "`Implementation Constitution`" in content
-    assert "Established boundary pattern or framework-owned surface" in content
-    assert "Boundary-sensitive area that `plan` should turn into `Implementation Constitution`" in content
     assert "### Event / Trigger Model" in content
     assert "### Protocol / Contract Notes" in content
     assert "### Failure, Retry, and Visibility Semantics" in content
     assert "### Configuration and Rollout Notes" in content
     assert "retention, archival, or cleanup concern" in content
     assert "[NEEDS CLARIFICATION:" not in content
-    assert "coherent first release" in content.lower()
-    assert "viable mvp" not in content.lower()
+    assert "coherent first release" in lowered
+    assert "viable mvp" not in lowered
+    assert "scope boundaries" not in lowered
 
 
 def test_shared_artifact_templates_include_profile_fidelity_overlays():
     spec_content = _read("templates/spec-template.md")
     spec_lowered = spec_content.lower()
-    assert "## Fidelity Requirements" in spec_content
-    _assert_contains_any(spec_lowered, "reference-implementation", "copy-exact")
-    assert "reference object" in spec_lowered
+    assert "Ideal Complete Requirement Shape" in spec_content
+    assert "Current Delivery Boundary" in spec_content
+    assert "fidelity requirements" not in spec_lowered
+    assert "reference object" not in spec_lowered
 
-    plan_lowered = _read("templates/plan-template.md").lower()
-    assert "reference fidelity contract" in plan_lowered
-    _assert_contains_any(
-        plan_lowered,
-        "profile-driven implementation constraints",
-        "profile obligations",
-    )
+    alignment_lowered = _read("templates/alignment-template.md").lower()
+    assert "completeness convergence report" in alignment_lowered
+    assert "domain closure log" in alignment_lowered
+    assert "batch adversarial review summary" in alignment_lowered
+    assert "critical gaps and reopen decisions" in alignment_lowered
 
-    tasks_content = _read("templates/tasks-template.md")
-    tasks_lowered = tasks_content.lower()
-    prerequisites_match = re.search(r"(?m)^\*\*Prerequisites\*\*: (?P<value>.+)$", tasks_content)
-    assert prerequisites_match is not None
-    prerequisites = prerequisites_match.group("value")
-    assert "alignment.md" in prerequisites
-    assert "context.md" in prerequisites
-    assert re.search(
-        r"scenario profile inputs.*alignment\.md.*context\.md",
-        tasks_lowered,
-    )
-    assert "Fidelity Checkpoint" in tasks_content
-    assert "Deviation Review" in tasks_content
-    assert "required evidence" in tasks_lowered
+    context_lowered = _read("templates/context-template.md").lower()
+    assert "impact and constraint map" in context_lowered
+    assert "critical adjacent effects" in context_lowered
+    assert "change propagation matrix" in context_lowered
 
 
 def test_context_template_exists_and_captures_planning_context():
     content = _read("templates/context-template.md")
 
-    assert "# Feature Context:" in content
-    assert "## Phase / Feature Boundary" in content
-    assert "## Locked Decisions" in content
-    assert "## Capability Checkpoints" in content
-    assert "## Decision Fork Outcomes" in content
-    assert "## Claude Discretion" in content
-    assert "## Canonical References" in content
-    assert "## Existing Code Insights" in content
+    assert "# Impact and Constraint Map:" in content
+    assert "## Affected Surfaces" in content
+    assert "## Upstream Dependencies" in content
+    assert "## Downstream Dependencies and Consumers" in content
+    assert "## Product Boundary Constraints" in content
+    assert "## Domain-Expected Completeness Checks" in content
+    assert "## Critical Adjacent Effects" in content
+    assert "## Existing Capability and Reuse Notes" in content
     assert "## Change Propagation Matrix" in content
-    assert "## Boundary Contracts and Lifecycle Notes" in content
-    assert "## Configuration Surface" in content
-    assert "## Specific User Signals" in content
-    assert "## Observer-Carried Risks" in content
+    assert "## Locked Decisions Carry-Forward" in content
+    assert "## Canonical References" in content
     assert "## Outstanding Questions" in content
     assert "## Deferred / Future Ideas" in content
+    assert "# Feature Context:" not in content
 
 
 def test_workflow_state_template_exists_and_captures_phase_lock_contract():
     content = _read("templates/workflow-state-template.md")
 
     assert "# Workflow State:" in content
-    assert "## Current Command" in content
-    assert "## Phase Mode" in content
-    assert "## Allowed Artifact Writes" in content
-    assert "## Forbidden Actions" in content
-    assert "## Authoritative Files" in content
-    assert "## Resume Checklist" in content
-    assert "## Exit Criteria" in content
-    assert "## Next Action" in content
-    assert "## Next Command" in content
-    assert "## Learning Signals" in content
-    assert "### False Starts" in content
-    assert "### Hidden Dependencies" in content
-    assert "### Reusable Constraints" in content
-    assert "planning-only" in content
-    assert "design-only" in content
-    assert "task-generation-only" in content
-    assert "/sp.constitution" in content
+    assert "## Fixed Lifecycle State" in content
+    assert "current_stage:" in content
+    assert "current_domain:" in content
+    assert "next_action:" in content
+    assert "blocker_reason:" in content
+    assert "final_handoff_decision:" in content
+    assert "intent-analysis" in content
+    assert "intent-confirmation" in content
+    assert "question-batch" in content
+    assert "batch-adversarial-review" in content
+    assert "completeness-audit" in content
+    assert "final-handoff-decision" in content
+    assert "goal-and-users" in content
+    assert "acceptance-and-completeness-gap-closure" in content
+    assert "/sp.plan" in content
+    assert "/sp.clarify" in content
+    assert "/sp.deep-research" in content
+    assert "## Current Command" not in content
+    assert "## Phase Mode" not in content
 
 
 def test_workflow_state_template_documents_recovery_sections() -> None:
     content = _read("templates/workflow-state-template.md")
 
-    assert "## Allowed Artifact Writes" in content
-    assert "## Forbidden Actions" in content
-    assert "## Authoritative Files" in content
-    assert "Re-read this file first after compaction or session recovery." in content
+    assert "## Fixed Lifecycle State" in content
+    assert "blocker_reason: [None | Why progress is blocked or why a domain was reopened]" in content
+    assert "final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]" in content
+    assert "Re-read this file first after compaction or session recovery." not in content
 
 
 def test_auto_template_routes_from_existing_state_surfaces():
@@ -1642,21 +1636,19 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
 def test_alignment_template_exists():
     content = _read("templates/alignment-template.md")
 
-    assert "# Requirement Alignment Report:" in content
-    assert "### Planning Summary" in content
-    assert "## Locked Decisions For Planning" in content
-    assert "## Engineering Closure For Planning" in content
-    assert "## Capability Checkpoints" in content
-    assert "## Observer Gate" in content
-    assert "## Coverage Mode Outcomes" in content
-    assert "## High-Impact Decision Forks" in content
-    assert "## Artifact Review Gate" in content
-    assert "## Outstanding Questions" in content
-    assert "## Planning-Critical Blockers" in content
+    assert "# Completeness Convergence Report:" in content
+    assert "## Initial Intent Analysis" in content
+    assert "## Domain Closure Log" in content
+    assert "## Batch Adversarial Review Summary" in content
+    assert "## Critical Gaps and Reopen Decisions" in content
+    assert "## Completeness Audit Outcome" in content
     assert "## Planning Gate Recommendation" in content
     assert "## Release Decision" in content
     assert "Aligned: ready for plan" in content
     assert "Force proceed with known risks" in content
+    assert "# Requirement Alignment Report:" not in content
+    assert "## Observer Gate" not in content
+    assert "## Coverage Mode Outcomes" not in content
 
 
 def test_script_contracts_expose_context_artifact_paths():
@@ -1815,8 +1807,12 @@ def test_specify_draft_template_and_feature_scripts_scaffold_draft_artifact():
     pyproject = _read("pyproject.toml")
 
     assert "# Specification Draft Ledger:" in draft_template
-    assert "## Recovery Capsule" in draft_template
-    assert "## Observer Findings" in draft_template
+    assert "## Intent Analysis Record" in draft_template
+    assert "## Domain Progress Ledger" in draft_template
+    assert "## Question Batch Ledger" in draft_template
+    assert "## Adversarial Review Ledger" in draft_template
+    assert "## Completeness Gap Register" in draft_template
+    assert "## Final Audit Inputs" in draft_template
     assert "SPECIFY_DRAFT_FILE" in sh_create
     assert "specify-draft-template" in sh_create
     assert "$specifyDraftFile = Join-Path $featureDir 'specify-draft.md'" in ps_create
@@ -1826,26 +1822,75 @@ def test_specify_draft_template_and_feature_scripts_scaffold_draft_artifact():
     assert '"templates/specify-draft-template.md" = "specify_cli/core_pack/templates/specify-draft-template.md"' in pyproject
 
 
-def test_specify_template_requires_draft_sync_observer_passes_and_coverage_escalation():
+def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
     content = _read("templates/commands/specify.md")
     observer_prompt = _read("templates/worker-prompts/specify-observer.md")
-    codex = _read("src/specify_cli/integrations/codex/__init__.py")
     lowered = content.lower()
 
     assert "specify-draft.md" in content
     assert "create or resume `specify_draft_file` immediately after `feature_dir` is known" in lowered
-    assert "after every clarification answer, update `specify_draft_file`" in lowered
-    assert "observer should run at exactly three fixed points" in lowered
-    assert "coverage_mode: `core | full`" in content
-    assert "cross-module impact" in lowered
-    assert "external boundary, contract, or integration behavior" in lowered
-    assert "performance or capacity risk" in lowered
-    assert "must not declare `aligned: ready for plan`" in lowered
+    assert "content ledger for the whole discovery run" in lowered
+    assert "current domain" in lowered
+    assert "recent question-batch disposition" in lowered
+    assert "adversarial-review findings" in lowered
+    assert "confirmed facts" in lowered
+    assert "reopen the current domain" in lowered
+    assert "completeness gaps" in lowered
+    assert "next question target" in lowered
     assert "# Specify Observer Worker Prompt" in observer_prompt
-    assert "missing_questions" in observer_prompt
+    assert "missing_critical_capabilities" in observer_prompt
     assert "release_blockers" in observer_prompt
-    assert "sp-specify" in codex
-    assert "before capability closure" in codex.lower()
+
+
+def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> None:
+    content = _read("templates/commands/specify.md")
+    lowered = content.lower()
+
+    assert "intent-analysis" in content
+    assert "intent-confirmation" in content
+    assert "question-batch" in content
+    assert "batch-adversarial-review" in content
+    assert "completeness-audit" in content
+    assert "final-handoff-decision" in content
+
+    assert "intent-analyst" in content
+    assert "adversarial-reviewer" in content
+    assert "completeness-auditor" in content
+
+    assert "goal-and-users" in content
+    assert "triggers-and-primary-flow" in content
+    assert "boundaries-and-non-goals" in content
+    assert "failure-paths-exceptions-and-permissions" in content
+    assert "dependencies-constraints-and-upstream-downstream-impact" in content
+    assert "acceptance-and-completeness-gap-closure" in content
+
+    assert "task classification" not in lowered
+    assert "active_profile" not in content
+    assert "coverage_mode" not in content
+    assert "observer gate" not in lowered
+
+
+def test_specify_artifact_templates_lock_fixed_heavy_discovery_shapes() -> None:
+    alignment = _read("templates/alignment-template.md")
+    alignment_lowered = alignment.lower()
+    spec = _read("templates/spec-template.md")
+
+    assert "completeness convergence report" in alignment_lowered
+    assert "initial intent analysis" in alignment_lowered
+    assert "domain closure log" in alignment_lowered
+    assert "batch adversarial review summary" in alignment_lowered
+    assert "Critical Gaps and Reopen Decisions" in alignment
+    assert "completeness audit outcome" in alignment_lowered
+    assert "High-Impact Decision Forks" not in alignment
+    assert "active_profile" not in alignment
+    assert "task classification" not in alignment_lowered
+    assert "coverage mode" not in alignment_lowered
+    assert "observer gate" not in alignment_lowered
+
+    assert "Ideal Complete Requirement Shape" in spec
+    assert "Current Delivery Boundary" in spec
+    assert "This layer captures the complete useful feature form" in spec
+    assert "This layer captures the current project-bound delivery boundary" in spec
 
 
 def test_agent_file_template_captures_lane_recovery_rules():
