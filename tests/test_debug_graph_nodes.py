@@ -214,7 +214,9 @@ async def test_gathering_blocks_unsafe_legacy_resume_until_reintake() -> None:
     result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
 
     assert result.data == "Awaiting more debugging input"
-    assert "legacy-session-needs-reintake" in (state.current_focus.next_action or "")
+    assert state.legacy_session_needs_reintake is True
+    assert state.causal_map_completed is False
+    assert "Causal map needed" in (state.current_focus.next_action or "")
 
 @pytest.mark.asyncio
 async def test_investigating_node_prioritization():
@@ -664,8 +666,8 @@ async def test_investigating_node_generates_user_log_request_packet_when_runtime
     result = await InvestigatingNode().run(GraphRunContext(state=state, deps=None))
 
     assert result.data == "Awaiting more debugging input"
-    assert state.expanded_observer.log_investigation_plan.user_request_packet
-    packet = state.expanded_observer.log_investigation_plan.user_request_packet[0]
+    assert state.log_investigation_plan.user_request_packet
+    packet = state.log_investigation_plan.user_request_packet[0]
     assert "log" in packet.target_source.lower() or "console" in packet.target_source.lower()
     assert packet.time_window
     assert packet.keywords_or_fields
@@ -708,7 +710,7 @@ async def test_investigating_node_preserves_existing_contract_user_log_request_p
         state.investigation_contract.log_investigation_plan.user_request_packet[0].target_source
         == "tailored contract packet"
     )
-    assert not state.expanded_observer.log_investigation_plan.user_request_packet
+    assert not state.log_investigation_plan.user_request_packet
 
 
 @pytest.mark.asyncio

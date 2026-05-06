@@ -347,6 +347,17 @@ def _legacy_reintake_message(state: DebugGraphState) -> str:
     )
 
 
+def _force_legacy_reintake(state: DebugGraphState) -> None:
+    state.causal_map_completed = False
+    state.investigation_contract_completed = False
+    state.log_investigation_plan_completed = False
+    state.contract_generation_completed = False
+    state.observer_framing_completed = False
+    state.framing_gate_passed = False
+    state.think_subagent_prompt = None
+    state.contract_subagent_prompt = None
+
+
 def _runtime_log_gate_gaps(state: DebugGraphState) -> list[str]:
     if not _is_runtime_bug(state):
         return []
@@ -367,7 +378,7 @@ def _ensure_user_log_request_packet(state: DebugGraphState) -> None:
         return
     if state.investigation_contract.log_investigation_plan.user_request_packet:
         return
-    if state.expanded_observer.log_investigation_plan.user_request_packet:
+    if state.log_investigation_plan.user_request_packet:
         return
 
     runtime_profile = _classify_project_runtime_profile(state)
@@ -414,7 +425,7 @@ def _ensure_user_log_request_packet(state: DebugGraphState) -> None:
         why_this_matters=why,
         expected_signal_examples=examples,
     )
-    state.expanded_observer.log_investigation_plan.user_request_packet = [packet]
+    state.log_investigation_plan.user_request_packet = [packet]
     state.investigation_contract.log_investigation_plan.user_request_packet = [packet]
 
 
@@ -955,10 +966,8 @@ class GatheringNode(BaseNode[DebugGraphState, MarkdownPersistenceHandler]):
         _sync_intake_completion(ctx.state)
 
         if ctx.state.legacy_session_needs_reintake:
-            return _await_input(
-                ctx.state,
-                _legacy_reintake_message(ctx.state),
-            )
+            _force_legacy_reintake(ctx.state)
+            ctx.state.current_focus.next_action = _legacy_reintake_message(ctx.state)
         
         # 1. Load context
         loader = ContextLoader()

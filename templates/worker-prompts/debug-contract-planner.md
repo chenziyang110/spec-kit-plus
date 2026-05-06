@@ -80,8 +80,8 @@ observer_framing:
   symptom_shape: "phenomenon_only"
   log_readiness: "unknown"
   top_candidate_summary:
-    - candidate_id: "cand-slot-ownership"
-      recommended_log_probe: "Check release and admission logs in the same request window"
+    candidate_id: "cand-slot-ownership"
+    recommended_log_probe: "Check release and admission logs in the same request window"
   surface_truth_owner_distinction: "The UI badge is the symptom layer; scheduler slot ownership is the likely truth owner."
 transition_memo:
   first_candidate_to_test: "cand-slot-ownership"

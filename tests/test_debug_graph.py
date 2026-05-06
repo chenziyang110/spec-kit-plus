@@ -156,7 +156,9 @@ async def test_gathering_blocks_unsafe_legacy_resume_until_reintake() -> None:
     result = await GatheringNode().run(GraphRunContext(state=state, deps=None))
 
     assert result.data == "Awaiting more debugging input"
-    assert "legacy-session-needs-reintake" in (state.current_focus.next_action or "")
+    assert state.legacy_session_needs_reintake is True
+    assert state.causal_map_completed is False
+    assert "Causal map needed" in (state.current_focus.next_action or "")
 
 
 @pytest.mark.asyncio

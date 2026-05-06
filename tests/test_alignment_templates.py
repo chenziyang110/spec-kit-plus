@@ -835,45 +835,38 @@ def test_debug_template_reads_constitution_and_feature_context_before_fixing() -
     assert "`context.md` exists for the active feature" in content
 
 
-def test_debug_templates_lock_expanded_observer_and_runtime_log_contract() -> None:
+def test_debug_templates_lock_single_path_intake_contract() -> None:
     debug_command = _read("templates/commands/debug.md").lower()
     debug_thinker = _read("templates/worker-prompts/debug-thinker.md").lower()
+    debug_contract_planner = _read("templates/worker-prompts/debug-contract-planner.md").lower()
 
-    assert "optional expanded observer" in debug_command
-    assert "recommend enabling expanded observer" in debug_command
-    assert "runtime bug" in debug_command
-    assert "phenomenon-only symptom" in debug_command or "phenomenon_only" in debug_command
-    assert "cross-layer" in debug_command
-    assert "expanded observer" in debug_command
+    assert "mandatory intake contract" in debug_command
+    assert "stage 1a: causal map" in debug_command
+    assert "stage 1b: investigation contract + log investigation plan" in debug_command
     assert "log investigation plan" in debug_command
     assert "logs are a first-class evidence source" in debug_command
     assert "existing logs" in debug_command
     assert "cannot directly enter fixing" in debug_command or "cannot enter fixing" in debug_command
+    assert "optional expanded observer" not in debug_command
+    assert "recommend enabling expanded observer" not in debug_command
 
-    assert "log investigation plan" in debug_thinker
-    assert "logs are a first-class evidence source" in debug_thinker
-    assert "existing logs" in debug_thinker
+    assert "causal-map-only" in debug_thinker
+    assert "causal_map:" in debug_thinker
     assert "dimension_scan" in debug_thinker
     assert "candidate_board" in debug_thinker
-    assert "top_candidates" in debug_thinker
-    assert "existing_log_targets" in debug_thinker
-    assert "candidate_signal_map" in debug_thinker
-    assert "log_sufficiency_judgment" in debug_thinker
-    assert "missing_observability" in debug_thinker
-    assert "instrumentation_targets" in debug_thinker
-    assert "instrumentation_style" in debug_thinker
-    assert "user_request_packet" in debug_thinker
     assert "light_scores" in debug_thinker
-    assert "engineering_scores" in debug_thinker
     assert "likelihood" in debug_thinker
     assert "impact_radius" in debug_thinker
     assert "falsifiability" in debug_thinker
     assert "log_observability" in debug_thinker
-    assert "cross_layer_span" in debug_thinker
-    assert "indirect_causality_risk" in debug_thinker
-    assert "evidence_gap" in debug_thinker
-    assert "investigation_cost" in debug_thinker
-    assert "recommended_log_probe" in debug_thinker
+    assert "log_investigation_plan:" not in debug_thinker
+    assert "expanded_observer:" not in debug_thinker
+    assert "observer_mode:" not in debug_thinker
+
+    assert "top-level log investigation plan" in debug_contract_planner
+    assert "log_investigation_plan" in debug_contract_planner
+    assert "top_candidate_summary:" in debug_contract_planner
+    assert "expanded_observer" not in debug_contract_planner
 
 
 def test_new_analysis_workflow_command_templates_exist():
