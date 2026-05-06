@@ -570,7 +570,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert ".specify/project-map/root/operations.md" in content
     assert "observer framing" in content
     assert "compressed observer framing" in content
-    assert "full observer framing" in content
+    assert "mandatory intake contract" in content
+    assert "stage 1a: causal map" in content
     assert "same_issue" in content
     assert "derived_issue" in content
     assert "unrelated_issue" in content
