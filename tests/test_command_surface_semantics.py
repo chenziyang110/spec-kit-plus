@@ -76,9 +76,10 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
 
     assert "## Invocation Syntax" in content
     assert "`$sp-plan`-style syntax" in content
-    assert "- **Default handoff**: /sp.plan" in content
-    assert "recommend /sp.clarify" in content
-    assert "through /sp.deep-research" in content
+    assert "final-handoff-decision" in content
+    assert "/sp.plan" in content
+    assert "/sp.clarify" in content
+    assert "/sp.deep-research" in content
     assert "readiness for the next phase (`$sp-plan` for the mainline" in content
     assert "`next_command: /sp.plan`" in content
 

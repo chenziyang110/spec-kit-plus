@@ -34,6 +34,10 @@ specify --help
 the same `0.5.1.dev0` version string across commits. Use `specify --help` to
 confirm newly added commands such as `testing` are present, and use
 `Get-Command specify -All` on Windows to detect duplicate old entrypoints.
+Feature creation follows `sp-specify` plus the generated create-feature script
+at `.specify/scripts/bash/create-new-feature.sh` or
+`.specify/scripts/powershell/create-new-feature.ps1`; do not assume a separate
+`specify create-feature` command family exists.
 
 ### One-time use without installing
 

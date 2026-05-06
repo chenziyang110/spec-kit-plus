@@ -365,7 +365,8 @@ class TestBuiltInSkillGeneration:
         assert "Reply instruction" in specify_body or "reply instruction" in specify_body.lower()
         assert "/sp.plan" in specify_body
         assert "guided requirement discovery" in specify_body.lower()
-        assert "current-understanding or confirmation gate" in specify_body.lower()
+        assert "fixed heavy discovery lifecycle" in specify_body.lower()
+        assert "final-handoff-decision" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
         assert "PROJECT-HANDBOOK.md" in specify_body
         assert ".specify/project-map/root/ARCHITECTURE.md" in specify_body
@@ -389,22 +390,16 @@ class TestBuiltInSkillGeneration:
         assert "change-propagation hotspots, consumer surfaces, and neighboring surfaces likely to require review" in specify_body
         assert "verification entry points and regression-sensitive checks" in specify_body
         assert "known unknowns, stale evidence boundaries, or observability gaps" in specify_body
-        assert "grounded in the project handbook and touched-area topical map" in specify_body
-        assert "Do not use generic labels like \"UX\", \"behavior\", or \"data handling\"" in specify_body
-        assert "Each gray area should be captured internally with:" in specify_body
-        assert "desired happy-path behavior" in specify_body
-        assert "edge case or failure-path behavior" in specify_body
-        assert "compatibility, migration, or neighboring-workflow impact" in specify_body
-        assert "Use code-aware follow-ups when possible" in specify_body
-        assert "Apply a specificity test before leaving a gray area" in specify_body
-        assert "Do not leave a gray area merely because the user expressed a preference" in specify_body
+        assert "clarify planning-critical ambiguity" in specify_body.lower()
+        assert "decompose the request into capabilities" in specify_body.lower()
         assert "default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof" in specify_body
         assert "context.md" in specify_body
         assert "Write `context.md` to `CONTEXT_FILE`." in specify_body
         assert "Locked decisions are preserved in context.md" in specify_body
         assert "/sp.clarify" in specify_body or "{{invoke:clarify}}" in specify_body
         assert "recommended review follow-up" in specify_body
-        assert "without needing `/sp.clarify`" in specify_body
+        assert "final-handoff-decision" in specify_body
+        assert "/sp.deep-research" in specify_body or "{{invoke:deep-research}}" in specify_body
         assert "git-baseline freshness" in specify_body.lower()
         assert "complete-refresh" in specify_body
         assert "manual override/fallback" in specify_body.lower()
@@ -612,13 +607,14 @@ class TestBuiltInSkillGeneration:
         debug_lower = debug_body.lower()
         assert "observer framing" in debug_lower
         assert "compressed observer framing" in debug_lower
-        assert "full observer framing" in debug_lower
+        assert "mandatory intake contract" in debug_lower
+        assert "stage 1a: causal map" in debug_lower
         assert "same_issue" in debug_lower
         assert "derived_issue" in debug_lower
         assert "unrelated_issue" in debug_lower
         assert "contrarian candidate" in debug_lower
-        assert "at least 3 alternative cause candidates" in debug_lower
-        assert "at least 2 for compressed framing" in debug_lower
+        assert "causal_map_completed: true" in debug_lower
+        assert "investigation_contract_completed: true" in debug_lower
         assert "the think subagent must not read source files" in debug_lower
         assert "the think subagent must not inspect logs" in debug_lower
         assert "the think subagent must not read test files" in debug_lower
