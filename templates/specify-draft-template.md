@@ -3,69 +3,50 @@
 **Feature Branch**: `[###-feature-name]`  
 **Created**: [DATE]  
 **Status**: Active draft  
-**Purpose**: Durable clarification ledger, observer findings, and resume anchor for `sp-specify`
+**Purpose**: Fixed-heavy discovery content ledger and resume anchor for `sp-specify`
 
-## Current Focus
+## Intent Analysis Record
 
-- current_capability: [active capability name]
-- current_stage: [discovery | clarification | observer-review | capability-closure | final-handoff]
-- coverage_mode: [core | full]
-- observer_status: [not-run | pending | completed | blocked]
+- current_intent_hypothesis: [Best current understanding of the user's intended capability]
+- likely_affected_surfaces: [Primary surfaces implicated by intent-analysis]
+- biggest_open_ambiguity: [Highest-risk misunderstanding still to correct]
 
-## Recovery Capsule
+## Domain Progress Ledger
 
-- last_question_asked: [most recent user-facing question]
-- last_answer_summary: [one-line summary of the user's latest answer]
-- next_question_target: [highest-value next clarification target]
-- open_blockers:
-  - [planning-critical blocker]
-- recently_closed_items:
-  - [recently resolved item]
+- current_domain: [goal-and-users | triggers-and-primary-flow | boundaries-and-non-goals | failure-paths-exceptions-and-permissions | dependencies-constraints-and-upstream-downstream-impact | acceptance-and-completeness-gap-closure]
+- domain_statuses:
+  - goal-and-users: [not-started | in-progress | confirmed-by-user | closed-by-existing-evidence | force-carried-with-risk | reopen-required]
+  - triggers-and-primary-flow: [status]
+  - boundaries-and-non-goals: [status]
+  - failure-paths-exceptions-and-permissions: [status]
+  - dependencies-constraints-and-upstream-downstream-impact: [status]
+  - acceptance-and-completeness-gap-closure: [status]
 
-## Confirmed Facts
+## Question Batch Ledger
 
-- [fact confirmed by user or repository evidence]
+- **Batch**: [Batch identifier]
+  Domain: [Active domain]
+  Questions:
+  - [Question 1]
+  - [Question 2]
+  - [Question 3]
+  Answer summary: [Condensed summary of what the user answered or what evidence closed the batch]
+  Disposition: [closed | reopen-required | force-carried-with-risk]
 
-## Low-Risk Inferences
+## Adversarial Review Ledger
 
-- [reasonable default preserved as an inference]
+- **Batch / domain**: [Which batch was reviewed]
+  Challenge focus: [Contradiction, omission, hidden dependency, boundary conflict, etc.]
+  Findings: [What the adversarial review surfaced]
+  Reopen decision: [none | reopen current domain | escalate to final audit concern]
 
-## Unresolved Items
+## Completeness Gap Register
 
-- [open item that still affects planning]
+- [Gap description] -> [Affected domain] -> [Why it threatens completeness] -> [Current disposition]
+- [Missing boundary, capability, adjacent effect, or feasibility concern] -> [Affected domain] -> [Disposition]
 
-## Observer Findings
+## Final Audit Inputs
 
-### Missing Questions
-
-- [question the observer says still needs to be asked]
-
-### Affected Surfaces
-
-- [directly affected surface]
-
-### Adjacent Workflows
-
-- [adjacent workflow or consumer surface to review]
-
-### Assumption Risks
-
-- [assumption that could invalidate planning]
-
-### Capability Gaps
-
-- [gap preventing capability closure]
-
-### Contrarian Candidate
-
-- [the strongest alternative interpretation to test]
-
-### Release Blockers
-
-- [observer-defined blocker to resolve before handoff]
-
-## Question Ledger
-
-- Q: [...]
-  A: [...]
-  Disposition: [resolved | inferred | deferred | force-carried]
+- audit_readiness: [not-ready | ready-for-audit | audit-failed | audit-passed]
+- planning_readiness_summary: [Why the package is or is not ready to leave discovery]
+- handoff_candidate: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]
