@@ -15,6 +15,18 @@ def debug_research_path(debug_dir: Path, slug: str) -> Path:
 
 
 def _effective_log_plan(state: DebugGraphState):
+    if any(
+        (
+            state.log_investigation_plan.existing_log_targets,
+            state.log_investigation_plan.candidate_signal_map,
+            state.log_investigation_plan.log_sufficiency_judgment,
+            state.log_investigation_plan.missing_observability,
+            state.log_investigation_plan.instrumentation_targets,
+            state.log_investigation_plan.instrumentation_style,
+            state.log_investigation_plan.user_request_packet,
+        )
+    ):
+        return state.log_investigation_plan
     contract_plan = state.investigation_contract.log_investigation_plan
     if any(
         (
@@ -31,6 +43,55 @@ def _effective_log_plan(state: DebugGraphState):
     return state.expanded_observer.log_investigation_plan
 
 
+def _normalize_legacy_debug_payload(frontmatter: dict[str, Any], sections: dict[str, Any]) -> dict[str, Any]:
+    investigation_contract_section = sections.get("Investigation Contract") or {}
+    expanded_section = sections.get("Expanded Observer") or {}
+    canonical_log_plan = (
+        sections.get("Log Investigation Plan")
+        or investigation_contract_section.get("log_investigation_plan")
+        or expanded_section.get("log_investigation_plan")
+        or {}
+    )
+    candidate_board = (
+        sections.get("Causal Map", {}).get("candidate_board")
+        if isinstance(sections.get("Causal Map"), dict)
+        else None
+    ) or expanded_section.get("candidate_board") or []
+    dimension_scan = (
+        sections.get("Causal Map", {}).get("dimension_scan")
+        if isinstance(sections.get("Causal Map"), dict)
+        else None
+    ) or expanded_section.get("dimension_scan") or {}
+
+    legacy_branch_markers = any(
+        (
+            frontmatter.get("observer_mode"),
+            frontmatter.get("skip_observer_reason"),
+            frontmatter.get("observer_expansion_status"),
+            frontmatter.get("observer_expansion_reason"),
+            sections.get("Expanded Observer"),
+        )
+    )
+
+    return {
+        "investigation_contract_completed": frontmatter.get(
+            "investigation_contract_completed",
+            frontmatter.get("contract_generation_completed", False),
+        ),
+        "log_investigation_plan_completed": frontmatter.get(
+            "log_investigation_plan_completed",
+            bool(canonical_log_plan),
+        ),
+        "legacy_session_needs_reintake": frontmatter.get(
+            "legacy_session_needs_reintake",
+            legacy_branch_markers,
+        ),
+        "log_investigation_plan": canonical_log_plan,
+        "causal_map_dimension_scan": dimension_scan,
+        "causal_map_candidate_board": candidate_board,
+    }
+
+
 def build_research_checkpoint(state: DebugGraphState) -> str:
     root_cause = state.resolution.root_cause.display_text() if state.resolution.root_cause else "Not confirmed"
     fix = state.resolution.fix or "No fix recorded"
@@ -41,8 +102,6 @@ def build_research_checkpoint(state: DebugGraphState) -> str:
         "",
         f"- Trigger: {state.trigger}",
         f"- Diagnostic profile: {profile}",
-        f"- Observer expansion status: {state.observer_expansion_status.value if state.observer_expansion_status else 'Not recorded'}",
-        f"- Observer expansion reason: {state.observer_expansion_reason or 'Not recorded'}",
         f"- Project runtime profile: {state.project_runtime_profile.value if state.project_runtime_profile else 'Not recorded'}",
         f"- Log readiness: {state.log_readiness.value if state.log_readiness else 'Not recorded'}",
         f"- Failed verification attempts: {state.resolution.fail_count}",
@@ -162,8 +221,6 @@ def build_handoff_report(state: DebugGraphState) -> str:
         "",
         f"- Trigger: {state.trigger}",
         f"- Diagnostic profile: {state.diagnostic_profile or 'Not classified'}",
-        f"- Observer expansion status: {state.observer_expansion_status.value if state.observer_expansion_status else 'Not recorded'}",
-        f"- Observer expansion reason: {state.observer_expansion_reason or 'Not recorded'}",
         f"- Project runtime profile: {state.project_runtime_profile.value if state.project_runtime_profile else 'Not recorded'}",
         f"- Symptom shape: {state.symptom_shape.value if state.symptom_shape else 'Not recorded'}",
         f"- Log readiness: {state.log_readiness.value if state.log_readiness else 'Not recorded'}",
@@ -305,40 +362,32 @@ def build_handoff_report(state: DebugGraphState) -> str:
     ):
         lines.append("- Not recorded")
 
-    lines.extend(["", "### Expanded Observer"])
-    if state.expanded_observer.dimension_scan.symptom_layer:
-        lines.append(f"- Symptom layer: {state.expanded_observer.dimension_scan.symptom_layer}")
-    if state.expanded_observer.dimension_scan.caller_or_input_layer:
-        lines.append(f"- Caller or input layer: {state.expanded_observer.dimension_scan.caller_or_input_layer}")
-    if state.expanded_observer.dimension_scan.truth_owner_or_business_layer:
+    lines.extend(["", "### Causal Map Dimension Scan"])
+    if state.causal_map.dimension_scan.symptom_layer:
+        lines.append(f"- Symptom layer: {state.causal_map.dimension_scan.symptom_layer}")
+    if state.causal_map.dimension_scan.caller_or_input_layer:
+        lines.append(f"- Caller or input layer: {state.causal_map.dimension_scan.caller_or_input_layer}")
+    if state.causal_map.dimension_scan.truth_owner_or_business_layer:
         lines.append(
-            f"- Truth owner or business layer: {state.expanded_observer.dimension_scan.truth_owner_or_business_layer}"
+            f"- Truth owner or business layer: {state.causal_map.dimension_scan.truth_owner_or_business_layer}"
         )
-    if state.expanded_observer.dimension_scan.storage_or_state_layer:
-        lines.append(f"- Storage or state layer: {state.expanded_observer.dimension_scan.storage_or_state_layer}")
-    if state.expanded_observer.dimension_scan.cache_queue_async_layer:
+    if state.causal_map.dimension_scan.storage_or_state_layer:
+        lines.append(f"- Storage or state layer: {state.causal_map.dimension_scan.storage_or_state_layer}")
+    if state.causal_map.dimension_scan.cache_queue_async_layer:
         lines.append(
-            f"- Cache, queue, or async layer: {state.expanded_observer.dimension_scan.cache_queue_async_layer}"
+            f"- Cache, queue, or async layer: {state.causal_map.dimension_scan.cache_queue_async_layer}"
         )
-    if state.expanded_observer.dimension_scan.config_env_deploy_layer:
+    if state.causal_map.dimension_scan.config_env_deploy_layer:
         lines.append(
-            f"- Config, env, or deploy layer: {state.expanded_observer.dimension_scan.config_env_deploy_layer}"
+            f"- Config, env, or deploy layer: {state.causal_map.dimension_scan.config_env_deploy_layer}"
         )
-    if state.expanded_observer.dimension_scan.external_boundary_layer:
-        lines.append(f"- External boundary layer: {state.expanded_observer.dimension_scan.external_boundary_layer}")
-    if state.expanded_observer.dimension_scan.observability_layer:
-        lines.append(f"- Observability layer: {state.expanded_observer.dimension_scan.observability_layer}")
-    if state.expanded_observer.top_candidates:
-        lines.append("- Top candidates:")
-        for candidate in state.expanded_observer.top_candidates:
-            lines.append(
-                f"  - {candidate.candidate_id} [{candidate.family}] (priority {candidate.investigation_priority})"
-            )
-            if candidate.recommended_log_probe:
-                lines.append(f"    - recommended log probe: {candidate.recommended_log_probe}")
-    if state.expanded_observer.candidate_board:
+    if state.causal_map.dimension_scan.external_boundary_layer:
+        lines.append(f"- External boundary layer: {state.causal_map.dimension_scan.external_boundary_layer}")
+    if state.causal_map.dimension_scan.observability_layer:
+        lines.append(f"- Observability layer: {state.causal_map.dimension_scan.observability_layer}")
+    if state.causal_map.candidate_board:
         lines.append("- Candidate board:")
-        for candidate in state.expanded_observer.candidate_board:
+        for candidate in state.causal_map.candidate_board:
             lines.append(
                 f"  - {candidate.candidate_id}: {candidate.candidate} "
                 f"[{candidate.family}] from {candidate.dimension_origin}"
@@ -353,16 +402,15 @@ def build_handoff_report(state: DebugGraphState) -> str:
                 )
     if not any(
         (
-            state.expanded_observer.dimension_scan.symptom_layer,
-            state.expanded_observer.dimension_scan.caller_or_input_layer,
-            state.expanded_observer.dimension_scan.truth_owner_or_business_layer,
-            state.expanded_observer.dimension_scan.storage_or_state_layer,
-            state.expanded_observer.dimension_scan.cache_queue_async_layer,
-            state.expanded_observer.dimension_scan.config_env_deploy_layer,
-            state.expanded_observer.dimension_scan.external_boundary_layer,
-            state.expanded_observer.dimension_scan.observability_layer,
-            state.expanded_observer.top_candidates,
-            state.expanded_observer.candidate_board,
+            state.causal_map.dimension_scan.symptom_layer,
+            state.causal_map.dimension_scan.caller_or_input_layer,
+            state.causal_map.dimension_scan.truth_owner_or_business_layer,
+            state.causal_map.dimension_scan.storage_or_state_layer,
+            state.causal_map.dimension_scan.cache_queue_async_layer,
+            state.causal_map.dimension_scan.config_env_deploy_layer,
+            state.causal_map.dimension_scan.external_boundary_layer,
+            state.causal_map.dimension_scan.observability_layer,
+            state.causal_map.candidate_board,
         )
     ):
         lines.append("- Not recorded")
@@ -614,6 +662,9 @@ class MarkdownPersistenceHandler:
             "waiting_on_child_human_followup": state.waiting_on_child_human_followup,
             "diagnostic_profile": state.diagnostic_profile,
             "causal_map_completed": state.causal_map_completed,
+            "investigation_contract_completed": state.investigation_contract_completed,
+            "log_investigation_plan_completed": state.log_investigation_plan_completed,
+            "legacy_session_needs_reintake": state.legacy_session_needs_reintake,
             "contract_generation_completed": state.contract_generation_completed,
             "observer_mode": state.observer_mode,
             "observer_expansion_status": state.observer_expansion_status.value if state.observer_expansion_status else None,
@@ -638,9 +689,9 @@ class MarkdownPersistenceHandler:
             ("Symptoms", state.symptoms.model_dump(mode="json")),
             ("Causal Map", state.causal_map.model_dump(mode="json")),
             ("Observer Framing", state.observer_framing.model_dump(mode="json")),
-            ("Expanded Observer", state.expanded_observer.model_dump(mode="json")),
             ("Transition Memo", state.transition_memo.model_dump(mode="json")),
             ("Investigation Contract", state.investigation_contract.model_dump(mode="json")),
+            ("Log Investigation Plan", state.log_investigation_plan.model_dump(mode="json")),
             ("Suggested Evidence Lanes", [lane.model_dump(mode="json") for lane in state.suggested_evidence_lanes]),
             ("Candidate Resolutions", [entry.model_dump(mode="json") for entry in state.candidate_resolutions]),
             ("Truth Ownership", [entry.model_dump(mode="json") for entry in state.truth_ownership]),
@@ -715,6 +766,13 @@ class MarkdownPersistenceHandler:
             section_text = "\n".join(current_content).strip()
             sections[current_section] = yaml.safe_load(section_text) if section_text else None
 
+        normalized = _normalize_legacy_debug_payload(frontmatter, sections)
+        causal_map_section = sections.get("Causal Map") or {}
+        if isinstance(causal_map_section, dict):
+            causal_map_section = dict(causal_map_section)
+            causal_map_section.setdefault("dimension_scan", normalized["causal_map_dimension_scan"])
+            causal_map_section.setdefault("candidate_board", normalized["causal_map_candidate_board"])
+
         return DebugGraphState.model_validate(
             {
                 "slug": frontmatter["slug"],
@@ -726,6 +784,9 @@ class MarkdownPersistenceHandler:
                 "waiting_on_child_human_followup": frontmatter.get("waiting_on_child_human_followup", False),
                 "diagnostic_profile": frontmatter.get("diagnostic_profile"),
                 "causal_map_completed": frontmatter.get("causal_map_completed", False),
+                "investigation_contract_completed": normalized["investigation_contract_completed"],
+                "log_investigation_plan_completed": normalized["log_investigation_plan_completed"],
+                "legacy_session_needs_reintake": normalized["legacy_session_needs_reintake"],
                 "contract_generation_completed": frontmatter.get("contract_generation_completed", False),
                 "observer_mode": frontmatter.get("observer_mode"),
                 "observer_expansion_status": frontmatter.get("observer_expansion_status"),
@@ -741,11 +802,12 @@ class MarkdownPersistenceHandler:
                 "updated": frontmatter["updated"],
                 "current_focus": sections.get("Current Focus") or {},
                 "symptoms": sections.get("Symptoms") or {},
-                "causal_map": sections.get("Causal Map") or {},
+                "causal_map": causal_map_section,
                 "observer_framing": sections.get("Observer Framing") or {},
                 "expanded_observer": sections.get("Expanded Observer") or {},
                 "transition_memo": sections.get("Transition Memo") or {},
                 "investigation_contract": sections.get("Investigation Contract") or {},
+                "log_investigation_plan": normalized["log_investigation_plan"],
                 "suggested_evidence_lanes": sections.get("Suggested Evidence Lanes") or [],
                 "candidate_resolutions": sections.get("Candidate Resolutions") or [],
                 "truth_ownership": sections.get("Truth Ownership") or [],

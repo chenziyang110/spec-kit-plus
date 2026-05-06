@@ -260,6 +260,8 @@ class CausalMapState(BaseModel):
     family_coverage: List[str] = Field(default_factory=list)
     candidates: List[CausalMapCandidate] = Field(default_factory=list)
     adjacent_risk_targets: List[CausalMapRiskTarget] = Field(default_factory=list)
+    dimension_scan: ExpandedObserverDimensionScan = Field(default_factory=ExpandedObserverDimensionScan)
+    candidate_board: List[ExpandedObserverCandidateBoardEntry] = Field(default_factory=list)
 
 
 class ObserverFramingState(BaseModel):
@@ -408,6 +410,9 @@ class DebugGraphState(BaseModel):
     waiting_on_child_human_followup: bool = False
     diagnostic_profile: Optional[str] = None
     causal_map_completed: bool = False
+    investigation_contract_completed: bool = False
+    log_investigation_plan_completed: bool = False
+    legacy_session_needs_reintake: bool = False
     contract_generation_completed: bool = False
     observer_mode: Optional[str] = None
     observer_expansion_status: Optional[ObserverExpansionStatus] = None
@@ -440,6 +445,7 @@ class DebugGraphState(BaseModel):
     recently_modified: List[str] = Field(default_factory=list)
     execution_intent: ExecutionIntentState = Field(default_factory=ExecutionIntentState)
     investigation_contract: InvestigationContractState = Field(default_factory=InvestigationContractState)
+    log_investigation_plan: LogInvestigationPlanState = Field(default_factory=LogInvestigationPlanState)
     candidate_resolutions: List[CandidateResolution] = Field(default_factory=list)
     think_subagent_prompt: Optional[str] = None
     contract_subagent_prompt: Optional[str] = None
