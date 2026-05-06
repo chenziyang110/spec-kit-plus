@@ -1474,7 +1474,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "parallel-subagents" in lowered
     assert "native-subagents" in lowered
     assert "dispatch-blocking runtime condition" in lowered
-    assert "Do not use leader-inline execution as a fallback for any dispatch-blocking condition." in content
+    assert "Dispatch failure is not permission to continue locally." in content
     assert "A lane is dispatch-ready only if its validated `WorkerTaskPacket` includes" in content
     assert "If any required packet field is missing, do not dispatch and do not execute inline." in content
     assert "The only legal action is to repair the packet or stop as `subagent-blocked`." in content
@@ -1483,7 +1483,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "enough context" not in lowered
     assert "low-context" not in lowered
     assert "two or more safe validated packets" in lowered
-    assert "dispatch-blocking condition is present" in lowered
+    assert "dispatch-blocking runtime condition is present" in lowered
     assert "exactly one safe validated packet is ready" in lowered
     assert "two or more safe validated packets with isolated write sets" in lowered
     assert "`subagent-blocked`" in lowered
@@ -1498,7 +1498,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "auto-dispatch" not in lowered
     assert "codex runtime rule" not in lowered
 
-    no_safe_batch = step_6.find("dispatch-blocking condition is present")
+    no_safe_batch = step_6.find("dispatch-blocking runtime condition is present")
     one_subagent = step_6.find("exactly one safe validated packet")
     parallel_subagents = step_6.find("two or more safe validated packets")
     subagent_blocked = step_6.find("subagent-blocked")

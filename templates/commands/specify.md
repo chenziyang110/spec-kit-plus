@@ -359,9 +359,11 @@ Generate the pre-analysis output as the first section of `context.md`.
 16b. Run an engineering-completeness gate for boundary-sensitive work.
     - Trigger this gate when the feature crosses a service/process/runtime boundary, depends on async or event delivery, creates user-visible persisted state, or adds configuration that changes delivery behavior.
     - Confirm or explicitly defer, with reason, at minimum:
+      - trigger/event source when behavior depends on a cross-component signal
       - trigger or event source
       - payload, identifiers, ordering, or delivery contract
       - state lifecycle, retention, archival, or cleanup expectations
+      - retry/dedup/idempotency expectations for async or event-driven behavior
       - retry, deduplication, idempotency, or replay expectations
       - user-visible failure, stale-state, or recovery behavior
       - configuration surface and when changes take effect

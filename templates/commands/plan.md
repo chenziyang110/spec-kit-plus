@@ -190,7 +190,7 @@ gate.
      - If exactly one validated isolated plan lane exists, dispatch `one-subagent`.
      - If two or more validated isolated plan lanes exist, dispatch `parallel-subagents`.
      - If no validated isolated plan lane can be packetized, mark `subagent-blocked` and stop.
-   - Once a validated lane exists, leader-inline execution of substantive lane work is forbidden.
+    - Once a validated lane exists, leader-inline execution of substantive lane work is forbidden.
    - Collaboration routing is determined only by validated lane count and isolation. Do not make a separate judgment about whether collaboration is justified.
    - Required join points:
      - before final constitution and risk re-check

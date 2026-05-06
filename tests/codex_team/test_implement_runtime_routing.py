@@ -24,7 +24,7 @@ def test_sp_implement_documents_canonical_decision_order() -> None:
 
     decision_order = content[content.find("decision order (must match policy):") :]
     one_subagent = decision_order.find("one safe validated packet is ready and native subagents are available")
-    parallel_subagents = decision_order.find("multiple safe validated packets have isolated write sets")
+    parallel_subagents = decision_order.find("two or more safe validated packets with isolated write sets")
     blocked = decision_order.find("if overlapping write sets, no safe delegated lane, missing packet, unavailable runtime, or low confidence")
 
     assert one_subagent != -1

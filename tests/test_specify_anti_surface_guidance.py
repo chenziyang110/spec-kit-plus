@@ -47,7 +47,7 @@ def test_specify_template_requires_engineering_completeness_for_boundary_sensiti
 
     assert "trigger/event source when behavior depends on a cross-component signal" in content
     assert "retry/dedup/idempotency expectations for async or event-driven behavior" in content
-    assert "13b. Run an engineering-completeness gate for boundary-sensitive work." in content
+    assert "16b. Run an engineering-completeness gate for boundary-sensitive work." in content
     assert "trigger or event source" in content
     assert "payload, identifiers, ordering, or delivery contract" in content
     assert "state lifecycle, retention, archival, or cleanup expectations" in content

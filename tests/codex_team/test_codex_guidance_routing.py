@@ -49,13 +49,14 @@ def test_codex_guidance_calls_out_routing_choices(tmp_path: Path) -> None:
 
 
 def test_sp_implement_includes_native_first_escalation_language(tmp_path: Path) -> None:
-    """The implementation skill should describe native-first subagent dispatch and explicit leader fallback."""
+    """The implementation skill should describe native-first subagent dispatch without a local fallback lane."""
     project = _init_codex_project(tmp_path)
     content = _read_sp_implement(project)
     lower = content.lower()
 
     assert "spawn_agent" in lower
-    assert "leader-inline-fallback" in lower
+    assert "subagent-blocked" in lower
+    assert "leader-inline-fallback" not in lower
     assert "execution_surface: native-subagents" in lower
     assert "sp-teams" not in lower
 

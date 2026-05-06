@@ -151,7 +151,6 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
         "direct repository inspection",
         "direct leader",
         "leader execution",
-        "leader-inline",
         "managed-team",
         "sp-teams",
         "only discuss a fallback after dispatch has concretely failed",

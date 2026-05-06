@@ -56,9 +56,21 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                 "blocker_reason",
                 "final_handoff_decision",
             )
-            for field in required_fixed_fields:
-                if not str(checkpoint.get(field) or "").strip():
-                    errors.append(f"workflow-state is missing Fixed Lifecycle State field: {field}")
+            fixed_lifecycle_markers = (
+                "current_stage",
+                "current_domain",
+                "blocker_reason",
+                "final_handoff_decision",
+            )
+            uses_fixed_lifecycle = any(str(checkpoint.get(field) or "").strip() for field in fixed_lifecycle_markers)
+            if uses_fixed_lifecycle:
+                for field in required_fixed_fields:
+                    if not str(checkpoint.get(field) or "").strip():
+                        errors.append(f"workflow-state is missing Fixed Lifecycle State field: {field}")
+            elif checkpoint["phase_mode"] != expected_phase:
+                errors.append(
+                    f"phase_mode mismatch: expected {expected_phase}, got {checkpoint['phase_mode'] or 'missing'}"
+                )
         elif checkpoint["phase_mode"] != expected_phase:
             errors.append(
                 f"phase_mode mismatch: expected {expected_phase}, got {checkpoint['phase_mode'] or 'missing'}"

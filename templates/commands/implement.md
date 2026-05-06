@@ -23,6 +23,7 @@ You are the workflow **leader and orchestrator** for this run, not the concrete 
 - Own routing, task splitting, task contracts, dispatch, join points, integration, verification, and state updates
 - Subagents own the substantive task lanes assigned through task contracts
 - Recover context, choose the current ready batch, integrate structured handoffs, keep `implement-tracker.md` accurate, and own final validation
+- The leader owns sequencing, review, and acceptance.
 - Use `execution_model: subagent-mandatory` for ready implementation batches
 - Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready; dispatch `parallel-subagents` when multiple validated packets have isolated write sets
 - Use `execution_surface: native-subagents`
@@ -31,7 +32,7 @@ You are the workflow **leader and orchestrator** for this run, not the concrete 
 
 ### Subagent Mandate
 
-All substantive implementation work defaults to and MUST use subagents. The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+All substantive implementation work defaults to and MUST use subagents. Substantive implementation lanes must be delegated. The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
 
 - Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format
 - Use `dispatch_shape: one-subagent | parallel-subagents`
@@ -385,7 +386,7 @@ until the atlas gate has passed.
       - missing required references or validation gates
    - Do not use leader-inline execution as a fallback for any dispatch-blocking condition.
    - Decision order (must match policy):
-       - If any dispatch-blocking condition is present, mark `subagent-blocked` and stop.
+       - If overlapping write sets, no safe delegated lane, missing packet, unavailable runtime, or low confidence makes dispatch unsafe, mark `subagent-blocked` and stop.
        - If exactly one safe validated packet is ready and native subagents are available, dispatch `one-subagent`.
        - If two or more safe validated packets with isolated write sets are ready and native subagents are available, dispatch `parallel-subagents`.
        - No other dispatch outcome is valid.
