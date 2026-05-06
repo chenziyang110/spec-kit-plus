@@ -27,6 +27,7 @@ judgment in an established Spec Kit Plus repository:
 - Resolve the primary touched module from `.specify/project-map/index/modules.json` when that registry exists.
 - Read that module's `OVERVIEW.md` and the smallest relevant module docs for the touched subsystem, workflow, or boundary.
 - Expand into additional modules only when `.specify/project-map/index/relations.json` says the touched area crosses module boundaries.
+- When the task extends, debugs, or refactors an existing capability, prefer `symptom -> capability deep workflow -> module workflows -> root workflows` before broad source search when the atlas is fresh enough to trust.
 - If the repository is still on the older flat `.specify/project-map/*.md` layout, use those files as migration-era fallback evidence until the layered atlas is refreshed.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.

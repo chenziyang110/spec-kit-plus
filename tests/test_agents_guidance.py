@@ -20,6 +20,8 @@ def test_root_agents_documents_lane_first_recovery_rules() -> None:
     assert "materialized worktree" in lowered
     assert "/sp.plan" in content
     assert ".specify/features/<feature>/" in content
+    assert "capability deep workflow" in lowered
+    assert "symptom -> capability deep workflow -> module workflows -> root workflows" in content
 
 
 def test_root_claude_context_documents_lane_first_recovery_rules() -> None:
@@ -38,3 +40,5 @@ def test_root_claude_context_documents_lane_first_recovery_rules() -> None:
     assert "explicit `feature_dir`" in content
     assert "/sp.plan" in content
     assert ".specify/features/<feature>/" in content
+    assert "capability deep workflow" in lowered
+    assert "symptom -> capability deep workflow -> module workflows -> root workflows" in content

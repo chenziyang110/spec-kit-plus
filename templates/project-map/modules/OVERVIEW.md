@@ -27,3 +27,4 @@
 - `STRUCTURE.md` for owned directories and extension paths
 - `WORKFLOWS.md` for module-local flows and state transitions
 - `TESTING.md` for module verification routes and regression-sensitive areas
+- `deep/workflows/<capability-id>.md` for capability lifecycle truth, failure branches, inspection routes, and change-impact guidance

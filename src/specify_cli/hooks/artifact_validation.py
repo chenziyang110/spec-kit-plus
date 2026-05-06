@@ -18,6 +18,28 @@ FILE_REQUIRED_ARTIFACTS = {
     "plan": ("plan.md", "workflow-state.md"),
     "tasks": ("tasks.md", "workflow-state.md"),
     "analyze": ("workflow-state.md",),
+    "map-scan": (
+        "map-state.md",
+        "map-scan.md",
+        "repository-universe.json",
+        "coverage-ledger.md",
+        "coverage-ledger.json",
+        "capability-ledger.json",
+        "control-ledger.json",
+    ),
+    "map-build": (
+        "map-state.md",
+        "map-scan.md",
+        "repository-universe.json",
+        "coverage-ledger.json",
+        "capability-ledger.json",
+        "control-ledger.json",
+        "index/atlas-index.json",
+        "index/modules.json",
+        "index/relations.json",
+        "index/capabilities.json",
+        "index/symptoms.json",
+    ),
     "prd-scan": (
         "workflow-state.md",
         "prd-scan.md",
@@ -53,6 +75,8 @@ FILE_REQUIRED_ARTIFACTS = {
 }
 
 DIRECTORY_REQUIRED_ARTIFACTS = {
+    "map-scan": ("scan-packets",),
+    "map-build": ("scan-packets", "worker-results"),
     "prd-scan": ("scan-packets", "evidence", "worker-results"),
     "prd-build": ("scan-packets", "evidence", "worker-results"),
     "prd": ("scan-packets", "evidence", "worker-results"),
@@ -66,6 +90,31 @@ REQUIRED_ARTIFACTS = {
     "plan": ("plan.md", "workflow-state.md"),
     "tasks": ("tasks.md", "workflow-state.md"),
     "analyze": ("workflow-state.md",),
+    "map-scan": (
+        "map-state.md",
+        "map-scan.md",
+        "repository-universe.json",
+        "coverage-ledger.md",
+        "coverage-ledger.json",
+        "capability-ledger.json",
+        "control-ledger.json",
+        "scan-packets",
+    ),
+    "map-build": (
+        "map-state.md",
+        "map-scan.md",
+        "repository-universe.json",
+        "coverage-ledger.json",
+        "capability-ledger.json",
+        "control-ledger.json",
+        "scan-packets",
+        "worker-results",
+        "index/atlas-index.json",
+        "index/modules.json",
+        "index/relations.json",
+        "index/capabilities.json",
+        "index/symptoms.json",
+    ),
     "prd-scan": (
         "workflow-state.md",
         "prd-scan.md",
@@ -308,6 +357,28 @@ def _validate_json_object_with_array_key(feature_dir: Path, filename: str, array
         return [f"{filename} must contain a top-level JSON object"]
     if not isinstance(payload.get(array_key), list):
         return [f"{filename} must define a top-level {array_key} array"]
+    return []
+
+
+def _validate_capability_ledger(feature_dir: Path) -> list[str]:
+    payload, read_errors = _read_json_artifact(feature_dir / "capability-ledger.json", "capability-ledger.json")
+    if read_errors:
+        return read_errors
+    if not isinstance(payload, dict):
+        return ["capability-ledger.json must contain a top-level JSON object"]
+    if not isinstance(payload.get("capabilities"), list):
+        return ["capability-ledger.json must define a top-level capabilities array"]
+    return []
+
+
+def _validate_control_ledger(feature_dir: Path) -> list[str]:
+    payload, read_errors = _read_json_artifact(feature_dir / "control-ledger.json", "control-ledger.json")
+    if read_errors:
+        return read_errors
+    if not isinstance(payload, dict):
+        return ["control-ledger.json must contain a top-level JSON object"]
+    if not isinstance(payload.get("control_nodes"), list):
+        return ["control-ledger.json must define a top-level control_nodes array"]
     return []
 
 

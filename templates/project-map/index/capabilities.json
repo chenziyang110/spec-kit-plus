@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "generated_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "module_registry_path": ".specify/project-map/index/modules.json",
+  "relations_path": ".specify/project-map/index/relations.json",
+  "symptoms_path": ".specify/project-map/index/symptoms.json",
+  "capabilities": []
+}

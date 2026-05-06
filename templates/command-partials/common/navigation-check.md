@@ -23,6 +23,11 @@
   before continuing.
 - Treat task-relevant coverage as a coverage-model check, not just a
   file-presence check.
+- If `.specify/project-map/index/capabilities.json` or
+  `.specify/project-map/index/symptoms.json` is required for the touched
+  capability but missing or stale, stop and tell the user to run
+  `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh
+  before continuing.
 - [AGENT] If task-relevant coverage is insufficient for the current request,
   stop and tell the user to run `{{invoke:map-scan}}`, then
   `{{invoke:map-build}}`; wait for that refresh before continuing.

@@ -24,6 +24,18 @@ persisted and which downstream workflow handoffs must preserve it.]
 
 ## Capability Flows
 
+## System Lifecycle
+
+[Document the system-level lifecycle Mermaid for the highest-value entities or long-lived workflow objects.]
+
+## Capability Flow Map
+
+[Document the cross-module capability flow Mermaid and its primary control points.]
+
+## Capability-to-Symptom Routes
+
+[Summarize how common symptoms route into capability deep workflow pages.]
+
 ## Runtime Data and Event Flows
 
 [Describe runtime data flow, event flow, workflow orchestration, and entity or state-machine lifecycles where those relationships govern behavior.]

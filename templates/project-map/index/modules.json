@@ -1,4 +1,13 @@
 {
   "version": 1,
-  "modules": []
+  "modules": [
+    {
+      "module_id": "<module-id>",
+      "doc_paths": {
+        "overview": ".specify/project-map/modules/<module-id>/OVERVIEW.md",
+        "workflows": ".specify/project-map/modules/<module-id>/WORKFLOWS.md"
+      },
+      "capability_ids": []
+    }
+  ]
 }

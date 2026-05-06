@@ -179,3 +179,28 @@ def test_map_scan_and_build_templates_require_layer1_route_material() -> None:
     assert "verification route candidates" in scan_content
     assert "propagation-risk route candidates" in scan_content
     assert "layer 1 reachability validation" in build_content
+
+
+def test_map_scan_template_requires_truth_layer_ledgers() -> None:
+    content = _read("templates/commands/map-scan.md")
+    lowered = content.lower()
+
+    assert ".specify/project-map/repository-universe.json" in content
+    assert ".specify/project-map/capability-ledger.json" in content
+    assert ".specify/project-map/control-ledger.json" in content
+    assert "file, entrypoint, branch, and control-node coverage" in lowered
+    assert "by capability" in lowered
+    assert "by symptom" in lowered
+
+
+def test_map_build_template_requires_truth_layer_outputs() -> None:
+    content = _read("templates/commands/map-build.md")
+    lowered = content.lower()
+
+    assert ".specify/project-map/index/capabilities.json" in content
+    assert ".specify/project-map/index/symptoms.json" in content
+    assert "modules/<module-id>/deep/workflows/<capability-id>.md" in content
+    assert "lifecycle mermaid" in lowered
+    assert "flow mermaid" in lowered
+    assert "change impact" in lowered
+    assert "symptom -> capability deep workflow -> module workflows -> root workflows" in lowered

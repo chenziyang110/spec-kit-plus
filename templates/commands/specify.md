@@ -173,6 +173,12 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read `.specify/memory/project-learnings.md` if present.
    - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
    - [AGENT] Read `PROJECT-HANDBOOK.md` if present and treat it as the primary codebase-scout input for brownfield understanding.
+   - If the request touches an existing capability and the atlas is fresh enough to trust, read the smallest relevant truth-layer route first:
+     1. `.specify/project-map/index/symptoms.json` when the request starts from a symptom or broken behavior
+     2. `.specify/project-map/index/capabilities.json` when the capability is already known
+     3. `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
+     4. `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
+     5. `.specify/project-map/root/WORKFLOWS.md`
    - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Preserve these stronger brownfield testing inputs: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`.
    - From the handbook navigation system, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.

@@ -4,6 +4,11 @@ This repository's broader operating guidance lives in [AGENTS.md](./AGENTS.md).
 Use that file as the primary source of truth for workflow routing, brownfield
 context gates, and repository conventions.
 
+When a task extends, debugs, or refactors an existing capability and the atlas
+is fresh enough to trust, read atlas truth in this order:
+`symptom -> capability deep workflow -> module workflows -> root workflows`
+before broad source search.
+
 ## Command Surface Rules
 
 - Treat the live `specify --help` output as the only authoritative CLI command surface.

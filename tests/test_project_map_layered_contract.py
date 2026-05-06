@@ -55,3 +55,11 @@ def test_layered_project_map_template_files_exist():
         "templates/project-map/modules/deep/references/TEMPLATE.md",
     ]:
         assert (PROJECT_ROOT / rel_path).exists(), rel_path
+
+
+def test_layered_project_map_contract_includes_capability_truth_indexes():
+    for rel_path in [
+        "templates/project-map/index/capabilities.json",
+        "templates/project-map/index/symptoms.json",
+    ]:
+        assert (PROJECT_ROOT / rel_path).exists(), rel_path

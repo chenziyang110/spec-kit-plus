@@ -665,6 +665,7 @@ When adding new agents:
 - Generated projects keep deep project knowledge under `.specify/project-map/`.
 - In this repository, use `PROJECT-HANDBOOK.md`, `templates/project-map/**`, and relevant source/tests as the committed atlas truth.
 - Before planning, debugging, or implementing against existing code, read `PROJECT-HANDBOOK.md` and the smallest relevant atlas or template docs for the touched area.
+- When a task extends, debugs, or refactors an existing capability and the atlas is fresh enough to trust, read atlas truth in this order: `symptom -> capability deep workflow -> module workflows -> root workflows` before broad source search.
 - If handbook/project-map coverage is missing, stale, or too broad in a generated project, run the runtime's `map-scan` workflow entrypoint followed by `map-build` before continuing.
 
 ## Project Memory
@@ -680,6 +681,7 @@ When adding new agents:
 - Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning. Before handing off to plan, run `spec-lint -dir <FEATURE_DIR>` to mechanically verify the artifact set; fix failures before proceeding.
 - Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.
 - Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
+- Use `sp-debug`, `sp-analyze`, `sp-implement`, `sp-plan`, and `sp-tasks` as strong consumers of the capability flow and lifecycle truth layer when working against existing capabilities.
 - Use `sp-test-scan` when testing-system coverage needs read-only evidence, risk tiering, module-by-module gap analysis, or build-ready lanes.
 - Use `sp-test-build` when scan-approved lanes should construct or refresh the unit testing system through leader/subagent execution.
 - Use `sp-tasks` to produce enriched task contracts with agent assignment, context navigation, scope boundaries, and verify commands — enabling subagents to execute without asking the leader for clarification.

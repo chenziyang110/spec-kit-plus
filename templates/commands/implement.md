@@ -262,6 +262,12 @@ human_needed_checks:
    - **TREAT TASK-RELEVANT COVERAGE AS INSUFFICIENT** when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: Run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload the generated handbook/project-map navigation system.
    - **REQUIRED**: [AGENT] Read `PROJECT-HANDBOOK.md`.
+   - **REQUIRED WHEN THE TASK TOUCHES AN EXISTING CAPABILITY AND THE ATLAS IS TRUSTWORTHY**: Read the smallest relevant truth-layer route first:
+     1. `.specify/project-map/index/symptoms.json` when the work starts from a symptom or failed behavior
+     2. `.specify/project-map/index/capabilities.json` when the capability is already known
+     3. `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
+     4. `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
+     5. `.specify/project-map/root/WORKFLOWS.md`
    - **REQUIRED**: Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
    - **IF TOPICAL COVERAGE IS MISSING/STALE/TOO BROAD OR TASK-RELEVANT COVERAGE IS INSUFFICIENT**: run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.

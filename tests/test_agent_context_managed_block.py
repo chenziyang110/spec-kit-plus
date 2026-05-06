@@ -150,6 +150,8 @@ def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
     assert "validated `workertaskpacket`" in lower
     assert "raw task text" in lower
     assert "structured handoff" in lower
+    assert "capability deep workflow" in lower
+    assert "symptom -> capability deep workflow -> module workflows -> root workflows" in content
     assert "`sp-teams` only" in lower
     assert "## lane recovery rules" in lower
     assert "lane-first, not branch-first" in lower

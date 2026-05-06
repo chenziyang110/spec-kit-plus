@@ -25,3 +25,10 @@ def test_atlas_index_exposes_query_oriented_entry_metadata() -> None:
     assert "status_path" in payload
     assert "entry_contract" in payload
     assert "recommended_minimum_read_set" in payload
+
+
+def test_quick_nav_includes_capability_and_symptom_entry_routes() -> None:
+    content = (PROJECT_ROOT / "templates" / "project-map" / "QUICK-NAV.md").read_text(encoding="utf-8").lower()
+    assert "## by capability" in content
+    assert "## by symptom" in content
+    assert "change impact" in content

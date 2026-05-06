@@ -62,6 +62,8 @@ def test_missing_canonical_project_map_paths_lists_required_outputs(tmp_path):
         f"{tmp_path.as_posix()}/.specify/project-map/index/atlas-index.json",
         f"{tmp_path.as_posix()}/.specify/project-map/index/modules.json",
         f"{tmp_path.as_posix()}/.specify/project-map/index/relations.json",
+        f"{tmp_path.as_posix()}/.specify/project-map/index/capabilities.json",
+        f"{tmp_path.as_posix()}/.specify/project-map/index/symptoms.json",
         f"{tmp_path.as_posix()}/.specify/project-map/index/status.json",
         f"{tmp_path.as_posix()}/.specify/project-map/root/ARCHITECTURE.md",
         f"{tmp_path.as_posix()}/.specify/project-map/root/STRUCTURE.md",

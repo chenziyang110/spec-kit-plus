@@ -36,8 +36,23 @@
   Open first: `root/WORKFLOWS.md`
   Then: module `OVERVIEW.md` for the affected area
 
+## By Capability
+
+- Investigate a known capability:
+  Open first: `index/capabilities.json`
+  Then: `modules/<module-id>/deep/workflows/<capability-id>.md`
+- Extend an existing capability:
+  Open first: `modules/<module-id>/deep/workflows/<capability-id>.md`
+  Then: `modules/<module-id>/WORKFLOWS.md`
+- Review change impact for an existing capability:
+  Open first: `modules/<module-id>/deep/workflows/<capability-id>.md`
+  Then: `index/relations.json`
+
 ## By Symptom
 
+- Debug a reported symptom:
+  Open first: `index/symptoms.json`
+  Then: the recommended deep workflow page for the mapped capability
 - Workflows are no longer reading project-map:
   Read `PROJECT-HANDBOOK.md`, `root/WORKFLOWS.md`,
   `modules/templates-generated-surfaces/OVERVIEW.md`, and
@@ -80,6 +95,8 @@
   Review every command that includes it plus template-guidance tests
 - Handbook or root topic changed:
   Review `Topic Map`, `atlas-index.json`, and freshness/topic-routing tests
+- Capability deep workflow changed:
+  Review `index/capabilities.json`, `index/symptoms.json`, `modules/<module-id>/WORKFLOWS.md`, and adjacent capability routes in `index/relations.json`
 - Integration guidance changed:
   Review `tests/test_extension_skills.py` and alignment/template guidance tests
 
@@ -114,6 +131,10 @@
   Purpose: module registry, owned roots, doc paths, and doc status
 - `index/relations.json`
   Purpose: cross-module dependency graph and propagation expansion routes
+- `index/capabilities.json`
+  Purpose: capability registry, owning modules, and deep workflow routes
+- `index/symptoms.json`
+  Purpose: symptom registry, likely capability routes, and read-first pages
 - `index/status.json`
   Purpose: freshness, commit binding, and topic-routing status
 

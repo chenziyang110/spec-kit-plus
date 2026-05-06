@@ -40,6 +40,8 @@ INDEX_FILES = (
     "atlas-index.json",
     "modules.json",
     "relations.json",
+    "capabilities.json",
+    "symptoms.json",
     STATUS_FILENAME,
 )
 DIRTY_REASON_ALIASES = {
@@ -91,6 +93,8 @@ def canonical_project_map_paths(project_root: Path) -> list[Path]:
         project_map_index_root / "atlas-index.json",
         project_map_index_root / "modules.json",
         project_map_index_root / "relations.json",
+        project_map_index_root / "capabilities.json",
+        project_map_index_root / "symptoms.json",
         project_map_index_root / STATUS_FILENAME,
         project_map_root / "ARCHITECTURE.md",
         project_map_root / "STRUCTURE.md",

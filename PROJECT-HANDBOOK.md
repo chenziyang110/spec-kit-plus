@@ -38,6 +38,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - The handbook is the index-first entrypoint.
 - For generated projects, read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` before broad brownfield work.
 - Treat the combined handbook/project-map set as an atlas-style technical encyclopedia.
+- The atlas includes a capability flow and lifecycle truth layer that exists specifically to accelerate brownfield debugging, requirement expansion, and change-impact review.
 - The root topical docs explain cross-module architecture, workflows, integrations, testing, operations, structure, and conventions.
 - Module docs explain module-local ownership and drill-down routes.
 - Fall back to live code reads only when topical coverage is missing, stale, too broad, or marked low confidence.

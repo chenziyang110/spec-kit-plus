@@ -10,6 +10,7 @@
     "layer_1_purpose": "dictionary-style atlas entry surface",
     "supports": [
       "task_routes",
+      "capability_routes",
       "symptom_routes",
       "shared_surface_hotspots",
       "verification_routes",
@@ -26,6 +27,8 @@
   ],
   "module_registry_path": ".specify/project-map/index/modules.json",
   "relations_path": ".specify/project-map/index/relations.json",
+  "capabilities_path": ".specify/project-map/index/capabilities.json",
+  "symptoms_path": ".specify/project-map/index/symptoms.json",
   "status_path": ".specify/project-map/index/status.json",
   "recommended_minimum_read_set": [
     "PROJECT-HANDBOOK.md",

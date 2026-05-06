@@ -3,7 +3,7 @@ description: Use when `sp-map-scan` has produced a complete scan package and you
 workflow_contract:
   when_to_use: A completed scan package exists and the canonical handbook/project-map atlas must be built or refreshed from it.
   primary_objective: Validate the scan package, dispatch read-only explorer packets, write the canonical atlas, and prove reverse coverage closure.
-  primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/QUICK-NAV.md`, `.specify/project-map/index/*.json`, `.specify/project-map/root/*.md`, `.specify/project-map/modules/<module-id>/*.md`, `.specify/project-map/index/status.json`, `.specify/project-map/map-state.md`, and `.specify/project-map/worker-results/*.json`.'
+  primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/QUICK-NAV.md`, `.specify/project-map/index/*.json`, `.specify/project-map/root/*.md`, `.specify/project-map/modules/<module-id>/*.md`, `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`, `.specify/project-map/index/status.json`, `.specify/project-map/map-state.md`, and `.specify/project-map/worker-results/*.json`.'
   default_handoff: Return to the blocked workflow that required fresh navigation coverage.
 ---
 
@@ -221,6 +221,8 @@ The only canonical outputs for this command are:
 - `.specify/project-map/index/atlas-index.json`
 - `.specify/project-map/index/modules.json`
 - `.specify/project-map/index/relations.json`
+- `.specify/project-map/index/capabilities.json`
+- `.specify/project-map/index/symptoms.json`
 - `.specify/project-map/index/status.json`
 - `.specify/project-map/root/ARCHITECTURE.md`
 - `.specify/project-map/root/STRUCTURE.md`
@@ -234,6 +236,7 @@ The only canonical outputs for this command are:
 - `.specify/project-map/modules/<module-id>/STRUCTURE.md`
 - `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
 - `.specify/project-map/modules/<module-id>/TESTING.md`
+- `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
 - `.specify/project-map/modules/<module-id>/deep/**` when packeted and needed
 - `.specify/project-map/map-state.md`
 - `.specify/project-map/worker-results/<packet-id>.json`
@@ -283,6 +286,10 @@ Before reporting success, `sp-map-build` must prove reverse coverage validation:
 - every scan packet is consumed
 - every accepted packet result has paths read and confidence
 - every final atlas target is backed by at least one accepted packet evidence row or is explicitly marked unchanged after live revalidation
+- every mapped capability produces both a lifecycle Mermaid and a flow Mermaid
+- every mapped symptom routes to a capability deep workflow page through `.specify/project-map/index/symptoms.json`
+- `symptom -> capability deep workflow -> module workflows -> root workflows` is traversable for every mapped capability or symptom
+- every mapped capability deep workflow page includes failure branches, where-to-inspect guidance, and change impact guidance
 - no final report claims success for a structural-only refresh
 - `MAP_STATE_FILE` records accepted packet results, rejected packet results, failed readiness checks, failed reverse coverage checks, and the next command
 - every command/API/integration/runtime entrypoint has owner, consumer, change propagation, and verification

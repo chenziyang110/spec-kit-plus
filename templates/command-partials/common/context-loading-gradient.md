@@ -19,6 +19,14 @@ Every ordinary `sp-*` workflow must read:
 5. at least one relevant root topic document
 6. at least one relevant module overview document
 
+When the atlas is fresh enough to trust and the task touches an existing
+capability, also prefer:
+
+- `atlas.index.symptoms` when the task starts from a symptom
+- `atlas.index.capabilities` when the capability is already known
+- the matching capability deep workflow page before broader module or source
+  reads
+
 If the touched area crosses shared surfaces, integration seams, workflow joins,
 or verification-sensitive boundaries, also read:
 

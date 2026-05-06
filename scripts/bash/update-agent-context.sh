@@ -170,6 +170,7 @@ render_speckit_managed_block() {
   - `root/STRUCTURE.md`: directory ownership, shared write surfaces, and file-placement rules.
   - `root/WORKFLOWS.md`: workflow paths, handoffs, state lifecycles, and recovery semantics.
   - `root/TESTING.md`: smallest meaningful checks, regression-sensitive areas, and verification expectations.
+- When a task extends, debugs, or refactors an existing capability and the atlas is fresh enough to trust, read atlas truth in this order: `symptom -> capability deep workflow -> module workflows -> root workflows` before broad source search.
 - If handbook/project-map coverage is missing, stale, or too broad, run `sp-map-scan` followed by `sp-map-build` before continuing.
 - Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source. If the atlas is not trustworthy, either complete a refresh and use `project-map complete-refresh` as the successful-refresh finalizer, or mark it dirty with `project-map mark-dirty` and route the next brownfield workflow through `sp-map-scan -> sp-map-build`. Do not continue under known-stale atlas state without choosing one of those paths.
 
@@ -195,6 +196,7 @@ render_speckit_managed_block() {
 - Use `sp-prd-scan` when an existing repository needs the heavy read-only current-state reconstruction scan before final PRD synthesis, and `sp-prd-build` once that scan package is ready to compile.
 - Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.
 - Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
+- Use `sp-debug`, `sp-analyze`, `sp-implement`, `sp-plan`, and `sp-tasks` as strong consumers of the capability flow and lifecycle truth layer when working against existing capabilities.
 - Use `sp-test-scan` for project-level testing evidence and build planning, and `sp-test-build` for leader-managed testing-system construction.
 
 ## Command Surface Rules

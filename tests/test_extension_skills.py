@@ -495,8 +495,11 @@ class TestBuiltInSkillGeneration:
         scan_body = _body_without_frontmatter(skills_dir / "sp-map-scan" / "SKILL.md")
         scan_lower = scan_body.lower()
         assert ".specify/project-map/map-scan.md" in scan_body
+        assert ".specify/project-map/repository-universe.json" in scan_body
         assert ".specify/project-map/coverage-ledger.md" in scan_body
         assert ".specify/project-map/coverage-ledger.json" in scan_body
+        assert ".specify/project-map/capability-ledger.json" in scan_body
+        assert ".specify/project-map/control-ledger.json" in scan_body
         assert ".specify/project-map/scan-packets/<lane-id>.md" in scan_body
         assert ".specify/project-map/map-state.md" in scan_body
         assert 'choose_subagent_dispatch(command_name="map-scan"' in scan_body
@@ -512,8 +515,11 @@ class TestBuiltInSkillGeneration:
         build_body = _body_without_frontmatter(skills_dir / "sp-map-build" / "SKILL.md")
         assert "PROJECT-HANDBOOK.md" in build_body
         assert ".specify/project-map/index/atlas-index.json" in build_body
+        assert ".specify/project-map/index/capabilities.json" in build_body
+        assert ".specify/project-map/index/symptoms.json" in build_body
         assert ".specify/project-map/root/ARCHITECTURE.md" in build_body
         assert ".specify/project-map/modules/<module-id>/OVERVIEW.md" in build_body
+        assert ".specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md" in build_body
         assert 'choose_subagent_dispatch(command_name="map-build"' in build_body
         assert "route back to `/sp-map-scan`" in build_body
         assert "complete-refresh" in build_body
@@ -529,6 +535,7 @@ class TestBuiltInSkillGeneration:
         assert "Validate Scan Inputs Before Execution" in build_body
         assert "Compile And Validate MapBuildPacket Inputs" in build_body
         assert ".specify/project-map/worker-results/<packet-id>.json" in build_body
+        assert "capability deep workflow" in build_body.lower()
 
         test_scan_body = _body_without_frontmatter(skills_dir / "sp-test-scan" / "SKILL.md")
         assert ".specify/testing/TEST_SCAN.md" in test_scan_body

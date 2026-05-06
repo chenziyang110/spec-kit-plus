@@ -701,6 +701,8 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-scan" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-build" / "SKILL.md").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "index" / "capabilities.json").exists()
+        assert (project / ".specify" / "templates" / "project-map" / "index" / "symptoms.json").exists()
         assert not (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
 
@@ -733,6 +735,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "plain language" in explain_fm["description"].lower()
         assert "handbook/project-map coverage" in map_scan_fm["description"].lower()
         assert "map-scan" in map_build_fm["description"].lower()
+        assert "capability flow and lifecycle truth layer" in (project / "AGENTS.md").read_text(encoding="utf-8").lower()
         assert "clarify" in result.output.lower()
         assert "clarify" in result.output
         assert "explain" in result.output

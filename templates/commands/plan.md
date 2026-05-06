@@ -111,6 +111,12 @@ agent_scripts:
    - Read `.specify/memory/project-learnings.md` if present
    - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to planning so repeated workflow gaps, implementation constraints, and user defaults are not rediscovered from scratch
    - [AGENT] Read `PROJECT-HANDBOOK.md`
+   - If the task touches an existing capability and the atlas is fresh enough to trust, read the smallest relevant truth-layer route first:
+     1. `.specify/project-map/index/symptoms.json` when the planning request starts from a symptom or broken behavior
+     2. `.specify/project-map/index/capabilities.json` when the capability is already known
+     3. `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
+     4. `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
+     5. `.specify/project-map/root/WORKFLOWS.md`
    - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
    - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
    - Read `templates/research-template.md`

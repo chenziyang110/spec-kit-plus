@@ -29,9 +29,11 @@ and what sits clearly outside the system boundary.]
 - The handbook is the index-first entrypoint.
 - Read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` before broad brownfield work.
 - Treat the combined handbook/project-map set as the repository's atlas-style technical encyclopedia.
+- The atlas includes a capability flow and lifecycle truth layer for brownfield debugging, requirement expansion, and change-impact review.
 - The topical project-map documents hold the full technical detail.
 - Use `Topic Map` to choose the next topical document.
 - Use `Where To Read Next` for task-oriented routing.
+- Use `By Capability`, `By Symptom`, and `Change Impact Guide` routes before broad code reads when the task touches an existing capability.
 - Fall back to live code reads only when the topical coverage is missing, stale, or too broad.
 - Point to the topic docs instead of duplicating deep detail when the
   explanation belongs in a topical file.
@@ -41,6 +43,7 @@ and what sits clearly outside the system boundary.]
 Describe the four-layer atlas explicitly:
 
 - **Layer 1 (routing)**: `QUICK-NAV.md` — task routes, symptom routes, shared-surface hotspots, verification routes, and propagation-risk routes
+- **Capability flow and lifecycle truth layer**: `index/capabilities.json`, `index/symptoms.json`, and `modules/<module-id>/deep/workflows/<capability-id>.md` — capability lookup, symptom lookup, lifecycle truth, flow truth, and change-impact inspection
 - **Layer 2 (summary)**: `root/ARCHITECTURE.md` capability cards and root topical summaries
 - **Layer 3 (detail)**: `modules/<module-id>/OVERVIEW.md` plus module-local docs
 - **Layer 4 (source)**: live code and runtime state when the atlas is missing, stale, or too broad
@@ -70,6 +73,7 @@ owns the touched area before broader code reads begin.
 - [Provide the fastest route from a proposed code change to the affected atlas views.]
 - [For each major hotspot, say which topical document explains the blast radius,
   hidden dependencies, lifecycle risks, and minimum verification route.]
+- [For existing capabilities, route readers through the capability flow and lifecycle truth layer before broader source inspection.]
 
 ## Verification Entry Points
 
@@ -91,11 +95,13 @@ owns the touched area before broader code reads begin.
 
 - [Summarize which topical documents answer structure, runtime flow, state lifecycle,
   deployment topology, observability, security, release, and verification questions.]
+- [Call out that capability flow and lifecycle truth lives in `index/capabilities.json`, `index/symptoms.json`, `root/WORKFLOWS.md`, `modules/<module-id>/WORKFLOWS.md`, and `modules/<module-id>/deep/workflows/<capability-id>.md`.]
 
 ## Where To Read Next
 
 - [If you need to add or extend a capability, point to the topical file most
   likely to contain ownership, placement, and verification guidance.]
+- [If you need to debug or extend an existing capability, route first through `By Symptom` or `By Capability`, then the matching deep workflow page.]
 - [If you need API or protocol details, route to the relevant integration or
   workflow sections.]
 
@@ -105,6 +111,8 @@ owns the touched area before broader code reads begin.
 - `.specify/project-map/index/atlas-index.json` - atlas entry summary and the next machine-readable lookup step
 - `.specify/project-map/index/modules.json` - module registry, owned roots, and module document paths
 - `.specify/project-map/index/relations.json` - cross-module dependencies, shared surfaces, and expansion routes
+- `.specify/project-map/index/capabilities.json` - capability registry, owning modules, and deep workflow routes
+- `.specify/project-map/index/symptoms.json` - symptom registry, likely capability matches, and read-first deep workflow routes
 - `.specify/project-map/index/status.json` - atlas freshness plus module and deep staleness state
 - `.specify/project-map/root/ARCHITECTURE.md` - layers, abstractions, truth ownership, and cross-module seams
 - `.specify/project-map/root/STRUCTURE.md` - global structure, shared directories, and placement rules
@@ -114,6 +122,7 @@ owns the touched area before broader code reads begin.
 - `.specify/project-map/root/TESTING.md` - root verification strategy and shared regression-sensitive surfaces
 - `.specify/project-map/root/OPERATIONS.md` - startup, recovery, troubleshooting, operator notes, and runtime invariants
 - `.specify/project-map/modules/<module-id>/OVERVIEW.md` - module-local routing, ownership, and next reads
+- `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md` - lifecycle truth, flow truth, failure branches, inspection routes, and change-impact guidance for one capability
 
 ## Update Triggers
 

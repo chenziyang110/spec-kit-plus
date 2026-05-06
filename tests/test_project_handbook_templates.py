@@ -156,6 +156,14 @@ def test_project_handbook_template_guides_architecture_level_summary_content():
     assert "tie low-confidence areas back to specific capabilities, workflows, or boundaries" in content.lower()
 
 
+def test_project_handbook_template_routes_capability_truth_layer() -> None:
+    content = _read("templates/project-handbook-template.md").lower()
+    assert "by capability" in content
+    assert "by symptom" in content
+    assert "change impact guide" in content
+    assert "capability flow and lifecycle truth layer" in content
+
+
 def test_project_map_templates_guide_technical_document_grade_depth():
     architecture = _read("templates/project-map/root/ARCHITECTURE.md").lower()
     structure = _read("templates/project-map/root/STRUCTURE.md").lower()

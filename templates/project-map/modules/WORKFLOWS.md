@@ -7,7 +7,11 @@
 
 ## Entry Points and Handoffs
 
-## Main Flows
+## Module Lifecycle
+
+## Module Flow Map
+
+## Capability Deep Links
 
 ## State Transitions
 

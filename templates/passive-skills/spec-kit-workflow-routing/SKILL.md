@@ -93,6 +93,7 @@ standalone branch-creation command.
   spec/plan/tasks artifacts.
 - Use `sp-explain` when the user needs a plain-language explanation of current
   artifacts or runtime state.
+- For brownfield debug or extension work, the selected workflow must consume the capability truth layer when a capability or symptom route exists; do not jump straight to broad repository search.
 
 ## User Invocation Examples
 

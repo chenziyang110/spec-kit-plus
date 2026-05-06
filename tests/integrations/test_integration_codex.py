@@ -508,8 +508,11 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert not (target / ".codex" / "skills" / "sp-map-codebase" / "SKILL.md").exists()
 
     assert ".specify/project-map/map-scan.md" in scan_content
+    assert ".specify/project-map/repository-universe.json" in scan_content
     assert ".specify/project-map/coverage-ledger.md" in scan_content
     assert ".specify/project-map/coverage-ledger.json" in scan_content
+    assert ".specify/project-map/capability-ledger.json" in scan_content
+    assert ".specify/project-map/control-ledger.json" in scan_content
     assert ".specify/project-map/scan-packets/<lane-id>.md" in scan_content
     assert ".specify/project-map/map-state.md" in scan_content
     assert "mapscanpacket" in scan_content
@@ -524,8 +527,11 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
 
     assert "project-handbook.md" in build_content
     assert ".specify/project-map/index/atlas-index.json" in build_content
+    assert ".specify/project-map/index/capabilities.json" in build_content
+    assert ".specify/project-map/index/symptoms.json" in build_content
     assert ".specify/project-map/root/architecture.md" in build_content
     assert ".specify/project-map/modules/<module-id>/overview.md" in build_content
+    assert ".specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md" in build_content
     assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
     assert "route back to `/sp-map-scan`" in build_content
     assert "mapbuildpacket" in build_content
@@ -539,6 +545,7 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "`project-handbook.md` must stay concise and index-first" in build_content
     assert "minimum verification" in build_content
     assert "confidence" in build_content
+    assert "capability deep workflow" in build_content
 
 
 def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):

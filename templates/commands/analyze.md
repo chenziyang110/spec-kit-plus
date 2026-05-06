@@ -108,6 +108,12 @@ Load only the minimal necessary context from each artifact:
 **From handbook/project map:**
 
 - Read `PROJECT-HANDBOOK.md`
+- If the task touches an existing capability and the atlas is fresh enough to trust, read the smallest relevant truth-layer route first:
+  1. `.specify/project-map/index/symptoms.json` when the analysis starts from a user-visible symptom
+  2. `.specify/project-map/index/capabilities.json` when the capability is already known
+  3. `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
+  4. `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
+  5. `.specify/project-map/root/WORKFLOWS.md`
 - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`
 - If topical coverage is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
 

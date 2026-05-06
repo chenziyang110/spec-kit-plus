@@ -852,6 +852,66 @@ def test_hook_validate_artifacts_supports_prd_scan_command(tmp_path: Path):
     assert payload["status"] == "ok"
 
 
+def test_hook_validate_artifacts_blocks_map_scan_when_truth_layer_ledgers_are_missing(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-map"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    for relative, content in {
+        "workflow-state.md": "# Workflow State\n",
+        "map-state.md": "# Map State\n",
+        "map-scan.md": "# Map Scan\n",
+        "coverage-ledger.md": "# Coverage Ledger\n",
+        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
+    }.items():
+        (run_dir / relative).write_text(content, encoding="utf-8")
+    (run_dir / "scan-packets").mkdir()
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("repository-universe.json" in message for message in payload["errors"])
+    assert any("capability-ledger.json" in message for message in payload["errors"])
+    assert any("control-ledger.json" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_build_when_truth_layer_indexes_are_missing(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-map"
+    index_dir = run_dir / "index"
+    index_dir.mkdir(parents=True, exist_ok=True)
+    for relative, content in {
+        "workflow-state.md": "# Workflow State\n",
+        "map-state.md": "# Map State\n",
+        "map-scan.md": "# Map Scan\n",
+        "repository-universe.json": "{\"files\": []}\n",
+        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
+        "capability-ledger.json": "{\"capabilities\": []}\n",
+        "control-ledger.json": "{\"control_nodes\": []}\n",
+        "index/atlas-index.json": "{}\n",
+        "index/modules.json": "{\"modules\": []}\n",
+        "index/relations.json": "{\"relations\": []}\n",
+    }.items():
+        target = run_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    (run_dir / "scan-packets").mkdir()
+    (run_dir / "worker-results").mkdir()
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("index/capabilities.json" in message for message in payload["errors"])
+    assert any("index/symptoms.json" in message for message in payload["errors"])
+
+
 def test_hook_validate_artifacts_blocks_prd_scan_on_malformed_json_shapes(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-scan-bad-shapes"

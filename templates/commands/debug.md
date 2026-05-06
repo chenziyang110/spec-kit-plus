@@ -163,6 +163,12 @@ or source-code reads begin.
 - [AGENT] If the handbook navigation system is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - [AGENT] If task-relevant coverage is insufficient for the failing area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.
+- If the task touches an existing capability and the atlas is fresh enough to trust, read the smallest relevant truth-layer route first:
+  1. `.specify/project-map/index/symptoms.json` when the investigation starts from a user-visible symptom
+  2. `.specify/project-map/index/capabilities.json` when the capability is already known
+  3. `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
+  4. `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
+  5. `.specify/project-map/root/WORKFLOWS.md`
 - Read whichever of `ARCHITECTURE.md`, `WORKFLOWS.md`, `INTEGRATIONS.md`, `TESTING.md`, and `OPERATIONS.md` map to the failing area.
 - Read the corresponding `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` files for the failing area.
 - Use the navigation system to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.

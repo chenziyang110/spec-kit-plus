@@ -3,7 +3,7 @@ description: Use when handbook/project-map coverage is missing, stale, or insuff
 workflow_contract:
   when_to_use: A workflow needs reliable handbook/project-map coverage and the current navigation artifacts are missing, stale, or too weak for the touched area.
   primary_objective: Generate a complete project-relevant inventory, coverage ledger, and scan packet set for `sp-map-build`.
-  primary_outputs: '`.specify/project-map/map-scan.md`, `.specify/project-map/coverage-ledger.md`, `.specify/project-map/coverage-ledger.json`, `.specify/project-map/scan-packets/*.md`, and `.specify/project-map/map-state.md`.'
+  primary_outputs: '`.specify/project-map/map-scan.md`, `.specify/project-map/repository-universe.json`, `.specify/project-map/coverage-ledger.md`, `.specify/project-map/coverage-ledger.json`, `.specify/project-map/capability-ledger.json`, `.specify/project-map/control-ledger.json`, `.specify/project-map/scan-packets/*.md`, and `.specify/project-map/map-state.md`.'
   default_handoff: /sp-map-build after the scan package passes readiness checks.
 ---
 
@@ -84,14 +84,26 @@ coherent for all project-relevant surfaces.
 The only canonical outputs for this command are:
 
 - `.specify/project-map/map-scan.md`
+- `.specify/project-map/repository-universe.json`
 - `.specify/project-map/coverage-ledger.md`
 - `.specify/project-map/coverage-ledger.json`
+- `.specify/project-map/capability-ledger.json`
+- `.specify/project-map/control-ledger.json`
 - `.specify/project-map/scan-packets/<lane-id>.md`
 - `.specify/project-map/map-state.md`
 
 Do not create `.planning/codebase/`, a second mapping tree, or any alternate
 source-of-truth document. The scan package is a task package for
 `sp-map-build`; it is not the final atlas.
+
+The scan package must prove file, entrypoint, branch, and control-node
+coverage. This is a file, entrypoint, branch, and control-node coverage
+contract, not a best-effort summary. If a managed-scope file, entrypoint,
+branch, or control node cannot be classified and mapped, `sp-map-scan` must
+remain blocked instead of downgrading the unknown.
+
+It must also gather the source material needed for both `By Capability` and
+`By Symptom` atlas routes so `sp-map-build` does not invent those paths later.
 
 ## Process
 
