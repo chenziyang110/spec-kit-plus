@@ -62,6 +62,7 @@ MINIMAL_BUILD_PRESENT_KEYS = (
 BUILD_EXPORT_FIXTURES = {
     "workflow-state.md": "- active_command: `sp-prd-build`\n",
     "master/master-pack.md": "# Master Pack\n",
+    "exports/README.md": "# PRD Export Package\n",
     "exports/prd.md": "# PRD\n",
     "exports/reconstruction-appendix.md": "# Reconstruction Appendix\n",
     "exports/data-model.md": "# Data Model\n",
@@ -372,6 +373,35 @@ def test_python_prd_helper_wrapper_supports_prd_build_status(tmp_path: Path):
     ):
         assert payload["surfaces"][key] is True
     assert payload["complete"] is True
+
+
+def test_prd_build_surfaces_include_package_readme_navigation_entry():
+    assert BASE_BUILD_SURFACES["package_readme"] == "exports/README.md"
+
+
+def test_prd_build_normalization_requires_package_readme():
+    payload = specify_cli._normalize_prd_payload(
+        {
+            "mode": "status-build",
+            "surfaces": {
+                "workspace": True,
+                "master": True,
+                "exports": True,
+                "workflow_state": True,
+                "master_pack": True,
+                "package_readme": False,
+                "prd_export": True,
+                "reconstruction_appendix": True,
+                "data_model": True,
+                "integration_contracts": True,
+                "runtime_behaviors": True,
+                **{key: True for key in HEAVY_BUILD_EXPORT_SURFACES},
+            },
+        }
+    )
+
+    assert payload["complete"] is False
+    assert payload["missing"] == ["package_readme"]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="direct bash helper path execution is POSIX-only")

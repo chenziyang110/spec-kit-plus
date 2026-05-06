@@ -1129,11 +1129,18 @@ def _normalize_prd_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "evidence",
             "worker_results",
             "master_pack",
+            "package_readme",
             "prd_export",
             "reconstruction_appendix",
             "data_model",
             "integration_contracts",
             "runtime_behaviors",
+            "config_contracts",
+            "protocol_contracts",
+            "state_machines",
+            "error_semantics",
+            "verification_surface",
+            "reconstruction_risks",
         }
     else:
         relevant_surfaces = set(surfaces)

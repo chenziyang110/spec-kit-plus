@@ -15,11 +15,20 @@ EXPECTED_PRD_TEMPLATES = {
         "Critical Capability Dossiers",
         "Coverage and Export Map",
     ],
+    "export-readme-template.md": [
+        "# PRD Export Suite Guide",
+        "What This Package Contains",
+        "Recommended Reading Paths",
+        "Document Map",
+        "Confidence And Gaps",
+        "Package Usage Notes",
+    ],
     "export-prd-template.md": [
         "# Product Requirements Document",
-        "master-pack.md",
+        "How To Use This PRD Suite",
         "Users and Roles",
         "Capability Overview",
+        "Related Documents",
         "Unknowns and Evidence Confidence",
     ],
     "export-ui-spec-template.md": [
@@ -149,6 +158,28 @@ def test_prd_export_template_calls_out_depth_qualified_capabilities() -> None:
     assert "Critical Capability Notes" in content
     assert "depth-qualified" in content
     assert "surface-covered" in content
+
+
+def test_prd_export_readme_template_routes_readers_by_question() -> None:
+    content = (PRD_TEMPLATE_DIR / "export-readme-template.md").read_text(encoding="utf-8")
+
+    assert "`prd.md` is the primary reader-facing PRD" in content
+    assert "Quick Engineering Handoff" in content
+    assert "Interface and Integration Review" in content
+    assert "State and Failure Analysis" in content
+    assert "Pre-Change Risk Assessment" in content
+    assert "| File | Primary Question Answered | When To Read | Related Documents |" in content
+
+
+def test_prd_export_template_uses_related_documents_instead_of_stale_appendix_links() -> None:
+    content = (PRD_TEMPLATE_DIR / "export-prd-template.md").read_text(encoding="utf-8")
+
+    assert "## How To Use This PRD Suite" in content
+    assert "## Related Documents" in content
+    assert "integration-contracts.md" in content
+    assert "state-machines.md" in content
+    assert "verification-surface.md" in content
+    assert "Appendix Navigation" not in content
 
 
 def test_internal_brief_template_maps_critical_capabilities_to_code() -> None:

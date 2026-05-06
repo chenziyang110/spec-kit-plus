@@ -43,6 +43,7 @@ HEAVY_SCAN_JSON_SURFACES = {
 
 BASE_BUILD_SURFACES = {
     "master_pack": "master/master-pack.md",
+    "package_readme": "exports/README.md",
     "prd_export": "exports/prd.md",
     "reconstruction_appendix": "exports/reconstruction-appendix.md",
     "data_model": "exports/data-model.md",

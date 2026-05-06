@@ -162,6 +162,18 @@ def test_prd_build_template_mentions_reconstruction_export_filenames() -> None:
     assert "exports/reconstruction-risks.md" in content
 
 
+def test_prd_build_template_declares_package_navigation_entry() -> None:
+    content = _content("templates/commands/prd-build.md")
+    frontmatter = _frontmatter("templates/commands/prd-build.md")
+    contract = frontmatter["workflow_contract"]
+    lowered = content.lower()
+
+    assert ".specify/prd-runs/<run-id>/exports/README.md" in contract["primary_outputs"]
+    assert "package navigation entry" in lowered
+    assert "primary reader-facing prd" in lowered
+    assert "exports/README.md" in content
+
+
 def test_prd_build_template_mentions_reconstruction_readiness_gate_names() -> None:
     content = _content("templates/commands/prd-build.md")
 

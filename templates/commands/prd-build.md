@@ -2,8 +2,8 @@
 description: Use when `sp-prd-scan` has produced a complete reconstruction package and the final PRD suite must be compiled from it.
 workflow_contract:
   when_to_use: Use after `sp-prd-scan` for a repository that already has a reconstruction-grade scan package ready for synthesis.
-  primary_objective: Validate scan completeness, compile the master pack, render final PRD exports, and prove reverse coverage validation without inventing new facts.
-  primary_outputs: '`.specify/prd-runs/<run-id>/workflow-state.md`, `.specify/prd-runs/<run-id>/master/master-pack.md`, `.specify/prd-runs/<run-id>/exports/prd.md`, `.specify/prd-runs/<run-id>/exports/reconstruction-appendix.md`, `.specify/prd-runs/<run-id>/exports/data-model.md`, `.specify/prd-runs/<run-id>/exports/integration-contracts.md`, `.specify/prd-runs/<run-id>/exports/runtime-behaviors.md`, `.specify/prd-runs/<run-id>/exports/config-contracts.md`, `.specify/prd-runs/<run-id>/exports/protocol-contracts.md`, `.specify/prd-runs/<run-id>/exports/state-machines.md`, `.specify/prd-runs/<run-id>/exports/error-semantics.md`, `.specify/prd-runs/<run-id>/exports/verification-surface.md`, and `.specify/prd-runs/<run-id>/exports/reconstruction-risks.md`.'
+  primary_objective: Validate scan completeness, compile the master pack, render the PRD package navigation entry plus final PRD exports, and prove reverse coverage validation without inventing new facts.
+  primary_outputs: '`.specify/prd-runs/<run-id>/workflow-state.md`, `.specify/prd-runs/<run-id>/master/master-pack.md`, `.specify/prd-runs/<run-id>/exports/README.md`, `.specify/prd-runs/<run-id>/exports/prd.md`, `.specify/prd-runs/<run-id>/exports/reconstruction-appendix.md`, `.specify/prd-runs/<run-id>/exports/data-model.md`, `.specify/prd-runs/<run-id>/exports/integration-contracts.md`, `.specify/prd-runs/<run-id>/exports/runtime-behaviors.md`, `.specify/prd-runs/<run-id>/exports/config-contracts.md`, `.specify/prd-runs/<run-id>/exports/protocol-contracts.md`, `.specify/prd-runs/<run-id>/exports/state-machines.md`, `.specify/prd-runs/<run-id>/exports/error-semantics.md`, `.specify/prd-runs/<run-id>/exports/verification-surface.md`, and `.specify/prd-runs/<run-id>/exports/reconstruction-risks.md`.'
   default_handoff: Completed PRD suite export, or route back to sp-prd-scan if reconstruction evidence is incomplete.
 ---
 
@@ -106,7 +106,7 @@ Before writing final exports, read:
 1. Validate that the `sp-prd-scan` package is complete enough to build.
 2. Perform packet evidence intake across scan packets, ledgers, JSON contracts, and worker results returned by mandatory subagent lanes.
 3. Compile `.specify/prd-runs/<run-id>/master/master-pack.md` from scan outputs only.
-4. Render `.specify/prd-runs/<run-id>/exports/prd.md` and the supporting exports.
+4. Render `.specify/prd-runs/<run-id>/exports/README.md`, `.specify/prd-runs/<run-id>/exports/prd.md`, and the supporting exports.
 5. Respect classification-aware export semantics: `ui`, `service`, and `mixed` runs must keep the final package grounded in the scan classification even when the fixed export set is used.
 6. Run reverse coverage validation across capabilities, artifacts, field-level contracts, and `Evidence` / `Inference` / `Unknown` labels.
 7. Refuse completion and route back to `sp-prd-scan` when critical gaps remain.
@@ -189,7 +189,8 @@ The build phase writes:
 
 - `.specify/prd-runs/<run-id>/workflow-state.md`
 - `.specify/prd-runs/<run-id>/master/master-pack.md`
-- `.specify/prd-runs/<run-id>/exports/prd.md`
+- `.specify/prd-runs/<run-id>/exports/README.md` - package navigation entry for the PRD suite
+- `.specify/prd-runs/<run-id>/exports/prd.md` - primary reader-facing PRD
 - `.specify/prd-runs/<run-id>/exports/reconstruction-appendix.md`
 - `.specify/prd-runs/<run-id>/exports/data-model.md`
 - `.specify/prd-runs/<run-id>/exports/integration-contracts.md`
@@ -218,6 +219,7 @@ Classification-aware export rule:
 - Critical Unknown Refusal Gate: unresolved critical unknowns in the validated scan evidence bundle block final export completion.
 - Traceability Gate: every reconstruction claim in the master pack and exports must trace back to scan-package evidence.
 - Reconstruction Readiness Gate: the compiled archive must preserve enough L4-level detail to recreate critical behavior.
+- Navigation Entry Gate: the compiled archive must include a package navigation entry so the supporting exports are usable as a coherent PRD suite.
 
 ## Traceability Validation
 

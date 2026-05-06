@@ -57,6 +57,7 @@ FILE_REQUIRED_ARTIFACTS = {
         "artifact-contracts.json",
         "reconstruction-checklist.json",
         "master/master-pack.md",
+        "exports/README.md",
         "exports/prd.md",
         "exports/reconstruction-appendix.md",
         "exports/data-model.md",
@@ -138,6 +139,7 @@ REQUIRED_ARTIFACTS = {
         "evidence",
         "worker-results",
         "master/master-pack.md",
+        "exports/README.md",
         "exports/prd.md",
     ),
     "prd": (
@@ -212,6 +214,7 @@ SPECIFY_FULL_COVERAGE_TRIGGER_PHRASES = (
 )
 
 PRD_BUILD_REQUIRED_EXPORTS = (
+    "exports/README.md",
     "exports/reconstruction-appendix.md",
     "exports/data-model.md",
     "exports/integration-contracts.md",
