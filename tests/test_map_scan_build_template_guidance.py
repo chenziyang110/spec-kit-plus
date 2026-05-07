@@ -63,6 +63,11 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "scan-packets/<lane-id>.md" in content
     assert "Coverage Classification" in content
     assert "Criticality Scoring" in content
+    assert "even when freshness is `fresh`" in lowered
+    assert "git baseline diff" in lowered
+    assert "reference-only" in lowered
+    assert "live surface" in lowered
+    assert "must not become a scan target" in lowered
 
 
 def test_map_scan_template_prefers_native_subagent_inventory_with_structured_handoffs() -> None:
@@ -140,6 +145,9 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert ".specify/project-map/index/*.json" in content
     assert ".specify/project-map/root/*.md" in content
     assert ".specify/project-map/modules/<module-id>/*.md" in content
+    assert "derived-only evidence" in lowered
+    assert "deep workflow documentation pages" in lowered
+    assert "required_reads contain only reference-only" in lowered or "reference-only or hard-excluded" in lowered
 
 
 def test_map_build_template_requires_reverse_coverage_closure() -> None:

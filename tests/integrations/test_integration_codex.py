@@ -535,6 +535,9 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "wait_agent" in scan_content
     assert "close_agent" in scan_content
     assert "do not create `.planning/codebase/`" in scan_content
+    assert "reference-only" in scan_content
+    assert "live surface" in scan_content
+    assert "git baseline diff" in scan_content
 
     assert "project-handbook.md" in build_content
     assert ".specify/project-map/index/atlas-index.json" in build_content
@@ -557,6 +560,8 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "minimum verification" in build_content
     assert "confidence" in build_content
     assert "capability deep workflow" in build_content
+    assert "derived-only evidence" in build_content
+    assert "deep workflow documentation pages" in build_content
 
 
 def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):

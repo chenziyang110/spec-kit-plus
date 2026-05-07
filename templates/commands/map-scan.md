@@ -110,10 +110,12 @@ It must also gather the source material needed for both `By Capability` and
 1. **Recover the mapping baseline**
    - Read `.specify/memory/constitution.md` if present.
    - [AGENT] Read `.specify/project-map/index/status.json` if present to recover the current map baseline, dirty state, previous refresh metadata, and module `deep_stale` warnings.
+   - [AGENT] Even when freshness is `fresh`, compute or recover a git baseline diff before scope selection so the scan can classify changed candidates from repository evidence instead of trusting freshness status alone.
    - [AGENT] Read `.specify/project-map/index/atlas-index.json`, `.specify/project-map/index/modules.json`, and `.specify/project-map/index/relations.json` if present.
    - [AGENT] Read `.specify/project-map/QUICK-NAV.md` if present so the scan preserves the current Layer 1 routing contract.
    - [AGENT] Read `PROJECT-HANDBOOK.md` and existing `.specify/project-map/root/*.md` files if present.
    - If local project-map templates exist under `.specify/templates/project-map/`, read them so scan packets target the local atlas shape.
+   - Treat `PROJECT-HANDBOOK.md`, `.specify/project-map/**`, `.specify/prd-runs/**`, and `.specify/testing/worker-results/**` as reference-only atlas or workbench artifacts: they may inform continuity but must not become a scan target.
 
 2. **Select the scan dispatch shape**
    - [AGENT] Before broad inventory begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="map-scan", snapshot, workload_shape)`.
@@ -143,6 +145,12 @@ It must also gather the source material needed for both `By Capability` and
      - `rg --files`
      - Git-tracked files
      - targeted directory listing where hidden project config or state surfaces may not appear in `rg --files`
+   - Start from the git baseline diff and candidate inventory, then classify every candidate into exactly one scope class:
+     - `hard_excluded`: caches, build output, dependency/vendor buckets, and other non-project evidence.
+     - `reference_only`: atlas outputs and workbench artifacts, including `PROJECT-HANDBOOK.md`, `.specify/project-map/**`, `.specify/prd-runs/**`, and `.specify/testing/worker-results/**`.
+     - `live_surface`: source, tests, templates, scripts, configs, docs, memory, and other repository truth surfaces that can justify atlas updates.
+   - Only `live_surface` paths may enter `coverage-ledger.json` or `scan-packets/*.md` as scan scope or required reads.
+   - `reference_only` artifacts may be listed as context or excluded/reference inputs, but they must not become a scan target or substitute for live surface reads.
    - Inventory must include:
      - source roots such as `src/`, package directories, and extension runtimes
      - tests, fixtures, contract tests, smoke tests, and testing utilities

@@ -148,6 +148,7 @@ confirmed from those reads, report the build as blocked instead of successful.
 - Hard rule: do not dispatch from raw scan prose or raw Markdown checklist items alone.
 - Hard rule: `MapBuildPacket` execution is read-only until the leader synthesizes accepted results into final atlas writes.
 - Hard rule: a packet that cannot identify concrete repository paths or globs to read is not executable and must route back to `/sp-map-scan`.
+- Hard rule: if `required_reads` contain only reference-only or hard-excluded paths, the packet is not executable and must route back to `/sp-map-scan`.
 
 ## Readiness Refusal Rules
 
@@ -155,6 +156,7 @@ confirmed from those reads, report the build as blocked instead of successful.
 
 - packet results without paths read
 - packet results that only summarize without evidence
+- derived-only evidence, including worker results whose `paths_read` point only at `PROJECT-HANDBOOK.md`, `.specify/project-map/**`, `.specify/prd-runs/**`, or `.specify/testing/worker-results/**`
 - unresolved critical rows
 - unresolved `unknown` rows without a concrete blocker
 - critical rows without scan packets
@@ -256,6 +258,8 @@ source-of-truth document.
 - No critical topic document may stop at directory names or file-family names without explaining responsibilities.
 - High-value contracts must preserve concrete signatures, fields, return shapes, handoff data, compatibility rules, or protocol semantics when those facts exist.
 - Workflow and integration sections must preserve protocol seams, bridge semantics, runtime invariants, method families, parameter semantics, return shapes, error fields, state transitions, compatibility notes, or invariants where those facts govern behavior.
+- Deep workflow documentation pages must carry lifecycle and flow Mermaid output when the capability index has those diagrams.
+- JSON indexes may retain diagram fields for machine routing, but they are not the primary human-consumed diagram surface; the deep workflow documentation pages are.
 - Build, packaging, runtime, and recovery instructions must remain actionable instead of being reduced to generic prose.
 - High-value capabilities must include owner, truth lives, extension guidance, change propagation, minimum verification, failure modes, and confidence.
 - Confidence must use only: Verified, Inferred, or Unknown-Stale.
@@ -287,6 +291,7 @@ Before reporting success, `sp-map-build` must prove reverse coverage validation:
 - every accepted packet result has paths read and confidence
 - every final atlas target is backed by at least one accepted packet evidence row or is explicitly marked unchanged after live revalidation
 - every mapped capability produces both a lifecycle Mermaid and a flow Mermaid
+- every mapped capability with lifecycle or flow Mermaid in a JSON index renders that diagram in its deep workflow documentation page
 - every mapped symptom routes to a capability deep workflow page through `.specify/project-map/index/symptoms.json`
 - `symptom -> capability deep workflow -> module workflows -> root workflows` is traversable for every mapped capability or symptom
 - every mapped capability deep workflow page includes failure branches, where-to-inspect guidance, and change impact guidance
