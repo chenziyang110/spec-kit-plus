@@ -19,6 +19,9 @@ def _read(path: str) -> str:
     return read_template(path)
 
 
+def _read_project_file(path: str) -> str:
+    return (PROJECT_ROOT / path).read_text(encoding="utf-8")
+
 def _extract_step_6_strategy_block(content: str) -> str:
     lowered = content.lower()
     start = lowered.find("6. select subagent dispatch for each ready batch before writing code:")
@@ -429,6 +432,46 @@ def test_specify_template_uses_alignment_first_contract():
     assert "active_profile" not in content
     assert "coverage_mode" not in content
     assert "Task Classification" not in content
+
+
+
+def test_readme_documents_runtime_atlas_refresh_scope_and_workbench_boundaries() -> None:
+    readme = _read_project_file("README.md")
+    lowered = readme.lower()
+
+    assert "fresh` means the last atlas refresh completed against a known git baseline" in lowered
+    assert "`sp-map-scan` still performs diff-based scope selection when entered" in lowered
+    assert "ordinary runtime atlas consumption should prefer" in lowered
+    assert "quick-nav.md" in lowered
+    assert "index/status.json" in lowered
+    assert "index/atlas-index.json" in lowered
+    assert "index/capabilities.json" in lowered
+    assert "index/symptoms.json" in lowered
+    assert "root/*.md" in lowered
+    assert "modules/*/deep/workflows/*.md" in lowered
+    assert "reference-only surfaces" in lowered
+    assert "should inform readers without becoming live source changes" in lowered
+    assert "refresh workbench remains internal to `map-scan` / `map-build`" in lowered
+
+
+
+def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_only() -> None:
+    handbook = _read_project_file("PROJECT-HANDBOOK.md")
+    lowered = handbook.lower()
+
+    assert "the runtime atlas is the ordinary consumption surface" in lowered
+    assert "the refresh workbench contains `map-scan` / `map-build` scan packets" in lowered
+    assert "reference-only outputs such as generated atlas docs and status/index json" in lowered
+    assert "read the runtime atlas before broad brownfield work" in lowered
+    assert "quick-nav.md" in lowered
+    assert "index/status.json" in lowered
+    assert "index/atlas-index.json" in lowered
+    assert "index/capabilities.json" in lowered
+    assert "index/symptoms.json" in lowered
+    assert "root/*.md" in lowered
+    assert "modules/*/deep/workflows/*.md" in lowered
+    assert "refresh workbench artifacts for rebuilding the atlas" in lowered
+    assert "reference-only unless the current task is explicitly testing or refreshing" in lowered
 
 
 def test_core_planning_templates_use_logical_atlas_references() -> None:
