@@ -238,6 +238,22 @@ PRD_WORKER_RESULT_REQUIRED_KEYS = frozenset(
     }
 )
 
+MAP_BUILD_WORKER_RESULT_REQUIRED_KEYS = frozenset(
+    {
+        "paths_read",
+        "unknowns",
+        "confidence",
+        "recommended_atlas_updates",
+    }
+)
+
+MAP_BUILD_REFERENCE_OR_DERIVED_PATH_PREFIXES = (
+    ".specify/project-map/",
+    ".specify/prd-runs/",
+    ".specify/testing/worker-results/",
+)
+MAP_BUILD_REFERENCE_OR_DERIVED_EXACT_PATHS = frozenset({"project-handbook.md"})
+
 PRD_RECONSTRUCTION_READY_STATUSES = frozenset(
     {
         "reconstruction-ready",
@@ -584,6 +600,186 @@ def _validate_prd_worker_results(feature_dir: Path) -> list[str]:
     return errors
 
 
+def _project_root_from_map_feature_dir(feature_dir: Path) -> Path:
+    if feature_dir.name == "project-map" and feature_dir.parent.name == ".specify":
+        return feature_dir.parent.parent
+    return feature_dir
+
+
+def _normalize_result_path(value: object, project_root: Path | None = None) -> str:
+    if not isinstance(value, str):
+        return ""
+    normalized = value.strip().replace("\\", "/")
+    candidate = Path(normalized)
+    if candidate.is_absolute() and project_root is not None:
+        try:
+            normalized = candidate.resolve(strict=False).relative_to(project_root.resolve(strict=False)).as_posix()
+        except ValueError:
+            normalized = candidate.as_posix()
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
+def _is_reference_or_derived_map_path(value: object, feature_dir: Path) -> bool:
+    normalized = _normalize_result_path(value, _project_root_from_map_feature_dir(feature_dir)).lower()
+    if not normalized:
+        return True
+    if normalized in MAP_BUILD_REFERENCE_OR_DERIVED_EXACT_PATHS:
+        return True
+    return any(normalized.startswith(prefix) for prefix in MAP_BUILD_REFERENCE_OR_DERIVED_PATH_PREFIXES)
+
+
+def _validate_map_build_worker_results(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    worker_results_dir = feature_dir / "worker-results"
+    if not worker_results_dir.is_dir():
+        return errors
+
+    for result_path in sorted(path for path in worker_results_dir.iterdir() if path.suffix == ".json"):
+        relative_label = result_path.relative_to(feature_dir).as_posix()
+        payload, read_errors = _read_json_artifact(result_path, relative_label)
+        if read_errors:
+            errors.extend(read_errors)
+            continue
+        if not isinstance(payload, dict):
+            errors.append(f"{relative_label} must contain a top-level JSON object")
+            continue
+
+        for key in sorted(MAP_BUILD_WORKER_RESULT_REQUIRED_KEYS - payload.keys()):
+            errors.append(f"{relative_label} is missing required worker result key: {key}")
+
+        paths_read = payload.get("paths_read")
+        if not isinstance(paths_read, list) or not paths_read:
+            errors.append(f"{relative_label} must define a non-empty paths_read array")
+            continue
+        if all(_is_reference_or_derived_map_path(path, feature_dir) for path in paths_read):
+            errors.append(
+                f"{relative_label} must include at least one source path in paths_read; "
+                "reference-only or derived-only evidence is insufficient"
+            )
+
+    return errors
+
+
+def _capability_diagram_fields(capability: dict[str, object]) -> tuple[str, ...]:
+    return tuple(
+        field
+        for field in ("lifecycle_mermaid", "flow_mermaid")
+        if isinstance(capability.get(field), str) and str(capability.get(field)).strip()
+    )
+
+
+def _capability_deep_workflow_page(capability: dict[str, object]) -> str:
+    for key in ("deep_workflow_path", "deep_workflow_page", "deep_workflow", "page", "path"):
+        value = capability.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _resolve_map_build_page_path(feature_dir: Path, page: str) -> tuple[Path | None, str | None]:
+    page_path = Path(page)
+    if page_path.is_absolute():
+        return None, "absolute deep workflow page paths are not allowed"
+
+    normalized = _normalize_result_path(page)
+    project_map_prefix = ".specify/project-map/"
+    if normalized.lower().startswith(project_map_prefix):
+        normalized = normalized[len(project_map_prefix) :]
+    resolved = (feature_dir / normalized).resolve(strict=False)
+    try:
+        resolved.relative_to(feature_dir.resolve(strict=False))
+    except ValueError:
+        return None, "deep workflow page path escapes the map-build feature directory"
+    return resolved, None
+
+
+def _normalize_mermaid_content(content: str) -> str:
+    return re.sub(r"\s+", " ", content).strip()
+
+
+def _extract_mermaid_blocks(content: str) -> list[str]:
+    return [
+        match.group(1)
+        for match in re.finditer(r"(?ims)^```\s*mermaid\s*\r?\n(.*?)^```\s*$", content)
+    ]
+
+
+def _missing_rendered_mermaid_fields(content: str, capability: dict[str, object]) -> list[str]:
+    normalized_blocks = [_normalize_mermaid_content(block) for block in _extract_mermaid_blocks(content)]
+    missing: list[str] = []
+    for field in ("lifecycle_mermaid", "flow_mermaid"):
+        value = capability.get(field)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        normalized_value = _normalize_mermaid_content(value)
+        if not any(normalized_value and normalized_value in block for block in normalized_blocks):
+            missing.append(field)
+    return missing
+
+
+def _validate_map_build_capability_diagrams(feature_dir: Path) -> list[str]:
+    payload, read_errors = _read_json_artifact(feature_dir / "index" / "capabilities.json", "index/capabilities.json")
+    if read_errors:
+        return read_errors
+    if not isinstance(payload, dict):
+        return ["index/capabilities.json must contain a top-level JSON object"]
+    capabilities = payload.get("capabilities")
+    if not isinstance(capabilities, list):
+        return ["index/capabilities.json must define a top-level capabilities array"]
+
+    errors: list[str] = []
+    for index, capability in enumerate(capabilities, start=1):
+        if not isinstance(capability, dict):
+            continue
+        diagram_fields = _capability_diagram_fields(capability)
+        if not diagram_fields:
+            continue
+
+        capability_id = str(capability.get("id") or f"capability #{index}")
+        page = _capability_deep_workflow_page(capability)
+        if not page:
+            joined = ", ".join(diagram_fields)
+            errors.append(
+                f"index/capabilities.json capability {capability_id} defines {joined} but has no deep workflow page"
+            )
+            continue
+
+        page_path, page_error = _resolve_map_build_page_path(feature_dir, page)
+        if page_error is not None:
+            errors.append(
+                f"index/capabilities.json capability {capability_id} references invalid deep workflow page "
+                f"{page}: {page_error}"
+            )
+            continue
+        if page_path is None:
+            continue
+        if not page_path.exists() or not page_path.is_file():
+            errors.append(
+                f"index/capabilities.json capability {capability_id} references missing deep workflow page: {page}"
+            )
+            continue
+
+        content = page_path.read_text(encoding="utf-8", errors="replace")
+        missing_mermaid_fields = _missing_rendered_mermaid_fields(content, capability)
+        if missing_mermaid_fields:
+            joined = ", ".join(missing_mermaid_fields)
+            errors.append(
+                f"index/capabilities.json capability {capability_id} defines Mermaid diagram fields "
+                f"but {page} does not render declared Mermaid content for: {joined}"
+            )
+
+    return errors
+
+
+def _validate_map_build_artifacts(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    errors.extend(_validate_map_build_worker_results(feature_dir))
+    errors.extend(_validate_map_build_capability_diagrams(feature_dir))
+    return errors
+
+
 def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
     errors: list[str] = []
     missing_exports = [
@@ -786,6 +982,8 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":
         validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
+    if command_name == "map-build":
+        validation_errors.extend(_validate_map_build_artifacts(feature_dir))
     if command_name == "prd-scan":
         validation_errors.extend(
             _validate_prd_scan_artifacts(
