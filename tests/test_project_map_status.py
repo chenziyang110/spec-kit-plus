@@ -332,6 +332,13 @@ def test_classify_changed_path_treats_project_map_outputs_as_ignore_for_freshnes
     assert mod.classify_changed_path(".specify/project-map/index/capabilities.json") == "ignore"
 
 
+def test_classify_changed_path_keeps_memory_and_template_truth_surfaces_live():
+    mod = _load_module()
+
+    assert mod.classify_changed_path(".specify/memory/constitution.md") == "stale"
+    assert mod.classify_changed_path(".specify/templates/project-map/ARCHITECTURE.md") == "stale"
+
+
 def test_assess_project_map_freshness_downgrades_to_review_only_when_partial_refresh_already_covers_topics(tmp_path):
     mod = _load_module()
 
@@ -369,6 +376,7 @@ def test_classify_changed_path_matches_shell_contract():
     assert mod.classify_changed_path(".specify/project-map/index/status.json") == "ignore"
     assert mod.classify_changed_path(".specify/project-map/map-state.md") == "ignore"
     assert mod.classify_changed_path(".specify/project-map/worker-results/SCAN-core.json") == "ignore"
+    assert mod.classify_changed_path("docker-compose.yml") == "stale"
     assert mod.classify_changed_path("src/routes/api.ts") == "stale"
     assert mod.classify_changed_path("src/components/button.tsx") == "possibly_stale"
     assert mod.classify_changed_path("notes/changelog.txt") == "ignore"

@@ -59,6 +59,100 @@ DIRTY_REASON_ALIASES = {
     "runtime_invariant_changed": "runtime_invariant_changed",
 }
 
+SCAN_SCOPE_RUNTIME_LIVE_PREFIXES = (
+    "src/",
+    "templates/",
+    "scripts/",
+    "tests/",
+    ".github/workflows/",
+    ".specify/memory/",
+    ".specify/templates/",
+)
+
+SCAN_SCOPE_RUNTIME_LIVE_FILES = {
+    "pyproject.toml",
+    "readme.md",
+    "agents.md",
+}
+
+SCAN_SCOPE_HIGH_IMPACT_TOP_LEVEL_FILES = {
+    ".specify/extensions.yml",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "poetry.lock",
+    "go.mod",
+    "go.sum",
+    "cargo.toml",
+    "cargo.lock",
+    "composer.json",
+    "composer.lock",
+    "gemfile",
+    "gemfile.lock",
+    "dockerfile",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "makefile",
+}
+
+SCAN_SCOPE_REFERENCE_ONLY_PREFIXES = (
+    ".specify/project-map/",
+    ".specify/prd-runs/",
+    ".specify/testing/worker-results/",
+)
+
+SCAN_SCOPE_REFERENCE_ONLY_FILES = {
+    "project-handbook.md",
+}
+
+SCAN_SCOPE_HARD_EXCLUDED_PREFIXES = (
+    ".git/",
+    ".venv/",
+    ".pytest_cache/",
+    ".ruff_cache/",
+    "dist/",
+    "build/",
+)
+
+
+def classify_scan_scope_path(path: str) -> str:
+    lower = str(path or "").strip().replace("\\", "/").lower().strip("/")
+    if not lower:
+        return "hard_excluded"
+    if lower in SCAN_SCOPE_REFERENCE_ONLY_FILES or lower.startswith(SCAN_SCOPE_REFERENCE_ONLY_PREFIXES):
+        return "reference_only"
+    if lower.startswith(SCAN_SCOPE_HARD_EXCLUDED_PREFIXES):
+        return "hard_excluded"
+    if (
+        lower in SCAN_SCOPE_RUNTIME_LIVE_FILES
+        or lower in SCAN_SCOPE_HIGH_IMPACT_TOP_LEVEL_FILES
+        or lower.startswith(SCAN_SCOPE_RUNTIME_LIVE_PREFIXES)
+    ):
+        return "live_surface"
+    return "hard_excluded"
+
+
+def filter_scan_scope_candidates(paths: list[str]) -> dict[str, list[str]]:
+    live_candidates: list[str] = []
+    reference_only: list[str] = []
+    hard_excluded: list[str] = []
+
+    for path in paths:
+        classification = classify_scan_scope_path(path)
+        if classification == "live_surface":
+            live_candidates.append(path)
+        elif classification == "reference_only":
+            reference_only.append(path)
+        else:
+            hard_excluded.append(path)
+
+    return {
+        "live_candidates": live_candidates,
+        "reference_only": reference_only,
+        "hard_excluded": hard_excluded,
+    }
+
 
 def project_map_dir(project_root: Path) -> Path:
     return project_root / ".specify" / "project-map"
@@ -190,7 +284,10 @@ def _merged_dirty_reason_topics(reasons: list[str]) -> dict[str, list[str]]:
 
 
 def classify_changed_path(path: str) -> str:
-    lower = path.lower().replace("\\", "/")
+    lower = str(path or "").strip().replace("\\", "/").lower().strip("/")
+    scan_scope_class = classify_scan_scope_path(path)
+    if scan_scope_class in {"reference_only", "hard_excluded"}:
+        return "ignore"
 
     high_impact_exact = {
         "project-handbook.md",
@@ -228,11 +325,8 @@ def classify_changed_path(path: str) -> str:
         return "stale"
 
     high_impact_prefixes = (
-        ".specify/project-map/root/",
-        ".specify/project-map/modules/",
-        ".specify/project-map/index/",
-        ".specify/project-map/",
-        ".specify/templates/project-map/",
+        ".specify/memory/",
+        ".specify/templates/",
         ".github/workflows/",
     )
     if lower.startswith(high_impact_prefixes):

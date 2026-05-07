@@ -21,6 +21,11 @@ def test_project_map_scope_classifies_runtime_atlas_and_workbench_distinctly():
 
     assert mod.classify_scan_scope_path("src/specify_cli/project_map_status.py") == "live_surface"
     assert mod.classify_scan_scope_path("templates/commands/map-scan.md") == "live_surface"
+    assert mod.classify_scan_scope_path("docker-compose.yml") == "live_surface"
+    assert mod.classify_scan_scope_path("Dockerfile") == "live_surface"
+    assert mod.classify_scan_scope_path("package-lock.json") == "live_surface"
+    assert mod.classify_scan_scope_path("go.mod") == "live_surface"
+    assert mod.classify_scan_scope_path("Cargo.lock") == "live_surface"
     assert mod.classify_scan_scope_path(".specify/memory/project-rules.md") == "live_surface"
     assert mod.classify_scan_scope_path(".specify/templates/project-map/ARCHITECTURE.md") == "live_surface"
     assert mod.classify_scan_scope_path("PROJECT-HANDBOOK.md") == "reference_only"
