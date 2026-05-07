@@ -293,6 +293,45 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
     assert fresh["suggested_topics"] == []
 
 
+def test_assess_project_map_freshness_ignores_reference_only_project_map_changes(tmp_path):
+    mod = _load_module()
+
+    mod.mark_project_map_refreshed(
+        tmp_path,
+        head_commit="base123",
+        branch="main",
+        reason="map-build",
+        mapped_at="2026-05-08T00:00:00Z",
+    )
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="head456",
+        changed_files=[
+            ".specify/project-map/index/status.json",
+            ".specify/project-map/root/ARCHITECTURE.md",
+            ".specify/project-map/worker-results/SCAN-core.json",
+        ],
+        has_git=True,
+    )
+
+    assert result["freshness"] == "fresh"
+    assert result["reasons"] == []
+    assert result["changed_files"] == [
+        ".specify/project-map/index/status.json",
+        ".specify/project-map/root/ARCHITECTURE.md",
+        ".specify/project-map/worker-results/SCAN-core.json",
+    ]
+
+
+def test_classify_changed_path_treats_project_map_outputs_as_ignore_for_freshness():
+    mod = _load_module()
+
+    assert mod.classify_changed_path("PROJECT-HANDBOOK.md") == "ignore"
+    assert mod.classify_changed_path(".specify/project-map/root/ARCHITECTURE.md") == "ignore"
+    assert mod.classify_changed_path(".specify/project-map/index/capabilities.json") == "ignore"
+
+
 def test_assess_project_map_freshness_downgrades_to_review_only_when_partial_refresh_already_covers_topics(tmp_path):
     mod = _load_module()
 
@@ -325,8 +364,8 @@ def test_assess_project_map_freshness_downgrades_to_review_only_when_partial_ref
 def test_classify_changed_path_matches_shell_contract():
     mod = _load_module()
 
-    assert mod.classify_changed_path("PROJECT-HANDBOOK.md") == "stale"
-    assert mod.classify_changed_path(".specify/project-map/root/ARCHITECTURE.md") == "stale"
+    assert mod.classify_changed_path("PROJECT-HANDBOOK.md") == "ignore"
+    assert mod.classify_changed_path(".specify/project-map/root/ARCHITECTURE.md") == "ignore"
     assert mod.classify_changed_path(".specify/project-map/index/status.json") == "ignore"
     assert mod.classify_changed_path(".specify/project-map/map-state.md") == "ignore"
     assert mod.classify_changed_path(".specify/project-map/worker-results/SCAN-core.json") == "ignore"
@@ -354,6 +393,8 @@ def test_suggested_topics_for_changed_path_maps_high_value_surfaces():
         "OPERATIONS.md",
         "TESTING.md",
     ]
+    assert mod.suggested_topics_for_changed_path("PROJECT-HANDBOOK.md") == []
+    assert mod.suggested_topics_for_changed_path(".specify/project-map/root/ARCHITECTURE.md") == []
     assert mod.suggested_topics_for_changed_path(".specify/project-map/index/status.json") == []
     assert mod.suggested_topics_for_changed_path(".specify/project-map/map-state.md") == []
     assert mod.suggested_topics_for_changed_path(".specify/project-map/worker-results/SCAN-core.json") == []
@@ -373,6 +414,14 @@ def test_refresh_plan_for_changed_path_splits_must_refresh_from_review():
     assert mod.refresh_plan_for_changed_path("docker-compose.yml") == {
         "must_refresh_topics": ["INTEGRATIONS.md", "OPERATIONS.md"],
         "review_topics": ["TESTING.md"],
+    }
+    assert mod.refresh_plan_for_changed_path("PROJECT-HANDBOOK.md") == {
+        "must_refresh_topics": [],
+        "review_topics": [],
+    }
+    assert mod.refresh_plan_for_changed_path(".specify/project-map/root/ARCHITECTURE.md") == {
+        "must_refresh_topics": [],
+        "review_topics": [],
     }
     assert mod.refresh_plan_for_changed_path(".specify/project-map/index/status.json") == {
         "must_refresh_topics": [],

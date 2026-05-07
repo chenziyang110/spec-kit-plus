@@ -227,6 +227,25 @@ def test_project_map_runtime_state_changes_do_not_mark_atlas_stale(git_repo: Pat
     assert powershell_result["reasons"] == []
 
 
+def test_project_map_freshness_helpers_ignore_reference_only_atlas_changes(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "map-build")
+    _run_powershell(git_repo, "record-refresh", "map-build")
+
+    target = git_repo / ".specify" / "project-map" / "root" / "ARCHITECTURE.md"
+    target.write_text("# changed atlas output\n", encoding="utf-8")
+    subprocess.run(["git", "add", str(target.relative_to(git_repo))], cwd=git_repo, check=True)
+
+    bash_result = _run_bash(git_repo, "check")
+    pwsh_result = _run_powershell(git_repo, "check")
+
+    assert bash_result["freshness"] == "fresh"
+    assert bash_result["reasons"] == []
+    assert pwsh_result["freshness"] == "fresh"
+    assert pwsh_result["reasons"] == []
+
+
 def test_powershell_check_reads_legacy_project_map_status(git_repo: Path):
     _seed_legacy_status(git_repo)
 
