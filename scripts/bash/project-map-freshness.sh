@@ -30,6 +30,28 @@ CANONICAL_MAP_FILES=(
     "$REPO_ROOT/.specify/project-map/root/TESTING.md"
     "$REPO_ROOT/.specify/project-map/root/OPERATIONS.md"
 )
+SCAN_SCOPE_RUNTIME_LIVE_PREFIXES=(
+    "src/"
+    "templates/"
+    "scripts/"
+    "tests/"
+    ".github/workflows/"
+    ".specify/memory/"
+    ".specify/templates/"
+)
+SCAN_SCOPE_REFERENCE_ONLY_PREFIXES=(
+    ".specify/project-map/"
+    ".specify/prd-runs/"
+    ".specify/testing/worker-results/"
+)
+SCAN_SCOPE_HARD_EXCLUDED_PREFIXES=(
+    ".git/"
+    ".venv/"
+    ".pytest_cache/"
+    ".ruff_cache/"
+    "dist/"
+    "build/"
+)
 
 mkdir -p "$PROJECT_MAP_DIR"
 mkdir -p "$(dirname "$STATUS_PATH")"
@@ -226,18 +248,21 @@ classify_path() {
     lower="$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')"
 
     case "$lower" in
-        .specify/project-map/status.json|\
-        .specify/project-map/index/status.json|\
-        .specify/project-map/map-state.md|\
-        .specify/project-map/worker-results/*)
+        project-handbook.md|\
+        .specify/project-map/*|\
+        .specify/prd-runs/*|\
+        .specify/testing/worker-results/*|\
+        .git/*|\
+        .venv/*|\
+        .pytest_cache/*|\
+        .ruff_cache/*|\
+        dist/*|\
+        build/*)
             echo "ignore"
             return 0
             ;;
-        project-handbook.md|\
-        .specify/project-map/*|\
-        .specify/templates/project-map/*|\
-        .specify/templates/project-handbook-template.md|\
-        .specify/memory/constitution.md|\
+        .specify/templates/*|\
+        .specify/memory/*|\
         .specify/extensions.yml|\
         .github/workflows/*|\
         package.json|package-lock.json|pnpm-lock.yaml|yarn.lock|\

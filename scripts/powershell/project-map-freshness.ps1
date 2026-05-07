@@ -165,15 +165,18 @@ function Classify-Path {
     $lower = $Path.ToLowerInvariant()
 
     switch -Regex ($lower) {
-        '^\.specify/project-map/status\.json$' { return "ignore" }
-        '^\.specify/project-map/index/status\.json$' { return "ignore" }
-        '^\.specify/project-map/map-state\.md$' { return "ignore" }
-        '^\.specify/project-map/worker-results/' { return "ignore" }
-        '^project-handbook\.md$' { return "stale" }
-        '^\.specify/project-map/' { return "stale" }
-        '^\.specify/templates/project-map/' { return "stale" }
-        '^\.specify/templates/project-handbook-template\.md$' { return "stale" }
-        '^\.specify/memory/constitution\.md$' { return "stale" }
+        '^project-handbook\.md$' { return "ignore" }
+        '^\.specify/project-map/' { return "ignore" }
+        '^\.specify/prd-runs/' { return "ignore" }
+        '^\.specify/testing/worker-results/' { return "ignore" }
+        '^\.git/' { return "ignore" }
+        '^\.venv/' { return "ignore" }
+        '^\.pytest_cache/' { return "ignore" }
+        '^\.ruff_cache/' { return "ignore" }
+        '^dist/' { return "ignore" }
+        '^build/' { return "ignore" }
+        '^\.specify/templates/' { return "stale" }
+        '^\.specify/memory/' { return "stale" }
         '^\.specify/extensions\.yml$' { return "stale" }
         '^\.github/workflows/' { return "stale" }
         '^(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|pyproject\.toml|poetry\.lock|go\.mod|go\.sum|cargo\.toml|cargo\.lock|composer\.json|composer\.lock|gemfile|gemfile\.lock|dockerfile|docker-compose\.ya?ml|makefile)$' { return "stale" }

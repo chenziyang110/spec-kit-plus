@@ -246,6 +246,80 @@ def test_project_map_freshness_helpers_ignore_reference_only_atlas_changes(git_r
     assert pwsh_result["reasons"] == []
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "PROJECT-HANDBOOK.md",
+        ".specify/project-map/root/STRUCTURE.md",
+        ".specify/prd-runs/001-demo/research.json",
+        ".specify/testing/worker-results/SCAN-unit.json",
+        ".venv/lib/site-packages/pkg.py",
+        ".pytest_cache/v/cache/nodeids",
+        ".ruff_cache/0.11.0/cache",
+        "dist/spec-kit-plus.tar.gz",
+        "build/lib/module.py",
+    ],
+)
+def test_project_map_freshness_helpers_ignore_reference_and_excluded_paths(git_repo: Path, path: str):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "map-build")
+    _run_powershell(git_repo, "record-refresh", "map-build")
+
+    changed = git_repo / path
+    changed.parent.mkdir(parents=True, exist_ok=True)
+    changed.write_text("changed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-f", path], cwd=git_repo, check=True)
+
+    bash_result = _run_bash(git_repo, "check")
+    pwsh_result = _run_powershell(git_repo, "check")
+
+    assert bash_result["freshness"] == "fresh"
+    assert bash_result["reasons"] == []
+    assert pwsh_result["freshness"] == "fresh"
+    assert pwsh_result["reasons"] == []
+
+
+@pytest.mark.parametrize(
+    "path,expected_freshness,expected_reason_prefix",
+    [
+        (".specify/templates/project-map/ARCHITECTURE.md", "stale", "high-impact project-map change"),
+        (".specify/templates/testing/TESTING_PLAYBOOK.md", "stale", "high-impact project-map change"),
+        (".specify/memory/constitution.md", "stale", "high-impact project-map change"),
+        (".specify/memory/project-rules.md", "stale", "high-impact project-map change"),
+        ("docker-compose.yml", "stale", "high-impact project-map change"),
+        ("Dockerfile", "stale", "high-impact project-map change"),
+        ("Makefile", "stale", "high-impact project-map change"),
+        ("package.json", "stale", "high-impact project-map change"),
+        ("pnpm-lock.yaml", "stale", "high-impact project-map change"),
+        ("go.mod", "stale", "high-impact project-map change"),
+    ],
+)
+def test_project_map_freshness_helpers_keep_live_runtime_paths_stale_driving(
+    git_repo: Path,
+    path: str,
+    expected_freshness: str,
+    expected_reason_prefix: str,
+):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "map-build")
+    _run_powershell(git_repo, "record-refresh", "map-build")
+
+    changed = git_repo / path
+    changed.parent.mkdir(parents=True, exist_ok=True)
+    changed.write_text("changed\n", encoding="utf-8")
+    subprocess.run(["git", "add", path], cwd=git_repo, check=True)
+
+    bash_result = _run_bash(git_repo, "check")
+    pwsh_result = _run_powershell(git_repo, "check")
+
+    assert bash_result["freshness"] == expected_freshness
+    assert any(reason.startswith(expected_reason_prefix) for reason in bash_result["reasons"])
+    assert pwsh_result["freshness"] == expected_freshness
+    assert any(reason.startswith(expected_reason_prefix) for reason in pwsh_result["reasons"])
+
+
 def test_powershell_check_reads_legacy_project_map_status(git_repo: Path):
     _seed_legacy_status(git_repo)
 
