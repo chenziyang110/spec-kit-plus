@@ -1260,6 +1260,12 @@ def test_workflow_state_template_exists_and_captures_phase_lock_contract():
     content = _read("templates/workflow-state-template.md")
 
     assert "# Workflow State:" in content
+    assert "## Current Command" in content
+    assert "active_command:" in content
+    assert "status:" in content
+    assert "## Phase Mode" in content
+    assert "phase_mode:" in content
+    assert "summary:" in content
     assert "## Fixed Lifecycle State" in content
     assert "current_stage:" in content
     assert "current_domain:" in content
@@ -1277,13 +1283,13 @@ def test_workflow_state_template_exists_and_captures_phase_lock_contract():
     assert "/sp.plan" in content
     assert "/sp.clarify" in content
     assert "/sp.deep-research" in content
-    assert "## Current Command" not in content
-    assert "## Phase Mode" not in content
 
 
 def test_workflow_state_template_documents_recovery_sections() -> None:
     content = _read("templates/workflow-state-template.md")
 
+    assert "## Current Command" in content
+    assert "## Phase Mode" in content
     assert "## Fixed Lifecycle State" in content
     assert "blocker_reason: [None | Why progress is blocked or why a domain was reopened]" in content
     assert "final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]" in content
