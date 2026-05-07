@@ -75,8 +75,26 @@ def workflow_preflight_hook(project_root: Path, payload: dict[str, object]) -> H
             checkpoint = preview_checkpoint if current_lane_id else serialize_workflow_state(state_path)
             next_command = str(checkpoint.get("next_command") or "").strip()
             if next_command and next_command != "/sp.implement":
+                tracker_summary = ""
+                tracker_path = feature_dir / "implement-tracker.md"
+                if tracker_path.exists():
+                    from .checkpoint_serializers import serialize_implement_tracker
+
+                    tracker = serialize_implement_tracker(tracker_path)
+                    tracker_bits = [
+                        f"tracker_status={tracker.get('status', '')}",
+                        f"current_batch={tracker.get('current_batch', '')}",
+                        f"resume_decision={tracker.get('resume_decision', '')}",
+                    ]
+                    tracker_summary = " | " + ", ".join(bit for bit in tracker_bits if not bit.endswith("="))
                 errors.append(
-                    f"workflow-state requires {next_command} before /sp.implement may continue"
+                    "workflow-state requires "
+                    f"{next_command} before /sp.implement may continue "
+                    f"(active_command={checkpoint.get('active_command', '')}, "
+                    f"workflow_status={checkpoint.get('status', '')}, "
+                    f"phase_mode={checkpoint.get('phase_mode', '')}, "
+                    f"next_action={checkpoint.get('next_action', '')})"
+                    f"{tracker_summary}"
                 )
             if checkpoint.get("active_command") == "sp-analyze" and checkpoint.get("status") != "completed":
                 errors.append("analyze gate is still active and has not been cleared")

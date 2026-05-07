@@ -75,6 +75,55 @@ def test_preflight_blocks_implement_when_workflow_state_requires_analyze(tmp_pat
     assert result.status == "blocked"
     assert result.severity == "critical"
     assert any("/sp.analyze" in message for message in result.errors)
+    assert any("active_command=sp-tasks" in message for message in result.errors)
+    assert any("workflow_status=completed" in message for message in result.errors)
+
+
+def test_preflight_explains_implement_block_with_tracker_summary_when_available(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_workflow_state(
+        feature_dir,
+        active_command="sp-plan",
+        status="completed",
+        phase_mode="design-only",
+        next_command="/sp.tasks",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: near-complete",
+                "resume_decision: resume-here",
+                "---",
+                "",
+                "## Current Focus",
+                "",
+                "- current_batch: batch-final",
+                "- goal: finish validation",
+                "- next_action: run quickstart validation",
+                "",
+                "## Execution State",
+                "",
+                "- retry_attempts: 0",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.preflight",
+        {"command_name": "implement", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("/sp.tasks" in message for message in result.errors)
+    assert any("active_command=sp-plan" in message for message in result.errors)
+    assert any("workflow_status=completed" in message for message in result.errors)
+    assert any("tracker_status=near-complete" in message for message in result.errors)
+    assert any("current_batch=batch-final" in message for message in result.errors)
 
 
 def test_preflight_warns_when_project_map_status_is_missing_for_brownfield_work(tmp_path: Path):

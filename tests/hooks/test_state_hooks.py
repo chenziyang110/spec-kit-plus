@@ -390,3 +390,59 @@ def test_validate_state_blocks_when_required_phase_contract_sections_are_missing
     assert result.status == "blocked"
     assert any("allowed_artifact_writes" in message for message in result.errors)
     assert any("forbidden_actions" in message for message in result.errors)
+
+
+def test_validate_state_accepts_legacy_fixed_lifecycle_shape_for_specify(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Fixed Lifecycle State",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "- phase_mode: `planning-only`",
+                "- summary: draft specification",
+                "- current_stage: `intent-analysis`",
+                "- current_domain: `goal-and-users`",
+                "- next_action: `Refine scope.`",
+                "- blocker_reason: `none`",
+                "- final_handoff_decision: `pending`",
+                "",
+                "## Allowed Artifact Writes",
+                "",
+                "- spec.md",
+                "",
+                "## Forbidden Actions",
+                "",
+                "- edit source code",
+                "",
+                "## Authoritative Files",
+                "",
+                "- spec.md",
+                "",
+                "## Next Command",
+                "",
+                "- `/sp.plan`",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.state.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    checkpoint = result.data["checkpoint"]
+    assert checkpoint["active_command"] == "sp-specify"
+    assert checkpoint["phase_mode"] == "planning-only"
+    assert checkpoint["current_stage"] == "intent-analysis"
+    assert checkpoint["current_domain"] == "goal-and-users"

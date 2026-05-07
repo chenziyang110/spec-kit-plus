@@ -1135,6 +1135,74 @@ class TestClaudeIntegration:
         assert result.returncode == 0, result.stderr
         assert not compaction_path.exists()
 
+    def test_claude_hook_dispatch_allows_specify_prompt_with_legacy_bootstrap_state(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Fixed Lifecycle State",
+                    "",
+                    "- active_command: `sp-specify`",
+                    "- status: `active`",
+                    "- phase_mode: `planning-only`",
+                    "- summary: draft specification",
+                    "- current_stage: `intent-analysis`",
+                    "- current_domain: `goal-and-users`",
+                    "- next_action: `Refine scope.`",
+                    "- blocker_reason: `none`",
+                    "- final_handoff_decision: `pending`",
+                    "",
+                    "## Allowed Artifact Writes",
+                    "",
+                    "- spec.md",
+                    "",
+                    "## Forbidden Actions",
+                    "",
+                    "- edit source code",
+                    "",
+                    "## Authoritative Files",
+                    "",
+                    "- spec.md",
+                    "",
+                    "## Next Command",
+                    "",
+                    "- `/sp.plan`",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "user-prompt-submit"],
+            input=json.dumps({"prompt": "continue"}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        output = result.stdout.strip()
+        assert output in {"", "{}"}
+
     def test_claude_hook_dispatch_reads_compaction_resume_context_on_session_start(self, tmp_path):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)

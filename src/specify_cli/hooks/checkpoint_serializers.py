@@ -153,14 +153,22 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     reusable_constraints = section_body(text, "Reusable Constraints")
 
     fixed_state_kind = bool(fixed_lifecycle_state)
+    active_command = extract_field(current_command, "active_command") or extract_field(
+        fixed_lifecycle_state, "active_command"
+    )
+    status = extract_field(current_command, "status") or extract_field(fixed_lifecycle_state, "status")
+    phase_mode_value = extract_field(phase_mode, "phase_mode") or extract_field(
+        fixed_lifecycle_state, "phase_mode"
+    )
+    summary = extract_field(phase_mode, "summary") or extract_field(fixed_lifecycle_state, "summary")
 
     return {
         "state_kind": "workflow-state",
         "path": str(path),
-        "active_command": extract_field(current_command, "active_command"),
-        "status": extract_field(current_command, "status"),
-        "phase_mode": extract_field(phase_mode, "phase_mode"),
-        "summary": extract_field(phase_mode, "summary"),
+        "active_command": active_command,
+        "status": status,
+        "phase_mode": phase_mode_value,
+        "summary": summary,
         **(
             {}
             if fixed_state_kind

@@ -75,8 +75,12 @@ continues.
 - [AGENT] Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known.
 - Read `templates/workflow-state-template.md`.
 - Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth on resume after compaction for the current command, allowed artifact writes, forbidden actions, authoritative files, next action, and exit criteria.
+- Write `active_command` and `status` under `## Current Command`.
+- Write `phase_mode` and `summary` under `## Phase Mode`.
+- Write only lifecycle progression fields under `## Fixed Lifecycle State`.
 - Set or update the state for this run with at least:
   - `active_command: sp-specify`
+  - `status: active`
   - `phase_mode: planning-only`
   - `current_stage: intent-analysis`
   - `current_domain: goal-and-users`
@@ -124,8 +128,13 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read `templates/workflow-state-template.md`.
    - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
    - Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth for `sp-specify`.
+   - Structure the file using the explicit sections from `templates/workflow-state-template.md`:
+     - `## Current Command` for `active_command` and `status`
+     - `## Phase Mode` for `phase_mode` and `summary`
+     - `## Fixed Lifecycle State` for lifecycle progression fields
    - Persist at least these fields for the active pass:
      - `active_command: sp-specify`
+     - `status: active`
      - `phase_mode: planning-only`
      - `current_stage: intent-analysis`
      - `current_domain: goal-and-users`
