@@ -516,48 +516,44 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
 
     scan_content = (target / ".codex" / "skills" / "sp-map-scan" / "SKILL.md").read_text(encoding="utf-8").lower()
     build_content = (target / ".codex" / "skills" / "sp-map-build" / "SKILL.md").read_text(encoding="utf-8").lower()
+    update_content = (target / ".codex" / "skills" / "sp-map-update" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert not (target / ".codex" / "skills" / "sp-map-codebase" / "SKILL.md").exists()
 
-    assert ".specify/project-map/map-scan.md" in scan_content
-    assert ".specify/project-map/repository-universe.json" in scan_content
-    assert ".specify/project-map/coverage-ledger.md" in scan_content
-    assert ".specify/project-map/coverage-ledger.json" in scan_content
-    assert ".specify/project-map/capability-ledger.json" in scan_content
-    assert ".specify/project-map/control-ledger.json" in scan_content
-    assert ".specify/project-map/scan-packets/<lane-id>.md" in scan_content
-    assert ".specify/project-map/map-state.md" in scan_content
-    assert "mapscanpacket" in scan_content
+    assert ".specify/project-cognition/" in scan_content
+    assert ".specify/project-cognition/evidence/" in scan_content
+    assert ".specify/project-cognition/provisional/nodes.json" in scan_content
+    assert ".specify/project-cognition/provisional/edges.json" in scan_content
+    assert ".specify/project-cognition/provisional/observations.json" in scan_content
+    assert ".specify/project-cognition/coverage.json" in scan_content
     assert 'choose_subagent_dispatch(command_name="map-scan"' in scan_content
-    assert "rg --files" in scan_content
-    assert "git-tracked files" in scan_content
-    assert "reverse coverage" in scan_content
+    assert "evidence" in scan_content
+    assert "coverage" in scan_content
     assert "spawn_agent" in scan_content
     assert "wait_agent" in scan_content
     assert "close_agent" in scan_content
-    assert "do not create `.planning/codebase/`" in scan_content
-    assert "reference-only" in scan_content
-    assert "live surface" in scan_content
-    assert "git baseline diff" in scan_content
+    assert "provisional" in scan_content
 
-    assert "debug-handbook.md" in build_content
-    assert "build-handbook.md" in build_content
-    assert "debug-workflow-contract" in build_content
-    assert "build-workflow-contract" in build_content
+    assert ".specify/project-cognition/graph/nodes.json" in build_content
+    assert ".specify/project-cognition/graph/edges.json" in build_content
+    assert ".specify/project-cognition/graph/claims.json" in build_content
+    assert ".specify/project-cognition/graph/conflicts.json" in build_content
     assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
-    assert "route back to `/sp-map-scan`" in build_content
-    assert "mapbuildpacket" in build_content
-    assert ".specify/project-map/worker-results/<packet-id>.json" in build_content
+    assert ".specify/project-cognition/slices/" in build_content
     assert "spawn_agent" in build_content
     assert "wait_agent" in build_content
     assert "close_agent" in build_content
-    assert "complete-refresh" in build_content
-    assert "workflow-handbook detail rules" in build_content
-    assert "`debug-handbook.md` must stay concise" in build_content
-    assert "`build-handbook.md` must stay concise" in build_content
-    assert "minimum verification" in build_content
+    assert "project cognition" in build_content
     assert "confidence" in build_content
-    assert "derived-only evidence" in build_content
-    assert "workflow-operational reachability validation" in build_content
+    assert "conflict" in build_content
+
+    assert "sp-map-update" in update_content
+    assert "project-cognition" in update_content
+    assert "spawn_agent" in update_content
+    assert "wait_agent" in update_content
+    assert "diff impact closure" in update_content
+    assert "affected claim refresh" in update_content
+    assert "user supplement normalization" in update_content
+    assert "conflict reconciliation" in update_content
 
 
 def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):

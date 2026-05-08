@@ -240,7 +240,7 @@ class MarkdownIntegrationTests:
         assert "mapscanpacket" in scan_content
         assert "mapbuildpacket" in build_content
         assert "worker-results" in build_content
-        assert "route back to `/sp-map-scan`" in build_content
+        assert "map-update" in build_content
 
     def test_test_build_command_surfaces_downstream_testing_control_plane(self, tmp_path):
         i = get_integration(self.KEY)
@@ -564,8 +564,8 @@ class MarkdownIntegrationTests:
         assert SPEC_KIT_BLOCK_START in content
         assert "[AGENT]" in content
         assert "specify -> plan" in content
-        assert "DEBUG-HANDBOOK.md" in content
-        assert "BUILD-HANDBOOK.md" in content
+        assert ".specify/project-cognition/" in content
+        assert "map-update" in content
         assert "two workflow handbooks" in content
         assert ".specify/memory/project-rules.md" in content
         assert "Shared project memory is always available" in content
@@ -588,7 +588,8 @@ class MarkdownIntegrationTests:
         assert ".specify/testing/TESTING_CONTRACT.md" in content
         assert ".specify/project-map/index/status.json" in content
         assert "## Map Maintenance" in content
-        assert "refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`" in content
+        assert "project cognition" in content.lower()
+        assert "map-update" in content
         assert "git-baseline freshness" in content.lower()
         assert "complete-refresh" in content
         assert "manual override/fallback" in content.lower()
@@ -618,8 +619,8 @@ class MarkdownIntegrationTests:
         content = context_path.read_text(encoding="utf-8")
         assert content.startswith(initial)
         assert SPEC_KIT_BLOCK_START in content
-        assert "DEBUG-HANDBOOK.md" in content
-        assert "BUILD-HANDBOOK.md" in content
+        assert ".specify/project-cognition/" in content
+        assert "graph" in content.lower()
         assert "## Workflow Routing" in content
         assert "## Artifact Priority" in content
         assert "## Map Maintenance" in content

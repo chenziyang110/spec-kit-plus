@@ -218,6 +218,24 @@ class CodexIntegration(SkillsIntegration):
             created,
             project_root,
             manifest,
+            skills_dir / "sp-map-update" / "SKILL.md",
+            f"## {agent_name} Subagents-First Dispatch",
+            (
+                "\n"
+                f"## {agent_name} Subagents-First Dispatch\n\n"
+                f"When running `sp-map-update` in {agent_name}, use the subagents-first dispatch model.\n"
+                "- Use `spawn_agent` for bounded lanes when `dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
+                "- Launch all independent lanes in the current `parallel-subagents` wave before waiting.\n"
+                "- Use `leader-inline-fallback` only after recording why Codex native subagents are unavailable or unsafe.\n"
+                "- Suggested bounded update lanes include diff impact closure, affected claim refresh, user supplement normalization, and conflict reconciliation.\n"
+                f"- Use `wait_agent` only at the documented join points before updating graph claims, conflicts, and slices.\n"
+                f"- Use `close_agent` after integrating finished subagent results.\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
             skills_dir / "sp-test-scan" / "SKILL.md",
             f"## {agent_name} Subagents-First Dispatch",
             (
