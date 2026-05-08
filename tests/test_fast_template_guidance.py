@@ -30,15 +30,15 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "## execution mode" in content
     assert "delegated change" not in content
     assert "delegate it through" not in content
-    assert "project-map hard gate" in content
-    assert "must pass an atlas gate before" in content
-    assert "project-handbook.md" in content
-    assert "atlas.entry" in content
-    assert "atlas.index.status" in content
-    assert "atlas.index.atlas" in content
-    assert "pass the atlas gate" in content
+    assert "runtime handbook gate" in content
+    assert "must pass the handbook gate before" in content
+    assert "build-handbook.md" in content
+    assert "build-workflow-contract" in content
+    assert "product-and-capability-map" in content
+    assert "change-entrypoints" in content
+    assert "pass the handbook gate" in content
     assert "freshness" in content
-    assert "atlas.index.status" in content
+    assert ".specify/project-map/index/status.json" in content
     assert "shared surfaces" in content
     assert "change-propagation hotspot" in content
     assert "verification entry points" in content
@@ -60,7 +60,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "manual override/fallback" in content
     assert "skip all learning hooks" in content
     assert "skip all learning hooks" in content
-    assert "pass the atlas gate" in content
+    assert "pass the handbook gate" in content
 
 
 def test_fast_template_uses_leader_direct_contract() -> None:

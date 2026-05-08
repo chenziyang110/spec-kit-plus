@@ -519,7 +519,7 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
     assert "treat the learning layer as workflow-execution infrastructure" in bash
     assert "project-map complete-refresh" in bash
     assert "project-map mark-dirty" in bash
-    assert "do not continue under known-stale atlas state without choosing one of those paths" in bash
+    assert "do not continue under known-stale handbook state without choosing one of those paths" in bash
     assert "structured handoff, result file, or runtime-managed result" in bash
     assert "`sp-teams` only" in bash
     assert "possibly_stale" not in bash

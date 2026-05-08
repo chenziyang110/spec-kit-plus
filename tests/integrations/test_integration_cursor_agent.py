@@ -79,9 +79,11 @@ def test_cursor_runtime_commands_hard_gate_project_map_reads(tmp_path):
     ):
         content = (target / rel).read_text(encoding="utf-8").lower()
         assert "crucial first step" in content
-        assert "project-handbook.md" in content
-        assert "atlas.entry" in content
-        assert "atlas.index.status" in content
-        assert "atlas.index.atlas" in content
         assert "map-scan" in content
         assert "map-build" in content
+        if "sp.debug" in rel:
+            assert "debug-handbook.md" in content
+            assert "debug-workflow-contract" in content
+        else:
+            assert "build-handbook.md" in content
+            assert "build-workflow-contract" in content

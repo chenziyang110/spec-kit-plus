@@ -44,23 +44,21 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert ".planning/learnings/candidates.md" in content
     assert "passive project learning layer" in content
     assert "passive project learning layer" in content
-    assert "project-map hard gate" in content
-    assert "must pass an atlas gate before" in content
-    assert "project-handbook.md" in content
-    assert "atlas.entry" in content
-    assert "atlas.index.status" in content
-    assert "atlas.index.atlas" in content
+    assert "runtime handbook gate" in content
+    assert "must pass the handbook gate before" in content
+    assert "build-handbook.md" in content
+    assert "build-workflow-contract" in content
+    assert "product-and-capability-map" in content
+    assert "change-entrypoints" in content
     assert "treat `missing` and `stale` as blocking" in content
     assert "`possibly_stale`" in content
     assert "must_refresh_topics" in content
     assert "review_topics" in content
-    assert "at least one relevant root topic document" in content
-    assert "at least one relevant module overview document" in content
-    assert "root topic" in content
-    assert "module overview" in content
+    assert "task-relevant coverage as insufficient" in content
+    assert "ownership, placement, workflow, integration, or verification guidance" in content
     assert ".specify/testing/unit_test_system_request.md" in content or ".specify/testing/unit-test-system-request.md" in content
     assert "risk tranche" in content or "coverage wave" in content
-    assert "shared-surface" in content or "cross-module" in content
+    assert "shared surface" in content or "multiple modules" in content or "shared surfaces" in content
     assert "lane shape" in content or "execution strategy" in content
     assert "ad-hoc task" in content or "small, ad-hoc task" in content
     assert "lightweight" in content
