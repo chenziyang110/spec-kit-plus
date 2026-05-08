@@ -193,13 +193,37 @@ class TestInitIntegrationFlag:
         assert ".specify/memory/project-rules.md" in quick_content
         assert ".specify/memory/project-learnings.md" in quick_content
         assert ".planning/learnings/candidates.md" in quick_content
-        assert "build-handbook.md" in quick_content
-        assert "runtime handbook contract" in quick_content
-        assert "fixed chapter ids required for this workflow" in quick_content
+        assert ".specify/project-cognition/" in quick_content
+        assert "project cognition contract" in quick_content
+        assert "status and slice artifacts" in quick_content
         assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content
         assert "attempt the smallest safe recovery step before declaring the task blocked" in quick_content
         assert "retry_attempts" in quick_content
         assert "blocker_reason" in quick_content
+
+    def test_top_level_cli_exposes_graph_native_map_commands(self):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+
+        root_help = runner.invoke(app, ["--help"], catch_exceptions=False)
+        map_scan_help = runner.invoke(app, ["map-scan", "--help"], catch_exceptions=False)
+        map_build_help = runner.invoke(app, ["map-build", "--help"], catch_exceptions=False)
+        map_update_help = runner.invoke(app, ["map-update", "--help"], catch_exceptions=False)
+
+        assert root_help.exit_code == 0, root_help.output
+        assert map_scan_help.exit_code == 0, map_scan_help.output
+        assert map_build_help.exit_code == 0, map_build_help.output
+        assert map_update_help.exit_code == 0, map_update_help.output
+
+        assert "map-scan" in root_help.output
+        assert "map-build" in root_help.output
+        assert "map-update" in root_help.output
+        assert "graph-native cognition baseline" in map_scan_help.output.lower()
+        assert "project cognition graph" in map_build_help.output.lower()
+        assert "cognition baseline exists" in map_update_help.output.lower()
+        assert "runtime incrementally" in map_update_help.output.lower()
 
     def test_integration_and_ai_mutually_exclusive(self, tmp_path):
         from typer.testing import CliRunner

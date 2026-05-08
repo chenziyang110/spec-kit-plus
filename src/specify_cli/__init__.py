@@ -2878,6 +2878,35 @@ SKILL_DESCRIPTIONS = {
 }
 
 
+def _workflow_entrypoint_surface_only(command_name: str) -> None:
+    """Report that the workflow entrypoint is currently a CLI discovery surface."""
+    console.print(
+        f"[yellow]Info:[/yellow] `{command_name}` is exposed here as a workflow entrypoint and help surface."
+    )
+    console.print(
+        "Run the generated integration command or skill inside a Spec Kit Plus project to execute the workflow."
+    )
+    raise typer.Exit(0)
+
+
+@app.command("map-scan", help=SKILL_DESCRIPTIONS["map-scan"])
+def map_scan_command() -> None:
+    """Workflow entrypoint surface for graph-native cognition baseline scanning."""
+    _workflow_entrypoint_surface_only("map-scan")
+
+
+@app.command("map-build", help=SKILL_DESCRIPTIONS["map-build"])
+def map_build_command() -> None:
+    """Workflow entrypoint surface for graph-native cognition graph reconstruction."""
+    _workflow_entrypoint_surface_only("map-build")
+
+
+@app.command("map-update", help=SKILL_DESCRIPTIONS["map-update"])
+def map_update_command() -> None:
+    """Workflow entrypoint surface for incremental cognition runtime refresh."""
+    _workflow_entrypoint_surface_only("map-update")
+
+
 def _install_codex_team_assets_if_needed(
     project_root: Path,
     manifest: Any,
