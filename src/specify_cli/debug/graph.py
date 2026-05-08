@@ -11,7 +11,6 @@ from .schema import (
     InvestigationMode,
     LogReadiness,
     ObserverCauseCandidate,
-    ObserverExpansionStatus,
     ProjectRuntimeProfile,
     SuggestedEvidenceLane,
     SymptomShape,

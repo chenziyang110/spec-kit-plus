@@ -32,6 +32,8 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
 }
 
 TERMINAL_STATUSES = {TASK_STATUS_COMPLETED, TASK_STATUS_FAILED}
+TASK_READ_RETRY_ATTEMPTS = 5
+TASK_READ_RETRY_DELAY_S = 0.02
 
 
 class TaskOpsError(RuntimeError):
@@ -87,6 +89,25 @@ def _save_task_record(project_root: Path, record: Any) -> None:
     path = _task_record_path(project_root, record.task_id)
     payload = asdict(record)
     write_json(path, payload)
+
+
+def _read_task_record_with_retries(path: Path) -> Any:
+    last_error: OSError | json.JSONDecodeError | None = None
+    for _ in range(TASK_READ_RETRY_ATTEMPTS):
+        try:
+            text = path.read_text(encoding="utf-8")
+            return task_record_from_json(text)
+        except json.JSONDecodeError as exc:
+            last_error = exc
+            if text.strip():
+                raise
+        except OSError as exc:
+            # Windows can transiently deny reads while an atomic replace settles.
+            last_error = exc
+        time.sleep(TASK_READ_RETRY_DELAY_S)
+    if last_error is not None:
+        raise last_error
+    return task_record_from_json(path.read_text(encoding="utf-8"))
 
 
 def _log_task_event(project_root: Path, *, kind: str, payload: dict[str, Any]) -> None:
@@ -159,7 +180,7 @@ def create_task(
     )
     write_json(path, payload)
 
-    record = task_record_from_json(path.read_text(encoding="utf-8"))
+    record = _read_task_record_with_retries(path)
     _log_task_event(
         project_root,
         kind="task.created",
@@ -172,19 +193,7 @@ def get_task(project_root: Path, task_id: str) -> Any:
     path = _task_record_path(project_root, task_id)
     if not path.exists():
         raise TaskOpsError(f"task {task_id} not found")
-    last_error: json.JSONDecodeError | None = None
-    for _ in range(5):
-        text = path.read_text(encoding="utf-8")
-        try:
-            return task_record_from_json(text)
-        except json.JSONDecodeError as exc:
-            last_error = exc
-            if text.strip():
-                raise
-            time.sleep(0.02)
-    if last_error is not None:
-        raise last_error
-    return task_record_from_json(path.read_text(encoding="utf-8"))
+    return _read_task_record_with_retries(path)
 
 
 def list_tasks(project_root: Path) -> list[Any]:
@@ -193,7 +202,7 @@ def list_tasks(project_root: Path) -> list[Any]:
         return []
     records: list[Any] = []
     for file in sorted(base.glob("*.json")):
-        records.append(task_record_from_json(file.read_text(encoding="utf-8")))
+        records.append(_read_task_record_with_retries(file))
     return records
 
 

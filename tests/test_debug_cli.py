@@ -11,7 +11,6 @@ from specify_cli.debug.schema import (
     LogCandidateSignalMapEntry,
     LogReadiness,
     ObserverCauseCandidate,
-    ObserverExpansionStatus,
     ProjectRuntimeProfile,
     SuggestedEvidenceLane,
     SymptomShape,

@@ -107,6 +107,50 @@ def test_get_task_retries_when_task_file_is_temporarily_empty(monkeypatch, codex
     assert attempts["count"] >= 2
 
 
+def test_get_task_retries_when_task_file_is_temporarily_locked(monkeypatch, codex_team_project_root):
+    created = create_task(codex_team_project_root, task_id="task-lock", summary="lock-safe")
+    path = task_record_path(codex_team_project_root, "task-lock")
+    real_read_text = Path.read_text
+    attempts = {"count": 0}
+
+    def flaky_read_text(self: Path, *args, **kwargs):
+        if self == path:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise PermissionError(13, "Permission denied", str(path))
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky_read_text)
+
+    record = get_task(codex_team_project_root, "task-lock")
+
+    assert record.task_id == "task-lock"
+    assert record.version == created.version
+    assert attempts["count"] >= 2
+
+
+def test_list_tasks_retries_when_task_file_is_temporarily_locked(monkeypatch, codex_team_project_root):
+    create_task(codex_team_project_root, task_id="task-alpha")
+    create_task(codex_team_project_root, task_id="task-beta")
+    locked_path = task_record_path(codex_team_project_root, "task-beta")
+    real_read_text = Path.read_text
+    attempts = {"count": 0}
+
+    def flaky_read_text(self: Path, *args, **kwargs):
+        if self == locked_path:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise PermissionError(13, "Permission denied", str(locked_path))
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky_read_text)
+
+    records = list_tasks(codex_team_project_root)
+
+    assert {task.task_id for task in records} == {"task-alpha", "task-beta"}
+    assert attempts["count"] >= 2
+
+
 def test_claim_task_enforces_expected_version(codex_team_project_root):
     create_task(codex_team_project_root, task_id="task-4")
 

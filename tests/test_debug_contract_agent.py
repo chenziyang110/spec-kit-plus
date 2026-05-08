@@ -1,8 +1,6 @@
 from specify_cli.debug.schema import (
     CausalMapCandidate,
     DebugGraphState,
-    ExpandedObserverCandidateBoardEntry,
-    ExpandedObserverLightScores,
 )
 
 

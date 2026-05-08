@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .checkpoint_serializers import extract_field, normalize_command_name, serialize_workflow_state
+from .checkpoint_serializers import extract_field, normalize_command_name
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
 from .types import HookResult, QualityHookError
 

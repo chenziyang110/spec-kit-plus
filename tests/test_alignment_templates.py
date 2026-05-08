@@ -1196,7 +1196,6 @@ def test_spec_template_defines_scope_boundaries_without_open_clarification_examp
 
 def test_shared_artifact_templates_include_profile_fidelity_overlays():
     spec_content = _read("templates/spec-template.md")
-    spec_lowered = spec_content.lower()
     assert "Ideal Complete Requirement Shape" in spec_content
     assert "Current Delivery Boundary" in spec_content
     assert "## Fidelity Requirements" in spec_content
