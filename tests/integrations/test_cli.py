@@ -133,9 +133,9 @@ class TestInitIntegrationFlag:
         assert "execution_model: subagent-mandatory" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
-        assert "project-handbook.md" in content.lower()
-        assert ".specify/project-map/root/architecture.md" in content.lower()
-        assert ".specify/project-map/root/operations.md" in content.lower()
+        assert "build-handbook.md" in content.lower()
+        assert "build-workflow-contract" in content.lower()
+        assert "change-entrypoints" in content.lower()
         assert "specify team" not in content.lower()
 
     def test_non_codex_shared_workflow_skills_use_canonical_strategy_language(self, tmp_path):
@@ -179,13 +179,12 @@ class TestInitIntegrationFlag:
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert 'choose_subagent_dispatch(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
-        assert "project-handbook.md" in debug_content
-        assert ".specify/project-map/root/architecture.md" in debug_content
-        assert ".specify/project-map/root/workflows.md" in debug_content
+        assert "debug-handbook.md" in debug_content
+        assert "debug-workflow-contract" in debug_content
         assert "spawn_agent" not in debug_content
 
         fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "project-handbook.md" in fast_content
+        assert "build-handbook.md" in fast_content
         assert "shared surfaces" in fast_content
         assert "change-propagation hotspot" in fast_content
 
@@ -194,9 +193,9 @@ class TestInitIntegrationFlag:
         assert ".specify/memory/project-rules.md" in quick_content
         assert ".specify/memory/project-learnings.md" in quick_content
         assert ".planning/learnings/candidates.md" in quick_content
-        assert "project-handbook.md" in quick_content
-        assert "atlas.entry" in quick_content
-        assert "at least one relevant module overview document" in quick_content
+        assert "build-handbook.md" in quick_content
+        assert "runtime handbook contract" in quick_content
+        assert "fixed chapter ids required for this workflow" in quick_content
         assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content
         assert "attempt the smallest safe recovery step before declaring the task blocked" in quick_content
         assert "retry_attempts" in quick_content
@@ -809,17 +808,17 @@ def test_check_reports_workflow_contract_drift(tmp_path):
                     "objective": "Implement demo behavior",
                     "scope": {
                         "write_scope": ["src/demo.py"],
-                        "read_scope": ["PROJECT-HANDBOOK.md"],
+                        "read_scope": ["BUILD-HANDBOOK.md"],
                     },
                     "context_bundle": [
                         {
-                            "path": "PROJECT-HANDBOOK.md",
-                            "kind": "handbook",
+                            "path": "BUILD-HANDBOOK.md",
+                            "kind": "runtime_handbook",
                             "purpose": "project routing context",
                             "required_for": ["workflow_boundary"],
                             "read_order": 1,
                             "must_read": True,
-                            "selection_reason": "required project navigation",
+                            "selection_reason": "build runtime handbook is the primary atlas surface for non-debug work",
                         }
                     ],
                     "required_references": [{"path": "src/demo.py", "reason": "canonical implementation reference"}],
