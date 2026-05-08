@@ -69,13 +69,14 @@ Use `execution_surface: native-subagents`.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 2. **Read brownfield navigation context before shaping the checklist**
-   - Check whether `.specify/project-map/index/status.json` exists.
-   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If checklist-relevant coverage is stale for the current feature area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - [AGENT] Read `BUILD-HANDBOOK.md`.
-   - [AGENT] If `BUILD-HANDBOOK.md` is missing, stale, or insufficient for the touched area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - Treat this as a coverage-model check, not a file-presence check. If the runtime handbook cannot tell you the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - Check whether `.specify/project-cognition/status.json` exists.
+   - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If cognition freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`; if no usable baseline remains, rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+   - [AGENT] If cognition freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If checklist-relevant coverage is stale for the current feature area, stop and tell the user to run `{{invoke:map-update}}`; if no usable baseline remains, rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+   - [AGENT] Read `.specify/project-cognition/status.json`.
+   - [AGENT] Read `.specify/project-cognition/slices/change.json`.
+   - [AGENT] Read `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice alone does not close ownership, propagation, or conflicting-truth questions.
+   - Treat this as a coverage-model check, not a file-presence check. If the project cognition runtime cannot tell you the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and tell the user to run `{{invoke:map-update}}`; if no usable baseline remains, rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 
 3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
    - Be generated from the user's phrasing + extracted signals from spec/plan/tasks
@@ -116,7 +117,7 @@ Use `execution_surface: native-subagents`.
    - Derive checklist theme (e.g., security, review, deploy, ux)
    - Consolidate explicit must-have items mentioned by user
    - Map focus selections to category scaffolding
-   - Infer any missing context from spec/plan/tasks plus handbook/project-map coverage (do NOT hallucinate)
+   - Infer any missing context from spec/plan/tasks plus project cognition coverage (do NOT hallucinate)
 
 5. **Load feature context**: Read from FEATURE_DIR:
    - spec.md: Feature requirements and scope
@@ -130,7 +131,7 @@ Use `execution_surface: native-subagents`.
    - Prefer summarizing long sections into concise scenario/requirement bullets
    - Use progressive disclosure: add follow-on retrieval only if gaps detected
    - If source docs are large, generate interim summary items instead of embedding raw text
-   - Use handbook/project-map coverage to identify which requirement surfaces, interfaces, and scenario classes deserve review emphasis.
+   - Use project cognition coverage to identify which requirement surfaces, interfaces, and scenario classes deserve review emphasis.
 
 6. **Generate checklist** - Create "Unit Tests for Requirements":
    - Create `FEATURE_DIR/checklists/` directory if it doesn't exist

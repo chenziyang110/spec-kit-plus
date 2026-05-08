@@ -371,9 +371,15 @@ class TestBuiltInSkillGeneration:
         assert "fixed heavy discovery lifecycle" in specify_body.lower()
         assert "final-handoff-decision" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
-        assert "BUILD-HANDBOOK.md" in specify_body
-        assert "BUILD-WORKFLOW-CONTRACT" in specify_body
-        assert "PRODUCT-AND-CAPABILITY-MAP" in specify_body
+        assert ".specify/project-cognition/status.json" in specify_body
+        assert ".specify/project-cognition/slices/change.json" in specify_body
+        assert ".specify/project-cognition/graph/nodes.json" in specify_body
+        assert ".specify/project-cognition/graph/edges.json" in specify_body
+        assert ".specify/project-cognition/graph/claims.json" in specify_body
+        assert ".specify/project-cognition/graph/conflicts.json" in specify_body
+        assert "BUILD-HANDBOOK.md" not in specify_body
+        assert "BUILD-WORKFLOW-CONTRACT" not in specify_body
+        assert "PRODUCT-AND-CAPABILITY-MAP" not in specify_body
         assert "coverage-model check" in specify_body
         assert "truth-owning surfaces" in specify_body
         assert "change-propagation hotspots" in specify_body
@@ -587,9 +593,11 @@ class TestBuiltInSkillGeneration:
         assert ".planning/learnings/candidates.md" in checklist_lower
         assert "specify learning start --command checklist --format json" in checklist_lower
         assert "specify learning capture --command checklist" in checklist_lower
-        assert "build-handbook.md" in checklist_lower
-        assert ".specify/project-map/index/status.json" in checklist_lower
-        assert "stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in checklist_lower
+        assert ".specify/project-cognition/status.json" in checklist_lower
+        assert ".specify/project-cognition/slices/change.json" in checklist_lower
+        assert "build-handbook.md" not in checklist_lower
+        assert "project cognition runtime cannot tell you the touched area's owning surfaces" in checklist_lower
+        assert "run `{{invoke:map-update}}`" in checklist_body or "run `/sp-map-update`" in checklist_body
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
         assert "recommend `/sp-plan`" in checklist_lower
         assert "recommend `/sp-analyze`" in checklist_lower

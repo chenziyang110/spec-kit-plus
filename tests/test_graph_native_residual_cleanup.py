@@ -3,15 +3,16 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SCANNED_FILES = [
+    "templates/commands/checklist.md",
     "tests/execution/test_packet_validator.py",
     "tests/codex_team/test_worker_bootstrap.py",
 ]
 LEGACY_TOKENS = (
     "BUILD-HANDBOOK.md",
     "DEBUG-HANDBOOK.md",
-    "PROJECT-HANDBOOK.md",
     "root navigation artifact",
     "runtime handbook",
+    "handbook/project-map",
 )
 ALLOWLIST = {
     "docs/project-cognition-compatibility-inventory.md",
