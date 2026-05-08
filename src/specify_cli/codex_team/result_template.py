@@ -65,8 +65,13 @@ def worker_result_schema_hint() -> dict[str, object]:
             "required_references_read": True,
             "forbidden_drift_respected": True,
             "context_bundle_read": True,
-            "paths_read": ["BUILD-HANDBOOK.md"],
-            "critical_notes": ["what key runtime handbook boundary or verification rule you confirmed before execution"],
+            "paths_read": [
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/slices/change.json",
+            ],
+            "critical_notes": [
+                "what key cognition status, slice, conflict signal, or verification rule you confirmed before execution"
+            ],
         },
         "aliases": {
             "taskId": "task_id",

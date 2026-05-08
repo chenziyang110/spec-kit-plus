@@ -62,7 +62,7 @@ def _project_map_preflight_for_debug() -> None:
     freshness = result["freshness"]
     if freshness in {"missing", "stale"}:
         console.print(
-            f"[red]Error:[/red] Project-map freshness is {freshness}. Refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` before debug."
+            f"[red]Error:[/red] Project cognition runtime is {freshness}. Refresh through `sp-map-update` or rebuild with `sp-map-scan`, then `sp-map-build`, before debug."
         )
         for reason in result.get("reasons", []):
             console.print(f"- {reason}")
@@ -70,7 +70,7 @@ def _project_map_preflight_for_debug() -> None:
 
     if freshness == "possibly_stale":
         console.print(
-            "[yellow]Warning:[/yellow] Project-map freshness is possibly_stale. Continue only if the investigation is still local."
+            "[yellow]Warning:[/yellow] Project cognition runtime is possibly_stale. Continue only if the investigation is still local; use `sp-map-update` or rebuild with `sp-map-scan`, then `sp-map-build`, if the debug scope is broader."
         )
         for reason in result.get("reasons", []):
             console.print(f"- {reason}")

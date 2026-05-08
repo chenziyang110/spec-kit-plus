@@ -35,22 +35,22 @@ def sample_packet() -> WorkerTaskPacket:
         ),
         context_bundle=[
             ContextBundleItem(
-                path="BUILD-HANDBOOK.md",
-                kind="runtime_handbook",
-                purpose="Workflow-specific runtime handbook for planning and implementation work",
+                path=".specify/project-cognition/status.json",
+                kind="project_map",
+                purpose="Project cognition runtime status for planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="build runtime handbook is the primary atlas surface for non-debug work",
+                selection_reason="cognition status is the primary runtime truth surface",
             ),
             ContextBundleItem(
-                path="DEBUG-HANDBOOK.md",
-                kind="runtime_handbook",
-                purpose="Workflow-specific runtime handbook for debug investigations.",
-                required_for=["workflow_boundary", "architecture_boundary", "validation"],
+                path=".specify/project-cognition/slices/change.json",
+                kind="task_reference",
+                purpose="Workflow-specific cognition change slice for touched-scope routing",
+                required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                 read_order=2,
                 must_read=True,
-                selection_reason="debug runtime handbook is the primary atlas surface for debug work",
+                selection_reason="change slice carries touched-scope context and conflict signals",
             ),
         ],
         required_references=[
@@ -88,7 +88,10 @@ def test_validate_worker_task_result_accepts_acknowledged_result(
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/slices/change.json",
+            ],
         ),
     )
 
@@ -133,7 +136,10 @@ def test_validate_worker_task_result_accepts_blocked_result_with_fail_fast_conte
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/slices/change.json",
+            ],
         ),
     )
 
@@ -168,7 +174,10 @@ def test_validate_worker_task_result_rejects_blocked_result_without_recovery_con
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/slices/change.json",
+            ],
         ),
     )
 
@@ -196,7 +205,7 @@ def test_validate_worker_task_result_rejects_missing_context_bundle_receipts(
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["BUILD-HANDBOOK.md"],
+            paths_read=[".specify/project-cognition/status.json"],
         ),
     )
 
@@ -226,7 +235,10 @@ def test_validate_worker_task_result_rejects_success_without_truthful_validation
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/slices/change.json",
+            ],
         ),
     )
 
@@ -256,7 +268,10 @@ def test_validate_worker_task_result_rejects_success_when_a_validation_gate_is_m
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/slices/change.json",
+            ],
         ),
     )
 

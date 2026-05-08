@@ -35,14 +35,23 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
         ),
         context_bundle=[
             ContextBundleItem(
-                path="BUILD-HANDBOOK.md",
-                kind="runtime_handbook",
-                purpose="Workflow-specific runtime handbook for planning and implementation work",
+                path=".specify/project-cognition/status.json",
+                kind="project_map",
+                purpose="Project cognition runtime status for planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="build runtime handbook is the primary atlas surface for non-debug work",
-            )
+                selection_reason="cognition status is the primary runtime truth surface",
+            ),
+            ContextBundleItem(
+                path=".specify/project-cognition/slices/change.json",
+                kind="task_reference",
+                purpose="Workflow-specific cognition change slice for touched-scope routing",
+                required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
+                read_order=2,
+                must_read=True,
+                selection_reason="change slice carries touched-scope context and conflict signals",
+            ),
         ],
         required_references=[
             PacketReference(
@@ -101,14 +110,23 @@ def test_worker_task_packet_round_trips_through_json() -> None:
         ),
         context_bundle=[
             ContextBundleItem(
-                path="BUILD-HANDBOOK.md",
-                kind="runtime_handbook",
-                purpose="Workflow-specific runtime handbook for planning and implementation work",
+                path=".specify/project-cognition/status.json",
+                kind="project_map",
+                purpose="Project cognition runtime status for planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="build runtime handbook is the primary atlas surface for non-debug work",
-            )
+                selection_reason="cognition status is the primary runtime truth surface",
+            ),
+            ContextBundleItem(
+                path=".specify/project-cognition/slices/change.json",
+                kind="task_reference",
+                purpose="Workflow-specific cognition change slice for touched-scope routing",
+                required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
+                read_order=2,
+                must_read=True,
+                selection_reason="change slice carries touched-scope context and conflict signals",
+            ),
         ],
         required_references=[
             PacketReference(
@@ -130,7 +148,8 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     assert restored.task_id == "T017"
     assert restored.intent.constraints == ["Do not create a parallel auth stack"]
     assert restored.scope.write_scope == ["src/services/auth_service.py"]
-    assert restored.context_bundle[0].path == "BUILD-HANDBOOK.md"
+    assert restored.context_bundle[0].path == ".specify/project-cognition/status.json"
+    assert restored.context_bundle[1].path == ".specify/project-cognition/slices/change.json"
     assert restored.required_references[0].path == "src/contracts/auth.py"
     assert restored.platform_guardrails == ["supported_platforms: windows, linux"]
 
@@ -173,15 +192,21 @@ def test_worker_task_result_round_trips_context_read_receipts() -> None:
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
-            critical_notes=["validated the runtime handbook verification routes before execution"],
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/slices/change.json",
+            ],
+            critical_notes=["validated cognition status, change slice, and conflict signals before execution"],
         ),
     )
 
     restored = worker_task_result_from_json(json.dumps(worker_task_result_payload(result)))
 
     assert restored.rule_acknowledgement.context_bundle_read is True
-    assert restored.rule_acknowledgement.paths_read == ["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"]
+    assert restored.rule_acknowledgement.paths_read == [
+        ".specify/project-cognition/status.json",
+        ".specify/project-cognition/slices/change.json",
+    ]
     assert restored.rule_acknowledgement.critical_notes == [
-        "validated the runtime handbook verification routes before execution"
+        "validated cognition status, change slice, and conflict signals before execution"
     ]

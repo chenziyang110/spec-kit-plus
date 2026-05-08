@@ -832,17 +832,29 @@ def test_check_reports_workflow_contract_drift(tmp_path):
                     "objective": "Implement demo behavior",
                     "scope": {
                         "write_scope": ["src/demo.py"],
-                        "read_scope": ["BUILD-HANDBOOK.md"],
+                        "read_scope": [
+                            ".specify/project-cognition/status.json",
+                            ".specify/project-cognition/slices/change.json",
+                        ],
                     },
                     "context_bundle": [
                         {
-                            "path": "BUILD-HANDBOOK.md",
-                            "kind": "runtime_handbook",
-                            "purpose": "project routing context",
+                            "path": ".specify/project-cognition/status.json",
+                            "kind": "project_map",
+                            "purpose": "project cognition runtime status",
                             "required_for": ["workflow_boundary"],
                             "read_order": 1,
                             "must_read": True,
-                            "selection_reason": "build runtime handbook is the primary atlas surface for non-debug work",
+                            "selection_reason": "cognition status is the primary runtime truth surface",
+                        },
+                        {
+                            "path": ".specify/project-cognition/slices/change.json",
+                            "kind": "task_reference",
+                            "purpose": "workflow-specific cognition change slice",
+                            "required_for": ["workflow_boundary", "architecture_boundary", "forbidden_drift"],
+                            "read_order": 2,
+                            "must_read": True,
+                            "selection_reason": "change slice carries touched-scope context and conflict signals",
                         }
                     ],
                     "required_references": [{"path": "src/demo.py", "reason": "canonical implementation reference"}],

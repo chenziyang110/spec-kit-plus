@@ -309,7 +309,8 @@ def test_preflight_blocks_same_lane_implement_when_dirty_scope_does_not_overlap(
     )
 
     assert result.status == "blocked"
-    assert any("scope" in message.lower() or "cognition" in message.lower() for message in result.errors)
+    assert any("project cognition runtime" in message.lower() for message in result.errors)
+    assert any("map-update" in message.lower() or "map-scan" in message.lower() for message in result.errors)
 
 
 def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path: Path):
@@ -390,7 +391,8 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path:
     )
 
     assert result.status == "warn"
-    assert any("scope" in message.lower() or "cognition" in message.lower() for message in result.warnings)
+    assert any("project cognition runtime" in message.lower() for message in result.warnings)
+    assert any("map-update" in message.lower() or "map-scan" in message.lower() for message in result.warnings)
 
 
 def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_family(tmp_path: Path):
@@ -471,7 +473,8 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_f
     )
 
     assert result.status == "warn"
-    assert any("scope" in message.lower() or "cognition" in message.lower() for message in result.warnings)
+    assert any("project cognition runtime" in message.lower() for message in result.warnings)
+    assert any("map-update" in message.lower() or "map-scan" in message.lower() for message in result.warnings)
 
 
 def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surface_family(tmp_path: Path):
@@ -552,7 +555,10 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surfac
     )
 
     assert result.status == "warn"
-    assert any("scope" in message.lower() or "cognition" in message.lower() for message in result.warnings)
+    assert any("project cognition runtime" in message.lower() for message in result.warnings)
+    assert any("map-update" in message.lower() or "map-scan" in message.lower() for message in result.warnings)
+
+
 def test_preflight_blocks_cross_feature_implement_when_dirty_origin_differs(tmp_path: Path):
     project = _create_project(tmp_path)
     _write_cognition_baseline(project)
