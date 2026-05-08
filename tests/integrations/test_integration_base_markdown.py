@@ -571,7 +571,7 @@ class MarkdownIntegrationTests:
         assert "specify -> plan" in content
         assert ".specify/project-cognition/" in content
         assert "map-update" in content
-        assert "two workflow handbooks" in content
+        assert "graph-native project cognition baseline" in content.lower()
         assert ".specify/memory/project-rules.md" in content
         assert "Shared project memory is always available" in content
         assert "not just when a `sp-*` workflow is active" in content
