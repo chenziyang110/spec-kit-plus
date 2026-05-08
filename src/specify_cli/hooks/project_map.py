@@ -19,6 +19,14 @@ from .types import HookResult, QualityHookError
 
 
 STALE_BLOCK_COMMANDS = {"implement", "quick", "fast", "specify", "plan", "tasks"}
+STALE_FALLBACK_GUIDANCE = (
+    "project cognition runtime freshness is stale; refresh through /sp-map-update, "
+    "or rebuild through /sp-map-scan -> /sp-map-build if no usable baseline remains"
+)
+NON_STALE_FALLBACK_GUIDANCE = (
+    "project cognition runtime freshness is {state}; create the initial baseline through "
+    "/sp-map-scan -> /sp-map-build when missing, or refresh through /sp-map-update when stale"
+)
 
 
 def project_map_freshness_result(project_root: Path, *, command_name: str) -> HookResult:
@@ -39,14 +47,14 @@ def project_map_freshness_result(project_root: Path, *, command_name: str) -> Ho
             event="project_map.refresh.validate",
             status="blocked",
             severity="critical",
-            errors=reasons or ["project-map freshness is stale"],
+            errors=reasons or [STALE_FALLBACK_GUIDANCE],
             data={"freshness": freshness},
         )
     return HookResult(
         event="project_map.refresh.validate",
         status="warn",
         severity="warning",
-        warnings=reasons or [f"project-map freshness is {state or 'unknown'}"],
+        warnings=reasons or [NON_STALE_FALLBACK_GUIDANCE.format(state=state or "unknown")],
         data={"freshness": freshness},
     )
 

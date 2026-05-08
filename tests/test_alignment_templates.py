@@ -1518,16 +1518,31 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in lowered
 
 
-def test_runtime_alignment_prefers_two_workflow_handbooks_over_layered_atlas() -> None:
+def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     debug_template = _read("templates/commands/debug.md")
     build_template = _read("templates/commands/implement.md")
     shared_gate = _read("templates/command-partials/common/context-loading-gradient.md")
+    navigation_shim = _read("templates/command-partials/common/navigation-check.md")
     lowered = build_template.lower()
+    lowered_gate = shared_gate.lower()
+    lowered_shim = navigation_shim.lower()
 
     assert "DEBUG-HANDBOOK.md" in debug_template
     assert "BUILD-HANDBOOK.md" in build_template
+    assert "project cognition runtime" in lowered_gate
+    assert ".specify/project-cognition/status.json" in shared_gate
+    assert ".specify/project-cognition/graph/nodes.json" in shared_gate
+    assert ".specify/project-cognition/graph/edges.json" in shared_gate
+    assert ".specify/project-cognition/graph/claims.json" in shared_gate
+    assert ".specify/project-cognition/graph/conflicts.json" in shared_gate
+    assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
     assert "PROJECT-HANDBOOK.md" not in shared_gate
     assert "atlas.entry" not in shared_gate
+    assert "compatibility shim" in lowered_shim
+    assert "context-loading-gradient.md" in navigation_shim
+    assert "project cognition runtime" in lowered_shim
+    assert "PROJECT-HANDBOOK.md" not in navigation_shim
+    assert ".specify/project-map/index/" not in navigation_shim
     assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in lowered
     assert "use `execution_surface: native-subagents`" in lowered
     assert "blocker" in lowered

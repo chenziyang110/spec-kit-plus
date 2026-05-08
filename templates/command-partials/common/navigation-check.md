@@ -1,33 +1,13 @@
-> **Note:** `context-loading-gradient.md` now defines the shared atlas hard
-> gate. This file remains only as a compatibility shim for templates not yet
-> migrated to the same contract.
+> **Compatibility shim:** `context-loading-gradient.md` defines the authoritative
+> brownfield project cognition gate. Templates that still include this file must
+> follow that shared cognition-runtime contract instead of treating this file as
+> an independent navigation checklist.
 
-- Check whether `.specify/project-map/index/status.json` exists.
-- If it exists, use the project-map freshness helper for the active script
-  variant to assess freshness before trusting the current handbook/project-map
-  set.
-- [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run
-  `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh
-  before continuing.
-- [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths
-  and reasons plus `must_refresh_topics` and `review_topics`. If the current
-  task intersects `must_refresh_topics`, stop and tell the user to run
-  `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh
-  before continuing. If only `review_topics` intersect, review those topic
-  files before deciding whether the atlas remains sufficient.
-- Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
-- Check whether the required handbook/project-map outputs for the current atlas
-  contract exist.
-- [AGENT] If the navigation system is missing, stop and tell the user to run
-  `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh
-  before continuing.
-- Treat task-relevant coverage as a coverage-model check, not just a
-  file-presence check.
-- If `.specify/project-map/index/capabilities.json` or
-  `.specify/project-map/index/symptoms.json` is required for the touched
-  capability but missing or stale, stop and tell the user to run
-  `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh
-  before continuing.
-- [AGENT] If task-relevant coverage is insufficient for the current request,
-  stop and tell the user to run `{{invoke:map-scan}}`, then
-  `{{invoke:map-build}}`; wait for that refresh before continuing.
+- Load and enforce `context-loading-gradient.md`.
+- Treat `.specify/project-cognition/status.json` plus the workflow-required
+  graph slice artifacts as the primary runtime read surfaces.
+- If the project cognition runtime is missing, create the initial baseline via
+  `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- If the project cognition runtime is stale or insufficient for the touched
+  graph scope, prefer `{{invoke:map-update}}`; rebuild only when no usable
+  baseline remains.

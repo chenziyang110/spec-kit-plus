@@ -127,10 +127,10 @@ SCAN_SCOPE_HARD_EXCLUDED_PREFIXES = (
 )
 
 MISSING_COGNITION_BASELINE_GUIDANCE = (
-    "Run /sp-map-scan, then /sp-map-build to create the initial cognition baseline."
+    "Run /sp-map-scan, then /sp-map-build to create the initial project cognition baseline."
 )
 STALE_COGNITION_BASELINE_GUIDANCE = (
-    "Use /sp-map-update when the graph runtime is stale or too weak for the touched area. "
+    "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. "
     "If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build."
 )
 
