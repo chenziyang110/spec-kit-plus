@@ -1,10 +1,10 @@
 ---
-description: Use when `sp-map-scan` has produced a complete scan package and you need to build or refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`.
+description: Use when `sp-map-scan` has produced a full evidence baseline and you need to reconstruct the project cognition graph, claims, conflicts, and slices.
 workflow_contract:
-  when_to_use: A completed scan package exists and the canonical two-handbook runtime atlas must be built or refreshed from it.
-  primary_objective: Validate the scan package, dispatch read-only explorer packets, write the canonical workflow handbooks, and prove workflow-operational reverse coverage closure.
-  primary_outputs: '`DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, `.specify/project-map/index/status.json`, `.specify/project-map/map-state.md`, and `.specify/project-map/worker-results/*.json`.'
-  default_handoff: Return to the blocked workflow that required fresh navigation coverage.
+  when_to_use: A graph-native scan baseline exists and the project cognition runtime must be built or rebuilt from that evidence.
+  primary_objective: Validate scan evidence, reconstruct graph nodes and edges, synthesize claims, assign confidence, create conflicts, and publish task-oriented cognition slices.
+  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, `.specify/project-cognition/graph/conflicts.json`, `.specify/project-cognition/graph/updates.json`, and `.specify/project-cognition/slices/`.'
+  default_handoff: Return to the blocked brownfield workflow once the graph-native cognition baseline is ready.
 ---
 
 {{spec-kit-include: ../command-partials/map-build/shell.md}}
@@ -21,318 +21,86 @@ Use `execution_model: subagent-mandatory`.
 Use `dispatch_shape: one-subagent | parallel-subagents`.
 Use `execution_surface: native-subagents`.
 
-
-`sp-map-build` begins with validation, not writing.
-
-This workflow is the explicit brownfield runtime handbook construction
-entrypoint. It must consume a completed `sp-map-scan` package and write only
-the canonical runtime handbook outputs plus refresh-state artifacts.
-
 ## Passive Project Learning Layer
 
-- [AGENT] Run `{{specify-subcmd:learning start --command map-build --format json}}` when available so passive learning files exist, the current atlas build sees relevant shared project memory, and repeated high-signal candidates can be auto-promoted at start.
-- [AGENT] When atlas build friction appears, use the `signal-learning` helper surface with route-change, artifact-rewrite, false-start, hidden-dependency, scan-gap, or reverse-coverage-failure counts so atlas blind spots become explicit learning signals.
-  Command shape: `{{specify-subcmd:hook signal-learning --command map-build --route-changes <n> --artifact-rewrites <n> --validation-failures <n>}}`
-- [AGENT] Before reporting completion or a blocked build, use the `review-learning` helper surface; use `--decision none` only when no reusable `map_coverage_gap`, `workflow_gap`, `state_surface_gap`, or `project_constraint` exists.
-  Command shape: `{{specify-subcmd:hook review-learning --command map-build --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command map-build --feature-dir "$FEATURE_DIR" --format json}}` when workflow state already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- [AGENT] When durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface for structured atlas learnings.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- [AGENT] Run `{{specify-subcmd:learning start --command map-build --format json}}` when available so passive learning files exist and repeated graph-build blind spots can be promoted at start.
+- [AGENT] When graph reconstruction friction appears, use the `signal-learning` helper surface: `{{specify-subcmd:hook signal-learning --command map-build --route-changes <n> --artifact-rewrites <n> --validation-failures <n>}}`.
+- [AGENT] Before reporting completion or a blocked build, use the `review-learning` helper surface: `{{specify-subcmd:hook review-learning --command map-build --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`.
+
+## Hard Boundary
+
+- `sp-map-build` is the command that publishes graph-native cognition truth.
+- `sp-map-build` must not fall back to handbook-first runtime output.
+- `sp-map-build` owns claim synthesis, `truth_layer` assignment, confidence assignment, conflict construction, and slice publication.
+- Existing narratives may inform continuity, but final graph claims must be backed by scan evidence.
 
 ## Required Inputs
 
-Before writing final atlas documents, read:
+Before writing graph-native truth, read:
 
-- `.specify/project-map/map-scan.md`
-- `.specify/project-map/coverage-ledger.md`
-- `.specify/project-map/coverage-ledger.json`
-- `.specify/project-map/scan-packets/*.md`
-- `.specify/project-map/map-state.md` if present
-- `DEBUG-HANDBOOK.md` if present
-- `BUILD-HANDBOOK.md` if present
-- `.specify/project-map/worker-results/*.json` if present
+- `.specify/project-cognition/status.json`
+- `.specify/project-cognition/evidence/`
+- `.specify/project-cognition/provisional/nodes.json`
+- `.specify/project-cognition/provisional/edges.json`
+- `.specify/project-cognition/provisional/observations.json`
+- `.specify/project-cognition/coverage.json`
 
-If any scan-package file is missing, `sp-map-build` must not guess and continue.
-Produce a scan gap report and route back to `/sp-map-scan`.
-
-## Project Map State Protocol
-
-- `MAP_STATE_FILE=.specify/project-map/map-state.md` is the resumable scan/build state surface for `sp-map-build`.
-- [AGENT] Create or resume `MAP_STATE_FILE` before substantial atlas build work.
-- Read `.specify/templates/project-map/map-state-template.md` when available.
-- If `MAP_STATE_FILE` exists with `active_command: sp-map-build` and non-terminal build state, resume from it instead of rebuilding intent from chat memory.
-- Track at least:
-  - `active_command: sp-map-build`
-  - `status: validating | executing-packets | synthesizing | reverse-validating | blocked | complete`
-  - `scan_status`
-  - `build_status: pending | executing | blocked | complete`
-  - `focus`
-  - `selected_modules`
-  - `selected_topics`
-  - `current_packet`
-  - `accepted_packet_results`
-  - `rejected_packet_results`
-  - `failed_readiness_checks`
-  - `failed_reverse_coverage_checks`
-  - `next_action`
-  - `next_command`
-  - `handoff_reason`
-  - `open_gaps`
-
-## Process
-
-1. Validate that the `sp-map-scan` package is present and complete.
-2. Refuse atlas writing when readiness checks fail, and report the smallest safe `sp-map-scan` repair.
-3. Select the execution strategy and dispatch read-only explorer lanes only when the scan packets justify it.
-4. Execute every accepted scan packet against the live repository and build a packet evidence intake before writing handbook files.
-5. Write the canonical workflow handbooks from accepted packet evidence.
-6. Prove reverse coverage validation before reporting success.
-7. Finalize freshness with `project-map complete-refresh` after a successful full refresh.
-
-## Non-Negotiable Build Semantics
-
-`sp-map-build` is not a scaffold, migration, or file-moving command. Creating
-directories, copying existing markdown into a new layout, creating JSON index
-files, or updating path references is not a successful atlas build by itself.
-
-Existing runtime handbooks and project-map refresh artifacts are inputs, not
-evidence. Existing claims may be retained only after they are revalidated
-against live repository paths named by the scan package. If a claim cannot be
-tied to a packet result with `paths_read` and confidence, rewrite it as
-`Unknown-Stale`, move it to the appropriate known-unknowns section, or route
-back to `/sp-map-scan`.
-
-Before any final atlas write, the leader must produce a packet evidence intake
-in `MAP_STATE_FILE` and, when file writes are available,
-`.specify/project-map/worker-results/<packet-id>.json` with one row per scan
-packet:
-
-- packet ID
-- owned ledger row IDs
-- live `paths_read`
-- key facts accepted into atlas targets
-- atlas targets updated or explicitly confirmed current
-- confidence (`Verified`, `Inferred`, or `Unknown-Stale`)
-- remaining unknowns or blockers
-
-A structural-only refresh is a failed build. If the build summary cannot name
-the live paths read for each accepted packet and the atlas targets changed or
-confirmed from those reads, report the build as blocked instead of successful.
-
-## Validate Scan Inputs Before Execution
-
-- [AGENT] Read `.specify/project-map/map-scan.md`, `.specify/project-map/coverage-ledger.md`, `.specify/project-map/coverage-ledger.json`, and every `.specify/project-map/scan-packets/*.md` file before selecting work.
-- If none of those scan artifacts exist, stop and route to `/sp-map-scan`; do not rebuild the scan from chat memory inside `sp-map-build`.
-- Treat `.specify/project-map/coverage-ledger.json` as the machine-readable row source when it exists. Use `coverage-ledger.md` and `map-scan.md` only as human-readable context when both exist.
-- Refuse atlas writing unless `coverage-ledger.json` parses as JSON and its summary proves no unresolved `unknown` rows, critical rows without packets, or critical/important rows without atlas targets.
-- Refuse atlas writing unless every referenced packet exists and exposes `lane_id`, `ledger_row_ids`, `required_reads`, `expected_outputs`, `atlas_targets`, and `result_handoff_path`.
-- Record selected packets, skipped packets, readiness failures, and the current join point in `MAP_STATE_FILE`.
-
-## Compile And Validate MapBuildPacket Inputs
-
-- [AGENT] Compile a `MapBuildPacket` from each accepted scan packet before dispatch or subagent-blocked status.
-- A valid `MapBuildPacket` must include:
-  - `lane_id`
-  - `mode: read_only`
-  - `ledger_row_ids`
-  - `scope`
-  - `required_reads`
-  - `required_questions`
-  - `expected_outputs`
-  - `atlas_targets`
-  - `forbidden_actions`
-  - `minimum_verification`
-  - `result_handoff_path`
-- Hard rule: do not dispatch from raw scan prose or raw Markdown checklist items alone.
-- Hard rule: `MapBuildPacket` execution is read-only until the leader synthesizes accepted results into final atlas writes.
-- Hard rule: a packet that cannot identify concrete repository paths or globs to read is not executable and must route back to `/sp-map-scan`.
-- Hard rule: if `required_reads` contain only reference-only or hard-excluded paths, the packet is not executable and must route back to `/sp-map-scan`.
-
-## Readiness Refusal Rules
-
-`sp-map-build` must refuse atlas writing when the scan package has:
-
-- packet results without paths read
-- packet results that only summarize without evidence
-- derived-only evidence, including worker results whose `paths_read` point only at `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, `.specify/project-map/**`, `.specify/prd-runs/**`, or `.specify/testing/worker-results/**`
-- unresolved critical rows
-- unresolved `unknown` rows without a concrete blocker
-- critical rows without scan packets
-- critical or important rows without atlas targets
-- excluded buckets without a reason and revisit condition
-- scan packets without required questions or expected evidence format
-- missing Layer 1 retrieval source material for critical workflow, verification, or shared-surface issues
-
-When refusal happens, write or report a scan gap report that names:
-
-- failed readiness check
-- affected ledger row IDs
-- missing packet or atlas target
-- smallest safe `sp-map-scan` repair
-
-## Execution Dispatch
-
-- [AGENT] Before explorer packet dispatch begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="map-build", snapshot, workload_shape)`.
-- Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
-- Decision order is fixed:
-  - One safe validated build packet -> `one-subagent` on `native-subagents` when available.
-  - Two or more safe explorer packets -> `parallel-subagents` on `native-subagents` when available.  - No safe lane, missing packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
-- If collaboration is justified, dispatch read-only explorer subagents for the scan packets declared in `.specify/project-map/scan-packets/`.
-- Required join points:
-  - before writing final atlas documents
-  - before reverse coverage validation
-- The leader must wait for every dispatched explorer lane at the documented join point, integrate the returned evidence, and note any missing lane, blocked dispatch reason, or escalation decision in the build summary.
-
-## Explorer Packet Dispatch
-
-Explorer subagents are read-only evidence collectors. They must not write
-`DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, or project-map refresh-state
-artifacts directly.
-In `subagent-blocked`, record the block reason in `MAP_STATE_FILE`, stop for escalation or recovery, and do not continue substantive map-build packet
-execution inline. The leader must not perform packet reads directly.
-
-Every explorer result must include:
-
-- lane_id
-- reported_status: done | done_with_concerns | blocked | needs_context
-- paths_read
-- key_facts
-- recommended_atlas_updates
-- confidence
-- unknowns
-- minimum_verification
-- result_handoff_path
-
-The leader must not accept packet results without paths read, packet results
-that only summarize without evidence, or results that omit required unknowns.
-The leader must compare accepted packet facts against the existing handbook and
-project-map docs before deciding that a target can be left unchanged.
-Idle subagent output is not an accepted result. The leader must record rejected
-results in `MAP_STATE_FILE` with the reason and retry or rescan policy.
+If those artifacts are missing, stop and route back to `/sp-map-scan`.
 
 ## Output Contract
 
-This runtime handbook output contract is the only final write surface for
-`sp-map-build`.
-
 The only canonical runtime outputs for this command are:
 
-- `DEBUG-HANDBOOK.md`
-- `BUILD-HANDBOOK.md`
-- `.specify/project-map/index/status.json`
-- `.specify/project-map/map-state.md`
-- `.specify/project-map/worker-results/<packet-id>.json`
+- `.specify/project-cognition/status.json`
+- `.specify/project-cognition/graph/nodes.json`
+- `.specify/project-cognition/graph/edges.json`
+- `.specify/project-cognition/graph/claims.json`
+- `.specify/project-cognition/graph/conflicts.json`
+- `.specify/project-cognition/graph/updates.json`
+- `.specify/project-cognition/slices/`
 
-`DEBUG-HANDBOOK.md` must include:
+Do not publish handbook-first runtime truth from this command.
 
-- `DEBUG-WORKFLOW-CONTRACT`
-- `SYMPTOM-TO-SURFACE-ROUTING`
-- `SYSTEM-TOPOLOGY-FOR-DEBUG`
-- `HOT-PATHS-AND-OWNERS`
-- `FAILURE-PATTERNS`
-- `INVESTIGATION-PLAYBOOKS`
-- `FIX-PROPAGATION-CHECKS`
-- `VERIFICATION-AND-EXIT`
-- `KNOWN-UNKNOWNS`
+## Build Duties
 
-`BUILD-HANDBOOK.md` must include:
+`sp-map-build` must:
 
-- `BUILD-WORKFLOW-CONTRACT`
-- `PRODUCT-AND-CAPABILITY-MAP`
-- `WORKFLOW-SEQUENCES`
-- `CHANGE-ENTRYPOINTS`
-- `MODULE-COLLABORATION`
-- `CHANGE-PROPAGATION-RISKS`
-- `IMPLEMENTATION-PLAYBOOKS`
-- `VERIFICATION-ROUTES`
-- `KNOWN-UNKNOWNS`
+- validate scan completeness for graph reconstruction
+- deduplicate provisional nodes into graph nodes
+- convert candidate edges into validated graph edges
+- synthesize claims from evidence with explicit `truth_layer`
+- assign claim confidence
+- create explicit conflict records
+- publish graph-native slices for downstream agent work
 
-Do not create `.planning/codebase/`, a second mapping tree, or any alternate
-source-of-truth document.
+## Required Graph Semantics
 
-## Guardrails
+Every accepted graph build must make room for:
 
-## Workflow-Handbook Detail Rules
+- nodes
+- edges
+- claims
+- conflicts
+- updates
+- slices
 
-- `DEBUG-HANDBOOK.md` must stay concise, direct, and investigation-oriented.
-- `BUILD-HANDBOOK.md` must stay concise, direct, and change-oriented.
-- Do not stop at repository shape.
-- Do not stop at naming a file family or subsystem.
-- No critical handbook section may stop at directory names or file-family names without explaining responsibilities.
-- High-value contracts must preserve concrete signatures, fields, return shapes, handoff data, compatibility rules, or protocol semantics when those facts exist.
-- Workflow and integration sections must preserve protocol seams, bridge semantics, runtime invariants, method families, parameter semantics, return shapes, error fields, state transitions, compatibility notes, or invariants where those facts govern behavior.
-- Build, packaging, runtime, and recovery instructions must remain actionable instead of being reduced to generic prose.
-- Every workflow-operational card must include owner, truth lives, extension guidance, change propagation, minimum verification, failure modes, and confidence.
-- Confidence must use only: Verified, Inferred, or Unknown-Stale.
-- Unknown-Stale and Inferred claims must be repeated in Known Unknowns or Low-Confidence Areas.
+At minimum, claims must include:
 
-For each high-value capability, critical workflow, or risky shared surface,
-emit at least one workflow-operational card. These cards must capture:
+- `backing_evidence_ids`
+- `truth_layer`
+- `confidence`
 
-- Purpose
-- Owner
-- Truth lives
-- Entry points
-- Downstream consumers
-- Extend here
-- Do not extend here
-- Key contracts
-- Change propagation
-- Minimum verification
-- Failure modes
-- Confidence
+## Dispatch Guidance
 
-## Reverse Coverage Validation
+- Use `choose_subagent_dispatch(command_name="map-build", snapshot, workload_shape)` before lane execution.
+- Recommended build lanes include graph normalization, claim synthesis, conflict review, and slice generation.
+- The leader owns final graph consistency and readiness state.
 
-Before reporting success, `sp-map-build` must prove reverse coverage validation:
+## Completion Rule
 
-- every `critical` row appears in at least one final handbook target
-- every `important` row appears in a final handbook target or an explicitly named grouped surface
-- every scan packet is consumed
-- every accepted packet result has paths read and confidence
-- every final handbook target is backed by at least one accepted packet evidence row or is explicitly marked unchanged after live revalidation
-- no final report claims success for a structural-only refresh
-- `MAP_STATE_FILE` records accepted packet results, rejected packet results, failed readiness checks, failed reverse coverage checks, and the next command
-- every command/API/integration/runtime entrypoint has owner, consumer, change propagation, and verification
-- every low-confidence area is visible in Known Unknowns or Low-Confidence Areas
-- every excluded bucket has a reason and revisit condition
-- every high-frequency problem type is reachable from the relevant handbook
-- every critical shared surface can be discovered from the relevant handbook
-- every key verification entry point can be located from the relevant handbook
+Before reporting completion:
 
-If any check fails, continue mapping or route back to `/sp-map-scan`; do not
-report success.
-
-## Workflow-Operational Reachability Validation
-
-Before reporting success, verify that the runtime handbooks support:
-
-- task routes
-- symptom routes
-- shared-surface hotspots
-- verification routes
-- propagation-risk routes
-
-If any of those route families cannot be backed by accepted packet evidence,
-continue mapping or route back to `/sp-map-scan` instead of declaring the
-runtime handbooks complete.
-
-## First-Party Workflow Quality Hooks
-
-- Before broad atlas build work begins, use `{{specify-subcmd:hook preflight --command map-build --feature-dir "$REPO_ROOT/specs"}}` only when the local workflow needs a machine-readable guard result for map refresh entry.
-- Before compaction-risk transitions or after major atlas synthesis, use `{{specify-subcmd:hook checkpoint --command map-build --feature-dir "$REPO_ROOT/specs"}}` only if a workflow-state-backed wrapper has created the corresponding state artifact for this build run.
-- After a successful full refresh, prefer `{{specify-subcmd:hook complete-refresh}}` as the shared product path that finalizes project-map freshness state.
-
-## Report Completion
-
-- [AGENT] Before reporting completion, if auto-capture did not preserve a reusable `pitfall`, `workflow_gap`, `map_coverage_gap`, or `project_constraint`, use the manual `learning capture` helper surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
-- [AGENT] Before reporting completion, use the `review-learning` helper surface.
-  Command shape: `{{specify-subcmd:hook review-learning --command map-build --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"}}`
-- [AGENT] After the refresh succeeds, finalize the refresh through the project-map freshness helper using `complete-refresh` so downstream workflows know the new baseline commit and refresh reason. Use `record-refresh` only for low-level/manual recovery when the standard completion path is unavailable.
-- Summarize which canonical map files were created or refreshed.
-- Summarize which scan packets were consumed.
-- Include the accepted and rejected packet result counts from `MAP_STATE_FILE`.
-- Include the most recent reverse coverage validation evidence so later workflows can see what was actually checked.
-- Call out the highest-signal risky coordination points or stale areas that were clarified.
-- Recommend the blocked workflow that required fresh navigation coverage.
+- confirm that graph artifacts were written under `.specify/project-cognition/graph/`
+- confirm that slices were published under `.specify/project-cognition/slices/`
+- confirm that `status.json` reflects a graph-ready baseline
+- confirm that the runtime remains graph-native and does not advertise handbook-first outputs

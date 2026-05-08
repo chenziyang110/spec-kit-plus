@@ -481,7 +481,7 @@ app.add_typer(testing_app, name="testing")
 
 project_map_app = typer.Typer(
     name="project-map",
-    help="Inspect git-baseline project-map freshness and finalize or override refresh state",
+    help="Inspect graph-native cognition baseline freshness and finalize or override refresh state",
     add_completion=False,
 )
 app.add_typer(project_map_app, name="project-map")
@@ -495,7 +495,7 @@ app.add_typer(result_app, name="result")
 
 hook_app = typer.Typer(
     name="hook",
-    help="Run first-party workflow quality hooks, including project-map refresh finalizers",
+    help="Run first-party workflow quality hooks, including cognition baseline refresh finalizers",
     add_completion=False,
 )
 app.add_typer(hook_app, name="hook")
@@ -695,9 +695,14 @@ def _project_map_preflight(
         console.print(
             f"[red]Error:[/red] Project-map freshness is {freshness} for [cyan]{command_name}[/cyan]."
         )
-        console.print(
-            "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] to refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`, then retry."
-        )
+        if freshness == "missing":
+            console.print(
+                "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] to create the graph-native project cognition baseline, then retry."
+            )
+        else:
+            console.print(
+                "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area, then retry. If no usable baseline remains, rebuild it with [cyan]/sp-map-scan[/cyan] followed by [cyan]/sp-map-build[/cyan]."
+            )
         raise typer.Exit(1)
 
     if freshness == "possibly_stale":
@@ -706,7 +711,7 @@ def _project_map_preflight(
             f"[yellow]Warning:[/yellow] Project-map freshness is possibly_stale for [cyan]{command_name}[/cyan]."
         )
         console.print(
-            "Continue only if the current task is still local; otherwise refresh the handbook/project-map first."
+            "Continue only if the current task is still local; otherwise refresh the project cognition runtime first, typically through [cyan]/sp-map-update[/cyan]."
         )
 
     return result
@@ -725,11 +730,11 @@ def _ensure_project_map_artifacts_exist(project_root: Path) -> list[Path]:
     if not missing:
         return []
 
-    console.print("[red]Error:[/red] Cannot record a fresh project-map baseline because canonical map files are missing.")
+    console.print("[red]Error:[/red] Cannot record a fresh project cognition baseline because canonical cognition runtime files are missing.")
     for path in missing:
         console.print(f"- {path}")
     console.print(
-        "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] first so `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` exist, then retry [cyan]project-map complete-refresh[/cyan]. Use [cyan]project-map record-refresh[/cyan] only for low-level/manual recovery."
+        "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] first so the graph-native project cognition baseline exists, then retry [cyan]project-map complete-refresh[/cyan]. Use [cyan]project-map record-refresh[/cyan] only for low-level/manual recovery."
     )
     raise typer.Exit(1)
 
@@ -909,11 +914,12 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "## Brownfield Context Gate",
             "",
-            "- The runtime atlas is the two workflow handbooks: `DEBUG-HANDBOOK.md` for `sp-debug` and `BUILD-HANDBOOK.md` for the major non-debug brownfield workflows.",
-            "- Ordinary workflows must read the relevant handbook and fixed chapter IDs before broader repository analysis, planning, debugging, or implementation begins.",
-            "- Supporting project-map artifacts under `.specify/project-map/` are not the primary runtime read path for ordinary workflow routing.",
-            "- If runtime handbook coverage is missing, stale, or too broad, stop and tell the user to run the runtime's `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.",
-            "- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source. If a full refresh can be completed now, do it and use `project-map complete-refresh` as the successful-refresh finalizer; otherwise use `project-map mark-dirty` as the manual override/fallback.",
+            "- The runtime atlas is graph-native: use `.specify/project-cognition/status.json` plus the workflow-appropriate graph slice artifacts before broader repository analysis, planning, debugging, or implementation begins.",
+            "- Read `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the workflow contract requires deeper graph-native context.",
+            "- Supporting handbook/project-map artifacts under `.specify/project-map/` are support-only or reference-only for ordinary workflow routing.",
+            "- If graph-native cognition coverage is missing, stop and tell the user to run the runtime's `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.",
+            "- If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.",
+            "- Treat graph-runtime freshness as the truth source. If a full refresh can be completed now, do it and use `project-map complete-refresh` as the successful-refresh finalizer; otherwise use `project-map mark-dirty` as the manual override/fallback.",
             "",
             "## Project Memory",
             "",
@@ -927,6 +933,9 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.",
             "- Use `sp-auto` when repository state already records the recommended next step and the user wants one continue entrypoint instead of naming the exact workflow manually.",
             "- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.",
+            "- Use `sp-map-scan` when a graph-native cognition baseline must be created from project-internal evidence before deeper brownfield work.",
+            "- Use `sp-map-build` when a completed graph-native evidence baseline must be reconstructed into graph nodes, claims, conflicts, and slices.",
+            "- Use `sp-map-update` when an existing project cognition baseline must be refreshed incrementally for changed paths or user supplements.",
             "- Use `sp-prd-scan` when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis, and `sp-prd-build` once that `subagent-mandatory` package is ready to compile final PRD exports.",
             "- Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.",
             "- Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.",
@@ -950,14 +959,14 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.",
             "- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.",
             "- `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, and `.specify/testing/testing-state.md` constrain testing-system construction and brownfield testing-program routing when present.",
-            "- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh and records git-baseline freshness as the truth source.",
+            "- `.specify/project-cognition/status.json` determines whether graph-native cognition coverage can be trusted as fresh and records git-baseline freshness as the truth source.",
             "",
             "## Map Maintenance",
             "",
-            "- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`.",
-            "- If a full refresh can be completed now, run `sp-map-scan` followed by `sp-map-build`, then use `project-map complete-refresh` as the successful-refresh finalizer.",
-            "- Otherwise use `project-map mark-dirty` as the manual override/fallback and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.",
-            "- Do not treat consumed runtime handbook context as self-maintaining; the agent changing map-level truth is responsible for keeping the two-handbook runtime atlas current.",
+            "- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh the graph-native project cognition baseline.",
+            "- If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation as the primary maintenance path.",
+            "- Reserve `sp-map-scan` followed by `sp-map-build` for missing baselines or explicit full rebuild cases; when a full refresh can be completed now, use `project-map complete-refresh` as the successful-refresh finalizer, otherwise use `project-map mark-dirty` as the manual override/fallback.",
+            "- Do not treat consumed project cognition graph context as self-maintaining; the agent changing map-level truth is responsible for keeping the graph-native runtime current.",
             "",
             "- Preserve content outside this managed block.",
             SPEC_KIT_BLOCK_END,
@@ -1417,7 +1426,7 @@ def testing_inventory_command(
 def project_map_check(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Inspect git-baseline project-map freshness for the working tree."""
+    """Inspect git-baseline project cognition freshness for the working tree."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     result = inspect_project_map_freshness(project_root)
@@ -1482,7 +1491,7 @@ def project_map_record_refresh(
     reason: str = typer.Option("manual", "--reason", help="Why the map was refreshed"),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Low-level/manual recovery path to record a fresh project-map baseline at the current HEAD."""
+    """Low-level/manual recovery path to record a fresh graph-native cognition baseline at the current HEAD."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _ensure_project_map_artifacts_exist(project_root)
@@ -1503,7 +1512,7 @@ def project_map_record_refresh(
 def project_map_complete_refresh(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Finalize a successful full map refresh by recording a fresh git baseline."""
+    """Finalize a successful full cognition refresh by recording a fresh git baseline."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _ensure_project_map_artifacts_exist(project_root)
@@ -1521,7 +1530,7 @@ def project_map_refresh_topics_command(
     reason: str = typer.Option("topic-refresh", "--reason", help="Why these topics were refreshed"),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Record a partial project-map refresh for specific topic files."""
+    """Record a partial cognition refresh for specific topic files."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     unknown = [topic for topic in topics if topic not in TOPIC_FILES]
@@ -1546,14 +1555,14 @@ def project_map_refresh_topics_command(
         ("Basis", f"[dim]{payload['last_refresh_basis'] or '-'}[/dim]"),
         ("Topics", f"[dim]{', '.join(payload['last_refresh_topics']) or '-'}[/dim]"),
     ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Map Partial Refresh", border_style="cyan"))
+    console.print(_cli_panel(_labeled_grid(rows), title="Cognition Partial Refresh", border_style="cyan"))
 
 
 @project_map_app.command("status")
 def project_map_status_command(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
-    """Read the stored project-map status file without recomputing git freshness."""
+    """Read the stored graph-native cognition status file without recomputing git freshness."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     status = read_project_map_status(project_root).to_dict()
@@ -1571,7 +1580,7 @@ def project_map_status_command(
         ("Refresh Scope", f"[dim]{status.get('last_refresh_scope') or '-'}[/dim]"),
         ("Refresh Basis", f"[dim]{status.get('last_refresh_basis') or '-'}[/dim]"),
     ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Map Status", border_style="cyan"))
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Cognition Status", border_style="cyan"))
     if status.get("last_refresh_topics"):
         console.print("[bold]Last Refresh Topics[/bold]")
         for topic in status["last_refresh_topics"]:
@@ -2551,7 +2560,7 @@ def _install_shared_infra(
                     rel = dst.relative_to(project_path).as_posix()
                     manifest.record_existing(rel)
 
-    # Seed the live project-map status file so downstream workflows share a
+    # Seed the live project cognition status file so downstream workflows share a
     # stable freshness surface even before the first real map refresh.
     status_path = project_map_status_path(project_path)
     if not status_path.exists():
@@ -2851,7 +2860,7 @@ SKILL_DESCRIPTIONS = {
     "clarify": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
     "deep-research": "Use when a planning-ready spec still has feasibility risk and needs coordinated research, evidence packets, a Planning Handoff, or a disposable demo before implementation planning.",
     "research": "Use when a compatibility alias is needed for deep-research; route to the canonical feasibility research gate without creating separate sp-research artifacts.",
-    "explain": "Use when the user needs the current stage artifact or runtime handbook/project-map artifact explained in plain language without changing the underlying files.",
+    "explain": "Use when the user needs the current stage artifact or project cognition/runtime artifact explained in plain language without changing the underlying files.",
     "fast": "Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.",
     "quick": "Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.",
     "plan": "Use when the current specification package is ready for implementation planning and you need design artifacts before task breakdown or coding.",
@@ -2862,8 +2871,9 @@ SKILL_DESCRIPTIONS = {
     "checklist": "Use when you need a feature-specific checklist to validate requirements quality or planning completeness before implementation.",
     "test-scan": "Use when you need a deep, read-only scan that turns a repository's testing gaps into a build-ready unit-test system plan.",
     "test-build": "Use when a completed test-system scan exists and you need to build or refresh the repository's unit testing system through leader-managed execution waves.",
-    "map-scan": "Use when runtime handbook/project-map coverage is missing, stale, or insufficient and you need a complete project scan package before handbook construction.",
-    "map-build": "Use when map-scan has produced complete coverage ledgers and scan packets, and you need to generate or refresh the two-handbook runtime atlas from live code evidence.",
+    "map-scan": "Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must collect full project-internal evidence before graph reconstruction.",
+    "map-build": "Use when map-scan has produced a full evidence baseline and you need to reconstruct the project cognition graph, claims, conflicts, and slices.",
+    "map-update": "Use when a graph-native project cognition baseline exists and diff-based evidence refresh or user-supplied corrections must update the cognition runtime incrementally.",
     "taskstoissues": "Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.",
 }
 
@@ -3454,8 +3464,9 @@ def init(
     steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
-    steps_lines.append(f"   - [cyan]{_display_cmd('map-scan')}[/] - Scan the complete project tree and produce the coverage ledger plus scan packets for existing-code mapping")
-    steps_lines.append(f"   - [cyan]{_display_cmd('map-build')}[/] - Build or refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` from a complete map-scan package before specification or planning")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-scan')}[/] - Scan the complete project tree and produce the graph-native evidence baseline for brownfield cognition")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-build')}[/] - Reconstruct the project cognition graph, claims, conflicts, and slices from the scan baseline")
+    steps_lines.append(f"   - [cyan]{_display_cmd('map-update')}[/] - Refresh the cognition runtime incrementally after the baseline exists")
     steps_lines.append(f"   - [cyan]{_display_cmd('test-scan')}[/] - Deep-scan the testing surface and produce build-ready lanes")
     steps_lines.append(f"   - [cyan]{_display_cmd('test-build')}[/] - Build the unit testing system from scan-approved lanes with leader/subagent coordination")
     steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
@@ -3466,7 +3477,7 @@ def init(
     steps_lines.append(f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning")
     steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Generate requirement-quality checklists after [cyan]{_display_cmd('plan')}[/]")
     steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Audit spec, context, plan, and tasks for drift before [cyan]{_display_cmd('implement')}[/], including boundary guardrail gaps")
-    steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, implement, or runtime handbook/project-map state in plain language")
+    steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, implement, or project cognition/runtime state in plain language")
     steps_lines.append(f"   - [cyan]{_display_cmd('integrate')}[/] - Inspect lane closeout readiness and complete independent feature integration")
     if codex_skill_mode:
         steps_lines.append("   ")
@@ -3494,8 +3505,9 @@ def init(
         )
     enhancement_lines.extend(
         [
-            f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Produce a complete scan package before deeper brownfield specification, planning, task generation, or implementation resumes",
-            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Generate or refresh the two-handbook runtime atlas from the complete scan package",
+            f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Produce the graph-native evidence baseline before deeper brownfield specification, planning, task generation, or implementation resumes",
+            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the project cognition graph, claims, conflicts, and slices from the scan baseline",
+            f"○ [cyan]{_display_cmd('map-update')}[/] [bright_black](after baseline)[/bright_black] - Refresh the project cognition runtime incrementally when changed areas or user supplements land",
             f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",
             f"○ [cyan]{_display_cmd('prd-scan')}[/] [bright_black](existing-project PRD scan)[/bright_black] - Produce the heavy reconstruction scan package for reverse-PRD work before final synthesis, including subagent-mandatory evidence and config-contracts.json",
             f"○ [cyan]{_display_cmd('prd-build')}[/] [bright_black](after prd-scan)[/bright_black] - Compile the final PRD suite from a validated scan package without turning build back into an ad hoc scan",
@@ -3503,7 +3515,7 @@ def init(
             f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
             f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility and research gate)[/bright_black] - Prove whether a clear requirement can be implemented and hand [cyan]{_display_cmd('plan')}[/] the research findings, demo evidence, constraints, and recommended approach",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](default gate before implement)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift (after [cyan]{_display_cmd('tasks')}[/], before [cyan]{_display_cmd('implement')}[/])",
-            f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, task, implement, or runtime handbook/project-map artifact in plain language before moving forward",
+            f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, task, implement, or project cognition/runtime artifact in plain language before moving forward",
             f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
             ,
             f"○ [cyan]{_display_cmd('integrate')}[/] [bright_black](post-implement closeout)[/bright_black] - Inspect lane readiness, surface precheck failures, and close completed independent feature lanes before merge"
@@ -5155,7 +5167,7 @@ def hook_mark_dirty_command(
 def hook_complete_refresh_command(
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
-    """Finalize a successful project-map refresh through the shared hook surface."""
+    """Finalize a successful project cognition refresh through the shared hook surface."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _validate_hook_output_format(output_format)

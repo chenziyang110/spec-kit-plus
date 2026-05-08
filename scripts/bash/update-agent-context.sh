@@ -161,11 +161,16 @@ render_speckit_managed_block() {
 
 ## Brownfield Context Gate
 
-- The runtime atlas is handbook-first: use `DEBUG-HANDBOOK.md` for `sp-debug` and `BUILD-HANDBOOK.md` for the major non-debug workflows.
-- Supporting project-map artifacts under `.specify/project-map/` are support-only or reference-only for ordinary workflow execution; do not treat them as the primary runtime read path.
-- Before planning, debugging, or implementing against existing code, read the workflow-appropriate runtime handbook plus the fixed chapter IDs required by that workflow.
-- If handbook coverage is missing, stale, or too broad, run `sp-map-scan` followed by `sp-map-build` before continuing.
-- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source. If the runtime handbooks are not trustworthy, either complete a refresh and use `project-map complete-refresh` as the successful-refresh finalizer, or mark it dirty with `project-map mark-dirty` and route the next brownfield workflow through `sp-map-scan -> sp-map-build`. Do not continue under known-stale handbook state without choosing one of those paths.
+- The runtime atlas is graph-native: use `.specify/project-cognition/status.json` plus the workflow-appropriate graph slice artifacts before broad brownfield work continues.
+- Read `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the workflow contract requires deeper graph-native context.
+- Supporting handbook/project-map artifacts are support-only or reference-only for ordinary workflow execution; do not treat them as the primary runtime read path.
+- Before planning, debugging, or implementing against existing code, read the workflow-appropriate project cognition status and graph slice artifacts required by that workflow.
+- If the cognition baseline is missing, run `sp-map-scan` followed by `sp-map-build` before continuing.
+- Treat graph-runtime freshness as the truth source.
+- Run `sp-map-scan`, then `sp-map-build` to create the initial cognition baseline.
+- If a full refresh can be completed now, use `project-map complete-refresh` as the successful-refresh finalizer. Otherwise use `project-map mark-dirty` as the manual override/fallback before continuing.
+- If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.
+- Do not treat consumed project cognition graph context as self-maintaining.
 
 ## Project Memory
 
@@ -184,8 +189,9 @@ render_speckit_managed_block() {
 - Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.
 - Use `sp-auto` when repository state already records the recommended next step and the user wants one continue entrypoint instead of naming the exact workflow manually.
 - Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.
-- Use `sp-map-scan` when repository-current-state atlas evidence must be gathered before deeper brownfield work.
-- Use `sp-map-build` when refreshed handbook/project-map outputs must be compiled from scan inputs.
+- Use `sp-map-scan` when a graph-native cognition baseline must be created from project-internal evidence before deeper brownfield work.
+- Use `sp-map-build` when refreshed graph-native cognition outputs must be compiled from scan inputs.
+- Use `sp-map-update` when an existing project cognition baseline must be refreshed incrementally for changed paths or user supplements.
 - Use `sp-prd-scan` when an existing repository needs the heavy read-only current-state reconstruction scan before final PRD synthesis, and `sp-prd-build` once that scan package is ready to compile.
 - Use `sp-deep-research` when a clear requirement still lacks a proven implementation chain and needs coordinated research, optional multi-agent evidence gathering, or a disposable demo before planning.
 - Use `sp-debug` when diagnosis or root-cause analysis is still required before a fix path is trustworthy.
@@ -238,16 +244,17 @@ render_speckit_managed_block() {
 ## Execution and Closeout Rules
 
 - Do not substitute chat narration for workflow execution. If a workflow requires an artifact write, helper/hook execution, validation run, or state update, perform it explicitly rather than describing it as though it happened.
-- For resume, next-step routing, and closeout, read the relevant durable state surface first (`workflow-state.md`, `.specify/testing/testing-state.md`, quick-task `STATUS.md`, or project-map freshness state) before deciding what happens next.
+- For resume, next-step routing, and closeout, read the relevant durable state surface first (`workflow-state.md`, `.specify/testing/testing-state.md`, quick-task `STATUS.md`, or project cognition freshness state) before deciding what happens next.
 - If the active workflow has a truth-owning artifact set, do not claim completion until those artifacts exist and any required validation or closeout mechanism has run truthfully.
-- `.specify/project-map/index/status.json` determines whether handbook/project-map coverage can be trusted as fresh and records git-baseline freshness as the truth source.
+- `.specify/project-cognition/status.json` determines whether graph-native cognition coverage can be trusted as fresh and records git-baseline freshness as the truth source.
 
 ## Map Maintenance
 
-- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`.
-- If a full refresh can be completed now, run `sp-map-scan` followed by `sp-map-build`, then use `project-map complete-refresh` as the successful-refresh finalizer.
-- Otherwise use `project-map mark-dirty` as the manual override/fallback and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`.
-- Do not treat consumed handbook/project-map context as self-maintaining; the agent changing map-level truth is responsible for keeping the atlas-style handbook system current.
+- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh the graph-native project cognition baseline.
+- Use `sp-map-update` after baseline creation when the graph runtime is stale or too weak for the touched area.
+- `sp-map-update` is the primary maintenance path after a baseline exists.
+- Reserve `sp-map-scan`, then `sp-map-build` for missing baselines or explicit full rebuild cases; if a full refresh can be completed now, use `project-map complete-refresh` as the successful-refresh finalizer. Otherwise use `project-map mark-dirty` as the manual override/fallback before continuing.
+- Do not treat consumed project cognition graph context as self-maintaining; the agent changing map-level truth is responsible for keeping the graph-native runtime current.
 
 - Preserve content outside this managed block.
 <!-- SPEC-KIT:END -->
