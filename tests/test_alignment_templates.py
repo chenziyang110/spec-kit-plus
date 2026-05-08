@@ -108,15 +108,10 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "Treat `sp-*` names as canonical workflow identities." in block
 
     assert "## Brownfield Context Gate" in block
-    assert "`PROJECT-HANDBOOK.md` is the root navigation artifact." in block
-    assert "Deep project knowledge lives under `.specify/project-map/`." in block
-    assert "read `PROJECT-HANDBOOK.md` and the smallest relevant `.specify/project-map/*.md` files" in block
-    assert "Read atlas content by role:" in block
-    assert "`PROJECT-HANDBOOK.md`: choose the smallest relevant topic set before broad source reads." in block
-    assert "`root/ARCHITECTURE.md`: architecture boundaries, truth ownership, change propagation, and core seams." in block
-    assert "`root/STRUCTURE.md`: directory ownership, shared write surfaces, and file-placement rules." in block
-    assert "`root/WORKFLOWS.md`: workflow paths, handoffs, state lifecycles, and recovery semantics." in block
-    assert "`root/TESTING.md`: smallest meaningful checks, regression-sensitive areas, and verification expectations." in block
+    assert "`DEBUG-HANDBOOK.md` for `sp-debug`" in block
+    assert "`BUILD-HANDBOOK.md` for the major non-debug workflows." in block
+    assert "support-only or reference-only for ordinary workflow execution" in block
+    assert "read the workflow-appropriate runtime handbook plus the fixed chapter ids required by that workflow" in lowered
 
     assert "## Project Memory" in block
     assert "Treat the learning layer as workflow-execution infrastructure, not as optional notes." in block
@@ -156,7 +151,7 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "do not claim completion until those artifacts exist" in lowered
 
     assert "## Map Maintenance" in block
-    assert "refresh `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/*.md` files." in block
+    assert "refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`." in block
     assert "If a full refresh can be completed now, run `sp-map-scan` followed by `sp-map-build`, then use `project-map complete-refresh` as the successful-refresh finalizer." in block
     assert "Otherwise use `project-map mark-dirty` as the manual override/fallback and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`." in block
     assert "Do not treat consumed handbook/project-map context as self-maintaining" in block
@@ -503,7 +498,7 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command constitution --format json}}" in content
-    assert "PROJECT-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
     assert ".specify/project-map/index/status.json" in content
     assert "`/sp-map-scan` followed by `/sp-map-build`" in content
     assert "workflow-state.md" in content
@@ -1753,7 +1748,7 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
     assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
-    assert "project-handbook.md" in lowered
+    assert "build-handbook.md" in lowered
     assert ".specify/project-map/index/status.json" in lowered
     assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in lowered
     assert "if the checklist reveals planning-critical requirement gaps" in lowered

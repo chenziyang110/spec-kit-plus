@@ -111,8 +111,8 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - `.specify/memory/constitution.md` if present
    - `.specify/memory/project-rules.md` if present
    - `.specify/memory/project-learnings.md` if present
-   - `PROJECT-HANDBOOK.md` if present
-   - the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`
+   - `BUILD-HANDBOOK.md` if present
+   - targeted live repository files only when the runtime handbook cannot answer the touched planning-critical gap safely
    - relevant repository documentation and design artifacts when they materially affect the requested change
 
 4. Identify what needs enhancement:

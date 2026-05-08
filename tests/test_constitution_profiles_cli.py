@@ -36,7 +36,8 @@ def test_init_defaults_to_product_constitution_profile(tmp_path):
 
     assert init_options["constitution_profile"] == "product"
     assert "### VII. No Unrequested Fallbacks" in constitution
-    assert "PROJECT-HANDBOOK.md" in constitution
+    assert "DEBUG-HANDBOOK.md" in constitution
+    assert "BUILD-HANDBOOK.md" in constitution
 
 
 def test_init_with_library_constitution_profile_materializes_project_template(tmp_path):
@@ -82,7 +83,7 @@ def test_init_with_library_constitution_profile_materializes_project_template(tm
     assert base_asset.exists()
     assert "Stable Public Surface" in template
     assert "SemVer and Release Discipline" in template
-    assert "PROJECT-HANDBOOK.md" not in template
+    assert "DEBUG-HANDBOOK.md" not in template
     assert "Stable Public Surface" in constitution
     assert "library constitution profile" in result.output.lower()
 

@@ -557,9 +557,9 @@ def test_test_scan_and_build_templates_use_handbook_and_project_map_gates():
         assert "[AGENT] If freshness is `missing` or `stale`, stop and tell the user to run" in content
         assert "`{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing." in content
         assert "freshness is `possibly_stale`" in content
-        assert "PROJECT-HANDBOOK.md" in content
-        assert "[AGENT] Read `PROJECT-HANDBOOK.md`." in content
-        assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" in content
+        assert "BUILD-HANDBOOK.md" in content
+        assert "[AGENT] Read `BUILD-HANDBOOK.md`." in content
+        assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" not in content
 
 
 def test_test_scan_template_records_testing_status_freshness_guidance():

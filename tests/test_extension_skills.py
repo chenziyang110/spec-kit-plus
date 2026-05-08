@@ -319,7 +319,7 @@ class TestBuiltInSkillGeneration:
         assert ".specify/memory/project-learnings.md" in constitution_body
         assert ".planning/learnings/candidates.md" in constitution_body
         assert "specify learning start --command constitution --format json" in constitution_body
-        assert "project-handbook.md" in constitution_body
+        assert "build-handbook.md" in constitution_body
         assert ".specify/project-map/index/status.json" in constitution_body
         assert "/sp-map-scan" in constitution_body
         assert "/sp-map-build" in constitution_body
@@ -368,10 +368,9 @@ class TestBuiltInSkillGeneration:
         assert "fixed heavy discovery lifecycle" in specify_body.lower()
         assert "final-handoff-decision" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
-        assert "PROJECT-HANDBOOK.md" in specify_body
-        assert ".specify/project-map/root/ARCHITECTURE.md" in specify_body
-        assert ".specify/project-map/root/WORKFLOWS.md" in specify_body
-        assert "Topic Map" in specify_body
+        assert "BUILD-HANDBOOK.md" in specify_body
+        assert "BUILD-WORKFLOW-CONTRACT" in specify_body
+        assert "PRODUCT-AND-CAPABILITY-MAP" in specify_body
         assert "coverage-model check" in specify_body
         assert "truth-owning surfaces" in specify_body
         assert "change-propagation hotspots" in specify_body
@@ -508,29 +507,25 @@ class TestBuiltInSkillGeneration:
         assert "coverage reverse index" in scan_lower
 
         build_body = _body_without_frontmatter(skills_dir / "sp-map-build" / "SKILL.md")
-        assert "PROJECT-HANDBOOK.md" in build_body
-        assert ".specify/project-map/index/atlas-index.json" in build_body
-        assert ".specify/project-map/index/capabilities.json" in build_body
-        assert ".specify/project-map/index/symptoms.json" in build_body
-        assert ".specify/project-map/root/ARCHITECTURE.md" in build_body
-        assert ".specify/project-map/modules/<module-id>/OVERVIEW.md" in build_body
-        assert ".specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md" in build_body
+        assert "DEBUG-HANDBOOK.md" in build_body
+        assert "BUILD-HANDBOOK.md" in build_body
+        assert "DEBUG-WORKFLOW-CONTRACT" in build_body
+        assert "BUILD-WORKFLOW-CONTRACT" in build_body
         assert 'choose_subagent_dispatch(command_name="map-build"' in build_body
         assert "route back to `/sp-map-scan`" in build_body
         assert "complete-refresh" in build_body
-        assert "Root and Module Document Detail Rules" in build_body
-        assert "Root docs carry cross-module truth; module docs carry module-local truth." in build_body
-        assert "deep_stale" in build_body
-        assert "`PROJECT-HANDBOOK.md` must stay concise and index-first" in build_body
+        assert "Workflow-Handbook Detail Rules" in build_body
+        assert "`DEBUG-HANDBOOK.md` must stay concise" in build_body
+        assert "`BUILD-HANDBOOK.md` must stay concise" in build_body
         assert "not a scaffold, migration, or file-moving command" in build_body
-        assert "Existing `PROJECT-HANDBOOK.md` and `.specify/project-map/**` documents are" in build_body
+        assert "Existing runtime handbooks and project-map refresh artifacts are" in build_body
         assert "packet evidence intake" in build_body
         assert "A structural-only refresh is a failed build." in build_body
         assert "Project Map State Protocol" in build_body
         assert "Validate Scan Inputs Before Execution" in build_body
         assert "Compile And Validate MapBuildPacket Inputs" in build_body
         assert ".specify/project-map/worker-results/<packet-id>.json" in build_body
-        assert "capability deep workflow" in build_body.lower()
+        assert "Workflow-Operational Reachability Validation" in build_body
 
         test_scan_body = _body_without_frontmatter(skills_dir / "sp-test-scan" / "SKILL.md")
         assert ".specify/testing/TEST_SCAN.md" in test_scan_body
@@ -542,7 +537,7 @@ class TestBuiltInSkillGeneration:
         assert "native-subagents" in test_scan_body.lower()
         assert "read-only scan subagents" in test_scan_body.lower()
         assert "stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in test_scan_body.lower()
-        assert "read `project-handbook.md`." in test_scan_body.lower()
+        assert "read `build-handbook.md`." in test_scan_body.lower()
 
         test_build_body = _body_without_frontmatter(skills_dir / "sp-test-build" / "SKILL.md")
         assert ".specify/testing/TESTING_CONTRACT.md" in test_build_body
@@ -560,7 +555,7 @@ class TestBuiltInSkillGeneration:
         assert "before mutating shared repository test framework/config files" in test_build_body.lower()
         assert "stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in test_build_body.lower()
         assert "if testing-surface coverage is insufficient for the current repository, stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in test_build_body.lower()
-        assert "read `project-handbook.md`." in test_build_body.lower()
+        assert "read `build-handbook.md`." in test_build_body.lower()
         assert "classify the next workflow recommendation before the final report" in test_build_body.lower()
         assert "recommend exactly one next command" in test_build_body.lower()
         assert "recommend `/sp-quick`" in test_build_body.lower()
@@ -596,7 +591,7 @@ class TestBuiltInSkillGeneration:
         assert ".planning/learnings/candidates.md" in checklist_lower
         assert "specify learning start --command checklist --format json" in checklist_lower
         assert "specify learning capture --command checklist" in checklist_lower
-        assert "project-handbook.md" in checklist_lower
+        assert "build-handbook.md" in checklist_lower
         assert ".specify/project-map/index/status.json" in checklist_lower
         assert "stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in checklist_lower
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
@@ -1274,6 +1269,6 @@ class TestExtensionSkillEdgeCases:
 
 def test_integration_guidance_uses_logical_atlas_contract_language():
     content = (PROJECT_ROOT / "src" / "specify_cli" / "integrations" / "base.py").read_text(encoding="utf-8").lower()
-    assert "atlas.entry" in content
-    assert "atlas.index.status" in content
-    assert "logical atlas contract" in content
+    assert "build-handbook.md" in content
+    assert "debug-handbook.md" in content
+    assert "runtime handbook contract" in content

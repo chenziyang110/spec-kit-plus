@@ -73,10 +73,9 @@ Use `execution_surface: native-subagents`.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If checklist-relevant coverage is stale for the current feature area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - [AGENT] Read `PROJECT-HANDBOOK.md`.
-   - [AGENT] If `PROJECT-HANDBOOK.md` or the required `.specify/project-map/` files are missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` when they shape the checklist focus, review audience, or scenario coverage.
-   - Treat this as a coverage-model check, not a file-presence check. If the current handbook/project-map set cannot tell you the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] Read `BUILD-HANDBOOK.md`.
+   - [AGENT] If `BUILD-HANDBOOK.md` is missing, stale, or insufficient for the touched area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - Treat this as a coverage-model check, not a file-presence check. If the runtime handbook cannot tell you the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
 
 3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
    - Be generated from the user's phrasing + extracted signals from spec/plan/tasks

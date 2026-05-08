@@ -119,18 +119,17 @@ The system MUST make failures easy to detect, explain, and reproduce.
 
 ## Engineering Standards
 
-- **Technical Source of Truth**: Maintain `PROJECT-HANDBOOK.md` as the root
-  navigation artifact and `.specify/project-map/` as the topical depth layer
-  for structure, ownership, interfaces, workflows, testing, integrations, and
-  operations. Use progressive disclosure through `Topic Map` to load the
-  smallest relevant topical documents first. Use the generated
-  `map-scan` then `map-build` workflows to create or refresh the navigation system when it
-  is missing or stale, treat `.specify/project-map/index/status.json` as the
-  freshness baseline for downstream workflow checks, and keep the handbook,
-  topical map, and freshness state in sync whenever navigation meaning
-  changes. If the navigation system is missing, generate it before structural work
-  continues; if the navigation system is stale, refresh it before structural
-  work continues.
+- **Technical Source of Truth**: Maintain `DEBUG-HANDBOOK.md` and
+  `BUILD-HANDBOOK.md` as the primary runtime atlas for ordinary brownfield
+  work. Supporting project-map artifacts under `.specify/project-map/` may
+  remain as refresh workbench or reference surfaces, but they are not the
+  default runtime read path. Use `map-scan` then `map-build` to create or
+  refresh the runtime handbooks when they are missing or stale, treat
+  `.specify/project-map/index/status.json` as the freshness baseline for
+  downstream workflow checks, and keep the runtime handbooks plus freshness
+  state in sync whenever navigation meaning changes. If the runtime handbook
+  system is missing, generate it before structural work continues; if it is
+  stale, refresh it before structural work continues.
 - **Encoding Preservation**: When modifying an existing file, changes MUST
   preserve the file's existing character encoding and BOM behavior unless the
   task explicitly requires an encoding conversion.

@@ -72,9 +72,7 @@ missing, copy the template first.
 
 ## Repository Context and Navigation Freshness
 
-- If repo-derived evidence is needed, read `PROJECT-HANDBOOK.md` as the root
-  navigation artifact and use `.specify/project-map/index/status.json` to assess
-  git-baseline freshness as the truth source before trusting topical project-map files.
+- If repo-derived evidence is needed, read `BUILD-HANDBOOK.md` as the runtime handbook entrypoint for non-debug workflow context and use `.specify/project-map/index/status.json` to assess git-baseline freshness as the truth source before trusting any support-only project-map artifact.
 - If the navigation system is missing or stale for an existing codebase, run
   `/sp-map-scan` followed by `/sp-map-build` before continuing or mark the refresh as a blocking
   follow-up rather than fabricating repository context.
@@ -176,11 +174,10 @@ Follow this execution flow:
    - Read `.specify/memory/project-rules.md` and
      `.specify/memory/project-learnings.md` and resolve or explicitly report
      any lower-order guidance that now conflicts with the amended constitution.
-   - If the amendment changes navigation, structure, ownership, workflow,
-     testing, integration, or operations expectations, mark
-     `PROJECT-HANDBOOK.md` and the affected `.specify/project-map/` topical
-     files for refresh and include `.specify/project-map/index/status.json` in the
-     propagation review.
+- If the amendment changes navigation, structure, ownership, workflow,
+  testing, integration, or operations expectations, mark the runtime
+  handbooks for refresh and include `.specify/project-map/index/status.json`
+  in the propagation review.
    - Read any runtime guidance docs (for example `README.md`,
      `docs/quickstart.md`, or agent-specific guidance files if present). Update
      references to principles that changed.

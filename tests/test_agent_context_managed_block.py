@@ -150,8 +150,8 @@ def _assert_managed_block_has_stable_subagent_routing(content: str) -> None:
     assert "validated `workertaskpacket`" in lower
     assert "raw task text" in lower
     assert "structured handoff" in lower
-    assert "capability deep workflow" in lower
-    assert "symptom -> capability deep workflow -> module workflows -> root workflows" in content
+    assert "runtime atlas is handbook-first" in lower
+    assert "build-handbook.md" in lower
     assert "`sp-teams` only" in lower
     assert "## lane recovery rules" in lower
     assert "lane-first, not branch-first" in lower
@@ -385,8 +385,8 @@ def test_bash_script_updates_existing_non_agents_file_with_managed_guidance(
     content = claude.read_text(encoding="utf-8")
     assert content.startswith(initial)
     assert BLOCK_START in content
-    assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/" in content
+    assert "DEBUG-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
     assert "## Active Technologies" in content
     assert "Python 3.13" in content
     assert "Typer" in content
@@ -420,8 +420,8 @@ def test_powershell_script_updates_existing_non_agents_file_with_managed_guidanc
     content = _read_utf8_without_bom(claude)
     assert _normalize_newlines(content).startswith(_normalize_newlines(initial))
     assert BLOCK_START in content
-    assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/" in content
+    assert "DEBUG-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
     assert "## Active Technologies" in content
     assert "Python 3.13 + Typer" in content
     assert "## Workflow Routing" in content

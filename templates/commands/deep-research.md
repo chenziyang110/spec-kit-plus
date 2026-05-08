@@ -232,8 +232,8 @@ Use `execution_surface: native-subagents`.
    - `.specify/memory/constitution.md` if present
    - `.specify/memory/project-rules.md` if present
    - `.specify/memory/project-learnings.md` if present
-   - `PROJECT-HANDBOOK.md` if present
-   - the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`
+   - `BUILD-HANDBOOK.md` if present
+   - targeted live repository files only when the runtime handbook cannot prove the current implementation pattern safely
    - From `FEATURE_DIR/alignment.md`, extract:
      - `Feasibility / Deep Research Gate` status per capability
      - `Planning Gate Recommendation`
