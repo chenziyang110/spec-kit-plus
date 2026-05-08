@@ -1741,9 +1741,10 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
     assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
-    assert "build-handbook.md" in lowered
-    assert ".specify/project-map/index/status.json" in lowered
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in lowered
+    assert ".specify/project-cognition/status.json" in lowered
+    assert ".specify/project-cognition/slices/change.json" in lowered
+    assert "build-handbook.md" not in lowered
+    assert "run `{{invoke:map-update}}`" in lowered
     assert "if the checklist reveals planning-critical requirement gaps" in lowered
     assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered
     assert "recommend `/sp-plan`" in lowered

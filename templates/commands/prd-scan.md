@@ -14,7 +14,7 @@ workflow_contract:
 This summary is routing metadata only. The full workflow contract is the frontmatter plus the sections below.
 
 - Use `sp-prd-scan` for read-only reconstruction investigation.
-- Primary truth source: current repository reality plus `PROJECT-HANDBOOK.md` and project-map evidence when present.
+- Primary truth source: current repository reality plus `.specify/project-cognition/status.json`, the smallest relevant graph/slice artifacts, and compatibility/export evidence when explicitly needed.
 - Primary terminal state: completed scan package under `.specify/prd-runs/<run-id>/`.
 - Stable freshness state: `.specify/prd/status.json`.
 - Default handoff: `/sp-prd-build`.
@@ -30,8 +30,9 @@ Every consequential claim must preserve `Evidence`, `Inference`, and `Unknown` l
 
 Required context inputs:
 
-- `PROJECT-HANDBOOK.md` as the root navigation artifact.
-- `.specify/project-map/index/status.json` and the smallest relevant project-map topics when available.
+- `.specify/project-cognition/status.json` as the default runtime truth entrypoint.
+- `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when deeper repository structure proof is needed.
+- `PROJECT-HANDBOOK.md` and `.specify/project-map/**` only when compatibility/export evidence is explicitly relevant.
 - `.specify/prd/status.json` as the stable PRD scan freshness record when present.
 - Current repository evidence from code, docs, tests, routes, UI surfaces, service surfaces, data models, integrations, configuration, and deployment surfaces.
 - Existing `workflow-state.md` under `.specify/prd-runs/<run-id>/` when resuming an interrupted run.
