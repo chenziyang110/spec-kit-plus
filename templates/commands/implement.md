@@ -101,7 +101,7 @@ After checks complete, record results in `implement-tracker.md`:
 - Before high-risk execution jumps or resume-sensitive continuation, prefer `{{specify-subcmd:hook workflow-policy --command implement --feature-dir "$FEATURE_DIR" --trigger pre-tool}}` so repairable workflow-state problems are surfaced before runtime drift becomes invisible.
 - Before compaction-risk transitions, long validation phases, join points, or subagent fan-out, use `{{specify-subcmd:hook monitor-context --command implement --feature-dir "$FEATURE_DIR"}}` and, when it recommends checkpointing, follow it with `{{specify-subcmd:hook checkpoint --command implement --feature-dir "$FEATURE_DIR"}}`.
 - When the run needs a compact native-session recovery capsule, follow checkpointing with `{{specify-subcmd:hook build-compaction --command implement --feature-dir "$FEATURE_DIR" --trigger before-stop}}`.
-- When execution changes map-level truth surfaces, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source. If a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build`, then use `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer. Otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>" --origin-command implement --origin-feature-dir "$FEATURE_DIR" --origin-lane-id "$LANE_ID" --packet-file <packet-json>}}` as the manual override/fallback whenever `LANE_ID` and a validated packet are available; only fall back to omitting `--origin-lane-id` or `--packet-file` when the current runtime truly cannot resolve them. That lets the same lane's later `sp-implement` resume warn instead of self-blocking only when the recorded dirty scope overlaps the current packet scope, while upstream brownfield entrypoints and other features still route through `/sp-map-scan` followed by `/sp-map-build` before continuing.
+- When execution changes map-level truth surfaces, refresh the project cognition runtime through `/sp-map-update` when the touched area is localized, then use `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer. Rebuild through `/sp-map-scan` followed by `/sp-map-build` only when no usable localized baseline remains or a full rebuild is required. Otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>" --origin-command implement --origin-feature-dir "$FEATURE_DIR" --origin-lane-id "$LANE_ID" --packet-file <packet-json>}}` as the manual override/fallback whenever `LANE_ID` and a validated packet are available; only fall back to omitting `--origin-lane-id` or `--packet-file` when the current runtime truly cannot resolve them. That lets the same lane's later `sp-implement` resume warn instead of self-blocking only when the recorded dirty scope overlaps the current packet scope, while upstream brownfield entrypoints and other features still route through `/sp-map-update` or, when needed, `/sp-map-scan` followed by `/sp-map-build` before continuing.
 
 ## Passive Project Learning Layer
 
@@ -252,16 +252,13 @@ human_needed_checks:
    - **IF TRACKER EXISTS WITH STATUS `executing` OR `recovering`**: Resume from the recorded `current_batch`, `failed_tasks`, and `retry_attempts` rather than recomputing progress from chat narration.
    - **IF LANE RESOLUTION OR SESSION-STATE RECONCILE RETURNS `uncertain`**: stop and surface the conflict instead of guessing which lane to continue.
    - **IF `$ARGUMENTS` IS NON-EMPTY**: Extract any high-signal execution constraints, environment facts, build instructions, startup instructions, or recovery hints and record them under `## User Execution Notes` in `implement-tracker.md` before choosing the next batch.
-   - **REQUIRED**: Check whether `.specify/project-map/index/status.json` exists.
-   - **IF STATUS EXISTS**: Use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - **IF FRESHNESS IS `missing` OR `stale`**: Run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload `BUILD-HANDBOOK.md`.
-   - **IF FRESHNESS IS `possibly_stale`**: Inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current implementation area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for implementation decisions.
-   - **REQUIRED**: Check whether `BUILD-HANDBOOK.md` exists at the repository root.
-   - **IF MISSING**: Run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload `BUILD-HANDBOOK.md`.
+   - **REQUIRED**: Read `.specify/project-cognition/status.json`.
+   - **REQUIRED**: Read `.specify/project-cognition/slices/change.json`.
+   - **IF THE STATUS IS `missing`**: Run `/sp-map-scan` followed by `/sp-map-build` before continuing.
+   - **IF THE STATUS IS `stale` OR TOO WEAK FOR THE TOUCHED AREA**: Use `/sp-map-update` when the touched area is localized. Rebuild through `/sp-map-scan` followed by `/sp-map-build` only when no usable localized baseline remains or a full rebuild is required.
+   - **IF THE STATUS IS `possibly_stale`**: Inspect the reported changed paths, reasons, and slice coverage. If the change slice does not cover ownership, propagation, or verification routes for the current implementation area, use `/sp-map-update` for localized refresh before trusting the runtime for implementation decisions.
    - **TREAT TASK-RELEVANT COVERAGE AS INSUFFICIENT** when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-   - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: Run `/sp-map-scan` followed by `/sp-map-build` before continuing, then reload `BUILD-HANDBOOK.md`.
-   - **REQUIRED**: [AGENT] Read `BUILD-HANDBOOK.md`.
-   - **IF TOPICAL COVERAGE IS MISSING/STALE/TOO BROAD OR TASK-RELEVANT COVERAGE IS INSUFFICIENT**: run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
+   - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: add targeted graph or testing artifacts, refresh through `/sp-map-update` when localized, or rebuild through `/sp-map-scan` followed by `/sp-map-build` only when needed; then inspect the minimum live files still needed to replace guesswork with evidence.
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read `.specify/memory/project-rules.md` if present.
    - **REQUIRED**: Read `.specify/memory/project-learnings.md` if present.
@@ -293,22 +290,18 @@ human_needed_checks:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Runtime handbook gate:** you must pass the handbook gate before packet
+**Project cognition gate:** you must pass the cognition gate before packet
 compilation, subagent dispatch, or implementation-shaping code reads continue.
 
-**This command tier: heavy.** Pass the handbook gate by reading:
-1. `BUILD-HANDBOOK.md`
-2. `BUILD-WORKFLOW-CONTRACT`
-3. `PRODUCT-AND-CAPABILITY-MAP`
-4. `CHANGE-ENTRYPOINTS`
-5. `IMPLEMENTATION-PLAYBOOKS`
-6. `CHANGE-PROPAGATION-RISKS`
-7. `VERIFICATION-ROUTES`
+**This command tier: heavy.** Pass the cognition gate by reading:
+1. `.specify/project-cognition/status.json`
+2. `.specify/project-cognition/slices/change.json`
+3. workflow-specific graph artifacts only when the change slice does not fully cover ownership, propagation, or verification routes
 
 Freshness is enforced as a blocking gate.
 
 Do not compile packets, dispatch subagents, or inspect implementation files
-until the handbook gate has passed.
+until the cognition gate has passed.
 
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:
@@ -498,8 +491,8 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
      - `plan_gap`: the current plan/tasks do not cover the work needed to satisfy the feature goal; update `plan.md` and `tasks.md`, set tracker status to `replanning`, then continue from the next ready batch after the replan
      - `spec_gap`: the requirement itself is ambiguous, contradictory, or newly changed; stop autonomous replanning, keep the gap explicit in the tracker, and recommend `/sp.clarify`
      - `feasibility_gap`: the requirement is clear but the implementation chain is unproven; stop autonomous replanning, keep the gap explicit in the tracker, and recommend `/sp.deep-research`
-   - If the completed implementation changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`, tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before final completion reporting so `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
-   - If you cannot complete that refresh in the current pass, use `{{specify-subcmd:hook mark-dirty --reason "<reason>" --origin-command implement --origin-feature-dir "$FEATURE_DIR" --origin-lane-id "$LANE_ID" --packet-file <packet-json>}}` as the manual override/fallback whenever `LANE_ID` and a validated packet are available, and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before the next brownfield workflow proceeds. The same lane's later `sp-implement` resume may continue with a warning only when the recorded dirty scope overlaps the current packet scope, but upstream brownfield entrypoints and other features must refresh first.
+   - If the completed implementation changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, including unresolved `open_gaps`, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
+   - If you cannot complete that refresh in the current pass, use `{{specify-subcmd:hook mark-dirty --reason "<reason>" --origin-command implement --origin-feature-dir "$FEATURE_DIR" --origin-lane-id "$LANE_ID" --packet-file <packet-json>}}` as the manual override/fallback whenever `LANE_ID` and a validated packet are available, and tell the user to run `{{invoke:map-update}}` before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed. The same lane's later `sp-implement` resume may continue with a warning only when the recorded dirty scope overlaps the current packet scope, but upstream brownfield entrypoints and other features must refresh first.
    - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
    - [AGENT] Before the final completion report, run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` so implementation session state is validated and retry-heavy patterns are auto-captured from `implement-tracker.md`.
 - [AGENT] If the closeout auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface.

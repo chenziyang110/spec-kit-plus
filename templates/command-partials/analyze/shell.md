@@ -6,7 +6,7 @@ Perform a read-only analysis pass that checks whether the current spec, context,
 
 ## Context
 
-- Primary inputs: `spec.md`, `context.md`, `plan.md`, `tasks.md`, passive learning files, and the handbook/project-map set.
+- Primary inputs: `spec.md`, `context.md`, `plan.md`, `tasks.md`, passive learning files, the project cognition runtime (`status.json`, required slices, and targeted live evidence), and the smallest workflow-local state files needed for the touched area.
 - The constitution remains the highest local authority for this analysis surface.
 - This command produces findings only; it does not rewrite the artifact set.
 
@@ -26,4 +26,4 @@ Perform a read-only analysis pass that checks whether the current spec, context,
 
 - Stay read-only.
 - Treat constitution conflicts as critical rather than negotiable.
-- Do not rely on stale or insufficient project-map coverage when the repository map should inform the analysis.
+- Do not rely on stale or insufficient project cognition coverage when the runtime should inform the analysis.

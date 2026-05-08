@@ -33,23 +33,17 @@ Dispatch one safe validated lane as `one-subagent` or multiple safe isolated lan
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Runtime handbook gate:** you must pass the handbook gate before repository
+**Project cognition gate:** you must pass the cognition gate before repository
 analysis, implementation design, or code reads continue.
 
-**This command tier: light.** Pass the handbook gate by reading:
-1. `BUILD-HANDBOOK.md`
-2. `BUILD-WORKFLOW-CONTRACT`
-3. `PRODUCT-AND-CAPABILITY-MAP`
-4. `CHANGE-ENTRYPOINTS`
-5. `IMPLEMENTATION-PLAYBOOKS`
-6. `CHANGE-PROPAGATION-RISKS`
-7. `VERIFICATION-ROUTES`
+**This command tier: light.** Pass the cognition gate by reading:
+1. `.specify/project-cognition/status.json`
+2. `.specify/project-cognition/slices/change.json`
+3. workflow-specific graph artifacts only when the change slice does not fully cover ownership, propagation, or verification routes
 
-After the handbook gate passes, continue into live repository evidence for the touched area.
+After the cognition gate passes, continue into live repository evidence for the touched area.
 
-**Freshness**: Treat `missing` and `stale` as blocking; evaluate
-`possibly_stale` against `must_refresh_topics` and `review_topics` before
-continuing.
+**Freshness**: Treat `missing` as a rebuild requirement and `stale` as blocking until `{{invoke:map-update}}` refreshes localized touched-area coverage or `{{invoke:map-scan}}`, then `{{invoke:map-build}}` rebuilds an unusable baseline. Evaluate `possibly_stale` against cognition status, changed paths, reasons, and change-slice coverage before continuing.
 
 Treat task-relevant coverage as insufficient when the touched area still lacks
 ownership, placement, workflow, integration, or verification guidance before
@@ -108,7 +102,7 @@ The following flags are available and composable:
 - The invoking runtime is the leader for the quick task. It owns scope decisions, the lightweight plan, execution strategy selection, join-point handling, validation, and the final summary artifact.
 - The leader should not blur planning, execution, and validation into a long conversational loop when the task can be dispatched through a bounded subagent.
 - Constitution first: read `.specify/memory/constitution.md` before workspace setup, clarification, lane selection, subagent dispatch, or local analysis.
-- If the handbook navigation system is missing, rebuild it before `STATUS.md` initialization or touched-area analysis proceeds.
+- If the project cognition runtime is missing, rebuild it through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before `STATUS.md` initialization or touched-area analysis proceeds.
 - Before the first subagent is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first subagent path.
 - Before implementation work starts, identify whether the quick task is best handled by one bounded subagent or by two or more independent subagents that can safely proceed in parallel.
 - [AGENT] Use the shared policy function before execution begins and again at each join point: `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)`.
@@ -270,7 +264,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 
 - Treat every quick task as a small-scope complete sweep, not as an opportunistic one-file patch.
 - Before editing, name the affected surfaces for this pass. Start from the smallest relevant set and expand until the task has a defendable boundary.
-- Include propagation hotspots, consumer surfaces, verification entry points, and known unknowns from the handbook/project-map coverage whenever they materially affect the quick task.
+- Include propagation hotspots, consumer surfaces, verification entry points, and known unknowns from project cognition slices whenever they materially affect the quick task.
 - For interface or contract changes, default sweep surfaces are:
   - implementation
   - export or declaration layer
@@ -295,9 +289,8 @@ resume_decision: [resume here | blocked waiting | resolved]
   - any unverified surface or remaining gap is called out explicitly instead of being implied away
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
-- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for the handbook/project-map atlas.
-- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before marking the quick task `resolved` so `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
-- If a full refresh can be completed now, do it; otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before the next brownfield workflow proceeds.
+- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before marking the quick task `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
+- If a refresh cannot be completed now, use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and tell the user to run `{{invoke:map-update}}` before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
 
 ## Propagating Change Rule
 

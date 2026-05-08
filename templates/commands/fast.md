@@ -36,7 +36,7 @@ If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
 Upgrade to `/sp-quick` immediately if:
 - The work expands to more than 3 files.
 - The change touches a shared surface such as a router table, registration file, export barrel, template registry, or other coordination point.
-- The handbook says the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make safe direct execution unavailable.
+- The project cognition runtime or change slice shows the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make safe direct execution unavailable.
 - The requested work comes from `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and is larger than one tiny harness, command, fixture, or helper repair.
 - The task stops being obvious and needs research or clarification to proceed safely.
 - The task needs multiple subagent lanes, resumable tracking, or a written quick-task summary artifact.
@@ -60,19 +60,15 @@ Upgrade to `/sp-specify` immediately if:
    - Confirm the task fits the fast-path constraints above.
    - If not, stop and redirect to the right workflow instead of forcing the task through `sp-fast`.
 
-2. **Pass the handbook gate**
+2. **Pass the project cognition gate**
    - {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
-   - **Runtime handbook gate:** you must pass the handbook gate before reading
+   - **Project cognition gate:** you must pass the cognition gate before reading
      implementation source, running reproduction, or preparing a fix.
-   - **This command tier: trivial.** Pass the handbook gate by reading:
-     1. `BUILD-HANDBOOK.md`
-     2. `BUILD-WORKFLOW-CONTRACT`
-     3. `PRODUCT-AND-CAPABILITY-MAP`
-     4. `CHANGE-ENTRYPOINTS`
-     5. `IMPLEMENTATION-PLAYBOOKS`
-     6. `CHANGE-PROPAGATION-RISKS`
-     7. `VERIFICATION-ROUTES`
-   - Only after the handbook gate passes may you read the source files to change.
+   - **This command tier: trivial.** Pass the cognition gate by reading:
+     1. `.specify/project-cognition/status.json`
+     2. `.specify/project-cognition/slices/change.json`
+     3. add graph or testing artifacts only if the change slice does not fully cover the touched area
+   - Only after the cognition gate passes may you read the source files to change.
 
 3. **Execute the fast lane**
    - Perform the fast-path change directly.
@@ -94,9 +90,8 @@ Upgrade to `/sp-specify` immediately if:
 5. **Report**
    - Summarize what changed, what was verified, and any remaining risk.
    - [AGENT] Keep the fast-path closeout truthful: report the exact verification you ran and any residual risk instead of implying broader validation.
-   - Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for the handbook/project-map atlas.
-   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before the final report so `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
-   - If a full refresh can be completed now, do it; otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and recommend `/sp-map-scan` followed by `/sp-map-build`.
+   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
+   - If a refresh cannot be completed now, use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and recommend `{{invoke:map-update}}` for localized touched-area refresh, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
 
 ## Output Contract
 

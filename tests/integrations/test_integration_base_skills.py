@@ -578,7 +578,7 @@ class SkillsIntegrationTests:
         assert "## Map Maintenance" in content
         assert "project cognition" in content.lower()
         assert "map-update" in content
-        assert "git-baseline freshness" in content.lower()
+        assert "git-baseline freshness" not in content.lower()
         assert "complete-refresh" in content
         assert "manual override/fallback" in content.lower()
 

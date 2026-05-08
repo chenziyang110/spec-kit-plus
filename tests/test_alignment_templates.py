@@ -465,12 +465,12 @@ def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_on
 
 
 def test_core_planning_templates_use_logical_atlas_references() -> None:
-    for rel_path in [
+    legacy_rel_paths = [
         "templates/commands/specify.md",
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
-        "templates/commands/implement.md",
-    ]:
+    ]
+    for rel_path in legacy_rel_paths:
         content = _read(rel_path)
         lowered = content.lower()
         assert "build-handbook.md" in lowered
@@ -478,6 +478,13 @@ def test_core_planning_templates_use_logical_atlas_references() -> None:
         assert "product-and-capability-map" in lowered
         assert "atlas.entry" not in lowered
 
+    implement = _read("templates/commands/implement.md").lower()
+    assert ".specify/project-cognition/status.json" in implement
+    assert ".specify/project-cognition/slices/change.json" in implement
+    assert "build-handbook.md" not in implement
+    assert "build-workflow-contract" not in implement
+    assert "product-and-capability-map" not in implement
+    assert "atlas.entry" not in implement
 
 def test_project_map_root_templates_document_scenario_profile_contracts() -> None:
     workflows = _read("templates/project-map/root/WORKFLOWS.md").lower()
@@ -800,24 +807,27 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "`next_command: /sp.implement`" in content
     assert "when no upstream remediation is required" in lowered
     assert "`next_command: /sp.plan`" in content or "`next_command: /sp.tasks`" in content
-    assert "BUILD-HANDBOOK.md" in content
-    assert "BUILD-WORKFLOW-CONTRACT" in content
-    assert "PRODUCT-AND-CAPABILITY-MAP" in content
-    assert "CHANGE-ENTRYPOINTS" in content
-    assert "IMPLEMENTATION-PLAYBOOKS" in content
-    assert "CHANGE-PROPAGATION-RISKS" in content
-    assert "VERIFICATION-ROUTES" in content
-    assert "build-handbook.md" in lowered
-    assert ".specify/project-map/index/status.json" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert "BUILD-HANDBOOK.md" not in content
+    assert "BUILD-WORKFLOW-CONTRACT" not in content
+    assert "PRODUCT-AND-CAPABILITY-MAP" not in content
+    assert "CHANGE-ENTRYPOINTS" not in content
+    assert "IMPLEMENTATION-PLAYBOOKS" not in content
+    assert "CHANGE-PROPAGATION-RISKS" not in content
+    assert "VERIFICATION-ROUTES" not in content
+    assert "build-handbook.md" not in lowered
+    assert ".specify/project-map/index/status.json" not in content
     assert "atlas.entry" not in lowered
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
+    assert "use `{{invoke:map-update}}` when the touched area is localized" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
     assert "(`spec.md`, `context.md`, `plan.md`, `tasks.md`)" in content
     assert "- CONTEXT = FEATURE_DIR/context.md" in content
     assert ".specify/memory/constitution.md" in content
-    assert "Read `BUILD-HANDBOOK.md`" in content
+    assert "Read `.specify/project-cognition/status.json`" in content
+    assert "Read `.specify/project-cognition/slices/change.json`" in content
     assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" not in content
     assert "**From context.md:**" in content
     assert "Locked Decisions" in content
@@ -1386,13 +1396,15 @@ def test_implement_template_supports_capability_aware_parallel_batches():
         "Note: This command assumes a complete task breakdown exists in tasks.md.",
     )
 
-    assert "BUILD-HANDBOOK.md" in content
-    assert "BUILD-WORKFLOW-CONTRACT" in content
-    assert "PRODUCT-AND-CAPABILITY-MAP" in content
-    assert "CHANGE-ENTRYPOINTS" in content
-    assert "IMPLEMENTATION-PLAYBOOKS" in content
-    assert "CHANGE-PROPAGATION-RISKS" in content
-    assert "VERIFICATION-ROUTES" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert "BUILD-HANDBOOK.md" not in content
+    assert "BUILD-WORKFLOW-CONTRACT" not in content
+    assert "PRODUCT-AND-CAPABILITY-MAP" not in content
+    assert "CHANGE-ENTRYPOINTS" not in content
+    assert "IMPLEMENTATION-PLAYBOOKS" not in content
+    assert "CHANGE-PROPAGATION-RISKS" not in content
+    assert "VERIFICATION-ROUTES" not in content
     assert "PROJECT-HANDBOOK.md" not in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
@@ -1402,7 +1414,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
     assert ".specify/project-map/root/WORKFLOWS.md" not in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
+    assert "Use `/sp-map-update` when the touched area is localized" in content
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in lowered
@@ -1484,11 +1496,11 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "exactly one safe validated packet is ready" in lowered
     assert "two or more safe validated packets with isolated write sets" in lowered
     assert "`subagent-blocked`" in lowered
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before final completion reporting" in content.lower()
+    assert "refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in lowered
     assert "including unresolved `open_gaps`" in lowered
     assert "if you cannot complete that refresh in the current pass" in lowered
-    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in lowered
+    assert ".specify/project-map/index/status.json" not in lowered
     assert "successful-refresh finalizer" in lowered
     assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
@@ -1528,7 +1540,9 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     lowered_shim = navigation_shim.lower()
 
     assert "DEBUG-HANDBOOK.md" in debug_template
-    assert "BUILD-HANDBOOK.md" in build_template
+    assert "BUILD-HANDBOOK.md" not in build_template
+    assert ".specify/project-cognition/status.json" in build_template
+    assert ".specify/project-cognition/slices/change.json" in build_template
     assert "project cognition runtime" in lowered_gate
     assert ".specify/project-cognition/status.json" in shared_gate
     assert ".specify/project-cognition/graph/nodes.json" in shared_gate
@@ -1769,13 +1783,10 @@ def test_script_contracts_expose_context_artifact_paths():
 
 
 def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
-    owned_surfaces = [
+    legacy_owned_surfaces = [
         "README.md",
         "docs/quickstart.md",
         "templates/commands/specify.md",
-        "templates/commands/quick.md",
-        "templates/commands/implement.md",
-        "templates/commands/fast.md",
         "templates/commands/debug.md",
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
@@ -1789,7 +1800,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         "mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend",
         "prefer `{{specify-subcmd:hook mark-dirty --reason \"<reason>\"}}` as the shared dirty-mark path",
     ]
-    for path in owned_surfaces:
+    for path in legacy_owned_surfaces:
         lowered = _read(path).lower()
         assert "git-baseline freshness" in lowered
         assert "truth source" in lowered
@@ -1800,6 +1811,18 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         assert "otherwise use" in lowered
         for phrase in stale_normal_path_phrases:
             assert phrase not in lowered
+
+    for path in [
+        "templates/commands/quick.md",
+        "templates/commands/implement.md",
+        "templates/commands/fast.md",
+    ]:
+        lowered = _read(path).lower()
+        assert "project cognition runtime" in lowered
+        assert "map-update" in lowered
+        assert "complete-refresh" in lowered
+        assert "manual override/fallback" in lowered
+        assert "git-baseline freshness" not in lowered
 
 
 def test_project_map_freshness_scripts_exist_and_share_status_contract():

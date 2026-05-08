@@ -30,15 +30,18 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "## execution mode" in content
     assert "delegated change" not in content
     assert "delegate it through" not in content
-    assert "runtime handbook gate" in content
-    assert "must pass the handbook gate before" in content
-    assert "build-handbook.md" in content
-    assert "build-workflow-contract" in content
-    assert "product-and-capability-map" in content
-    assert "change-entrypoints" in content
-    assert "pass the handbook gate" in content
-    assert "freshness" in content
-    assert ".specify/project-map/index/status.json" in content
+    assert "project cognition gate" in content
+    assert "must pass the cognition gate before" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert "build-handbook.md" not in content
+    assert "debug-handbook.md" not in content
+    assert "build-workflow-contract" not in content
+    assert "product-and-capability-map" not in content
+    assert "change-entrypoints" not in content
+    assert "pass the cognition gate" in content
+    assert "map-update" in content
+    assert ".specify/project-map/index/status.json" not in content
     assert "shared surfaces" in content
     assert "change-propagation hotspot" in content
     assert "verification entry points" in content
@@ -54,13 +57,13 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "≤3 files touched" in content or "3 files touched" in content
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before the final report" in content
-    assert "if a full refresh can be completed now" in content
+    assert "refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized" in content
+    assert "rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required" in content
     assert "complete-refresh" in content
     assert "manual override/fallback" in content
     assert "skip all learning hooks" in content
     assert "skip all learning hooks" in content
-    assert "pass the handbook gate" in content
+    assert "pass the cognition gate" in content
 
 
 def test_fast_template_uses_leader_direct_contract() -> None:

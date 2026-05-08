@@ -227,7 +227,7 @@ class TomlIntegrationTests:
         assert "closeout" in content or "close out" in content
         assert "do not fold this workflow into `sp-implement`" in content
 
-    def test_runtime_commands_hard_gate_project_map_reads(self, tmp_path):
+    def test_runtime_commands_hard_gate_project_cognition_reads(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         created = i.setup(tmp_path, m)
@@ -243,15 +243,20 @@ class TomlIntegrationTests:
         for f in cmd_files:
             content = f.read_text(encoding="utf-8").lower()
             assert "crucial first step" in content
-            assert "runtime handbook contract" in content
             if "debug" in f.name:
+                assert "runtime handbook contract" in content
                 assert "debug-handbook.md" in content
                 assert "fixed chapter ids required for debug" in content
             else:
-                assert "build-handbook.md" in content
-                assert "fixed chapter ids required for this workflow" in content
+                assert "project cognition" in content
+                assert ".specify/project-cognition/status.json" in content
+                assert ".specify/project-cognition/slices/change.json" in content
+                assert "build-handbook.md" not in content
+                assert "fixed chapter ids required for this workflow" not in content
             assert "map-scan" in content
             assert "map-build" in content
+            if "debug" not in f.name:
+                assert "map-update" in content
 
     def test_map_scan_build_commands_require_native_explorer_lanes_when_selected(self, tmp_path):
         i = get_integration(self.KEY)
@@ -734,11 +739,11 @@ class TomlIntegrationTests:
         assert "plan.md" in content
         assert "tasks.md" in content
         assert ".specify/testing/TESTING_CONTRACT.md" in content
-        assert ".specify/project-map/index/status.json" in content
+        assert ".specify/project-cognition/" in content
         assert "## Map Maintenance" in content
         assert "project cognition" in content.lower()
         assert "map-update" in content
-        assert "git-baseline freshness" in content.lower()
+        assert "git-baseline freshness" not in content.lower()
         assert "complete-refresh" in content
         assert "manual override/fallback" in content.lower()
 

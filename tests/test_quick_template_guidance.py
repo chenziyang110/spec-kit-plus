@@ -44,16 +44,21 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert ".planning/learnings/candidates.md" in content
     assert "passive project learning layer" in content
     assert "passive project learning layer" in content
-    assert "runtime handbook gate" in content
-    assert "must pass the handbook gate before" in content
-    assert "build-handbook.md" in content
-    assert "build-workflow-contract" in content
-    assert "product-and-capability-map" in content
-    assert "change-entrypoints" in content
-    assert "treat `missing` and `stale` as blocking" in content
+    assert "project cognition gate" in content
+    assert "must pass the cognition gate before" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert "build-handbook.md" not in content
+    assert "debug-handbook.md" not in content
+    assert "build-workflow-contract" not in content
+    assert "product-and-capability-map" not in content
+    assert "change-entrypoints" not in content
+    assert "treat `missing` as a rebuild requirement" in content
+    assert "`stale` as blocking until `{{invoke:map-update}}` refreshes localized touched-area coverage" in content
     assert "`possibly_stale`" in content
-    assert "must_refresh_topics" in content
-    assert "review_topics" in content
+    assert "cognition status, changed paths, reasons, and change-slice coverage" in content
+    assert "must_refresh_topics" not in content
+    assert "review_topics" not in content
     assert "task-relevant coverage as insufficient" in content
     assert "ownership, placement, workflow, integration, or verification guidance" in content
     assert ".specify/testing/unit_test_system_request.md" in content or ".specify/testing/unit-test-system-request.md" in content
@@ -228,12 +233,12 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "separate `verified` coverage from `not checked` coverage" in content
     assert "for each declared surface, give the terminal status conclusion" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before marking the quick task `resolved`" in content
+    assert "refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized" in content
+    assert "rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required" in content
     assert "complete-refresh" in content
     assert "successful-refresh finalizer" in content
-    assert "if a full refresh can be completed now" in content
-    assert "otherwise use" in content
+    assert "if a refresh cannot be completed now" in content
+    assert "use `{{specify-subcmd:hook mark-dirty --reason \"<reason>\"}}` as the manual override/fallback" in content
     assert "manual override/fallback" in content
 
 
@@ -267,8 +272,10 @@ def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent
     content = read_template("templates/commands/quick.md")
     lowered = content.lower()
 
-    assert "**freshness**: treat `missing` and `stale` as blocking" in lowered
-    assert "[AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`." in content or "must_refresh_topics" in content
+    assert "**freshness**: treat `missing` as a rebuild requirement" in lowered
+    assert "evaluate `possibly_stale` against cognition status, changed paths, reasons, and change-slice coverage" in lowered
+    assert "must_refresh_topics" not in lowered
+    assert "review_topics" not in lowered
     assert "ownership, placement, workflow, integration, or verification guidance" in content
     assert "status.md" in lowered
     assert "[AGENT] Use the shared policy function before execution begins and again at each join point" in content
