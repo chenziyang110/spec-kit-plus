@@ -111,8 +111,10 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - `.specify/memory/constitution.md` if present
    - `.specify/memory/project-rules.md` if present
    - `.specify/memory/project-learnings.md` if present
-   - `BUILD-HANDBOOK.md` if present
-   - targeted live repository files only when the runtime handbook cannot answer the touched planning-critical gap safely
+   - `.specify/project-cognition/status.json` if present
+   - `.specify/project-cognition/slices/change.json` if present
+   - `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice does not answer the touched planning-critical gap safely
+   - targeted live repository files only when the project cognition runtime cannot answer the touched planning-critical gap safely
    - relevant repository documentation and design artifacts when they materially affect the requested change
 
 4. Identify what needs enhancement:
@@ -176,7 +178,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first
    - whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning
    - updated `workflow-state.md` path
-   - if this repair pass proves the current handbook/project-map no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield implementation proceeds
+   - if this repair pass proves the current project cognition runtime no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield implementation proceeds
 
 ## Presentation Contract
 

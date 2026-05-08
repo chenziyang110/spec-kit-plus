@@ -81,9 +81,9 @@ ensure_canonical_map_files() {
         return 0
     fi
 
-    echo "Cannot record a fresh project-map baseline because canonical map files are missing:" >&2
+    echo "Cannot record a fresh project-map compatibility/export baseline because canonical map files are missing:" >&2
     printf ' - %s\n' "${missing[@]}" >&2
-    echo "Run /sp-map-scan, then /sp-map-build first so PROJECT-HANDBOOK.md, .specify/project-map/QUICK-NAV.md, and the layered atlas files exist." >&2
+    echo "Run /sp-map-scan, then /sp-map-build first so PROJECT-HANDBOOK.md, .specify/project-map/QUICK-NAV.md, and the layered compatibility/export atlas files exist." >&2
     return 1
 }
 
@@ -636,12 +636,12 @@ PY
     fi
 
     if [[ -z "$last_mapped_commit" || -z "$head_commit" ]]; then
-        emit_check_json "possibly_stale" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" '["git baseline unavailable for project-map freshness"]' "[]" "[]" "[]" "[]" "$dirty_origin_command" "$dirty_origin_feature_dir" "$dirty_origin_lane_id" "$dirty_scope_paths_json"
+        emit_check_json "possibly_stale" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" '["git baseline unavailable for project-map compatibility/export freshness"]' "[]" "[]" "[]" "[]" "$dirty_origin_command" "$dirty_origin_feature_dir" "$dirty_origin_lane_id" "$dirty_scope_paths_json"
         return 0
     fi
 
     if ! has_git; then
-        emit_check_json "possibly_stale" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" '["git baseline unavailable for project-map freshness"]' "[]" "[]" "[]" "[]" "$dirty_origin_command" "$dirty_origin_feature_dir" "$dirty_origin_lane_id" "$dirty_scope_paths_json"
+        emit_check_json "possibly_stale" "$head_commit" "$last_mapped_commit" "false" "$dirty_reasons_json" '["git baseline unavailable for project-map compatibility/export freshness"]' "[]" "[]" "[]" "[]" "$dirty_origin_command" "$dirty_origin_feature_dir" "$dirty_origin_lane_id" "$dirty_scope_paths_json"
         return 0
     fi
 
@@ -756,13 +756,13 @@ PY
 
         if [[ "$classification" == "stale" ]]; then
             worst="stale"
-            reasons+=("high-impact project-map change: $candidate_path")
+            reasons+=("high-impact compatibility/export change: $candidate_path")
         elif [[ "$classification" == "possibly_stale" && "$worst" != "stale" ]]; then
             worst="possibly_stale"
             if [[ "$covered_by_last_refresh" == true ]]; then
                 reasons+=("covered topic changed since last partial map: $candidate_path")
             else
-                reasons+=("codebase surface changed since last map: $candidate_path")
+                reasons+=("runtime codebase surface changed since last compatibility/export baseline: $candidate_path")
             fi
         fi
     done <<< "$diff_output"

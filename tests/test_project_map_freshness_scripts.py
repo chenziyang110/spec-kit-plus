@@ -200,7 +200,7 @@ def test_powershell_project_map_freshness_detects_git_changes(git_repo: Path):
 
     stale = _run_powershell(git_repo, "check")
     assert stale["freshness"] == "stale"
-    assert any("high-impact project-map change" in reason for reason in stale["reasons"])
+    assert any("high-impact compatibility/export change" in reason for reason in stale["reasons"])
     assert stale["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
     assert stale["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert stale["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
@@ -283,16 +283,16 @@ def test_project_map_freshness_helpers_ignore_reference_and_excluded_paths(git_r
 @pytest.mark.parametrize(
     "path,expected_freshness,expected_reason_prefix",
     [
-        (".specify/templates/project-map/ARCHITECTURE.md", "stale", "high-impact project-map change"),
-        (".specify/templates/testing/TESTING_PLAYBOOK.md", "stale", "high-impact project-map change"),
-        (".specify/memory/constitution.md", "stale", "high-impact project-map change"),
-        (".specify/memory/project-rules.md", "stale", "high-impact project-map change"),
-        ("docker-compose.yml", "stale", "high-impact project-map change"),
-        ("Dockerfile", "stale", "high-impact project-map change"),
-        ("Makefile", "stale", "high-impact project-map change"),
-        ("package.json", "stale", "high-impact project-map change"),
-        ("pnpm-lock.yaml", "stale", "high-impact project-map change"),
-        ("go.mod", "stale", "high-impact project-map change"),
+        (".specify/templates/project-map/ARCHITECTURE.md", "stale", "high-impact compatibility/export change"),
+        (".specify/templates/testing/TESTING_PLAYBOOK.md", "stale", "high-impact compatibility/export change"),
+        (".specify/memory/constitution.md", "stale", "high-impact compatibility/export change"),
+        (".specify/memory/project-rules.md", "stale", "high-impact compatibility/export change"),
+        ("docker-compose.yml", "stale", "high-impact compatibility/export change"),
+        ("Dockerfile", "stale", "high-impact compatibility/export change"),
+        ("Makefile", "stale", "high-impact compatibility/export change"),
+        ("package.json", "stale", "high-impact compatibility/export change"),
+        ("pnpm-lock.yaml", "stale", "high-impact compatibility/export change"),
+        ("go.mod", "stale", "high-impact compatibility/export change"),
     ],
 )
 def test_project_map_freshness_helpers_keep_live_runtime_paths_stale_driving(
@@ -358,7 +358,45 @@ def test_bash_record_refresh_requires_canonical_map_outputs(git_repo: Path):
 
     assert result.returncode != 0
     assert "canonical map files are missing" in result.stderr.lower()
+    assert "project-map compatibility/export baseline" in result.stderr.lower()
+    assert "project-handbook.md" in result.stderr.lower()
     assert "quick-nav.md" in result.stderr.lower()
+
+
+def test_project_map_refresh_helpers_frame_outputs_as_compatibility_exports(git_repo: Path):
+    result = _run_bash_raw(git_repo, "record-refresh", "manual")
+    pwsh = shutil.which("pwsh") or shutil.which("powershell")
+
+    assert "project-handbook.md" in result.stderr.lower()
+    assert "layered compatibility/export atlas files exist" in result.stderr.lower()
+
+    if pwsh:
+        ps_result = subprocess.run(
+            [
+                pwsh,
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "scripts/powershell/project-map-freshness.ps1",
+                "-RepoRoot",
+                str(git_repo),
+                "-Command",
+                "record-refresh",
+                "-Reason",
+                "manual",
+            ],
+            cwd=git_repo,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert ps_result.returncode != 0
+        stderr = (ps_result.stderr or "") + (ps_result.stdout or "")
+        lowered = stderr.lower()
+        assert "project-map compatibility/export baseline" in lowered
+        assert "project-handbook.md" in lowered
+        assert "layered compatibility/export atlas files exist" in lowered
 
 
 def test_bash_complete_refresh_uses_map_codebase_reason(git_repo: Path):

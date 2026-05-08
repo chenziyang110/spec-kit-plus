@@ -411,7 +411,8 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert ".specify/memory/project-learnings.md" in constitution_content
     assert ".planning/learnings/candidates.md" in constitution_content
     assert "learning start --command constitution --format json" in constitution_content
-    assert "build-handbook.md" in constitution_content
+    assert ".specify/project-cognition/status.json" in constitution_content
+    assert "build-handbook.md" not in constitution_content
     assert ".specify/project-map/index/status.json" in constitution_content
     assert "/sp-map-scan" in constitution_content
     assert "/sp-map-build" in constitution_content
