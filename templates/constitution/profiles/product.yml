@@ -122,17 +122,16 @@ conditional_guidance: |
 engineering_standards: |
   ## Engineering Standards
 
-  - **Technical Source of Truth**: Maintain `DEBUG-HANDBOOK.md` and
-    `BUILD-HANDBOOK.md` as the primary runtime atlas for ordinary brownfield
-    work. Supporting project-map artifacts under `.specify/project-map/` may
-    remain as refresh workbench or reference surfaces, but they are not the
-    default runtime read path. Use `map-scan` then `map-build` to create or
-    refresh the runtime handbooks when they are missing or stale, treat
-    `.specify/project-map/index/status.json` as the freshness baseline for
-    downstream workflow checks, and keep the runtime handbooks plus freshness
-    state in sync whenever navigation meaning changes. If the runtime handbook
-    system is missing, generate it before structural work continues; if it is
-    stale, refresh it before structural work continues.
+  - **Technical Source of Truth**: Maintain
+    `.specify/project-cognition/status.json` and workflow-appropriate cognition
+    slices as the default brownfield runtime truth surface. Legacy handbook or
+    project-map exports are compatibility surfaces only. Use `map-update` for
+    localized stale cognition runtime refresh; use `map-scan` followed by
+    `map-build` when no usable baseline remains or a full rebuild is required.
+    Keep cognition status, slices, and freshness state in sync whenever
+    navigation meaning changes. If the project cognition runtime is missing,
+    generate it before structural work continues; if it is stale or too weak for
+    the touched area, refresh it before structural work continues.
   - **Encoding Preservation**: When modifying an existing file, changes MUST
     preserve the file's existing character encoding and BOM behavior unless the
     task explicitly requires an encoding conversion.

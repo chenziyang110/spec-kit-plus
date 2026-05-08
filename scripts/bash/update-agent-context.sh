@@ -161,9 +161,9 @@ render_speckit_managed_block() {
 
 ## Brownfield Context Gate
 
-- The runtime atlas is graph-native: use `.specify/project-cognition/status.json` plus the workflow-appropriate graph slice artifacts before broad brownfield work continues.
+- The runtime atlas is graph-native: use `.specify/project-cognition/status.json` plus the workflow-appropriate slices before broader repository analysis.
 - Read `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the workflow contract requires deeper graph-native context.
-- Supporting handbook/project-map artifacts are support-only or reference-only for ordinary workflow execution; do not treat them as the primary runtime read path.
+- Supporting handbook/project-map artifacts are compatibility/export surfaces for ordinary workflow execution; do not treat them as the primary runtime truth path.
 - Before planning, debugging, or implementing against existing code, read the workflow-appropriate project cognition status and graph slice artifacts required by that workflow.
 - If the cognition baseline is missing, run `sp-map-scan` followed by `sp-map-build` before continuing.
 - Treat graph-runtime freshness as the truth source.

@@ -315,12 +315,15 @@ class TestBuiltInSkillGeneration:
             assert "workflow contract summary" in body
             assert "routing metadata only" in body
         constitution_body = _body_without_frontmatter(skills_dir / "sp-constitution" / "SKILL.md").lower()
+        constitution = (project_dir / ".specify" / "memory" / "constitution.md").read_text(encoding="utf-8").lower()
         assert ".specify/memory/project-rules.md" in constitution_body
         assert ".specify/memory/project-learnings.md" in constitution_body
         assert ".planning/learnings/candidates.md" in constitution_body
         assert "specify learning start --command constitution --format json" in constitution_body
-        assert "build-handbook.md" in constitution_body
-        assert ".specify/project-map/index/status.json" in constitution_body
+        assert ".specify/project-cognition/status.json" in constitution
+        assert "workflow-appropriate cognition" in constitution
+        assert "default brownfield runtime truth surface" in constitution
+        assert "map-update" in constitution
         assert "/sp-map-scan" in constitution_body
         assert "/sp-map-build" in constitution_body
         assert "workflow-state.md" in constitution_body
@@ -488,44 +491,34 @@ class TestBuiltInSkillGeneration:
 
         scan_body = _body_without_frontmatter(skills_dir / "sp-map-scan" / "SKILL.md")
         scan_lower = scan_body.lower()
-        assert ".specify/project-map/map-scan.md" in scan_body
-        assert ".specify/project-map/repository-universe.json" in scan_body
-        assert ".specify/project-map/coverage-ledger.md" in scan_body
-        assert ".specify/project-map/coverage-ledger.json" in scan_body
-        assert ".specify/project-map/capability-ledger.json" in scan_body
-        assert ".specify/project-map/control-ledger.json" in scan_body
-        assert ".specify/project-map/scan-packets/<lane-id>.md" in scan_body
-        assert ".specify/project-map/map-state.md" in scan_body
+        assert ".specify/project-cognition/status.json" in scan_body
+        assert ".specify/project-cognition/evidence/" in scan_body
+        assert ".specify/project-cognition/provisional/nodes.json" in scan_body
+        assert ".specify/project-cognition/provisional/edges.json" in scan_body
+        assert ".specify/project-cognition/provisional/observations.json" in scan_body
+        assert ".specify/project-cognition/coverage.json" in scan_body
         assert 'choose_subagent_dispatch(command_name="map-scan"' in scan_body
-        assert "rg --files" in scan_body
-        assert "Git-tracked files" in scan_body
-        assert "scan packets are executable read instructions" in scan_lower
-        assert "must still execute the packet reads" in scan_lower
-        assert "project map state protocol" in scan_lower
-        assert "mapscanpacket" in scan_lower
-        assert "result_handoff_path" in scan_body
-        assert "coverage reverse index" in scan_lower
+        assert "enumerate project-internal evidence comprehensively" in scan_body
+        assert "high-value `.git` evolution surfaces" in scan_body
+        assert "stay graph-native from the start" in scan_lower
+        assert "provisional nodes and candidate edges" in scan_lower
+        assert "evidence harvested" in scan_lower
 
         build_body = _body_without_frontmatter(skills_dir / "sp-map-build" / "SKILL.md")
-        assert "DEBUG-HANDBOOK.md" in build_body
-        assert "BUILD-HANDBOOK.md" in build_body
-        assert "DEBUG-WORKFLOW-CONTRACT" in build_body
-        assert "BUILD-WORKFLOW-CONTRACT" in build_body
+        assert ".specify/project-cognition/status.json" in build_body
+        assert ".specify/project-cognition/graph/nodes.json" in build_body
+        assert ".specify/project-cognition/graph/edges.json" in build_body
+        assert ".specify/project-cognition/graph/claims.json" in build_body
         assert 'choose_subagent_dispatch(command_name="map-build"' in build_body
         assert "route back to `/sp-map-scan`" in build_body
-        assert "complete-refresh" in build_body
-        assert "Workflow-Handbook Detail Rules" in build_body
-        assert "`DEBUG-HANDBOOK.md` must stay concise" in build_body
-        assert "`BUILD-HANDBOOK.md` must stay concise" in build_body
-        assert "not a scaffold, migration, or file-moving command" in build_body
-        assert "Existing runtime handbooks and project-map refresh artifacts are" in build_body
-        assert "packet evidence intake" in build_body
-        assert "A structural-only refresh is a failed build." in build_body
-        assert "Project Map State Protocol" in build_body
-        assert "Validate Scan Inputs Before Execution" in build_body
-        assert "Compile And Validate MapBuildPacket Inputs" in build_body
-        assert ".specify/project-map/worker-results/<packet-id>.json" in build_body
-        assert "Workflow-Operational Reachability Validation" in build_body
+        assert "Required Graph Semantics" in build_body
+        assert "publish graph-native slices" in build_body
+        assert "graph-ready baseline" in build_body
+        assert "Do not publish handbook-first runtime truth" in build_body
+        assert "validate scan completeness for graph reconstruction" in build_body
+        assert "synthesize claims from evidence" in build_body
+        assert "create explicit conflict records" in build_body
+        assert "status.json` reflects a graph-ready baseline" in build_body
 
         test_scan_body = _body_without_frontmatter(skills_dir / "sp-test-scan" / "SKILL.md")
         assert ".specify/testing/TEST_SCAN.md" in test_scan_body
@@ -536,8 +529,10 @@ class TestBuiltInSkillGeneration:
         assert "parallel-subagents" in test_scan_body.lower()
         assert "native-subagents" in test_scan_body.lower()
         assert "read-only scan subagents" in test_scan_body.lower()
-        assert "stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in test_scan_body.lower()
-        assert "read `build-handbook.md`." in test_scan_body.lower()
+        assert "read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/change.json`" in test_scan_body.lower()
+        assert "stop and tell the user to use `/sp-map-update`; wait for that refresh before continuing" in test_scan_body.lower()
+        assert "rebuild through `/sp-map-scan`, then `/sp-map-build` only when no usable localized baseline remains" in test_scan_body.lower()
+        assert "read `build-handbook.md`." not in test_scan_body.lower()
 
         test_build_body = _body_without_frontmatter(skills_dir / "sp-test-build" / "SKILL.md")
         assert ".specify/testing/TESTING_CONTRACT.md" in test_build_body
@@ -553,9 +548,10 @@ class TestBuiltInSkillGeneration:
         assert "managed-team" in test_build_body.lower()
         assert "testbuildpacket" in test_build_body.lower()
         assert "before mutating shared repository test framework/config files" in test_build_body.lower()
-        assert "stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in test_build_body.lower()
-        assert "if testing-surface coverage is insufficient for the current repository, stop and tell the user to run `/sp-map-scan`, then `/sp-map-build`; wait for that refresh before continuing" in test_build_body.lower()
-        assert "read `build-handbook.md`." in test_build_body.lower()
+        assert "read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/change.json`" in test_build_body.lower()
+        assert "stop and tell the user to use `/sp-map-update`; wait for that refresh before continuing" in test_build_body.lower()
+        assert "if testing-surface cognition coverage is insufficient for the current repository" in test_build_body.lower()
+        assert "read `build-handbook.md`." not in test_build_body.lower()
         assert "classify the next workflow recommendation before the final report" in test_build_body.lower()
         assert "recommend exactly one next command" in test_build_body.lower()
         assert "recommend `/sp-quick`" in test_build_body.lower()
@@ -692,7 +688,7 @@ class TestSkillDescriptions:
         assert "unit testing system" in SKILL_DESCRIPTIONS["test-build"].lower()
         assert "truly trivial" in SKILL_DESCRIPTIONS["fast"].lower()
         assert "lightweight tracked planning" in SKILL_DESCRIPTIONS["quick"].lower()
-        assert "handbook/project-map coverage" in SKILL_DESCRIPTIONS["map-scan"].lower()
+        assert "graph-native cognition baseline" in SKILL_DESCRIPTIONS["map-scan"].lower()
         assert "map-scan" in SKILL_DESCRIPTIONS["map-build"].lower()
         assert "github issues" in SKILL_DESCRIPTIONS["taskstoissues"].lower()
 
@@ -1269,6 +1265,6 @@ class TestExtensionSkillEdgeCases:
 
 def test_integration_guidance_uses_logical_atlas_contract_language():
     content = (PROJECT_ROOT / "src" / "specify_cli" / "integrations" / "base.py").read_text(encoding="utf-8").lower()
-    assert "build-handbook.md" in content
-    assert "debug-handbook.md" in content
-    assert "runtime handbook contract" in content
+    assert "build-handbook.md" not in content
+    assert "debug-handbook.md" not in content
+    assert "runtime handbook contract" not in content

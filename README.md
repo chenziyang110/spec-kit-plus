@@ -282,16 +282,15 @@ Kimi.
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- Support skills: `map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
+- Support skills: `map-scan`, `map-build`, `map-update`, `test-scan`, `test-build`, `auto`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
 - Codex-only runtime: `sp-teams`
 
 Conditional gates and follow-up commands:
 
-- `map-scan` followed by `map-build` is the required brownfield gate for an existing generated project or downstream codebase; generate the complete scan package first, then refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` before specification, planning, task generation, or implementation continues
-- Treat the runtime atlas as a workflow-handbook system rather than a layered documentation tree: `DEBUG-HANDBOOK.md` is the primary runtime surface for `sp-debug`, and `BUILD-HANDBOOK.md` is the primary runtime surface for the major non-debug workflows
-- Supporting project-map artifacts remain useful as workbench evidence and continuity inputs, but they are not the primary runtime read path for ordinary workflow execution
-- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for whether the current runtime handbooks can be trusted: `fresh` means the last handbook refresh completed against a known git baseline, and `sp-map-scan` still performs diff-based scope selection when entered. Ordinary runtime consumption should prefer `DEBUG-HANDBOOK.md` or `BUILD-HANDBOOK.md` plus the workflow's fixed chapter set; generated project-map outputs and refresh workbench artifacts are support-only/reference-only surfaces and the refresh workbench remains internal to `map-scan` / `map-build`. If a full refresh can be completed now, run `map-scan` followed by `map-build`, then use `project-map complete-refresh` as the successful-refresh finalizer. Otherwise use `project-map mark-dirty` as a manual override/fallback and route the next brownfield workflow through `map-scan` followed by `map-build`. Same-lane `sp-implement` resume may continue with a warning only when the dirty fallback was recorded by that lane's prior `implement` run and the recorded dirty scope still overlaps the current packet scope; upstream brownfield entrypoints and other features remain blocked until refresh.
-- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should complete the full `map-scan` followed by `map-build` refresh now when possible; otherwise use the dirty marker only as the fallback route above
+- Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices such as `.specify/project-cognition/slices/change.json` as the default brownfield runtime truth surface.
+- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
+- Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
+- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite project cognition content; when they discover the current cognition runtime is too weak or likely outdated for the touched area, they should use `map-update` for localized refresh when possible, or `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - `test-scan` to run a deep, read-only testing-system scan using leader-managed scout subagents, then write `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, and `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`
 - `test-build` to consume scan-approved lanes, coordinate leader/subagent test-building waves, update tests/fixtures/config as authorized by lane packets, bootstrap or refresh bundled language testing skills, establish a coverage baseline, capture manual validation evidence, and write the durable testing contract plus standard test/coverage playbook
 - `auto` to resume the recommended next workflow step from current repository state; it reads canonical state surfaces such as `workflow-state.md`, `implement-tracker.md`, `.specify/testing/testing-state.md`, quick-task `STATUS.md`, and debug session files, then continues under the routed workflow's contract without rewriting downstream `next_command` to `sp-auto`
@@ -302,22 +301,22 @@ Conditional gates and follow-up commands:
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
 - `analyze` is the default pre-implementation gate once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` before implementation starts
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
-- `explain` to describe the current spec, plan, task, implement, or handbook/project-map atlas artifact in plain language
+- `explain` to describe the current spec, plan, task, implement, project cognition, or compatibility/export artifact in plain language
 - `integrate` to discover implementation-complete lanes, run closeout prechecks, and prepare them for mainline merge without folding closeout back into `implement`
 - `integration repair` to refresh generated shared/runtime-managed assets after CLI upgrades or when `specify check` reports stale launcher, script, or hook surfaces
 - when you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing subagent validation evidence)
 
-Already have code? Run `map-scan`, then `map-build` first and treat that two-step flow as the required brownfield gate before deeper specification, planning, task generation, or implementation work.
-Generated projects track handbook freshness in `.specify/project-map/index/status.json`, so brownfield workflows can decide whether the current atlas baseline is fresh, possibly stale, or stale before proceeding. Ordinary `sp-*` workflows should treat atlas freshness as a hard gate before source-level work rather than a warn-only hint.
+Already have code? Resolve `.specify/project-cognition/status.json` and the workflow-appropriate cognition slice first. Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
+Generated projects track cognition freshness in `.specify/project-cognition/status.json`, so brownfield workflows can decide whether the current cognition baseline is fresh, possibly stale, or stale before proceeding. Ordinary `sp-*` workflows should treat cognition freshness as a hard gate before source-level work rather than a warn-only hint.
 
 Routing guide for lightweight work:
 
 - `sp-fast` is only for trivial local fixes. Stay on that path only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
 - Move from `sp-fast` to `sp-quick` as soon as the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
-- Both `sp-fast` and `sp-quick` still pass the runtime handbook gate first: read `BUILD-HANDBOOK.md` and the workflow's fixed chapter set before source reads continue.
+- Both `sp-fast` and `sp-quick` still pass the project cognition gate first: read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/change.json` before source reads continue.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
 - Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` now follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, route directly to `sp-test-scan` before continuing.
 - For brownfield repositories with weak legacy coverage, let `sp-test-scan` generate `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` and treat it as the starting artifact for any testing-system program or coverage uplift program that must continue through `sp-specify`, `sp-quick`, or `sp-fast`; use `sp-test-build` only once build-ready lanes exist.
@@ -410,7 +409,7 @@ First-party workflow quality hooks:
 - `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
 - `specify hook mark-dirty`
   - Command shape: `specify hook mark-dirty --reason "<reason>" [--origin-command <workflow>] [--origin-feature-dir <dir>] [--origin-lane-id <lane-id>] [--packet-file <packet-json>]`
-- `specify hook complete-refresh` is the shared successful-refresh finalizer for project-map freshness updates after a full atlas refresh. `specify hook mark-dirty --reason "<reason>"` remains the shared manual override/fallback when a full refresh cannot be completed in the current pass; origin metadata and optional packet-derived dirty scope explain whether the stale state came from the current lane's `implement` resume or from another lane that should stay blocked.
+- `specify hook complete-refresh` is the compatibility-named successful-refresh finalizer for project cognition freshness updates after a successful cognition refresh or rebuild. `specify hook mark-dirty --reason "<reason>"` remains the shared manual override/fallback when the required cognition refresh cannot be completed in the current pass; origin metadata and optional packet-derived dirty scope explain whether the stale state came from the current lane's `implement` resume or from another lane that should stay blocked.
 
 Claude Code integration note:
 
@@ -677,19 +676,17 @@ Important directories:
 - `tests/` - regression and integration test suite
 - `docs/` - installation, upgrade, and development notes
 
-## Project Handbook System
+## Project Cognition Runtime
 
-Navigation and technical truth are now workflow-handbook-first:
+Navigation and technical truth are now cognition-first:
 
-- Generated projects include two primary runtime atlas documents:
-  - `DEBUG-HANDBOOK.md` for `sp-debug`
-  - `BUILD-HANDBOOK.md` for the major non-debug `sp-*` workflows
-- Ordinary brownfield workflows should treat those two files as the primary runtime atlas surfaces and read the fixed chapter IDs required by the current workflow before broader repository analysis.
-- In generated projects, `.specify/project-map/index/status.json` still records git-baseline freshness as the truth source for refresh checks, including the last successful handbook refresh and dirty state.
-- Supporting project-map artifacts under `.specify/project-map/` remain useful as refresh workbench and continuity surfaces, but they are not the primary runtime read path for ordinary workflow execution.
+- Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices as the default brownfield runtime truth surface.
+- Ordinary brownfield workflows should read the cognition status and the smallest required slice before broader repository analysis.
+- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
+- Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - This repository does not treat its own root `.specify/` directory as committed source-of-truth content; repo-local `.specify/` state is disposable and may be regenerated.
-- After a successful `map-build` refresh, use `project-map complete-refresh` as the standard successful-refresh finalizer to record the new fresh baseline. Use `project-map mark-dirty` only as a manual override/fallback when the full refresh cannot be completed now. When that fallback comes from `sp-implement`, include origin metadata so same-feature resume can warn instead of self-blocking while upstream brownfield entrypoints and other features still require refresh.
-- Any code change that alters workflow-handbook meaning must update the runtime handbook system.
+- After a successful refresh, record the new fresh cognition baseline. Use dirty fallback metadata only when the required refresh cannot be completed now, so same-feature resume can warn instead of self-blocking while upstream brownfield entrypoints and other features still require refresh.
+- Any code change that alters project cognition meaning must update the cognition runtime.
 
 ## Documentation
 

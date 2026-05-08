@@ -1,7 +1,7 @@
 # Project Handbook
 
 **Last Updated:** YYYY-MM-DD
-**Purpose:** Root navigation artifact for this repository.
+**Purpose:** Compatibility/export navigation view for this repository.
 
 ## System Summary
 
@@ -24,27 +24,27 @@ and what sits clearly outside the system boundary.]
 
 ## How To Read This Project
 
-- Start here for orientation.
-- **Runtime handbook entrypoints**:
-  - `DEBUG-HANDBOOK.md` for `sp-debug`
-  - `BUILD-HANDBOOK.md` for ordinary non-debug `sp-*` workflows
-- These workflow handbooks are the only primary runtime atlas documents.
-- Read the handbook required by the current workflow before broad brownfield work.
-- Read the fixed chapter IDs required by the current workflow contract instead of freeform scanning.
-- Supporting project-map artifacts may exist for refresh workbench, continuity, or reference use, but they are not the primary runtime read path.
+- Start here for compatibility/export orientation.
+- **Default runtime truth**:
+  - `.specify/project-cognition/status.json` for freshness, coverage, stale paths, and refresh metadata
+  - workflow-appropriate cognition slices such as `.specify/project-cognition/slices/change.json` or `.specify/project-cognition/slices/debug.json`
+- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` are compatibility/export views during the migration window, not the default runtime truth path.
+- Read this handbook only when a user or workflow explicitly asks for the compatibility/export view.
+- Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - Use `Where To Read Next` for task-oriented routing.
-- Fall back to live code reads only when handbook coverage is missing, stale, or too broad.
+- Fall back to live code reads only when project cognition coverage is missing, stale, or too broad.
 
-## Runtime Handbook Entry Model
+## Compatibility Export Model
 
-Describe the two-handbook runtime atlas explicitly:
+Describe the handbook export model explicitly:
 
-- **Debug handbook**: `DEBUG-HANDBOOK.md` — symptom routing, likely truth owners, failure propagation, investigation playbooks, and verification exit rules
-- **Build/change handbook**: `BUILD-HANDBOOK.md` — product capability map, workflow sequences, change entrypoints, collaboration routes, propagation risks, implementation playbooks, and verification routes
-- **Source of last resort**: live code and runtime state when handbook coverage is missing, stale, or too broad
+- **Debug export**: `DEBUG-HANDBOOK.md` — compatibility view of symptom routing, likely truth owners, failure propagation, investigation playbooks, and verification exit rules
+- **Build/change export**: `BUILD-HANDBOOK.md` — compatibility view of product capability map, workflow sequences, change entrypoints, collaboration routes, propagation risks, implementation playbooks, and verification routes
+- **Project-map exports**: `.specify/project-map/**` — support-only, reference-only, or export-only continuity surfaces
+- **Runtime truth**: `.specify/project-cognition/status.json` plus workflow-appropriate cognition slices
 
-The entry model should help the reader decide which workflow handbook owns the
-task before broader code reads begin.
+The export model should help the reader distinguish compatibility views from
+the graph-native cognition runtime used before broader code reads begin.
 
 ## Shared Surfaces
 
@@ -64,7 +64,7 @@ task before broader code reads begin.
 
 ## Change Impact Guide
 
-- [Provide the fastest route from a proposed code change to the affected atlas views.]
+- [Provide the fastest route from a proposed code change to the affected cognition slices and compatibility/export views.]
 - [For each major hotspot, say which topical document explains the blast radius,
   hidden dependencies, lifecycle risks, and minimum verification route.]
 - [For existing capabilities, route readers through the capability flow and lifecycle truth layer before broader source inspection.]
@@ -87,8 +87,8 @@ task before broader code reads begin.
 
 ## Atlas Views
 
-- [Summarize which workflow handbook answers debugging, requirement shaping, implementation planning, testing, and verification questions.]
-- [Call out where support-only or reference-only project-map artifacts still help continuity without becoming the primary runtime read path.]
+- [Summarize which cognition status and slices answer debugging, requirement shaping, implementation planning, testing, and verification questions.]
+- [Call out where compatibility/export handbooks and support-only project-map artifacts still help continuity without becoming the primary runtime truth path.]
 
 ## Where To Read Next
 
@@ -100,11 +100,12 @@ task before broader code reads begin.
 
 ## Topic Map
 
-- `DEBUG-HANDBOOK.md` - canonical runtime handbook for `sp-debug`
-- `BUILD-HANDBOOK.md` - canonical runtime handbook for the major non-debug workflows
-- `.specify/project-map/index/status.json` - handbook freshness plus refresh-state truth source
-- `.specify/project-map/scan-packets/` and `.specify/project-map/worker-results/` - refresh workbench artifacts for rebuilding the handbooks
-- support-only project-map exports - continuity and tooling surfaces that should not become the primary runtime read path again
+- `.specify/project-cognition/status.json` - default runtime status, freshness, coverage, stale paths, and refresh metadata
+- `.specify/project-cognition/slices/change.json` - default change/build slice for ordinary brownfield workflows
+- `.specify/project-cognition/slices/debug.json` - default debug slice for symptom investigation
+- `DEBUG-HANDBOOK.md` - compatibility/export debug view
+- `BUILD-HANDBOOK.md` - compatibility/export build/change view
+- `.specify/project-map/**` - compatibility/export and refresh-workbench surfaces, not the primary runtime truth path
 
 ## Update Triggers
 

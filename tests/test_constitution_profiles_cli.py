@@ -36,8 +36,9 @@ def test_init_defaults_to_product_constitution_profile(tmp_path):
 
     assert init_options["constitution_profile"] == "product"
     assert "### VII. No Unrequested Fallbacks" in constitution
-    assert "DEBUG-HANDBOOK.md" in constitution
-    assert "BUILD-HANDBOOK.md" in constitution
+    assert ".specify/project-cognition/status.json" in constitution
+    assert "default brownfield runtime truth surface" in constitution
+    assert "map-update" in constitution
 
 
 def test_init_with_library_constitution_profile_materializes_project_template(tmp_path):
@@ -83,7 +84,7 @@ def test_init_with_library_constitution_profile_materializes_project_template(tm
     assert base_asset.exists()
     assert "Stable Public Surface" in template
     assert "SemVer and Release Discipline" in template
-    assert "DEBUG-HANDBOOK.md" not in template
+    assert ".specify/project-cognition/status.json" not in template
     assert "Stable Public Surface" in constitution
     assert "library constitution profile" in result.output.lower()
 

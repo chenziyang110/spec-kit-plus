@@ -50,12 +50,15 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "Fallbacks Require Consent" in content
     assert "Encoding Preservation" in content
     assert "preserve the file's existing character encoding and BOM behavior" in content
-    assert "DEBUG-HANDBOOK.md" in content
-    assert "BUILD-HANDBOOK.md" in content
-    assert ".specify/project-map/" in content
-    assert ".specify/project-map/index/status.json" in content
-    assert "runtime atlas for ordinary brownfield" in content.lower()
-    assert "generate it before structural work" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert "workflow-appropriate cognition" in content
+    assert "default brownfield runtime truth surface" in content
+    assert "Legacy handbook or\n  project-map exports are compatibility surfaces only." in content
+    assert "map-update" in content
+    assert "map-scan" in content
+    assert "map-build" in content
+    assert "Maintain `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` as the primary runtime atlas" not in content
+    assert "generate it before structural work continues" in content
     assert "[PROJECT_NAME]" not in content
     assert "[RATIFICATION_DATE]" not in content
     assert "**Version**: 1.1.0" in content
@@ -63,9 +66,10 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
 
 
 def test_product_constitution_profile_matches_shipped_template():
-    template_path = Path(__file__).resolve().parents[1] / "templates" / "constitution-template.md"
+    repo_root = Path(__file__).resolve().parents[1]
+    template_path = repo_root / "templates" / "constitution-template.md"
     expected = template_path.read_text(encoding="utf-8")
-    built, profile = build_constitution_template_for_profile("product")
+    built, profile = build_constitution_template_for_profile("product", repo_root)
 
     assert profile["id"] == "product"
     assert expected == built
@@ -89,7 +93,7 @@ def test_ensure_constitution_from_template_materializes_library_profile(tmp_path
     assert "Public APIs, configuration keys, CLI flags, and file formats MUST" in content
     assert "SemVer and Release Discipline" in content
     assert "Examples and Upgrade Paths" in content
-    assert "DEBUG-HANDBOOK.md" not in content
+    assert ".specify/project-cognition/status.json" not in content
     assert "# [PROJECT_NAME] Constitution" in template_content
     assert "Stable Public Surface" in template_content
     assert "[PROJECT_NAME]" not in content

@@ -26,7 +26,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - **Concurrent lane runtime**: `src/specify_cli/lanes/` adds lane-local durable state, reconcile-before-resume routing, and dedicated lane closeout primitives for independent feature execution.
 - **Enriched task contract generation**: `sp-tasks` produces subagent-ready task contracts with agent role assignment, context navigation pointers, write/read/forbidden scope boundaries, verify commands, and escalation strategy — enabling `sp-implement` to dispatch subagents directly without leader clarification.
 - **Spec quality gate (`spec-lint`)**: `tools/spec-lint/` is a zero-dependency Go binary that mechanically validates spec artifact sets against 8 tiered quality checks before `sp-plan`. Install scripts, CI cross-compilation, and the quality gate spec live alongside the tool. Read `templates/spec-quality-gate.md`.
-- **Brownfield atlas lifecycle**: `map-scan -> map-build` is the required stale/missing context gate. The runtime atlas now resolves to two workflow handbooks: `DEBUG-HANDBOOK.md` for `sp-debug` and `BUILD-HANDBOOK.md` for the major non-debug workflows. The refresh workbench still contains `map-scan` / `map-build` scan packets, worker-result evidence, coverage validation, and freshness metadata used to rebuild those handbooks. Supporting project-map outputs are support-only or reference-only for ordinary workflow execution and should not become the primary runtime read path again. Git-baseline freshness in `.specify/project-map/index/status.json` is the truth source; after a successful full refresh, `complete-refresh` is the successful-refresh finalizer, while `mark-dirty` is only a manual override/fallback when that refresh cannot be completed now. Same-feature `sp-implement` resume may continue with warning when the dirty fallback was recorded by that feature's prior implement run, but upstream brownfield entrypoints and other features still require refresh first.
+- **Brownfield cognition lifecycle**: Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices as the default brownfield runtime truth surface. `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window. Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required. Same-feature `sp-implement` resume may continue with warning when dirty fallback metadata was recorded by that feature's prior implement run, but upstream brownfield entrypoints and other features still require refresh first.
 - **Delegated execution contracts**: `src/specify_cli/execution/`, `src/specify_cli/hooks/`, and `src/specify_cli/orchestration/` define packet/result schemas, quality hooks, subagents-first dispatch selection, and state surfaces. Read `.specify/project-map/root/ARCHITECTURE.md`.
 - **Codex team runtime**: `src/specify_cli/codex_team/`, `src/specify_cli/mcp/`, and `extensions/agent-teams/engine/` provide optional Codex team orchestration, state, MCP facade, and bundled engine assets. Read `.specify/project-map/modules/agent-teams-engine/OVERVIEW.md`.
 - **Testing and verification**: Python pytest layers, integration/template contract tests, Codex-team tests, and engine build checks protect generated behavior. Read `.specify/project-map/root/TESTING.md`.
@@ -34,23 +34,24 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 ## How To Read This Project
 
 - Start here for orientation.
-- **First stop for any task**: use the workflow-handbook routes described here. Repo-local `.specify/` state is not committed source-of-truth for this repository.
-- For generated projects, read `DEBUG-HANDBOOK.md` for `sp-debug` and `BUILD-HANDBOOK.md` for the major non-debug workflows before broad brownfield work.
-- Treat the workflow handbooks as the primary runtime atlas entrypoint.
-- Supporting project-map artifacts and refresh workbench outputs may still help with continuity and tooling, but they are not the primary runtime read path for ordinary workflow execution.
-- Fall back to live code reads only when handbook coverage is missing, stale, too broad, or marked low confidence.
+- **First stop for any task**: use the project cognition routes described here. Repo-local `.specify/` state is not committed source-of-truth for this repository.
+- For generated projects, read `.specify/project-cognition/status.json` plus the workflow-appropriate cognition slice before broad brownfield work.
+- Treat project cognition as the primary runtime truth surface.
+- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
+- Fall back to live code reads only when cognition coverage is missing, stale, too broad, or marked low confidence.
 
-## Runtime Handbook Routes
+## Project Cognition Routes
 
-For generated projects, use the workflow handbooks first:
+For generated projects, use project cognition first:
 
-- `DEBUG-HANDBOOK.md` — debug routing, likely truth owners, failure propagation, investigation playbooks, and verification exit rules
-- `BUILD-HANDBOOK.md` — change entrypoints, workflow sequences, module collaboration, propagation risks, implementation playbooks, and verification routes
+- `.specify/project-cognition/status.json` — freshness, coverage, stale paths, and refresh metadata
+- `.specify/project-cognition/slices/debug.json` — debug routing, likely truth owners, failure propagation, investigation playbooks, and verification exit rules
+- `.specify/project-cognition/slices/change.json` — change entrypoints, workflow sequences, module collaboration, propagation risks, implementation playbooks, and verification routes
 
-The workflow-handbook model should help answer:
+The cognition model should help answer:
 
-- which workflow-specific handbook owns the current task
-- which fixed chapter IDs must be read before source work begins
+- which workflow-specific cognition slice owns the current task
+- which graph claims, conflicts, or slices must be read before source work begins
 - which propagation risks and verification routes matter before changing code
 - what remains unknown and therefore needs live repository confirmation
 
@@ -123,7 +124,7 @@ The workflow-handbook model should help answer:
 - `templates/project-map/index/atlas-index.json`: machine-readable atlas summary and next-read routes for generated projects.
 - `templates/project-map/index/modules.json`: module registry, owned roots, and module doc paths for generated projects.
 - `templates/project-map/index/relations.json`: cross-module dependencies and shared-surface expansion routes for generated projects.
-- Generated-project `.specify/project-map/index/status.json`: freshness and module coverage status.
+- Generated-project `.specify/project-cognition/status.json` plus workflow-appropriate cognition slices: freshness, module coverage, stale paths, and refresh metadata.
 - `root/ARCHITECTURE.md`: cross-module architecture, contracts, dependency graph, capability cards.
 - `root/STRUCTURE.md`: directory ownership, critical file families, placement rules.
 - `root/CONVENTIONS.md`: naming, generated-surface, state, compatibility, and review conventions.
@@ -142,11 +143,12 @@ The workflow-handbook model should help answer:
 
 ## Topic Map
 
-- `DEBUG-HANDBOOK.md` - canonical runtime handbook for `sp-debug`
-- `BUILD-HANDBOOK.md` - canonical runtime handbook for the major non-debug workflows
-- Generated-project `.specify/project-map/index/status.json` - refresh freshness and handbook trust state
-- `.specify/project-map/scan-packets/`, `.specify/project-map/worker-results/`, and map state files - refresh workbench artifacts for rebuilding the handbooks, not ordinary runtime atlas entrypoints
-- Generated `.specify/project-map/**` outputs in this repository are support-only or reference-only unless the current task is explicitly testing or refreshing generated-project handbook generation behavior.
+- `.specify/project-cognition/status.json` - default generated-project runtime status, freshness, coverage, stale paths, and refresh metadata
+- `.specify/project-cognition/slices/change.json` - default generated-project change/build slice for ordinary brownfield workflows
+- `.specify/project-cognition/slices/debug.json` - default generated-project debug slice for symptom investigation
+- `DEBUG-HANDBOOK.md` - compatibility/export debug view
+- `BUILD-HANDBOOK.md` - compatibility/export build/change view
+- Generated `.specify/project-map/**` outputs in this repository are compatibility/export or refresh-workbench surfaces unless the current task is explicitly testing or refreshing generated-project export behavior.
 
 ## Update Triggers
 
@@ -154,7 +156,7 @@ The workflow-handbook model should help answer:
 
 ## Recent Structural Changes
 
-- The runtime atlas is being rewritten around `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`.
-- Ordinary `sp-*` workflows should treat workflow-handbook consumption as the hard gate before source-level work, instead of a layered atlas traversal.
-- Supporting project-map artifacts remain available for refresh workbench and continuity use, but are no longer the primary runtime read path.
+- The runtime atlas is being rewritten around `.specify/project-cognition/status.json` and workflow-appropriate cognition slices.
+- Ordinary `sp-*` workflows should treat project cognition consumption as the hard gate before source-level work.
+- Supporting handbook and project-map artifacts remain available as compatibility/export surfaces, but are no longer the primary runtime truth path.
 - Testing workflow guidance now centers `sp-test-scan` and `sp-test-build`.

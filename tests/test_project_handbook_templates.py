@@ -8,7 +8,7 @@ def _read(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
 
 
-def test_project_handbook_template_exists_and_routes_to_runtime_handbooks():
+def test_project_handbook_template_exists_and_routes_to_project_cognition():
     content = _read("templates/project-handbook-template.md")
 
     assert "# Project Handbook" in content
@@ -25,11 +25,14 @@ def test_project_handbook_template_exists_and_routes_to_runtime_handbooks():
     assert "## Atlas Views" in content
     assert "## Where To Read Next" in content
     assert "## Topic Map" in content
-    assert "## Runtime Handbook Entry Model" in content
+    assert "## Compatibility Export Model" in content
+    assert "`.specify/project-cognition/status.json`" in content
+    assert "`.specify/project-cognition/slices/change.json`" in content
+    assert "`.specify/project-cognition/slices/debug.json`" in content
     assert "`DEBUG-HANDBOOK.md`" in content
     assert "`BUILD-HANDBOOK.md`" in content
-    assert "only primary runtime atlas documents" in content
-    assert "primary runtime read path" in content
+    assert "compatibility/export views during the migration window" in content
+    assert "default runtime truth path" in content
 
 
 def test_project_map_templates_share_metadata_contract():
@@ -131,12 +134,12 @@ def test_project_map_templates_require_full_detail_sections_for_high_value_facts
     assert "- Confidence:" in architecture
 
 
-def test_project_handbook_template_points_readers_to_workflow_handbooks_first():
+def test_project_handbook_template_points_readers_to_project_cognition_first():
     content = _read("templates/project-handbook-template.md")
 
-    assert "`DEBUG-HANDBOOK.md` for `sp-debug`" in content
-    assert "`BUILD-HANDBOOK.md` for ordinary non-debug `sp-*` workflows" in content
-    assert "These workflow handbooks are the only primary runtime atlas documents." in content
+    assert "`.specify/project-cognition/status.json` for freshness" in content
+    assert "workflow-appropriate cognition slices" in content
+    assert "not the default runtime truth path" in content
     assert "Use `Where To Read Next` for task-oriented routing." in content
 
 
@@ -145,19 +148,27 @@ def test_project_handbook_template_guides_architecture_level_summary_content():
 
     assert "project type, primary technology stack, build/dependency tooling, and deployment shape" in content.lower()
     assert "major capability surfaces, runtime units, and architectural boundaries" in content.lower()
-    assert "the fastest route from a proposed code change to the affected atlas views" in content.lower()
+    assert "the fastest route from a proposed code change to the affected cognition slices and compatibility/export views" in content.lower()
     assert "list the highest-value capabilities a newcomer should understand first" in content.lower()
     assert "current stale, inferred, or weakly evidenced areas" in content.lower()
     assert "tie low-confidence areas back to specific capabilities, workflows, or boundaries" in content.lower()
-    assert "support-only or reference-only project-map artifacts" in content.lower()
+    assert "compatibility/export handbooks and support-only project-map artifacts" in content.lower()
 
 
-def test_project_handbook_template_routes_runtime_handbook_model() -> None:
+def test_project_handbook_template_routes_compatibility_export_model() -> None:
     content = _read("templates/project-handbook-template.md").lower()
-    assert "runtime handbook entry model" in content
+    assert "compatibility export model" in content
+    assert ".specify/project-cognition/status.json" in content
     assert "debug-handbook.md" in content
     assert "build-handbook.md" in content
-    assert "support-only or reference-only project-map artifacts" in content
+    assert "compatibility/export" in content
+
+
+def test_project_handbook_routes_generated_status_to_project_cognition() -> None:
+    content = _read("PROJECT-HANDBOOK.md")
+
+    assert "Generated-project `.specify/project-cognition/status.json` plus workflow-appropriate cognition slices" in content
+    assert "Generated-project `.specify/project-map/index/status.json`: freshness and module coverage status." not in content
 
 
 def test_project_map_templates_guide_technical_document_grade_depth():

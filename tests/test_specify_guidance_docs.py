@@ -98,7 +98,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "Codex-only runtime" in quickstart
     skill_map = _section(quickstart, "## Skill Map", "For Codex team-mode execution")
     assert "`constitution`, `specify`, `plan`, `tasks`, `implement`" in skill_map
-    assert "`map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`" in skill_map
+    assert "`map-scan`, `map-build`, `map-update`, `test-scan`, `test-build`, `auto`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`" in skill_map
     assert "/sp-" not in skill_map
 
 
@@ -111,7 +111,8 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     for section in (skill_map, support_guidance):
         assert "/sp-" not in section
 
-    assert "`map-scan` followed by `map-build`" in support_guidance
+    assert "`map-update` for localized stale cognition runtime refresh" in support_guidance
+    assert "`map-scan` followed by `map-build` when no usable baseline remains" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
     assert "`prd-scan` followed by `prd-build` as the existing-project reverse PRD lane" in support_guidance
     assert "heavy reconstruction workflow" in support_guidance

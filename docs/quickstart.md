@@ -228,7 +228,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- **Support skills**: `map-scan`, `map-build`, `test-scan`, `test-build`, `auto`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
+- **Support skills**: `map-scan`, `map-build`, `map-update`, `test-scan`, `test-build`, `auto`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
 - **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -245,22 +245,21 @@ For Codex team-mode execution, use the runtime surface deliberately:
 - Treat lane-local completion and repo-global verification separately: a batch can be complete while `doctor` still reports repo verification blocked by baseline debt.
 - Keep join point validation explicit in team-mode runs, and do not accept `idle` without the promised result handoff as completed work.
 
-Generated project navigation now follows the handbook system:
+Generated project navigation now follows the project cognition runtime:
 
-- Generated projects include `PROJECT-HANDBOOK.md` as the root navigation artifact.
-- Deep project knowledge lives under `.specify/project-map/`.
-- Treat the combined handbook/project-map surface as an atlas-style technical encyclopedia for dependency graph, runtime flows, state lifecycle, and change-impact view.
-- `.specify/project-map/index/status.json` records git-baseline freshness as the truth source for the current handbook freshness baseline and dirty state.
-- After a successful `map-build` run, use `project-map complete-refresh` as the standard successful-refresh finalizer to record the fresh baseline. If a full refresh can be completed now, do it; otherwise use `project-map mark-dirty` as a manual override/fallback and route the next brownfield workflow through `map-scan` followed by `map-build`.
-- Any code change that alters navigation meaning must update the handbook system.
+- Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices as the default brownfield runtime truth surface.
+- Read the cognition status and the smallest matching slice before broader repository analysis.
+- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
+- Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
+- Any code change that alters navigation meaning must update the project cognition runtime.
 
 Use support skills when they solve a specific gap:
 
-- `map-scan` followed by `map-build` as the required brownfield gate when you are working in an existing codebase; generate the complete scan package first, then refresh the handbook/project-map navigation system before deeper workflow steps
+- `map-update` for localized stale cognition runtime refresh when you are working in an existing codebase with a usable baseline; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required
 - `auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
 - `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair
-- Treat the handbook system as an atlas-style technical encyclopedia that gives agents a dependency graph, runtime flows, state lifecycle, and change-impact view before deeper brownfield work starts.
-- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite atlas content; when they discover the current atlas is too weak or likely outdated for the touched area, they should complete the full `map-scan` followed by `map-build` refresh now when possible, then use `project-map complete-refresh`; otherwise use `project-map mark-dirty` only as the manual override/fallback
+- Treat the project cognition runtime as the default brownfield truth surface that gives agents dependency, claim, conflict, ownership, and change-impact context before deeper brownfield work starts.
+- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite cognition content; when they discover the current cognition runtime is too weak or likely outdated for the touched area, they should use `map-update` for localized refresh when possible, or `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required
 - `clarify` when an existing spec still needs deeper analysis before planning
 - `deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `plan`; `research` is only its compatibility alias
 - `checklist` when you want to audit requirement quality after planning
@@ -269,9 +268,9 @@ Use support skills when they solve a specific gap:
 - When you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` also flags boundary guardrail drift through `BG1`, `BG2`, and `BG3` when boundary-sensitive work was not preserved cleanly from plan to tasks to implementation guidance
 - `analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
-- `explain` when you want the current spec, plan, task, implement, or handbook/project-map atlas artifact restated in plain language
+- `explain` when you want the current spec, plan, task, implement, project cognition, or compatibility/export artifact restated in plain language
 
-If you're starting from an existing codebase, `map-scan` followed by `map-build` is the required brownfield gate before requirement, planning, task generation, or implementation work continues. Downstream workflows use the git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for deciding whether the existing map is fresh, possibly stale, or stale.
+If you're starting from an existing codebase, resolve `.specify/project-cognition/status.json` plus the workflow-appropriate slice before requirement, planning, task generation, or implementation work continues. Downstream workflows use cognition freshness in `.specify/project-cognition/status.json` to decide whether the existing runtime is fresh, possibly stale, or stale; use `map-update` for localized stale refresh and `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 
 Use the lightweight routing rules consistently:
 
