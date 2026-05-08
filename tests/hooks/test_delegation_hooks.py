@@ -42,16 +42,19 @@ def _valid_packet() -> WorkerTaskPacket:
         task_id="T001",
         story_id="US1",
         objective="Implement demo behavior",
-        scope=PacketScope(write_scope=["src/demo.py"], read_scope=["BUILD-HANDBOOK.md"]),
+        scope=PacketScope(
+            write_scope=["src/demo.py"],
+            read_scope=[".specify/project-cognition/status.json"],
+        ),
         context_bundle=[
             ContextBundleItem(
-                path="BUILD-HANDBOOK.md",
-                kind="runtime_handbook",
-                purpose="workflow-specific runtime handbook for implementation routing",
+                path=".specify/project-cognition/status.json",
+                kind="project_map",
+                purpose="project cognition runtime status baseline",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="build runtime handbook is the primary atlas surface for non-debug work",
+                selection_reason="project cognition status is the primary brownfield baseline before delegated execution",
             )
         ],
         required_references=[PacketReference(path="src/demo.py", reason="canonical implementation reference")],
@@ -99,7 +102,7 @@ def test_delegation_join_validate_blocks_result_missing_validation_evidence(tmp_
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["BUILD-HANDBOOK.md"],
+                paths_read=[".specify/project-cognition/status.json"],
             ),
         ),
     )
@@ -135,7 +138,7 @@ def test_delegation_join_validate_accepts_packet_compliant_result(tmp_path: Path
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["BUILD-HANDBOOK.md"],
+                paths_read=[".specify/project-cognition/status.json"],
             ),
         ),
     )

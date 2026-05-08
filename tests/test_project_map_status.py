@@ -17,8 +17,30 @@ def _load_module():
     return module
 
 
+def _write_cognition_baseline(project_root: Path, *, graph_ready: bool = True) -> None:
+    cognition_dir = project_root / ".specify" / "project-cognition"
+    (cognition_dir / "graph").mkdir(parents=True, exist_ok=True)
+    (cognition_dir / "slices").mkdir(parents=True, exist_ok=True)
+    (cognition_dir / "status.json").write_text(
+        (
+            '{"version": 1, "graph_ready": true, "baseline_state": "ready"}\n'
+            if graph_ready
+            else '{"version": 1, "graph_ready": false, "baseline_state": "missing"}\n'
+        ),
+        encoding="utf-8",
+    )
+    for relative in ("graph/nodes.json", "graph/edges.json", "graph/claims.json", "graph/conflicts.json"):
+        (cognition_dir / relative).write_text('{"items": []}\n', encoding="utf-8")
+    (cognition_dir / "graph" / "nodes.json").write_text('{"nodes": []}\n', encoding="utf-8")
+    (cognition_dir / "graph" / "edges.json").write_text('{"edges": []}\n', encoding="utf-8")
+    (cognition_dir / "graph" / "claims.json").write_text('{"claims": []}\n', encoding="utf-8")
+    (cognition_dir / "graph" / "conflicts.json").write_text('{"conflicts": []}\n', encoding="utf-8")
+    (cognition_dir / "slices" / "change.json").write_text('{"slice": {"slice_id": "change"}}\n', encoding="utf-8")
+
+
 def test_project_map_status_round_trip(tmp_path):
     mod = _load_module()
+    _write_cognition_baseline(tmp_path)
 
     status = mod.ProjectMapStatus(
         version=2,
@@ -57,14 +79,18 @@ def test_missing_canonical_project_map_paths_lists_required_outputs(tmp_path):
 
     normalized = [str(path).replace("\\", "/") for path in missing]
     assert normalized == [
-        f"{tmp_path.as_posix()}/DEBUG-HANDBOOK.md",
-        f"{tmp_path.as_posix()}/BUILD-HANDBOOK.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/index/status.json",
+        f"{tmp_path.as_posix()}/.specify/project-cognition/status.json",
+        f"{tmp_path.as_posix()}/.specify/project-cognition/graph/nodes.json",
+        f"{tmp_path.as_posix()}/.specify/project-cognition/graph/edges.json",
+        f"{tmp_path.as_posix()}/.specify/project-cognition/graph/claims.json",
+        f"{tmp_path.as_posix()}/.specify/project-cognition/graph/conflicts.json",
+        f"{tmp_path.as_posix()}/.specify/project-cognition/slices",
     ]
 
 
 def test_mark_project_map_dirty_appends_reason_once(tmp_path):
     mod = _load_module()
+    _write_cognition_baseline(tmp_path)
 
     mod.mark_project_map_refreshed(
         tmp_path,
@@ -93,6 +119,7 @@ def test_mark_project_map_dirty_appends_reason_once(tmp_path):
 
 def test_project_map_status_round_trip_preserves_dirty_origin_metadata(tmp_path):
     mod = _load_module()
+    _write_cognition_baseline(tmp_path)
 
     status = mod.ProjectMapStatus(
         version=2,
@@ -118,6 +145,7 @@ def test_project_map_status_round_trip_preserves_dirty_origin_metadata(tmp_path)
 
 def test_project_map_status_round_trip_preserves_dirty_scope_paths(tmp_path):
     mod = _load_module()
+    _write_cognition_baseline(tmp_path)
 
     status = mod.ProjectMapStatus(
         version=2,
@@ -173,7 +201,7 @@ def test_assess_project_map_freshness_reports_missing_status(tmp_path):
     )
 
     assert result["freshness"] == "missing"
-    assert result["reasons"] == ["project-map status missing"]
+    assert result["reasons"] == ["Run /sp-map-scan, then /sp-map-build to create the initial cognition baseline."]
 
 
 def test_complete_project_map_refresh_uses_map_codebase_reason(tmp_path):
@@ -236,6 +264,7 @@ def test_mark_project_map_refreshed_accepts_partial_topic_scope(tmp_path):
 
 def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
     mod = _load_module()
+    _write_cognition_baseline(tmp_path)
 
     mod.mark_project_map_refreshed(
         tmp_path,
@@ -265,12 +294,18 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
     )
 
     assert stale["freshness"] == "stale"
-    assert stale["reasons"] == ["high-impact project-map change: src/router/index.ts"]
+    assert stale["reasons"] == [
+        "high-impact project cognition input changed: src/router/index.ts",
+        "Use /sp-map-update when the graph runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
+    ]
     assert stale["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
     assert stale["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert stale["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
     assert maybe["freshness"] == "possibly_stale"
-    assert maybe["reasons"] == ["codebase surface changed since last map: src/feature/local_fix.py"]
+    assert maybe["reasons"] == [
+        "codebase surface changed since last cognition baseline: src/feature/local_fix.py",
+        "Use /sp-map-update when the graph runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
+    ]
     assert maybe["must_refresh_topics"] == ["STRUCTURE.md"]
     assert maybe["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert maybe["suggested_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]
@@ -283,6 +318,7 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
 
 def test_assess_project_map_freshness_ignores_reference_only_project_map_changes(tmp_path):
     mod = _load_module()
+    _write_cognition_baseline(tmp_path)
 
     mod.mark_project_map_refreshed(
         tmp_path,
@@ -329,6 +365,7 @@ def test_classify_changed_path_keeps_memory_and_template_truth_surfaces_live():
 
 def test_assess_project_map_freshness_downgrades_to_review_only_when_partial_refresh_already_covers_topics(tmp_path):
     mod = _load_module()
+    _write_cognition_baseline(tmp_path)
 
     mod.mark_project_map_refreshed(
         tmp_path,
@@ -353,7 +390,10 @@ def test_assess_project_map_freshness_downgrades_to_review_only_when_partial_ref
     assert result["must_refresh_topics"] == []
     assert result["review_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]
     assert result["suggested_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]
-    assert result["reasons"] == ["covered topic changed since last partial map: src/feature/local_fix.py"]
+    assert result["reasons"] == [
+        "covered topic changed since last partial cognition refresh: src/feature/local_fix.py",
+        "Use /sp-map-update when the graph runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
+    ]
 
 
 def test_classify_changed_path_matches_shell_contract():
@@ -431,6 +471,7 @@ def test_refresh_plan_for_changed_path_splits_must_refresh_from_review():
 
 def test_inspect_project_map_freshness_reads_git_worktree(tmp_path):
     mod = _load_module()
+    _write_cognition_baseline(tmp_path)
 
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
@@ -459,7 +500,7 @@ def test_inspect_project_map_freshness_reads_git_worktree(tmp_path):
 
     assert result["freshness"] == "stale"
     assert "src/api/routes.ts" in result["changed_files"]
-    assert any("high-impact project-map change: src/api/routes.ts" == reason for reason in result["reasons"])
+    assert any("high-impact project cognition input changed: src/api/routes.ts" == reason for reason in result["reasons"])
     assert result["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
     assert result["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert result["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]

@@ -12,6 +12,21 @@ def _create_project(tmp_path: Path) -> Path:
     return project
 
 
+def _write_cognition_baseline(project: Path) -> None:
+    cognition_dir = project / ".specify" / "project-cognition"
+    (cognition_dir / "graph").mkdir(parents=True, exist_ok=True)
+    (cognition_dir / "slices").mkdir(parents=True, exist_ok=True)
+    (cognition_dir / "status.json").write_text(
+        '{"version": 1, "graph_ready": true, "baseline_state": "ready"}\n',
+        encoding="utf-8",
+    )
+    (cognition_dir / "graph" / "nodes.json").write_text('{"nodes": []}\n', encoding="utf-8")
+    (cognition_dir / "graph" / "edges.json").write_text('{"edges": []}\n', encoding="utf-8")
+    (cognition_dir / "graph" / "claims.json").write_text('{"claims": []}\n', encoding="utf-8")
+    (cognition_dir / "graph" / "conflicts.json").write_text('{"conflicts": []}\n', encoding="utf-8")
+    (cognition_dir / "slices" / "change.json").write_text('{"slice": {"slice_id": "change"}}\n', encoding="utf-8")
+
+
 def _write_workflow_state(
     feature_dir: Path,
     *,
@@ -145,11 +160,12 @@ def test_preflight_warns_when_project_map_status_is_missing_for_brownfield_work(
 
     assert result.status == "warn"
     assert result.severity == "warning"
-    assert any("project-map" in message for message in result.warnings)
+    assert any("cognition" in message.lower() for message in result.warnings)
 
 
 def test_preflight_warns_for_same_feature_implement_resume_when_dirty_origin_matches(tmp_path: Path):
     project = _create_project(tmp_path)
+    _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
     _write_workflow_state(
         feature_dir,
@@ -178,11 +194,12 @@ def test_preflight_warns_for_same_feature_implement_resume_when_dirty_origin_mat
     )
 
     assert result.status == "warn"
-    assert any("project-map" in message.lower() for message in result.warnings)
+    assert any("resume may continue" in message.lower() or "shared_surface_changed" in message for message in result.warnings)
 
 
 def test_preflight_blocks_same_feature_implement_when_lane_id_differs(tmp_path: Path):
     project = _create_project(tmp_path)
+    _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
     _write_workflow_state(
         feature_dir,
@@ -211,11 +228,12 @@ def test_preflight_blocks_same_feature_implement_when_lane_id_differs(tmp_path: 
     )
 
     assert result.status == "blocked"
-    assert any("project-map" in message.lower() or "shared_surface_changed" in message for message in result.errors)
+    assert any("cognition" in message.lower() or "shared_surface_changed" in message for message in result.errors)
 
 
 def test_preflight_blocks_same_lane_implement_when_dirty_scope_does_not_overlap(tmp_path: Path):
     project = _create_project(tmp_path)
+    _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
     _write_workflow_state(
         feature_dir,
@@ -235,12 +253,12 @@ def test_preflight_blocks_same_lane_implement_when_dirty_scope_does_not_overlap(
                 "objective": "demo",
                 "scope": {
                     "write_scope": ["src/feature/current.py"],
-                    "read_scope": ["BUILD-HANDBOOK.md"],
+                    "read_scope": [".specify/project-cognition/status.json"],
                 },
                 "context_bundle": [
                     {
-                        "path": "BUILD-HANDBOOK.md",
-                        "kind": "runtime_handbook",
+                        "path": ".specify/project-cognition/status.json",
+                        "kind": "project_map",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,
@@ -291,11 +309,12 @@ def test_preflight_blocks_same_lane_implement_when_dirty_scope_does_not_overlap(
     )
 
     assert result.status == "blocked"
-    assert any("scope" in message.lower() or "project-map" in message.lower() for message in result.errors)
+    assert any("scope" in message.lower() or "cognition" in message.lower() for message in result.errors)
 
 
 def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path: Path):
     project = _create_project(tmp_path)
+    _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
     _write_workflow_state(
         feature_dir,
@@ -315,12 +334,12 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path:
                 "objective": "demo",
                 "scope": {
                     "write_scope": ["src/specify_cli/hooks/preflight.py"],
-                    "read_scope": ["BUILD-HANDBOOK.md"],
+                    "read_scope": [".specify/project-cognition/status.json"],
                 },
                 "context_bundle": [
                     {
-                        "path": "BUILD-HANDBOOK.md",
-                        "kind": "runtime_handbook",
+                        "path": ".specify/project-cognition/status.json",
+                        "kind": "project_map",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,
@@ -371,11 +390,12 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path:
     )
 
     assert result.status == "warn"
-    assert any("scope" in message.lower() or "project-map" in message.lower() for message in result.warnings)
+    assert any("scope" in message.lower() or "cognition" in message.lower() for message in result.warnings)
 
 
 def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_family(tmp_path: Path):
     project = _create_project(tmp_path)
+    _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
     _write_workflow_state(
         feature_dir,
@@ -395,12 +415,12 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_f
                 "objective": "demo",
                 "scope": {
                     "write_scope": ["src/feature/current.py"],
-                    "read_scope": ["BUILD-HANDBOOK.md"],
+                    "read_scope": [".specify/project-cognition/status.json"],
                 },
                 "context_bundle": [
                     {
-                        "path": "BUILD-HANDBOOK.md",
-                        "kind": "runtime_handbook",
+                        "path": ".specify/project-cognition/status.json",
+                        "kind": "project_map",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,
@@ -451,11 +471,12 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_f
     )
 
     assert result.status == "warn"
-    assert any("scope" in message.lower() or "project-map" in message.lower() for message in result.warnings)
+    assert any("scope" in message.lower() or "cognition" in message.lower() for message in result.warnings)
 
 
 def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surface_family(tmp_path: Path):
     project = _create_project(tmp_path)
+    _write_cognition_baseline(project)
     feature_dir = project / "specs" / "001-demo"
     _write_workflow_state(
         feature_dir,
@@ -475,12 +496,12 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surfac
                 "objective": "demo",
                 "scope": {
                     "write_scope": ["src/specify_cli/hooks/preflight.py"],
-                    "read_scope": ["BUILD-HANDBOOK.md"],
+                    "read_scope": [".specify/project-cognition/status.json"],
                 },
                 "context_bundle": [
                     {
-                        "path": "BUILD-HANDBOOK.md",
-                        "kind": "runtime_handbook",
+                        "path": ".specify/project-cognition/status.json",
+                        "kind": "project_map",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,
@@ -531,9 +552,10 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surfac
     )
 
     assert result.status == "warn"
-    assert any("scope" in message.lower() or "project-map" in message.lower() for message in result.warnings)
+    assert any("scope" in message.lower() or "cognition" in message.lower() for message in result.warnings)
 def test_preflight_blocks_cross_feature_implement_when_dirty_origin_differs(tmp_path: Path):
     project = _create_project(tmp_path)
+    _write_cognition_baseline(project)
     feature_dir = project / "specs" / "002-other"
     _write_workflow_state(
         feature_dir,
@@ -562,11 +584,12 @@ def test_preflight_blocks_cross_feature_implement_when_dirty_origin_differs(tmp_
     )
 
     assert result.status == "blocked"
-    assert any("project-map" in message.lower() or "shared_surface_changed" in message for message in result.errors)
+    assert any("cognition" in message.lower() or "shared_surface_changed" in message for message in result.errors)
 
 
 def test_preflight_blocks_specify_when_dirty_origin_exists(tmp_path: Path):
     project = _create_project(tmp_path)
+    _write_cognition_baseline(project)
     feature_dir = project / "specs" / "003-new"
     _write_workflow_state(
         feature_dir,
@@ -594,7 +617,7 @@ def test_preflight_blocks_specify_when_dirty_origin_exists(tmp_path: Path):
     )
 
     assert result.status == "blocked"
-    assert any("workflow_contract_changed" in message or "project-map" in message.lower() for message in result.errors)
+    assert any("workflow_contract_changed" in message or "cognition" in message.lower() for message in result.errors)
 
 
 def test_preflight_blocks_integrate_when_lane_is_not_ready(tmp_path: Path):

@@ -1,7 +1,8 @@
-"""Project-map freshness status helpers.
+"""Project cognition freshness status helpers.
 
-This module centralizes the status-file contract used by the handbook/project-map
-freshness helpers so Python call sites can reason about the same state without
+This module centralizes the freshness contract that bridges the legacy
+project-map status metadata with the graph-native project cognition baseline.
+Python call sites use it to reason about graph readiness and staleness without
 shelling out.
 
 This module now supports atlas hard-gate routing and minimum read-set checks in
@@ -16,6 +17,15 @@ from pathlib import Path
 import subprocess
 from typing import Any
 
+from specify_cli.cognition import (
+    cognition_status_path,
+    graph_claims_path,
+    graph_conflicts_path,
+    graph_edges_path,
+    graph_nodes_path,
+    graph_slices_dir,
+    read_cognition_status,
+)
 from specify_cli.scan_freshness import (
     collect_git_changed_files,
     read_scan_status,
@@ -97,6 +107,7 @@ SCAN_SCOPE_HIGH_IMPACT_TOP_LEVEL_FILES = {
 }
 
 SCAN_SCOPE_REFERENCE_ONLY_PREFIXES = (
+    ".specify/project-cognition/",
     ".specify/project-map/",
     ".specify/prd-runs/",
     ".specify/testing/worker-results/",
@@ -113,6 +124,14 @@ SCAN_SCOPE_HARD_EXCLUDED_PREFIXES = (
     ".ruff_cache/",
     "dist/",
     "build/",
+)
+
+MISSING_COGNITION_BASELINE_GUIDANCE = (
+    "Run /sp-map-scan, then /sp-map-build to create the initial cognition baseline."
+)
+STALE_COGNITION_BASELINE_GUIDANCE = (
+    "Use /sp-map-update when the graph runtime is stale or too weak for the touched area. "
+    "If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build."
 )
 
 
@@ -178,25 +197,23 @@ def legacy_project_map_status_path(project_root: Path) -> Path:
     return project_map_dir(project_root) / STATUS_FILENAME
 
 
-def canonical_runtime_handbook_paths(project_root: Path) -> list[Path]:
+def canonical_cognition_runtime_paths(project_root: Path) -> list[Path]:
     return [
-        project_root / "DEBUG-HANDBOOK.md",
-        project_root / "BUILD-HANDBOOK.md",
+        cognition_status_path(project_root),
+        graph_nodes_path(project_root),
+        graph_edges_path(project_root),
+        graph_claims_path(project_root),
+        graph_conflicts_path(project_root),
+        graph_slices_dir(project_root),
     ]
 
 
 def canonical_project_map_paths(project_root: Path) -> list[Path]:
-    return [
-        *canonical_runtime_handbook_paths(project_root),
-        project_map_status_path(project_root),
-    ]
+    return canonical_cognition_runtime_paths(project_root)
 
 
 def atlas_minimum_read_set(project_root: Path) -> list[Path]:
-    return [
-        *canonical_runtime_handbook_paths(project_root),
-        project_map_status_path(project_root),
-    ]
+    return canonical_cognition_runtime_paths(project_root)
 
 
 def atlas_root_topic_path(project_root: Path, topic_filename: str) -> Path:
@@ -993,22 +1010,65 @@ def assess_project_map_freshness(
     has_git: bool,
 ) -> dict[str, Any]:
     status = read_project_map_status(project_root)
+    cognition_status = read_cognition_status(project_root)
+    missing_runtime_paths = missing_canonical_project_map_paths(project_root)
+
+    if missing_runtime_paths:
+        return {
+            "freshness": "missing",
+            "status_path": str(project_map_status_path(project_root)),
+            "head_commit": head_commit,
+            "last_mapped_commit": status.last_mapped_commit,
+            "manual_force_stale": False,
+            "manual_force_stale_reasons": [],
+            "dirty": False,
+            "dirty_reasons": [],
+            "reasons": [MISSING_COGNITION_BASELINE_GUIDANCE],
+            "changed_files": [],
+            "must_refresh_topics": [],
+            "review_topics": [],
+            "suggested_topics": [],
+            "missing_runtime_paths": [str(path) for path in missing_runtime_paths],
+            "global": status.to_dict().get("global", {}),
+            "modules": dict(status.modules or {}),
+        }
+
+    if not cognition_status.graph_ready:
+        return {
+            "freshness": "missing",
+            "status_path": str(project_map_status_path(project_root)),
+            "head_commit": head_commit,
+            "last_mapped_commit": status.last_mapped_commit,
+            "manual_force_stale": False,
+            "manual_force_stale_reasons": [],
+            "dirty": False,
+            "dirty_reasons": [],
+            "reasons": [MISSING_COGNITION_BASELINE_GUIDANCE],
+            "changed_files": [],
+            "must_refresh_topics": [],
+            "review_topics": [],
+            "suggested_topics": [],
+            "missing_runtime_paths": [],
+            "global": status.to_dict().get("global", {}),
+            "modules": dict(status.modules or {}),
+        }
 
     if not project_map_status_path(project_root).exists() and not legacy_project_map_status_path(project_root).exists():
         return {
             "freshness": "missing",
             "status_path": str(project_map_status_path(project_root)),
             "head_commit": head_commit,
-            "last_mapped_commit": "",
+            "last_mapped_commit": status.last_mapped_commit,
             "manual_force_stale": False,
             "manual_force_stale_reasons": [],
             "dirty": False,
             "dirty_reasons": [],
-            "reasons": ["project-map status missing"],
+            "reasons": ["project cognition freshness metadata is missing; re-establish the baseline before brownfield work resumes."],
             "changed_files": [],
             "must_refresh_topics": [],
             "review_topics": [],
             "suggested_topics": [],
+            "missing_runtime_paths": [],
             "global": status.to_dict().get("global", {}),
             "modules": dict(status.modules or {}),
         }
@@ -1033,6 +1093,7 @@ def assess_project_map_freshness(
             "must_refresh_topics": dirty_topic_plan["must_refresh_topics"],
             "review_topics": dirty_topic_plan["review_topics"],
             "suggested_topics": [topic for topic in TOPIC_FILES if topic in (*dirty_topic_plan["must_refresh_topics"], *dirty_topic_plan["review_topics"])],
+            "missing_runtime_paths": [],
             "global": status.to_dict().get("global", {}),
             "modules": dict(status.modules or {}),
         }
@@ -1047,11 +1108,12 @@ def assess_project_map_freshness(
             "manual_force_stale_reasons": [],
             "dirty": False,
             "dirty_reasons": [],
-            "reasons": ["git baseline unavailable for project-map freshness"],
+            "reasons": ["git baseline unavailable for project cognition freshness"],
             "changed_files": [],
             "must_refresh_topics": [],
             "review_topics": [],
             "suggested_topics": [],
+            "missing_runtime_paths": [],
             "global": status.to_dict().get("global", {}),
             "modules": dict(status.modules or {}),
         }
@@ -1087,16 +1149,18 @@ def assess_project_map_freshness(
                 suggested_topics.append(topic)
         if classification == "stale":
             worst = "stale"
-            reasons.append(f"high-impact project-map change: {changed}")
+            reasons.append(f"high-impact project cognition input changed: {changed}")
         elif classification == "possibly_stale" and worst != "stale":
             worst = "possibly_stale"
             if covered_by_last_refresh:
-                reasons.append(f"covered topic changed since last partial map: {changed}")
+                reasons.append(f"covered topic changed since last partial cognition refresh: {changed}")
             else:
-                reasons.append(f"codebase surface changed since last map: {changed}")
+                reasons.append(f"codebase surface changed since last cognition baseline: {changed}")
 
     if worst == "fresh":
         reasons = []
+    elif worst in {"stale", "possibly_stale"}:
+        reasons.append(STALE_COGNITION_BASELINE_GUIDANCE)
 
     return {
         "freshness": worst,
@@ -1116,6 +1180,7 @@ def assess_project_map_freshness(
         "must_refresh_topics": must_refresh_topics,
         "review_topics": review_topics,
         "suggested_topics": suggested_topics,
+        "missing_runtime_paths": [],
         "global": status.to_dict().get("global", {}),
         "modules": dict(status.modules or {}),
     }

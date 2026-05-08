@@ -95,18 +95,25 @@ def _context_bundle_from_project_docs(
 ) -> list[ContextBundleItem]:
     specs: list[tuple[str, str, str, list[str], str]] = [
         (
-            "DEBUG-HANDBOOK.md",
-            "runtime_handbook",
-            "Workflow-specific runtime handbook for debug investigations.",
+            ".specify/project-cognition/status.json",
+            "project_map",
+            "Project cognition runtime status baseline for graph readiness, stale paths, and refresh metadata.",
             ["workflow_boundary", "architecture_boundary", "validation"],
-            "debug runtime handbook is the primary atlas surface for debug work",
+            "project cognition status is the primary brownfield baseline before delegated execution",
         ),
         (
-            "BUILD-HANDBOOK.md",
-            "runtime_handbook",
-            "Workflow-specific runtime handbook for planning, implementation, and test-side work.",
-            ["workflow_boundary", "architecture_boundary", "validation", "forbidden_drift"],
-            "build runtime handbook is the primary atlas surface for non-debug work",
+            ".specify/project-cognition/slices/change.json",
+            "task_reference",
+            "Project cognition change slice for touched-area routing and localized brownfield context.",
+            ["workflow_boundary", "architecture_boundary", "forbidden_drift"],
+            "change slice grounds the touched-area execution context when present",
+        ),
+        (
+            ".specify/project-cognition/slices/debug.json",
+            "task_reference",
+            "Project cognition debug slice for investigation-oriented runtime context when present.",
+            ["workflow_boundary", "architecture_boundary", "validation"],
+            "debug slice grounds investigation context when present",
         ),
         (
             ".specify/testing/TESTING_CONTRACT.md",
