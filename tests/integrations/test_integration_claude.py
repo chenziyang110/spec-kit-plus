@@ -1816,9 +1816,9 @@ class TestClaudeIntegration:
         assert SPEC_KIT_BLOCK_START in content
         assert "[AGENT]" in content
         assert "specify -> plan" in content
-        assert "DEBUG-HANDBOOK.md" in content
-        assert "BUILD-HANDBOOK.md" in content
-        assert "two workflow handbooks" in content
+        assert ".specify/project-cognition/status.json" in content
+        assert ".specify/project-cognition/" in content
+        assert "project cognition" in content.lower()
         assert ".specify/memory/project-rules.md" in content
         assert "Shared project memory is always available" in content
         assert "not just when a `sp-*` workflow is active" in content
@@ -1836,10 +1836,11 @@ class TestClaudeIntegration:
         assert "plan.md" in content
         assert "tasks.md" in content
         assert ".specify/testing/TESTING_CONTRACT.md" in content
-        assert ".specify/project-map/index/status.json" in content
+        assert ".specify/project-cognition/status.json" in content
         assert "## Map Maintenance" in content
-        assert "refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`" in content
-        assert "git-baseline freshness" in content.lower()
+        assert "sp-map-update" in content
+        assert "DEBUG-HANDBOOK.md" not in content
+        assert "BUILD-HANDBOOK.md" not in content
         assert "complete-refresh" in content
         assert "manual override/fallback" in content.lower()
 
@@ -1889,8 +1890,10 @@ class TestClaudeIntegration:
         content = claude_file.read_text(encoding="utf-8")
         assert content.startswith(initial)
         assert SPEC_KIT_BLOCK_START in content
-        assert "DEBUG-HANDBOOK.md" in content
-        assert "BUILD-HANDBOOK.md" in content
+        assert ".specify/project-cognition/status.json" in content
+        assert ".specify/project-cognition/" in content
+        assert "DEBUG-HANDBOOK.md" not in content
+        assert "BUILD-HANDBOOK.md" not in content
         assert "## Workflow Routing" in content
         assert "## Artifact Priority" in content
         assert "## Map Maintenance" in content

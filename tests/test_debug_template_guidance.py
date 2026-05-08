@@ -52,15 +52,18 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert ".planning/learnings/candidates.md" in content
     assert "learning start --command debug --format json" in content
     assert "manual `capture-learning` hook surface" in content
-    assert "debug handbook gate" in content
-    assert "pass the handbook gate before" in content
-    assert "debug-handbook.md" in content
-    assert "debug-workflow-contract" in content
-    assert "symptom-to-surface-routing" in content
-    assert "system-topology-for-debug" in content
-    assert "investigation-playbooks" in content
-    assert "verification-and-exit" in content
-    assert "support-only project-map artifacts" in content
+    assert "debug cognition gate" in content
+    assert "pass the cognition gate before" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/debug.json" in content
+    assert ".specify/project-cognition/graph/claims.json" in content
+    assert ".specify/project-cognition/graph/conflicts.json" in content
+    assert "debug-handbook.md" not in content
+    assert "debug-workflow-contract" not in content
+    assert "symptom-to-surface-routing" not in content
+    assert "system-topology-for-debug" not in content
+    assert "investigation-playbooks" not in content
+    assert "verification-and-exit" not in content
     assert "atlas.entry" not in content
     assert "atlas.index.status" not in content
     assert "atlas.index.atlas" not in content
@@ -72,16 +75,15 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "derived_issue" in content
     assert "unrelated_issue" in content
     assert "contrarian candidate" in content
-    assert "project-map freshness helper" in content
-    assert "freshness is `missing` or `stale`" in content
-    assert "freshness is `possibly_stale`" in content
-    assert "must_refresh_topics" in content
-    assert "review_topics" in content
+    assert "cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content
+    assert "cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`" in content
+    assert "cognition freshness is `missing` or `stale`" not in content
+    assert "cognition freshness is `possibly_stale`" in content
+    assert "{{invoke:map-update}}" in content
     assert "truth ownership" in content
-    assert "treat `debug-handbook.md` as the only primary runtime atlas read surface for `sp-debug`." in content
-    assert "do not route through support-only project-map artifacts before beginning repository evidence work." in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues" in content
-    assert "task-relevant coverage is insufficient" in content
+    assert "use the debug cognition slice to identify likely truth-owning layers" in content
+    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues" in content
+    assert "task-relevant cognition coverage is insufficient" in content
     assert "ownership or placement guidance" in content
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
     assert "capability-aware investigation" in content
@@ -135,12 +137,12 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "dispatches bounded evidence-gathering subagents" in content
     assert "durable team workflow" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before moving to `awaiting_human_verify` or `resolved`" in content
-    assert "git-baseline freshness in `.specify/project-map/index/status.json` as the truth source" in content
+    assert "refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before moving to `awaiting_human_verify` or `resolved`" in content
+    assert "project cognition status and the debug slice as the truth source" in content
+    assert ".specify/project-map/index/status.json" not in content
     assert "complete-refresh" in content
     assert "successful-refresh finalizer" in content
-    assert "if a full refresh can be completed now" in content
-    assert "otherwise use" in content
+    assert "if that refresh cannot be completed now" in content
     assert "manual override/fallback" in content
     assert "highest-signal" in content
     assert "write a failing automated repro test before changing production code" in content

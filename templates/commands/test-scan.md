@@ -62,12 +62,12 @@ Use `execution_surface: native-subagents`.
 
 1. **Establish repository context**
    - Confirm the repository root and treat this workflow as project-level rather than feature-level.
-   - Check whether `.specify/project-map/index/status.json` exists.
-   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - [AGENT] If freshness is `possibly_stale`, inspect changed paths, reasons, `must_refresh_topics`, and `review_topics`. If testing, workflow, integration, or architecture topics are stale, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - [AGENT] If `BUILD-HANDBOOK.md` is missing, stale, or insufficient for the touched area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - [AGENT] Read `BUILD-HANDBOOK.md`.
+   - Read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/change.json` before broad testing-system scan work.
+   - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
+   - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before continuing.
+   - [AGENT] If cognition freshness is `possibly_stale`, inspect changed paths, reasons, and change-slice coverage. If testing, workflow, integration, or architecture topics are stale for the scan area, use `{{invoke:map-update}}` when localized; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains.
+   - [AGENT] If the project cognition status or change slice is insufficient for the touched area, stop and tell the user to refresh through `{{invoke:map-update}}` when localized, or rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - Read `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present.
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.
 
 2. **Run the canonical inventory seed**
@@ -137,7 +137,12 @@ Use `execution_surface: native-subagents`.
        "lane_id": "scan-python-cli-core",
        "mode": "read_only",
        "scope": ["src/specify_cli", "tests"],
-       "read_refs": ["BUILD-HANDBOOK.md"],
+       "read_refs": [
+         ".specify/project-cognition/status.json",
+         ".specify/project-cognition/slices/change.json",
+         ".specify/testing/TESTING_CONTRACT.md",
+         ".specify/testing/TESTING_PLAYBOOK.md"
+       ],
        "required_outputs": [
          "module_boundaries",
          "truth_owning_files",

@@ -44,6 +44,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "test-build": "Optional wave, lane, or module filter for building from the existing test scan",
     "map-scan": "Optional subsystem, directory, or workflow area to emphasize while scanning",
     "map-build": "Optional scan package or atlas area to emphasize while building the project map",
+    "map-update": "Optional changed path, subsystem, or stale cognition area to refresh incrementally",
     "taskstoissues": "Optional filter or label for GitHub issues",
 }
 

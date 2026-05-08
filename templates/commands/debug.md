@@ -131,35 +131,32 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**This command tier: light.** Pass the handbook gate before investigation moves
-into reproduction, logs, tests, or source-code reads.
+**This command tier: light.** Pass the cognition gate before investigation
+moves into reproduction, logs, tests, or source-code reads.
 
-## Debug Handbook Gate
+## Debug Cognition Gate
 
 Before observer framing moves into reproduction, logs, tests, or source-code
-reads, pass the handbook gate by reading:
+reads, pass the cognition gate by reading:
 
-1. `DEBUG-HANDBOOK.md`
-2. `DEBUG-WORKFLOW-CONTRACT`
-3. `SYMPTOM-TO-SURFACE-ROUTING`
-4. `SYSTEM-TOPOLOGY-FOR-DEBUG`
-5. `INVESTIGATION-PLAYBOOKS`
-6. `VERIFICATION-AND-EXIT`
+1. `.specify/project-cognition/status.json`
+2. `.specify/project-cognition/slices/debug.json`
+3. `.specify/project-cognition/graph/claims.json` when truth ownership is still ambiguous
+4. `.specify/project-cognition/graph/conflicts.json` when competing truths or stale assumptions exist
 
 ## Investigation Protocol
 
 ### Intake Inputs
 - Read `.planning/debug/[slug].md` before each resumed action; treat it as the investigation source of truth.
-- Check whether `.specify/project-map/index/status.json` exists.
-- If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-- [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.
-- [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the failing area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues. If only `review_topics` are non-empty, review those topical files before widening the investigation.
-- [AGENT] If `DEBUG-HANDBOOK.md` is missing, stale, or insufficient for the failing area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.
-- Treat `DEBUG-HANDBOOK.md` as the only primary runtime atlas read surface for `sp-debug`.
-- Do not route through support-only project-map artifacts before beginning repository evidence work.
-- Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-- [AGENT] If task-relevant coverage is insufficient for the failing area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.
-- Use `DEBUG-HANDBOOK.md` to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
+- Read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/debug.json` before trusting existing brownfield routing assumptions.
+- If truth ownership is ambiguous after the debug slice, read `.specify/project-cognition/graph/claims.json`.
+- If competing truths, stale assumptions, or contradiction signals exist, read `.specify/project-cognition/graph/conflicts.json`.
+- [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues.
+- [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before root-cause analysis continues.
+- [AGENT] If cognition freshness is `possibly_stale`, inspect the changed paths, reasons, and slice coverage. Use `{{invoke:map-update}}` when the failing area is localized; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains.
+- Treat task-relevant cognition coverage as insufficient when the failing area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
+- [AGENT] If task-relevant cognition coverage is insufficient for the failing area, stop and tell the user to refresh through `{{invoke:map-update}}` when localized, or rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.
+- Use the debug cognition slice to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
 - Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
 - Read `.specify/memory/project-learnings.md` if present before forming or validating a fix.
@@ -450,9 +447,9 @@ The session file must always make it clear:
 - If verification fails, return to `investigating` with updated evidence. Do not keep layering fixes without updating the hypothesis.
 - If automated verification or human verification fails repeatedly without producing a stronger causal explanation, stop the local fix loop and create or refresh `.planning/debug/[slug].research.md` before another code change.
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
-- Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for the handbook/project-map atlas.
-- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before moving to `awaiting_human_verify` or `resolved` so `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
-- If a full refresh can be completed now, do it; otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before later brownfield work proceeds.
+- Treat project cognition status and the debug slice as the truth source for brownfield debug runtime coverage.
+- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before moving to `awaiting_human_verify` or `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
+- If that refresh cannot be completed now, use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and tell the user to refresh the project cognition runtime before later brownfield work proceeds.
 - [AGENT] Resolved debug sessions should auto-capture learning candidates from the persisted debug session state.
 - [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `{{specify-subcmd:learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json}}`.
 - [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface.

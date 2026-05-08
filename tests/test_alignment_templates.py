@@ -787,9 +787,12 @@ def test_explain_template_documents_conservative_routing_contract():
     assert "primary artifact reading" in lowered
     assert "supporting artifact cross-check" in lowered
     assert "before rendering the final explanation" in lowered
-    assert "handbook, `project-handbook.md`, `project-map`, `architecture`, `structure`, `conventions`, `integrations`, `workflows`, `testing`, or `operations`" in lowered
-    assert "explain the architecture or atlas artifact directly instead of forcing a planning-stage fallback" in lowered
-    assert "verified facts, inferred relationships, important unknowns, and the next relevant atlas view" in lowered
+    assert "project cognition, touched-area state, or brownfield runtime truth" in lowered
+    assert ".specify/project-cognition/status.json" in content
+    assert "smallest matching slice" in lowered
+    assert "handbook or project-map artifacts only when the user explicitly requests the compatibility/export surfaces themselves" in lowered
+    assert "explain the architecture, cognition, or compatibility/export atlas artifact directly instead of forcing a planning-stage fallback" in lowered
+    assert "verified facts, inferred relationships, important unknowns, and the next relevant cognition slice or export view" in lowered
     assert "specify team" not in lowered
 
 
@@ -1539,7 +1542,11 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     lowered_gate = shared_gate.lower()
     lowered_shim = navigation_shim.lower()
 
-    assert "DEBUG-HANDBOOK.md" in debug_template
+    assert "DEBUG-HANDBOOK.md" not in debug_template
+    assert ".specify/project-cognition/status.json" in debug_template
+    assert ".specify/project-cognition/slices/debug.json" in debug_template
+    assert ".specify/project-cognition/graph/claims.json" in debug_template
+    assert ".specify/project-cognition/graph/conflicts.json" in debug_template
     assert "BUILD-HANDBOOK.md" not in build_template
     assert ".specify/project-cognition/status.json" in build_template
     assert ".specify/project-cognition/slices/change.json" in build_template
@@ -1787,7 +1794,6 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         "README.md",
         "docs/quickstart.md",
         "templates/commands/specify.md",
-        "templates/commands/debug.md",
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
         "templates/commands/clarify.md",

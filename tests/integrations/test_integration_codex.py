@@ -35,6 +35,38 @@ class TestCodexIntegration(SkillsIntegrationTests):
         )
         return sorted(files)
 
+    def test_init_bootstrapped_context_file_contains_managed_guidance(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+        import os
+
+        project = tmp_path / f"context-guidance-{self.KEY}"
+        project.mkdir()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = CliRunner().invoke(app, [
+                "init", "--here", "--force", "--ai", self.KEY, "--script", "sh", "--no-git",
+                "--ignore-agent-tools",
+            ], catch_exceptions=False)
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, f"init --ai {self.KEY} failed: {result.output}"
+        content = (project / self.CONTEXT_FILE).read_text(encoding="utf-8")
+        assert "## Active Technologies" in content
+        assert "<!-- SPEC-KIT:BEGIN -->" in content
+        assert "[AGENT]" in content
+        assert "specify -> plan" in content
+        assert ".specify/project-cognition/" in content
+        assert "map-update" in content
+        assert ".specify/memory/project-rules.md" in content
+        assert "## Workflow Routing" in content
+        assert "sp-debug" in content
+        assert "sp-test-scan" in content
+        assert "sp-test-build" in content
+        assert "## Map Maintenance" in content
+
 
 class TestCodexAutoPromote:
     """--ai codex auto-promotes to integration path."""
@@ -248,10 +280,12 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert auto_parallel_idx == -1 or leader_gate_idx < outline_idx < auto_parallel_idx
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
-    assert "build-handbook.md" in content.lower()
-    assert "build-workflow-contract" in content.lower()
-    assert "product-and-capability-map" in content.lower()
-    assert "change-entrypoints" in content.lower()
+    assert ".specify/project-cognition/status.json" in content.lower()
+    assert ".specify/project-cognition/slices/change.json" in content.lower()
+    assert "build-handbook.md" not in content.lower()
+    assert "build-workflow-contract" not in content.lower()
+    assert "product-and-capability-map" not in content.lower()
+    assert "change-entrypoints" not in content.lower()
     assert "first-class implementation context" in content.lower()
     assert "user execution notes" in content.lower()
     assert "resume_decision" in content.lower()
@@ -266,7 +300,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready" in content
     assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
     assert "selects the next executable phase and ready batch" in content
-    assert "tell the user to run `$sp-map-scan`, then `$sp-map-build` before final completion reporting" in content.lower()
+    assert "map-update" in content.lower()
     assert "verification is truthfully green and no explicit blocker prevents completion" in content.lower()
     assert "including unresolved `open_gaps`" in content.lower()
     assert "shared implement template is the primary source of truth" in content
@@ -314,9 +348,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "execution_surface: native-subagents" in content
         assert "spawn_agent" in content
         assert "wait_agent" in content
-        assert "build-handbook.md" in content
-        assert "build-workflow-contract" in content
-        assert "product-and-capability-map" in content
+        assert ".specify/project-cognition/" in content
         assert ".specify/memory/project-rules.md" in content
         assert ".specify/memory/project-learnings.md" in content
         assert ".planning/learnings/candidates.md" in content
@@ -577,10 +609,14 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "codex subagent evidence collection" in content
-    assert "debug-handbook.md" in content
-    assert "debug-workflow-contract" in content
-    assert "symptom-to-surface-routing" in content
-    assert "system-topology-for-debug" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/debug.json" in content
+    assert ".specify/project-cognition/graph/claims.json" in content
+    assert ".specify/project-cognition/graph/conflicts.json" in content
+    assert "debug-handbook.md" not in content
+    assert "debug-workflow-contract" not in content
+    assert "symptom-to-surface-routing" not in content
+    assert "system-topology-for-debug" not in content
     assert "observer framing" in content
     assert "compressed observer framing" in content
     assert "mandatory intake contract" in content
@@ -594,8 +630,8 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "primary suspected loop" in content
     assert "alternative cause candidates" in content
     assert "transition memo" in content
-    assert "if `debug-handbook.md` is missing, stale, or insufficient" in content
-    assert "tell the user to run `$sp-map-scan`, then `$sp-map-build`; wait for that refresh before root-cause analysis continues" in content
+    assert "if cognition freshness is `missing`, stop and tell the user to run `$sp-map-scan`, then `$sp-map-build`" in content
+    assert "if cognition freshness is `stale`, stop and tell the user to use `$sp-map-update`" in content
     assert "truth-owning layers" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
@@ -692,16 +728,18 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
-    assert "build-handbook.md" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert "build-handbook.md" not in content
     assert "shared surfaces" in content
-    assert "runtime handbook gate" in content
+    assert "cognition gate" in content
     assert "≤3 files touched" in content or "at most 3 files" in content or "no more than 3 files" in content
     assert "no dependency changes" in content
     assert "the leader performs the change directly" in content or "leader-direct" in content
     assert "verify" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "tell the user to run `$sp-map-scan`, then `$sp-map-build` before the final report" in content
-    assert "if a full refresh can be completed now" in content
+    assert "map-update" in content
+    assert "map-update" in content
     assert "manual override/fallback" in content.lower()
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
@@ -729,9 +767,11 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
-    assert "build-handbook.md" in content
-    assert "build-workflow-contract" in content
-    assert "product-and-capability-map" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert "build-handbook.md" not in content
+    assert "build-workflow-contract" not in content
+    assert "product-and-capability-map" not in content
     assert "--discuss" in content
     assert "--research" in content
     assert "--validate" in content
@@ -764,7 +804,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "current focus" in content
     assert "next action" in content
     assert "verification is truthfully green and no explicit blocker prevents completion" in content
-    assert "tell the user to run `$sp-map-scan`, then `$sp-map-build` before marking the quick task `resolved`" in content
+    assert "map-update" in content
     assert "resume" in content
     assert "resolved/" in content
     assert "status.md template" in content

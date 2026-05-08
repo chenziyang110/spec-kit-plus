@@ -549,16 +549,21 @@ def test_downstream_testing_state_role_does_not_collapse():
         assert forbidden_phrase not in state_template
 
 
-def test_test_scan_and_build_templates_use_handbook_and_project_map_gates():
+def test_test_scan_and_build_templates_use_project_cognition_gates():
     scan_content = _read("templates/commands/test-scan.md")
     build_content = _read("templates/commands/test-build.md")
 
     for content in (scan_content, build_content):
-        assert "[AGENT] If freshness is `missing` or `stale`, stop and tell the user to run" in content
-        assert "`{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing." in content
-        assert "freshness is `possibly_stale`" in content
-        assert "BUILD-HANDBOOK.md" in content
-        assert "[AGENT] Read `BUILD-HANDBOOK.md`." in content
+        assert ".specify/project-cognition/status.json" in content
+        assert ".specify/project-cognition/slices/change.json" in content
+        assert ".specify/testing/TESTING_CONTRACT.md" in content
+        assert ".specify/testing/TESTING_PLAYBOOK.md" in content
+        assert "[AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content
+        assert "[AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`" in content
+        assert "cognition freshness is `missing` or `stale`" not in content
+        assert "cognition freshness is `possibly_stale`" in content
+        assert '"BUILD-HANDBOOK.md"' not in content
+        assert "[AGENT] Read `BUILD-HANDBOOK.md`." not in content
         assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" not in content
 
 

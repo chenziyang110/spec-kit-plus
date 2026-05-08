@@ -1,6 +1,6 @@
 ---
 name: spec-kit-project-map-gate
-description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require `DEBUG-HANDBOOK.md` or `BUILD-HANDBOOK.md` first, or route to `sp-map-scan -> sp-map-build` when that runtime handbook coverage is missing or stale."
+description: "Use when changing, reviewing, planning against, or debugging an existing Spec Kit Plus codebase. Require project cognition status and the workflow-appropriate slice first, or route to map refresh when cognition coverage is missing or stale."
 origin: spec-kit-plus
 ---
 
@@ -21,10 +21,11 @@ This passive skill is the brownfield hard gate, not the route selection layer.
 Before code edits, investigation, planning against existing code, or architectural
 judgment in an established Spec Kit Plus repository:
 
-- Read `DEBUG-HANDBOOK.md` for `sp-debug`.
-- Read `BUILD-HANDBOOK.md` for other ordinary brownfield workflows.
-- Read the fixed chapter IDs required by the active workflow contract before broader repository evidence gathering.
-- Do not use `PROJECT-HANDBOOK.md`, `.specify/project-map/index/*.json`, `.specify/project-map/root/*.md`, or `.specify/project-map/modules/**` as the primary runtime read path.
+- Read `.specify/project-cognition/status.json` first.
+- Read `.specify/project-cognition/slices/debug.json` for `sp-debug`.
+- Read `.specify/project-cognition/slices/change.json` for other ordinary brownfield workflows.
+- Read targeted graph artifacts, such as `.specify/project-cognition/graph/claims.json` or `.specify/project-cognition/graph/conflicts.json`, only when the active workflow needs ownership or conflict resolution beyond the slice.
+- Treat `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` as compatibility/export surfaces, not the default runtime truth path.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
   when they exist.
 
@@ -35,16 +36,22 @@ judgment in an established Spec Kit Plus repository:
 - Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
 - Feature creation remains `{{invoke:specify}}` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate branch-creation command.
 
-## Missing Or Stale Context
+## Missing Or Stale Cognition
 
-- If the required runtime handbook is missing, stale, or too weak for the touched area, route through the canonical `sp-map-scan -> sp-map-build`
-  workflow detour before continuing. When giving the user an explicit command to
-  type, write `{{invoke:map-scan}} -> {{invoke:map-build}}`.
+- If the project cognition runtime is missing, route through the canonical
+  `sp-map-scan -> sp-map-build` workflow detour before continuing. When giving
+  the user an explicit command to type, write
+  `{{invoke:map-scan}} -> {{invoke:map-build}}`.
+- If the project cognition runtime is stale or too weak for a localized touched
+  area, route through `sp-map-update` first. When giving the user an explicit
+  command to type, write `{{invoke:map-update}}`.
+- If no usable localized baseline remains, route through
+  `{{invoke:map-scan}} -> {{invoke:map-build}}`.
 - Treat that detour as a user-invoked workflow handoff. Do not silently switch into
-  `sp-map-scan` or `sp-map-build` yourself from another workflow; stop and tell the
-  user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+  `sp-map-update`, `sp-map-scan`, or `sp-map-build` yourself from another workflow;
+  stop and tell the user which map workflow to run.
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
-  runtime handbook should be the source of truth.
+  project cognition runtime should be the source of truth.
 
 ## Scope Guard
 

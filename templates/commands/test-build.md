@@ -103,18 +103,18 @@ Use `execution_surface: native-subagents`.
 
 1. **Establish repository context**
    - Confirm the repository root and treat this workflow as project-level rather than feature-level.
-   - Check whether `.specify/project-map/index/status.json` exists.
-   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
-   - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If the testing surfaces are stale or weak, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. Otherwise review the relevant topic files before trusting the current map.
-   - [AGENT] If `BUILD-HANDBOOK.md` is missing, stale, or insufficient for the touched area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - Treat testing-surface coverage as insufficient when the current handbook/project-map set cannot yet tell you:
+   - Read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/change.json` before broad testing-system build work.
+   - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
+   - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before continuing.
+   - [AGENT] If cognition freshness is `possibly_stale`, inspect the reported changed paths, reasons, and change-slice coverage. If the testing surfaces are stale or weak, use `{{invoke:map-update}}` when localized; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains. Otherwise review the relevant cognition slice before trusting the current runtime.
+   - [AGENT] If the project cognition status or change slice is insufficient for the touched area, stop and tell the user to refresh through `{{invoke:map-update}}` when localized, or rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - Treat testing-surface coverage as insufficient when the current project cognition status and change slice cannot yet tell you:
      - which modules or packages own the main truth-bearing logic
      - which test frameworks and conventions already govern those modules
      - which workflows or integration seams are regression-sensitive
      - which startup, CI, or operator commands are required to run tests safely
-   - [AGENT] If testing-surface coverage is insufficient for the current repository, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - [AGENT] Read `BUILD-HANDBOOK.md`.
+   - [AGENT] If testing-surface cognition coverage is insufficient for the current repository, stop and tell the user to refresh through `{{invoke:map-update}}` when localized, or rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - Read `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present.
    - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.
 
 2. **Validate scan/build inputs before execution**
@@ -211,7 +211,12 @@ Use `execution_surface: native-subagents`.
        "wave_id": "wave-1-critical-contracts",
        "module": "src/specify_cli",
        "risk_tier": "P0",
-       "read_refs": ["src/specify_cli/__init__.py", ".specify/testing/TEST_BUILD_PLAN.md"],
+       "read_refs": [
+         ".specify/project-cognition/status.json",
+         ".specify/project-cognition/slices/change.json",
+         ".specify/testing/TESTING_CONTRACT.md",
+         ".specify/testing/TESTING_PLAYBOOK.md"
+       ],
        "write_set": ["tests/test_cli_core.py"],
        "allowed_actions": ["add tests", "add module-local fixtures"],
        "forbidden_actions": ["edit shared config", "rewrite existing tests", "edit production code"],

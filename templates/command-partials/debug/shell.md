@@ -6,7 +6,7 @@ Drive a resumable debugging workflow that finds the real failure mechanism befor
 
 ## Context
 
-- Primary inputs: the user's report, the active debug-session state, the failing runtime or verification evidence, and the handbook/project-map set.
+- Primary inputs: the user's report, the active debug-session state, the failing runtime or verification evidence, and the project cognition runtime (`status.json`, `slices/debug.json`, targeted claims, and conflicts when needed).
 - The debug session file under `.planning/debug/` is the durable state source of truth for this workflow.
 - Delegated helpers are evidence collectors, not owners of the overall investigation.
 

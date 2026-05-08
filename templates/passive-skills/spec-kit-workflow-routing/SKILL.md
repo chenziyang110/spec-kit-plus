@@ -47,7 +47,7 @@ standalone branch-creation command.
 - `spec-kit-project-map-gate` is the hard brownfield context gate. Workflow routing
   handles route selection into the right active `sp-*` workflow, while the map gate
   decides whether an existing-code task can continue or must detour through
-  `sp-map-scan -> sp-map-build` first.
+  `sp-map-update` or `sp-map-scan -> sp-map-build` first.
 - `spec-kit-project-learning` is the shared memory layer that applies after routing.
   Once the active workflow is selected, that complementary skill defines the
   workflow-specific learning-start and learning-capture behavior instead of leaving
@@ -87,13 +87,18 @@ standalone branch-creation command.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` only after tasks are ready and execution should begin.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
-- Use `sp-map-scan -> sp-map-build` before other workflow steps when handbook or project-map
-  context for an existing codebase is missing, stale, or too broad.
+- Use `sp-map-update` before other workflow steps when project cognition runtime
+  coverage is stale or too weak for a localized touched area.
+- Use `sp-map-scan -> sp-map-build` before other workflow steps when project
+  cognition runtime context for an existing codebase is missing or no usable
+  localized baseline remains.
 - Use `sp-analyze` for drift, consistency, or readiness checks across existing
   spec/plan/tasks artifacts.
 - Use `sp-explain` when the user needs a plain-language explanation of current
   artifacts or runtime state.
-- For brownfield debug or extension work, the selected workflow must consume the capability truth layer when a capability or symptom route exists; do not jump straight to broad repository search.
+- For brownfield debug or extension work, the selected workflow must consume the
+  project cognition runtime and capability truth layer when a capability or
+  symptom route exists; do not jump straight to broad repository search.
 
 ## User Invocation Examples
 
@@ -107,7 +112,8 @@ user what to type:
 - Task generation: `{{invoke:tasks}}`
 - Implementation execution: `{{invoke:implement}}`
 - Debugging route: `{{invoke:debug}}`
-- Map refresh detour: `{{invoke:map-scan}} -> {{invoke:map-build}}`
+- Localized map refresh detour: `{{invoke:map-update}}`
+- Full map rebuild detour: `{{invoke:map-scan}} -> {{invoke:map-build}}`
 
 ## Subagent Routing
 

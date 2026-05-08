@@ -137,6 +137,14 @@ def test_project_map_gate_references_routing_and_learning_roles() -> None:
     assert "spec-kit-project-learning" in content
     assert "route selection" in content
     assert "shared memory capture layer" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/debug.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert "compatibility/export surfaces" in content
+    assert "read `debug-handbook.md`" not in content
+    assert "read `build-handbook.md`" not in content
+    assert "default runtime truth path" in content
+    assert "sp-map-update" in content
     assert "sp-map-scan" in content
     assert "sp-map-build" in content
 
