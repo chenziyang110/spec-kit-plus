@@ -33,20 +33,19 @@ Dispatch one safe validated lane as `one-subagent` or multiple safe isolated lan
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Project-map hard gate:** you must pass an atlas gate before repository
+**Runtime handbook gate:** you must pass the handbook gate before repository
 analysis, implementation design, or code reads continue.
 
-**This command tier: light.** Pass the atlas gate by reading:
-1. `PROJECT-HANDBOOK.md`
-2. `atlas.entry`
-3. `atlas.index.status`
-4. `atlas.index.atlas`
-5. at least one relevant root topic document
-6. at least one relevant module overview document
-7. `atlas.index.relations` when Layer 1 names shared-surface or cross-module risk
+**This command tier: light.** Pass the handbook gate by reading:
+1. `BUILD-HANDBOOK.md`
+2. `BUILD-WORKFLOW-CONTRACT`
+3. `PRODUCT-AND-CAPABILITY-MAP`
+4. `CHANGE-ENTRYPOINTS`
+5. `IMPLEMENTATION-PLAYBOOKS`
+6. `CHANGE-PROPAGATION-RISKS`
+7. `VERIFICATION-ROUTES`
 
-After the atlas gate passes, continue into any additional root-topic or
-module-local reads named by Layer 1 for the touched area.
+After the handbook gate passes, continue into live repository evidence for the touched area.
 
 **Freshness**: Treat `missing` and `stale` as blocking; evaluate
 `possibly_stale` against `must_refresh_topics` and `review_topics` before
@@ -297,7 +296,7 @@ resume_decision: [resume here | blocked waiting | resolved]
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
 - Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for the handbook/project-map atlas.
-- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before marking the quick task `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
+- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before marking the quick task `resolved` so `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
 - If a full refresh can be completed now, do it; otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before the next brownfield workflow proceeds.
 
 ## Propagating Change Rule

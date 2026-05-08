@@ -95,8 +95,7 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
 - If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current analysis request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for analysis.
-- Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
-- Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
+- Check whether `BUILD-HANDBOOK.md` exists at the repository root.
 - If the navigation system is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - If task-relevant coverage is insufficient for the current analysis request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
@@ -105,16 +104,15 @@ For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot
 
 Load only the minimal necessary context from each artifact:
 
-**From handbook/project map:**
+**From runtime handbook:**
 
-- Read `PROJECT-HANDBOOK.md`
-- If the task touches an existing capability and the atlas is fresh enough to trust, read the smallest relevant truth-layer route first:
-  1. `.specify/project-map/index/symptoms.json` when the analysis starts from a user-visible symptom
-  2. `.specify/project-map/index/capabilities.json` when the capability is already known
-  3. `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
-  4. `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
-  5. `.specify/project-map/root/WORKFLOWS.md`
-- Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`
+- Read `BUILD-HANDBOOK.md`
+- Read `BUILD-WORKFLOW-CONTRACT`
+- Read `PRODUCT-AND-CAPABILITY-MAP`
+- Read `CHANGE-ENTRYPOINTS`
+- Read `IMPLEMENTATION-PLAYBOOKS`
+- Read `CHANGE-PROPAGATION-RISKS`
+- Read `VERIFICATION-ROUTES`
 - If topical coverage is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
 
 **From spec.md:**

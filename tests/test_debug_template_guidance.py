@@ -52,12 +52,18 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert ".planning/learnings/candidates.md" in content
     assert "learning start --command debug --format json" in content
     assert "manual `capture-learning` hook surface" in content
-    assert "project-map hard gate" in content
-    assert "must pass an atlas gate before" in content
-    assert "read `project-handbook.md`" in content
-    assert "atlas.entry" in content
-    assert "atlas.index.status" in content
-    assert "atlas.index.atlas" in content
+    assert "debug handbook gate" in content
+    assert "pass the handbook gate before" in content
+    assert "debug-handbook.md" in content
+    assert "debug-workflow-contract" in content
+    assert "symptom-to-surface-routing" in content
+    assert "system-topology-for-debug" in content
+    assert "investigation-playbooks" in content
+    assert "verification-and-exit" in content
+    assert "support-only project-map artifacts" in content
+    assert "atlas.entry" not in content
+    assert "atlas.index.status" not in content
+    assert "atlas.index.atlas" not in content
     assert "if the active session is `awaiting_human_verify`" in content
     assert "start a linked follow-up session" in content
     assert "record the parent/child relationship" in content
@@ -72,8 +78,8 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "must_refresh_topics" in content
     assert "review_topics" in content
     assert "truth ownership" in content
-    assert "read whichever of `architecture.md`, `workflows.md`, `integrations.md`, `testing.md`, and `operations.md` map to the failing area" in content
-    assert "if the handbook navigation system is missing" in content
+    assert "treat `debug-handbook.md` as the only primary runtime atlas read surface for `sp-debug`." in content
+    assert "do not route through support-only project-map artifacts before beginning repository evidence work." in content
     assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues" in content
     assert "task-relevant coverage is insufficient" in content
     assert "ownership or placement guidance" in content

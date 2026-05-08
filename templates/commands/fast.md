@@ -60,18 +60,19 @@ Upgrade to `/sp-specify` immediately if:
    - Confirm the task fits the fast-path constraints above.
    - If not, stop and redirect to the right workflow instead of forcing the task through `sp-fast`.
 
-2. **Pass the atlas gate**
+2. **Pass the handbook gate**
    - {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
-   - **Project-map hard gate:** you must pass an atlas gate before reading
+   - **Runtime handbook gate:** you must pass the handbook gate before reading
      implementation source, running reproduction, or preparing a fix.
-   - **This command tier: trivial.** Pass the atlas gate by reading:
-     1. `PROJECT-HANDBOOK.md`
-     2. `atlas.entry`
-     3. `atlas.index.status`
-     4. `atlas.index.atlas`
-     5. at least one relevant root topic document
-     6. at least one relevant module overview document
-   - Only after the atlas gate passes may you read the source files to change.
+   - **This command tier: trivial.** Pass the handbook gate by reading:
+     1. `BUILD-HANDBOOK.md`
+     2. `BUILD-WORKFLOW-CONTRACT`
+     3. `PRODUCT-AND-CAPABILITY-MAP`
+     4. `CHANGE-ENTRYPOINTS`
+     5. `IMPLEMENTATION-PLAYBOOKS`
+     6. `CHANGE-PROPAGATION-RISKS`
+     7. `VERIFICATION-ROUTES`
+   - Only after the handbook gate passes may you read the source files to change.
 
 3. **Execute the fast lane**
    - Perform the fast-path change directly.
@@ -94,7 +95,7 @@ Upgrade to `/sp-specify` immediately if:
    - Summarize what changed, what was verified, and any remaining risk.
    - [AGENT] Keep the fast-path closeout truthful: report the exact verification you ran and any residual risk instead of implying broader validation.
    - Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for the handbook/project-map atlas.
-   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before the final report so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
+   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before the final report so `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
    - If a full refresh can be completed now, do it; otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and recommend `/sp-map-scan` followed by `/sp-map-build`.
 
 ## Output Contract

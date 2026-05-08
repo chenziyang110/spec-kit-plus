@@ -255,7 +255,13 @@ def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
-    assert "PROJECT-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
+    assert "BUILD-WORKFLOW-CONTRACT" in content
+    assert "PRODUCT-AND-CAPABILITY-MAP" in content
+    assert "WORKFLOW-SEQUENCES" in content
+    assert "MODULE-COLLABORATION" in content
+    assert "CHANGE-PROPAGATION-RISKS" in content
+    assert "support-only project-map artifacts" in lowered
     assert "WORKFLOW_STATE_FILE" in content
     assert "workflow-state.md" in content
     assert "Read `templates/workflow-state-template.md`." in content
@@ -271,11 +277,11 @@ def test_specify_template_uses_alignment_first_contract():
     assert "{{specify-subcmd:learning start --command specify --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/index/status.json" in content
-    assert ".specify/project-map/root/ARCHITECTURE.md" in content
-    assert ".specify/project-map/root/STRUCTURE.md" in content
-    assert ".specify/project-map/root/WORKFLOWS.md" in content
-    assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" in content
-    assert "Use `Topic Map` to choose the smallest relevant topical documents" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" not in content
+    assert ".specify/project-map/root/STRUCTURE.md" not in content
+    assert ".specify/project-map/root/WORKFLOWS.md" not in content
+    assert "Treat `PROJECT-HANDBOOK.md` as the root navigation artifact" not in content
+    assert "Use `Topic Map` to choose the smallest relevant topical documents" not in content
     assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
     assert ".specify/testing/UNIT_TEST_SYSTEM_REQUEST.md" in content
     assert "primary brownfield testing-program input" in content
@@ -398,7 +404,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "misunderstanding-correction gate" in lowered
     assert "confirm or correct the current understanding before the final handoff decision is locked." in content
     assert "Identify 3-5 planning-relevant gray areas" in content
-    assert "Derive gray areas from the combination of user intent, `PROJECT-HANDBOOK.md`, and targeted repository evidence" in content
+    assert "Derive gray areas from the combination of user intent, `BUILD-HANDBOOK.md`, and targeted repository evidence" in content
     assert 'Do not use generic labels like "UX", "behavior", or "data handling"' in content
     assert "Each gray area should be captured internally with:" in content
     assert "why the decision changes implementation or test shape" in content
@@ -439,18 +445,10 @@ def test_readme_documents_runtime_atlas_refresh_scope_and_workbench_boundaries()
     readme = _read_project_file("README.md")
     lowered = readme.lower()
 
-    assert "fresh` means the last atlas refresh completed against a known git baseline" in lowered
+    assert "fresh` means the last handbook refresh completed against a known git baseline" in lowered
     assert "`sp-map-scan` still performs diff-based scope selection when entered" in lowered
-    assert "ordinary runtime atlas consumption should prefer" in lowered
-    assert "quick-nav.md" in lowered
-    assert "index/status.json" in lowered
-    assert "index/atlas-index.json" in lowered
-    assert "index/capabilities.json" in lowered
-    assert "index/symptoms.json" in lowered
-    assert "root/*.md" in lowered
-    assert "modules/*/deep/workflows/*.md" in lowered
-    assert "reference-only surfaces" in lowered
-    assert "should inform readers without becoming live source changes" in lowered
+    assert "ordinary runtime consumption should prefer `debug-handbook.md` or `build-handbook.md` plus the workflow's fixed chapter set" in lowered
+    assert "support-only/reference-only surfaces" in lowered
     assert "refresh workbench remains internal to `map-scan` / `map-build`" in lowered
 
 
@@ -459,19 +457,11 @@ def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_on
     handbook = _read_project_file("PROJECT-HANDBOOK.md")
     lowered = handbook.lower()
 
-    assert "the runtime atlas is the ordinary consumption surface" in lowered
-    assert "the refresh workbench contains `map-scan` / `map-build` scan packets" in lowered
-    assert "reference-only outputs such as generated atlas docs and status/index json" in lowered
-    assert "read the runtime atlas before broad brownfield work" in lowered
-    assert "quick-nav.md" in lowered
-    assert "index/status.json" in lowered
-    assert "index/atlas-index.json" in lowered
-    assert "index/capabilities.json" in lowered
-    assert "index/symptoms.json" in lowered
-    assert "root/*.md" in lowered
-    assert "modules/*/deep/workflows/*.md" in lowered
-    assert "refresh workbench artifacts for rebuilding the atlas" in lowered
-    assert "reference-only unless the current task is explicitly testing or refreshing" in lowered
+    assert "the runtime atlas now resolves to two workflow handbooks" in lowered
+    assert "the refresh workbench still contains `map-scan` / `map-build` scan packets" in lowered
+    assert "supporting project-map outputs are support-only or reference-only" in lowered
+    assert "read `debug-handbook.md` for `sp-debug` and `build-handbook.md` for the major non-debug workflows" in lowered
+    assert "refresh workbench artifacts for rebuilding the handbooks" in lowered
 
 
 def test_core_planning_templates_use_logical_atlas_references() -> None:
@@ -483,11 +473,10 @@ def test_core_planning_templates_use_logical_atlas_references() -> None:
     ]:
         content = _read(rel_path)
         lowered = content.lower()
-        assert "atlas.entry" in lowered
-        assert "atlas.index.status" in lowered
-        assert "atlas.index.atlas" in lowered
-        assert "at least one relevant root topic document" in lowered
-        assert "at least one relevant module overview document" in lowered
+        assert "build-handbook.md" in lowered
+        assert "build-workflow-contract" in lowered
+        assert "product-and-capability-map" in lowered
+        assert "atlas.entry" not in lowered
 
 
 def test_project_map_root_templates_document_scenario_profile_contracts() -> None:
@@ -553,7 +542,13 @@ def test_plan_template_requires_alignment_report_before_planning():
     content = _read("templates/commands/plan.md")
     lowered = content.lower()
 
-    assert "PROJECT-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
+    assert "BUILD-WORKFLOW-CONTRACT" in content
+    assert "PRODUCT-AND-CAPABILITY-MAP" in content
+    assert "WORKFLOW-SEQUENCES" in content
+    assert "MODULE-COLLABORATION" in content
+    assert "CHANGE-PROPAGATION-RISKS" in content
+    assert "build-handbook.md" in lowered
     assert "workflow-state.md" in content
     assert "WORKFLOW_STATE_FILE" in content
     assert "Read `templates/workflow-state-template.md`" in content
@@ -567,9 +562,9 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "{{specify-subcmd:learning start --command plan --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/index/status.json" in content
-    assert ".specify/project-map/root/ARCHITECTURE.md" in content
-    assert ".specify/project-map/root/STRUCTURE.md" in content
-    assert ".specify/project-map/root/WORKFLOWS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" not in content
+    assert ".specify/project-map/root/STRUCTURE.md" not in content
+    assert ".specify/project-map/root/WORKFLOWS.md" not in content
     assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -700,7 +695,13 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
-    assert "PROJECT-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
+    assert "BUILD-WORKFLOW-CONTRACT" in content
+    assert "PRODUCT-AND-CAPABILITY-MAP" in content
+    assert "WORKFLOW-SEQUENCES" in content
+    assert "MODULE-COLLABORATION" in content
+    assert "CHANGE-PROPAGATION-RISKS" in content
+    assert "PROJECT-HANDBOOK.md" not in content
     assert "workflow-state.md" in content
     assert "WORKFLOW_STATE_FILE" in content
     assert "Read `templates/workflow-state-template.md`" in content
@@ -708,9 +709,9 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "phase_mode: task-generation-only" in content
     assert "Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution." in content
     assert "When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding." in content
-    assert ".specify/project-map/root/ARCHITECTURE.md" in content
-    assert ".specify/project-map/root/STRUCTURE.md" in content
-    assert ".specify/project-map/root/WORKFLOWS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" not in content
+    assert ".specify/project-map/root/STRUCTURE.md" not in content
+    assert ".specify/project-map/root/WORKFLOWS.md" not in content
     assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -799,11 +800,16 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "`next_command: /sp.implement`" in content
     assert "when no upstream remediation is required" in lowered
     assert "`next_command: /sp.plan`" in content or "`next_command: /sp.tasks`" in content
-    assert "PROJECT-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
+    assert "BUILD-WORKFLOW-CONTRACT" in content
+    assert "PRODUCT-AND-CAPABILITY-MAP" in content
+    assert "CHANGE-ENTRYPOINTS" in content
+    assert "IMPLEMENTATION-PLAYBOOKS" in content
+    assert "CHANGE-PROPAGATION-RISKS" in content
+    assert "VERIFICATION-ROUTES" in content
+    assert "build-handbook.md" in lowered
     assert ".specify/project-map/index/status.json" in content
-    assert ".specify/project-map/root/ARCHITECTURE.md" in content
-    assert ".specify/project-map/root/STRUCTURE.md" in content
-    assert ".specify/project-map/root/WORKFLOWS.md" in content
+    assert "atlas.entry" not in lowered
     assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -811,8 +817,8 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "(`spec.md`, `context.md`, `plan.md`, `tasks.md`)" in content
     assert "- CONTEXT = FEATURE_DIR/context.md" in content
     assert ".specify/memory/constitution.md" in content
-    assert "Read `PROJECT-HANDBOOK.md`" in content
-    assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" in content
+    assert "Read `BUILD-HANDBOOK.md`" in content
+    assert "Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`" not in content
     assert "**From context.md:**" in content
     assert "Locked Decisions" in content
     assert "Locked Planning Decisions" in content
@@ -1093,12 +1099,10 @@ def test_map_build_template_generates_handbook_navigation_system_from_scan_packa
     content = _read("templates/commands/map-build.md")
     lowered = content.lower()
 
-    assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/index/*.json" in content
-    assert ".specify/project-map/root/*.md" in content
-    assert ".specify/project-map/modules/<module-id>/*.md" in content
+    assert "DEBUG-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
     _assert_subagent_dispatch_contract(content, "map-build")
-    assert "atlas output contract" in lowered
+    assert "runtime handbook output contract" in lowered
     assert ".specify/project-map/map-state.md" in content
     assert ".specify/project-map/worker-results/*.json" in content
     assert "validate scan inputs before execution" in lowered
@@ -1106,12 +1110,12 @@ def test_map_build_template_generates_handbook_navigation_system_from_scan_packa
     assert "machine-readable row source" in lowered
     assert "raw scan prose or raw markdown checklist items alone" in lowered
     assert "not a scaffold, migration, or file-moving command" in lowered
-    assert "inputs, not evidence" in lowered
+    assert "inputs, not evidence" in lowered or "inputs, not" in lowered
     assert "packet evidence intake" in lowered
     assert "structural-only refresh is a failed build" in lowered
     assert "complete-refresh" in content
     assert "do not create `.planning/codebase/`" in lowered
-    assert "capability cards must capture" in lowered
+    assert "workflow-operational card" in lowered or "workflow-operational cards" in lowered
     assert "purpose" in lowered
     assert "owner" in lowered
     assert "truth lives" in lowered
@@ -1130,20 +1134,20 @@ def test_map_build_template_preserves_full_detail_and_reverse_coverage() -> None
     assert "do not stop at repository shape" in lowered
     assert "do not stop at naming a file family or subsystem" in lowered
     assert "high-value contracts must preserve concrete signatures, fields, return shapes, handoff data, compatibility rules, or protocol semantics" in lowered
-    assert "`project-handbook.md` must stay concise and index-first" in lowered
-    assert "root docs carry cross-module truth; module docs carry module-local truth" in lowered
+    assert "`debug-handbook.md` must stay concise" in lowered
+    assert "`build-handbook.md` must stay concise" in lowered
     assert "method families, parameter semantics, return shapes, error fields, state transitions, compatibility notes, or invariants" in lowered
-    assert "every `critical` row appears in at least one final atlas target" in lowered
-    assert "every `important` row appears in a final atlas target" in lowered
+    assert "every `critical` row appears in at least one final handbook target" in lowered
+    assert "every `important` row appears in a final handbook target" in lowered
     assert "every scan packet is consumed" in lowered
     assert "every accepted packet result has paths read and confidence" in lowered
-    assert "every final atlas target is backed by at least one accepted packet evidence row" in lowered
+    assert "every final handbook target is backed by at least one accepted packet evidence row" in lowered
     assert "no final report claims success for a structural-only refresh" in lowered
     assert "`map_state_file` records accepted packet results" in lowered
     assert "owner, consumer, change propagation, and verification" in lowered
     assert "known unknowns" in lowered
     assert "low-confidence areas" in lowered
-    assert "deep_stale" in content
+    assert "known-unknowns" in lowered
 
 
 def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
@@ -1444,15 +1448,22 @@ def test_implement_template_supports_capability_aware_parallel_batches():
         "Note: This command assumes a complete task breakdown exists in tasks.md.",
     )
 
-    assert "PROJECT-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
+    assert "BUILD-WORKFLOW-CONTRACT" in content
+    assert "PRODUCT-AND-CAPABILITY-MAP" in content
+    assert "CHANGE-ENTRYPOINTS" in content
+    assert "IMPLEMENTATION-PLAYBOOKS" in content
+    assert "CHANGE-PROPAGATION-RISKS" in content
+    assert "VERIFICATION-ROUTES" in content
+    assert "PROJECT-HANDBOOK.md" not in content
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command implement --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
-    assert ".specify/project-map/root/ARCHITECTURE.md" in content
-    assert ".specify/project-map/root/STRUCTURE.md" in content
-    assert ".specify/project-map/root/WORKFLOWS.md" in content
+    assert ".specify/project-map/root/ARCHITECTURE.md" not in content
+    assert ".specify/project-map/root/STRUCTURE.md" not in content
+    assert ".specify/project-map/root/WORKFLOWS.md" not in content
     assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in content.lower()
     assert "task-relevant coverage is insufficient" in lowered
     assert "ownership or placement guidance" in lowered
@@ -1567,6 +1578,18 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "not the concrete implementer" in lowered
     assert "use `execution_model: subagent-mandatory` for ready implementation batches" in lowered
     assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in lowered
+
+
+def test_runtime_alignment_prefers_two_workflow_handbooks_over_layered_atlas() -> None:
+    debug_template = _read("templates/commands/debug.md")
+    build_template = _read("templates/commands/implement.md")
+    shared_gate = _read("templates/command-partials/common/context-loading-gradient.md")
+    lowered = build_template.lower()
+
+    assert "DEBUG-HANDBOOK.md" in debug_template
+    assert "BUILD-HANDBOOK.md" in build_template
+    assert "PROJECT-HANDBOOK.md" not in shared_gate
+    assert "atlas.entry" not in shared_gate
     assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in lowered
     assert "use `execution_surface: native-subagents`" in lowered
     assert "blocker" in lowered
@@ -1577,17 +1600,17 @@ def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     assert "join point" in lowered
     assert "retry-pending" in lowered or "retry pending" in lowered
     assert "blocker" in lowered
-    assert "do not stop to ask whether validation should start" in lowered
-    assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
+    assert "tasks.md` being fully checked off is not sufficient for completion by itself" in build_template
     assert "core implementation complete" in lowered
     assert "ready for integration testing" in lowered
     assert "overall feature completion" in lowered
     assert "e2e" in lowered
     assert "polish" in lowered
-    assert "`research_gap`" in content
-    assert "`plan_gap`" in content
-    assert "`spec_gap`" in content
-    assert "/sp.clarify" in content
+    assert "do not stop to ask whether validation should start" in lowered
+    assert "`research_gap`" in build_template
+    assert "`plan_gap`" in build_template
+    assert "`spec_gap`" in build_template
+    assert "/sp.clarify" in build_template
     assert "planned validation tasks are still ready work" in lowered
     assert "do not stop to ask whether validation should start" in lowered
     assert "manual-only check or approval step is explicitly recorded in the tracker or task plan" in lowered

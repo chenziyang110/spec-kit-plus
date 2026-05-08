@@ -1,9 +1,9 @@
 ---
-description: Use when `sp-map-scan` has produced a complete scan package and you need to build or refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/**`.
+description: Use when `sp-map-scan` has produced a complete scan package and you need to build or refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`.
 workflow_contract:
-  when_to_use: A completed scan package exists and the canonical handbook/project-map atlas must be built or refreshed from it.
-  primary_objective: Validate the scan package, dispatch read-only explorer packets, write the canonical atlas, and prove reverse coverage closure.
-  primary_outputs: '`PROJECT-HANDBOOK.md`, `.specify/project-map/QUICK-NAV.md`, `.specify/project-map/index/*.json`, `.specify/project-map/root/*.md`, `.specify/project-map/modules/<module-id>/*.md`, `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`, `.specify/project-map/index/status.json`, `.specify/project-map/map-state.md`, and `.specify/project-map/worker-results/*.json`.'
+  when_to_use: A completed scan package exists and the canonical two-handbook runtime atlas must be built or refreshed from it.
+  primary_objective: Validate the scan package, dispatch read-only explorer packets, write the canonical workflow handbooks, and prove workflow-operational reverse coverage closure.
+  primary_outputs: '`DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, `.specify/project-map/index/status.json`, `.specify/project-map/map-state.md`, and `.specify/project-map/worker-results/*.json`.'
   default_handoff: Return to the blocked workflow that required fresh navigation coverage.
 ---
 
@@ -24,9 +24,9 @@ Use `execution_surface: native-subagents`.
 
 `sp-map-build` begins with validation, not writing.
 
-This workflow is the explicit brownfield atlas construction entrypoint. It must
-consume a completed `sp-map-scan` package and write only the canonical
-handbook/project-map outputs.
+This workflow is the explicit brownfield runtime handbook construction
+entrypoint. It must consume a completed `sp-map-scan` package and write only
+the canonical runtime handbook outputs plus refresh-state artifacts.
 
 ## Passive Project Learning Layer
 
@@ -48,11 +48,9 @@ Before writing final atlas documents, read:
 - `.specify/project-map/coverage-ledger.json`
 - `.specify/project-map/scan-packets/*.md`
 - `.specify/project-map/map-state.md` if present
-- `.specify/project-map/QUICK-NAV.md` if present
-- `PROJECT-HANDBOOK.md` if present
-- `.specify/project-map/index/*.json` if present
-- `.specify/project-map/root/*.md` if present
-- `.specify/project-map/modules/**` if present
+- `DEBUG-HANDBOOK.md` if present
+- `BUILD-HANDBOOK.md` if present
+- `.specify/project-map/worker-results/*.json` if present
 
 If any scan-package file is missing, `sp-map-build` must not guess and continue.
 Produce a scan gap report and route back to `/sp-map-scan`.
@@ -86,8 +84,8 @@ Produce a scan gap report and route back to `/sp-map-scan`.
 1. Validate that the `sp-map-scan` package is present and complete.
 2. Refuse atlas writing when readiness checks fail, and report the smallest safe `sp-map-scan` repair.
 3. Select the execution strategy and dispatch read-only explorer lanes only when the scan packets justify it.
-4. Execute every accepted scan packet against the live repository and build a packet evidence intake before writing atlas files.
-5. Write the canonical handbook/project-map atlas from accepted packet evidence.
+4. Execute every accepted scan packet against the live repository and build a packet evidence intake before writing handbook files.
+5. Write the canonical workflow handbooks from accepted packet evidence.
 6. Prove reverse coverage validation before reporting success.
 7. Finalize freshness with `project-map complete-refresh` after a successful full refresh.
 
@@ -97,12 +95,12 @@ Produce a scan gap report and route back to `/sp-map-scan`.
 directories, copying existing markdown into a new layout, creating JSON index
 files, or updating path references is not a successful atlas build by itself.
 
-Existing `PROJECT-HANDBOOK.md` and `.specify/project-map/**` documents are
-inputs, not evidence. Existing claims may be retained only after they are
-revalidated against live repository paths named by the scan package. If a claim
-cannot be tied to a packet result with `paths_read` and confidence, rewrite it
-as `Unknown-Stale`, move it to the appropriate unknowns section, or route back
-to `/sp-map-scan`.
+Existing runtime handbooks and project-map refresh artifacts are inputs, not
+evidence. Existing claims may be retained only after they are revalidated
+against live repository paths named by the scan package. If a claim cannot be
+tied to a packet result with `paths_read` and confidence, rewrite it as
+`Unknown-Stale`, move it to the appropriate known-unknowns section, or route
+back to `/sp-map-scan`.
 
 Before any final atlas write, the leader must produce a packet evidence intake
 in `MAP_STATE_FILE` and, when file writes are available,
@@ -156,7 +154,7 @@ confirmed from those reads, report the build as blocked instead of successful.
 
 - packet results without paths read
 - packet results that only summarize without evidence
-- derived-only evidence, including worker results whose `paths_read` point only at `PROJECT-HANDBOOK.md`, `.specify/project-map/**`, `.specify/prd-runs/**`, or `.specify/testing/worker-results/**`
+- derived-only evidence, including worker results whose `paths_read` point only at `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, `.specify/project-map/**`, `.specify/prd-runs/**`, or `.specify/testing/worker-results/**`
 - unresolved critical rows
 - unresolved `unknown` rows without a concrete blocker
 - critical rows without scan packets
@@ -188,7 +186,8 @@ When refusal happens, write or report a scan gap report that names:
 ## Explorer Packet Dispatch
 
 Explorer subagents are read-only evidence collectors. They must not write
-`PROJECT-HANDBOOK.md` or `.specify/project-map/**` artifacts directly.
+`DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, or project-map refresh-state
+artifacts directly.
 In `subagent-blocked`, record the block reason in `MAP_STATE_FILE`, stop for escalation or recovery, and do not continue substantive map-build packet
 execution inline. The leader must not perform packet reads directly.
 
@@ -213,60 +212,62 @@ results in `MAP_STATE_FILE` with the reason and retry or rescan policy.
 
 ## Output Contract
 
-This atlas output contract is the only final write surface for
+This runtime handbook output contract is the only final write surface for
 `sp-map-build`.
 
-The only canonical outputs for this command are:
+The only canonical runtime outputs for this command are:
 
-- `PROJECT-HANDBOOK.md`
-- `.specify/project-map/QUICK-NAV.md`
-- `.specify/project-map/index/atlas-index.json`
-- `.specify/project-map/index/modules.json`
-- `.specify/project-map/index/relations.json`
-- `.specify/project-map/index/capabilities.json`
-- `.specify/project-map/index/symptoms.json`
+- `DEBUG-HANDBOOK.md`
+- `BUILD-HANDBOOK.md`
 - `.specify/project-map/index/status.json`
-- `.specify/project-map/root/ARCHITECTURE.md`
-- `.specify/project-map/root/STRUCTURE.md`
-- `.specify/project-map/root/CONVENTIONS.md`
-- `.specify/project-map/root/INTEGRATIONS.md`
-- `.specify/project-map/root/WORKFLOWS.md`
-- `.specify/project-map/root/TESTING.md`
-- `.specify/project-map/root/OPERATIONS.md`
-- `.specify/project-map/modules/<module-id>/OVERVIEW.md`
-- `.specify/project-map/modules/<module-id>/ARCHITECTURE.md`
-- `.specify/project-map/modules/<module-id>/STRUCTURE.md`
-- `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
-- `.specify/project-map/modules/<module-id>/TESTING.md`
-- `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
-- `.specify/project-map/modules/<module-id>/deep/**` when packeted and needed
 - `.specify/project-map/map-state.md`
 - `.specify/project-map/worker-results/<packet-id>.json`
+
+`DEBUG-HANDBOOK.md` must include:
+
+- `DEBUG-WORKFLOW-CONTRACT`
+- `SYMPTOM-TO-SURFACE-ROUTING`
+- `SYSTEM-TOPOLOGY-FOR-DEBUG`
+- `HOT-PATHS-AND-OWNERS`
+- `FAILURE-PATTERNS`
+- `INVESTIGATION-PLAYBOOKS`
+- `FIX-PROPAGATION-CHECKS`
+- `VERIFICATION-AND-EXIT`
+- `KNOWN-UNKNOWNS`
+
+`BUILD-HANDBOOK.md` must include:
+
+- `BUILD-WORKFLOW-CONTRACT`
+- `PRODUCT-AND-CAPABILITY-MAP`
+- `WORKFLOW-SEQUENCES`
+- `CHANGE-ENTRYPOINTS`
+- `MODULE-COLLABORATION`
+- `CHANGE-PROPAGATION-RISKS`
+- `IMPLEMENTATION-PLAYBOOKS`
+- `VERIFICATION-ROUTES`
+- `KNOWN-UNKNOWNS`
 
 Do not create `.planning/codebase/`, a second mapping tree, or any alternate
 source-of-truth document.
 
 ## Guardrails
 
-## Root and Module Document Detail Rules
+## Workflow-Handbook Detail Rules
 
-- `PROJECT-HANDBOOK.md` must stay concise and index-first.
-- Root docs carry cross-module truth; module docs carry module-local truth.
-- Do not push all technical detail back into the root layer.
+- `DEBUG-HANDBOOK.md` must stay concise, direct, and investigation-oriented.
+- `BUILD-HANDBOOK.md` must stay concise, direct, and change-oriented.
 - Do not stop at repository shape.
 - Do not stop at naming a file family or subsystem.
-- No critical topic document may stop at directory names or file-family names without explaining responsibilities.
+- No critical handbook section may stop at directory names or file-family names without explaining responsibilities.
 - High-value contracts must preserve concrete signatures, fields, return shapes, handoff data, compatibility rules, or protocol semantics when those facts exist.
 - Workflow and integration sections must preserve protocol seams, bridge semantics, runtime invariants, method families, parameter semantics, return shapes, error fields, state transitions, compatibility notes, or invariants where those facts govern behavior.
-- Deep workflow documentation pages must carry lifecycle and flow Mermaid output when the capability index has those diagrams.
-- JSON indexes may retain diagram fields for machine routing, but they are not the primary human-consumed diagram surface; the deep workflow documentation pages are.
 - Build, packaging, runtime, and recovery instructions must remain actionable instead of being reduced to generic prose.
-- High-value capabilities must include owner, truth lives, extension guidance, change propagation, minimum verification, failure modes, and confidence.
+- Every workflow-operational card must include owner, truth lives, extension guidance, change propagation, minimum verification, failure modes, and confidence.
 - Confidence must use only: Verified, Inferred, or Unknown-Stale.
-- Unknown-Stale and Inferred claims must be repeated in Known Unknowns, Low-Confidence Areas, or module `deep_stale`.
+- Unknown-Stale and Inferred claims must be repeated in Known Unknowns or Low-Confidence Areas.
 
-For each high-value capability, core module, or critical workflow, emit at
-least one capability card. Capability cards must capture:
+For each high-value capability, critical workflow, or risky shared surface,
+emit at least one workflow-operational card. These cards must capture:
 
 - Purpose
 - Owner
@@ -285,33 +286,26 @@ least one capability card. Capability cards must capture:
 
 Before reporting success, `sp-map-build` must prove reverse coverage validation:
 
-- every `critical` row appears in at least one final atlas target
-- every `important` row appears in a final atlas target or an explicitly named grouped surface
+- every `critical` row appears in at least one final handbook target
+- every `important` row appears in a final handbook target or an explicitly named grouped surface
 - every scan packet is consumed
 - every accepted packet result has paths read and confidence
-- every final atlas target is backed by at least one accepted packet evidence row or is explicitly marked unchanged after live revalidation
-- every mapped capability produces both a lifecycle Mermaid and a flow Mermaid
-- every mapped capability with lifecycle or flow Mermaid in a JSON index renders that diagram in its deep workflow documentation page
-- every mapped symptom routes to a capability deep workflow page through `.specify/project-map/index/symptoms.json`
-- `symptom -> capability deep workflow -> module workflows -> root workflows` is traversable for every mapped capability or symptom
-- every mapped capability deep workflow page includes failure branches, where-to-inspect guidance, and change impact guidance
+- every final handbook target is backed by at least one accepted packet evidence row or is explicitly marked unchanged after live revalidation
 - no final report claims success for a structural-only refresh
 - `MAP_STATE_FILE` records accepted packet results, rejected packet results, failed readiness checks, failed reverse coverage checks, and the next command
 - every command/API/integration/runtime entrypoint has owner, consumer, change propagation, and verification
-- every low-confidence area is visible in Known Unknowns, Low-Confidence Areas, or module `deep_stale`
+- every low-confidence area is visible in Known Unknowns or Low-Confidence Areas
 - every excluded bucket has a reason and revisit condition
-- `QUICK-NAV.md` is refreshed or explicitly confirmed current as the Layer 1 routing surface
-- `PROJECT-HANDBOOK.md` stays index-first and routes to deeper topical docs
-- every high-frequency problem type is reachable from Layer 1
-- every critical shared surface can be discovered from Layer 1 or atlas indexes
-- every key verification entry point can be located from Layer 1 or module/index metadata
+- every high-frequency problem type is reachable from the relevant handbook
+- every critical shared surface can be discovered from the relevant handbook
+- every key verification entry point can be located from the relevant handbook
 
 If any check fails, continue mapping or route back to `/sp-map-scan`; do not
 report success.
 
-## Layer 1 Reachability Validation
+## Workflow-Operational Reachability Validation
 
-Before reporting success, verify that the atlas supports:
+Before reporting success, verify that the runtime handbooks support:
 
 - task routes
 - symptom routes
@@ -320,8 +314,8 @@ Before reporting success, verify that the atlas supports:
 - propagation-risk routes
 
 If any of those route families cannot be backed by accepted packet evidence,
-continue mapping or route back to `/sp-map-scan` instead of declaring the atlas
-complete.
+continue mapping or route back to `/sp-map-scan` instead of declaring the
+runtime handbooks complete.
 
 ## First-Party Workflow Quality Hooks
 

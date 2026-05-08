@@ -25,32 +25,26 @@ and what sits clearly outside the system boundary.]
 ## How To Read This Project
 
 - Start here for orientation.
-- **First stop for any task**: open `.specify/project-map/QUICK-NAV.md` — a dictionary-style atlas entry surface that answers "which document should I open?" and "which module most likely owns the touched area?"
-- The handbook is the index-first entrypoint.
-- Read `.specify/project-map/index/atlas-index.json` and `.specify/project-map/index/status.json` before broad brownfield work.
-- Treat the combined handbook/project-map set as the repository's atlas-style technical encyclopedia.
-- The atlas includes a capability flow and lifecycle truth layer for brownfield debugging, requirement expansion, and change-impact review.
-- The topical project-map documents hold the full technical detail.
-- Use `Topic Map` to choose the next topical document.
+- **Runtime handbook entrypoints**:
+  - `DEBUG-HANDBOOK.md` for `sp-debug`
+  - `BUILD-HANDBOOK.md` for ordinary non-debug `sp-*` workflows
+- These workflow handbooks are the only primary runtime atlas documents.
+- Read the handbook required by the current workflow before broad brownfield work.
+- Read the fixed chapter IDs required by the current workflow contract instead of freeform scanning.
+- Supporting project-map artifacts may exist for refresh workbench, continuity, or reference use, but they are not the primary runtime read path.
 - Use `Where To Read Next` for task-oriented routing.
-- Use `By Capability`, `By Symptom`, and `Change Impact Guide` routes before broad code reads when the task touches an existing capability.
-- Fall back to live code reads only when the topical coverage is missing, stale, or too broad.
-- Point to the topic docs instead of duplicating deep detail when the
-  explanation belongs in a topical file.
+- Fall back to live code reads only when handbook coverage is missing, stale, or too broad.
 
-## Quick Navigation (Layer 1)
+## Runtime Handbook Entry Model
 
-Describe the four-layer atlas explicitly:
+Describe the two-handbook runtime atlas explicitly:
 
-- **Layer 1 (routing)**: `QUICK-NAV.md` — task routes, symptom routes, shared-surface hotspots, verification routes, and propagation-risk routes
-- **Capability flow and lifecycle truth layer**: `index/capabilities.json`, `index/symptoms.json`, and `modules/<module-id>/deep/workflows/<capability-id>.md` — capability lookup, symptom lookup, lifecycle truth, flow truth, and change-impact inspection
-- **Layer 2 (summary)**: `root/ARCHITECTURE.md` capability cards and root topical summaries
-- **Layer 3 (detail)**: `modules/<module-id>/OVERVIEW.md` plus module-local docs
-- **Layer 4 (source)**: live code and runtime state when the atlas is missing, stale, or too broad
+- **Debug handbook**: `DEBUG-HANDBOOK.md` — symptom routing, likely truth owners, failure propagation, investigation playbooks, and verification exit rules
+- **Build/change handbook**: `BUILD-HANDBOOK.md` — product capability map, workflow sequences, change entrypoints, collaboration routes, propagation risks, implementation playbooks, and verification routes
+- **Source of last resort**: live code and runtime state when handbook coverage is missing, stale, or too broad
 
-Layer 1 should behave like a dictionary-style atlas entry surface rather than a
-thin route table. It should help the reader decide which module most likely
-owns the touched area before broader code reads begin.
+The entry model should help the reader decide which workflow handbook owns the
+task before broader code reads begin.
 
 ## Shared Surfaces
 
@@ -93,9 +87,8 @@ owns the touched area before broader code reads begin.
 
 ## Atlas Views
 
-- [Summarize which topical documents answer structure, runtime flow, state lifecycle,
-  deployment topology, observability, security, release, and verification questions.]
-- [Call out that capability flow and lifecycle truth lives in `index/capabilities.json`, `index/symptoms.json`, `root/WORKFLOWS.md`, `modules/<module-id>/WORKFLOWS.md`, and `modules/<module-id>/deep/workflows/<capability-id>.md`.]
+- [Summarize which workflow handbook answers debugging, requirement shaping, implementation planning, testing, and verification questions.]
+- [Call out where support-only or reference-only project-map artifacts still help continuity without becoming the primary runtime read path.]
 
 ## Where To Read Next
 
@@ -107,22 +100,11 @@ owns the touched area before broader code reads begin.
 
 ## Topic Map
 
-- `.specify/project-map/QUICK-NAV.md` - Layer 1 routing table for the four-layer atlas
-- `.specify/project-map/index/atlas-index.json` - atlas entry summary and the next machine-readable lookup step
-- `.specify/project-map/index/modules.json` - module registry, owned roots, and module document paths
-- `.specify/project-map/index/relations.json` - cross-module dependencies, shared surfaces, and expansion routes
-- `.specify/project-map/index/capabilities.json` - capability registry, owning modules, and deep workflow routes
-- `.specify/project-map/index/symptoms.json` - symptom registry, likely capability matches, and read-first deep workflow routes
-- `.specify/project-map/index/status.json` - atlas freshness plus module and deep staleness state
-- `.specify/project-map/root/ARCHITECTURE.md` - layers, abstractions, truth ownership, and cross-module seams
-- `.specify/project-map/root/STRUCTURE.md` - global structure, shared directories, and placement rules
-- `.specify/project-map/root/CONVENTIONS.md` - repository-wide conventions and contract rules
-- `.specify/project-map/root/INTEGRATIONS.md` - external tools, env, runtime dependencies, and trust boundaries
-- `.specify/project-map/root/WORKFLOWS.md` - user flows, maintainer flows, and cross-module workflow risks
-- `.specify/project-map/root/TESTING.md` - root verification strategy and shared regression-sensitive surfaces
-- `.specify/project-map/root/OPERATIONS.md` - startup, recovery, troubleshooting, operator notes, and runtime invariants
-- `.specify/project-map/modules/<module-id>/OVERVIEW.md` - module-local routing, ownership, and next reads
-- `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md` - lifecycle truth, flow truth, failure branches, inspection routes, and change-impact guidance for one capability
+- `DEBUG-HANDBOOK.md` - canonical runtime handbook for `sp-debug`
+- `BUILD-HANDBOOK.md` - canonical runtime handbook for the major non-debug workflows
+- `.specify/project-map/index/status.json` - handbook freshness plus refresh-state truth source
+- `.specify/project-map/scan-packets/` and `.specify/project-map/worker-results/` - refresh workbench artifacts for rebuilding the handbooks
+- support-only project-map exports - continuity and tooling surfaces that should not become the primary runtime read path again
 
 ## Update Triggers
 

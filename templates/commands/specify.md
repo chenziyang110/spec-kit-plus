@@ -52,21 +52,19 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Project-map hard gate:** you must pass an atlas gate before repository
+**Runtime handbook gate:** you must pass the handbook gate before repository
 analysis, planning-critical clarification, or implementation-shaping code reads
 begin.
 
-**This command tier: heavy.** Pass the atlas gate by reading:
-1. `PROJECT-HANDBOOK.md`
-2. `atlas.entry`
-3. `atlas.index.status`
-4. `atlas.index.atlas`
-5. `atlas.index.modules`
-6. `atlas.index.relations`
-7. the relevant root topic documents
-8. the relevant module overview documents
+**This command tier: heavy.** Pass the handbook gate by reading:
+1. `BUILD-HANDBOOK.md`
+2. `BUILD-WORKFLOW-CONTRACT`
+3. `PRODUCT-AND-CAPABILITY-MAP`
+4. `WORKFLOW-SEQUENCES`
+5. `MODULE-COLLABORATION`
+6. `CHANGE-PROPAGATION-RISKS`
 
-Freshness enforcement stays blocking. If the atlas is missing, stale, or
+Freshness enforcement stays blocking. If the handbook is missing, stale, or
 topic-insufficient for the touched area, refresh it before repository analysis
 continues.
 
@@ -152,18 +150,17 @@ Generate the pre-analysis output as the first section of `context.md`.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
-   - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
-   - Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
+   - Check whether `BUILD-HANDBOOK.md` exists at the repository root.
    - [AGENT] If the navigation system is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Task-relevant coverage is insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-   - Treat task-relevant coverage as a coverage-model check, not just a file-presence check. Coverage is also insufficient when the handbook/project-map set cannot yet tell you:
+   - Treat task-relevant coverage as a coverage-model check, not just a file-presence check. Coverage is also insufficient when the runtime handbook cannot yet tell you:
      - owning surfaces and truth locations
      - consumer or adjacent surfaces likely to be affected
      - change-propagation hotspots
      - verification entry points
      - known unknowns or stale evidence boundaries
    - [AGENT] If task-relevant coverage is insufficient for the current request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - Treat `PROJECT-HANDBOOK.md` as the root navigation artifact and use `Topic Map` to choose the smallest relevant topical documents for the touched area.
+   - Do not treat support-only project-map artifacts as the primary runtime read path for this workflow.
 
 5. Load context.
    - Read `templates/spec-template.md`.
@@ -175,16 +172,9 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read `.specify/memory/project-rules.md` if present.
    - Read `.specify/memory/project-learnings.md` if present.
    - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
-   - [AGENT] Read `PROJECT-HANDBOOK.md` if present and treat it as the primary codebase-scout input for brownfield understanding.
-   - If the request touches an existing capability and the atlas is fresh enough to trust, read the smallest relevant truth-layer route first:
-     1. `.specify/project-map/index/symptoms.json` when the request starts from a symptom or broken behavior
-     2. `.specify/project-map/index/capabilities.json` when the capability is already known
-     3. `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
-     4. `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
-     5. `.specify/project-map/root/WORKFLOWS.md`
-   - Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`.
+   - [AGENT] Read `BUILD-HANDBOOK.md`.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Preserve these stronger brownfield testing inputs: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`.
-   - From the handbook navigation system, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
+   - From `BUILD-HANDBOOK.md`, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
    - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
@@ -246,8 +236,7 @@ Generate the pre-analysis output as the first section of `context.md`.
 - Preserve one fixed-heavy lifecycle for all `sp-specify` runs and persist lifecycle state through `current_stage`, `current_domain`, `next_action`, `blocker_reason`, and `final_handoff_decision`.
 
 6. Run a codebase scout before clarification.
-   - Treat `PROJECT-HANDBOOK.md` as the default scout artifact for understanding the existing system shape.
-   - Use `Topic Map` to choose the smallest relevant topical documents before broad file reads.
+   - Treat `BUILD-HANDBOOK.md` as the default scout artifact for understanding the existing system shape.
    - Build a concise internal scout summary for the request area that names:
      - owning modules or workflows
      - truth-owning surfaces and shared coordination surfaces
@@ -262,7 +251,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Use the scout summary to eliminate low-value questions, sharpen gray areas, and detect when the user's request conflicts with existing repository patterns.
 
 7. Run `intent-analysis`.
-   Build a top-down understanding grounded in the project handbook and touched-area topical map plus any targeted live-file reads. It must cover:
+   Build a top-down understanding grounded in `BUILD-HANDBOOK.md` plus any targeted live-file reads. It must cover:
    - what the user is probably trying to achieve
    - what a complete usable version of the capability likely includes
    - intended users and roles
@@ -302,7 +291,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - After every answered batch, run `batch-adversarial-review` before proceeding.
 
 11. Analyze the whole feature before decomposing it.
-   Build a top-down understanding grounded in the project handbook and touched-area topical map plus any targeted live-file reads. It must cover:
+   Build a top-down understanding grounded in `BUILD-HANDBOOK.md` plus any targeted live-file reads. It must cover:
    - the feature goal
    - intended users and roles
    - first-release scope
@@ -397,7 +386,7 @@ Generate the pre-analysis output as the first section of `context.md`.
 
 17. Identify gray areas before concluding alignment.
    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
-   - Derive gray areas from the combination of user intent, `PROJECT-HANDBOOK.md`, and targeted repository evidence instead of from a generic question catalog.
+   - Derive gray areas from the combination of user intent, `BUILD-HANDBOOK.md`, and targeted repository evidence instead of from a generic question catalog.
    - Prefer feature-specific decision surfaces over generic categories.
    - Do not use generic labels like "UX", "behavior", or "data handling" when a more concrete decision point can be named from the actual codebase and request.
    - Good gray areas name the concrete fork in outcome, for example `empty-state recovery`, `permission downgrade behavior`, `sync trigger timing`, or `existing dashboard card reuse`.
@@ -450,7 +439,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - Only fall back after the native tool is unavailable or the tool call fails. If a native tool call fails once, retry once before falling back.
     - Keep the interaction feeling like guided requirement discovery rather than a shallow questionnaire.
     - Ask only high-value questions.
-    - Before asking a planning-critical question, check whether `PROJECT-HANDBOOK.md` or touched-area topical documents already answer it; do not ask the user for facts the codebase can supply.
+    - Before asking a planning-critical question, check whether `BUILD-HANDBOOK.md` or targeted repository evidence already answer it; do not ask the user for facts the codebase can supply.
     - Use grouped questions for simple/local changes.
     - Use one question at a time for complex/high-risk cases.
     - Ask at most one unanswered high-impact question per message.

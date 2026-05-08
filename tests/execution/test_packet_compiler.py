@@ -13,25 +13,9 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     feature_dir = project_root / "specs" / "001-test-feature"
     feature_dir.mkdir(parents=True)
     (project_root / ".specify" / "memory").mkdir(parents=True)
-    (project_root / ".specify" / "project-map" / "root").mkdir(parents=True)
     (project_root / ".specify" / "testing").mkdir(parents=True)
-    (project_root / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
-    (project_root / ".specify" / "project-map" / "root" / "ARCHITECTURE.md").write_text(
-        "# Architecture\n",
-        encoding="utf-8",
-    )
-    (project_root / ".specify" / "project-map" / "root" / "WORKFLOWS.md").write_text(
-        "# Workflows\n",
-        encoding="utf-8",
-    )
-    (project_root / ".specify" / "project-map" / "root" / "OPERATIONS.md").write_text(
-        "# Operations\n",
-        encoding="utf-8",
-    )
-    (project_root / ".specify" / "project-map" / "root" / "TESTING.md").write_text(
-        "# Testing\n",
-        encoding="utf-8",
-    )
+    (project_root / "DEBUG-HANDBOOK.md").write_text("# Debug Handbook\n", encoding="utf-8")
+    (project_root / "BUILD-HANDBOOK.md").write_text("# Build Handbook\n", encoding="utf-8")
     (project_root / ".specify" / "testing" / "TESTING_CONTRACT.md").write_text(
         "# Testing Contract\n",
         encoding="utf-8",
@@ -100,20 +84,19 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     assert packet.scope.write_scope == ["src/services/auth_service.py"]
     assert packet.validation_gates == ["pytest tests/unit/test_auth_service.py -q"]
     assert [item.path for item in packet.context_bundle] == [
-        "PROJECT-HANDBOOK.md",
-        ".specify/project-map/root/ARCHITECTURE.md",
-        ".specify/project-map/root/WORKFLOWS.md",
-        ".specify/project-map/root/OPERATIONS.md",
-        ".specify/project-map/root/TESTING.md",
+        "DEBUG-HANDBOOK.md",
+        "BUILD-HANDBOOK.md",
         ".specify/testing/TESTING_CONTRACT.md",
         ".specify/testing/TESTING_PLAYBOOK.md",
         ".specify/testing/COVERAGE_BASELINE.json",
         "src/contracts/auth.py",
     ]
-    assert [item.read_order for item in packet.context_bundle] == list(range(1, 10))
-    assert packet.context_bundle[0].kind == "handbook"
+    assert [item.read_order for item in packet.context_bundle] == list(range(1, 7))
+    assert packet.context_bundle[0].kind == "runtime_handbook"
     assert packet.context_bundle[-1].kind == "task_reference"
-    assert "PROJECT-HANDBOOK.md" in packet.scope.read_scope
+    assert "DEBUG-HANDBOOK.md" in packet.scope.read_scope
+    assert "BUILD-HANDBOOK.md" in packet.scope.read_scope
+    assert "PROJECT-HANDBOOK.md" not in packet.scope.read_scope
     assert ".specify/testing/TESTING_PLAYBOOK.md" in packet.scope.read_scope
     assert ".specify/testing/COVERAGE_BASELINE.json" in packet.scope.read_scope
     assert packet.platform_guardrails == [
@@ -133,7 +116,7 @@ def test_compile_worker_task_packet_accepts_materialized_task_input(
     feature_dir = project_root / "specs" / "001-test-feature"
     feature_dir.mkdir(parents=True)
     (project_root / ".specify" / "memory").mkdir(parents=True)
-    (project_root / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
+    (project_root / "BUILD-HANDBOOK.md").write_text("# Build Handbook\n", encoding="utf-8")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST preserve the runtime contract\n",
         encoding="utf-8",
@@ -169,7 +152,7 @@ def test_compile_worker_task_packet_accepts_materialized_task_input(
     assert packet.task_id == "BLL-lane"
     assert packet.story_id == "US1"
     assert packet.scope.write_scope == ["src/bll_manager.py"]
-    assert packet.context_bundle[0].path == "PROJECT-HANDBOOK.md"
+    assert packet.context_bundle[0].path == "BUILD-HANDBOOK.md"
     assert packet.validation_gates == ["pytest tests/unit/test_bll_manager.py -q"]
 
 
@@ -181,6 +164,7 @@ def test_compile_worker_task_packet_preserves_testing_control_plane_context(
     feature_dir.mkdir(parents=True)
     (project_root / ".specify" / "memory").mkdir(parents=True)
     (project_root / ".specify" / "testing").mkdir(parents=True)
+    (project_root / "BUILD-HANDBOOK.md").write_text("# Build Handbook\n", encoding="utf-8")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST add tests for public behavior\n",
         encoding="utf-8",
@@ -272,7 +256,7 @@ def test_compile_worker_task_packet_requires_explicit_validation_gates(
     feature_dir = project_root / "specs" / "001-test-feature"
     feature_dir.mkdir(parents=True)
     (project_root / ".specify" / "memory").mkdir(parents=True)
-    (project_root / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
+    (project_root / "BUILD-HANDBOOK.md").write_text("# Build Handbook\n", encoding="utf-8")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST add tests for public behavior\n",
         encoding="utf-8",

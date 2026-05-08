@@ -5,17 +5,17 @@ import json
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_quick_nav_behaves_like_dictionary_entry_surface() -> None:
+def test_quick_nav_support_artifact_still_exists_for_refresh_workbench() -> None:
     content = (PROJECT_ROOT / "templates" / "project-map" / "QUICK-NAV.md").read_text(encoding="utf-8").lower()
 
     assert "## by symptom" in content
     assert "shared-surface hotspots" in content
     assert "verification routes" in content
     assert "propagation-risk routes" in content
-    assert "which module most likely owns the touched area" in content
+    assert "start here" in content
 
 
-def test_atlas_index_exposes_query_oriented_entry_metadata() -> None:
+def test_atlas_index_support_artifact_still_exposes_query_metadata() -> None:
     payload = json.loads((PROJECT_ROOT / "templates" / "project-map" / "index" / "atlas-index.json").read_text(encoding="utf-8"))
 
     assert "entrypoints" in payload
@@ -27,7 +27,7 @@ def test_atlas_index_exposes_query_oriented_entry_metadata() -> None:
     assert "recommended_minimum_read_set" in payload
 
 
-def test_quick_nav_includes_capability_and_symptom_entry_routes() -> None:
+def test_quick_nav_support_artifact_keeps_capability_and_symptom_routes() -> None:
     content = (PROJECT_ROOT / "templates" / "project-map" / "QUICK-NAV.md").read_text(encoding="utf-8").lower()
     assert "## by capability" in content
     assert "## by symptom" in content

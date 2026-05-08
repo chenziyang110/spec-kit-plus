@@ -32,13 +32,13 @@ def sample_packet() -> WorkerTaskPacket:
         ),
         context_bundle=[
             ContextBundleItem(
-                path="PROJECT-HANDBOOK.md",
-                kind="handbook",
-                purpose="Route the worker to the canonical project navigation entrypoint",
+                path="BUILD-HANDBOOK.md",
+                kind="runtime_handbook",
+                purpose="Workflow-specific runtime handbook for planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="root navigation artifact",
+                selection_reason="build runtime handbook is the primary atlas surface for non-debug work",
             )
         ],
         required_references=[

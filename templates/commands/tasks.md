@@ -84,8 +84,7 @@ scripts:
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
    - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task-generation request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before generating task batches.
-   - Check whether `PROJECT-HANDBOOK.md` exists at the repository root.
-   - Check whether `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` exist.
+   - Check whether `BUILD-HANDBOOK.md` exists at the repository root.
    - [AGENT] If the navigation system is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - [AGENT] If task-relevant coverage is insufficient for the current task-generation request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
@@ -103,29 +102,25 @@ scripts:
    - **Required when present**: `.specify/memory/project-rules.md` (shared project defaults that task generation should preserve)
    - **Required when present**: `.specify/memory/project-learnings.md` (confirmed reusable project learnings that may shape decomposition, validation, or guardrails)
    - **If `.planning/learnings/candidates.md` exists**: inspect only the entries relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
-   - **Required**: [AGENT] Read `PROJECT-HANDBOOK.md`
-   - If the task touches an existing capability and the atlas is fresh enough to trust, read the smallest relevant truth-layer route first:
-     1. `.specify/project-map/index/symptoms.json` when the decomposition starts from a symptom or broken behavior
-     2. `.specify/project-map/index/capabilities.json` when the capability is already known
-     3. `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
-     4. `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
-     5. `.specify/project-map/root/WORKFLOWS.md`
-   - **Required**: Read the smallest relevant combination of `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/STRUCTURE.md`, `.specify/project-map/root/CONVENTIONS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md`
+   - **Required**: [AGENT] Read `BUILD-HANDBOOK.md`
    - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Project-map hard gate:** you must pass an atlas gate before task-shaping
+**Runtime handbook gate:** you must pass the handbook gate before task-shaping
 analysis, decomposition, or implementation-shaping code reads begin.
 
-**This command tier: heavy.** Pass the atlas gate by reading
-`PROJECT-HANDBOOK.md`, `atlas.entry`, `atlas.index.status`,
-`atlas.index.atlas`, `atlas.index.modules`, `atlas.index.relations`, the
-relevant root topic documents, and the relevant module overview documents
-before task breakdown continues. Task generation may stay focused on the plan
-artifacts afterward, but it may not skip the atlas gate.
+**This command tier: heavy.** Pass the handbook gate by reading:
+1. `BUILD-HANDBOOK.md`
+2. `BUILD-WORKFLOW-CONTRACT`
+3. `PRODUCT-AND-CAPABILITY-MAP`
+4. `WORKFLOW-SEQUENCES`
+5. `MODULE-COLLABORATION`
+6. `CHANGE-PROPAGATION-RISKS`
+
+Task generation may stay focused on the plan artifacts afterward, but it may not skip the handbook gate.
 
 4. **Execute task generation workflow**:
     - [AGENT] Before task decomposition begins, split work only into the supported task-generation lanes: `story and phase decomposition`, `dependency graph analysis`, and `write-set and parallel-safety analysis`.

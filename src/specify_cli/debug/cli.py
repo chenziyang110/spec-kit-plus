@@ -62,7 +62,7 @@ def _project_map_preflight_for_debug() -> None:
     freshness = result["freshness"]
     if freshness in {"missing", "stale"}:
         console.print(
-            f"[red]Error:[/red] Project-map freshness is {freshness}. Refresh `PROJECT-HANDBOOK.md` and `.specify/project-map/` before debug."
+            f"[red]Error:[/red] Project-map freshness is {freshness}. Refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` before debug."
         )
         for reason in result.get("reasons", []):
             console.print(f"- {reason}")

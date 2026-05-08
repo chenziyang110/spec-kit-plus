@@ -243,10 +243,13 @@ class TomlIntegrationTests:
         for f in cmd_files:
             content = f.read_text(encoding="utf-8").lower()
             assert "crucial first step" in content
-            assert "project-handbook.md" in content
-            assert "atlas.entry" in content
-            assert "atlas.index.status" in content
-            assert "atlas.index.atlas" in content
+            assert "runtime handbook contract" in content
+            if "debug" in f.name:
+                assert "debug-handbook.md" in content
+                assert "fixed chapter ids required for debug" in content
+            else:
+                assert "build-handbook.md" in content
+                assert "fixed chapter ids required for this workflow" in content
             assert "map-scan" in content
             assert "map-build" in content
 
@@ -711,8 +714,9 @@ class TomlIntegrationTests:
         assert SPEC_KIT_BLOCK_START in content
         assert "[AGENT]" in content
         assert "specify -> plan" in content
-        assert "PROJECT-HANDBOOK.md" in content
-        assert ".specify/project-map/" in content
+        assert "DEBUG-HANDBOOK.md" in content
+        assert "BUILD-HANDBOOK.md" in content
+        assert "two workflow handbooks" in content
         assert ".specify/memory/project-rules.md" in content
         assert "## Workflow Routing" in content
         assert "sp-fast" in content
@@ -732,7 +736,7 @@ class TomlIntegrationTests:
         assert ".specify/testing/TESTING_CONTRACT.md" in content
         assert ".specify/project-map/index/status.json" in content
         assert "## Map Maintenance" in content
-        assert "refresh `PROJECT-HANDBOOK.md`" in content
+        assert "refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`" in content
         assert "git-baseline freshness" in content.lower()
         assert "complete-refresh" in content
         assert "manual override/fallback" in content.lower()
@@ -762,8 +766,8 @@ class TomlIntegrationTests:
         content = context_path.read_text(encoding="utf-8")
         assert content.startswith(initial)
         assert SPEC_KIT_BLOCK_START in content
-        assert "PROJECT-HANDBOOK.md" in content
-        assert ".specify/project-map/" in content
+        assert "DEBUG-HANDBOOK.md" in content
+        assert "BUILD-HANDBOOK.md" in content
         assert "## Workflow Routing" in content
         assert "## Artifact Priority" in content
         assert "## Map Maintenance" in content

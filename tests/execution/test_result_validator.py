@@ -35,22 +35,22 @@ def sample_packet() -> WorkerTaskPacket:
         ),
         context_bundle=[
             ContextBundleItem(
-                path="PROJECT-HANDBOOK.md",
-                kind="handbook",
-                purpose="Route the worker to the canonical project navigation entrypoint",
+                path="BUILD-HANDBOOK.md",
+                kind="runtime_handbook",
+                purpose="Workflow-specific runtime handbook for planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="root navigation artifact",
+                selection_reason="build runtime handbook is the primary atlas surface for non-debug work",
             ),
             ContextBundleItem(
-                path=".specify/project-map/root/WORKFLOWS.md",
-                kind="project_map",
-                purpose="Describe when to use managed teams and when to record leader-inline fallback",
-                required_for=["workflow_boundary", "runtime_constraints"],
+                path="DEBUG-HANDBOOK.md",
+                kind="runtime_handbook",
+                purpose="Workflow-specific runtime handbook for debug investigations.",
+                required_for=["workflow_boundary", "architecture_boundary", "validation"],
                 read_order=2,
                 must_read=True,
-                selection_reason="teams execution policy lives here",
+                selection_reason="debug runtime handbook is the primary atlas surface for debug work",
             ),
         ],
         required_references=[
@@ -88,7 +88,7 @@ def test_validate_worker_task_result_accepts_acknowledged_result(
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
+            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
         ),
     )
 
@@ -133,7 +133,7 @@ def test_validate_worker_task_result_accepts_blocked_result_with_fail_fast_conte
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
+            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
         ),
     )
 
@@ -168,7 +168,7 @@ def test_validate_worker_task_result_rejects_blocked_result_without_recovery_con
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
+            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
         ),
     )
 
@@ -196,7 +196,7 @@ def test_validate_worker_task_result_rejects_missing_context_bundle_receipts(
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md"],
+            paths_read=["BUILD-HANDBOOK.md"],
         ),
     )
 
@@ -226,7 +226,7 @@ def test_validate_worker_task_result_rejects_success_without_truthful_validation
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
+            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
         ),
     )
 
@@ -256,7 +256,7 @@ def test_validate_worker_task_result_rejects_success_when_a_validation_gate_is_m
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
+            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
         ),
     )
 

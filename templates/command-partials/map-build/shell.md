@@ -2,11 +2,11 @@
 
 ## Objective
 
-Build or refresh the canonical handbook/project-map atlas from a completed scan package.
+Build or refresh the canonical runtime handbooks from a completed scan package.
 
 ## Context
 
-- Primary inputs: `.specify/project-map/map-scan.md`, `.specify/project-map/coverage-ledger.json`, `.specify/project-map/coverage-ledger.md`, `.specify/project-map/scan-packets/*.md`, `.specify/project-map/map-state.md`, and live repository evidence.
-- This command owns final atlas outputs and freshness metadata.
-- If the scan package is incomplete or the available worker evidence is derived-only, produce a scan gap report and return to `sp-map-scan` instead of writing a shallow atlas.
+- Primary inputs: `.specify/project-map/map-scan.md`, `.specify/project-map/coverage-ledger.json`, `.specify/project-map/coverage-ledger.md`, `.specify/project-map/scan-packets/*.md`, `.specify/project-map/map-state.md`, existing handbooks when present, and live repository evidence.
+- This command owns the two workflow handbook runtime outputs.
+- If the scan package is incomplete or the accepted evidence cannot support workflow-operational handbook content, produce a scan gap report and return to `sp-map-scan`.
 - Record accepted/rejected packet evidence in `.specify/project-map/map-state.md` and `.specify/project-map/worker-results/*.json`.

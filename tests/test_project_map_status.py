@@ -57,21 +57,9 @@ def test_missing_canonical_project_map_paths_lists_required_outputs(tmp_path):
 
     normalized = [str(path).replace("\\", "/") for path in missing]
     assert normalized == [
-        f"{tmp_path.as_posix()}/PROJECT-HANDBOOK.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/QUICK-NAV.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/index/atlas-index.json",
-        f"{tmp_path.as_posix()}/.specify/project-map/index/modules.json",
-        f"{tmp_path.as_posix()}/.specify/project-map/index/relations.json",
-        f"{tmp_path.as_posix()}/.specify/project-map/index/capabilities.json",
-        f"{tmp_path.as_posix()}/.specify/project-map/index/symptoms.json",
+        f"{tmp_path.as_posix()}/DEBUG-HANDBOOK.md",
+        f"{tmp_path.as_posix()}/BUILD-HANDBOOK.md",
         f"{tmp_path.as_posix()}/.specify/project-map/index/status.json",
-        f"{tmp_path.as_posix()}/.specify/project-map/root/ARCHITECTURE.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/root/STRUCTURE.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/root/CONVENTIONS.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/root/INTEGRATIONS.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/root/WORKFLOWS.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/root/TESTING.md",
-        f"{tmp_path.as_posix()}/.specify/project-map/root/OPERATIONS.md",
     ]
 
 

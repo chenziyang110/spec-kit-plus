@@ -149,6 +149,34 @@ def _write_heavy_prd_build_exports(run_dir: Path) -> None:
         (run_dir / "exports" / relative).write_text(heading, encoding="utf-8")
 
 
+def _write_runtime_handbooks(run_dir: Path) -> None:
+    for relative, content in {
+        "DEBUG-HANDBOOK.md": (
+            "## DEBUG-WORKFLOW-CONTRACT\n"
+            "## SYMPTOM-TO-SURFACE-ROUTING\n"
+            "## SYSTEM-TOPOLOGY-FOR-DEBUG\n"
+            "## HOT-PATHS-AND-OWNERS\n"
+            "## FAILURE-PATTERNS\n"
+            "## INVESTIGATION-PLAYBOOKS\n"
+            "## FIX-PROPAGATION-CHECKS\n"
+            "## VERIFICATION-AND-EXIT\n"
+            "## KNOWN-UNKNOWNS\n"
+        ),
+        "BUILD-HANDBOOK.md": (
+            "## BUILD-WORKFLOW-CONTRACT\n"
+            "## PRODUCT-AND-CAPABILITY-MAP\n"
+            "## WORKFLOW-SEQUENCES\n"
+            "## CHANGE-ENTRYPOINTS\n"
+            "## MODULE-COLLABORATION\n"
+            "## CHANGE-PROPAGATION-RISKS\n"
+            "## IMPLEMENTATION-PLAYBOOKS\n"
+            "## VERIFICATION-ROUTES\n"
+            "## KNOWN-UNKNOWNS\n"
+        ),
+    }.items():
+        (run_dir / relative).write_text(content, encoding="utf-8")
+
+
 def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -956,22 +984,14 @@ def test_hook_validate_artifacts_blocks_map_scan_when_truth_layer_ledgers_are_mi
     assert any("control-ledger.json" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_truth_layer_indexes_are_missing(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_runtime_handbooks_are_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-map"
-    index_dir = run_dir / "index"
-    index_dir.mkdir(parents=True, exist_ok=True)
+    run_dir.mkdir(parents=True, exist_ok=True)
     for relative, content in {
-        "workflow-state.md": "# Workflow State\n",
         "map-state.md": "# Map State\n",
         "map-scan.md": "# Map Scan\n",
-        "repository-universe.json": "{\"files\": []}\n",
         "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-        "capability-ledger.json": "{\"capabilities\": []}\n",
-        "control-ledger.json": "{\"control_nodes\": []}\n",
-        "index/atlas-index.json": "{}\n",
-        "index/modules.json": "{\"modules\": []}\n",
-        "index/relations.json": "{\"relations\": []}\n",
     }.items():
         target = run_dir / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -986,8 +1006,8 @@ def test_hook_validate_artifacts_blocks_map_build_when_truth_layer_indexes_are_m
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("index/capabilities.json" in message for message in payload["errors"])
-    assert any("index/symptoms.json" in message for message in payload["errors"])
+    assert any("DEBUG-HANDBOOK.md" in message for message in payload["errors"])
+    assert any("BUILD-HANDBOOK.md" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_blocks_map_build_when_worker_result_is_derived_only(tmp_path: Path):
@@ -996,19 +1016,12 @@ def test_hook_validate_artifacts_blocks_map_build_when_worker_result_is_derived_
     for relative, content in {
         "map-state.md": "# Map State\n",
         "map-scan.md": "# Map Scan\n",
-        "repository-universe.json": "{\"files\": []}\n",
         "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-        "capability-ledger.json": "{\"capabilities\": []}\n",
-        "control-ledger.json": "{\"control_nodes\": []}\n",
-        "index/atlas-index.json": "{}\n",
-        "index/modules.json": "{\"modules\": []}\n",
-        "index/relations.json": "{\"relations\": []}\n",
-        "index/capabilities.json": "{\"capabilities\": []}\n",
-        "index/symptoms.json": "{\"symptoms\": []}\n",
     }.items():
         target = run_dir / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
+    _write_runtime_handbooks(run_dir)
     (run_dir / "scan-packets").mkdir()
     (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
     (run_dir / "worker-results").mkdir()
@@ -1016,8 +1029,8 @@ def test_hook_validate_artifacts_blocks_map_build_when_worker_result_is_derived_
         json.dumps(
             {
                 "paths_read": [
-                    str(project / ".specify" / "project-map" / "index" / "modules.json"),
-                    ".specify/project-map/modules/runtime.md",
+                    str(project / ".specify" / "project-map" / "DEBUG-HANDBOOK.md"),
+                    ".specify/project-map/map-state.md",
                 ],
                 "unknowns": [],
                 "confidence": "medium",
@@ -1044,19 +1057,12 @@ def test_hook_validate_artifacts_blocks_map_build_when_paths_read_is_empty(tmp_p
     for relative, content in {
         "map-state.md": "# Map State\n",
         "map-scan.md": "# Map Scan\n",
-        "repository-universe.json": "{\"files\": []}\n",
         "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-        "capability-ledger.json": "{\"capabilities\": []}\n",
-        "control-ledger.json": "{\"control_nodes\": []}\n",
-        "index/atlas-index.json": "{}\n",
-        "index/modules.json": "{\"modules\": []}\n",
-        "index/relations.json": "{\"relations\": []}\n",
-        "index/capabilities.json": "{\"capabilities\": []}\n",
-        "index/symptoms.json": "{\"symptoms\": []}\n",
     }.items():
         target = run_dir / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
+    _write_runtime_handbooks(run_dir)
     (run_dir / "scan-packets").mkdir()
     (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
     (run_dir / "worker-results").mkdir()
@@ -1083,7 +1089,7 @@ def test_hook_validate_artifacts_blocks_map_build_when_paths_read_is_empty(tmp_p
     assert any("worker-results/lane-a.json" in message and "non-empty paths_read" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_capability_diagram_is_not_rendered(
+def test_hook_validate_artifacts_blocks_map_build_when_debug_handbook_is_missing_required_section(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
@@ -1091,39 +1097,23 @@ def test_hook_validate_artifacts_blocks_map_build_when_capability_diagram_is_not
     for relative, content in {
         "map-state.md": "# Map State\n",
         "map-scan.md": "# Map Scan\n",
-        "repository-universe.json": "{\"files\": []}\n",
         "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-        "capability-ledger.json": "{\"capabilities\": []}\n",
-        "control-ledger.json": "{\"control_nodes\": []}\n",
-        "index/atlas-index.json": "{}\n",
-        "index/modules.json": "{\"modules\": []}\n",
-        "index/relations.json": "{\"relations\": []}\n",
-        "index/capabilities.json": json.dumps(
-            {
-                "capabilities": [
-                    {
-                        "id": "CAP-MAP-001",
-                        "name": "Map Build",
-                        "deep_workflow_path": ".specify/project-map/modules/core/deep/workflows/cap-001.md",
-                        "lifecycle_mermaid": "stateDiagram-v2\n  scan --> build",
-                        "flow_mermaid": "flowchart TD\n  A --> B",
-                    }
-                ]
-            }
-        )
-        + "\n",
-        "index/symptoms.json": "{\"symptoms\": []}\n",
-        "modules/core/deep/workflows/cap-001.md": (
-            "# Map Build\n\n"
-            "```mermaid\n"
-            "stateDiagram-v2\n"
-            "  scan --> build\n"
-            "```\n"
-        ),
     }.items():
         target = run_dir / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
+    _write_runtime_handbooks(run_dir)
+    (run_dir / "DEBUG-HANDBOOK.md").write_text(
+        "## DEBUG-WORKFLOW-CONTRACT\n"
+        "## SYMPTOM-TO-SURFACE-ROUTING\n"
+        "## SYSTEM-TOPOLOGY-FOR-DEBUG\n"
+        "## HOT-PATHS-AND-OWNERS\n"
+        "## FAILURE-PATTERNS\n"
+        "## INVESTIGATION-PLAYBOOKS\n"
+        "## FIX-PROPAGATION-CHECKS\n"
+        "## VERIFICATION-AND-EXIT\n",
+        encoding="utf-8",
+    )
     (run_dir / "scan-packets").mkdir()
     (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
     (run_dir / "worker-results").mkdir()
@@ -1150,73 +1140,59 @@ def test_hook_validate_artifacts_blocks_map_build_when_capability_diagram_is_not
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("CAP-MAP-001" in message and "Mermaid" in message for message in payload["errors"])
+    assert any("DEBUG-HANDBOOK.md" in message and "## KNOWN-UNKNOWNS" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_capability_page_path_is_unsafe(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_build_handbook_is_missing_required_section(tmp_path: Path):
     project = _create_project(tmp_path)
-
-    def run_validation(case_name: str, deep_workflow_path: str):
-        run_dir = project / ".specify" / f"project-map-{case_name}"
-        for relative, content in {
-            "map-state.md": "# Map State\n",
-            "map-scan.md": "# Map Scan\n",
-            "repository-universe.json": "{\"files\": []}\n",
-            "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-            "capability-ledger.json": "{\"capabilities\": []}\n",
-            "control-ledger.json": "{\"control_nodes\": []}\n",
-            "index/atlas-index.json": "{}\n",
-            "index/modules.json": "{\"modules\": []}\n",
-            "index/relations.json": "{\"relations\": []}\n",
-            "index/capabilities.json": json.dumps(
-                {
-                    "capabilities": [
-                        {
-                            "id": f"CAP-MAP-{case_name}",
-                            "deep_workflow_path": deep_workflow_path,
-                            "flow_mermaid": "flowchart TD\n  A --> B",
-                        }
-                    ]
-                }
-            )
-            + "\n",
-            "index/symptoms.json": "{\"symptoms\": []}\n",
-        }.items():
-            target = run_dir / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
-        (run_dir / "scan-packets").mkdir()
-        (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
-        (run_dir / "worker-results").mkdir()
-        source_path = project / "src" / case_name / "app.py"
-        source_path.parent.mkdir(parents=True)
-        source_path.write_text("print('source evidence')\n", encoding="utf-8")
-        (run_dir / "worker-results" / "lane-a.json").write_text(
-            json.dumps(
-                {
-                    "paths_read": [f"src/{case_name}/app.py"],
-                    "unknowns": [],
-                    "confidence": "high",
-                    "recommended_atlas_updates": [],
-                }
-            )
-            + "\n",
-            encoding="utf-8",
+    run_dir = project / ".specify" / "project-map"
+    for relative, content in {
+        "map-state.md": "# Map State\n",
+        "map-scan.md": "# Map Scan\n",
+        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
+    }.items():
+        target = run_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    _write_runtime_handbooks(run_dir)
+    (run_dir / "BUILD-HANDBOOK.md").write_text(
+        "## BUILD-WORKFLOW-CONTRACT\n"
+        "## PRODUCT-AND-CAPABILITY-MAP\n"
+        "## WORKFLOW-SEQUENCES\n"
+        "## CHANGE-ENTRYPOINTS\n"
+        "## MODULE-COLLABORATION\n"
+        "## CHANGE-PROPAGATION-RISKS\n"
+        "## IMPLEMENTATION-PLAYBOOKS\n"
+        "## KNOWN-UNKNOWNS\n",
+        encoding="utf-8",
+    )
+    (run_dir / "scan-packets").mkdir()
+    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
+    (run_dir / "worker-results").mkdir()
+    source_path = project / "src" / "build.py"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("print('source evidence')\n", encoding="utf-8")
+    (run_dir / "worker-results" / "lane-a.json").write_text(
+        json.dumps(
+            {
+                "paths_read": ["src/build.py"],
+                "unknowns": [],
+                "confidence": "high",
+                "recommended_atlas_updates": [],
+            }
         )
+        + "\n",
+        encoding="utf-8",
+    )
 
-        return _invoke_in_project(
-            project,
-            ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
-        )
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+    )
 
-    for case_name, deep_workflow_path in (
-        ("absolute", str(project / "outside.md")),
-        ("traversal", "../outside.md"),
-    ):
-        result = run_validation(case_name, deep_workflow_path)
-        payload = json.loads(result.output.strip())
-        assert payload["status"] == "blocked"
-        assert any("invalid deep workflow page" in message for message in payload["errors"])
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("BUILD-HANDBOOK.md" in message and "## VERIFICATION-ROUTES" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_blocks_prd_scan_on_malformed_json_shapes(tmp_path: Path):

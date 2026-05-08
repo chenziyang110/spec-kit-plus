@@ -1,59 +1,43 @@
-## Project-Map Hard Gate
+## Runtime Handbook Gate
 
-This command must treat the atlas as a mandatory pre-source knowledge base.
+This command must treat the workflow handbooks as the mandatory pre-source knowledge base.
 
 ### Hard Rule
 
 Do not inspect implementation source, run reproduction or tests, compile a
-plan, prepare a fix, or emit technical recommendations until the atlas gate has
+plan, prepare a fix, or emit technical recommendations until the handbook gate has
 passed.
 
-### Minimum Atlas Read Set
+### Required Runtime Handbook
 
-Every ordinary `sp-*` workflow must read:
+- Use `DEBUG-HANDBOOK.md` for `sp-debug`.
+- Use `BUILD-HANDBOOK.md` for ordinary non-debug `sp-*` workflows.
 
-1. `PROJECT-HANDBOOK.md`
-2. `atlas.entry`
-3. `atlas.index.status`
-4. `atlas.index.atlas`
-5. at least one relevant root topic document
-6. at least one relevant module overview document
+### Fixed Chapter Consumption
 
-When the atlas is fresh enough to trust and the task touches an existing
-capability, also prefer:
-
-- `atlas.index.symptoms` when the task starts from a symptom
-- `atlas.index.capabilities` when the capability is already known
-- the matching capability deep workflow page before broader module or source
-  reads
-
-If the touched area crosses shared surfaces, integration seams, workflow joins,
-or verification-sensitive boundaries, also read:
-
-- `atlas.index.relations`
-- any additional root topic documents named by the entry layer
+Every workflow must read the required chapter IDs explicitly required by its command contract.
+Do not replace chapter consumption with broad freeform scanning of the handbook.
 
 ### Command Tier Depth
 
-Tier determines how deeply the workflow must continue through atlas layers
-after the minimum gate, not whether it may skip atlas consumption.
+Tier determines how deeply the workflow must continue through handbook chapters
+after the minimum gate, not whether it may skip handbook consumption.
 
-- `trivial` (`sp-fast`): stay at the minimum atlas read set unless the entry
-  layer names shared-surface risk
-- `light` (`sp-quick`, `sp-debug`): read all root topics and module sections
-  named by Layer 1 for the touched area
-- `heavy` (`sp-specify`, `sp-plan`, `sp-tasks`, `sp-implement`): read all
-  relevant root topics, module docs, and relation surfaces needed for the
-  current decision
+- `trivial`: minimum required chapter set only
+- `light`: minimum chapter set plus relevant routing or playbook chapters
+- `heavy`: minimum chapter set plus all relevant collaboration, propagation, and verification chapters
 
 ### Freshness
 
-Treat atlas freshness as a gate:
+Treat handbook freshness as a gate:
 
 - `missing` -> block and refresh through `sp-map-scan -> sp-map-build`
 - `stale` -> block and refresh through `sp-map-scan -> sp-map-build`
 - `possibly_stale` -> inspect `must_refresh_topics` and `review_topics`; if
-  current-task topics intersect `must_refresh_topics`, block and refresh before
-  continuing
+  current-task topics intersect `must_refresh_topics`, block and refresh before continuing
 
-The old `warn but proceed` behavior is not allowed.
+### Primary Read Restriction
+
+Do not treat layered project-map files as primary runtime read surfaces. If handbook
+coverage is insufficient, refresh the handbooks or move to live repository evidence
+instead of forcing a second atlas traversal phase.

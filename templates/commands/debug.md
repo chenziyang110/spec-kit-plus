@@ -131,24 +131,20 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**This command tier: light.** Pass the atlas gate before investigation moves
+**This command tier: light.** Pass the handbook gate before investigation moves
 into reproduction, logs, tests, or source-code reads.
 
-## Project-Map Hard Gate
+## Debug Handbook Gate
 
 Before observer framing moves into reproduction, logs, tests, or source-code
-reads, pass the atlas gate by reading.
+reads, pass the handbook gate by reading:
 
-You must pass an atlas gate before reproduction, log review, test inspection,
-or source-code reads begin.
-
-1. `PROJECT-HANDBOOK.md`
-2. `atlas.entry`
-3. `atlas.index.status`
-4. `atlas.index.atlas`
-5. the relevant root topic documents for workflows, testing, and operations
-6. at least one relevant module overview document
-7. `atlas.index.relations` when Layer 1 names cross-module or shared-surface risk
+1. `DEBUG-HANDBOOK.md`
+2. `DEBUG-WORKFLOW-CONTRACT`
+3. `SYMPTOM-TO-SURFACE-ROUTING`
+4. `SYSTEM-TOPOLOGY-FOR-DEBUG`
+5. `INVESTIGATION-PLAYBOOKS`
+6. `VERIFICATION-AND-EXIT`
 
 ## Investigation Protocol
 
@@ -158,19 +154,12 @@ or source-code reads begin.
 - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
 - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.
 - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the failing area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues. If only `review_topics` are non-empty, review those topical files before widening the investigation.
-- [AGENT] Read `PROJECT-HANDBOOK.md` before root-cause analysis so the investigation starts from the current system map.
-- [AGENT] If the handbook navigation system is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.
+- [AGENT] If `DEBUG-HANDBOOK.md` is missing, stale, or insufficient for the failing area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.
+- Treat `DEBUG-HANDBOOK.md` as the only primary runtime atlas read surface for `sp-debug`.
+- Do not route through support-only project-map artifacts before beginning repository evidence work.
 - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - [AGENT] If task-relevant coverage is insufficient for the failing area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.
-- If the task touches an existing capability and the atlas is fresh enough to trust, read the smallest relevant truth-layer route first:
-  1. `.specify/project-map/index/symptoms.json` when the investigation starts from a user-visible symptom
-  2. `.specify/project-map/index/capabilities.json` when the capability is already known
-  3. `.specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md`
-  4. `.specify/project-map/modules/<module-id>/WORKFLOWS.md`
-  5. `.specify/project-map/root/WORKFLOWS.md`
-- Read whichever of `ARCHITECTURE.md`, `WORKFLOWS.md`, `INTEGRATIONS.md`, `TESTING.md`, and `OPERATIONS.md` map to the failing area.
-- Read the corresponding `.specify/project-map/root/ARCHITECTURE.md`, `.specify/project-map/root/WORKFLOWS.md`, `.specify/project-map/root/INTEGRATIONS.md`, `.specify/project-map/root/TESTING.md`, and `.specify/project-map/root/OPERATIONS.md` files for the failing area.
-- Use the navigation system to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
+- Use `DEBUG-HANDBOOK.md` to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
 - Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
 - Read `.specify/memory/project-learnings.md` if present before forming or validating a fix.
@@ -462,7 +451,7 @@ The session file must always make it clear:
 - If automated verification or human verification fails repeatedly without producing a stronger causal explanation, stop the local fix loop and create or refresh `.planning/debug/[slug].research.md` before another code change.
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
 - Treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source for the handbook/project-map atlas.
-- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before moving to `awaiting_human_verify` or `resolved` so `PROJECT-HANDBOOK.md`, `.specify/project-map/*.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
+- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before moving to `awaiting_human_verify` or `resolved` so `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/index/status.json` are refreshed in the same pass; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
 - If a full refresh can be completed now, do it; otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` before later brownfield work proceeds.
 - [AGENT] Resolved debug sessions should auto-capture learning candidates from the persisted debug session state.
 - [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `{{specify-subcmd:learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json}}`.

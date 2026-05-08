@@ -30,15 +30,9 @@ FILE_REQUIRED_ARTIFACTS = {
     "map-build": (
         "map-state.md",
         "map-scan.md",
-        "repository-universe.json",
         "coverage-ledger.json",
-        "capability-ledger.json",
-        "control-ledger.json",
-        "index/atlas-index.json",
-        "index/modules.json",
-        "index/relations.json",
-        "index/capabilities.json",
-        "index/symptoms.json",
+        "DEBUG-HANDBOOK.md",
+        "BUILD-HANDBOOK.md",
     ),
     "prd-scan": (
         "workflow-state.md",
@@ -104,17 +98,11 @@ REQUIRED_ARTIFACTS = {
     "map-build": (
         "map-state.md",
         "map-scan.md",
-        "repository-universe.json",
         "coverage-ledger.json",
-        "capability-ledger.json",
-        "control-ledger.json",
         "scan-packets",
         "worker-results",
-        "index/atlas-index.json",
-        "index/modules.json",
-        "index/relations.json",
-        "index/capabilities.json",
-        "index/symptoms.json",
+        "DEBUG-HANDBOOK.md",
+        "BUILD-HANDBOOK.md",
     ),
     "prd-scan": (
         "workflow-state.md",
@@ -245,6 +233,30 @@ MAP_BUILD_WORKER_RESULT_REQUIRED_KEYS = frozenset(
         "confidence",
         "recommended_atlas_updates",
     }
+)
+
+DEBUG_HANDBOOK_REQUIRED_SECTIONS = (
+    "## DEBUG-WORKFLOW-CONTRACT",
+    "## SYMPTOM-TO-SURFACE-ROUTING",
+    "## SYSTEM-TOPOLOGY-FOR-DEBUG",
+    "## HOT-PATHS-AND-OWNERS",
+    "## FAILURE-PATTERNS",
+    "## INVESTIGATION-PLAYBOOKS",
+    "## FIX-PROPAGATION-CHECKS",
+    "## VERIFICATION-AND-EXIT",
+    "## KNOWN-UNKNOWNS",
+)
+
+BUILD_HANDBOOK_REQUIRED_SECTIONS = (
+    "## BUILD-WORKFLOW-CONTRACT",
+    "## PRODUCT-AND-CAPABILITY-MAP",
+    "## WORKFLOW-SEQUENCES",
+    "## CHANGE-ENTRYPOINTS",
+    "## MODULE-COLLABORATION",
+    "## CHANGE-PROPAGATION-RISKS",
+    "## IMPLEMENTATION-PLAYBOOKS",
+    "## VERIFICATION-ROUTES",
+    "## KNOWN-UNKNOWNS",
 )
 
 MAP_BUILD_REFERENCE_OR_DERIVED_PATH_PREFIXES = (
@@ -773,10 +785,29 @@ def _validate_map_build_capability_diagrams(feature_dir: Path) -> list[str]:
     return errors
 
 
+def _validate_runtime_handbooks(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    errors.extend(
+        _validate_markdown_contains(
+            feature_dir / "DEBUG-HANDBOOK.md",
+            DEBUG_HANDBOOK_REQUIRED_SECTIONS,
+            "DEBUG-HANDBOOK.md",
+        )
+    )
+    errors.extend(
+        _validate_markdown_contains(
+            feature_dir / "BUILD-HANDBOOK.md",
+            BUILD_HANDBOOK_REQUIRED_SECTIONS,
+            "BUILD-HANDBOOK.md",
+        )
+    )
+    return errors
+
+
 def _validate_map_build_artifacts(feature_dir: Path) -> list[str]:
     errors: list[str] = []
     errors.extend(_validate_map_build_worker_results(feature_dir))
-    errors.extend(_validate_map_build_capability_diagrams(feature_dir))
+    errors.extend(_validate_runtime_handbooks(feature_dir))
     return errors
 
 

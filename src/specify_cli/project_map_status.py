@@ -178,35 +178,24 @@ def legacy_project_map_status_path(project_root: Path) -> Path:
     return project_map_dir(project_root) / STATUS_FILENAME
 
 
-def canonical_project_map_paths(project_root: Path) -> list[Path]:
-    project_map_index_root = project_map_index_dir(project_root)
-    project_map_root = project_map_root_dir(project_root)
+def canonical_runtime_handbook_paths(project_root: Path) -> list[Path]:
     return [
-        project_root / "PROJECT-HANDBOOK.md",
-        project_map_dir(project_root) / "QUICK-NAV.md",
-        project_map_index_root / "atlas-index.json",
-        project_map_index_root / "modules.json",
-        project_map_index_root / "relations.json",
-        project_map_index_root / "capabilities.json",
-        project_map_index_root / "symptoms.json",
-        project_map_index_root / STATUS_FILENAME,
-        project_map_root / "ARCHITECTURE.md",
-        project_map_root / "STRUCTURE.md",
-        project_map_root / "CONVENTIONS.md",
-        project_map_root / "INTEGRATIONS.md",
-        project_map_root / "WORKFLOWS.md",
-        project_map_root / "TESTING.md",
-        project_map_root / "OPERATIONS.md",
+        project_root / "DEBUG-HANDBOOK.md",
+        project_root / "BUILD-HANDBOOK.md",
+    ]
+
+
+def canonical_project_map_paths(project_root: Path) -> list[Path]:
+    return [
+        *canonical_runtime_handbook_paths(project_root),
+        project_map_status_path(project_root),
     ]
 
 
 def atlas_minimum_read_set(project_root: Path) -> list[Path]:
-    project_map_index_root = project_map_index_dir(project_root)
     return [
-        project_root / "PROJECT-HANDBOOK.md",
-        project_map_dir(project_root) / "QUICK-NAV.md",
-        project_map_index_root / "status.json",
-        project_map_index_root / "atlas-index.json",
+        *canonical_runtime_handbook_paths(project_root),
+        project_map_status_path(project_root),
     ]
 
 

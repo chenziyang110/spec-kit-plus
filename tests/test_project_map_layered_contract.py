@@ -8,16 +8,12 @@ def _read(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
 
 
-def test_project_handbook_template_routes_to_index_root_and_module_layers():
+def test_project_handbook_template_routes_to_runtime_handbooks():
     handbook = _read("templates/project-handbook-template.md")
 
-    assert "`.specify/project-map/QUICK-NAV.md`" in handbook
-    assert "`.specify/project-map/index/atlas-index.json`" in handbook
-    assert "`.specify/project-map/index/modules.json`" in handbook
-    assert "`.specify/project-map/index/relations.json`" in handbook
-    assert "`.specify/project-map/index/status.json`" in handbook
-    assert "`.specify/project-map/root/ARCHITECTURE.md`" in handbook
-    assert "`.specify/project-map/modules/<module-id>/OVERVIEW.md`" in handbook
+    assert "`DEBUG-HANDBOOK.md`" in handbook
+    assert "`BUILD-HANDBOOK.md`" in handbook
+    assert "only primary runtime atlas documents" in handbook
 
 
 def test_quick_nav_includes_symptom_and_verification_lookup_routes():
@@ -57,7 +53,7 @@ def test_layered_project_map_template_files_exist():
         assert (PROJECT_ROOT / rel_path).exists(), rel_path
 
 
-def test_layered_project_map_contract_includes_capability_truth_indexes():
+def test_support_project_map_contract_still_includes_capability_truth_indexes():
     for rel_path in [
         "templates/project-map/index/capabilities.json",
         "templates/project-map/index/symptoms.json",

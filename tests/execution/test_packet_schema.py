@@ -35,13 +35,13 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
         ),
         context_bundle=[
             ContextBundleItem(
-                path="PROJECT-HANDBOOK.md",
-                kind="handbook",
-                purpose="Route the worker to the canonical project navigation entrypoint",
+                path="BUILD-HANDBOOK.md",
+                kind="runtime_handbook",
+                purpose="Workflow-specific runtime handbook for planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="root navigation artifact",
+                selection_reason="build runtime handbook is the primary atlas surface for non-debug work",
             )
         ],
         required_references=[
@@ -101,13 +101,13 @@ def test_worker_task_packet_round_trips_through_json() -> None:
         ),
         context_bundle=[
             ContextBundleItem(
-                path="PROJECT-HANDBOOK.md",
-                kind="handbook",
-                purpose="Route the worker to the canonical project navigation entrypoint",
+                path="BUILD-HANDBOOK.md",
+                kind="runtime_handbook",
+                purpose="Workflow-specific runtime handbook for planning and implementation work",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="root navigation artifact",
+                selection_reason="build runtime handbook is the primary atlas surface for non-debug work",
             )
         ],
         required_references=[
@@ -130,7 +130,7 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     assert restored.task_id == "T017"
     assert restored.intent.constraints == ["Do not create a parallel auth stack"]
     assert restored.scope.write_scope == ["src/services/auth_service.py"]
-    assert restored.context_bundle[0].path == "PROJECT-HANDBOOK.md"
+    assert restored.context_bundle[0].path == "BUILD-HANDBOOK.md"
     assert restored.required_references[0].path == "src/contracts/auth.py"
     assert restored.platform_guardrails == ["supported_platforms: windows, linux"]
 
@@ -173,18 +173,15 @@ def test_worker_task_result_round_trips_context_read_receipts() -> None:
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=["PROJECT-HANDBOOK.md", ".specify/project-map/root/WORKFLOWS.md"],
-            critical_notes=["validated the canonical worker verification route before execution"],
+            paths_read=["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"],
+            critical_notes=["validated the runtime handbook verification routes before execution"],
         ),
     )
 
     restored = worker_task_result_from_json(json.dumps(worker_task_result_payload(result)))
 
     assert restored.rule_acknowledgement.context_bundle_read is True
-    assert restored.rule_acknowledgement.paths_read == [
-        "PROJECT-HANDBOOK.md",
-        ".specify/project-map/root/WORKFLOWS.md",
-    ]
+    assert restored.rule_acknowledgement.paths_read == ["BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md"]
     assert restored.rule_acknowledgement.critical_notes == [
-        "validated the canonical worker verification route before execution"
+        "validated the runtime handbook verification routes before execution"
     ]

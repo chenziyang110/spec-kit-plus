@@ -248,10 +248,10 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert auto_parallel_idx == -1 or leader_gate_idx < outline_idx < auto_parallel_idx
     assert "feature_dir/implement-tracker.md" in content.lower()
     assert "execution-state source of truth" in content.lower()
-    assert "project-handbook.md" in content.lower()
-    assert ".specify/project-map/root/architecture.md" in content.lower()
-    assert ".specify/project-map/root/workflows.md" in content.lower()
-    assert ".specify/project-map/root/operations.md" in content.lower()
+    assert "build-handbook.md" in content.lower()
+    assert "build-workflow-contract" in content.lower()
+    assert "product-and-capability-map" in content.lower()
+    assert "change-entrypoints" in content.lower()
     assert "first-class implementation context" in content.lower()
     assert "user execution notes" in content.lower()
     assert "resume_decision" in content.lower()
@@ -314,9 +314,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "execution_surface: native-subagents" in content
         assert "spawn_agent" in content
         assert "wait_agent" in content
-        assert "project-handbook.md" in content
-        assert ".specify/project-map/root/architecture.md" in content
-        assert ".specify/project-map/root/workflows.md" in content
+        assert "build-handbook.md" in content
+        assert "build-workflow-contract" in content
+        assert "product-and-capability-map" in content
         assert ".specify/memory/project-rules.md" in content
         assert ".specify/memory/project-learnings.md" in content
         assert ".planning/learnings/candidates.md" in content
@@ -539,13 +539,10 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "live surface" in scan_content
     assert "git baseline diff" in scan_content
 
-    assert "project-handbook.md" in build_content
-    assert ".specify/project-map/index/atlas-index.json" in build_content
-    assert ".specify/project-map/index/capabilities.json" in build_content
-    assert ".specify/project-map/index/symptoms.json" in build_content
-    assert ".specify/project-map/root/architecture.md" in build_content
-    assert ".specify/project-map/modules/<module-id>/overview.md" in build_content
-    assert ".specify/project-map/modules/<module-id>/deep/workflows/<capability-id>.md" in build_content
+    assert "debug-handbook.md" in build_content
+    assert "build-handbook.md" in build_content
+    assert "debug-workflow-contract" in build_content
+    assert "build-workflow-contract" in build_content
     assert 'choose_subagent_dispatch(command_name="map-build"' in build_content
     assert "route back to `/sp-map-scan`" in build_content
     assert "mapbuildpacket" in build_content
@@ -554,14 +551,13 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "wait_agent" in build_content
     assert "close_agent" in build_content
     assert "complete-refresh" in build_content
-    assert "root and module document detail rules" in build_content
-    assert "root docs carry cross-module truth; module docs carry module-local truth" in build_content
-    assert "`project-handbook.md` must stay concise and index-first" in build_content
+    assert "workflow-handbook detail rules" in build_content
+    assert "`debug-handbook.md` must stay concise" in build_content
+    assert "`build-handbook.md` must stay concise" in build_content
     assert "minimum verification" in build_content
     assert "confidence" in build_content
-    assert "capability deep workflow" in build_content
     assert "derived-only evidence" in build_content
-    assert "deep workflow documentation pages" in build_content
+    assert "workflow-operational reachability validation" in build_content
 
 
 def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):
@@ -585,12 +581,10 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "codex subagent evidence collection" in content
-    assert "project-handbook.md" in content
-    assert ".specify/project-map/root/architecture.md" in content
-    assert ".specify/project-map/root/workflows.md" in content
-    assert ".specify/project-map/root/integrations.md" in content
-    assert ".specify/project-map/root/testing.md" in content
-    assert ".specify/project-map/root/operations.md" in content
+    assert "debug-handbook.md" in content
+    assert "debug-workflow-contract" in content
+    assert "symptom-to-surface-routing" in content
+    assert "system-topology-for-debug" in content
     assert "observer framing" in content
     assert "compressed observer framing" in content
     assert "mandatory intake contract" in content
@@ -604,7 +598,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "primary suspected loop" in content
     assert "alternative cause candidates" in content
     assert "transition memo" in content
-    assert "if the handbook navigation system is missing" in content
+    assert "if `debug-handbook.md` is missing, stale, or insufficient" in content
     assert "tell the user to run `$sp-map-scan`, then `$sp-map-build`; wait for that refresh before root-cause analysis continues" in content
     assert "truth-owning layers" in content
     assert "spawn_agent" in content
@@ -702,9 +696,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
-    assert "project-handbook.md" in content
+    assert "build-handbook.md" in content
     assert "shared surfaces" in content
-    assert "project-map hard gate" in content
+    assert "runtime handbook gate" in content
     assert "≤3 files touched" in content or "at most 3 files" in content or "no more than 3 files" in content
     assert "no dependency changes" in content
     assert "the leader performs the change directly" in content or "leader-direct" in content
@@ -739,9 +733,9 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert ".specify/memory/project-rules.md" in content
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
-    assert "project-handbook.md" in content
-    assert "atlas.entry" in content
-    assert "at least one relevant module overview document" in content
+    assert "build-handbook.md" in content
+    assert "build-workflow-contract" in content
+    assert "product-and-capability-map" in content
     assert "--discuss" in content
     assert "--research" in content
     assert "--validate" in content

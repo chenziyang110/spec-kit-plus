@@ -235,12 +235,12 @@ def test_preflight_blocks_same_lane_implement_when_dirty_scope_does_not_overlap(
                 "objective": "demo",
                 "scope": {
                     "write_scope": ["src/feature/current.py"],
-                    "read_scope": ["PROJECT-HANDBOOK.md"],
+                    "read_scope": ["BUILD-HANDBOOK.md"],
                 },
                 "context_bundle": [
                     {
-                        "path": "PROJECT-HANDBOOK.md",
-                        "kind": "handbook",
+                        "path": "BUILD-HANDBOOK.md",
+                        "kind": "runtime_handbook",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,
@@ -315,12 +315,12 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path:
                 "objective": "demo",
                 "scope": {
                     "write_scope": ["src/specify_cli/hooks/preflight.py"],
-                    "read_scope": ["PROJECT-HANDBOOK.md"],
+                    "read_scope": ["BUILD-HANDBOOK.md"],
                 },
                 "context_bundle": [
                     {
-                        "path": "PROJECT-HANDBOOK.md",
-                        "kind": "handbook",
+                        "path": "BUILD-HANDBOOK.md",
+                        "kind": "runtime_handbook",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,
@@ -395,12 +395,12 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_f
                 "objective": "demo",
                 "scope": {
                     "write_scope": ["src/feature/current.py"],
-                    "read_scope": ["PROJECT-HANDBOOK.md"],
+                    "read_scope": ["BUILD-HANDBOOK.md"],
                 },
                 "context_bundle": [
                     {
-                        "path": "PROJECT-HANDBOOK.md",
-                        "kind": "handbook",
+                        "path": "BUILD-HANDBOOK.md",
+                        "kind": "runtime_handbook",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,
@@ -475,12 +475,12 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surfac
                 "objective": "demo",
                 "scope": {
                     "write_scope": ["src/specify_cli/hooks/preflight.py"],
-                    "read_scope": ["PROJECT-HANDBOOK.md"],
+                    "read_scope": ["BUILD-HANDBOOK.md"],
                 },
                 "context_bundle": [
                     {
-                        "path": "PROJECT-HANDBOOK.md",
-                        "kind": "handbook",
+                        "path": "BUILD-HANDBOOK.md",
+                        "kind": "runtime_handbook",
                         "purpose": "routing",
                         "required_for": ["workflow_boundary"],
                         "read_order": 1,

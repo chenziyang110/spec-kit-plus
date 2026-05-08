@@ -26,7 +26,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - **Concurrent lane runtime**: `src/specify_cli/lanes/` adds lane-local durable state, reconcile-before-resume routing, and dedicated lane closeout primitives for independent feature execution.
 - **Enriched task contract generation**: `sp-tasks` produces subagent-ready task contracts with agent role assignment, context navigation pointers, write/read/forbidden scope boundaries, verify commands, and escalation strategy — enabling `sp-implement` to dispatch subagents directly without leader clarification.
 - **Spec quality gate (`spec-lint`)**: `tools/spec-lint/` is a zero-dependency Go binary that mechanically validates spec artifact sets against 8 tiered quality checks before `sp-plan`. Install scripts, CI cross-compilation, and the quality gate spec live alongside the tool. Read `templates/spec-quality-gate.md`.
-- **Brownfield atlas lifecycle**: `map-scan -> map-build` is the required stale/missing context gate. The runtime atlas is the ordinary consumption surface: `QUICK-NAV.md`, `index/status.json`, `index/atlas-index.json`, `index/capabilities.json`, `index/symptoms.json`, `root/*.md`, and `modules/*/deep/workflows/*.md`. The refresh workbench contains `map-scan` / `map-build` scan packets, worker-result evidence, coverage validation, and freshness metadata used to rebuild that runtime atlas. Reference-only outputs such as generated atlas docs and status/index JSON should inform readers without becoming live source changes that force another refresh. Git-baseline freshness in `.specify/project-map/index/status.json` is the truth source; after a successful full refresh, `complete-refresh` is the successful-refresh finalizer, while `mark-dirty` is only a manual override/fallback when that refresh cannot be completed now. Same-feature `sp-implement` resume may continue with warning when the dirty fallback was recorded by that feature's prior implement run, but upstream brownfield entrypoints and other features still require refresh first. Read `.specify/project-map/root/OPERATIONS.md`.
+- **Brownfield atlas lifecycle**: `map-scan -> map-build` is the required stale/missing context gate. The runtime atlas now resolves to two workflow handbooks: `DEBUG-HANDBOOK.md` for `sp-debug` and `BUILD-HANDBOOK.md` for the major non-debug workflows. The refresh workbench still contains `map-scan` / `map-build` scan packets, worker-result evidence, coverage validation, and freshness metadata used to rebuild those handbooks. Supporting project-map outputs are support-only or reference-only for ordinary workflow execution and should not become the primary runtime read path again. Git-baseline freshness in `.specify/project-map/index/status.json` is the truth source; after a successful full refresh, `complete-refresh` is the successful-refresh finalizer, while `mark-dirty` is only a manual override/fallback when that refresh cannot be completed now. Same-feature `sp-implement` resume may continue with warning when the dirty fallback was recorded by that feature's prior implement run, but upstream brownfield entrypoints and other features still require refresh first.
 - **Delegated execution contracts**: `src/specify_cli/execution/`, `src/specify_cli/hooks/`, and `src/specify_cli/orchestration/` define packet/result schemas, quality hooks, subagents-first dispatch selection, and state surfaces. Read `.specify/project-map/root/ARCHITECTURE.md`.
 - **Codex team runtime**: `src/specify_cli/codex_team/`, `src/specify_cli/mcp/`, and `extensions/agent-teams/engine/` provide optional Codex team orchestration, state, MCP facade, and bundled engine assets. Read `.specify/project-map/modules/agent-teams-engine/OVERVIEW.md`.
 - **Testing and verification**: Python pytest layers, integration/template contract tests, Codex-team tests, and engine build checks protect generated behavior. Read `.specify/project-map/root/TESTING.md`.
@@ -34,30 +34,25 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 ## How To Read This Project
 
 - Start here for orientation.
-- **First stop for any task**: use the atlas routes described here and in `templates/project-map/QUICK-NAV.md` — repo-local `.specify/` state is not committed source-of-truth for this repository.
-- The handbook is the index-first entrypoint.
-- For generated projects, read the runtime atlas before broad brownfield work: `.specify/project-map/QUICK-NAV.md`, `.specify/project-map/index/status.json`, `.specify/project-map/index/atlas-index.json`, `.specify/project-map/index/capabilities.json`, `.specify/project-map/index/symptoms.json`, `.specify/project-map/root/*.md`, and relevant `.specify/project-map/modules/*/deep/workflows/*.md`.
-- Treat the combined handbook/project-map set as an atlas-style technical encyclopedia.
-- The atlas includes a capability flow and lifecycle truth layer that exists specifically to accelerate brownfield debugging, requirement expansion, and change-impact review.
-- The root topical docs explain cross-module architecture, workflows, integrations, testing, operations, structure, and conventions.
-- Module docs explain module-local ownership and drill-down routes.
-- Fall back to live code reads only when topical coverage is missing, stale, too broad, or marked low confidence.
+- **First stop for any task**: use the workflow-handbook routes described here. Repo-local `.specify/` state is not committed source-of-truth for this repository.
+- For generated projects, read `DEBUG-HANDBOOK.md` for `sp-debug` and `BUILD-HANDBOOK.md` for the major non-debug workflows before broad brownfield work.
+- Treat the workflow handbooks as the primary runtime atlas entrypoint.
+- Supporting project-map artifacts and refresh workbench outputs may still help with continuity and tooling, but they are not the primary runtime read path for ordinary workflow execution.
+- Fall back to live code reads only when handbook coverage is missing, stale, too broad, or marked low confidence.
 
-## Quick Navigation (Layer 1)
+## Runtime Handbook Routes
 
-For generated projects, open `.specify/project-map/QUICK-NAV.md` first. In this repository, use `templates/project-map/QUICK-NAV.md` plus the handbook's `Where To Read Next` / `Topic Map` sections. Layer 1 is now a dictionary-style atlas entry surface rather than a thin route table.
+For generated projects, use the workflow handbooks first:
 
-- **Layer 1 (routing)**: `QUICK-NAV.md` — task routes, symptom routes, shared-surface hotspots, verification routes, and propagation-risk routes
-- **Layer 2 (summary)**: `root/ARCHITECTURE.md` capability cards — module-at-a-glance
-- **Layer 3 (detail)**: `modules/<name>/OVERVIEW.md` — full technical detail
-- **Layer 4 (source)**: Live code — when docs are missing or stale
+- `DEBUG-HANDBOOK.md` — debug routing, likely truth owners, failure propagation, investigation playbooks, and verification exit rules
+- `BUILD-HANDBOOK.md` — change entrypoints, workflow sequences, module collaboration, propagation risks, implementation playbooks, and verification routes
 
-The entry layer should help answer:
+The workflow-handbook model should help answer:
 
-- which module most likely owns the touched area
-- which root topic should be read next
-- which verification entrypoints matter after the change
-- which shared surfaces or propagation risks make the change unsafe to treat as local
+- which workflow-specific handbook owns the current task
+- which fixed chapter IDs must be read before source work begins
+- which propagation risks and verification routes matter before changing code
+- what remains unknown and therefore needs live repository confirmation
 
 ## Shared Surfaces
 
@@ -86,7 +81,7 @@ The entry layer should help answer:
 - Template wording propagates into every generated agent surface and template assertion tests.
 - Lane registry semantics and reconcile rules propagate into root-level routing, workflow templates, feature-creation scripts, hook diagnostics, and generated documentation.
 - Subagents-first dispatch vocabulary propagates into orchestration tests, generated workflow tests, integration tests, README/quickstart guidance, context scripts, and project-map docs.
-- Layered atlas routing now propagates from `templates/project-handbook-template.md`, `templates/project-map/QUICK-NAV.md`, `templates/project-map/index/atlas-index.json`, and `templates/project-map/map-state-template.md` into initialized projects, map refresh helpers, and project-map tests.
+- Workflow-handbook guidance now propagates from `templates/project-handbook-template.md`, workflow command templates, packet context helpers, and handbook-validation rules into initialized projects, map refresh helpers, and tests.
 - Packet/result schema changes propagate into execution helpers, hooks, Codex team runtime, generated workflow prompts, and contract tests.
 - Project-map freshness changes propagate into Python helpers, Bash/PowerShell scripts, hook commands, and brownfield gates.
 - Engine packaging changes propagate through `pyproject.toml` force-includes, `extensions/agent-teams/engine/`, Codex team installer/runtime tests, and release artifacts.
@@ -147,23 +142,11 @@ The entry layer should help answer:
 
 ## Topic Map
 
-- `templates/project-map/QUICK-NAV.md` - runtime atlas Layer 1 routing table for generated-project atlases
-- `templates/project-map/index/atlas-index.json` - runtime atlas entry summary and next lookup pointers
-- `templates/project-map/index/capabilities.json` - runtime atlas capability routes
-- `templates/project-map/index/symptoms.json` - runtime atlas symptom routes
-- `templates/project-map/index/modules.json` - module registry and module document paths
-- `templates/project-map/index/relations.json` - cross-module dependencies and shared surfaces
-- Generated-project `.specify/project-map/index/status.json` - atlas freshness and module status
-- `templates/project-map/root/ARCHITECTURE.md` - canonical root architecture template for generated-project atlases
-- `templates/project-map/root/STRUCTURE.md` - canonical root structure template for generated-project atlases
-- `templates/project-map/root/CONVENTIONS.md` - canonical root conventions template for generated-project atlases
-- `templates/project-map/root/INTEGRATIONS.md` - canonical root integrations template for generated-project atlases
-- `templates/project-map/root/WORKFLOWS.md` - canonical root workflows template for generated-project atlases
-- `templates/project-map/root/TESTING.md` - canonical root testing template for generated-project atlases
-- `templates/project-map/root/OPERATIONS.md` - canonical root operations template for generated-project atlases
-- `templates/project-map/modules/*/deep/workflows/*.md` - runtime atlas deep workflow routes for capability and lifecycle flow
-- `.specify/project-map/scan-packets/`, `.specify/project-map/worker-results/`, and map state files - refresh workbench artifacts for rebuilding the atlas, not ordinary runtime atlas entrypoints
-- Generated `.specify/project-map/**` outputs in this repository are reference-only unless the current task is explicitly testing or refreshing generated-project atlas behavior.
+- `DEBUG-HANDBOOK.md` - canonical runtime handbook for `sp-debug`
+- `BUILD-HANDBOOK.md` - canonical runtime handbook for the major non-debug workflows
+- Generated-project `.specify/project-map/index/status.json` - refresh freshness and handbook trust state
+- `.specify/project-map/scan-packets/`, `.specify/project-map/worker-results/`, and map state files - refresh workbench artifacts for rebuilding the handbooks, not ordinary runtime atlas entrypoints
+- Generated `.specify/project-map/**` outputs in this repository are support-only or reference-only unless the current task is explicitly testing or refreshing generated-project handbook generation behavior.
 
 ## Update Triggers
 
@@ -171,8 +154,7 @@ The entry layer should help answer:
 
 ## Recent Structural Changes
 
-- The layered project-map atlas now treats `QUICK-NAV.md` as the canonical Layer 1 routing surface and includes it in canonical atlas outputs and freshness requirements.
-- Layer 1 now behaves like a dictionary-style atlas entry surface with symptom routing, shared-surface hotspots, verification routes, and propagation-risk routes.
-- Ordinary `sp-*` workflows now treat atlas consumption as a hard gate before source-level work, instead of a warn-only layered hint.
-- The layered project-map atlas now has explicit scan packets, worker-result evidence, root/module docs, reverse coverage validation, and freshness completion.
+- The runtime atlas is being rewritten around `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`.
+- Ordinary `sp-*` workflows should treat workflow-handbook consumption as the hard gate before source-level work, instead of a layered atlas traversal.
+- Supporting project-map artifacts remain available for refresh workbench and continuity use, but are no longer the primary runtime read path.
 - Testing workflow guidance now centers `sp-test-scan` and `sp-test-build`.

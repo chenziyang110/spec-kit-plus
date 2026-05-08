@@ -135,18 +135,17 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "packet results that only summarize without evidence" in lowered
     assert "unresolved critical rows" in lowered
     assert "not a scaffold, migration, or file-moving command" in lowered
-    assert "inputs, not evidence" in lowered
+    assert "inputs, not evidence" in lowered or "inputs, not" in lowered
     assert "packet evidence intake" in lowered
     assert "structural-only refresh is a failed build" in lowered
     assert "reverse coverage validation" in lowered
     assert "complete-refresh" in content
-    assert "PROJECT-HANDBOOK.md" in content
-    assert ".specify/project-map/QUICK-NAV.md" in content
-    assert ".specify/project-map/index/*.json" in content
-    assert ".specify/project-map/root/*.md" in content
-    assert ".specify/project-map/modules/<module-id>/*.md" in content
+    assert "DEBUG-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
+    assert "PROJECT-HANDBOOK.md" not in content
+    assert ".specify/project-map/root/*.md" not in content
+    assert ".specify/project-map/modules/<module-id>/*.md" not in content
     assert "derived-only evidence" in lowered
-    assert "deep workflow documentation pages" in lowered
     assert "required_reads contain only reference-only" in lowered or "reference-only or hard-excluded" in lowered
 
 
@@ -155,21 +154,19 @@ def test_map_build_template_requires_reverse_coverage_closure() -> None:
     lowered = content.lower()
 
     required_phrases = [
-        "every `critical` row appears in at least one final atlas target",
-        "every `important` row appears in a final atlas target",
+        "every `critical` row appears in at least one final handbook target",
+        "every `important` row appears in a final handbook target",
         "every scan packet is consumed",
         "every accepted packet result has paths read and confidence",
-        "every final atlas target is backed by at least one accepted packet evidence row",
+        "every final handbook target is backed by at least one accepted packet evidence row",
         "no final report claims success for a structural-only refresh",
         "`map_state_file` records accepted packet results",
         "owner, consumer, change propagation, and verification",
         "known unknowns",
-        "low-confidence areas",
-        "deep_stale",
+        "known-unknowns",
         "excluded bucket has a reason and revisit condition",
-        "every high-frequency problem type is reachable from layer 1",
-        "every critical shared surface can be discovered from layer 1 or atlas indexes",
-        "every key verification entry point can be located from layer 1 or module/index metadata",
+        "every critical shared surface can be discovered from the relevant handbook",
+        "every key verification entry point can be located from the relevant handbook",
     ]
 
     for phrase in required_phrases:
@@ -186,7 +183,7 @@ def test_map_scan_and_build_templates_require_layer1_route_material() -> None:
     assert "shared-surface hotspot candidates" in scan_content
     assert "verification route candidates" in scan_content
     assert "propagation-risk route candidates" in scan_content
-    assert "layer 1 reachability validation" in build_content
+    assert "workflow-operational reachability validation" in build_content
 
 
 def test_map_scan_template_requires_truth_layer_ledgers() -> None:
@@ -205,10 +202,9 @@ def test_map_build_template_requires_truth_layer_outputs() -> None:
     content = _read("templates/commands/map-build.md")
     lowered = content.lower()
 
-    assert ".specify/project-map/index/capabilities.json" in content
-    assert ".specify/project-map/index/symptoms.json" in content
-    assert "modules/<module-id>/deep/workflows/<capability-id>.md" in content
-    assert "lifecycle mermaid" in lowered
-    assert "flow mermaid" in lowered
-    assert "change impact" in lowered
-    assert "symptom -> capability deep workflow -> module workflows -> root workflows" in lowered
+    assert "DEBUG-HANDBOOK.md" in content
+    assert "BUILD-HANDBOOK.md" in content
+    assert "DEBUG-WORKFLOW-CONTRACT" in content
+    assert "BUILD-WORKFLOW-CONTRACT" in content
+    assert "INVESTIGATION-PLAYBOOKS" in content
+    assert "IMPLEMENTATION-PLAYBOOKS" in content

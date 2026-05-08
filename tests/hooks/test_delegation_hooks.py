@@ -42,16 +42,16 @@ def _valid_packet() -> WorkerTaskPacket:
         task_id="T001",
         story_id="US1",
         objective="Implement demo behavior",
-        scope=PacketScope(write_scope=["src/demo.py"], read_scope=["PROJECT-HANDBOOK.md"]),
+        scope=PacketScope(write_scope=["src/demo.py"], read_scope=["BUILD-HANDBOOK.md"]),
         context_bundle=[
             ContextBundleItem(
-                path="PROJECT-HANDBOOK.md",
-                kind="handbook",
-                purpose="project routing context",
+                path="BUILD-HANDBOOK.md",
+                kind="runtime_handbook",
+                purpose="workflow-specific runtime handbook for implementation routing",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="required project navigation",
+                selection_reason="build runtime handbook is the primary atlas surface for non-debug work",
             )
         ],
         required_references=[PacketReference(path="src/demo.py", reason="canonical implementation reference")],
@@ -99,7 +99,7 @@ def test_delegation_join_validate_blocks_result_missing_validation_evidence(tmp_
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["PROJECT-HANDBOOK.md"],
+                paths_read=["BUILD-HANDBOOK.md"],
             ),
         ),
     )
@@ -135,7 +135,7 @@ def test_delegation_join_validate_accepts_packet_compliant_result(tmp_path: Path
                 required_references_read=True,
                 forbidden_drift_respected=True,
                 context_bundle_read=True,
-                paths_read=["PROJECT-HANDBOOK.md"],
+                paths_read=["BUILD-HANDBOOK.md"],
             ),
         ),
     )
