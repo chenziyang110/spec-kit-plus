@@ -133,9 +133,11 @@ class TestInitIntegrationFlag:
         assert "execution_model: subagent-mandatory" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
-        assert "build-handbook.md" in content.lower()
-        assert "build-workflow-contract" in content.lower()
-        assert "change-entrypoints" in content.lower()
+        assert ".specify/project-cognition/status.json" in content.lower()
+        assert ".specify/project-cognition/slices/change.json" in content.lower()
+        assert "build-handbook.md" not in content.lower()
+        assert "build-workflow-contract" not in content.lower()
+        assert "change-entrypoints" not in content.lower()
         assert "specify team" not in content.lower()
 
     def test_non_codex_shared_workflow_skills_use_canonical_strategy_language(self, tmp_path):
@@ -179,12 +181,18 @@ class TestInitIntegrationFlag:
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert 'choose_subagent_dispatch(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
-        assert "debug-handbook.md" in debug_content
-        assert "debug-workflow-contract" in debug_content
+        assert ".specify/project-cognition/status.json" in debug_content
+        assert ".specify/project-cognition/slices/debug.json" in debug_content
+        assert ".specify/project-cognition/graph/claims.json" in debug_content
+        assert ".specify/project-cognition/graph/conflicts.json" in debug_content
+        assert "debug-handbook.md" not in debug_content
+        assert "debug-workflow-contract" not in debug_content
         assert "spawn_agent" not in debug_content
 
         fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert "build-handbook.md" in fast_content
+        assert ".specify/project-cognition/status.json" in fast_content
+        assert ".specify/project-cognition/slices/change.json" in fast_content
+        assert "build-handbook.md" not in fast_content
         assert "shared surfaces" in fast_content
         assert "change-propagation hotspot" in fast_content
 
