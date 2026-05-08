@@ -108,10 +108,13 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "Treat `sp-*` names as canonical workflow identities." in block
 
     assert "## Brownfield Context Gate" in block
-    assert "`DEBUG-HANDBOOK.md` for `sp-debug`" in block
-    assert "`BUILD-HANDBOOK.md` for the major non-debug workflows." in block
+    assert "`.specify/project-cognition/status.json`" in block
+    assert "`.specify/project-cognition/graph/nodes.json`" in block
+    assert "`.specify/project-cognition/graph/edges.json`" in block
+    assert "`.specify/project-cognition/graph/claims.json`" in block
+    assert "`.specify/project-cognition/graph/conflicts.json`" in block
     assert "support-only or reference-only for ordinary workflow execution" in block
-    assert "read the workflow-appropriate runtime handbook plus the fixed chapter ids required by that workflow" in lowered
+    assert "read the workflow-appropriate project cognition status and graph slice artifacts" in lowered
 
     assert "## Project Memory" in block
     assert "Treat the learning layer as workflow-execution infrastructure, not as optional notes." in block
@@ -151,10 +154,12 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "do not claim completion until those artifacts exist" in lowered
 
     assert "## Map Maintenance" in block
-    assert "refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`." in block
-    assert "If a full refresh can be completed now, run `sp-map-scan` followed by `sp-map-build`, then use `project-map complete-refresh` as the successful-refresh finalizer." in block
-    assert "Otherwise use `project-map mark-dirty` as the manual override/fallback and explicitly route the next brownfield workflow through `sp-map-scan` followed by `sp-map-build`." in block
-    assert "Do not treat consumed handbook/project-map context as self-maintaining" in block
+    assert "Run `sp-map-scan`, then `sp-map-build` to create the initial cognition baseline." in block
+    assert "Use `sp-map-update` after baseline creation when the graph runtime is stale or too weak for the touched area." in block
+    assert "Do not treat consumed project cognition graph context as self-maintaining" in block
+    assert "graph-native" in lowered
+    assert "project-cognition" in block
+    assert "map-update" in block
 
     assert "possibly_stale" not in lowered
     assert "must_refresh_topics" not in lowered
@@ -1063,86 +1068,24 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
     assert "Run {{invoke:deep-research}} before planning" in plan
 
 
-def test_map_scan_template_generates_complete_build_package() -> None:
-    content = _read("templates/commands/map-scan.md")
-    lowered = content.lower()
+def test_map_workflow_templates_define_graph_native_lifecycle() -> None:
+    map_update_path = PROJECT_ROOT / "templates/commands/map-update.md"
+    assert map_update_path.exists(), "map-update command template must exist for graph-native lifecycle maintenance"
+    content = "\n".join(
+        (
+            _read("templates/commands/map-scan.md"),
+            _read("templates/commands/map-build.md"),
+            _read("templates/commands/map-update.md"),
+        )
+    )
 
-    assert ".specify/project-map/map-scan.md" in content
-    assert ".specify/project-map/coverage-ledger.md" in content
-    assert ".specify/project-map/coverage-ledger.json" in content
-    assert ".specify/project-map/scan-packets/<lane-id>.md" in content
-    assert ".specify/project-map/map-state.md" in content
-    _assert_subagent_dispatch_contract(content, "map-scan")
-    assert "full project-relevant inventory" in lowered
-    assert "scan packets are executable read instructions" in lowered
-    assert "must still execute the packet reads" in lowered
-    assert "project map state protocol" in lowered
-    assert "mapscanpacket" in lowered
-    assert "result_handoff_path" in content
-    assert "coverage classification" in lowered
-    assert "criticality scoring" in lowered
-    assert "reading depth" in lowered
-    assert "project shape and stack" in lowered
-    assert "module dependency graph" in lowered
-    assert "entry and api surfaces" in lowered
-    assert "data and state flows" in lowered
-    assert "template and generated-surface propagation" in lowered
-    assert "coverage reverse index" in lowered
-
-
-def test_map_build_template_generates_handbook_navigation_system_from_scan_package() -> None:
-    content = _read("templates/commands/map-build.md")
-    lowered = content.lower()
-
-    assert "DEBUG-HANDBOOK.md" in content
-    assert "BUILD-HANDBOOK.md" in content
-    _assert_subagent_dispatch_contract(content, "map-build")
-    assert "runtime handbook output contract" in lowered
-    assert ".specify/project-map/map-state.md" in content
-    assert ".specify/project-map/worker-results/*.json" in content
-    assert "validate scan inputs before execution" in lowered
-    assert "compile and validate mapbuildpacket inputs" in lowered
-    assert "machine-readable row source" in lowered
-    assert "raw scan prose or raw markdown checklist items alone" in lowered
-    assert "not a scaffold, migration, or file-moving command" in lowered
-    assert "inputs, not evidence" in lowered or "inputs, not" in lowered
-    assert "packet evidence intake" in lowered
-    assert "structural-only refresh is a failed build" in lowered
-    assert "complete-refresh" in content
-    assert "do not create `.planning/codebase/`" in lowered
-    assert "workflow-operational card" in lowered or "workflow-operational cards" in lowered
-    assert "purpose" in lowered
-    assert "owner" in lowered
-    assert "truth lives" in lowered
-    assert "extend here" in lowered
-    assert "do not extend here" in lowered
-    assert "minimum verification" in lowered
-    assert "failure modes" in lowered
-    assert "confidence" in lowered
-    assert "confidence must use only: verified, inferred, or unknown-stale" in lowered
-
-
-def test_map_build_template_preserves_full_detail_and_reverse_coverage() -> None:
-    content = _read("templates/commands/map-build.md")
-    lowered = content.lower()
-
-    assert "do not stop at repository shape" in lowered
-    assert "do not stop at naming a file family or subsystem" in lowered
-    assert "high-value contracts must preserve concrete signatures, fields, return shapes, handoff data, compatibility rules, or protocol semantics" in lowered
-    assert "`debug-handbook.md` must stay concise" in lowered
-    assert "`build-handbook.md` must stay concise" in lowered
-    assert "method families, parameter semantics, return shapes, error fields, state transitions, compatibility notes, or invariants" in lowered
-    assert "every `critical` row appears in at least one final handbook target" in lowered
-    assert "every `important` row appears in a final handbook target" in lowered
-    assert "every scan packet is consumed" in lowered
-    assert "every accepted packet result has paths read and confidence" in lowered
-    assert "every final handbook target is backed by at least one accepted packet evidence row" in lowered
-    assert "no final report claims success for a structural-only refresh" in lowered
-    assert "`map_state_file` records accepted packet results" in lowered
-    assert "owner, consumer, change propagation, and verification" in lowered
-    assert "known unknowns" in lowered
-    assert "low-confidence areas" in lowered
-    assert "known-unknowns" in lowered
+    assert "map-update" in content
+    assert "graph-native" in content.lower()
+    assert "project-cognition" in content
+    assert 'choose_subagent_dispatch(command_name="map-scan"' in content
+    assert 'choose_subagent_dispatch(command_name="map-build"' in content
+    assert "build or refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`" not in content
+    assert "runtime handbook output contract" not in content.lower()
 
 
 def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
