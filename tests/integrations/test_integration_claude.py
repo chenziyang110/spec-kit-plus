@@ -474,7 +474,7 @@ class TestClaudeIntegration:
         managed_read_entries = [
             entry
             for entry in merged["hooks"]["PreToolUse"]
-            if entry.get("matcher") == "Read"
+            if entry.get("matcher") == "Read|Write|Edit|MultiEdit"
             and any(
                 isinstance(hook, dict)
                 and self._expected_launcher_command("pre-tool-read", script_type="sh") == str(hook.get("command", ""))
@@ -596,6 +596,249 @@ class TestClaudeIntegration:
         assert hook_output["permissionDecision"] == "deny"
         assert "conventional commit" in hook_output["permissionDecisionReason"].lower()
         assert "additionalContext" not in hook_output
+
+    def test_claude_hook_dispatch_does_not_block_repairable_prompt_entry(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-specify`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `planning-only`",
+                    "- summary: demo",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "user-prompt-submit"],
+            input=json.dumps({"prompt": "continue"}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip())
+        assert "decision" not in payload
+        assert "--autofix" in payload["systemMessage"]
+
+    def test_claude_hook_dispatch_allows_repairable_state_read(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        state_path = feature_dir / "workflow-state.md"
+        state_path.write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-specify`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `planning-only`",
+                    "- summary: demo",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "pre-tool-read"],
+            input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": str(state_path)}}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        stdout = result.stdout.strip()
+        assert stdout in {"", "{}"}
+
+    def test_claude_hook_dispatch_allows_repairable_validate_state_autofix_bash(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-specify`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `planning-only`",
+                    "- summary: demo",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        repo_root = Path(__file__).resolve().parents[2]
+        pythonpath_entries = [str(repo_root / "src")]
+        if env.get("PYTHONPATH"):
+            pythonpath_entries.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+
+        hook_script = tmp_path / ".claude" / "hooks" / "claude-hook-dispatch.py"
+        result = subprocess.run(
+            [sys.executable, str(hook_script), "pre-tool-bash"],
+            input=json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {
+                        "command": f'specify hook validate-state --command specify --feature-dir "{feature_dir}" --autofix'
+                    },
+                }
+            ),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0, result.stderr
+        stdout = result.stdout.strip()
+        assert stdout in {"", "{}"}
+
+    def test_claude_hook_dispatch_blocks_repairable_non_state_write(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        (feature_dir / "workflow-state.md").write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-specify`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `planning-only`",
+                    "- summary: demo",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        module = _load_claude_hook_dispatch_module()
+        env = os.environ.copy()
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+        payload = {"tool_name": "Write", "tool_input": {"file_path": str(tmp_path / "README.md")}}
+        old_env = os.environ.copy()
+        try:
+            os.environ.update(env)
+            result = module._handle_pre_tool_write(Path(tmp_path), payload)
+        finally:
+            os.environ.clear()
+            os.environ.update(old_env)
+
+        assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+        assert "workflow-state repair" in result["hookSpecificOutput"]["permissionDecisionReason"]
+
+    def test_claude_hook_dispatch_allows_repairable_workflow_state_write(self, tmp_path):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+
+        feature_dir = tmp_path / "specs" / "001-demo"
+        feature_dir.mkdir(parents=True, exist_ok=True)
+        state_path = feature_dir / "workflow-state.md"
+        state_path.write_text(
+            "\n".join(
+                [
+                    "# Workflow State: Demo",
+                    "",
+                    "## Current Command",
+                    "",
+                    "- active_command: `sp-specify`",
+                    "- status: `active`",
+                    "",
+                    "## Phase Mode",
+                    "",
+                    "- phase_mode: `planning-only`",
+                    "- summary: demo",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        module = _load_claude_hook_dispatch_module()
+        env = os.environ.copy()
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+        payload = {"tool_name": "Write", "tool_input": {"file_path": str(state_path)}}
+        old_env = os.environ.copy()
+        try:
+            os.environ.update(env)
+            result = module._handle_pre_tool_write(Path(tmp_path), payload)
+        finally:
+            os.environ.clear()
+            os.environ.update(old_env)
+
+        assert result is None
 
     def test_claude_hook_dispatch_prefers_project_launcher_config(self, tmp_path):
         integration = get_integration("claude")

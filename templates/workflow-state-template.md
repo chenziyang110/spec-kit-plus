@@ -17,3 +17,19 @@
 - next_action: [Smallest next discovery action to take]
 - blocker_reason: [None | Why progress is blocked or why a domain was reopened]
 - final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]
+
+## Allowed Artifact Writes
+
+- [Artifacts this workflow pass may write, e.g. spec.md]
+
+## Forbidden Actions
+
+- [Actions this workflow pass must not take, e.g. edit source code]
+
+## Authoritative Files
+
+- [Files that are currently treated as the source of truth, e.g. spec.md]
+
+## Next Command
+
+- [`/sp.plan` | `/sp.clarify` | `/sp.deep-research` | other canonical next workflow token]

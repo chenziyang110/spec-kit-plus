@@ -316,6 +316,10 @@ def test_hook_cli_surface_locks_fixed_specify_template_contract() -> None:
     template = (Path(__file__).resolve().parents[2] / "templates" / "workflow-state-template.md").read_text(encoding="utf-8")
 
     assert "## Fixed Lifecycle State" in template
+    assert "## Allowed Artifact Writes" in template
+    assert "## Forbidden Actions" in template
+    assert "## Authoritative Files" in template
+    assert "## Next Command" in template
     assert "current_stage" in template
     assert "current_domain" in template
     assert "next_action" in template
@@ -324,6 +328,101 @@ def test_hook_cli_surface_locks_fixed_specify_template_contract() -> None:
     assert "active_profile" not in template
     assert "coverage_mode" not in template
     assert "observer_status" not in template
+
+
+def test_hook_validate_state_supports_frontmatter_fallback_via_cli(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "active_command: sp-specify",
+                "status: active",
+                "phase_mode: planning-only",
+                "summary: draft specification",
+                "current_stage: intent-analysis",
+                "current_domain: goal-and-users",
+                "next_action: Refine scope.",
+                "blocker_reason: none",
+                "final_handoff_decision: pending",
+                "allowed_artifact_writes:",
+                "  - spec.md",
+                "forbidden_actions:",
+                "  - edit source code",
+                "authoritative_files:",
+                "  - spec.md",
+                "next_command: /sp.plan",
+                "---",
+                "",
+                "# Workflow State: Demo",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-state",
+            "--command",
+            "specify",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "ok"
+    assert payload["data"]["checkpoint"]["allowed_artifact_writes"] == ["spec.md"]
+
+
+def test_hook_validate_state_autofix_repairs_missing_sections_via_cli(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    target = feature_dir / "workflow-state.md"
+    target.write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: demo",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-state",
+            "--command",
+            "specify",
+            "--feature-dir",
+            str(feature_dir),
+            "--autofix",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "repaired"
+    assert payload["writes"]["workflow_state"] == str(target.resolve())
 
 
 def test_hook_validate_state_escapes_unicode_for_non_utf8_stdout(tmp_path: Path):

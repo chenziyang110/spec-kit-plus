@@ -199,7 +199,21 @@ def _shared_block_to_gemini(
     if not shared_payload:
         return None
     status = str(shared_payload.get("status") or "").strip().lower()
-    if status not in {"blocked", "repairable-block"}:
+    if status == "repairable-block":
+        autofix_command = str(
+            ((shared_payload.get("data") or {}).get("autofix") or {}).get("command") or ""
+        ).strip()
+        extra = _shared_additional_context(shared_payload)
+        message = " ".join(part for part in [system_message, extra, autofix_command] if part).strip()
+        if message:
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "BeforeAgent",
+                    "additionalContext": message,
+                }
+            }
+        return {}
+    if status != "blocked":
         return None
     errors = [str(item) for item in shared_payload.get("errors", []) if str(item).strip()]
     warnings = [str(item) for item in shared_payload.get("warnings", []) if str(item).strip()]
@@ -213,6 +227,24 @@ def _shared_block_to_gemini(
     if extra:
         output["systemMessage"] = extra
     return output
+
+
+def _is_repairable_block(shared_payload: dict[str, Any] | None) -> bool:
+    return str((shared_payload or {}).get("status") or "").strip().lower() == "repairable-block"
+
+
+def _is_workflow_state_repair_read(target_path: str) -> bool:
+    normalized = target_path.replace("\\", "/").lower()
+    return normalized.endswith("/workflow-state.md") or normalized == "workflow-state.md"
+
+
+def _is_validate_state_autofix_command(command: str) -> bool:
+    normalized = " ".join(command.lower().split())
+    return (
+        "specify hook validate-state" in normalized
+        and "--autofix" in normalized
+        and "--feature-dir" in normalized
+    )
 
 
 def _format_recovery_summary(summary: dict[str, Any]) -> str:
@@ -585,6 +617,14 @@ def _workflow_policy_block(project_root: Path, *, trigger: str, requested_action
     return _shared_block_to_gemini(shared)
 
 
+def _workflow_policy_shared(project_root: Path, *, trigger: str) -> dict[str, Any] | None:
+    context = _infer_active_context(project_root)
+    if not context:
+        return None
+    args = ["workflow-policy", *_active_context_args(context), "--trigger", trigger]
+    return _run_shared_hook(project_root, args)
+
+
 def _learning_signal_context(project_root: Path) -> str:
     context = _infer_active_context(project_root)
     if not context:
@@ -653,6 +693,10 @@ def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[st
         blocked = _shared_block_to_gemini(shared, system_message=advisory)
         if blocked:
             return blocked
+        policy_shared = _workflow_policy_shared(project_root, trigger="prompt")
+        repairable = _shared_block_to_gemini(policy_shared, system_message=advisory)
+        if repairable:
+            return repairable
         normalized_prompt = prompt.lower()
         requested_action = ""
         if "implement directly" in normalized_prompt or "jump to implement" in normalized_prompt:
@@ -678,11 +722,16 @@ def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[st
 def _handle_before_tool(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     tool_name = _extract_tool_name(payload).lower()
     tool_input = _extract_tool_input(payload)
+    policy_shared = _workflow_policy_shared(project_root, trigger="pre_tool")
 
     if tool_name in {"read_file", "read", "read-file"}:
         target_path = _extract_read_path(tool_input)
         if not target_path:
             return {}
+        if _is_repairable_block(policy_shared) and _is_workflow_state_repair_read(target_path):
+            return {}
+        if _is_repairable_block(policy_shared):
+            return {"decision": "deny", "reason": "workflow-state repair is required before reading other files"}
         shared = _run_shared_hook(project_root, ["validate-read-path", "--target-path", target_path])
         return _shared_block_to_gemini(shared) or {}
 
@@ -690,11 +739,22 @@ def _handle_before_tool(project_root: Path, payload: dict[str, Any]) -> dict[str
         command = str(tool_input.get("command") or "").strip()
         if not command:
             return {}
+        if _is_repairable_block(policy_shared) and _is_validate_state_autofix_command(command):
+            return {}
+        if _is_repairable_block(policy_shared):
+            return {"decision": "deny", "reason": "workflow-state repair is required before running other shell commands"}
         commit_message = _extract_commit_message(command)
         if not commit_message:
             return {}
         shared = _run_shared_hook(project_root, ["validate-commit", "--commit-message", commit_message])
         return _shared_block_to_gemini(shared) or {}
+
+    if tool_name in {"write_file", "write", "edit_file", "edit", "multi_edit", "multiedit"}:
+        target_path = _extract_read_path(tool_input)
+        if _is_repairable_block(policy_shared) and _is_workflow_state_repair_read(target_path):
+            return {}
+        if _is_repairable_block(policy_shared):
+            return {"decision": "deny", "reason": "workflow-state repair is required before writing other files"}
 
     return {}
 

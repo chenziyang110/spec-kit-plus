@@ -197,8 +197,23 @@ def _shared_to_claude_output(
     actions = [str(item) for item in shared_payload.get("actions", []) if str(item).strip()]
     system_message = str(shared_payload.get("systemMessage") or shared_payload.get("system_message") or "").strip()
     advisory = " ".join([*warnings, *actions]).strip()
+    autofix_command = str(
+        ((shared_payload.get("data") or {}).get("autofix") or {}).get("command") or ""
+    ).strip()
 
-    if status in {"blocked", "repairable-block"}:
+    if status == "repairable-block":
+        reason = errors[0] if errors else (warnings[0] if warnings else "shared quality hook requires repair before continuing")
+        if hook_event_name == "UserPromptSubmit":
+            output: dict[str, Any] = {}
+            message = " ".join(part for part in [system_message, advisory, autofix_command, reason] if part).strip()
+            if message:
+                output["systemMessage"] = message
+            return output or None
+        if hook_event_name == "PreToolUse":
+            return None
+        return None
+
+    if status == "blocked":
         reason = errors[0] if errors else (warnings[0] if warnings else "shared quality hook blocked the action")
         if hook_event_name == "PreToolUse":
             return {
@@ -496,6 +511,14 @@ def _extract_read_path(tool_input: dict[str, Any]) -> str:
     return ""
 
 
+def _extract_write_path(tool_input: dict[str, Any]) -> str:
+    for key in ("file_path", "path"):
+        value = str(tool_input.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def _extract_commit_message(command: str) -> str:
     if not re.search(r"(^|\s)git(\.exe)?\s+commit(\s|$)", command):
         return ""
@@ -509,6 +532,24 @@ def _extract_commit_message(command: str) -> str:
         if match:
             return match.group(1).strip()
     return ""
+
+
+def _is_repairable_block(shared_payload: dict[str, Any] | None) -> bool:
+    return str((shared_payload or {}).get("status") or "").strip().lower() == "repairable-block"
+
+
+def _is_workflow_state_repair_read(target_path: str) -> bool:
+    normalized = target_path.replace("\\", "/").lower()
+    return normalized.endswith("/workflow-state.md") or normalized == "workflow-state.md"
+
+
+def _is_validate_state_autofix_command(command: str) -> bool:
+    normalized = " ".join(command.lower().split())
+    return (
+        "specify hook validate-state" in normalized
+        and "--autofix" in normalized
+        and "--feature-dir" in normalized
+    )
 
 
 def _learning_signal_args(context: dict[str, str]) -> list[str] | None:
@@ -596,6 +637,21 @@ def _workflow_policy_output(
     return _shared_to_claude_output(hook_event_name=hook_event_name, shared_payload=shared)
 
 
+def _workflow_policy_shared(
+    project_root: Path,
+    context: dict[str, str] | None,
+    *,
+    trigger: str,
+    requested_action: str = "",
+) -> dict[str, Any] | None:
+    if not context:
+        return None
+    args = ["workflow-policy", *_active_context_args(context), "--trigger", trigger]
+    if requested_action:
+        args.extend(["--requested-action", requested_action])
+    return _run_shared_hook(project_root, args)
+
+
 def _compaction_resume_context(
     project_root: Path,
     context: dict[str, str] | None,
@@ -663,41 +719,70 @@ def _handle_pre_tool_read(project_root: Path, payload: dict[str, Any]) -> dict[s
     if _extract_tool_name(payload) != "Read":
         return None
     context = _infer_active_context(project_root)
-    policy_output = _workflow_policy_output(
-        project_root,
-        context,
-        hook_event_name="PreToolUse",
-        trigger="pre_tool",
-    )
+    policy_shared = _workflow_policy_shared(project_root, context, trigger="pre_tool")
+    policy_output = _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=policy_shared)
+    target_path = _extract_read_path(_extract_tool_input(payload))
+    if not target_path:
+        return policy_output
+    if _is_repairable_block(policy_shared) and not _is_workflow_state_repair_read(target_path):
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": "workflow-state repair is required before reading other files",
+            }
+        }
     if policy_output and "hookSpecificOutput" in policy_output:
         hook_specific = policy_output.get("hookSpecificOutput", {})
         if isinstance(hook_specific, dict) and hook_specific.get("permissionDecision") == "deny":
             return policy_output
-    target_path = _extract_read_path(_extract_tool_input(payload))
-    if not target_path:
-        return policy_output
     shared = _run_shared_hook(project_root, ["validate-read-path", "--target-path", target_path])
     output = _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=shared)
     return output or policy_output
+
+
+def _handle_pre_tool_write(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
+    if _extract_tool_name(payload) not in {"Write", "Edit", "MultiEdit"}:
+        return None
+    context = _infer_active_context(project_root)
+    policy_shared = _workflow_policy_shared(project_root, context, trigger="pre_tool")
+    target_path = _extract_write_path(_extract_tool_input(payload))
+    if not target_path:
+        return None
+    if _is_repairable_block(policy_shared):
+        if _is_workflow_state_repair_read(target_path):
+            return None
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": "workflow-state repair is required before writing other files",
+            }
+        }
+    return None
 
 
 def _handle_pre_tool_bash(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
     if _extract_tool_name(payload) != "Bash":
         return None
     context = _infer_active_context(project_root)
-    policy_output = _workflow_policy_output(
-        project_root,
-        context,
-        hook_event_name="PreToolUse",
-        trigger="pre_tool",
-    )
+    command = str(_extract_tool_input(payload).get("command") or "").strip()
+    policy_shared = _workflow_policy_shared(project_root, context, trigger="pre_tool")
+    policy_output = _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=policy_shared)
+    if not command:
+        return policy_output
+    if _is_repairable_block(policy_shared) and not _is_validate_state_autofix_command(command):
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": "workflow-state repair is required before running other shell commands",
+            }
+        }
     if policy_output and "hookSpecificOutput" in policy_output:
         hook_specific = policy_output.get("hookSpecificOutput", {})
         if isinstance(hook_specific, dict) and hook_specific.get("permissionDecision") == "deny":
             return policy_output
-    command = str(_extract_tool_input(payload).get("command") or "").strip()
-    if not command:
-        return policy_output
     commit_message = _extract_commit_message(command)
     if not commit_message:
         return policy_output
@@ -886,6 +971,7 @@ def main() -> int:
         "post-tool-session-state": _handle_post_tool_session_state,
         "stop-monitor": _handle_stop_monitor,
         "pre-tool-read": _handle_pre_tool_read,
+        "pre-tool-write": _handle_pre_tool_write,
         "pre-tool-bash": _handle_pre_tool_bash,
     }
     handler = handlers.get(route)

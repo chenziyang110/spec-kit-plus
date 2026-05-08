@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import re
 from typing import Any
+import yaml
 
 from .types import QualityHookError
 
@@ -44,7 +45,7 @@ def _strip_wrappers(value: str) -> str:
     return cleaned
 
 
-def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
+def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     if not text.startswith("---\n"):
         return {}, text
     lines = text.splitlines()
@@ -55,13 +56,12 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
             break
     if end_idx is None:
         return {}, text
-    frontmatter: dict[str, str] = {}
-    for raw_line in lines[1:end_idx]:
-        line = raw_line.strip()
-        if not line or ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        frontmatter[key.strip()] = _strip_wrappers(value)
+    frontmatter_text = "\n".join(lines[1:end_idx])
+    try:
+        loaded = yaml.safe_load(frontmatter_text) or {}
+    except yaml.YAMLError:
+        loaded = {}
+    frontmatter = loaded if isinstance(loaded, dict) else {}
     body = "\n".join(lines[end_idx + 1 :])
     if text.endswith("\n"):
         body += "\n"
@@ -108,6 +108,27 @@ def extract_bullets(text: str) -> list[str]:
     return values
 
 
+def _frontmatter_string(frontmatter: dict[str, Any], key: str) -> str:
+    value = frontmatter.get(key, "")
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return _strip_wrappers(value)
+    return str(value).strip()
+
+
+def _frontmatter_list(frontmatter: dict[str, Any], key: str) -> list[str]:
+    value = frontmatter.get(key)
+    if isinstance(value, list):
+        return [_strip_wrappers(str(item)) for item in value if str(item).strip()]
+    if isinstance(value, str):
+        cleaned = _strip_wrappers(value)
+        if not cleaned:
+            return []
+        return [cleaned]
+    return []
+
+
 def extract_nested_bullets_by_label(text: str, label: str) -> list[str]:
     target = f"{label}:"
     values: list[str] = []
@@ -133,7 +154,8 @@ def extract_nested_bullets_by_label(text: str, label: str) -> list[str]:
 
 
 def serialize_workflow_state(path: Path) -> dict[str, Any]:
-    text = _read_text(path)
+    frontmatter, body = parse_frontmatter(_read_text(path))
+    text = body
     current_command = section_body(text, "Current Command")
     phase_mode = section_body(text, "Phase Mode")
     fixed_lifecycle_state = section_body(text, "Fixed Lifecycle State")
@@ -153,14 +175,26 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     reusable_constraints = section_body(text, "Reusable Constraints")
 
     fixed_state_kind = bool(fixed_lifecycle_state)
-    active_command = extract_field(current_command, "active_command") or extract_field(
-        fixed_lifecycle_state, "active_command"
+    active_command = (
+        extract_field(current_command, "active_command")
+        or extract_field(fixed_lifecycle_state, "active_command")
+        or _frontmatter_string(frontmatter, "active_command")
     )
-    status = extract_field(current_command, "status") or extract_field(fixed_lifecycle_state, "status")
-    phase_mode_value = extract_field(phase_mode, "phase_mode") or extract_field(
-        fixed_lifecycle_state, "phase_mode"
+    status = (
+        extract_field(current_command, "status")
+        or extract_field(fixed_lifecycle_state, "status")
+        or _frontmatter_string(frontmatter, "status")
     )
-    summary = extract_field(phase_mode, "summary") or extract_field(fixed_lifecycle_state, "summary")
+    phase_mode_value = (
+        extract_field(phase_mode, "phase_mode")
+        or extract_field(fixed_lifecycle_state, "phase_mode")
+        or _frontmatter_string(frontmatter, "phase_mode")
+    )
+    summary = (
+        extract_field(phase_mode, "summary")
+        or extract_field(fixed_lifecycle_state, "summary")
+        or _frontmatter_string(frontmatter, "summary")
+    )
 
     return {
         "state_kind": "workflow-state",
@@ -183,16 +217,23 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
                 "transition_policy": extract_field(profile_obligations, "transition_policy"),
             }
         ),
-        "current_stage": extract_field(fixed_lifecycle_state, "current_stage"),
-        "current_domain": extract_field(fixed_lifecycle_state, "current_domain"),
+        "current_stage": extract_field(fixed_lifecycle_state, "current_stage")
+        or _frontmatter_string(frontmatter, "current_stage"),
+        "current_domain": extract_field(fixed_lifecycle_state, "current_domain")
+        or _frontmatter_string(frontmatter, "current_domain"),
         "next_action": extract_field(fixed_lifecycle_state, "next_action")
-        or extract_first_nonempty_line(next_action),
-        "blocker_reason": extract_field(fixed_lifecycle_state, "blocker_reason"),
-        "final_handoff_decision": extract_field(fixed_lifecycle_state, "final_handoff_decision"),
-        "next_command": extract_first_nonempty_line(next_command),
-        "allowed_artifact_writes": extract_bullets(allowed_artifact_writes),
-        "forbidden_actions": extract_bullets(forbidden_actions),
-        "authoritative_files": extract_bullets(authoritative_files),
+        or extract_first_nonempty_line(next_action)
+        or _frontmatter_string(frontmatter, "next_action"),
+        "blocker_reason": extract_field(fixed_lifecycle_state, "blocker_reason")
+        or _frontmatter_string(frontmatter, "blocker_reason"),
+        "final_handoff_decision": extract_field(fixed_lifecycle_state, "final_handoff_decision")
+        or _frontmatter_string(frontmatter, "final_handoff_decision"),
+        "next_command": extract_first_nonempty_line(next_command) or _frontmatter_string(frontmatter, "next_command"),
+        "allowed_artifact_writes": extract_bullets(allowed_artifact_writes)
+        or _frontmatter_list(frontmatter, "allowed_artifact_writes"),
+        "forbidden_actions": extract_bullets(forbidden_actions) or _frontmatter_list(frontmatter, "forbidden_actions"),
+        "authoritative_files": extract_bullets(authoritative_files)
+        or _frontmatter_list(frontmatter, "authoritative_files"),
         "lane_id": extract_field(lane_context, "lane_id"),
         "branch_name": extract_field(lane_context, "branch_name"),
         "worktree_path": extract_field(lane_context, "worktree_path"),

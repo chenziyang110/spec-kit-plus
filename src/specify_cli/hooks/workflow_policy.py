@@ -64,14 +64,19 @@ def workflow_policy_hook(project_root: Path, payload: dict[str, object]) -> Hook
 
     state_result = validate_state_hook(project_root, payload)
     if state_result.status == "blocked":
+        autofix = state_result.data.get("autofix", {})
+        actions = [
+            *state_result.errors,
+            "repair or recreate the required workflow state before continuing, including workflow-state.md or the command-specific tracker",
+        ]
+        autofix_command = str(autofix.get("command") or "").strip() if isinstance(autofix, dict) else ""
+        if autofix_command:
+            actions.append(f"Suggested autofix: {autofix_command}")
         return HookResult(
             event=WORKFLOW_POLICY_EVALUATE,
             status="repairable-block",
             severity="warning",
-            actions=[
-                *state_result.errors,
-                "repair or recreate the required workflow state before continuing, including workflow-state.md or the command-specific tracker",
-            ],
+            actions=actions,
             errors=list(state_result.errors),
             data={
                 "policy": {

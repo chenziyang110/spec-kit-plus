@@ -4647,6 +4647,7 @@ def hook_validate_state_command(
     feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
     workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
     session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    autofix: bool = typer.Option(False, "--autofix", help="Append missing required workflow-state contract sections"),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate the current workflow source-of-truth state and return JSON."""
@@ -4661,6 +4662,7 @@ def hook_validate_state_command(
             "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
             "workspace": _normalize_optional_repo_path(project_root, workspace),
             "session_file": _normalize_optional_repo_path(project_root, session_file),
+            "autofix": autofix,
         },
     )
 

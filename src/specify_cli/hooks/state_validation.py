@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from pathlib import Path
+
+from specify_cli.lanes.state_store import iter_lane_records
 
 from .checkpoint_serializers import (
     normalize_command_name,
@@ -30,16 +33,23 @@ EXPECTED_WORKFLOW_STATE = {
 
 def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
     command_name = normalize_command_name(str(payload.get("command_name") or ""))
+    autofix = bool(payload.get("autofix"))
 
     if command_name in EXPECTED_WORKFLOW_STATE:
         feature_dir = _required_path(project_root, payload, "feature_dir")
         target = feature_dir / "workflow-state.md"
+        diagnostics = _validation_diagnostics(project_root, feature_dir, target, command_name)
         if not target.exists():
             return HookResult(
                 event=WORKFLOW_STATE_VALIDATE,
                 status="blocked",
                 severity="critical",
                 errors=[f"workflow-state.md is missing at {target}"],
+                data={
+                    "validated_path": str(target.resolve()),
+                    "lane_context": diagnostics,
+                    "autofix": _autofix_metadata(feature_dir, command_name, _autofix_sections_for_command(command_name)),
+                },
             )
         checkpoint = serialize_workflow_state(target)
         expected_command, expected_phase = EXPECTED_WORKFLOW_STATE[command_name]
@@ -84,18 +94,47 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
         if not checkpoint["next_command"]:
             errors.append("workflow-state is missing next_command")
         if errors:
+            if autofix:
+                snippet = _autofix_sections_for_command(command_name)
+                content = target.read_text(encoding="utf-8")
+                if snippet.strip() not in content:
+                    updated = content.rstrip() + "\n\n" + snippet
+                    target.write_text(updated.rstrip() + "\n", encoding="utf-8")
+                repaired_checkpoint = serialize_workflow_state(target)
+                return HookResult(
+                    event=WORKFLOW_STATE_VALIDATE,
+                    status="repaired",
+                    severity="warning",
+                    warnings=["workflow-state.md missing required contract sections; autofix appended defaults"],
+                    writes={"workflow_state": str(target.resolve())},
+                    data={
+                        "checkpoint": repaired_checkpoint,
+                        "validated_path": str(target.resolve()),
+                        "lane_context": diagnostics,
+                        "autofix": _autofix_metadata(feature_dir, command_name, snippet),
+                    },
+                )
             return HookResult(
                 event=WORKFLOW_STATE_VALIDATE,
                 status="blocked",
                 severity="critical",
                 errors=errors,
-                data={"checkpoint": checkpoint},
+                data={
+                    "checkpoint": checkpoint,
+                    "validated_path": str(target.resolve()),
+                    "lane_context": diagnostics,
+                    "autofix": _autofix_metadata(feature_dir, command_name, _autofix_sections_for_command(command_name)),
+                },
             )
         return HookResult(
             event=WORKFLOW_STATE_VALIDATE,
             status="ok",
             severity="info",
-            data={"checkpoint": checkpoint},
+            data={
+                "checkpoint": checkpoint,
+                "validated_path": str(target.resolve()),
+                "lane_context": diagnostics,
+            },
         )
 
     if command_name == "implement":
@@ -188,3 +227,150 @@ def _required_path(project_root: Path, payload: dict[str, object], key: str) -> 
     if not path.is_absolute():
         path = (project_root / path).resolve()
     return path
+
+
+def _autofix_sections_for_command(command_name: str) -> str:
+    defaults: dict[str, dict[str, object]] = {
+        "specify": {
+            "allowed": [
+                "spec.md",
+                "alignment.md",
+                "context.md",
+                "references.md",
+                "specify-draft.md",
+                "workflow-state.md",
+                "checklists/requirements.md",
+            ],
+            "forbidden": [
+                "edit source code",
+                "edit tests",
+                "fix build/tooling",
+                "implement behavior",
+                "run implementation-oriented fix loops",
+            ],
+            "authoritative": [
+                "spec.md",
+                "alignment.md",
+                "context.md",
+                "references.md",
+                "specify-draft.md",
+            ],
+            "next_command": "/sp.plan",
+        },
+        "clarify": {
+            "allowed": ["spec.md", "alignment.md", "context.md", "references.md", "workflow-state.md"],
+            "forbidden": [
+                "edit source code",
+                "edit tests",
+                "fix build/tooling",
+                "implement behavior",
+                "run implementation-oriented fix loops",
+            ],
+            "authoritative": ["spec.md", "alignment.md", "context.md", "references.md"],
+            "next_command": "/sp.plan",
+        },
+        "deep-research": {
+            "allowed": ["deep-research.md", "research-spikes/", "alignment.md", "context.md", "references.md", "workflow-state.md"],
+            "forbidden": [
+                "edit production source code",
+                "edit tests",
+                "fix build/tooling",
+                "implement behavior",
+                "commit prototype code as production",
+            ],
+            "authoritative": ["spec.md", "alignment.md", "context.md", "references.md", "deep-research.md"],
+            "next_command": "/sp.plan",
+        },
+        "plan": {
+            "allowed": ["plan.md", "research.md", "data-model.md", "contracts/", "quickstart.md", "workflow-state.md"],
+            "forbidden": ["edit source code", "edit tests", "implement behavior", "start execution from plan artifacts"],
+            "authoritative": ["spec.md", "alignment.md", "context.md", "plan.md", "research.md"],
+            "next_command": "/sp.tasks",
+        },
+        "tasks": {
+            "allowed": ["tasks.md", "workflow-state.md"],
+            "forbidden": ["edit source code", "edit tests", "implement behavior", "start execution from task-generation artifacts"],
+            "authoritative": ["spec.md", "alignment.md", "context.md", "plan.md", "tasks.md"],
+            "next_command": "/sp.analyze",
+        },
+        "analyze": {
+            "allowed": ["workflow-state.md"],
+            "forbidden": ["edit source code", "edit tests", "edit planning artifacts", "start implementation before the gate is cleared"],
+            "authoritative": ["spec.md", "plan.md", "tasks.md", "workflow-state.md"],
+            "next_command": "/sp.implement",
+        },
+        "constitution": {
+            "allowed": ["workflow-state.md"],
+            "forbidden": ["edit source code"],
+            "authoritative": ["workflow-state.md"],
+            "next_command": "/sp.specify",
+        },
+        "prd": {
+            "allowed": ["workflow-state.md"],
+            "forbidden": ["edit source code"],
+            "authoritative": ["workflow-state.md"],
+            "next_command": "/sp.prd",
+        },
+        "prd-scan": {
+            "allowed": ["workflow-state.md"],
+            "forbidden": ["edit source code"],
+            "authoritative": ["workflow-state.md"],
+            "next_command": "/sp.prd-build",
+        },
+        "prd-build": {
+            "allowed": ["workflow-state.md"],
+            "forbidden": ["edit source code"],
+            "authoritative": ["workflow-state.md"],
+            "next_command": "/sp.prd-build",
+        },
+    }
+    config = defaults[command_name]
+    allowed = "\n".join(f"- {item}" for item in config["allowed"])
+    forbidden = "\n".join(f"- {item}" for item in config["forbidden"])
+    authoritative = "\n".join(f"- {item}" for item in config["authoritative"])
+    next_command = str(config["next_command"])
+    return (
+        "## Allowed Artifact Writes\n\n"
+        f"{allowed}\n\n"
+        "## Forbidden Actions\n\n"
+        f"{forbidden}\n\n"
+        "## Authoritative Files\n\n"
+        f"{authoritative}\n\n"
+        "## Next Command\n\n"
+        f"- `{next_command}`\n"
+    )
+
+
+def _autofix_metadata(feature_dir: Path, command_name: str, snippet: str) -> dict[str, object]:
+    return {
+        "available": True,
+        "command": f'specify hook validate-state --command {command_name} --feature-dir "{feature_dir}" --autofix',
+        "snippet": snippet,
+    }
+
+
+def _validation_diagnostics(project_root: Path, feature_dir: Path, target: Path, command_name: str) -> dict[str, object]:
+    lane = next(
+        (
+            record
+            for record in iter_lane_records(project_root)
+            if (project_root / record.feature_dir).resolve() == feature_dir.resolve()
+        ),
+        None,
+    )
+    if lane is None:
+        return {
+            "resolved_from": "feature_dir",
+            "command_name": command_name,
+        }
+    worktree_relative = Path(lane.worktree_path) / Path(lane.feature_dir) / "workflow-state.md"
+    return {
+        "resolved_from": "feature_dir+lane-record",
+        "command_name": command_name,
+        "lane_id": lane.lane_id,
+        "feature_dir": lane.feature_dir,
+        "worktree_path": lane.worktree_path,
+        "worktree_state_path": str((project_root / worktree_relative).resolve()).replace("\\", "/"),
+        "lane_record": asdict(lane),
+        "validated_path": str(target.resolve()),
+    }

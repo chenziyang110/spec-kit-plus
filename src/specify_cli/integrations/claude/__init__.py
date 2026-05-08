@@ -110,7 +110,7 @@ class ClaudeIntegration(SkillsIntegration):
             ],
             "PreToolUse": [
                 {
-                    "matcher": "Read",
+                    "matcher": "Read|Write|Edit|MultiEdit",
                     "hooks": [
                         {
                             "type": "command",

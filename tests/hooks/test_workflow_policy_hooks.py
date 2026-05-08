@@ -48,11 +48,14 @@ def test_workflow_policy_marks_missing_state_as_repairable_block(tmp_path: Path)
     result = run_quality_hook(
         project,
         "workflow.policy.evaluate",
-        {"command_name": "implement", "feature_dir": str(feature_dir), "trigger": "pre_tool"},
+        {"command_name": "specify", "feature_dir": str(feature_dir), "trigger": "pre_tool"},
     )
 
     assert result.status == "repairable-block"
     assert any("workflow-state.md" in action for action in result.actions)
+    state_result = result.data["policy"]["state_result"]
+    assert state_result["data"]["autofix"]["available"] is True
+    assert "--autofix" in state_result["data"]["autofix"]["command"]
 
 
 def test_workflow_policy_denies_explicit_phase_jump(tmp_path: Path):
