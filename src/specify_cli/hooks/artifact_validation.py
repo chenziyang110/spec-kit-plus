@@ -19,20 +19,27 @@ FILE_REQUIRED_ARTIFACTS = {
     "tasks": ("tasks.md", "workflow-state.md"),
     "analyze": ("workflow-state.md",),
     "map-scan": (
-        "map-state.md",
-        "map-scan.md",
-        "repository-universe.json",
-        "coverage-ledger.md",
-        "coverage-ledger.json",
-        "capability-ledger.json",
-        "control-ledger.json",
+        "status.json",
+        "coverage.json",
+        "provisional/nodes.json",
+        "provisional/edges.json",
+        "provisional/observations.json",
     ),
     "map-build": (
-        "map-state.md",
-        "map-scan.md",
-        "coverage-ledger.json",
-        "DEBUG-HANDBOOK.md",
-        "BUILD-HANDBOOK.md",
+        "status.json",
+        "graph/nodes.json",
+        "graph/edges.json",
+        "graph/claims.json",
+        "graph/conflicts.json",
+        "graph/updates.json",
+    ),
+    "map-update": (
+        "status.json",
+        "graph/nodes.json",
+        "graph/edges.json",
+        "graph/claims.json",
+        "graph/conflicts.json",
+        "graph/updates.json",
     ),
     "prd-scan": (
         "workflow-state.md",
@@ -70,8 +77,9 @@ FILE_REQUIRED_ARTIFACTS = {
 }
 
 DIRECTORY_REQUIRED_ARTIFACTS = {
-    "map-scan": ("scan-packets",),
-    "map-build": ("scan-packets", "worker-results"),
+    "map-scan": ("evidence",),
+    "map-build": ("slices",),
+    "map-update": ("slices",),
     "prd-scan": ("scan-packets", "evidence", "worker-results"),
     "prd-build": ("scan-packets", "evidence", "worker-results"),
     "prd": ("scan-packets", "evidence", "worker-results"),
@@ -86,23 +94,30 @@ REQUIRED_ARTIFACTS = {
     "tasks": ("tasks.md", "workflow-state.md"),
     "analyze": ("workflow-state.md",),
     "map-scan": (
-        "map-state.md",
-        "map-scan.md",
-        "repository-universe.json",
-        "coverage-ledger.md",
-        "coverage-ledger.json",
-        "capability-ledger.json",
-        "control-ledger.json",
-        "scan-packets",
+        "status.json",
+        "coverage.json",
+        "provisional/nodes.json",
+        "provisional/edges.json",
+        "provisional/observations.json",
+        "evidence",
     ),
     "map-build": (
-        "map-state.md",
-        "map-scan.md",
-        "coverage-ledger.json",
-        "scan-packets",
-        "worker-results",
-        "DEBUG-HANDBOOK.md",
-        "BUILD-HANDBOOK.md",
+        "status.json",
+        "graph/nodes.json",
+        "graph/edges.json",
+        "graph/claims.json",
+        "graph/conflicts.json",
+        "graph/updates.json",
+        "slices",
+    ),
+    "map-update": (
+        "status.json",
+        "graph/nodes.json",
+        "graph/edges.json",
+        "graph/claims.json",
+        "graph/conflicts.json",
+        "graph/updates.json",
+        "slices",
     ),
     "prd-scan": (
         "workflow-state.md",
@@ -226,45 +241,11 @@ PRD_WORKER_RESULT_REQUIRED_KEYS = frozenset(
     }
 )
 
-MAP_BUILD_WORKER_RESULT_REQUIRED_KEYS = frozenset(
-    {
-        "paths_read",
-        "unknowns",
-        "confidence",
-        "recommended_atlas_updates",
-    }
-)
-
-DEBUG_HANDBOOK_REQUIRED_SECTIONS = (
-    "## DEBUG-WORKFLOW-CONTRACT",
-    "## SYMPTOM-TO-SURFACE-ROUTING",
-    "## SYSTEM-TOPOLOGY-FOR-DEBUG",
-    "## HOT-PATHS-AND-OWNERS",
-    "## FAILURE-PATTERNS",
-    "## INVESTIGATION-PLAYBOOKS",
-    "## FIX-PROPAGATION-CHECKS",
-    "## VERIFICATION-AND-EXIT",
-    "## KNOWN-UNKNOWNS",
-)
-
-BUILD_HANDBOOK_REQUIRED_SECTIONS = (
-    "## BUILD-WORKFLOW-CONTRACT",
-    "## PRODUCT-AND-CAPABILITY-MAP",
-    "## WORKFLOW-SEQUENCES",
-    "## CHANGE-ENTRYPOINTS",
-    "## MODULE-COLLABORATION",
-    "## CHANGE-PROPAGATION-RISKS",
-    "## IMPLEMENTATION-PLAYBOOKS",
-    "## VERIFICATION-ROUTES",
-    "## KNOWN-UNKNOWNS",
-)
-
-MAP_BUILD_REFERENCE_OR_DERIVED_PATH_PREFIXES = (
-    ".specify/project-map/",
-    ".specify/prd-runs/",
-    ".specify/testing/worker-results/",
-)
-MAP_BUILD_REFERENCE_OR_DERIVED_EXACT_PATHS = frozenset({"project-handbook.md"})
+GRAPH_NODE_REQUIRED_KEYS = frozenset({"nodes"})
+GRAPH_EDGE_REQUIRED_KEYS = frozenset({"edges"})
+GRAPH_CLAIM_REQUIRED_KEYS = frozenset({"claims"})
+GRAPH_CONFLICT_REQUIRED_KEYS = frozenset({"conflicts"})
+GRAPH_UPDATE_REQUIRED_KEYS = frozenset({"updates"})
 
 PRD_RECONSTRUCTION_READY_STATUSES = frozenset(
     {
@@ -612,65 +593,101 @@ def _validate_prd_worker_results(feature_dir: Path) -> list[str]:
     return errors
 
 
-def _project_root_from_map_feature_dir(feature_dir: Path) -> Path:
-    if feature_dir.name == "project-map" and feature_dir.parent.name == ".specify":
-        return feature_dir.parent.parent
-    return feature_dir
+def _validate_graph_artifact(feature_dir: Path, relative_path: str, required_keys: frozenset[str]) -> list[str]:
+    payload, read_errors = _read_json_artifact(feature_dir / relative_path, relative_path)
+    if read_errors:
+        return read_errors
+    if not isinstance(payload, dict):
+        return [f"{relative_path} must contain a top-level JSON object"]
+    errors: list[str] = []
+    for key in sorted(required_keys - payload.keys()):
+        errors.append(f"{relative_path} is missing required key: {key}")
+    for key in required_keys:
+        if key in payload and not isinstance(payload.get(key), list):
+            errors.append(f"{relative_path} must define a top-level {key} array")
+    return errors
 
 
-def _normalize_result_path(value: object, project_root: Path | None = None) -> str:
+def _validate_cognition_status_artifact(feature_dir: Path) -> list[str]:
+    payload, read_errors = _read_json_artifact(feature_dir / "status.json", "status.json")
+    if read_errors:
+        return read_errors
+    if not isinstance(payload, dict):
+        return ["status.json must contain a top-level JSON object"]
+    return []
+
+
+def _has_non_empty_string(values: object) -> bool:
+    return isinstance(values, list) and any(isinstance(item, str) and item.strip() for item in values)
+
+
+def _normalize_result_path(value: object) -> str:
     if not isinstance(value, str):
         return ""
     normalized = value.strip().replace("\\", "/")
-    candidate = Path(normalized)
-    if candidate.is_absolute() and project_root is not None:
-        try:
-            normalized = candidate.resolve(strict=False).relative_to(project_root.resolve(strict=False)).as_posix()
-        except ValueError:
-            normalized = candidate.as_posix()
     while normalized.startswith("./"):
         normalized = normalized[2:]
     return normalized
 
 
-def _is_reference_or_derived_map_path(value: object, feature_dir: Path) -> bool:
-    normalized = _normalize_result_path(value, _project_root_from_map_feature_dir(feature_dir)).lower()
-    if not normalized:
-        return True
-    if normalized in MAP_BUILD_REFERENCE_OR_DERIVED_EXACT_PATHS:
-        return True
-    return any(normalized.startswith(prefix) for prefix in MAP_BUILD_REFERENCE_OR_DERIVED_PATH_PREFIXES)
-
-
-def _validate_map_build_worker_results(feature_dir: Path) -> list[str]:
+def _validate_map_scan_artifacts(feature_dir: Path) -> list[str]:
     errors: list[str] = []
-    worker_results_dir = feature_dir / "worker-results"
-    if not worker_results_dir.is_dir():
+    errors.extend(_validate_cognition_status_artifact(feature_dir))
+    errors.extend(_validate_graph_artifact(feature_dir, "provisional/nodes.json", GRAPH_NODE_REQUIRED_KEYS))
+    errors.extend(_validate_graph_artifact(feature_dir, "provisional/edges.json", GRAPH_EDGE_REQUIRED_KEYS))
+    errors.extend(
+        _validate_json_object_with_array_key(feature_dir, "provisional/observations.json", "observations")
+    )
+    errors.extend(_validate_json_object_with_array_key(feature_dir, "coverage.json", "rows"))
+    return errors
+
+
+def _validate_map_build_artifacts(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    errors.extend(_validate_cognition_status_artifact(feature_dir))
+    errors.extend(_validate_graph_artifact(feature_dir, "graph/nodes.json", GRAPH_NODE_REQUIRED_KEYS))
+    errors.extend(_validate_graph_artifact(feature_dir, "graph/edges.json", GRAPH_EDGE_REQUIRED_KEYS))
+    errors.extend(_validate_graph_artifact(feature_dir, "graph/claims.json", GRAPH_CLAIM_REQUIRED_KEYS))
+    errors.extend(_validate_graph_artifact(feature_dir, "graph/conflicts.json", GRAPH_CONFLICT_REQUIRED_KEYS))
+    errors.extend(_validate_graph_artifact(feature_dir, "graph/updates.json", GRAPH_UPDATE_REQUIRED_KEYS))
+    slices_dir = feature_dir / "slices"
+    if not slices_dir.is_dir():
+        errors.append("slices must be a directory")
+    elif not any(slices_dir.iterdir()):
+        errors.append("slices must contain at least one file before map-build can pass")
+    return errors
+
+
+def _validate_map_update_artifacts(feature_dir: Path) -> list[str]:
+    errors = _validate_map_build_artifacts(feature_dir)
+    payload, read_errors = _read_json_artifact(feature_dir / "status.json", "status.json")
+    if read_errors:
+        errors.extend(read_errors)
         return errors
-
-    for result_path in sorted(path for path in worker_results_dir.iterdir() if path.suffix == ".json"):
-        relative_label = result_path.relative_to(feature_dir).as_posix()
-        payload, read_errors = _read_json_artifact(result_path, relative_label)
-        if read_errors:
-            errors.extend(read_errors)
-            continue
-        if not isinstance(payload, dict):
-            errors.append(f"{relative_label} must contain a top-level JSON object")
-            continue
-
-        for key in sorted(MAP_BUILD_WORKER_RESULT_REQUIRED_KEYS - payload.keys()):
-            errors.append(f"{relative_label} is missing required worker result key: {key}")
-
-        paths_read = payload.get("paths_read")
-        if not isinstance(paths_read, list) or not paths_read:
-            errors.append(f"{relative_label} must define a non-empty paths_read array")
-            continue
-        if all(_is_reference_or_derived_map_path(path, feature_dir) for path in paths_read):
-            errors.append(
-                f"{relative_label} must include at least one source path in paths_read; "
-                "reference-only or derived-only evidence is insufficient"
-            )
-
+    if not isinstance(payload, dict):
+        errors.append("status.json must contain a top-level JSON object")
+        return errors
+    if not payload.get("last_update_id"):
+        errors.append("status.json must include a non-empty last_update_id for map-update")
+    status_scope = payload.get("stale_paths")
+    has_status_scope = _has_non_empty_string(status_scope)
+    updates_payload, update_read_errors = _read_json_artifact(feature_dir / "graph/updates.json", "graph/updates.json")
+    if update_read_errors:
+        errors.extend(update_read_errors)
+        return errors
+    has_update_scope = False
+    if isinstance(updates_payload, dict):
+        updates = updates_payload.get("updates")
+        if isinstance(updates, list):
+            for item in updates:
+                if not isinstance(item, dict):
+                    continue
+                changed_paths = item.get("changed_paths")
+                if _has_non_empty_string(changed_paths):
+                    has_update_scope = True
+                    break
+    if not has_status_scope and not has_update_scope:
+        errors.append("map-update requires non-empty changed-scope metadata in status.json.stale_paths or graph/updates.json updates[].changed_paths")
     return errors
 
 
@@ -782,32 +799,6 @@ def _validate_map_build_capability_diagrams(feature_dir: Path) -> list[str]:
                 f"but {page} does not render declared Mermaid content for: {joined}"
             )
 
-    return errors
-
-
-def _validate_runtime_handbooks(feature_dir: Path) -> list[str]:
-    errors: list[str] = []
-    errors.extend(
-        _validate_markdown_contains(
-            feature_dir / "DEBUG-HANDBOOK.md",
-            DEBUG_HANDBOOK_REQUIRED_SECTIONS,
-            "DEBUG-HANDBOOK.md",
-        )
-    )
-    errors.extend(
-        _validate_markdown_contains(
-            feature_dir / "BUILD-HANDBOOK.md",
-            BUILD_HANDBOOK_REQUIRED_SECTIONS,
-            "BUILD-HANDBOOK.md",
-        )
-    )
-    return errors
-
-
-def _validate_map_build_artifacts(feature_dir: Path) -> list[str]:
-    errors: list[str] = []
-    errors.extend(_validate_map_build_worker_results(feature_dir))
-    errors.extend(_validate_runtime_handbooks(feature_dir))
     return errors
 
 
@@ -1013,8 +1004,12 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":
         validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
+    if command_name == "map-scan":
+        validation_errors.extend(_validate_map_scan_artifacts(feature_dir))
     if command_name == "map-build":
         validation_errors.extend(_validate_map_build_artifacts(feature_dir))
+    if command_name == "map-update":
+        validation_errors.extend(_validate_map_update_artifacts(feature_dir))
     if command_name == "prd-scan":
         validation_errors.extend(
             _validate_prd_scan_artifacts(

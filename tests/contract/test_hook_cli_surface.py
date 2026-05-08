@@ -8,6 +8,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli.hooks import artifact_validation as artifact_validation_mod
 
 HOOK_SUBCOMMANDS = [
     "preflight",
@@ -149,32 +150,51 @@ def _write_heavy_prd_build_exports(run_dir: Path) -> None:
         (run_dir / "exports" / relative).write_text(heading, encoding="utf-8")
 
 
-def _write_runtime_handbooks(run_dir: Path) -> None:
+def _write_project_cognition_runtime(run_dir: Path) -> None:
     for relative, content in {
-        "DEBUG-HANDBOOK.md": (
-            "## DEBUG-WORKFLOW-CONTRACT\n"
-            "## SYMPTOM-TO-SURFACE-ROUTING\n"
-            "## SYSTEM-TOPOLOGY-FOR-DEBUG\n"
-            "## HOT-PATHS-AND-OWNERS\n"
-            "## FAILURE-PATTERNS\n"
-            "## INVESTIGATION-PLAYBOOKS\n"
-            "## FIX-PROPAGATION-CHECKS\n"
-            "## VERIFICATION-AND-EXIT\n"
-            "## KNOWN-UNKNOWNS\n"
-        ),
-        "BUILD-HANDBOOK.md": (
-            "## BUILD-WORKFLOW-CONTRACT\n"
-            "## PRODUCT-AND-CAPABILITY-MAP\n"
-            "## WORKFLOW-SEQUENCES\n"
-            "## CHANGE-ENTRYPOINTS\n"
-            "## MODULE-COLLABORATION\n"
-            "## CHANGE-PROPAGATION-RISKS\n"
-            "## IMPLEMENTATION-PLAYBOOKS\n"
-            "## VERIFICATION-ROUTES\n"
-            "## KNOWN-UNKNOWNS\n"
-        ),
+        "status.json": "{\"version\": 1, \"graph_ready\": true, \"last_update_id\": \"UPD-001\"}\n",
+        "coverage.json": "{\"rows\": []}\n",
+        "provisional/nodes.json": "{\"nodes\": []}\n",
+        "provisional/edges.json": "{\"edges\": []}\n",
+        "provisional/observations.json": "{\"observations\": []}\n",
+        "graph/nodes.json": "{\"nodes\": []}\n",
+        "graph/edges.json": "{\"edges\": []}\n",
+        "graph/claims.json": "{\"claims\": []}\n",
+        "graph/conflicts.json": "{\"conflicts\": []}\n",
+        "graph/updates.json": "{\"updates\": []}\n",
+        "slices/change.json": "{\"slice\": {\"slice_id\": \"change\", \"slice_type\": \"change\"}}\n",
     }.items():
-        (run_dir / relative).write_text(content, encoding="utf-8")
+        target = run_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    (run_dir / "evidence").mkdir(parents=True, exist_ok=True)
+
+
+def test_map_build_capability_diagram_validation_accepts_project_map_prefixed_pages(tmp_path: Path):
+    feature_dir = tmp_path / ".specify" / "project-cognition"
+    (feature_dir / "index").mkdir(parents=True, exist_ok=True)
+    (feature_dir / "modules").mkdir(parents=True, exist_ok=True)
+    (feature_dir / "index" / "capabilities.json").write_text(
+        json.dumps(
+            {
+                "capabilities": [
+                    {
+                        "id": "CAP-001",
+                        "deep_workflow_path": ".specify/project-map/modules/capability.md",
+                        "lifecycle_mermaid": "graph TD; A-->B",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "modules" / "capability.md").write_text(
+        "```mermaid\ngraph TD; A-->B\n```\n",
+        encoding="utf-8",
+    )
+
+    assert artifact_validation_mod._validate_map_build_capability_diagrams(feature_dir) == []
 
 
 def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
@@ -1057,19 +1077,16 @@ def test_hook_validate_artifacts_supports_prd_scan_command(tmp_path: Path):
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_map_scan_when_truth_layer_ledgers_are_missing(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_scan_when_graph_baseline_outputs_are_missing(tmp_path: Path):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "project-map"
+    run_dir = project / ".specify" / "project-cognition"
     run_dir.mkdir(parents=True, exist_ok=True)
     for relative, content in {
-        "workflow-state.md": "# Workflow State\n",
-        "map-state.md": "# Map State\n",
-        "map-scan.md": "# Map Scan\n",
-        "coverage-ledger.md": "# Coverage Ledger\n",
-        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
+        "status.json": "{\"version\": 1, \"graph_ready\": false}\n",
+        "coverage.json": "{\"rows\": []}\n",
     }.items():
         (run_dir / relative).write_text(content, encoding="utf-8")
-    (run_dir / "scan-packets").mkdir()
+    (run_dir / "evidence").mkdir()
 
     result = _invoke_in_project(
         project,
@@ -1078,25 +1095,68 @@ def test_hook_validate_artifacts_blocks_map_scan_when_truth_layer_ledgers_are_mi
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("repository-universe.json" in message for message in payload["errors"])
-    assert any("capability-ledger.json" in message for message in payload["errors"])
-    assert any("control-ledger.json" in message for message in payload["errors"])
+    assert any("provisional/nodes.json" in message for message in payload["errors"])
+    assert any("provisional/edges.json" in message for message in payload["errors"])
+    assert any("provisional/observations.json" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_runtime_handbooks_are_missing(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_scan_when_graph_baseline_outputs_exist(tmp_path: Path):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "project-map"
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_blocks_map_scan_on_malformed_graph_shapes(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "coverage.json").write_text("{\"version\": 1}\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("coverage.json" in message and "rows" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_scan_on_malformed_status_shape(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "status.json").write_text("[]\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("status.json" in message and "top-level JSON object" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_build_when_graph_outputs_are_missing(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
     run_dir.mkdir(parents=True, exist_ok=True)
     for relative, content in {
-        "map-state.md": "# Map State\n",
-        "map-scan.md": "# Map Scan\n",
-        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
+        "status.json": "{\"version\": 1, \"graph_ready\": false}\n",
     }.items():
         target = run_dir / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
-    (run_dir / "scan-packets").mkdir()
-    (run_dir / "worker-results").mkdir()
+    (run_dir / "slices").mkdir()
 
     result = _invoke_in_project(
         project,
@@ -1105,40 +1165,14 @@ def test_hook_validate_artifacts_blocks_map_build_when_runtime_handbooks_are_mis
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("DEBUG-HANDBOOK.md" in message for message in payload["errors"])
-    assert any("BUILD-HANDBOOK.md" in message for message in payload["errors"])
+    assert any("graph/nodes.json" in message for message in payload["errors"])
+    assert any("graph/conflicts.json" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_worker_result_is_derived_only(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_build_when_graph_outputs_exist(tmp_path: Path):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "project-map"
-    for relative, content in {
-        "map-state.md": "# Map State\n",
-        "map-scan.md": "# Map Scan\n",
-        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-    }.items():
-        target = run_dir / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-    _write_runtime_handbooks(run_dir)
-    (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
-    (run_dir / "worker-results").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text(
-        json.dumps(
-            {
-                "paths_read": [
-                    str(project / ".specify" / "project-map" / "DEBUG-HANDBOOK.md"),
-                    ".specify/project-map/map-state.md",
-                ],
-                "unknowns": [],
-                "confidence": "medium",
-                "recommended_atlas_updates": [],
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
 
     result = _invoke_in_project(
         project,
@@ -1146,37 +1180,14 @@ def test_hook_validate_artifacts_blocks_map_build_when_worker_result_is_derived_
     )
 
     payload = json.loads(result.output.strip())
-    assert payload["status"] == "blocked"
-    assert any("worker-results/lane-a.json" in message and "source path" in message for message in payload["errors"])
+    assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_paths_read_is_empty(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_on_malformed_graph_shapes(tmp_path: Path):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "project-map"
-    for relative, content in {
-        "map-state.md": "# Map State\n",
-        "map-scan.md": "# Map Scan\n",
-        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-    }.items():
-        target = run_dir / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-    _write_runtime_handbooks(run_dir)
-    (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
-    (run_dir / "worker-results").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text(
-        json.dumps(
-            {
-                "paths_read": [],
-                "unknowns": [],
-                "confidence": "medium",
-                "recommended_atlas_updates": [],
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "graph" / "nodes.json").write_text("{\"items\": []}\n", encoding="utf-8")
 
     result = _invoke_in_project(
         project,
@@ -1185,52 +1196,14 @@ def test_hook_validate_artifacts_blocks_map_build_when_paths_read_is_empty(tmp_p
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("worker-results/lane-a.json" in message and "non-empty paths_read" in message for message in payload["errors"])
+    assert any("graph/nodes.json" in message and "nodes" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_debug_handbook_is_missing_required_section(
-    tmp_path: Path,
-):
+def test_hook_validate_artifacts_blocks_map_build_on_malformed_status_shape(tmp_path: Path):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "project-map"
-    for relative, content in {
-        "map-state.md": "# Map State\n",
-        "map-scan.md": "# Map Scan\n",
-        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-    }.items():
-        target = run_dir / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-    _write_runtime_handbooks(run_dir)
-    (run_dir / "DEBUG-HANDBOOK.md").write_text(
-        "## DEBUG-WORKFLOW-CONTRACT\n"
-        "## SYMPTOM-TO-SURFACE-ROUTING\n"
-        "## SYSTEM-TOPOLOGY-FOR-DEBUG\n"
-        "## HOT-PATHS-AND-OWNERS\n"
-        "## FAILURE-PATTERNS\n"
-        "## INVESTIGATION-PLAYBOOKS\n"
-        "## FIX-PROPAGATION-CHECKS\n"
-        "## VERIFICATION-AND-EXIT\n",
-        encoding="utf-8",
-    )
-    (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
-    (run_dir / "worker-results").mkdir()
-    source_path = project / "src" / "app.py"
-    source_path.parent.mkdir()
-    source_path.write_text("print('source evidence')\n", encoding="utf-8")
-    (run_dir / "worker-results" / "lane-a.json").write_text(
-        json.dumps(
-            {
-                "paths_read": ["src/app.py"],
-                "unknowns": [],
-                "confidence": "high",
-                "recommended_atlas_updates": [],
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "status.json").write_text("[]\n", encoding="utf-8")
 
     result = _invoke_in_project(
         project,
@@ -1239,50 +1212,15 @@ def test_hook_validate_artifacts_blocks_map_build_when_debug_handbook_is_missing
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("DEBUG-HANDBOOK.md" in message and "## KNOWN-UNKNOWNS" in message for message in payload["errors"])
+    assert any("status.json" in message and "top-level JSON object" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_build_handbook_is_missing_required_section(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_slices_are_empty(tmp_path: Path):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "project-map"
-    for relative, content in {
-        "map-state.md": "# Map State\n",
-        "map-scan.md": "# Map Scan\n",
-        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-    }.items():
-        target = run_dir / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-    _write_runtime_handbooks(run_dir)
-    (run_dir / "BUILD-HANDBOOK.md").write_text(
-        "## BUILD-WORKFLOW-CONTRACT\n"
-        "## PRODUCT-AND-CAPABILITY-MAP\n"
-        "## WORKFLOW-SEQUENCES\n"
-        "## CHANGE-ENTRYPOINTS\n"
-        "## MODULE-COLLABORATION\n"
-        "## CHANGE-PROPAGATION-RISKS\n"
-        "## IMPLEMENTATION-PLAYBOOKS\n"
-        "## KNOWN-UNKNOWNS\n",
-        encoding="utf-8",
-    )
-    (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
-    (run_dir / "worker-results").mkdir()
-    source_path = project / "src" / "build.py"
-    source_path.parent.mkdir(parents=True)
-    source_path.write_text("print('source evidence')\n", encoding="utf-8")
-    (run_dir / "worker-results" / "lane-a.json").write_text(
-        json.dumps(
-            {
-                "paths_read": ["src/build.py"],
-                "unknowns": [],
-                "confidence": "high",
-                "recommended_atlas_updates": [],
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    for child in (run_dir / "slices").iterdir():
+        child.unlink()
 
     result = _invoke_in_project(
         project,
@@ -1291,7 +1229,121 @@ def test_hook_validate_artifacts_blocks_map_build_when_build_handbook_is_missing
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("BUILD-HANDBOOK.md" in message and "## VERIFICATION-ROUTES" in message for message in payload["errors"])
+    assert any("slices must contain at least one file" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_update_when_last_update_id_is_missing(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "status.json").write_text("{\"version\": 1, \"graph_ready\": true}\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("last_update_id" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_update_when_changed_scope_metadata_is_missing(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("changed-scope metadata" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_map_update_when_changed_scope_metadata_has_no_usable_paths(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "status.json").write_text(
+        "{\"version\": 1, \"graph_ready\": true, \"last_update_id\": \"UPD-001\", \"stale_paths\": [\"\"]}\n",
+        encoding="utf-8",
+    )
+    (run_dir / "graph" / "updates.json").write_text(
+        "{\"updates\": [{\"update_id\": \"UPD-001\", \"changed_paths\": [null]}]}\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("changed-scope metadata" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_accepts_map_update_when_changed_scope_metadata_exists(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "status.json").write_text(
+        "{\"version\": 1, \"graph_ready\": true, \"last_update_id\": \"UPD-001\", \"stale_paths\": [\"src/app.py\"]}\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_accepts_map_update_when_update_log_supplies_changed_scope(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "status.json").write_text(
+        "{\"version\": 1, \"graph_ready\": true, \"last_update_id\": \"UPD-001\", \"stale_paths\": []}\n",
+        encoding="utf-8",
+    )
+    (run_dir / "graph" / "updates.json").write_text(
+        "{\"updates\": [{\"update_id\": \"UPD-001\", \"changed_paths\": [\"src/app.py\"]}]}\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_blocks_map_update_on_malformed_graph_shape(tmp_path: Path):
+    project = _create_project(tmp_path)
+    run_dir = project / ".specify" / "project-cognition"
+    _write_project_cognition_runtime(run_dir)
+    (run_dir / "status.json").write_text(
+        "{\"version\": 1, \"graph_ready\": true, \"last_update_id\": \"UPD-001\", \"stale_paths\": [\"src/app.py\"]}\n",
+        encoding="utf-8",
+    )
+    (run_dir / "graph" / "nodes.json").write_text("{\"items\": []}\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+    )
+
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert any("graph/nodes.json" in message and "nodes" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_blocks_prd_scan_on_malformed_json_shapes(tmp_path: Path):
