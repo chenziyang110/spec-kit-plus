@@ -32,13 +32,22 @@ def sample_packet() -> WorkerTaskPacket:
         ),
         context_bundle=[
             ContextBundleItem(
-                path="BUILD-HANDBOOK.md",
-                kind="runtime_handbook",
-                purpose="Workflow-specific runtime handbook for planning and implementation work",
+                path=".specify/project-cognition/status.json",
+                kind="project_map",
+                purpose="Project cognition runtime status baseline for graph readiness, stale paths, and refresh metadata.",
                 required_for=["workflow_boundary"],
                 read_order=1,
                 must_read=True,
-                selection_reason="build runtime handbook is the primary atlas surface for non-debug work",
+                selection_reason="project cognition status is the primary runtime truth surface for downstream execution work",
+            ),
+            ContextBundleItem(
+                path=".specify/project-cognition/slices/change.json",
+                kind="task_reference",
+                purpose="Change-focused cognition slice for the active implementation lane.",
+                required_for=["implementation_scope"],
+                read_order=2,
+                must_read=True,
+                selection_reason="change slice narrows the runtime context to touched surfaces without routing through handbook defaults",
             )
         ],
         required_references=[

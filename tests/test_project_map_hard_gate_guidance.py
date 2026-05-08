@@ -65,14 +65,10 @@ def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
 
     for rel_path in [path for path in TARGETS if path != "templates/commands/debug.md"]:
         content = _read(rel_path).lower()
-        if rel_path in {"templates/commands/specify.md", "templates/commands/plan.md", "templates/commands/tasks.md"}:
-            assert "build-handbook.md" in content, f"{rel_path} missing BUILD-HANDBOOK gate"
-            assert "build-workflow-contract" in content, f"{rel_path} missing BUILD-WORKFLOW-CONTRACT gate"
-        else:
-            assert ".specify/project-cognition/status.json" in content, f"{rel_path} missing cognition status gate"
-            assert ".specify/project-cognition/slices/change.json" in content, f"{rel_path} missing cognition change slice gate"
-            assert "build-handbook.md" not in content, f"{rel_path} should not keep BUILD-HANDBOOK gate"
-            assert "build-workflow-contract" not in content, f"{rel_path} should not keep BUILD-WORKFLOW-CONTRACT gate"
+        assert ".specify/project-cognition/status.json" in content, f"{rel_path} missing cognition status gate"
+        assert ".specify/project-cognition/slices/change.json" in content, f"{rel_path} missing cognition change slice gate"
+        assert "build-handbook.md" not in content, f"{rel_path} should not keep BUILD-HANDBOOK gate"
+        assert "build-workflow-contract" not in content, f"{rel_path} should not keep BUILD-WORKFLOW-CONTRACT gate"
 
 
 def test_project_cognition_freshness_guidance_prefers_map_update_for_stale_runtime() -> None:

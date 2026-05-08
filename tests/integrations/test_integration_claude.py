@@ -2329,8 +2329,10 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "explicitly remind the user to enable agent teams in claude code settings or environment" in lower
     assert "hard prerequisite for `/sp-implement-teams`" in lower
     assert "executioncontextbundle" in lower or "execution context bundle" in lower
+    assert ".specify/project-cognition/status.json" in lower
+    assert ".specify/project-cognition/slices/change.json" in lower
     assert "project-handbook.md" in lower
-    assert ".specify/project-map/root/workflows.md" in lower
+    assert ".specify/project-map/*.md" in lower
     assert ".specify/testing/TESTING_CONTRACT.md".lower() in lower
     assert ".specify/testing/TESTING_PLAYBOOK.md".lower() in lower
     assert "read-order" in lower or "read order" in lower

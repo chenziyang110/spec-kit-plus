@@ -6,7 +6,7 @@ Turn the incoming request into a planning-ready specification package that is gr
 
 ## Context
 
-- Primary inputs: the user's request, the current repository state, passive learning files, and the handbook/project-map navigation system.
+- Primary inputs: the user's request, the current repository state, passive learning files, and the project cognition runtime (`.specify/project-cognition/status.json`, required slices, graph artifacts, and targeted live evidence).
 - Working state lives under the active `FEATURE_DIR`, especially `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md`.
 - This command is specification-only. It is not permission to implement code.
 

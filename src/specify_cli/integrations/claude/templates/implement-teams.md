@@ -18,7 +18,7 @@ User-facing workflow skill:
 This gate is mandatory and precedes all broad implementation-context recovery.
 
 1. After `{SCRIPT}` resolves `FEATURE_DIR` and confirms `tasks.md` exists, the first non-prerequisite action is creating or resuming the Claude Agent Team.
-2. Do not read `plan.md`, `tasks.md` beyond the minimum existence/status check, `PROJECT-HANDBOOK.md`, `.specify/project-map/*`, implementation files, or test files before this gate passes.
+2. Do not read `plan.md`, `tasks.md` beyond the minimum existence/status check, project cognition runtime files, compatibility/export files such as `PROJECT-HANDBOOK.md` or `.specify/project-map/*`, implementation files, or test files before this gate passes.
 3. Do not run validation, edit files, or inspect broad implementation context before this gate passes.
 4. If a Claude Agent Team for the same feature slug already exists, resume that team and inspect only its ledger and shared task list until the leader has confirmed the team state.
 5. If `TeamCreate`, team resume, shared task records, or native teammate launch is unavailable, stop and report that Claude Agent Teams is unavailable for this `/sp-implement-teams` run.
@@ -68,10 +68,11 @@ TeamCreate({
    - team membership lives in `~/.claude/teams/{team-name}/config.json`
    - shared tasks live under `~/.claude/tasks/{team-name}/`
 7. Before the first `TaskCreate`, compile an execution context bundle for the current batch:
-   - include `PROJECT-HANDBOOK.md`
-   - include the smallest relevant `.specify/project-map/*.md` files for the touched subsystem, at minimum `.specify/project-map/root/WORKFLOWS.md` plus any architecture/operations/testing topics that define the lane boundary
+   - include `.specify/project-cognition/status.json`
+   - include the smallest relevant project cognition slices first, such as `.specify/project-cognition/slices/change.json`, `.specify/project-cognition/slices/runtime.json`, `.specify/project-cognition/slices/debug.json`, or the required graph artifacts when the lane needs them
+   - include compatibility/export files such as `PROJECT-HANDBOOK.md` or `.specify/project-map/*.md` only when the task explicitly depends on handbook/export parity, downstream compatibility, or exported atlas wording
    - include `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present
-   - for each bundled item, preserve the path, why it matters, and a read order so the teammate knows both where the project truth lives and what it is for
+   - for each bundled item, preserve the path, why it matters, and a read order so the teammate knows which runtime artifacts are primary and which compatibility/export artifacts are supplementary
 8. Convert the ready implementation slices into explicit shared tasks with `TaskCreate`.
    - every shared task must carry the execution context bundle, not just the task summary
    - the task body must tell the teammate which context items are required, what each item is for, and which ones must be read before work starts
@@ -94,8 +95,9 @@ Write Set:
 - apps/local-agent/src/protocol.rs
 - apps/relay-server/src/protocol.rs
 Required References:
-- PROJECT-HANDBOOK.md
-- .specify/project-map/root/WORKFLOWS.md
+- .specify/project-cognition/status.json
+- .specify/project-cognition/slices/change.json
+- PROJECT-HANDBOOK.md (only when compatibility/export parity matters)
 Deliverables:
 - matching protocol definitions on both sides
 - focused tests updated

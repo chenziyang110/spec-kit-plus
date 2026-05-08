@@ -6,7 +6,7 @@ build_status: pending
 updated: [ISO timestamp]
 ---
 
-# Project Map Workflow State
+# Project Map Compatibility / Export Workflow State
 
 ## Current Focus
 
@@ -53,7 +53,7 @@ updated: [ISO timestamp]
 - unknown_rows:
 - excluded_buckets:
 
-## Atlas Outputs
+## Compatibility / Export Outputs
 
 - handbook: PROJECT-HANDBOOK.md
 - quick_nav: .specify/project-map/QUICK-NAV.md
@@ -65,6 +65,9 @@ updated: [ISO timestamp]
 - root_docs:
 - module_docs:
 - deep_docs:
+
+These outputs are compatibility/export artifacts derived from the cognition runtime.
+They are not the default first-read contract for ordinary brownfield workflows.
 
 ## Validation Evidence
 

@@ -764,7 +764,8 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "planning-critical gaps" in spec_extend_fm["description"].lower()
         assert "implementation planning" in plan_fm["description"].lower()
         assert "plain language" in explain_fm["description"].lower()
-        assert "handbook/project-map coverage" in map_scan_fm["description"].lower()
+        assert "graph-native cognition baseline" in map_scan_fm["description"].lower()
+        assert "compatibility/export" in map_scan_fm["description"].lower()
         assert "map-scan" in map_build_fm["description"].lower()
         assert "capability flow and lifecycle truth layer" in (project / "AGENTS.md").read_text(encoding="utf-8").lower()
         assert "clarify" in result.output.lower()
@@ -821,7 +822,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert status_payload["freshness"] == "missing"
         assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-map/index/status.json")
         assert check_payload["freshness"] == "possibly_stale"
-        assert check_payload["reasons"] == ["git baseline unavailable for project-map freshness"]
+        assert check_payload["reasons"] == ["git baseline unavailable for project-map compatibility/export freshness"]
 
     def test_project_map_mark_dirty_sets_runtime_stale_state(self, tmp_path):
         from typer.testing import CliRunner

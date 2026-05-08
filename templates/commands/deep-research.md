@@ -232,15 +232,17 @@ Use `execution_surface: native-subagents`.
    - `.specify/memory/constitution.md` if present
    - `.specify/memory/project-rules.md` if present
    - `.specify/memory/project-learnings.md` if present
-   - `BUILD-HANDBOOK.md` if present
-   - targeted live repository files only when the runtime handbook cannot prove the current implementation pattern safely
+   - `.specify/project-cognition/status.json` if present
+   - `.specify/project-cognition/slices/change.json` if present
+   - `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice does not prove the current implementation pattern safely
+   - targeted live repository files only when the project cognition runtime cannot prove the current implementation pattern safely
    - From `FEATURE_DIR/alignment.md`, extract:
      - `Feasibility / Deep Research Gate` status per capability
      - `Planning Gate Recommendation`
      - Capabilities marked `Needed before plan` → these are the research targets
      - Capabilities marked `Not needed` or `Completed` → skip, do not research
      - Capabilities marked `Blocked` → preserve blocker, record reason, do not research unless unblocked
-   - targeted live files only when the handbook/project-map cannot prove the current implementation pattern
+   - targeted live files only when the project cognition runtime cannot prove the current implementation pattern
    - external docs, API references, release notes, examples, or research material when they materially affect feasibility
 
 3b. **Detect staleness and prior evidence**:

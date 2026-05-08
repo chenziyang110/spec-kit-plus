@@ -37,3 +37,24 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     assert "atlas.entry" not in content
     assert "root topic document" not in lowered
     assert "module overview document" not in lowered
+
+
+def test_upstream_workflow_templates_are_graph_native_cognition_first() -> None:
+    for rel_path in (
+        "templates/commands/specify.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+    ):
+        content = _read(rel_path)
+        lowered = content.lower()
+
+        assert ".specify/project-cognition/status.json" in content
+        assert ".specify/project-cognition/slices/change.json" in content
+        assert ".specify/project-cognition/graph/nodes.json" in content
+        assert ".specify/project-cognition/graph/edges.json" in content
+        assert ".specify/project-cognition/graph/claims.json" in content
+        assert ".specify/project-cognition/graph/conflicts.json" in content
+        assert "graph-native" in lowered
+        assert "build-handbook.md" not in lowered
+        assert "build-workflow-contract" not in lowered
+        assert "runtime handbook" not in lowered

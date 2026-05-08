@@ -72,14 +72,14 @@ missing, copy the template first.
 
 ## Repository Context and Navigation Freshness
 
-- If repo-derived evidence is needed, read `BUILD-HANDBOOK.md` as the runtime handbook entrypoint for non-debug workflow context and use `.specify/project-map/index/status.json` to assess git-baseline freshness as the truth source before trusting any support-only project-map artifact.
+- If repo-derived evidence is needed, read `.specify/project-cognition/status.json` plus the smallest relevant slice or graph artifact first and use `.specify/project-map/index/status.json` to assess git-baseline freshness as the truth source before trusting any compatibility/export artifact.
 - If the navigation system is missing or stale for an existing codebase, run
   `/sp-map-scan` followed by `/sp-map-build` before continuing or mark the refresh as a blocking
   follow-up rather than fabricating repository context.
-- If an amendment affects handbook/project-map truth and a full refresh can be completed now,
+- If an amendment affects project cognition runtime truth and a full refresh can be completed now,
   do it and use `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer;
   otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback.
-- If the amendment changes structure, ownership, workflows, testing strategy, integrations, or operator expectations, mark the related handbook/project-map surface for refresh in the Sync Impact Report even if the constitution update itself is complete. Use this exact framing: mark the related handbook/project-map surface for refresh.
+- If the amendment changes structure, ownership, workflows, testing strategy, integrations, or operator expectations, mark the related project cognition compatibility/export surface for refresh in the Sync Impact Report even if the constitution update itself is complete. Use this exact framing: mark the related project cognition compatibility/export surface for refresh.
 
 ## Downstream Re-entry Contract
 
@@ -135,7 +135,7 @@ Follow this execution flow:
 2. Collect or derive missing and revised values:
    - If user input (conversation) supplies a value, use it.
    - Otherwise infer from existing repo context (README, docs,
-     handbook/project-map evidence, prior constitution versions if embedded).
+     project cognition runtime evidence, compatibility/export references when explicitly relevant, prior constitution versions if embedded).
    - For governance dates: `RATIFICATION_DATE` is the original adoption date
      (if unknown ask or mark TODO), `LAST_AMENDED_DATE` is today if changes
      are made, otherwise keep the previous value.
