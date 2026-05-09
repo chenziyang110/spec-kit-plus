@@ -241,6 +241,8 @@ human_needed_checks:
 3. Load and analyze the implementation context:
    - **REQUIRED**: [AGENT] Create or resume `FEATURE_DIR/implement-tracker.md` immediately after `FEATURE_DIR` is known.
    - **REQUIRED WHEN PRESENT**: Read `FEATURE_DIR/workflow-state.md` if present before choosing the next batch.
+   - **REQUIRED WHEN PRESENT**: Read `handoff-to-implement.json` when present and treat it as the authoritative execution contract.
+   - **REQUIRED WHEN PRESENT**: Treat `must-preserve invariants`, `allowed optimization scope`, `required validation`, and `stop-and-reopen conditions` from that contract as binding execution fields.
    - **REQUIRED WHEN PRESENT**: If `FEATURE_DIR/workflow-state.md` records `active_profile` or `required_evidence`, treat those fields as execution constraints for batch acceptance and final completion, not as descriptive metadata.
    - **PROFILE EVIDENCE DEFAULT**: For `Standard Delivery`, behavior validation and regression proof remain the lighter default unless `required_evidence` explicitly activates stronger exit evidence.
    - **PROFILE EVIDENCE UPGRADE**: For `Reference-Implementation`, completion requires profile-matched evidence for the persisted `required_evidence` terms activated upstream: reference source evidence, fidelity criteria, difference inventory, accepted deviations, and verification entry points.
@@ -287,6 +289,7 @@ human_needed_checks:
     - **REQUIRED FOR SUBAGENT EXECUTION**: Idle subagent is not an accepted result.
     - **REQUIRED FOR SUBAGENT EXECUTION**: [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
     - **HARD RULE**: dispatch only from validated `WorkerTaskPacket` — never from raw task text alone
+   - If a needed change would violate the current execution contract or require redefining the user's locked goal, stop and reopen the upstream truth layer instead of implementing through ambiguity.
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 

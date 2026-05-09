@@ -1955,6 +1955,44 @@ def test_specify_draft_template_and_feature_scripts_scaffold_draft_artifact():
     assert '"templates/specify-draft-template.md" = "specify_cli/core_pack/templates/specify-draft-template.md"' in pyproject
 
 
+def test_feature_scaffolding_and_packaging_include_brainstorming_truth_templates() -> None:
+    pyproject = _read("pyproject.toml")
+    sh_create = _read("scripts/bash/create-new-feature.sh")
+    ps_create = _read("scripts/powershell/create-new-feature.ps1")
+    sh_common = _read("scripts/bash/common.sh")
+    ps_common = _read("scripts/powershell/common.ps1")
+
+    for path in (
+        "templates/brainstorming-facts-template.json",
+        "templates/brainstorming-route-template.json",
+        "templates/brainstorming-intent-template.json",
+        "templates/brainstorming-complexity-template.json",
+        "templates/brainstorming-handoff-specify-template.json",
+    ):
+        assert path in pyproject
+
+    assert "BRAINSTORMING_FACTS" in sh_common
+    assert "BRAINSTORMING_ROUTE" in sh_common
+    assert "BRAINSTORMING_INTENT" in sh_common
+    assert "BRAINSTORMING_COMPLEXITY" in sh_common
+    assert "HANDOFF_TO_SPECIFY" in sh_common
+
+    assert "BRAINSTORMING_FACTS" in ps_common
+    assert "BRAINSTORMING_ROUTE" in ps_common
+    assert "BRAINSTORMING_INTENT" in ps_common
+    assert "BRAINSTORMING_COMPLEXITY" in ps_common
+    assert "HANDOFF_TO_SPECIFY" in ps_common
+
+    assert "brainstorming/facts.json" in sh_create
+    assert "brainstorming/route.json" in sh_create
+    assert "brainstorming/intent.json" in sh_create
+    assert "brainstorming/complexity.json" in sh_create
+    assert "handoff-to-specify.json" in sh_create
+
+    assert "brainstorming\\facts.json" in ps_create or "brainstorming/facts.json" in ps_create
+    assert "handoff-to-specify.json" in ps_create
+
+
 def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
     content = _read("templates/commands/specify.md")
     observer_prompt = _read("templates/worker-prompts/specify-observer.md")
@@ -1973,6 +2011,48 @@ def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
     assert "# Specify Observer Worker Prompt" in observer_prompt
     assert "missing_critical_capabilities" in observer_prompt
     assert "release_blockers" in observer_prompt
+
+
+def test_specify_template_requires_brainstorming_truth_layer_and_handoff_chain() -> None:
+    content = _read("templates/commands/specify.md")
+    lowered = content.lower()
+
+    assert "brainstorming kernel" in lowered
+    assert "facts-lock" in lowered
+    assert "route-lock" in lowered
+    assert "intent-lock" in lowered
+    assert "complexity-lock" in lowered
+    assert "brainstorming/facts.json" in content
+    assert "brainstorming/route.json" in content
+    assert "brainstorming/intent.json" in content
+    assert "brainstorming/complexity.json" in content
+    assert "handoff-to-specify.json" in content
+    assert "dynamic is allowed only" in lowered or "dynamic routing only" in lowered
+    assert "hard unknown" in lowered
+    assert "reopen upstream truth" in lowered or "reopen is a first-class workflow action" in lowered
+
+
+def test_plan_tasks_and_implement_templates_consume_structured_handoff_contracts() -> None:
+    content = _read("templates/commands/specify.md").lower()
+
+    assert "compile the familiar specification package" in content
+    assert "compile the locked truth layer into `spec.md`, `alignment.md`, `context.md`," in content
+    assert "and `references.md` only after the required hard unknowns are resolved." in content
+
+
+def test_plan_and_tasks_templates_consume_machine_readable_handoff_truth() -> None:
+    plan = _read("templates/commands/plan.md").lower()
+    tasks = _read("templates/commands/tasks.md").lower()
+
+    assert "plan-contract.json" in plan
+    assert "route" in plan
+    assert "intent" in plan
+    assert "complexity" in plan
+
+    assert "handoff-to-tasks.json" in tasks
+    assert "task-index.json" in tasks
+    assert "task-packets" in tasks
+    assert "plan-contract.json" in tasks
 
 
 def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> None:
@@ -2046,3 +2126,13 @@ def test_prd_scan_template_uses_shared_subagent_dispatch_contract() -> None:
 def test_prd_build_template_uses_shared_subagent_dispatch_contract() -> None:
     content = _read("templates/commands/prd-build.md")
     _assert_subagent_dispatch_contract(content, "prd-build")
+
+
+def test_implement_template_requires_structured_execution_contract_from_tasks() -> None:
+    implement = _read("templates/commands/implement.md").lower()
+
+    assert "handoff-to-implement.json" in implement
+    assert "must-preserve invariants" in implement
+    assert "allowed optimization scope" in implement
+    assert "stop-and-reopen conditions" in implement
+    assert "redefining the user's locked goal" in implement or "must not redefine the product goal" in implement

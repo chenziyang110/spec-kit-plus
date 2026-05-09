@@ -58,3 +58,15 @@ def test_specify_template_requires_engineering_completeness_for_boundary_sensiti
     assert "If the user already described the desired UX in natural language" in content
     assert "forcing a transport or browser-API choice" in content
     assert "Do not release for cross-boundary or event-driven features" in content
+
+
+def test_specify_template_does_not_allow_chat_only_conclusions_or_ignored_unknowns() -> None:
+    content = _read("templates/commands/specify.md").lower()
+
+    assert "conversation memory is not a valid handoff surface" in content
+    assert "unknown is not an ignored value" in content or "unknown is a pending decision object" in content
+    assert "resolve-now" in content
+    assert "resolve-by-evidence" in content
+    assert "defer-with-contract" in content
+    assert "waive-with-risk" in content
+    assert "reopen upstream truth" in content or "reopen is a first-class workflow action" in content

@@ -335,6 +335,19 @@ def test_check_reports_project_runtime_compatibility_issues(tmp_path):
     assert "bash-compatible launcher command" in result.output.lower()
 
 
+def test_init_installs_brainstorming_truth_templates(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "demo"
+    result = runner.invoke(app, ["init", str(project), "--ai", "codex", "--ignore-agent-tools"])
+    assert result.exit_code == 0, result.output
+    templates_dir = project / ".specify" / "templates"
+    assert (templates_dir / "brainstorming-facts-template.json").exists()
+    assert (templates_dir / "brainstorming-route-template.json").exists()
+    assert (templates_dir / "brainstorming-intent-template.json").exists()
+    assert (templates_dir / "brainstorming-complexity-template.json").exists()
+    assert (templates_dir / "brainstorming-handoff-specify-template.json").exists()
+
+
 def test_check_reports_workflow_contract_drift(tmp_path):
     runner = CliRunner()
     project = tmp_path / "project-workflow-contract"

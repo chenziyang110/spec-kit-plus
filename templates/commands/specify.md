@@ -2,9 +2,9 @@
 description: Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.
 workflow_contract:
   when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
-  primary_objective: 'Produce a planning-ready specification package grounded in repository reality, while preserving active discovery in `specify-draft.md`.'
-  primary_outputs: '`FEATURE_DIR/specify-draft.md`, `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
-  default_handoff: '`final-handoff-decision` chooses `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` after the fixed heavy discovery lifecycle completes.'
+  primary_objective: 'Produce a planning-ready specification package grounded in repository reality by first locking a deterministic brainstorming truth layer and then compiling the familiar specification artifact set.'
+  primary_outputs: '`FEATURE_DIR/brainstorming/facts.json`, `FEATURE_DIR/brainstorming/route.json`, `FEATURE_DIR/brainstorming/intent.json`, `FEATURE_DIR/brainstorming/complexity.json`, `FEATURE_DIR/brainstorming/handoff-to-specify.json`, `FEATURE_DIR/specify-draft.md`, `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
+  default_handoff: '`final-handoff-decision` chooses `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` after the brainstorming kernel and compiled specification package are complete.'
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -80,8 +80,8 @@ repository analysis continues.
   - `active_command: sp-specify`
   - `status: active`
   - `phase_mode: planning-only`
-  - `current_stage: intent-analysis`
-  - `current_domain: goal-and-users`
+  - `current_stage: facts-lock`
+  - `current_domain: none`
   - `next_action`
   - `blocker_reason`
   - `final_handoff_decision: pending`
@@ -89,6 +89,42 @@ repository analysis continues.
 - Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
+
+## Brainstorming Kernel
+
+- `sp-specify` is the public entry shell and must begin with the internal
+  brainstorming kernel.
+- The kernel progresses through these deterministic locks in order:
+  1. `facts-lock`
+  2. `route-lock`
+  3. `intent-lock`
+  4. `complexity-lock`
+- Persist each lock result before progressing.
+- If a conclusion is not written to the relevant truth file, it is not a valid
+  workflow conclusion.
+- Conversation memory is not a valid handoff surface.
+- Dynamic is allowed only when it is derived from persisted facts and explicit
+  rules.
+- Dynamic routing is allowed only when it is derived from persisted facts and
+  explicit rules.
+- Route selection is valid only when `route.json` records a primary route,
+  matched rules, and any rejected-route reasoning.
+- Complexity selection is valid only when `complexity.json` records the chosen
+  complexity level and the matched trigger rules.
+- Ask exactly one unresolved high-impact question per turn unless the current
+  scope has already been reduced to local low-risk clarification.
+- Do not ask a second high-impact question before the first one is closed.
+- Grouped questions are allowed only when the current domain is already narrowed to a local low-risk scope that does not change architecture, boundaries, or acceptance shape.
+- Unknown is not an ignored value.
+- Unknown is a pending decision object.
+- Every unresolved `unknown` must carry `field`, `question`,
+  `blocking_level`, `resolver`, `latest_resolve_phase`, and `status`.
+- Use `resolve-now`, `resolve-by-evidence`, `defer-with-contract`, or
+  `waive-with-risk` explicitly instead of silently carrying ambiguity.
+- Reopen the current domain when contradiction, hidden dependency,
+  project-boundary conflict, or a completeness-threatening omission is found.
+- Reopen upstream truth explicitly when later discovery invalidates a locked
+  conclusion; reopen is a first-class workflow action.
 
 ## Outline
 
@@ -134,18 +170,28 @@ Generate the pre-analysis output as the first section of `context.md`.
      - `active_command: sp-specify`
      - `status: active`
      - `phase_mode: planning-only`
-     - `current_stage: intent-analysis`
-     - `current_domain: goal-and-users`
+     - `current_stage: facts-lock`
+     - `current_domain: none`
      - `next_action`
      - `blocker_reason`
      - `final_handoff_decision: pending`
-     - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, specify-draft.md, workflow-state.md, checklists/requirements.md`
+     - `allowed_artifact_writes: brainstorming/facts.json, brainstorming/route.json, brainstorming/intent.json, brainstorming/complexity.json, brainstorming/handoff-to-specify.json, spec.md, alignment.md, context.md, references.md, specify-draft.md, workflow-state.md, checklists/requirements.md`
      - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
-     - `authoritative_files: spec.md, alignment.md, context.md, references.md, specify-draft.md`
+     - `authoritative_files: brainstorming/facts.json, brainstorming/route.json, brainstorming/intent.json, brainstorming/complexity.json, brainstorming/handoff-to-specify.json, spec.md, alignment.md, context.md, references.md, specify-draft.md`
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
    - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
-4. Ensure project cognition runtime exists.
+4. Create or resume the brainstorming truth layer.
+   - Read or create:
+     - `FEATURE_DIR/brainstorming/facts.json`
+     - `FEATURE_DIR/brainstorming/route.json`
+     - `FEATURE_DIR/brainstorming/intent.json`
+     - `FEATURE_DIR/brainstorming/complexity.json`
+     - `FEATURE_DIR/brainstorming/handoff-to-specify.json`
+   - Treat these files as the authoritative truth layer for lock-state
+     progression before the final specification package is compiled.
+
+5. Ensure project cognition runtime exists.
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
    - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
@@ -162,7 +208,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - [AGENT] If task-relevant coverage is insufficient for the current request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Do not treat support-only project-map artifacts as the primary runtime read path for this workflow.
 
-5. Load context.
+6. Load context.
    - Read `templates/spec-template.md`.
    - Read `templates/alignment-template.md`.
    - Read `templates/context-template.md`.
@@ -185,13 +231,15 @@ Generate the pre-analysis output as the first section of `context.md`.
 
 - [AGENT] Create or resume `SPECIFY_DRAFT_FILE` immediately after `FEATURE_DIR` is known.
 - Treat `SPECIFY_DRAFT_FILE` as the durable clarification ledger and resume anchor for `sp-specify`.
+- Treat `SPECIFY_DRAFT_FILE` as the content ledger for the whole discovery run,
+  not as a per-capability scratchpad.
 - After every clarification answer, update `SPECIFY_DRAFT_FILE` before asking the next question.
 - Record at least: the intent-analysis summary, current stage, current domain, confirmed facts, low-risk inferences, unresolved items, recent question-batch disposition, adversarial-review findings, completeness gaps, and the next question target.
 
-## Fixed Heavy Discovery Lifecycle
+## Brainstorming Lock Flow
 
-- Treat `SPECIFY_DRAFT_FILE` as the content ledger for the whole discovery run, not as a per-capability scratchpad.
-- `sp-specify` uses a fixed heavy discovery lifecycle. Do not switch into lighter or alternative internal flows based on perceived request simplicity.
+- `sp-specify` no longer assumes the request already starts in feature-spec
+  shape.
 - Always execute these six stages in order:
   1. `intent-analysis`
   2. `intent-confirmation`
@@ -199,31 +247,23 @@ Generate the pre-analysis output as the first section of `context.md`.
   4. `batch-adversarial-review`
   5. `completeness-audit`
   6. `final-handoff-decision`
-- Use only these three bounded subagent roles for this command:
-  - `intent-analyst`
-  - `adversarial-reviewer`
-  - `completeness-auditor`
-- Use the fixed six-domain order and do not skip a domain entirely:
-  1. `goal-and-users`
-  2. `triggers-and-primary-flow`
-  3. `boundaries-and-non-goals`
-  4. `failure-paths-exceptions-and-permissions`
-  5. `dependencies-constraints-and-upstream-downstream-impact`
-  6. `acceptance-and-completeness-gap-closure`
-- A domain may be marked `closed-by-existing-evidence` when the user input plus repository evidence already closes it strongly, but the workflow must still record that domain in order.
-- `question-batch` rules:
-  - for heavy, reference-sensitive, or boundary-sensitive ambiguity, ask exactly one unresolved high-impact question per turn
-  - grouped questions are allowed only when the current domain is already narrowed to a local low-risk scope that does not change architecture, boundaries, or acceptance shape
-  - do not ask a second high-impact question before the first one is closed
-  - keep each batch within one active domain
-  - do not open the next domain until the current domain is closed or explicitly reopened and re-closed
-- `batch-adversarial-review` rules:
-  - run after every answered question batch
-  - write the findings into `SPECIFY_DRAFT_FILE`
-  - reopen the current domain when contradiction, hidden dependency, project-boundary conflict, or a completeness-threatening omission is found
-- `completeness-audit` rules:
-  - run only after all six domains were processed
-  - evaluate the whole feature for missing capability, missing boundaries, missing adjacent effects, and domain-normal omissions that would make the feature unusable
+- Lock the truth layer first, then compile the familiar specification package.
+- Ask questions only for explicit unresolved fields or rule predicates.
+- Ask exactly one unresolved high-impact question per turn unless the current
+  scope has already been reduced to local low-risk clarification.
+- After every answer, update the relevant truth file immediately.
+- Do not use freeform brainstorming chat as a substitute for field closure.
+- `facts-lock` closes explicit repo/PRD/reference-sensitive predicates.
+- `route-lock` closes the primary work-shape route from explicit predicates.
+- `intent-lock` closes goal, non-goals, success criteria, must-preserve
+  invariants, and allowed optimization scope.
+- `complexity-lock` closes the fixed complexity ladder:
+  - `T1 Local`
+  - `T2 Structured`
+  - `T3 Cross-Boundary`
+  - `T4 Reconstruction`
+- Compile the locked truth layer into `spec.md`, `alignment.md`, `context.md`,
+  and `references.md` only after the required hard unknowns are resolved.
 - Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
 
 ## Adversarial Review Contract

@@ -80,6 +80,15 @@ naming the specific behaviors included in the current slice.
 - [Project, product, policy, or repository constraint that narrows delivery]
 - [Implementation, dependency, rollout, or compatibility limit that shapes scope]
 
+## Brainstorming Truth Inputs
+
+- **Locked route**: [Compiled from `brainstorming/route.json`]
+- **Locked complexity**: [Compiled from `brainstorming/complexity.json`]
+- **Must Preserve**:
+  - [Invariant compiled from `brainstorming/intent.json`]
+- **Allowed Optimization Scope**:
+  - [Explicit redesign latitude compiled from `brainstorming/intent.json`]
+
 ## Scenarios and Usage Paths *(mandatory)*
 
 ### Primary Scenario - [Brief Title]

@@ -165,3 +165,18 @@ def test_guidance_docs_teach_fixed_heavy_specify_lifecycle() -> None:
         assert "dependencies-constraints-and-upstream-downstream-impact" in content
         assert "acceptance-and-completeness-gap-closure" in content
         assert "task classification" not in lowered
+
+
+def test_guidance_docs_teach_specify_as_public_shell_with_internal_brainstorming() -> None:
+    readme = _read("README.md")
+    quickstart = _read("docs/quickstart.md")
+
+    for content in (readme, quickstart):
+        lowered = content.lower()
+        assert "internal brainstorming kernel" in lowered
+        assert "public entry shell" in lowered or "public shell" in lowered
+        assert "structured handoff" in lowered
+        assert "facts-lock" in lowered or "facts lock" in lowered
+        assert "route-lock" in lowered or "route lock" in lowered
+        assert "intent-lock" in lowered or "intent lock" in lowered
+        assert "sp-implement" in content

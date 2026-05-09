@@ -33,6 +33,11 @@ packages = ["src/specify_cli"]
 # Page templates (exclude commands/ — bundled separately below to avoid duplication)
 "templates/agent-file-template.md" = "specify_cli/core_pack/templates/agent-file-template.md"
 "templates/alignment-template.md" = "specify_cli/core_pack/templates/alignment-template.md"
+"templates/brainstorming-complexity-template.json" = "specify_cli/core_pack/templates/brainstorming-complexity-template.json"
+"templates/brainstorming-facts-template.json" = "specify_cli/core_pack/templates/brainstorming-facts-template.json"
+"templates/brainstorming-handoff-specify-template.json" = "specify_cli/core_pack/templates/brainstorming-handoff-specify-template.json"
+"templates/brainstorming-intent-template.json" = "specify_cli/core_pack/templates/brainstorming-intent-template.json"
+"templates/brainstorming-route-template.json" = "specify_cli/core_pack/templates/brainstorming-route-template.json"
 "templates/checklist-template.md" = "specify_cli/core_pack/templates/checklist-template.md"
 "templates/constitution" = "specify_cli/core_pack/templates/constitution"
 "templates/constitution-template.md" = "specify_cli/core_pack/templates/constitution-template.md"

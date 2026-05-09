@@ -50,3 +50,61 @@
 - audit_readiness: [not-ready | ready-for-audit | audit-failed | audit-passed]
 - planning_readiness_summary: [Why the package is or is not ready to leave discovery]
 - handoff_candidate: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]
+
+## Facts Lock Notes
+
+- [field]: [current evidence-backed state]
+
+## Route Lock Notes
+
+- primary_route: [pending route]
+- matched_rules:
+  - [rule id]
+
+## Intent Lock Notes
+
+- goal: [locked goal]
+- non_goals:
+  - [excluded scope]
+- success_criteria:
+  - [observable outcome]
+- must_preserve:
+  - [invariant]
+- allowed_optimization_scope:
+  - [permitted redesign latitude]
+
+## Complexity Lock Notes
+
+- complexity_level: [T1 Local | T2 Structured | T3 Cross-Boundary | T4 Reconstruction | pending]
+- matched_triggers:
+  - [trigger rule]
+- execution_mode: [solo | bounded-parallel | coordinated | pending]
+
+## Unknown Handling Notes
+
+- unresolved_unknowns:
+  - field: [truth field]
+    question: [question or evidence needed]
+    blocking_level: [hard | soft]
+    resolver: [user | evidence | downstream-contract | risk-waiver]
+    latest_resolve_phase: [facts-lock | route-lock | intent-lock | complexity-lock | specify-compile]
+    status: [open | resolved | deferred | waived]
+
+## Handoff To Specify Notes
+
+- facts_file: brainstorming/facts.json
+- route_file: brainstorming/route.json
+- intent_file: brainstorming/intent.json
+- complexity_file: brainstorming/complexity.json
+- compile_ready: [true | false]
+
+## Brainstorming Companion Rules
+
+- Every note must map to a field, rule, or lock state.
+- After every answer, update the relevant truth file immediately.
+- Do not use freeform brainstorming chat as a substitute for field closure.
+- Route selection is valid only when `route.json` records a primary route, matched rules, and any rejected-route reasoning.
+- Complexity selection is valid only when `complexity.json` records the chosen `T1 Local`, `T2 Structured`, `T3 Cross-Boundary`, or `T4 Reconstruction` level and the matched trigger rules.
+- `unknown` is a pending decision object, not a default exit state.
+- Every unresolved `unknown` must carry `field`, `question`, `blocking_level`, `resolver`, `latest_resolve_phase`, and `status`.
+- Do not hand off past the current gate while a hard unknown remains unresolved.

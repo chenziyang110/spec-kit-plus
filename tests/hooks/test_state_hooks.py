@@ -145,6 +145,81 @@ def test_validate_state_exposes_profile_contract_fields(tmp_path: Path):
     assert checkpoint["transition_policy"] == "Do not enter plan until API errors are specified."
 
 
+def test_validate_state_exposes_route_lock_and_reopen_fields(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State: Demo\n\n"
+        "## Current Command\n\n"
+        "- active_command: `sp-specify`\n"
+        "- status: `active`\n\n"
+        "## Phase Mode\n\n"
+        "- phase_mode: `planning-only`\n"
+        "- summary: `brainstorming route lock`\n\n"
+        "## Fixed Lifecycle State\n\n"
+        "- current_stage: `route-lock`\n"
+        "- current_domain: `none`\n"
+        "- next_action: `resolve blocking route unknowns`\n"
+        "- blocker_reason: `missing route predicate`\n"
+        "- final_handoff_decision: `undecided`\n\n"
+        "## Brainstorming Locks\n\n"
+        "- facts_lock: `closed`\n"
+        "- route_lock: `active`\n"
+        "- intent_lock: `pending`\n"
+        "- complexity_lock: `pending`\n\n"
+        "## Unknown Handling\n\n"
+        "- hard_unknown_count: `1`\n"
+        "- soft_unknown_count: `2`\n"
+        "- next_unknown_to_resolve: `route.primary_route`\n\n"
+        "## Reopen Contract\n\n"
+        "- reopen_source: `plan`\n"
+        "- reopen_target: `brainstorming`\n"
+        "- reopen_reason: `route evidence changed`\n\n"
+        "## Handoff Files\n\n"
+        "- handoff_to_specify: `brainstorming/handoff-to-specify.json`\n"
+        "- handoff_to_plan: `handoff-to-plan.json`\n"
+        "- handoff_to_tasks: `handoff-to-tasks.json`\n"
+        "- handoff_to_implement: `handoff-to-implement.json`\n\n"
+        "## Allowed Artifact Writes\n\n"
+        "- spec.md\n\n"
+        "## Forbidden Actions\n\n"
+        "- edit source code\n\n"
+        "## Authoritative Files\n\n"
+        "- spec.md\n\n"
+        "## Next Action\n\n"
+        "- resolve blocking route unknowns\n\n"
+        "## Next Command\n\n"
+        "- `/sp.plan`\n",
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.state.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    checkpoint = result.data["checkpoint"]
+    assert checkpoint["current_stage"] == "route-lock"
+    assert checkpoint["blocker_reason"] == "missing route predicate"
+    assert checkpoint["facts_lock"] == "closed"
+    assert checkpoint["route_lock"] == "active"
+    assert checkpoint["intent_lock"] == "pending"
+    assert checkpoint["complexity_lock"] == "pending"
+    assert checkpoint["hard_unknown_count"] == "1"
+    assert checkpoint["soft_unknown_count"] == "2"
+    assert checkpoint["next_unknown_to_resolve"] == "route.primary_route"
+    assert checkpoint["reopen_source"] == "plan"
+    assert checkpoint["reopen_target"] == "brainstorming"
+    assert checkpoint["reopen_reason"] == "route evidence changed"
+    assert checkpoint["handoff_to_specify"] == "brainstorming/handoff-to-specify.json"
+    assert checkpoint["handoff_to_plan"] == "handoff-to-plan.json"
+    assert checkpoint["handoff_to_tasks"] == "handoff-to-tasks.json"
+    assert checkpoint["handoff_to_implement"] == "handoff-to-implement.json"
+
+
 def test_validate_state_profile_obligation_lists_respect_label_boundaries(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"

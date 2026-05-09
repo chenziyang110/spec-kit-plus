@@ -97,6 +97,8 @@ agent_scripts:
 
 3. **Load context**:
    - Read `FEATURE_SPEC`
+   - Read `FEATURE_DIR/brainstorming/handoff-to-specify.json` when present and treat it as the authoritative pre-plan truth package.
+   - Read `plan-contract.json` when present and treat route, intent, complexity as authoritative planning inputs.
    - Read `FEATURE_DIR/alignment.md`
    - Read `FEATURE_DIR/context.md`
    - Read `FEATURE_DIR/references.md` if present
@@ -234,6 +236,7 @@ Freshness is enforced as a blocking graph-native gate.
    - Re-evaluate Constitution Check after design artifacts exist
 
 7. **Stop and report**:
+    - write `FEATURE_DIR/plan/plan-contract.json` or `FEATURE_DIR/plan-contract.json` as the machine-readable planning contract
     - branch
     - plan path
     - alignment status

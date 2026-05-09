@@ -47,6 +47,13 @@ intent-analysis.]
 - **Domain-expected completeness check**: [Result]
 - **Reasoning**: [Why the discovery package is or is not complete enough to leave `sp-specify`]
 
+## Route And Complexity Summary
+
+- **Primary Route**: [Compiled route classification]
+- **Complexity Level**: [T1 Local | T2 Structured | T3 Cross-Boundary | T4 Reconstruction]
+- **Hard Unknowns Cleared**: [yes | no]
+- **Reopen Required**: [yes | no]
+
 ## Planning Gate Recommendation
 
 - [Proceed directly to `/sp.plan`]

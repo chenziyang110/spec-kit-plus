@@ -155,6 +155,38 @@ def _write_valid_specify_semantic_artifacts(feature_dir: Path) -> None:
         "- Ready for completeness audit.\n",
         encoding="utf-8",
     )
+    _write_valid_brainstorming_truth_files(feature_dir)
+
+
+def _write_valid_brainstorming_truth_files(feature_dir: Path) -> None:
+    brainstorming_dir = feature_dir / "brainstorming"
+    brainstorming_dir.mkdir(parents=True, exist_ok=True)
+    valid_unknown = (
+        '{"field":"route.primary_route","question":"Which route applies?",'
+        '"blocking_level":"soft","resolver":"user","latest_resolve_phase":"specify","status":"deferred"}'
+    )
+    (brainstorming_dir / "facts.json").write_text(
+        '{"version":1,"status":"active","fields":{},"unknowns":[]}',
+        encoding="utf-8",
+    )
+    (brainstorming_dir / "route.json").write_text(
+        '{"version":1,"status":"closed","primary_route":"greenfield","matched_rules":[],"rejected_routes":[],"blocking_unknowns":[]}',
+        encoding="utf-8",
+    )
+    (brainstorming_dir / "intent.json").write_text(
+        '{"version":1,"status":"closed","goal":"Demo","non_goals":[],"success_criteria":[],"must_preserve":[],"allowed_optimization_scope":[]}',
+        encoding="utf-8",
+    )
+    (brainstorming_dir / "complexity.json").write_text(
+        '{"version":1,"status":"closed","complexity_level":"T1 Local","scope":"capability","matched_rules":[],"execution_mode":"single"}',
+        encoding="utf-8",
+    )
+    (brainstorming_dir / "handoff-to-specify.json").write_text(
+        '{"version":1,"status":"ready","facts_file":"brainstorming/facts.json",'
+        '"route_file":"brainstorming/route.json","intent_file":"brainstorming/intent.json",'
+        '"complexity_file":"brainstorming/complexity.json","unknowns":[' + valid_unknown + '],"compile_ready":true}',
+        encoding="utf-8",
+    )
 
 
 def _write_valid_specify_workflow_state(feature_dir: Path, *, observer_status: str = "completed") -> None:
@@ -358,6 +390,50 @@ def test_validate_artifacts_blocks_when_specify_outputs_are_missing(tmp_path: Pa
     assert any("context.md" in message for message in result.errors)
 
 
+def test_specify_artifact_validation_requires_brainstorming_truth_files(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    for path in (feature_dir / "brainstorming").iterdir():
+        path.unlink()
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("facts.json" in message for message in result.errors)
+    assert any("route.json" in message for message in result.errors)
+
+
+def test_specify_artifact_validation_requires_unknown_object_shape(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    _write_valid_specify_semantic_artifacts(feature_dir)
+    _write_valid_specify_workflow_state(feature_dir)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "brainstorming" / "facts.json").write_text(
+        '{"version":1,"status":"active","fields":{},"unknowns":[{"field":"route.primary_route"}]}',
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("facts.json unknowns[0] missing question" in message for message in result.errors)
+    assert any("facts.json unknowns[0] missing status" in message for message in result.errors)
+
+
 def test_validate_artifacts_blocks_specify_when_draft_artifact_is_missing(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -365,7 +441,7 @@ def test_validate_artifacts_blocks_specify_when_draft_artifact_is_missing(tmp_pa
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
     (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
-    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_valid_specify_workflow_state(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -392,8 +468,9 @@ def test_validate_artifacts_blocks_specify_when_recovery_capsule_is_missing(tmp_
         "| --- | --- | --- | --- |\n",
         encoding="utf-8",
     )
-    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    _write_valid_specify_workflow_state(feature_dir)
     (feature_dir / "specify-draft.md").write_text("# Specification Draft Ledger: Demo\n", encoding="utf-8")
+    _write_valid_brainstorming_truth_files(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -437,6 +514,7 @@ def test_validate_artifacts_blocks_specify_when_fixed_lifecycle_state_fields_are
         "- pending\n",
         encoding="utf-8",
     )
+    _write_valid_brainstorming_truth_files(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -529,6 +607,7 @@ def test_validate_artifacts_blocks_specify_when_legacy_state_fields_are_present(
         "- pending\n",
         encoding="utf-8",
     )
+    _write_valid_brainstorming_truth_files(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -617,6 +696,7 @@ def test_validate_artifacts_blocks_specify_when_alignment_summary_is_missing(tmp
         "- pending\n",
         encoding="utf-8",
     )
+    _write_valid_brainstorming_truth_files(feature_dir)
 
     result = run_quality_hook(
         project,

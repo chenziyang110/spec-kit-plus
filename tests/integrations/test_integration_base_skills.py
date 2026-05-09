@@ -413,6 +413,18 @@ class SkillsIntegrationTests:
             )
             assert "active question exactly once" in content
 
+    def test_generated_specify_skill_teaches_brainstorming_kernel_contract(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        content = (i.skills_dest(tmp_path) / "sp-specify" / "SKILL.md").read_text(encoding="utf-8").lower()
+        assert "brainstorming kernel" in content
+        assert "facts-lock" in content
+        assert "route-lock" in content
+        assert "intent-lock" in content
+        assert "complexity-lock" in content
+
     def test_all_files_tracked_in_manifest(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)

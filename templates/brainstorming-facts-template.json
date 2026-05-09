@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "status": "active",
+  "fields": {
+    "has_existing_repo": { "value": "unknown", "evidence": [] },
+    "has_source_of_truth_code": { "value": "unknown", "evidence": [] },
+    "has_prd_input": { "value": "unknown", "evidence": [] },
+    "requires_behavioral_equivalence": { "value": "unknown", "evidence": [] },
+    "requires_module_extraction": { "value": "unknown", "evidence": [] },
+    "requires_cross_language_port": { "value": "unknown", "evidence": [] },
+    "allows_internal_redesign": { "value": "unknown", "evidence": [] },
+    "has_compatibility_constraints": { "value": "unknown", "evidence": [] },
+    "success_criteria_explicit": { "value": "unknown", "evidence": [] }
+  },
+  "unknowns": []
+}

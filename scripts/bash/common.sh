@@ -281,6 +281,11 @@ get_feature_paths() {
     printf 'FEATURE_SPEC=%q\n' "$feature_dir/spec.md"
     printf 'CONTEXT=%q\n' "$feature_dir/context.md"
     printf 'SPECIFY_DRAFT=%q\n' "$feature_dir/specify-draft.md"
+    printf 'BRAINSTORMING_FACTS=%q\n' "$feature_dir/brainstorming/facts.json"
+    printf 'BRAINSTORMING_ROUTE=%q\n' "$feature_dir/brainstorming/route.json"
+    printf 'BRAINSTORMING_INTENT=%q\n' "$feature_dir/brainstorming/intent.json"
+    printf 'BRAINSTORMING_COMPLEXITY=%q\n' "$feature_dir/brainstorming/complexity.json"
+    printf 'HANDOFF_TO_SPECIFY=%q\n' "$feature_dir/brainstorming/handoff-to-specify.json"
     printf 'IMPL_PLAN=%q\n' "$feature_dir/plan.md"
     printf 'TASKS=%q\n' "$feature_dir/tasks.md"
     printf 'RESEARCH=%q\n' "$feature_dir/research.md"
@@ -334,10 +339,14 @@ resolve_template() {
     local template_name="$1"
     local repo_root="$2"
     local base="$repo_root/.specify/templates"
+    local template_extensions=("md" "json")
 
     # Priority 1: Project overrides
-    local override="$base/overrides/${template_name}.md"
-    [ -f "$override" ] && echo "$override" && return 0
+    local ext
+    for ext in "${template_extensions[@]}"; do
+        local override="$base/overrides/${template_name}.${ext}"
+        [ -f "$override" ] && echo "$override" && return 0
+    done
 
     # Priority 2: Installed presets (sorted by priority from .registry)
     local presets_dir="$repo_root/.specify/presets"
@@ -362,8 +371,10 @@ except Exception:
                 if [ -n "$sorted_presets" ]; then
                     # python3 succeeded and returned preset IDs — search in priority order
                     while IFS= read -r preset_id; do
-                        local candidate="$presets_dir/$preset_id/templates/${template_name}.md"
-                        [ -f "$candidate" ] && echo "$candidate" && return 0
+                        for ext in "${template_extensions[@]}"; do
+                            local candidate="$presets_dir/$preset_id/templates/${template_name}.${ext}"
+                            [ -f "$candidate" ] && echo "$candidate" && return 0
+                        done
                     done <<< "$sorted_presets"
                 fi
                 # python3 succeeded but registry has no presets — nothing to search
@@ -371,16 +382,20 @@ except Exception:
                 # python3 failed (missing, or registry parse error) — fall back to unordered directory scan
                 for preset in "$presets_dir"/*/; do
                     [ -d "$preset" ] || continue
-                    local candidate="$preset/templates/${template_name}.md"
-                    [ -f "$candidate" ] && echo "$candidate" && return 0
+                    for ext in "${template_extensions[@]}"; do
+                        local candidate="$preset/templates/${template_name}.${ext}"
+                        [ -f "$candidate" ] && echo "$candidate" && return 0
+                    done
                 done
             fi
         else
             # Fallback: alphabetical directory order (no python3 available)
             for preset in "$presets_dir"/*/; do
                 [ -d "$preset" ] || continue
-                local candidate="$preset/templates/${template_name}.md"
-                [ -f "$candidate" ] && echo "$candidate" && return 0
+                for ext in "${template_extensions[@]}"; do
+                    local candidate="$preset/templates/${template_name}.${ext}"
+                    [ -f "$candidate" ] && echo "$candidate" && return 0
+                done
             done
         fi
     fi
@@ -392,14 +407,18 @@ except Exception:
             [ -d "$ext" ] || continue
             # Skip hidden directories (e.g. .backup, .cache)
             case "$(basename "$ext")" in .*) continue;; esac
-            local candidate="$ext/templates/${template_name}.md"
-            [ -f "$candidate" ] && echo "$candidate" && return 0
+            for ext_name in "${template_extensions[@]}"; do
+                local candidate="$ext/templates/${template_name}.${ext_name}"
+                [ -f "$candidate" ] && echo "$candidate" && return 0
+            done
         done
     fi
 
     # Priority 4: Core templates
-    local core="$base/${template_name}.md"
-    [ -f "$core" ] && echo "$core" && return 0
+    for ext in "${template_extensions[@]}"; do
+        local core="$base/${template_name}.${ext}"
+        [ -f "$core" ] && echo "$core" && return 0
+    done
 
     # Template not found in any location.
     # Return 1 so callers can distinguish "not found" from "found".

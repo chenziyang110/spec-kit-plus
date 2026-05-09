@@ -5,6 +5,10 @@
 
 ## Reference Entries
 
+## Truth Sources Used For Route And Intent Lock
+
+- [Source path, repository surface, PRD, or user-supplied material that directly informed route or intent lock]
+
 ### Reference 1
 
 - **Source**: [URL, document path, repository, issue, interview note, or artifact name]

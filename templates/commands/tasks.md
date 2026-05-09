@@ -91,6 +91,7 @@ scripts:
 
 3. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
+   - **Required when present**: plan-contract.json (authoritative route, intent, complexity, must-preserve invariants, allowed optimization scope, and planning obligations)
    - **Required when present**: alignment.md (locked decisions, outstanding questions, planning gate context)
    - **Required when present**: workflow-state.md (current phase lock, allowed actions, forbidden actions, resume contract, active profile, activated gates, task-shaping rules, and required evidence)
    - **Required when present**: `.specify/testing/TESTING_CONTRACT.md` (project-level testing rules and required regression behavior)
@@ -143,6 +144,9 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
       - before emitting canonical parallel batches and join points
     - Record the chosen dispatch shape, blocked reason if any, selected lanes, and join points in the generated report and implementation strategy section.
     - Extract the active profile, activated gates, task-shaping rules, and required evidence obligations from `workflow-state.md`; `sp-tasks` consumes the same profile contract or active profile that `sp-specify`/`sp-plan` persisted, not a newly invented taxonomy.
+    - Read `plan-contract.json` as authoritative task-generation input when present.
+    - Emit `handoff-to-tasks.json`, `task-index.json`, and per-task packet JSON under `task-packets/` alongside `tasks.md`.
+    - Carry complexity level, must-preserve invariants, allowed optimization scope, and stop-and-reopen conditions into each task packet.
     - Keep `sp-tasks` aligned with the persisted first-release profile contract: `active_profile` must be one of the two supported profiles, `Standard Delivery` or `Reference-Implementation`.
     - If `workflow-state.md` presents an unsupported `active_profile` during first release, `sp-tasks` stops before decomposition and tells the operator to repair/re-run upstream routing state before task generation continues.
     - Treat `Scenario profile inputs` as task-shaping inputs: active profile, routing reason, activated gates, fidelity obligations, deviation review requirements, and required evidence.

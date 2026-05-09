@@ -390,24 +390,26 @@ class IntegrationBase(ABC):
 
         return content + "\n".join(lines) + "\n"
 
-    def _append_specify_fixed_heavy_guidance(
+    def _append_specify_brainstorming_guidance(
         self,
         *,
         content: str,
     ) -> str:
-        """Append fixed-heavy `sp-specify` lifecycle guidance when absent."""
+        """Append brainstorming-kernel `sp-specify` guidance when absent."""
 
-        marker = "## Fixed Heavy Discovery Lifecycle"
+        marker = "## Brainstorming Kernel"
         if marker in content:
             return content
 
         addendum = (
             "\n"
-            "## Fixed Heavy Discovery Lifecycle\n\n"
-            "- `sp-specify` always follows the same six stages: `intent-analysis`, `intent-confirmation`, `question-batch`, `batch-adversarial-review`, `completeness-audit`, and `final-handoff-decision`.\n"
-            "- Use the fixed role set: `intent-analyst`, `adversarial-reviewer`, and `completeness-auditor`.\n"
-            "- Walk the fixed domain order: `goal-and-users`, `triggers-and-primary-flow`, `boundaries-and-non-goals`, `failure-paths-exceptions-and-permissions`, `dependencies-constraints-and-upstream-downstream-impact`, and `acceptance-and-completeness-gap-closure`.\n"
-            "- Do not teach adaptive routing semantics for `sp-specify` such as `active_profile`, coverage escalation modes, observer gates, or alternate fallback lifecycles.\n"
+            "## Brainstorming Kernel\n\n"
+            "- `sp-specify` is the public entry shell and must begin with the internal brainstorming kernel.\n"
+            "- Progress through `facts-lock`, `route-lock`, `intent-lock`, and `complexity-lock` before the final specification package is compiled.\n"
+            "- Ask questions only for unresolved fields or rule predicates.\n"
+            "- Dynamic routing is valid only when it is derived from persisted facts and explicit rules.\n"
+            "- Conversation memory is not a valid handoff surface.\n"
+            "- Downstream stages must reopen upstream truth explicitly instead of silently mutating it.\n"
         )
         return content + addendum
 
@@ -1752,7 +1754,7 @@ class SkillsIntegration(IntegrationBase):
                 command_name=command_name,
             )
             if command_name == "specify":
-                skill_content = self._append_specify_fixed_heavy_guidance(
+                skill_content = self._append_specify_brainstorming_guidance(
                     content=skill_content,
                 )
 

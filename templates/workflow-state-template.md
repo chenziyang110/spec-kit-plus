@@ -12,11 +12,37 @@
 
 ## Fixed Lifecycle State
 
-- current_stage: [intent-analysis | intent-confirmation | question-batch | batch-adversarial-review | completeness-audit | final-handoff-decision]
+- current_stage: [facts-lock | route-lock | intent-lock | complexity-lock | intent-analysis | intent-confirmation | question-batch | batch-adversarial-review | completeness-audit | final-handoff-decision]
 - current_domain: [goal-and-users | triggers-and-primary-flow | boundaries-and-non-goals | failure-paths-exceptions-and-permissions | dependencies-constraints-and-upstream-downstream-impact | acceptance-and-completeness-gap-closure | none]
 - next_action: [Smallest next discovery action to take]
 - blocker_reason: [None | Why progress is blocked or why a domain was reopened]
 - final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]
+
+## Brainstorming Locks
+
+- facts_lock: [pending | active | closed]
+- route_lock: [pending | active | closed]
+- intent_lock: [pending | active | closed]
+- complexity_lock: [pending | active | closed]
+
+## Unknown Handling
+
+- hard_unknown_count: [0]
+- soft_unknown_count: [0]
+- next_unknown_to_resolve: [field or none]
+
+## Reopen Contract
+
+- reopen_source: [none | specify | plan | tasks | implement]
+- reopen_target: [none | brainstorming | specify | plan | tasks]
+- reopen_reason: [why a prior truth layer must be reopened]
+
+## Handoff Files
+
+- handoff_to_specify: [path or none]
+- handoff_to_plan: [path or none]
+- handoff_to_tasks: [path or none]
+- handoff_to_implement: [path or none]
 
 ## Allowed Artifact Writes
 

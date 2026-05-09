@@ -26,6 +26,17 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.
 - Prefer `DONE_WITH_CONCERNS` over silent guessing when the work is complete but confidence is mixed.
 
+## Execution Contract Inputs
+
+- `must_preserve`: invariant surfaces that cannot drift
+- `allowed_optimization_scope`: areas where higher-quality redesign is allowed
+- `stop_and_reopen_conditions`: conditions that require leader escalation instead of local guessing
+
+If the packet asks for a change that conflicts with these fields, return
+`NEEDS_CONTEXT` or `BLOCKED`; do not guess.
+
+Return `NEEDS_CONTEXT` or `BLOCKED`; do not guess.
+
 ## Minimum Return Payload
 
 - Status: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`
