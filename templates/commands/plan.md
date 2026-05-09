@@ -85,13 +85,13 @@ agent_scripts:
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
    - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
-2. **Ensure repository navigation system exists**:
+2. **Ensure project cognition runtime exists**:
    - Check whether `.specify/project-map/index/status.json` exists.
-   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
+   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
    - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current planning request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for planning.
-   - Check whether `BUILD-HANDBOOK.md` exists at the repository root.
-   - [AGENT] If the navigation system is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - Check whether `.specify/project-cognition/status.json` exists at the repository root.
+   - [AGENT] If the project cognition runtime is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Treat task-relevant coverage as insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
    - [AGENT] If task-relevant coverage is insufficient for the current planning request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
 
@@ -109,7 +109,12 @@ agent_scripts:
    - Read `.specify/memory/project-rules.md` if present
    - Read `.specify/memory/project-learnings.md` if present
    - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to planning so repeated workflow gaps, implementation constraints, and user defaults are not rediscovered from scratch
-   - [AGENT] Read `BUILD-HANDBOOK.md`
+   - [AGENT] Read `.specify/project-cognition/status.json`
+   - [AGENT] Read `.specify/project-cognition/slices/change.json`
+   - [AGENT] Read `.specify/project-cognition/graph/nodes.json` when ownership or placement is still unclear
+   - [AGENT] Read `.specify/project-cognition/graph/edges.json` when propagation or adjacency is still unclear
+   - [AGENT] Read `.specify/project-cognition/graph/claims.json` when truth ownership or competing evidence is still unclear
+   - [AGENT] Read `.specify/project-cognition/graph/conflicts.json` when stale assumptions or conflicting signals exist
    - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
    - Read `templates/research-template.md`
    - Read `templates/workflow-state-template.md`
@@ -128,18 +133,19 @@ agent_scripts:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Runtime handbook gate:** you must pass the handbook gate before planning
-analysis, architecture synthesis, or implementation-shaping code reads begin.
+**Project cognition gate:** you must pass the graph-native cognition gate
+before planning analysis, architecture synthesis, or implementation-shaping
+code reads begin.
 
-**This command tier: heavy.** Pass the handbook gate by reading:
-1. `BUILD-HANDBOOK.md`
-2. `BUILD-WORKFLOW-CONTRACT`
-3. `PRODUCT-AND-CAPABILITY-MAP`
-4. `WORKFLOW-SEQUENCES`
-5. `MODULE-COLLABORATION`
-6. `CHANGE-PROPAGATION-RISKS`
+**This command tier: heavy.** Pass the cognition gate by reading:
+1. `.specify/project-cognition/status.json`
+2. `.specify/project-cognition/slices/change.json`
+3. `.specify/project-cognition/graph/nodes.json` when ownership or placement is still unclear
+4. `.specify/project-cognition/graph/edges.json` when propagation or adjacency is still unclear
+5. `.specify/project-cognition/graph/claims.json` when truth ownership or competing evidence is still unclear
+6. `.specify/project-cognition/graph/conflicts.json` when stale assumptions or conflicting signals exist
 
-Freshness is enforced as a blocking gate.
+Freshness is enforced as a blocking graph-native gate.
 
 4. **Validate alignment status before planning**:
    - If `alignment.md` is missing:
@@ -234,7 +240,7 @@ Freshness is enforced as a blocking gate.
     - generated artifacts
     - workflow-state path
     - recommended follow-up quality check: `{{invoke:checklist}}` for a requirements/plan package audit before moving on to decomposition
-    - if the planning pass introduces or sharpens new architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current handbook/project-map does not yet encode, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield implementation proceeds
+    - if the planning pass introduces or sharpens new architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current project cognition runtime does not yet encode, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield implementation proceeds
     - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
       - `active_command: sp-plan`
       - `phase_mode: design-only`

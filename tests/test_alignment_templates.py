@@ -113,7 +113,7 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "`.specify/project-cognition/graph/edges.json`" in block
     assert "`.specify/project-cognition/graph/claims.json`" in block
     assert "`.specify/project-cognition/graph/conflicts.json`" in block
-    assert "support-only or reference-only for ordinary workflow execution" in block
+    assert "compatibility/export surfaces for ordinary workflow execution" in block
     assert "read the workflow-appropriate project cognition status and graph slice artifacts" in lowered
 
     assert "## Project Memory" in block
@@ -255,12 +255,14 @@ def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
 
-    assert "BUILD-HANDBOOK.md" in content
-    assert "BUILD-WORKFLOW-CONTRACT" in content
-    assert "PRODUCT-AND-CAPABILITY-MAP" in content
-    assert "WORKFLOW-SEQUENCES" in content
-    assert "MODULE-COLLABORATION" in content
-    assert "CHANGE-PROPAGATION-RISKS" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert ".specify/project-cognition/graph/nodes.json" in content
+    assert ".specify/project-cognition/graph/edges.json" in content
+    assert ".specify/project-cognition/graph/claims.json" in content
+    assert ".specify/project-cognition/graph/conflicts.json" in content
+    assert "BUILD-HANDBOOK.md" not in content
+    assert "BUILD-WORKFLOW-CONTRACT" not in content
     assert "support-only project-map artifacts" in lowered
     assert "WORKFLOW_STATE_FILE" in content
     assert "workflow-state.md" in content
@@ -404,7 +406,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "misunderstanding-correction gate" in lowered
     assert "confirm or correct the current understanding before the final handoff decision is locked." in content
     assert "Identify 3-5 planning-relevant gray areas" in content
-    assert "Derive gray areas from the combination of user intent, `BUILD-HANDBOOK.md`, and targeted repository evidence" in content
+    assert "Derive gray areas from the combination of user intent, the project cognition runtime, and targeted repository evidence" in content
     assert 'Do not use generic labels like "UX", "behavior", or "data handling"' in content
     assert "Each gray area should be captured internally with:" in content
     assert "why the decision changes implementation or test shape" in content
@@ -445,11 +447,12 @@ def test_readme_documents_runtime_atlas_refresh_scope_and_workbench_boundaries()
     readme = _read_project_file("README.md")
     lowered = readme.lower()
 
-    assert "fresh` means the last handbook refresh completed against a known git baseline" in lowered
-    assert "`sp-map-scan` still performs diff-based scope selection when entered" in lowered
-    assert "ordinary runtime consumption should prefer `debug-handbook.md` or `build-handbook.md` plus the workflow's fixed chapter set" in lowered
-    assert "support-only/reference-only surfaces" in lowered
-    assert "refresh workbench remains internal to `map-scan` / `map-build`" in lowered
+    assert ".specify/project-cognition/status.json" in lowered
+    assert "default brownfield runtime truth surface" in lowered
+    assert "compatibility/export surfaces only during the migration window" in lowered
+    assert "map-update" in lowered
+    assert "map-scan" in lowered
+    assert "map-build" in lowered
 
 
 
@@ -457,11 +460,12 @@ def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_on
     handbook = _read_project_file("PROJECT-HANDBOOK.md")
     lowered = handbook.lower()
 
-    assert "the runtime atlas now resolves to two workflow handbooks" in lowered
-    assert "the refresh workbench still contains `map-scan` / `map-build` scan packets" in lowered
-    assert "supporting project-map outputs are support-only or reference-only" in lowered
-    assert "read `debug-handbook.md` for `sp-debug` and `build-handbook.md` for the major non-debug workflows" in lowered
-    assert "refresh workbench artifacts for rebuilding the handbooks" in lowered
+    assert "default brownfield runtime truth surface" in lowered
+    assert "compatibility/export surfaces only during the migration window" in lowered
+    assert "project cognition as the primary runtime truth surface" in lowered
+    assert "generated `.specify/project-map/**` outputs in this repository are compatibility/export or refresh-workbench surfaces" in lowered
+    assert "`debug-handbook.md` - compatibility/export debug view" in lowered
+    assert "`build-handbook.md` - compatibility/export build/change view" in lowered
 
 
 def test_core_planning_templates_use_logical_atlas_references() -> None:
@@ -473,9 +477,11 @@ def test_core_planning_templates_use_logical_atlas_references() -> None:
     for rel_path in legacy_rel_paths:
         content = _read(rel_path)
         lowered = content.lower()
-        assert "build-handbook.md" in lowered
-        assert "build-workflow-contract" in lowered
-        assert "product-and-capability-map" in lowered
+        assert ".specify/project-cognition/status.json" in lowered
+        assert ".specify/project-cognition/slices/change.json" in lowered
+        assert "build-handbook.md" not in lowered
+        assert "build-workflow-contract" not in lowered
+        assert "product-and-capability-map" not in lowered
         assert "atlas.entry" not in lowered
 
     implement = _read("templates/commands/implement.md").lower()
@@ -510,7 +516,7 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert ".specify/memory/project-learnings.md" in content
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command constitution --format json}}" in content
-    assert "BUILD-HANDBOOK.md" in content
+    assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-map/index/status.json" in content
     assert "`/sp-map-scan` followed by `/sp-map-build`" in content
     assert "workflow-state.md" in content
@@ -526,8 +532,9 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "do not always hand off directly to `/sp-specify`" in lowered
     assert "active `spec.md`, `plan.md`, `tasks.md`, or `workflow-state.md`" in content
     assert "project rules or learnings that conflict with the amended constitution" in lowered
-    assert "mark the related handbook/project-map surface for refresh" in lowered
-    assert "if the navigation system is missing or stale for an existing codebase" in lowered
+    assert "project cognition runtime truth" in lowered
+    assert "mark the related project cognition compatibility/export surface for refresh" in lowered
+    assert "if the cognition baseline is missing" in lowered
 
 
 def test_primary_tui_templates_avoid_closed_ascii_card_examples():
@@ -549,13 +556,14 @@ def test_plan_template_requires_alignment_report_before_planning():
     content = _read("templates/commands/plan.md")
     lowered = content.lower()
 
-    assert "BUILD-HANDBOOK.md" in content
-    assert "BUILD-WORKFLOW-CONTRACT" in content
-    assert "PRODUCT-AND-CAPABILITY-MAP" in content
-    assert "WORKFLOW-SEQUENCES" in content
-    assert "MODULE-COLLABORATION" in content
-    assert "CHANGE-PROPAGATION-RISKS" in content
-    assert "build-handbook.md" in lowered
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert ".specify/project-cognition/graph/nodes.json" in content
+    assert ".specify/project-cognition/graph/edges.json" in content
+    assert ".specify/project-cognition/graph/claims.json" in content
+    assert ".specify/project-cognition/graph/conflicts.json" in content
+    assert "BUILD-HANDBOOK.md" not in content
+    assert "BUILD-WORKFLOW-CONTRACT" not in content
     assert "workflow-state.md" in content
     assert "WORKFLOW_STATE_FILE" in content
     assert "Read `templates/workflow-state-template.md`" in content
@@ -702,12 +710,18 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
-    assert "BUILD-HANDBOOK.md" in content
-    assert "BUILD-WORKFLOW-CONTRACT" in content
-    assert "PRODUCT-AND-CAPABILITY-MAP" in content
-    assert "WORKFLOW-SEQUENCES" in content
-    assert "MODULE-COLLABORATION" in content
-    assert "CHANGE-PROPAGATION-RISKS" in content
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert ".specify/project-cognition/graph/nodes.json" in content
+    assert ".specify/project-cognition/graph/edges.json" in content
+    assert ".specify/project-cognition/graph/claims.json" in content
+    assert ".specify/project-cognition/graph/conflicts.json" in content
+    assert "BUILD-HANDBOOK.md" not in content
+    assert "BUILD-WORKFLOW-CONTRACT" not in content
+    assert "PRODUCT-AND-CAPABILITY-MAP" not in content
+    assert "WORKFLOW-SEQUENCES" not in content
+    assert "MODULE-COLLABORATION" not in content
+    assert "CHANGE-PROPAGATION-RISKS" not in content
     assert "PROJECT-HANDBOOK.md" not in content
     assert "workflow-state.md" in content
     assert "WORKFLOW_STATE_FILE" in content
@@ -1727,9 +1741,10 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert ".planning/learnings/candidates.md" in content
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
     assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
-    assert "build-handbook.md" in lowered
-    assert ".specify/project-map/index/status.json" in lowered
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing" in lowered
+    assert ".specify/project-cognition/status.json" in lowered
+    assert ".specify/project-cognition/slices/change.json" in lowered
+    assert "build-handbook.md" not in lowered
+    assert "run `{{invoke:map-update}}`" in lowered
     assert "if the checklist reveals planning-critical requirement gaps" in lowered
     assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered
     assert "recommend `/sp-plan`" in lowered
@@ -1808,13 +1823,20 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
     ]
     for path in legacy_owned_surfaces:
         lowered = _read(path).lower()
-        assert "git-baseline freshness" in lowered
-        assert "truth source" in lowered
-        assert "complete-refresh" in lowered
-        assert "successful-refresh finalizer" in lowered
-        assert "manual override/fallback" in lowered
-        assert "if a full refresh can be completed now" in lowered
-        assert "otherwise use" in lowered
+        if path in {"README.md", "docs/quickstart.md"}:
+            assert "default brownfield runtime truth surface" in lowered
+            assert "compatibility/export surfaces only during the migration window" in lowered
+            assert "map-update" in lowered
+            assert "map-scan" in lowered
+            assert "map-build" in lowered
+        else:
+            assert "git-baseline freshness" in lowered
+            assert "truth source" in lowered
+            assert "complete-refresh" in lowered
+            assert "successful-refresh finalizer" in lowered
+            assert "manual override/fallback" in lowered
+            assert "if a full refresh can be completed now" in lowered
+            assert "otherwise use" in lowered
         for phrase in stale_normal_path_phrases:
             assert phrase not in lowered
 
@@ -1851,8 +1873,8 @@ def test_project_map_freshness_scripts_exist_and_share_status_contract():
     assert "clear-dirty" in sh_freshness
     assert '"freshness": "missing"' not in sh_freshness  # sanity: not hardcoded-only output
     assert "project-map status missing" in sh_freshness
-    assert "high-impact project-map change" in sh_freshness
-    assert "git baseline unavailable for project-map freshness" in sh_freshness
+    assert "high-impact compatibility/export change" in sh_freshness
+    assert "git baseline unavailable for project-map compatibility/export freshness" in sh_freshness
 
     assert "Get-ProjectMapStatusPath" in ps_freshness
     assert "record-refresh" in ps_freshness
@@ -1864,8 +1886,8 @@ def test_project_map_freshness_scripts_exist_and_share_status_contract():
     assert "dirty_scope_paths" in ps_freshness
     assert "clear-dirty" in ps_freshness
     assert "project-map status missing" in ps_freshness
-    assert "high-impact project-map change" in ps_freshness
-    assert "git baseline unavailable for project-map freshness" in ps_freshness
+    assert "high-impact compatibility/export change" in ps_freshness
+    assert "git baseline unavailable for project-map compatibility/export freshness" in ps_freshness
 
 
 def test_update_agent_context_emitters_share_managed_block_v2_contract() -> None:

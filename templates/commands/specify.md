@@ -52,21 +52,21 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
 
-**Runtime handbook gate:** you must pass the handbook gate before repository
-analysis, planning-critical clarification, or implementation-shaping code reads
-begin.
+**Project cognition gate:** you must pass the graph-native cognition gate before
+repository analysis, planning-critical clarification, or
+implementation-shaping code reads begin.
 
-**This command tier: heavy.** Pass the handbook gate by reading:
-1. `BUILD-HANDBOOK.md`
-2. `BUILD-WORKFLOW-CONTRACT`
-3. `PRODUCT-AND-CAPABILITY-MAP`
-4. `WORKFLOW-SEQUENCES`
-5. `MODULE-COLLABORATION`
-6. `CHANGE-PROPAGATION-RISKS`
+**This command tier: heavy.** Pass the cognition gate by reading:
+1. `.specify/project-cognition/status.json`
+2. `.specify/project-cognition/slices/change.json`
+3. `.specify/project-cognition/graph/nodes.json` when ownership or placement is still unclear
+4. `.specify/project-cognition/graph/edges.json` when propagation or adjacency is still unclear
+5. `.specify/project-cognition/graph/claims.json` when truth ownership or competing evidence is still unclear
+6. `.specify/project-cognition/graph/conflicts.json` when stale assumptions or conflicting signals exist
 
-Freshness enforcement stays blocking. If the handbook is missing, stale, or
-topic-insufficient for the touched area, refresh it before repository analysis
-continues.
+Freshness enforcement stays blocking. If the project cognition runtime is
+missing, stale, or topic-insufficient for the touched area, refresh it before
+repository analysis continues.
 
 ## Workflow Phase Lock
 
@@ -145,15 +145,15 @@ Generate the pre-analysis output as the first section of `context.md`.
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
    - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
-4. Ensure repository navigation system exists.
+4. Ensure project cognition runtime exists.
    - Check whether `.specify/project-map/index/status.json` exists.
-   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current handbook/project-map set.
+   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
    - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
-   - Check whether `BUILD-HANDBOOK.md` exists at the repository root.
-   - [AGENT] If the navigation system is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - Check whether `.specify/project-cognition/status.json` exists at the repository root.
+   - [AGENT] If the project cognition runtime is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Task-relevant coverage is insufficient when the touched area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
-   - Treat task-relevant coverage as a coverage-model check, not just a file-presence check. Coverage is also insufficient when the runtime handbook cannot yet tell you:
+   - Treat task-relevant coverage as a coverage-model check, not just a file-presence check. Coverage is also insufficient when the project cognition runtime cannot yet tell you:
      - owning surfaces and truth locations
      - consumer or adjacent surfaces likely to be affected
      - change-propagation hotspots
@@ -172,9 +172,10 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read `.specify/memory/project-rules.md` if present.
    - Read `.specify/memory/project-learnings.md` if present.
    - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
-   - [AGENT] Read `BUILD-HANDBOOK.md`.
+   - [AGENT] Read `.specify/project-cognition/status.json`.
+   - [AGENT] Read `.specify/project-cognition/slices/change.json`.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Preserve these stronger brownfield testing inputs: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`.
-   - From `BUILD-HANDBOOK.md`, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
+   - From the project cognition runtime, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
    - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
@@ -236,7 +237,7 @@ Generate the pre-analysis output as the first section of `context.md`.
 - Preserve one fixed-heavy lifecycle for all `sp-specify` runs and persist lifecycle state through `current_stage`, `current_domain`, `next_action`, `blocker_reason`, and `final_handoff_decision`.
 
 6. Run a codebase scout before clarification.
-   - Treat `BUILD-HANDBOOK.md` as the default scout artifact for understanding the existing system shape.
+   - Treat the project cognition runtime as the default scout artifact for understanding the existing system shape.
    - Build a concise internal scout summary for the request area that names:
      - owning modules or workflows
      - truth-owning surfaces and shared coordination surfaces
@@ -251,7 +252,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Use the scout summary to eliminate low-value questions, sharpen gray areas, and detect when the user's request conflicts with existing repository patterns.
 
 7. Run `intent-analysis`.
-   Build a top-down understanding grounded in `BUILD-HANDBOOK.md` plus any targeted live-file reads. It must cover:
+   Build a top-down understanding grounded in `.specify/project-cognition/status.json`, `.specify/project-cognition/slices/change.json`, the graph artifacts, and any targeted live-file reads. It must cover:
    - what the user is probably trying to achieve
    - what a complete usable version of the capability likely includes
    - intended users and roles
@@ -291,7 +292,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - After every answered batch, run `batch-adversarial-review` before proceeding.
 
 11. Analyze the whole feature before decomposing it.
-   Build a top-down understanding grounded in `BUILD-HANDBOOK.md` plus any targeted live-file reads. It must cover:
+   Build a top-down understanding grounded in `.specify/project-cognition/status.json`, `.specify/project-cognition/slices/change.json`, the graph artifacts, and any targeted live-file reads. It must cover:
    - the feature goal
    - intended users and roles
    - first-release scope
@@ -386,7 +387,7 @@ Generate the pre-analysis output as the first section of `context.md`.
 
 17. Identify gray areas before concluding alignment.
    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
-   - Derive gray areas from the combination of user intent, `BUILD-HANDBOOK.md`, and targeted repository evidence instead of from a generic question catalog.
+   - Derive gray areas from the combination of user intent, the project cognition runtime, and targeted repository evidence instead of from a generic question catalog.
    - Prefer feature-specific decision surfaces over generic categories.
    - Do not use generic labels like "UX", "behavior", or "data handling" when a more concrete decision point can be named from the actual codebase and request.
    - Good gray areas name the concrete fork in outcome, for example `empty-state recovery`, `permission downgrade behavior`, `sync trigger timing`, or `existing dashboard card reuse`.
@@ -439,7 +440,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - Only fall back after the native tool is unavailable or the tool call fails. If a native tool call fails once, retry once before falling back.
     - Keep the interaction feeling like guided requirement discovery rather than a shallow questionnaire.
     - Ask only high-value questions.
-    - Before asking a planning-critical question, check whether `BUILD-HANDBOOK.md` or targeted repository evidence already answer it; do not ask the user for facts the codebase can supply.
+    - Before asking a planning-critical question, check whether the project cognition runtime or targeted repository evidence already answer it; do not ask the user for facts the codebase can supply.
     - Use grouped questions for simple/local changes.
     - Use one question at a time for complex/high-risk cases.
     - Ask at most one unanswered high-impact question per message.
@@ -447,7 +448,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - Keep the active gray area open until the decision is specific enough that a downstream planner would not need to reopen it for behavior, boundary, or acceptance-shaping detail.
     - Make the next question build directly on the user's most recent answer rather than resetting to generic prompts.
     - Use the previous answer to choose the next narrowing move, not a recycled generic checklist question.
-    - Use code-aware follow-ups when possible: reference the current module, workflow, entity, command, or reusable pattern named in the handbook/project-map navigation system or repository evidence so the question is about the real decision fork, not an abstract category.
+    - Use code-aware follow-ups when possible: reference the current module, workflow, entity, command, or reusable pattern named in the project cognition runtime or repository evidence so the question is about the real decision fork, not an abstract category.
     - If the user already described the desired UX in natural language, translate it into behavior and confirm the boundary instead of forcing a transport or browser-API choice.
     - When the active gray area crosses a service, process, runtime, or storage boundary, stay on the engineering contract until trigger, identifiers, lifecycle, failure behavior, and configuration semantics are specific enough for planning.
     - If the user's answer is vague, shallow, or contradictory, respond with a targeted narrowing question, example, or recommendation tied to the planning-critical ambiguity.
@@ -803,7 +804,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - release decision
     - readiness for the next phase (`{{invoke:plan}}` for the mainline, `{{invoke:clarify}}` when deeper analysis is still needed, or `{{invoke:deep-research}}` when feasibility must be proven first)
     - recommended review follow-up: `{{invoke:clarify}}` when the user wants one more targeted repair pass over the written spec package before planning
-    - if this pass reveals that the current atlas is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current handbook/project-map does not yet capture, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield execution work proceeds
+    - if this pass reveals that the current project cognition runtime is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current graph-native runtime does not yet capture, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield execution work proceeds
     - [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap`, `user_preference`, or `project_constraint`, use the manual `learning capture` helper surface.
       Required options: `--command`, `--type`, `--summary`, `--evidence`
     - keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence

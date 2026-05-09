@@ -53,7 +53,7 @@ function Assert-CanonicalMapFiles {
         return
     }
 
-    Write-Error "Cannot record a fresh project-map baseline because canonical map files are missing:`n - $($missing -join "`n - ")`nRun /sp-map-scan, then /sp-map-build first so PROJECT-HANDBOOK.md, .specify/project-map/QUICK-NAV.md, and the layered atlas files exist."
+    Write-Error "Cannot record a fresh project-map compatibility/export baseline because canonical map files are missing:`n - $($missing -join "`n - ")`nRun /sp-map-scan, then /sp-map-build first so PROJECT-HANDBOOK.md, .specify/project-map/QUICK-NAV.md, and the layered compatibility/export atlas files exist."
     exit 1
 }
 
@@ -411,7 +411,7 @@ function Invoke-Check {
     }
 
     if (-not (Test-HasGit) -or [string]::IsNullOrEmpty($lastMappedCommit) -or [string]::IsNullOrEmpty($headCommit)) {
-        Emit-CheckResult -Freshness "possibly_stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons @("git baseline unavailable for project-map freshness") -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @() -DirtyOriginCommand $dirtyOriginCommand -DirtyOriginFeatureDir $dirtyOriginFeatureDir -DirtyOriginLaneId $dirtyOriginLaneId -DirtyScopePaths $dirtyScopePaths
+        Emit-CheckResult -Freshness "possibly_stale" -HeadCommit $headCommit -LastMappedCommit $lastMappedCommit -Dirty $false -DirtyReasons $dirtyReasons -Reasons @("git baseline unavailable for project-map compatibility/export freshness") -ChangedFiles @() -SuggestedTopics @() -MustRefreshTopics @() -ReviewTopics @() -DirtyOriginCommand $dirtyOriginCommand -DirtyOriginFeatureDir $dirtyOriginFeatureDir -DirtyOriginLaneId $dirtyOriginLaneId -DirtyScopePaths $dirtyScopePaths
         return
     }
 
@@ -477,13 +477,13 @@ function Invoke-Check {
         $classification = Classify-Path -Path $candidatePath
         if ($classification -eq "stale") {
             $worst = "stale"
-            $reasons.Add("high-impact project-map change: $candidatePath")
+            $reasons.Add("high-impact compatibility/export change: $candidatePath")
         } elseif ($classification -eq "possibly_stale" -and $worst -ne "stale") {
             $worst = "possibly_stale"
             if ($coveredByLastRefresh) {
                 $reasons.Add("covered topic changed since last partial map: $candidatePath")
             } else {
-                $reasons.Add("codebase surface changed since last map: $candidatePath")
+                $reasons.Add("runtime codebase surface changed since last compatibility/export baseline: $candidatePath")
             }
         }
     }

@@ -1,8 +1,10 @@
-# Quick Navigation
+# Compatibility / Export Navigation
 
-> Layer 1 routing table and dictionary-style atlas entry surface. Start here.
-> This document answers: "I need to do X — which document should I open?" and
-> "Which module most likely owns the touched area?"
+> Compatibility/export Layer 1 routing table for handbook and atlas outputs.
+> Ordinary brownfield workflows should start from the project cognition runtime,
+> then use this document only when compatibility/export navigation is explicitly needed.
+> This document answers: "I need to inspect exported atlas docs — which file should I open?"
+> and "Which compatibility/export module most likely owns the touched area?"
 
 ## By Task Type
 
@@ -53,7 +55,7 @@
 - Debug a reported symptom:
   Open first: `index/symptoms.json`
   Then: the recommended deep workflow page for the mapped capability
-- Workflows are no longer reading project-map:
+- Compatibility/export consumers are no longer reading project-map outputs:
   Read `PROJECT-HANDBOOK.md`, `root/WORKFLOWS.md`,
   `modules/templates-generated-surfaces/OVERVIEW.md`, and
   `src/specify_cli/integrations/base.py`
@@ -61,7 +63,7 @@
   Read `root/WORKFLOWS.md`, `root/CONVENTIONS.md`,
   `modules/templates-generated-surfaces/OVERVIEW.md`, and
   `templates/command-partials/common/*.md`
-- Freshness or dirty-state routing looks wrong:
+- Compatibility/export freshness or dirty-state routing looks wrong:
   Read `root/OPERATIONS.md`, `root/WORKFLOWS.md`,
   `index/status.json`, and `src/specify_cli/project_map_status.py`
 - Subagent dispatch guidance is inconsistent across workflows:
@@ -82,18 +84,18 @@
 
 ## Verification Routes
 
-- Atlas template guidance:
+- Compatibility/export template guidance:
   Run `pytest tests/test_fast_template_guidance.py tests/test_quick_template_guidance.py tests/test_debug_template_guidance.py -q`
-- Project-map layered contract:
+- Compatibility/export layered contract:
   Run `pytest tests/test_project_map_layered_contract.py tests/test_project_handbook_templates.py -q`
-- Freshness helper behavior:
+- Compatibility/export freshness helper behavior:
   Run `pytest tests/test_project_map_status.py -q`
 
 ## Propagation-Risk Routes
 
 - Shared partial changed:
   Review every command that includes it plus template-guidance tests
-- Handbook or root topic changed:
+- Handbook or compatibility root topic changed:
   Review `Topic Map`, `atlas-index.json`, and freshness/topic-routing tests
 - Capability deep workflow changed:
   Review `index/capabilities.json`, `index/symptoms.json`, `modules/<module-id>/WORKFLOWS.md`, and adjacent capability routes in `index/relations.json`
@@ -140,14 +142,15 @@
 
 ## How To Use This Document
 
-1. Identify the current task type or symptom.
-2. Open the listed root topic or module overview first.
-3. Expand into relations and neighboring surfaces only when the entry route says
+1. Start with the project cognition runtime for ordinary brownfield work.
+2. Use this document only when you need compatibility/export navigation or need to inspect exported atlas outputs.
+3. Open the listed root topic or module overview first.
+4. Expand into relations and neighboring surfaces only when the entry route says
    the problem crosses shared surfaces or propagation risks.
-4. Only read source code when atlas coverage is missing, stale, or too broad
+5. Only read source code when exported compatibility coverage is missing, stale, or too broad
    for the touched area.
 
 **Staleness**: Check `index/status.json`. If the current HEAD differs from the
-last refresh commit, review topic-routing guidance before trusting Layer 2 or
-Layer 3. Layer 1 is the most stable surface, but it still routes through
-freshness state rather than bypassing it.
+last refresh commit, review topic-routing guidance before trusting these
+compatibility/export outputs. Layer 1 remains the most stable exported surface,
+but it still routes through freshness state rather than bypassing it.

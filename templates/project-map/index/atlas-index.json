@@ -2,12 +2,12 @@
   "version": 1,
   "generated_at": "YYYY-MM-DDTHH:MM:SSZ",
   "repository": "",
-  "summary": "",
+  "summary": "Compatibility/export atlas summary for handbook and project-map outputs.",
   "modules_count": 0,
   "last_full_refresh_commit": "",
   "global_freshness": "missing",
   "entry_contract": {
-    "layer_1_purpose": "dictionary-style atlas entry surface",
+    "layer_1_purpose": "compatibility/export dictionary-style atlas entry surface",
     "supports": [
       "task_routes",
       "capability_routes",
@@ -36,6 +36,7 @@
     ".specify/project-map/index/status.json",
     ".specify/project-map/index/atlas-index.json"
   ],
+  "usage_note": "Use these compatibility/export outputs when downstream consumers explicitly need handbook or atlas exports. Ordinary brownfield workflows should begin from the project cognition runtime instead.",
   "scan_package": {
     "map_scan": ".specify/project-map/map-scan.md",
     "coverage_ledger": ".specify/project-map/coverage-ledger.json",
@@ -46,37 +47,37 @@
     {
       "id": "architecture",
       "path": ".specify/project-map/root/ARCHITECTURE.md",
-      "use_when": "architecture boundaries, ownership, abstractions, change propagation"
+      "use_when": "compatibility/export readback for architecture boundaries, ownership, abstractions, and change propagation"
     },
     {
       "id": "structure",
       "path": ".specify/project-map/root/STRUCTURE.md",
-      "use_when": "placement rules, shared directories, repository shape"
+      "use_when": "compatibility/export readback for placement rules, shared directories, and repository shape"
     },
     {
       "id": "conventions",
       "path": ".specify/project-map/root/CONVENTIONS.md",
-      "use_when": "coding conventions, compatibility, contract semantics"
+      "use_when": "compatibility/export readback for coding conventions, compatibility, and contract semantics"
     },
     {
       "id": "integrations",
       "path": ".specify/project-map/root/INTEGRATIONS.md",
-      "use_when": "external tools, adapters, protocol boundaries"
+      "use_when": "compatibility/export readback for external tools, adapters, and protocol boundaries"
     },
     {
       "id": "workflows",
       "path": ".specify/project-map/root/WORKFLOWS.md",
-      "use_when": "workflow state, command routing, lifecycle behavior"
+      "use_when": "compatibility/export readback for workflow state, command routing, and lifecycle behavior"
     },
     {
       "id": "testing",
       "path": ".specify/project-map/root/TESTING.md",
-      "use_when": "verification entrypoints, regression-sensitive surfaces"
+      "use_when": "compatibility/export readback for verification entrypoints and regression-sensitive surfaces"
     },
     {
       "id": "operations",
       "path": ".specify/project-map/root/OPERATIONS.md",
-      "use_when": "runtime recovery, freshness, deployment and troubleshooting"
+      "use_when": "compatibility/export readback for runtime recovery, freshness, deployment, and troubleshooting"
     }
   ]
 }
