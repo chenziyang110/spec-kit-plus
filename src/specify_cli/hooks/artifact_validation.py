@@ -13,7 +13,18 @@ from .types import HookResult, QualityHookError
 
 FILE_REQUIRED_ARTIFACTS = {
     "constitution": ("workflow-state.md",),
-    "specify": ("spec.md", "alignment.md", "context.md", "specify-draft.md", "workflow-state.md"),
+    "specify": (
+        "spec.md",
+        "alignment.md",
+        "context.md",
+        "specify-draft.md",
+        "workflow-state.md",
+        "brainstorming/facts.json",
+        "brainstorming/route.json",
+        "brainstorming/intent.json",
+        "brainstorming/complexity.json",
+        "brainstorming/handoff-to-specify.json",
+    ),
     "deep-research": ("deep-research.md", "workflow-state.md"),
     "plan": ("plan.md", "workflow-state.md"),
     "tasks": ("tasks.md", "workflow-state.md"),
@@ -88,7 +99,18 @@ DIRECTORY_REQUIRED_ARTIFACTS = {
 
 REQUIRED_ARTIFACTS = {
     "constitution": ("workflow-state.md",),
-    "specify": ("spec.md", "alignment.md", "context.md", "specify-draft.md", "workflow-state.md"),
+    "specify": (
+        "spec.md",
+        "alignment.md",
+        "context.md",
+        "specify-draft.md",
+        "workflow-state.md",
+        "brainstorming/facts.json",
+        "brainstorming/route.json",
+        "brainstorming/intent.json",
+        "brainstorming/complexity.json",
+        "brainstorming/handoff-to-specify.json",
+    ),
     "deep-research": ("deep-research.md", "workflow-state.md"),
     "plan": ("plan.md", "workflow-state.md"),
     "tasks": ("tasks.md", "workflow-state.md"),
@@ -361,6 +383,37 @@ def _validate_json_object_with_array_key(feature_dir: Path, filename: str, array
         return [f"{filename} must contain a top-level JSON object"]
     if not isinstance(payload.get(array_key), list):
         return [f"{filename} must define a top-level {array_key} array"]
+    return []
+
+
+def _validate_unknown_objects(payload: Any, label: str) -> list[str]:
+    if not isinstance(payload, dict):
+        return [f"{label} must be a JSON object"]
+    unknowns = payload.get("unknowns", [])
+    if unknowns is None:
+        return []
+    if not isinstance(unknowns, list):
+        return [f"{label} unknowns must be a list"]
+    errors: list[str] = []
+    required_keys = ("field", "question", "blocking_level", "resolver", "latest_resolve_phase", "status")
+    for index, item in enumerate(unknowns):
+        if not isinstance(item, dict):
+            errors.append(f"{label} unknowns[{index}] must be an object")
+            continue
+        for key in required_keys:
+            if not str(item.get(key, "")).strip():
+                errors.append(f"{label} unknowns[{index}] missing {key}")
+    return errors
+
+
+def _validate_brainstorming_json_artifact(feature_dir: Path, relative_path: str, *, validate_unknowns: bool) -> list[str]:
+    payload, read_errors = _read_json_artifact(feature_dir / relative_path, relative_path)
+    if read_errors:
+        return read_errors
+    if validate_unknowns:
+        return _validate_unknown_objects(payload, relative_path)
+    if not isinstance(payload, dict):
+        return [f"{relative_path} must be a JSON object"]
     return []
 
 
@@ -931,6 +984,18 @@ def _validate_specify_draft_artifacts(feature_dir: Path) -> list[str]:
     for legacy_field in ("active_profile", "coverage_mode", "observer_status", "last_observer_pass", "draft_file"):
         if re.search(rf"(?im)^\s*-\s*{re.escape(legacy_field)}\s*:", workflow_state_content):
             errors.append(f"workflow-state.md still uses legacy sp-specify state field: {legacy_field}")
+
+    errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/facts.json", validate_unknowns=True))
+    errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/route.json", validate_unknowns=False))
+    errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/intent.json", validate_unknowns=False))
+    errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/complexity.json", validate_unknowns=False))
+    errors.extend(
+        _validate_brainstorming_json_artifact(
+            feature_dir,
+            "brainstorming/handoff-to-specify.json",
+            validate_unknowns=True,
+        )
+    )
 
     return errors
 

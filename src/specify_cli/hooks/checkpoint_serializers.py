@@ -173,6 +173,10 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
     false_starts = section_body(text, "False Starts")
     hidden_dependencies = section_body(text, "Hidden Dependencies")
     reusable_constraints = section_body(text, "Reusable Constraints")
+    brainstorming_locks = section_body(text, "Brainstorming Locks")
+    unknown_handling = section_body(text, "Unknown Handling")
+    reopen_contract = section_body(text, "Reopen Contract")
+    handoff_files = section_body(text, "Handoff Files")
 
     fixed_state_kind = bool(fixed_lifecycle_state)
     active_command = (
@@ -228,6 +232,20 @@ def serialize_workflow_state(path: Path) -> dict[str, Any]:
         or _frontmatter_string(frontmatter, "blocker_reason"),
         "final_handoff_decision": extract_field(fixed_lifecycle_state, "final_handoff_decision")
         or _frontmatter_string(frontmatter, "final_handoff_decision"),
+        "facts_lock": extract_field(brainstorming_locks, "facts_lock"),
+        "route_lock": extract_field(brainstorming_locks, "route_lock"),
+        "intent_lock": extract_field(brainstorming_locks, "intent_lock"),
+        "complexity_lock": extract_field(brainstorming_locks, "complexity_lock"),
+        "hard_unknown_count": extract_field(unknown_handling, "hard_unknown_count"),
+        "soft_unknown_count": extract_field(unknown_handling, "soft_unknown_count"),
+        "next_unknown_to_resolve": extract_field(unknown_handling, "next_unknown_to_resolve"),
+        "reopen_source": extract_field(reopen_contract, "reopen_source"),
+        "reopen_target": extract_field(reopen_contract, "reopen_target"),
+        "reopen_reason": extract_field(reopen_contract, "reopen_reason"),
+        "handoff_to_specify": extract_field(handoff_files, "handoff_to_specify"),
+        "handoff_to_plan": extract_field(handoff_files, "handoff_to_plan"),
+        "handoff_to_tasks": extract_field(handoff_files, "handoff_to_tasks"),
+        "handoff_to_implement": extract_field(handoff_files, "handoff_to_implement"),
         "next_command": extract_first_nonempty_line(next_command) or _frontmatter_string(frontmatter, "next_command"),
         "allowed_artifact_writes": extract_bullets(allowed_artifact_writes)
         or _frontmatter_list(frontmatter, "allowed_artifact_writes"),
