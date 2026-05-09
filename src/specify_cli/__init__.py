@@ -110,6 +110,7 @@ from specify_cli.project_map_status import (
     git_branch_name,
     git_head_commit,
     inspect_project_map_freshness,
+    inspect_project_map_freshness_for_command,
     legacy_project_map_status_path,
     mark_project_map_dirty,
     mark_project_map_refreshed,
@@ -686,7 +687,10 @@ def _project_map_preflight(
     command_name: str,
     block_on: set[str] | None = None,
 ) -> dict[str, Any]:
-    result = inspect_project_map_freshness(project_root)
+    result = inspect_project_map_freshness_for_command(
+        project_root,
+        command_name=command_name,
+    )
     block_levels = block_on or {"missing", "stale"}
     freshness = result["freshness"]
 
@@ -701,7 +705,13 @@ def _project_map_preflight(
             )
         else:
             console.print(
-                "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area, then retry. If no usable baseline remains, rebuild the runtime baseline and its compatibility/export outputs with [cyan]/sp-map-scan[/cyan] followed by [cyan]/sp-map-build[/cyan]."
+                "Run [cyan]/sp-map-update[/cyan] to refresh the stale graph-native project cognition baseline for the touched area, then retry."
+            )
+            console.print(
+                "If no usable baseline remains, rebuild the runtime baseline and its compatibility/export outputs."
+            )
+            console.print(
+                "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan]."
             )
         raise typer.Exit(1)
 
@@ -916,6 +926,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "- The runtime atlas is graph-native: use `.specify/project-cognition/status.json` plus the workflow-appropriate graph slice artifacts before broader repository analysis, planning, debugging, or implementation begins.",
             "- Read `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the workflow contract requires deeper graph-native context.",
+            "- The runtime atlas now resolves to two workflow handbooks, while project cognition remains the primary runtime truth surface for brownfield routing.",
             "- Supporting handbook/project-map artifacts under `.specify/project-map/` are compatibility/export outputs, not the ordinary first-read runtime contract for workflow routing.",
             "- If the graph-native cognition baseline is missing, stop and tell the user to run the runtime's `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.",
             "- If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.",
@@ -959,7 +970,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- `plan.md` under the active feature directory is the implementation design source of truth once planning begins.",
             "- `tasks.md` under the active feature directory is the execution breakdown source of truth once task generation begins.",
             "- `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, and `.specify/testing/testing-state.md` constrain testing-system construction and brownfield testing-program routing when present.",
-            "- `.specify/project-cognition/status.json` determines whether the graph-native cognition baseline can be trusted as fresh and records git-baseline freshness as the truth source.",
+            "- `.specify/project-cognition/status.json` determines whether graph-native cognition coverage can be trusted as fresh and records the git-aligned baseline freshness truth source.",
             "",
             "## Map Maintenance",
             "",
@@ -3264,6 +3275,7 @@ def init(
                 resolved_integration,
                 manifest,
             )
+            resolved_integration.post_init_bootstrap(project_path, manifest)
             manifest.save()
             tracker.complete("shared-infra", f"scripts ({selected_script}) + templates")
 
@@ -5766,6 +5778,7 @@ def integration_install(
             integration,
             manifest,
         )
+        integration.post_init_bootstrap(project_root, manifest)
         manifest.save()
         _write_integration_json(project_root, integration.key, selected_script)
         _update_init_options_for_integration(project_root, integration, script_type=selected_script)
@@ -6098,6 +6111,7 @@ def integration_switch(
             target_integration,
             manifest,
         )
+        target_integration.post_init_bootstrap(project_root, manifest)
         manifest.save()
         _write_integration_json(project_root, target_integration.key, selected_script)
         _update_init_options_for_integration(project_root, target_integration, script_type=selected_script)

@@ -201,7 +201,7 @@ def test_assess_project_map_freshness_reports_missing_status(tmp_path):
     )
 
     assert result["freshness"] == "missing"
-    assert result["reasons"] == ["Run /sp-map-scan, then /sp-map-build to create the initial cognition baseline."]
+    assert result["reasons"] == ["Run /sp-map-scan, then /sp-map-build to create the initial project cognition baseline."]
 
 
 def test_complete_project_map_refresh_uses_map_codebase_reason(tmp_path):
@@ -296,7 +296,7 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
     assert stale["freshness"] == "stale"
     assert stale["reasons"] == [
         "high-impact project cognition input changed: src/router/index.ts",
-        "Use /sp-map-update when the graph runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
+        "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
     ]
     assert stale["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
     assert stale["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
@@ -304,7 +304,7 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
     assert maybe["freshness"] == "possibly_stale"
     assert maybe["reasons"] == [
         "codebase surface changed since last cognition baseline: src/feature/local_fix.py",
-        "Use /sp-map-update when the graph runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
+        "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
     ]
     assert maybe["must_refresh_topics"] == ["STRUCTURE.md"]
     assert maybe["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
@@ -392,7 +392,7 @@ def test_assess_project_map_freshness_downgrades_to_review_only_when_partial_ref
     assert result["suggested_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]
     assert result["reasons"] == [
         "covered topic changed since last partial cognition refresh: src/feature/local_fix.py",
-        "Use /sp-map-update when the graph runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
+        "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
     ]
 
 

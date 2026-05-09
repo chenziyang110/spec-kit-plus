@@ -34,9 +34,13 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 ## How To Read This Project
 
 - Start here for orientation.
+- The runtime atlas now resolves to two workflow handbooks.
+- Read `DEBUG-HANDBOOK.md` for `sp-debug` and `BUILD-HANDBOOK.md` for the major non-debug workflows.
 - **First stop for any task**: use the project cognition routes described here. Repo-local `.specify/` state is not committed source-of-truth for this repository.
 - For generated projects, read `.specify/project-cognition/status.json` plus the workflow-appropriate cognition slice before broad brownfield work.
 - Treat project cognition as the primary runtime truth surface.
+- Supporting project-map outputs are support-only or reference-only.
+- The refresh workbench still contains `map-scan` / `map-build` scan packets and refresh workbench artifacts for rebuilding the handbooks.
 - `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
 - Fall back to live code reads only when cognition coverage is missing, stale, too broad, or marked low confidence.
 

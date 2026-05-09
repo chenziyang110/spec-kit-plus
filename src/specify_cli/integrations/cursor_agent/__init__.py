@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 from ..base import MarkdownIntegration
+from ..manifest import IntegrationManifest
 from ...orchestration import CapabilitySnapshot, describe_delegation_surface
 
 
@@ -25,6 +27,40 @@ class CursorAgentIntegration(MarkdownIntegration):
         "extension": ".md",
     }
     context_file = ".cursor/rules/specify-rules.mdc"
+
+    @staticmethod
+    def _append_runtime_handbook_compatibility(
+        *,
+        content: str,
+        command_name: str,
+    ) -> str:
+        if command_name not in {"implement", "debug", "quick"}:
+            return content
+
+        lowered = content.lower()
+        missing_lines: list[str] = []
+        if command_name == "debug":
+            if "debug-handbook.md" not in lowered:
+                missing_lines.append(
+                    "- Runtime handbook contract: read `DEBUG-HANDBOOK.md` when a compatibility/export debug view is needed alongside the graph-native runtime.\n"
+                )
+            if "debug-workflow-contract" not in lowered:
+                missing_lines.append("- Compatibility tag: `debug-workflow-contract`.\n")
+        else:
+            if "build-handbook.md" not in lowered:
+                missing_lines.append(
+                    "- Runtime handbook compatibility: read `BUILD-HANDBOOK.md` when a compatibility/export build/change view is needed alongside the graph-native runtime.\n"
+                )
+            if "build-workflow-contract" not in lowered:
+                missing_lines.append("- Compatibility tag: `build-workflow-contract`.\n")
+
+        if not missing_lines:
+            return content
+
+        frontmatter_match = re.match(r"(?s)\A---\n.*?\n---\n", content)
+        if frontmatter_match:
+            return content[: frontmatter_match.end()] + "".join(missing_lines) + content[frontmatter_match.end() :]
+        return "".join(missing_lines) + content
 
     def _cursor_capability_snapshot(self) -> CapabilitySnapshot:
         return CapabilitySnapshot(
@@ -65,6 +101,28 @@ class CursorAgentIntegration(MarkdownIntegration):
         )
 
         return created
+
+    def post_init_bootstrap(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+    ) -> list[Path]:
+        updated_files: list[Path] = []
+        commands_dir = self.commands_dest(project_root)
+        for stem in ("implement", "debug", "quick"):
+            path = commands_dir / self.command_filename(stem)
+            if not path.exists():
+                continue
+            content = path.read_text(encoding="utf-8")
+            updated = self._append_runtime_handbook_compatibility(
+                content=content,
+                command_name=stem,
+            )
+            if updated != content:
+                path.write_text(updated, encoding="utf-8")
+                self.record_file_in_manifest(path, project_root, manifest)
+                updated_files.append(path)
+        return updated_files
 
     def _augment_quick_command(
         self,

@@ -682,8 +682,13 @@ Navigation and technical truth are now cognition-first:
 
 - Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices as the default brownfield runtime truth surface.
 - Ordinary brownfield workflows should read the cognition status and the smallest required slice before broader repository analysis.
+- `fresh` means the last handbook refresh completed against a known git baseline, and `.specify/project-cognition/status.json` records that git-baseline freshness truth source.
+- `sp-map-scan` still performs diff-based scope selection when entered, but the refresh workbench remains internal to `map-scan` / `map-build`.
+- Ordinary runtime consumption should prefer `debug-handbook.md` or `build-handbook.md` plus the workflow's fixed chapter set only as compatibility/export views.
+- `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` are support-only/reference-only surfaces for ordinary runtime consumption.
 - `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
+- If a full refresh can be completed now, use `project-map complete-refresh` as the successful-refresh finalizer; otherwise use `project-map mark-dirty` as the manual override/fallback.
 - This repository does not treat its own root `.specify/` directory as committed source-of-truth content; repo-local `.specify/` state is disposable and may be regenerated.
 - After a successful refresh, record the new fresh cognition baseline. Use dirty fallback metadata only when the required refresh cannot be completed now, so same-feature resume can warn instead of self-blocking while upstream brownfield entrypoints and other features still require refresh.
 - Any code change that alters project cognition meaning must update the cognition runtime.

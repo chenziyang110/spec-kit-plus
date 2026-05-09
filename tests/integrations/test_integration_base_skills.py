@@ -554,7 +554,7 @@ class SkillsIntegrationTests:
         assert "specify -> plan" in content
         assert ".specify/project-cognition/" in content
         assert "map-update" in content
-        assert "graph-native project cognition baseline" in content.lower()
+        assert "graph-native cognition baseline" in content.lower()
         assert ".specify/memory/project-rules.md" in content
         assert "Shared project memory is always available" in content
         assert "not just when a `sp-*` workflow is active" in content
@@ -578,7 +578,7 @@ class SkillsIntegrationTests:
         assert "## Map Maintenance" in content
         assert "project cognition" in content.lower()
         assert "map-update" in content
-        assert "git-baseline freshness" not in content.lower()
+        assert "graph-native cognition coverage can be trusted as fresh" in content.lower()
         assert "complete-refresh" in content
         assert "manual override/fallback" in content.lower()
 

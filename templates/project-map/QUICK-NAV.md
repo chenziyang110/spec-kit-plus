@@ -3,6 +3,7 @@
 > Compatibility/export Layer 1 routing table for handbook and atlas outputs.
 > Ordinary brownfield workflows should start from the project cognition runtime,
 > then use this document only when compatibility/export navigation is explicitly needed.
+> Start here only when compatibility/export navigation is explicitly needed.
 > This document answers: "I need to inspect exported atlas docs — which file should I open?"
 > and "Which compatibility/export module most likely owns the touched area?"
 

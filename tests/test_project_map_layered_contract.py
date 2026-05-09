@@ -13,7 +13,8 @@ def test_project_handbook_template_routes_to_runtime_handbooks():
 
     assert "`DEBUG-HANDBOOK.md`" in handbook
     assert "`BUILD-HANDBOOK.md`" in handbook
-    assert "only primary runtime atlas documents" in handbook
+    assert "Compatibility/export navigation view" in handbook
+    assert "not the default runtime truth path" in handbook
 
 
 def test_quick_nav_includes_symptom_and_verification_lookup_routes():

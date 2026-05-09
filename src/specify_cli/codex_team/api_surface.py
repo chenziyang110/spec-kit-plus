@@ -7,7 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from specify_cli.project_map_status import inspect_project_map_freshness
+from specify_cli.project_map_status import inspect_project_map_freshness_for_command
 
 from . import task_ops
 from .auto_dispatch import AutoDispatchError, complete_dispatched_batch, route_ready_parallel_batch
@@ -105,7 +105,10 @@ def run_team_api_operation(
     if operation == "auto-dispatch":
         if not feature_dir:
             raise TeamApiError("--feature-dir is required for auto-dispatch.")
-        freshness = inspect_project_map_freshness(project_root)
+        freshness = inspect_project_map_freshness_for_command(
+            project_root,
+            command_name="team auto-dispatch",
+        )
         if freshness["freshness"] in {"missing", "stale"}:
             envelope["status"] = "error"
             envelope["payload"] = {
