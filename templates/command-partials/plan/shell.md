@@ -6,7 +6,7 @@ Translate the approved specification package into explicit implementation design
 
 ## Context
 
-- Primary inputs: `spec.md`, `alignment.md`, `context.md`, `references.md`, the project cognition runtime (`.specify/project-cognition/status.json`, required slices, graph artifacts, and targeted live evidence), and passive learning files.
+- Primary inputs: `spec.md`, `alignment.md`, `context.md`, `references.md`, the compiled brainstorming truth and any `handoff-to-plan.json` contract, the project cognition runtime (`.specify/project-cognition/status.json`, required slices, graph artifacts, and targeted live evidence), and passive learning files.
 - Working state lives in the active `FEATURE_DIR`, especially `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, and `workflow-state.md`.
 - This command is design-only. Planning does not grant permission to start execution.
 
@@ -20,6 +20,7 @@ Translate the approved specification package into explicit implementation design
 ## Output Contract
 
 - Write the implementation plan artifact set needed by `/sp-tasks`.
+- Write `plan-contract.json` so route, intent, complexity, must-preserve invariants, and allowed optimization scope survive as machine-readable truth.
 - Surface risks, unresolved decisions, and planning-time constitution/guardrail requirements explicitly.
 - Keep the resulting artifact set consistent enough that task generation does not need to rediscover obvious design decisions.
 

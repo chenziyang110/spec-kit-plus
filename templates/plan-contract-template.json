@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "status": "pending",
+  "route": null,
+  "complexity_level": null,
+  "must_preserve": [],
+  "allowed_optimization_scope": [],
+  "acceptance_obligations": [],
+  "handoff_to_tasks_ready": false
+}

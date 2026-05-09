@@ -2040,6 +2040,20 @@ def test_plan_tasks_and_implement_templates_consume_structured_handoff_contracts
     assert "and `references.md` only after the required hard unknowns are resolved." in content
 
 
+def test_plan_and_tasks_templates_consume_machine_readable_handoff_truth() -> None:
+    plan = _read("templates/commands/plan.md").lower()
+    tasks = _read("templates/commands/tasks.md").lower()
+
+    assert "handoff-to-plan.json" in plan
+    assert "route, intent, complexity" in plan
+    assert "plan-contract.json" in plan
+
+    assert "handoff-to-tasks.json" in tasks
+    assert "task-index.json" in tasks
+    assert "task-packets" in tasks
+    assert "allowed optimization scope" in tasks
+
+
 def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> None:
     content = _read("templates/commands/specify.md")
     lowered = content.lower()

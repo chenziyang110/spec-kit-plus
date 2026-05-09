@@ -6,7 +6,7 @@ Convert the plan package into dependency-aware execution tasks that preserve pla
 
 ## Context
 
-- Primary inputs: `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `context.md`, and the project cognition runtime (`.specify/project-cognition/status.json`, required slices, graph artifacts, and targeted live evidence).
+- Primary inputs: `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `context.md`, `handoff-to-plan.json` when present, and the project cognition runtime (`.specify/project-cognition/status.json`, required slices, graph artifacts, and targeted live evidence).
 - Working state lives in `FEATURE_DIR/tasks.md` plus any decomposition metadata needed for later analysis or implementation routing.
 - This command is task-generation-only. It should not cross into execution.
 
@@ -20,6 +20,7 @@ Convert the plan package into dependency-aware execution tasks that preserve pla
 ## Output Contract
 
 - Write `tasks.md` as the authoritative execution breakdown for the current feature.
+- Produce both human-readable `tasks.md` and machine-readable execution packets: `handoff-to-tasks.json`, `task-index.json`, and per-task JSON under `task-packets/` for downstream implementers.
 - Make execution ordering, parallelization boundaries, and required verification steps explicit.
 - Preserve the guardrail information later subagent execution packets and leaders must consume.
 

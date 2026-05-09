@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "task_id": "",
+  "objective": "",
+  "complexity_level": null,
+  "authoritative_inputs": [],
+  "must_preserve": [],
+  "allowed_optimization_scope": [],
+  "required_validation": [],
+  "stop_and_reopen_conditions": []
+}
