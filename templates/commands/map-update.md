@@ -7,6 +7,10 @@ workflow_contract:
   default_handoff: Return to the blocked workflow once the affected slices are green or yellow.
 ---
 
+## Objective
+
+Refresh the existing graph-native project cognition baseline incrementally from diff-driven evidence or explicit user corrections.
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -18,6 +22,13 @@ Before dispatch, every subagent lane needs a task contract with objective, autho
 Use `execution_model: subagent-mandatory`.
 Use `dispatch_shape: one-subagent | parallel-subagents`.
 Use `execution_surface: native-subagents`.
+
+## Process
+
+- Read the current graph-native baseline and determine the affected closure before editing runtime outputs.
+- Dispatch only validated incremental update lanes with bounded affected scope.
+- If a safe update lane cannot be packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
+- Rebuild only the affected graph slices when the evidence proves the scoped refresh is sufficient.
 
 ## Incremental Rule
 
@@ -49,6 +60,13 @@ The canonical outputs for this command are:
 - updated `.specify/project-cognition/graph/updates.json`
 - refreshed affected graph artifacts
 - refreshed affected slices
+
+## Guardrails
+
+- Do not silently escalate to a full rebuild without recording why.
+- Do not refresh unaffected slices just because the touched area is ambiguous.
+- Do not invent closure when changed paths or user supplements do not support the update.
+- If the affected update lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 
 ## Update Duties
 

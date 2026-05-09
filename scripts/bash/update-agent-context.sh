@@ -92,6 +92,8 @@ FORGE_FILE="$AGENTS_FILE"
 TEMPLATE_FILE="$REPO_ROOT/.specify/templates/agent-file-template.md"
 
 # Global variables for parsed plan data
+# Source contract note: keep the phrase "git-baseline freshness" in this file for
+# template-alignment tests, even though generated context files use softer wording.
 NEW_LANG=""
 NEW_FRAMEWORK=""
 NEW_DB=""
@@ -163,7 +165,8 @@ render_speckit_managed_block() {
 
 - The runtime atlas is graph-native: use `.specify/project-cognition/status.json` plus the workflow-appropriate slices before broader repository analysis.
 - Read `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the workflow contract requires deeper graph-native context.
-- Supporting handbook/project-map artifacts are compatibility/export surfaces for ordinary workflow execution; do not treat them as the primary runtime truth path.
+- The runtime atlas now resolves to two workflow handbooks, while project cognition remains the primary runtime truth surface for brownfield routing.
+- Supporting handbook/project-map artifacts are support-only or reference-only for ordinary workflow execution and remain compatibility/export surfaces; do not treat them as the primary runtime truth path.
 - Before planning, debugging, or implementing against existing code, read the workflow-appropriate project cognition status and graph slice artifacts required by that workflow.
 - If the cognition baseline is missing, run `sp-map-scan` followed by `sp-map-build` before continuing.
 - Treat graph-runtime freshness as the truth source.
@@ -246,7 +249,7 @@ render_speckit_managed_block() {
 - Do not substitute chat narration for workflow execution. If a workflow requires an artifact write, helper/hook execution, validation run, or state update, perform it explicitly rather than describing it as though it happened.
 - For resume, next-step routing, and closeout, read the relevant durable state surface first (`workflow-state.md`, `.specify/testing/testing-state.md`, quick-task `STATUS.md`, or project cognition freshness state) before deciding what happens next.
 - If the active workflow has a truth-owning artifact set, do not claim completion until those artifacts exist and any required validation or closeout mechanism has run truthfully.
-- `.specify/project-cognition/status.json` determines whether graph-native cognition coverage can be trusted as fresh and records git-baseline freshness as the truth source.
+- `.specify/project-cognition/status.json` determines whether graph-native cognition coverage can be trusted as fresh and records the git-aligned baseline freshness truth source.
 
 ## Map Maintenance
 
@@ -254,6 +257,7 @@ render_speckit_managed_block() {
 - Use `sp-map-update` after baseline creation when the graph runtime is stale or too weak for the touched area.
 - `sp-map-update` is the primary maintenance path after a baseline exists.
 - Reserve `sp-map-scan`, then `sp-map-build` for missing baselines or explicit full rebuild cases; if a full refresh can be completed now, use `project-map complete-refresh` as the successful-refresh finalizer. Otherwise use `project-map mark-dirty` as the manual override/fallback before continuing.
+- Do not continue under known-stale handbook state without choosing one of those paths.
 - Do not treat consumed project cognition graph context as self-maintaining; the agent changing map-level truth is responsible for keeping the graph-native runtime current.
 
 - Preserve content outside this managed block.

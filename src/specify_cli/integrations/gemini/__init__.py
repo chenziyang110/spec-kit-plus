@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -118,6 +119,40 @@ class GeminiIntegration(TomlIntegration):
             f"{GEMINI_HOOK_DISPATCH} before-agent",
             f"{GEMINI_HOOK_DISPATCH} before-tool",
         )
+
+    @staticmethod
+    def _append_runtime_handbook_compatibility(
+        *,
+        content: str,
+        command_name: str,
+    ) -> str:
+        if command_name not in {"implement", "debug", "quick"}:
+            return content
+
+        lowered = content.lower()
+        missing_lines: list[str] = []
+        if command_name == "debug":
+            if "debug-handbook.md" not in lowered:
+                missing_lines.append(
+                    "- Runtime handbook contract: read `DEBUG-HANDBOOK.md` when a compatibility/export debug view is needed alongside the graph-native runtime.\n"
+                )
+            if "debug-workflow-contract" not in lowered:
+                missing_lines.append("- Compatibility tag: `debug-workflow-contract`.\n")
+        else:
+            if "build-handbook.md" not in lowered:
+                missing_lines.append(
+                    "- Runtime handbook compatibility: read `BUILD-HANDBOOK.md` when a compatibility/export build/change view is needed alongside the graph-native runtime.\n"
+                )
+            if "build-workflow-contract" not in lowered:
+                missing_lines.append("- Compatibility tag: `build-workflow-contract`.\n")
+
+        if not missing_lines:
+            return content
+
+        match = re.search(r'(prompt\s*=\s*""".*?\n)', content, flags=re.S)
+        if not match:
+            return content
+        return content[: match.end()] + "".join(missing_lines) + content[match.end() :]
 
     def _install_hook_assets(
         self,
@@ -359,6 +394,28 @@ class GeminiIntegration(TomlIntegration):
             )
         )
         return created
+
+    def post_init_bootstrap(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+    ) -> list[Path]:
+        updated_files: list[Path] = []
+        commands_dir = self.commands_dest(project_root)
+        for stem in ("implement", "debug", "quick"):
+            path = commands_dir / self.command_filename(stem)
+            if not path.exists():
+                continue
+            content = path.read_text(encoding="utf-8")
+            updated = self._append_runtime_handbook_compatibility(
+                content=content,
+                command_name=stem,
+            )
+            if updated != content:
+                path.write_text(updated, encoding="utf-8")
+                self.record_file_in_manifest(path, project_root, manifest)
+                updated_files.append(path)
+        return updated_files
 
     def teardown(
         self,

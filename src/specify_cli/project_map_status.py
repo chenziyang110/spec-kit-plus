@@ -134,6 +134,11 @@ STALE_COGNITION_BASELINE_GUIDANCE = (
     "If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build."
 )
 
+TEAM_EXECUTION_PREFIXES = (
+    "team ",
+    "sp-teams",
+)
+
 
 def classify_scan_scope_path(path: str) -> str:
     lower = str(path or "").strip().replace("\\", "/").lower().strip("/")
@@ -1008,12 +1013,14 @@ def assess_project_map_freshness(
     head_commit: str,
     changed_files: list[str],
     has_git: bool,
+    allow_legacy_status_only: bool = False,
 ) -> dict[str, Any]:
     status = read_project_map_status(project_root)
     cognition_status = read_cognition_status(project_root)
     missing_runtime_paths = missing_canonical_project_map_paths(project_root)
+    has_status_metadata = project_map_status_path(project_root).exists() or legacy_project_map_status_path(project_root).exists()
 
-    if missing_runtime_paths:
+    if missing_runtime_paths and not allow_legacy_status_only:
         return {
             "freshness": "missing",
             "status_path": str(project_map_status_path(project_root)),
@@ -1033,7 +1040,7 @@ def assess_project_map_freshness(
             "modules": dict(status.modules or {}),
         }
 
-    if not cognition_status.graph_ready:
+    if not cognition_status.graph_ready and not allow_legacy_status_only:
         return {
             "freshness": "missing",
             "status_path": str(project_map_status_path(project_root)),
@@ -1053,7 +1060,7 @@ def assess_project_map_freshness(
             "modules": dict(status.modules or {}),
         }
 
-    if not project_map_status_path(project_root).exists() and not legacy_project_map_status_path(project_root).exists():
+    if not has_status_metadata:
         return {
             "freshness": "missing",
             "status_path": str(project_map_status_path(project_root)),
@@ -1253,4 +1260,31 @@ def inspect_project_map_freshness(project_root: Path) -> dict[str, Any]:
         head_commit=head_commit,
         changed_files=changed_files,
         has_git=has_git,
+    )
+
+
+def inspect_project_map_freshness_for_command(
+    project_root: Path,
+    *,
+    command_name: str = "",
+) -> dict[str, Any]:
+    lowered = str(command_name or "").strip().lower()
+    allow_legacy_status_only = any(
+        lowered.startswith(prefix) for prefix in TEAM_EXECUTION_PREFIXES
+    )
+
+    status = read_project_map_status(project_root)
+    has_git = has_git_repo(project_root)
+    head_commit = git_head_commit(project_root) if has_git else ""
+    changed_files = collect_changed_files(
+        project_root,
+        last_mapped_commit=status.last_mapped_commit,
+        head_commit=head_commit,
+    ) if has_git else []
+    return assess_project_map_freshness(
+        project_root,
+        head_commit=head_commit,
+        changed_files=changed_files,
+        has_git=has_git,
+        allow_legacy_status_only=allow_legacy_status_only,
     )

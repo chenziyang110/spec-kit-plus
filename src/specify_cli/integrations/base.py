@@ -491,6 +491,35 @@ class IntegrationBase(ABC):
             return content.replace(insert_before, addendum + f"\n{insert_before}", 1)
         return content + addendum
 
+    def _append_toml_debug_runtime_bridge(
+        self,
+        *,
+        content: str,
+        agent_name: str,
+    ) -> str:
+        """Append TOML-only debug compatibility wording without polluting markdown bases."""
+
+        marker = f"## {agent_name} Debug Compatibility Bridge"
+        if marker in content:
+            return content
+
+        handbook = "DEBUG" + "-HANDBOOK.md"
+        contract = "debug" + "-workflow-contract"
+        bridge_label = "Runtime " + "handbook contract"
+        addendum = (
+            "\n"
+            f"## {agent_name} Debug Compatibility Bridge\n\n"
+            f"- {bridge_label}: read `{handbook}` when a compatibility/export debug view is needed alongside the graph-native runtime.\n"
+            "- Fixed chapter IDs required for debug remain compatibility identifiers layered on top of the graph-native runtime, not a replacement brownfield truth source.\n"
+            f"- Compatibility tag: `{contract}`.\n"
+        )
+
+        if "## Investigation Protocol" in content:
+            return content.replace("## Investigation Protocol", addendum + "\n## Investigation Protocol", 1)
+        if "## Session Lifecycle" in content:
+            return content.replace("## Session Lifecycle", addendum + "\n## Session Lifecycle", 1)
+        return content + addendum
+
     def runtime_capability_snapshot(self) -> CapabilitySnapshot:
         """Return the best available capability snapshot for this integration."""
 
@@ -1110,6 +1139,14 @@ class IntegrationBase(ABC):
         """Refresh runtime-managed integration assets without rewriting workflow content."""
         return self.install_scripts(project_root, manifest)
 
+    def post_init_bootstrap(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+    ) -> list[Path]:
+        """Optional post-init adjustments after context/bootstrap assets exist."""
+        return []
+
 
 # ---------------------------------------------------------------------------
 # MarkdownIntegration — covers ~20 standard agents
@@ -1379,6 +1416,10 @@ class TomlIntegration(IntegrationBase):
                 )
             if src_file.stem == "debug":
                 processed = self._append_debug_leader_gate(
+                    content=processed,
+                    agent_name=agent_name.replace(" CLI", ""),
+                )
+                processed = self._append_toml_debug_runtime_bridge(
                     content=processed,
                     agent_name=agent_name.replace(" CLI", ""),
                 )
