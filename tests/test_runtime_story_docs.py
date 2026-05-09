@@ -21,3 +21,11 @@ def test_readme_mentions_sp_teams_watch_surface() -> None:
     assert "sp-teams watch" in content
     assert "full-screen" in content
     assert "members and flow" in content
+
+
+def test_readme_describes_specify_brainstorming_truth_chain() -> None:
+    content = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
+
+    assert "brainstorming" in content
+    assert "structured handoff" in content
+    assert "sp-implement" in content

@@ -216,6 +216,13 @@ script at
 helpers that it invokes; do not look for or teach a separate branch-creation
 CLI family.
 
+`specify` remains the public entry shell, but it now begins with an internal brainstorming kernel that locks facts, route, intent, and complexity before
+compiling the traditional spec package and handing off through structured
+handoff contracts to `plan`, `tasks`, and `sp-implement`.
+
+The deterministic lock sequence is `facts-lock`, `route-lock`, `intent-lock`,
+and `complexity-lock`.
+
 The fixed heavy discovery lifecycle always runs the same six stages in the same
 order before it decides whether to hand off to `plan`, `clarify`, or
 `deep-research`:

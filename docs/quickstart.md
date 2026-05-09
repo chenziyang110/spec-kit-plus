@@ -102,6 +102,14 @@ Built-in profiles:
 
 **In the chat**, run the `specify` workflow to describe what you want to build. Focus on the **what** and **why**, not the tech stack.
 
+Think of `specify` as a public shell: it first runs the internal brainstorming kernel, then compiles the planning-ready package.
+
+The deterministic lock sequence is `facts-lock`, `route-lock`, `intent-lock`,
+and `complexity-lock`.
+
+That package then moves forward through structured handoff contracts into
+`plan`, `tasks`, and `implement`.
+
 Treat `sp-specify` plus the generated create-feature script at
 `.specify/scripts/bash/create-new-feature.sh` or
 `.specify/scripts/powershell/create-new-feature.ps1` as the supported
