@@ -1975,6 +1975,42 @@ def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
     assert "release_blockers" in observer_prompt
 
 
+def test_specify_template_requires_brainstorming_truth_layer_and_handoff_chain() -> None:
+    content = _read("templates/commands/specify.md")
+    lowered = content.lower()
+
+    assert "brainstorming kernel" in lowered
+    assert "facts-lock" in lowered
+    assert "route-lock" in lowered
+    assert "intent-lock" in lowered
+    assert "complexity-lock" in lowered
+    assert "brainstorming/facts.json" in content
+    assert "brainstorming/route.json" in content
+    assert "brainstorming/intent.json" in content
+    assert "brainstorming/complexity.json" in content
+    assert "handoff-to-specify.json" in content
+    assert "dynamic is allowed only" in lowered or "dynamic routing only" in lowered
+    assert "hard unknown" in lowered
+    assert "reopen upstream truth" in lowered or "reopen is a first-class workflow action" in lowered
+
+
+def test_plan_tasks_and_implement_templates_consume_structured_handoff_contracts() -> None:
+    plan = _read("templates/commands/plan.md")
+    tasks = _read("templates/commands/tasks.md")
+    implement = _read("templates/commands/implement.md")
+
+    assert "handoff-to-plan.json" in plan
+    assert "locked route" in plan.lower()
+    assert "locked intent" in plan.lower()
+    assert "locked complexity" in plan.lower() or "complexity level" in plan.lower()
+    assert "handoff-to-tasks.json" in tasks
+    assert "task packet" in tasks.lower()
+    assert "handoff-to-implement.json" in implement
+    assert "must-preserve invariants" in implement.lower()
+    assert "allowed optimization scope" in implement.lower()
+    assert "stop-and-reopen conditions" in implement.lower()
+
+
 def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> None:
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
