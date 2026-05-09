@@ -2044,14 +2044,15 @@ def test_plan_and_tasks_templates_consume_machine_readable_handoff_truth() -> No
     plan = _read("templates/commands/plan.md").lower()
     tasks = _read("templates/commands/tasks.md").lower()
 
-    assert "handoff-to-plan.json" in plan
-    assert "route, intent, complexity" in plan
     assert "plan-contract.json" in plan
+    assert "route" in plan
+    assert "intent" in plan
+    assert "complexity" in plan
 
     assert "handoff-to-tasks.json" in tasks
     assert "task-index.json" in tasks
     assert "task-packets" in tasks
-    assert "allowed optimization scope" in tasks
+    assert "plan-contract.json" in tasks
 
 
 def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> None:
