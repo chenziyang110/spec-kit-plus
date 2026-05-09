@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "status": "pending",
+  "primary_route": null,
+  "matched_rules": [],
+  "rejected_routes": [],
+  "blocking_unknowns": []
+}

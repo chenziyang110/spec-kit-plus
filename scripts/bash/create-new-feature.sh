@@ -326,6 +326,12 @@ FEATURE_DIR="$FEATURES_DIR/$BRANCH_NAME"
 SPEC_FILE="$FEATURE_DIR/spec.md"
 CONTEXT_FILE="$FEATURE_DIR/context.md"
 SPECIFY_DRAFT_FILE="$FEATURE_DIR/specify-draft.md"
+BRAINSTORMING_DIR="$FEATURE_DIR/brainstorming"
+BRAINSTORMING_FACTS_FILE="$FEATURE_DIR/brainstorming/facts.json"
+BRAINSTORMING_ROUTE_FILE="$FEATURE_DIR/brainstorming/route.json"
+BRAINSTORMING_INTENT_FILE="$FEATURE_DIR/brainstorming/intent.json"
+BRAINSTORMING_COMPLEXITY_FILE="$FEATURE_DIR/brainstorming/complexity.json"
+HANDOFF_TO_SPECIFY_FILE="$FEATURE_DIR/brainstorming/handoff-to-specify.json"
 LANE_ID="$BRANCH_NAME"
 LANE_WORKTREE="$REPO_ROOT/.specify/lanes/worktrees/$LANE_ID"
 
@@ -366,7 +372,7 @@ if [ "$DRY_RUN" != true ]; then
         >&2 echo "[specify] Warning: Git repository not detected; skipped branch creation for $BRANCH_NAME"
     fi
 
-    mkdir -p "$FEATURE_DIR"
+    mkdir -p "$FEATURE_DIR" "$BRAINSTORMING_DIR"
 
     if [ ! -f "$SPEC_FILE" ]; then
         TEMPLATE=$(resolve_template "spec-template" "$REPO_ROOT") || true
@@ -395,6 +401,27 @@ if [ "$DRY_RUN" != true ]; then
             touch "$SPECIFY_DRAFT_FILE"
         fi
     fi
+
+    scaffold_template_file() {
+        local template_name="$1"
+        local destination="$2"
+        local template_path=""
+
+        [ ! -f "$destination" ] || return 0
+
+        template_path=$(resolve_template "$template_name" "$REPO_ROOT") || true
+        if [ -n "$template_path" ] && [ -f "$template_path" ]; then
+            cp "$template_path" "$destination"
+        else
+            touch "$destination"
+        fi
+    }
+
+    scaffold_template_file "brainstorming-facts-template" "$BRAINSTORMING_FACTS_FILE"
+    scaffold_template_file "brainstorming-route-template" "$BRAINSTORMING_ROUTE_FILE"
+    scaffold_template_file "brainstorming-intent-template" "$BRAINSTORMING_INTENT_FILE"
+    scaffold_template_file "brainstorming-complexity-template" "$BRAINSTORMING_COMPLEXITY_FILE"
+    scaffold_template_file "brainstorming-handoff-specify-template" "$HANDOFF_TO_SPECIFY_FILE"
 
     # Inform the user how to persist the feature variable in their own shell
     printf '# To persist: export SPECIFY_FEATURE=%q\n' "$BRANCH_NAME" >&2

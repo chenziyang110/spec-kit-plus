@@ -297,6 +297,11 @@ function Get-FeaturePathsEnv {
         FEATURE_SPEC  = Join-Path $featureDir 'spec.md'
         CONTEXT       = Join-Path $featureDir 'context.md'
         SPECIFY_DRAFT = Join-Path $featureDir 'specify-draft.md'
+        BRAINSTORMING_FACTS = Join-Path $featureDir 'brainstorming/facts.json'
+        BRAINSTORMING_ROUTE = Join-Path $featureDir 'brainstorming/route.json'
+        BRAINSTORMING_INTENT = Join-Path $featureDir 'brainstorming/intent.json'
+        BRAINSTORMING_COMPLEXITY = Join-Path $featureDir 'brainstorming/complexity.json'
+        HANDOFF_TO_SPECIFY = Join-Path $featureDir 'brainstorming/handoff-to-specify.json'
         IMPL_PLAN     = Join-Path $featureDir 'plan.md'
         TASKS         = Join-Path $featureDir 'tasks.md'
         RESEARCH      = Join-Path $featureDir 'research.md'
@@ -340,10 +345,13 @@ function Resolve-Template {
     )
 
     $base = Join-Path $RepoRoot '.specify/templates'
+    $templateExtensions = @('md', 'json')
 
     # Priority 1: Project overrides
-    $override = Join-Path $base "overrides/$TemplateName.md"
-    if (Test-Path $override) { return $override }
+    foreach ($extension in $templateExtensions) {
+        $override = Join-Path $base "overrides/$TemplateName.$extension"
+        if (Test-Path $override) { return $override }
+    }
 
     # Priority 2: Installed presets (sorted by priority from .registry)
     $presetsDir = Join-Path $RepoRoot '.specify/presets'
@@ -367,14 +375,18 @@ function Resolve-Template {
 
         if ($sortedPresets.Count -gt 0) {
             foreach ($presetId in $sortedPresets) {
-                $candidate = Join-Path $presetsDir "$presetId/templates/$TemplateName.md"
-                if (Test-Path $candidate) { return $candidate }
+                foreach ($extension in $templateExtensions) {
+                    $candidate = Join-Path $presetsDir "$presetId/templates/$TemplateName.$extension"
+                    if (Test-Path $candidate) { return $candidate }
+                }
             }
         } else {
             # Fallback: alphabetical directory order
             foreach ($preset in Get-ChildItem -Path $presetsDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '.*' }) {
-                $candidate = Join-Path $preset.FullName "templates/$TemplateName.md"
-                if (Test-Path $candidate) { return $candidate }
+                foreach ($extension in $templateExtensions) {
+                    $candidate = Join-Path $preset.FullName "templates/$TemplateName.$extension"
+                    if (Test-Path $candidate) { return $candidate }
+                }
             }
         }
     }
@@ -383,14 +395,18 @@ function Resolve-Template {
     $extDir = Join-Path $RepoRoot '.specify/extensions'
     if (Test-Path $extDir) {
         foreach ($ext in Get-ChildItem -Path $extDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '.*' } | Sort-Object Name) {
-            $candidate = Join-Path $ext.FullName "templates/$TemplateName.md"
-            if (Test-Path $candidate) { return $candidate }
+            foreach ($extension in $templateExtensions) {
+                $candidate = Join-Path $ext.FullName "templates/$TemplateName.$extension"
+                if (Test-Path $candidate) { return $candidate }
+            }
         }
     }
 
     # Priority 4: Core templates
-    $core = Join-Path $base "$TemplateName.md"
-    if (Test-Path $core) { return $core }
+    foreach ($extension in $templateExtensions) {
+        $core = Join-Path $base "$TemplateName.$extension"
+        if (Test-Path $core) { return $core }
+    }
 
     return $null
 }

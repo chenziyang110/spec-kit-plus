@@ -1955,6 +1955,44 @@ def test_specify_draft_template_and_feature_scripts_scaffold_draft_artifact():
     assert '"templates/specify-draft-template.md" = "specify_cli/core_pack/templates/specify-draft-template.md"' in pyproject
 
 
+def test_feature_scaffolding_and_packaging_include_brainstorming_truth_templates() -> None:
+    pyproject = _read("pyproject.toml")
+    sh_create = _read("scripts/bash/create-new-feature.sh")
+    ps_create = _read("scripts/powershell/create-new-feature.ps1")
+    sh_common = _read("scripts/bash/common.sh")
+    ps_common = _read("scripts/powershell/common.ps1")
+
+    for path in (
+        "templates/brainstorming-facts-template.json",
+        "templates/brainstorming-route-template.json",
+        "templates/brainstorming-intent-template.json",
+        "templates/brainstorming-complexity-template.json",
+        "templates/brainstorming-handoff-specify-template.json",
+    ):
+        assert path in pyproject
+
+    assert "BRAINSTORMING_FACTS" in sh_common
+    assert "BRAINSTORMING_ROUTE" in sh_common
+    assert "BRAINSTORMING_INTENT" in sh_common
+    assert "BRAINSTORMING_COMPLEXITY" in sh_common
+    assert "HANDOFF_TO_SPECIFY" in sh_common
+
+    assert "BRAINSTORMING_FACTS" in ps_common
+    assert "BRAINSTORMING_ROUTE" in ps_common
+    assert "BRAINSTORMING_INTENT" in ps_common
+    assert "BRAINSTORMING_COMPLEXITY" in ps_common
+    assert "HANDOFF_TO_SPECIFY" in ps_common
+
+    assert "brainstorming/facts.json" in sh_create
+    assert "brainstorming/route.json" in sh_create
+    assert "brainstorming/intent.json" in sh_create
+    assert "brainstorming/complexity.json" in sh_create
+    assert "handoff-to-specify.json" in sh_create
+
+    assert "brainstorming\\facts.json" in ps_create or "brainstorming/facts.json" in ps_create
+    assert "handoff-to-specify.json" in ps_create
+
+
 def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
     content = _read("templates/commands/specify.md")
     observer_prompt = _read("templates/worker-prompts/specify-observer.md")

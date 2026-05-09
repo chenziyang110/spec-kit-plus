@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "status": "pending",
+  "facts_file": "brainstorming/facts.json",
+  "route_file": "brainstorming/route.json",
+  "intent_file": "brainstorming/intent.json",
+  "complexity_file": "brainstorming/complexity.json",
+  "soft_unknowns": [],
+  "compile_ready": false
+}

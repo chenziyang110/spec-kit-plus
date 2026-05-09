@@ -291,6 +291,12 @@ $featureDir = Join-Path $featuresDir $branchName
 $specFile = Join-Path $featureDir 'spec.md'
 $contextFile = Join-Path $featureDir 'context.md'
 $specifyDraftFile = Join-Path $featureDir 'specify-draft.md'
+$brainstormingDir = Join-Path $featureDir 'brainstorming'
+$brainstormingFactsFile = Join-Path $featureDir 'brainstorming/facts.json'
+$brainstormingRouteFile = Join-Path $featureDir 'brainstorming/route.json'
+$brainstormingIntentFile = Join-Path $featureDir 'brainstorming/intent.json'
+$brainstormingComplexityFile = Join-Path $featureDir 'brainstorming/complexity.json'
+$handoffToSpecifyFile = Join-Path $featureDir 'brainstorming/handoff-to-specify.json'
 $laneId = $branchName
 $laneWorktree = Join-Path $repoRoot ".specify/lanes/worktrees/$laneId"
 
@@ -346,6 +352,7 @@ if (-not $DryRun) {
     }
 
     New-Item -ItemType Directory -Path $featureDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $brainstormingDir -Force | Out-Null
 
     if (-not (Test-Path -PathType Leaf $specFile)) {
         $template = Resolve-Template -TemplateName 'spec-template' -RepoRoot $repoRoot
@@ -372,6 +379,34 @@ if (-not $DryRun) {
         } else {
             New-Item -ItemType File -Path $specifyDraftFile -Force | Out-Null
         }
+    }
+
+    function Copy-OrCreateTemplateFile {
+        param(
+            [Parameter(Mandatory = $true)][string]$TemplateName,
+            [Parameter(Mandatory = $true)][string]$Destination
+        )
+
+        if (Test-Path -PathType Leaf $Destination) {
+            return
+        }
+
+        $templatePath = Resolve-Template -TemplateName $TemplateName -RepoRoot $repoRoot
+        if ($templatePath -and (Test-Path $templatePath)) {
+            Copy-Item $templatePath $Destination -Force
+        } else {
+            New-Item -ItemType File -Path $Destination -Force | Out-Null
+        }
+    }
+
+    @(
+        @{ Template = 'brainstorming-facts-template'; Destination = $brainstormingFactsFile }
+        @{ Template = 'brainstorming-route-template'; Destination = $brainstormingRouteFile }
+        @{ Template = 'brainstorming-intent-template'; Destination = $brainstormingIntentFile }
+        @{ Template = 'brainstorming-complexity-template'; Destination = $brainstormingComplexityFile }
+        @{ Template = 'brainstorming-handoff-specify-template'; Destination = $handoffToSpecifyFile }
+    ) | ForEach-Object {
+        Copy-OrCreateTemplateFile -TemplateName $_.Template -Destination $_.Destination
     }
 
     # Set the SPECIFY_FEATURE environment variable for the current session
