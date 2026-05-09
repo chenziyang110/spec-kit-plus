@@ -2126,3 +2126,13 @@ def test_prd_scan_template_uses_shared_subagent_dispatch_contract() -> None:
 def test_prd_build_template_uses_shared_subagent_dispatch_contract() -> None:
     content = _read("templates/commands/prd-build.md")
     _assert_subagent_dispatch_contract(content, "prd-build")
+
+
+def test_implement_template_requires_structured_execution_contract_from_tasks() -> None:
+    implement = _read("templates/commands/implement.md").lower()
+
+    assert "handoff-to-implement.json" in implement
+    assert "must-preserve invariants" in implement
+    assert "allowed optimization scope" in implement
+    assert "stop-and-reopen conditions" in implement
+    assert "redefining the user's locked goal" in implement or "must not redefine the product goal" in implement

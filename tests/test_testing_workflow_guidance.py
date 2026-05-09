@@ -699,3 +699,13 @@ def test_implement_and_debug_templates_treat_testing_contract_as_binding():
     assert "write a failing automated repro test before changing production code" in debug_content
     assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in debug_content
     assert "use the fast smoke tier for the cheapest repro check" in debug_content
+
+
+def test_implementer_prompt_exposes_execution_contract_inputs():
+    implementer = _read("templates/worker-prompts/implementer.md").lower()
+
+    assert "execution contract inputs" in implementer
+    assert "must_preserve" in implementer
+    assert "allowed_optimization_scope" in implementer
+    assert "stop_and_reopen_conditions" in implementer
+    assert "return `needs_context` or `blocked`; do not guess" in implementer

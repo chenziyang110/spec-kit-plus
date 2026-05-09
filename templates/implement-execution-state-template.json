@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "status": "gathering",
+  "current_batch": null,
+  "complexity_level": null,
+  "active_packet_ids": [],
+  "must_preserve": [],
+  "allowed_optimization_scope": [],
+  "open_reopen_conditions": []
+}

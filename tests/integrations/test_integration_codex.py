@@ -676,6 +676,26 @@ def test_codex_generated_sp_specify_mentions_structured_handoff_and_reopen(tmp_p
     assert "conversation memory is not a valid handoff surface" in lowered
 
 
+def test_codex_generated_implement_skill_mentions_optimization_scope_and_reopen(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-implement-contract"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+    content = (target / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "allowed optimization scope" in content
+    assert "must-preserve invariants" in content
+    assert "reopen" in content
+
+
 def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
