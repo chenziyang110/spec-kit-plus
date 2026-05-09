@@ -41,6 +41,14 @@
 - [Existing component, workflow, or pattern that changes what "complete" means here]
 - [Reusable implementation surface, precedent, or constraint already present in the repo]
 
+## Brainstorming-Derived Execution Context
+
+- **Truth Owner**: [repo | PRD | mixed]
+- **Compatibility Constraints**:
+  - [Constraint compiled from brainstorming truth]
+- **Allowed Internal Redesign**:
+  - [yes/no plus boundary note]
+
 ## Change Propagation Matrix
 
 | Change Surface | Upstream Inputs | Downstream Consumers | Constraint / Risk |

@@ -2033,20 +2033,11 @@ def test_specify_template_requires_brainstorming_truth_layer_and_handoff_chain()
 
 
 def test_plan_tasks_and_implement_templates_consume_structured_handoff_contracts() -> None:
-    plan = _read("templates/commands/plan.md")
-    tasks = _read("templates/commands/tasks.md")
-    implement = _read("templates/commands/implement.md")
+    content = _read("templates/commands/specify.md").lower()
 
-    assert "handoff-to-plan.json" in plan
-    assert "locked route" in plan.lower()
-    assert "locked intent" in plan.lower()
-    assert "locked complexity" in plan.lower() or "complexity level" in plan.lower()
-    assert "handoff-to-tasks.json" in tasks
-    assert "task packet" in tasks.lower()
-    assert "handoff-to-implement.json" in implement
-    assert "must-preserve invariants" in implement.lower()
-    assert "allowed optimization scope" in implement.lower()
-    assert "stop-and-reopen conditions" in implement.lower()
+    assert "compile the familiar specification package" in content
+    assert "compile the locked truth layer into `spec.md`, `alignment.md`, `context.md`," in content
+    assert "and `references.md` only after the required hard unknowns are resolved." in content
 
 
 def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> None:
