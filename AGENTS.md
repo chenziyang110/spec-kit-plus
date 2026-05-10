@@ -85,7 +85,7 @@ Specify supports multiple AI agents by generating agent-specific command files a
 | **Claude Code**            | `.claude/commands/`    | Markdown | `claude`        | Anthropic's Claude Code CLI |
 | **Gemini CLI**             | `.gemini/commands/`    | TOML     | `gemini`        | Google's Gemini CLI         |
 | **GitHub Copilot**         | `.github/agents/`      | Markdown | N/A (IDE-based) | GitHub Copilot in VS Code   |
-| **Cursor**                 | `.cursor/commands/`    | Markdown | N/A (IDE-based) | Cursor IDE (`--ai cursor-agent`) |
+| **Cursor**                 | `.cursor/skills/`      | Markdown | N/A (IDE-based) | Cursor IDE (`--ai cursor-agent`) |
 | **Qwen Code**              | `.qwen/commands/`      | Markdown | `qwen`          | Alibaba's Qwen Code CLI     |
 | **opencode**               | `.opencode/command/`   | Markdown | `opencode`      | opencode CLI                |
 | **Codex CLI**              | `.codex/skills/`       | Markdown | `codex`         | Codex CLI (`--ai codex --ai-skills`) |
@@ -105,9 +105,9 @@ Specify supports multiple AI agents by generating agent-specific command files a
 | **iFlow CLI**              | `.iflow/commands/`     | Markdown | `iflow`         | iFlow CLI (iflow-ai)        |
 | **Forge**                  | `.forge/commands/`     | Markdown | `forge`         | Forge CLI (forgecode.dev)   |
 | **IBM Bob**                | `.bob/commands/`       | Markdown | N/A (IDE-based) | IBM Bob IDE                 |
-| **Trae**                   | `.trae/rules/`         | Markdown | N/A (IDE-based) | Trae IDE                    |
-| **Antigravity**            | `.agent/commands/`     | Markdown | N/A (IDE-based) | Antigravity IDE (`--ai agy --ai-skills`) |
-| **Mistral Vibe**           | `.vibe/prompts/`       | Markdown | `vibe`          | Mistral Vibe CLI            |
+| **Trae**                   | `.trae/skills/`        | Markdown | N/A (IDE-based) | Trae IDE                    |
+| **Antigravity**            | `.agents/skills/`      | Markdown | N/A (IDE-based) | Antigravity IDE (`--ai agy --ai-skills`) |
+| **Mistral Vibe**           | `.vibe/skills/`        | Markdown | `vibe`          | Mistral Vibe CLI            |
 | **Generic**                | User-specified via `--ai-commands-dir` | Markdown | N/A | Bring your own agent        |
 
 ### Step-by-Step Integration Guide
@@ -455,23 +455,25 @@ Command content with {SCRIPT} and {{args}} placeholders.
 - **Codex dedicated folder**:
 - Codex: `.codex/skills/` (dedicated Codex folder; requires `--ai-skills`; explicit workflow skills use `$sp-<command>`, passive bundled skills keep their template directory names such as `spec-kit-*`, `tdd-workflow`, or `frontend-design`)
 - **Skills-based exceptions**:
+- Antigravity: `.agents/skills/` (skills; explicit workflow skills use `sp-*`, passive bundled skills keep their template directory names under `templates/passive-skills/`)
+- Cursor: `.cursor/skills/` (skills; generated workflow skills install as `sp-*/SKILL.md` while the `.cursor/rules/` surface continues to hold Cursor-specific context files such as `specify-rules.mdc`)
 - Kimi Code: `.kimi/skills/` (skills; explicit workflow skills use `/skill:sp-<command>`, passive bundled skills keep their template directory names such as `spec-kit-*`, `tdd-workflow`, or `frontend-design`)
+- Trae: `.trae/skills/` (skills; explicit workflow skills use `sp-*` and the Trae rules directory remains the home for project context files such as `project_rules.md`)
+- Mistral Vibe: `.vibe/skills/` (skills; generated workflow skills install as `sp-*/SKILL.md`)
 - **Shared rule for skills-based integrations**:
 - When an integration installs into a `skills/` directory, explicit workflow skills use the `sp-*` namespace and passive bundled skills keep the directory names defined under `templates/passive-skills/`.
 - **Prompt-based exceptions**:
   - Kiro CLI: `.kiro/prompts/`
   - Pi: `.pi/prompts/`
-  - Mistral Vibe: `.vibe/prompts/`
 - **Rules-based exceptions**:
-  - Trae: `.trae/rules/`
+  - Cursor context file: `.cursor/rules/specify-rules.mdc`
+  - Trae context file: `.trae/rules/project_rules.md`
 - **IDE agents**: Follow IDE-specific patterns:
   - Copilot: `.github/agents/`
-  - Cursor: `.cursor/commands/`
   - Windsurf: `.windsurf/workflows/`
   - Kilo Code: `.kilocode/workflows/`
   - Roo Code: `.roo/commands/`
   - IBM Bob: `.bob/commands/`
-- Antigravity: `.agent/skills/` (`--ai-skills` required; explicit workflow skills use `sp-*`, passive bundled skills keep their template directory names; `.agent/commands/` is deprecated)
 
 ## Argument Patterns
 
