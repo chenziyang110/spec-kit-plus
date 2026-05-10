@@ -2451,7 +2451,7 @@ class TestPresetSkills:
     def test_agy_skill_restored_on_preset_remove(self, project_dir, temp_dir):
         """Agy preset removal should restore native skills instead of deleting them."""
         self._write_init_options(project_dir, ai="agy", ai_skills=True)
-        skills_dir = project_dir / ".agent" / "skills"
+        skills_dir = project_dir / ".agents" / "skills"
         self._create_skill(skills_dir, "sp-specify", body="before override")
 
         core_command = project_dir / ".specify" / "templates" / "commands" / "specify.md"
@@ -2504,6 +2504,49 @@ class TestPresetSkills:
         restored = skill_file.read_text()
         assert "restored core body" in restored
         assert "name: sp-specify" in restored
+
+    def test_cursor_preset_updates_skills_dir(self, project_dir, temp_dir):
+        """Cursor preset install should update native skill files under .cursor/skills."""
+        self._write_init_options(project_dir, ai="cursor-agent", ai_skills=True)
+        skills_dir = project_dir / ".cursor" / "skills"
+        self._create_skill(skills_dir, "sp-specify", body="before override")
+
+        preset_dir = temp_dir / "cursor-override"
+        preset_dir.mkdir()
+        (preset_dir / "commands").mkdir()
+        (preset_dir / "commands" / "sp.specify.md").write_text(
+            "---\n"
+            "description: Cursor override\n"
+            "---\n\n"
+            "preset cursor body\n"
+        )
+        manifest_data = {
+            "schema_version": "1.0",
+            "preset": {
+                "id": "cursor-override",
+                "name": "Cursor Override",
+                "version": "1.0.0",
+                "description": "Test",
+            },
+            "requires": {"speckit_version": ">=0.1.0"},
+            "provides": {
+                "templates": [
+                    {
+                        "type": "command",
+                        "name": "sp.specify",
+                        "file": "commands/sp.specify.md",
+                    }
+                ]
+            },
+        }
+        with open(preset_dir / "preset.yml", "w") as f:
+            yaml.dump(manifest_data, f)
+
+        manager = PresetManager(project_dir)
+        manager.install_from_directory(preset_dir, "0.1.5")
+
+        skill_file = skills_dir / "sp-specify" / "SKILL.md"
+        assert "preset cursor body" in skill_file.read_text()
 
     def test_preset_skill_registration_handles_non_dict_init_options(self, project_dir, temp_dir):
         """Non-dict init-options payloads should not crash preset install/remove flows."""
