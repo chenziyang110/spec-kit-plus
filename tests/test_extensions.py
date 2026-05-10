@@ -1161,6 +1161,19 @@ $ARGUMENTS
         assert "amp" not in registered
         assert not (project_dir / ".agents" / "commands").exists()
 
+    def test_register_commands_for_all_agents_distinguishes_agy_from_amp(self, extension_dir, project_dir):
+        """An Agy project under .agents/skills should not implicitly activate Amp commands."""
+        skills_dir = project_dir / ".agents" / "skills"
+        skills_dir.mkdir(parents=True)
+
+        manifest = ExtensionManifest(extension_dir / "extension.yml")
+        registrar = CommandRegistrar()
+        registered = registrar.register_commands_for_all_agents(manifest, extension_dir, project_dir)
+
+        assert "agy" in registered
+        assert "amp" not in registered
+        assert not (project_dir / ".agents" / "commands").exists()
+
     def test_codex_skill_registration_writes_skill_frontmatter(self, extension_dir, project_dir):
         """Codex SKILL.md output should use skills-oriented frontmatter."""
         skills_dir = project_dir / ".codex" / "skills"
