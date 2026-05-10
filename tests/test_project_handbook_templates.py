@@ -143,6 +143,23 @@ def test_project_handbook_template_points_readers_to_project_cognition_first():
     assert "Use `Where To Read Next` for task-oriented routing." in content
 
 
+def test_project_handbook_template_defines_cross_project_cognition_reference_contract():
+    content = _read("templates/project-handbook-template.md")
+    lowered = content.lower()
+
+    assert "cross-project cognition reference" in lowered
+    assert "explicit-only" in lowered
+    assert "supplemental-only" in lowered
+    assert "fresh-only" in lowered
+    assert "minimal read" in lowered
+    assert "`.specify/project-cognition/status.json`" in content
+    assert "`.specify/project-cognition/slices/change.json`" in content
+    assert "`.specify/project-map/**`" in content
+    assert "not the default runtime truth path" in content
+    assert "project-map as primary truth" not in lowered
+    assert "project-map primary truth" not in lowered
+
+
 def test_project_handbook_template_guides_architecture_level_summary_content():
     content = _read("templates/project-handbook-template.md")
 

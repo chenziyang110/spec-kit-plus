@@ -10,6 +10,12 @@
 - [Primary module, workflow, interface, or artifact this feature changes]
 - [Secondary surface that must change to preserve usability or correctness]
 
+## Brainstorming-Derived Execution Context
+
+- **Truth Owner**: [Which locked brainstorming truth artifacts own the route, intent, and complexity decisions]
+- **Compatibility Constraints**: [Compatibility obligations carried forward from the locked requirement package]
+- **Allowed Internal Redesign**: [Where execution may improve internal quality without violating preserved outcomes]
+
 ## Upstream Dependencies
 
 - [Trigger, input, external contract, repository subsystem, or prerequisite]

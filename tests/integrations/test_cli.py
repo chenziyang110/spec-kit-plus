@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+from pathlib import Path
 
 import yaml
 from typer.testing import CliRunner
@@ -382,6 +383,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
     assert "generated learning guidance still references unsupported" in lowered
     assert "helper command surface" in lowered
     assert "specify integration repair" in lowered
+
 
     def test_integration_copilot_creates_files(self, tmp_path):
         from typer.testing import CliRunner
@@ -2433,3 +2435,212 @@ def test_maybe_bootstrap_codex_teams_environment_runs_psmux_and_initial_commit(m
     assert calls == ["psmux", "git"]
     assert final_status["runtime_backend_available"] is True
     assert final_status["git_head_available"] is True
+
+
+def test_cognition_discover_reports_nested_project_cognition_candidates(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "project"
+    reference_root = tmp_path / "reference-corpus"
+    reference = reference_root / "examples" / "reference"
+    nested_reference = reference_root / "vendor" / "nested-reference"
+    implicit_nested = project / "vendor" / "implicit"
+
+    for root, freshness in (
+        (project, "fresh"),
+        (reference, "fresh"),
+        (nested_reference, "stale"),
+        (implicit_nested, "fresh"),
+    ):
+        (root / ".specify" / "project-cognition" / "slices").mkdir(parents=True)
+        (root / ".specify" / "project-cognition" / "status.json").write_text(
+            json.dumps({"baseline_state": freshness, "graph_ready": True}),
+            encoding="utf-8",
+        )
+    (project / "vendor" / "map-only" / ".specify" / "project-map" / "index").mkdir(parents=True)
+    (project / "vendor" / "map-only" / ".specify" / "project-map" / "index" / "status.json").write_text(
+        json.dumps({"freshness": "fresh"}),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "cognition",
+                "discover",
+                "--root",
+                str(reference_root),
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert {Path(project["root"]) for project in payload["projects"]} == {reference, nested_reference}
+    assert all("implicit" not in json.dumps(project) for project in payload["projects"])
+    assert ".specify/project-map" not in json.dumps(payload)
+
+
+def test_cognition_read_outputs_minimal_reference_read_order_without_project_map_fallback(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "project"
+    reference = tmp_path / "reference"
+
+    stale_reference = tmp_path / "stale-reference"
+
+    for root, freshness in ((project, "fresh"), (reference, "fresh"), (stale_reference, "stale")):
+        (root / ".specify" / "project-cognition" / "slices").mkdir(parents=True)
+        (root / ".specify" / "project-cognition" / "graph").mkdir(parents=True)
+        (root / ".specify" / "project-cognition" / "status.json").write_text(
+            json.dumps({"baseline_state": freshness, "freshness": freshness, "graph_ready": True}),
+            encoding="utf-8",
+        )
+        (root / ".specify" / "project-cognition" / "slices" / "change.json").write_text(
+            json.dumps({"slice": {"minimal_read_set": []}}),
+            encoding="utf-8",
+        )
+        (root / ".specify" / "project-cognition" / "graph" / "claims.json").write_text(
+            '{"claims": []}\n',
+            encoding="utf-8",
+        )
+        (root / ".specify" / "project-cognition" / "graph" / "conflicts.json").write_text(
+            '{"conflicts": []}\n',
+            encoding="utf-8",
+        )
+    (reference / ".specify" / "project-map" / "root").mkdir(parents=True)
+    (reference / ".specify" / "project-map" / "root" / "ARCHITECTURE.md").write_text(
+        "# legacy export\n",
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "cognition",
+                "read",
+                "--project",
+                str(reference),
+                "--slice",
+                "change",
+                "--include-graph",
+                "claims",
+                "--include-graph",
+                "conflicts",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["admission"]["freshness"] == "fresh"
+    assert payload["slice"]["slice_id"] == "change"
+    assert "claims" in payload["graph"]
+    assert "conflicts" in payload["graph"]
+    assert "provenance" in payload
+    assert payload["minimal_read_order"] == [
+        ".specify/project-cognition/status.json",
+        ".specify/project-cognition/slices/change.json",
+        ".specify/project-cognition/graph/claims.json",
+        ".specify/project-cognition/graph/conflicts.json",
+    ]
+    assert ".specify/project-map" not in json.dumps(payload)
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        stale_result = runner.invoke(
+            app,
+            [
+                "cognition",
+                "read",
+                "--project",
+                str(stale_reference),
+                "--slice",
+                "change",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert stale_result.exit_code != 0
+    assert "fresh-only" in stale_result.output.lower()
+
+
+def test_cognition_read_reports_controlled_errors_for_missing_or_malformed_reference_artifacts(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "project"
+    reference = tmp_path / "reference"
+
+    (project / ".specify" / "project-cognition" / "status.json").parent.mkdir(parents=True)
+    (reference / ".specify" / "project-cognition" / "slices").mkdir(parents=True)
+    (reference / ".specify" / "project-cognition" / "status.json").write_text(
+        json.dumps({"baseline_state": "fresh", "freshness": "fresh", "graph_ready": True}),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        missing_slice = runner.invoke(
+            app,
+            [
+                "cognition",
+                "read",
+                "--project",
+                str(reference),
+                "--slice",
+                "change",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert missing_slice.exit_code != 0
+    assert "slice artifact is missing" in missing_slice.output.lower()
+
+    (reference / ".specify" / "project-cognition" / "status.json").write_text(
+        "{not-json}\n",
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        malformed_status = runner.invoke(
+            app,
+            [
+                "cognition",
+                "read",
+                "--project",
+                str(reference),
+                "--slice",
+                "change",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert malformed_status.exit_code != 0
+    assert "status artifact is malformed" in malformed_status.output.lower()

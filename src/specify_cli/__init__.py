@@ -487,6 +487,13 @@ project_map_app = typer.Typer(
 )
 app.add_typer(project_map_app, name="project-map")
 
+cognition_app = typer.Typer(
+    name="cognition",
+    help="Discover and read fresh cross-project cognition references",
+    add_completion=False,
+)
+app.add_typer(cognition_app, name="cognition")
+
 result_app = typer.Typer(
     name="result",
     help="Inspect and submit subagent result handoffs",
@@ -1619,6 +1626,52 @@ def project_map_status_command(
         console.print("[bold]Dirty Reasons[/bold]")
         for reason in status["dirty_reasons"]:
             console.print(f"- {reason}")
+
+
+@cognition_app.command("discover")
+def cognition_discover_command(
+    root: Path = typer.Option(..., "--root", help="Root directory to scan for reference projects"),
+    output_format: str = typer.Option("json", "--format", help="Output format: json"),
+):
+    """Discover nested project-cognition reference projects under an explicit root."""
+    from specify_cli.cognition import discover_reference_projects
+
+    payload = discover_reference_projects(root)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+        return
+    for project in payload["projects"]:
+        console.print(project["root"])
+
+
+@cognition_app.command("read")
+def cognition_read_command(
+    project: Path = typer.Option(..., "--project", help="Reference project root to read"),
+    slice_name: str = typer.Option(..., "--slice", help="Project cognition slice name"),
+    include_graph: list[str] = typer.Option(
+        [],
+        "--include-graph",
+        help="Graph artifact name to include; may be specified more than once",
+    ),
+    output_format: str = typer.Option("json", "--format", help="Output format: json"),
+):
+    """Read fresh-only project cognition artifacts from a reference project."""
+    from specify_cli.cognition import ReferenceProjectReadError, read_reference_project_cognition
+
+    try:
+        payload = read_reference_project_cognition(
+            project,
+            slice_name=slice_name,
+            include_graph=include_graph,
+        )
+    except ReferenceProjectReadError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+        return
+    console.print("\n".join(payload["minimal_read_order"]))
 
 
 @learning_app.command("ensure")

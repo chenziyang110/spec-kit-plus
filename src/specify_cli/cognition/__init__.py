@@ -1,6 +1,7 @@
 """Public API for the project cognition runtime foundation."""
 
 from .diff import build_diff_impact_payload
+from .discovery import discover_reference_projects
 from .paths import (
     cognition_dir,
     cognition_status_path,
@@ -18,6 +19,7 @@ from .paths import (
     provisional_nodes_path,
     provisional_observations_path,
 )
+from .reference_read import ReferenceProjectReadError, read_reference_project_cognition
 from .schema import (
     ClaimRecord,
     ConflictRecord,
@@ -56,6 +58,7 @@ __all__ = [
     "cognition_dir",
     "cognition_status_path",
     "coverage_path",
+    "discover_reference_projects",
     "ensure_cognition_runtime_dirs",
     "evidence_dir",
     "graph_claims_path",
@@ -70,7 +73,9 @@ __all__ = [
     "provisional_nodes_path",
     "provisional_observations_path",
     "read_cognition_status",
+    "read_reference_project_cognition",
     "read_json_artifact",
+    "ReferenceProjectReadError",
     "write_cognition_status",
     "write_coverage",
     "write_graph_claims",

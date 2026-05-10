@@ -482,6 +482,29 @@ def test_project_handbook_distinguishes_runtime_atlas_workbench_and_reference_on
     assert "`build-handbook.md` - compatibility/export build/change view" in lowered
 
 
+def test_templates_lock_cross_project_cognition_reference_rules() -> None:
+    managed_block = _extract_bash_managed_block(_read("scripts/bash/update-agent-context.sh"))
+    routing_skill = _read("templates/passive-skills/spec-kit-project-map-gate/SKILL.md")
+    plan_shell = _read("templates/command-partials/plan/shell.md")
+    map_scan_shell = _read("templates/command-partials/map-scan/shell.md")
+
+    combined = "\n".join([managed_block, routing_skill, plan_shell, map_scan_shell])
+    lowered = combined.lower()
+
+    assert ".specify/project-cognition/status.json" in lowered
+    assert ".specify/project-cognition/slices/change.json" in lowered
+    assert "cross-project cognition reference" in lowered
+    assert "explicit-only" in lowered
+    assert "supplemental-only" in lowered
+    assert "fresh-only" in lowered
+    assert "minimal read" in lowered
+    assert "compatibility/export surfaces" in lowered
+    assert "primary runtime truth" in lowered or "primary brownfield context surface" in lowered
+    assert "project-map" in lowered
+    assert "project-map as primary truth" not in lowered
+    assert "project-map primary truth" not in lowered
+
+
 def test_core_planning_templates_use_logical_atlas_references() -> None:
     legacy_rel_paths = [
         "templates/commands/specify.md",

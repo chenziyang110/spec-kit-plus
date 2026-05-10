@@ -43,6 +43,7 @@ packages = ["src/specify_cli"]
 "templates/constitution-template.md" = "specify_cli/core_pack/templates/constitution-template.md"
 "templates/context-template.md" = "specify_cli/core_pack/templates/context-template.md"
 "templates/debug.md" = "specify_cli/core_pack/templates/debug.md"
+"templates/implement-execution-state-template.json" = "specify_cli/core_pack/templates/implement-execution-state-template.json"
 "templates/plan-template.md" = "specify_cli/core_pack/templates/plan-template.md"
 "templates/project-handbook-template.md" = "specify_cli/core_pack/templates/project-handbook-template.md"
 "templates/project-learnings-template.md" = "specify_cli/core_pack/templates/project-learnings-template.md"
