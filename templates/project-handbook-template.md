@@ -31,6 +31,9 @@ and what sits clearly outside the system boundary.]
 - `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` are compatibility/export views during the migration window, not the default runtime truth path.
 - Read this handbook only when a user or workflow explicitly asks for the compatibility/export view.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
+- Recorded refresh and ready refresh are different outcomes: `partial_refresh` means refresh data was recorded but readiness still failed.
+- Support drift is not runtime-truth staleness; resolve support-surface drift without reflexively routing to `map-update`.
+- Preserve the state vocabulary: `fresh`, `missing`, `stale`, `support_drift`, `partial_refresh`, and `possibly_stale` are machine freshness states; `recommended_next_action` is the public operator guidance.
 - Use `Where To Read Next` for task-oriented routing.
 - Fall back to live code reads only when project cognition coverage is missing, stale, or too broad.
 

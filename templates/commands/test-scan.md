@@ -65,6 +65,8 @@ Use `execution_surface: native-subagents`.
    - Read `.specify/project-cognition/status.json` and `.specify/project-cognition/slices/change.json` before broad testing-system scan work.
    - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
    - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before continuing.
+   - [AGENT] If cognition freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
+   - [AGENT] If cognition freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
    - [AGENT] If cognition freshness is `possibly_stale`, inspect changed paths, reasons, and change-slice coverage. If testing, workflow, integration, or architecture topics are stale for the scan area, use `{{invoke:map-update}}` when localized; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains.
    - [AGENT] If the project cognition status or change slice is insufficient for the touched area, stop and tell the user to refresh through `{{invoke:map-update}}` when localized, or rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Read `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present.

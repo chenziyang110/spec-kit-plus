@@ -138,11 +138,17 @@ def _seed_legacy_status(repo: Path, *, dirty: bool = True, dirty_reasons: list[s
 def test_bash_project_map_freshness_lifecycle(git_repo: Path):
     missing = _run_bash(git_repo, "check")
     assert missing["freshness"] == "missing"
+    assert missing["state"] == "missing_baseline"
+    assert missing["readiness"] == "blocked"
+    assert missing["recommended_next_action"] == "run_map_scan_build"
 
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
     refreshed = _run_bash(git_repo, "record-refresh", "manual")
     assert refreshed["freshness"] == "fresh"
+    assert refreshed["state"] == "fresh"
+    assert refreshed["readiness"] == "ready"
+    assert refreshed["recommended_next_action"] == "retry_current_workflow"
     assert refreshed["status_path"].endswith(".specify/project-map/index/status.json")
 
     dirty = _run_bash(
@@ -154,6 +160,9 @@ def test_bash_project_map_freshness_lifecycle(git_repo: Path):
         "lane-001",
     )
     assert dirty["freshness"] == "stale"
+    assert dirty["state"] == "runtime_stale"
+    assert dirty["readiness"] == "blocked"
+    assert dirty["recommended_next_action"] == "run_map_update"
     assert dirty["dirty"] is True
     assert dirty["dirty_reasons"] == ["shared_surface_changed"]
     assert dirty["dirty_origin_command"] == "implement"
@@ -200,10 +209,117 @@ def test_powershell_project_map_freshness_detects_git_changes(git_repo: Path):
 
     stale = _run_powershell(git_repo, "check")
     assert stale["freshness"] == "stale"
+    assert stale["state"] == "runtime_stale"
+    assert stale["readiness"] == "blocked"
+    assert stale["recommended_next_action"] == "run_map_update"
     assert any("high-impact compatibility/export change" in reason for reason in stale["reasons"])
     assert stale["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
     assert stale["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert stale["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+
+
+def test_project_map_freshness_helpers_classify_support_drift_with_next_action(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "map-build")
+    _run_powershell(git_repo, "record-refresh", "map-build")
+
+    changed = git_repo / ".specify" / "templates" / "runtime-config.template.json"
+    changed.parent.mkdir(parents=True, exist_ok=True)
+    changed.write_text('{"changed": true}\n', encoding="utf-8")
+    subprocess.run(["git", "add", ".specify/templates/runtime-config.template.json"], cwd=git_repo, check=True)
+
+    bash_result = _run_bash(git_repo, "check")
+    pwsh_result = _run_powershell(git_repo, "check")
+
+    assert bash_result["freshness"] == "support_drift"
+    assert bash_result["state"] == "support_drift"
+    assert bash_result["readiness"] == "blocked"
+    assert bash_result["recommended_next_action"] == "commit_or_ignore_support_files"
+    assert bash_result["must_refresh_topics"] == []
+    assert bash_result["review_topics"] == []
+    assert any("support surface changed" in reason for reason in bash_result["reasons"])
+
+    assert pwsh_result["freshness"] == bash_result["freshness"]
+    assert pwsh_result["state"] == bash_result["state"]
+    assert pwsh_result["readiness"] == bash_result["readiness"]
+    assert pwsh_result["recommended_next_action"] == bash_result["recommended_next_action"]
+    assert pwsh_result["must_refresh_topics"] == bash_result["must_refresh_topics"]
+    assert pwsh_result["review_topics"] == bash_result["review_topics"]
+    assert any("support surface changed" in reason for reason in pwsh_result["reasons"])
+
+
+def test_project_map_freshness_helpers_report_possibly_stale_state_and_action(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "map-build")
+    _run_powershell(git_repo, "record-refresh", "map-build")
+
+    changed = git_repo / "src" / "feature" / "local_fix.py"
+    changed.parent.mkdir(parents=True, exist_ok=True)
+    changed.write_text("print('hi')\n", encoding="utf-8")
+    subprocess.run(["git", "add", "src/feature/local_fix.py"], cwd=git_repo, check=True)
+
+    bash_result = _run_bash(git_repo, "check")
+    pwsh_result = _run_powershell(git_repo, "check")
+
+    assert bash_result["freshness"] == "possibly_stale"
+    assert bash_result["state"] == "runtime_stale"
+    assert bash_result["readiness"] == "review"
+    assert bash_result["recommended_next_action"] == "run_map_update"
+    assert pwsh_result["freshness"] == bash_result["freshness"]
+    assert pwsh_result["state"] == bash_result["state"]
+    assert pwsh_result["readiness"] == bash_result["readiness"]
+    assert pwsh_result["recommended_next_action"] == bash_result["recommended_next_action"]
+
+
+def test_project_map_freshness_helpers_report_partial_refresh_for_stale_runtime_drift_after_partial_refresh(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+
+    status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    status_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "last_mapped_commit": subprocess.run(["git", "rev-parse", "HEAD"], cwd=git_repo, check=True, capture_output=True, text=True).stdout.strip(),
+                "last_mapped_at": "2026-04-21T00:00:00Z",
+                "last_mapped_branch": "main",
+                "freshness": "fresh",
+                "last_refresh_reason": "topic-refresh",
+                "last_refresh_topics": ["INTEGRATIONS.md", "WORKFLOWS.md"],
+                "last_refresh_scope": "partial",
+                "last_refresh_basis": "topic-refresh",
+                "last_refresh_changed_files_basis": ["src/routes/api.ts"],
+                "dirty": False,
+                "dirty_reasons": [],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    changed = git_repo / "src" / "routes" / "api.ts"
+    changed.parent.mkdir(parents=True, exist_ok=True)
+    changed.write_text("export const route = true;\n", encoding="utf-8")
+    subprocess.run(["git", "add", "src/routes/api.ts"], cwd=git_repo, check=True)
+
+    bash_result = _run_bash(git_repo, "check")
+    pwsh_result = _run_powershell(git_repo, "check")
+
+    assert bash_result["freshness"] == "partial_refresh"
+    assert bash_result["state"] == "partial_refresh"
+    assert bash_result["readiness"] == "blocked"
+    assert bash_result["recommended_next_action"] == "run_map_update"
+    assert any("partial cognition refresh is recorded" in reason.lower() for reason in bash_result["reasons"])
+
+    assert pwsh_result["freshness"] == bash_result["freshness"]
+    assert pwsh_result["state"] == bash_result["state"]
+    assert pwsh_result["readiness"] == bash_result["readiness"]
+    assert pwsh_result["recommended_next_action"] == bash_result["recommended_next_action"]
+    assert any("partial cognition refresh is recorded" in reason.lower() for reason in pwsh_result["reasons"])
 
 
 def test_project_map_runtime_state_changes_do_not_mark_atlas_stale(git_repo: Path):
@@ -284,7 +400,6 @@ def test_project_map_freshness_helpers_ignore_reference_and_excluded_paths(git_r
     "path,expected_freshness,expected_reason_prefix",
     [
         (".specify/templates/project-map/ARCHITECTURE.md", "stale", "high-impact compatibility/export change"),
-        (".specify/templates/testing/TESTING_PLAYBOOK.md", "stale", "high-impact compatibility/export change"),
         (".specify/memory/constitution.md", "stale", "high-impact compatibility/export change"),
         (".specify/memory/project-rules.md", "stale", "high-impact compatibility/export change"),
         ("docker-compose.yml", "stale", "high-impact compatibility/export change"),

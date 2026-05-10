@@ -34,7 +34,13 @@ Treat graph-runtime freshness as a gate:
 
 - `missing` -> block and refresh through `sp-map-scan -> sp-map-build`
 - `stale` -> block and refresh through `sp-map-update`
+- `support_drift` -> stop and tell the user to resolve support-surface drift; do not reflexively route to `sp-map-update`
+- `partial_refresh` -> tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`
 - `possibly_stale` -> inspect the affected graph scope; if the touched area is not safely covered, route through `sp-map-update`
+
+Preserve the distinction between the machine freshness field and public state
+guidance: consume `freshness` as the factual state and use
+`recommended_next_action` for the operator-facing next step.
 
 ### Primary Read Restriction
 

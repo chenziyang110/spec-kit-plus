@@ -59,18 +59,31 @@ def _project_map_preflight_for_debug() -> None:
         return
 
     result = inspect_project_map_freshness(project_root)
-    freshness = result["freshness"]
-    if freshness in {"missing", "stale"}:
-        console.print(
-            f"[red]Error:[/red] Project cognition runtime is {freshness}. Refresh through `sp-map-update` or rebuild with `sp-map-scan`, then `sp-map-build`, before debug."
-        )
+    state = str(result.get("state", result["freshness"])).strip().lower()
+    if state in {"missing_baseline", "runtime_stale", "support_drift", "partial_refresh"}:
+        if state == "support_drift":
+            console.print(
+                "[red]Error:[/red] Project cognition runtime has support-surface drift. Resolve, commit, or intentionally ignore the support files before debug."
+            )
+        elif state == "partial_refresh":
+            console.print(
+                "[red]Error:[/red] Project cognition refresh data was recorded, but runtime readiness is still blocked. Finish the runtime refresh before debug."
+            )
+        elif state == "missing_baseline":
+            console.print(
+                "[red]Error:[/red] Project cognition runtime is missing its baseline. Create it with `sp-map-scan`, then `sp-map-build`, before debug."
+            )
+        else:
+            console.print(
+                "[red]Error:[/red] Project cognition runtime is stale. Refresh through `sp-map-update` or rebuild with `sp-map-scan`, then `sp-map-build`, before debug."
+            )
         for reason in result.get("reasons", []):
             console.print(f"- {reason}")
         raise typer.Exit(1)
 
-    if freshness == "possibly_stale":
+    if state == "runtime_stale" and str(result.get("readiness", "")).strip().lower() == "review":
         console.print(
-            "[yellow]Warning:[/yellow] Project cognition runtime is possibly_stale. Continue only if the investigation is still local; use `sp-map-update` or rebuild with `sp-map-scan`, then `sp-map-build`, if the debug scope is broader."
+            "[yellow]Warning:[/yellow] Project cognition runtime may be stale for the current debug scope. Continue only if the investigation is still local; use `sp-map-update` or rebuild with `sp-map-scan`, then `sp-map-build`, if the debug scope is broader."
         )
         for reason in result.get("reasons", []):
             console.print(f"- {reason}")

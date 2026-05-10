@@ -36,6 +36,9 @@ Use `execution_surface: native-subagents`.
 - It must accept both diff-driven and user-supplement-driven updates.
 - It must update graph-native cognition artifacts incrementally.
 - It must not silently escalate to a full rebuild without recording why.
+- After recording updates, re-evaluate runtime readiness through the shared freshness contract.
+- Do not report refresh completion when the runtime remains blocked.
+- A recorded refresh is not automatically a ready refresh: `partial_refresh` means update metadata was written but readiness still failed.
 
 ## Required Inputs
 
@@ -60,6 +63,7 @@ The canonical outputs for this command are:
 - updated `.specify/project-cognition/graph/updates.json`
 - refreshed affected graph artifacts
 - refreshed affected slices
+- the post-recording freshness result, including `freshness`, `readiness`, and `recommended_next_action`
 
 ## Guardrails
 
@@ -78,3 +82,4 @@ The canonical outputs for this command are:
 - update or create conflicts
 - rebuild only affected graph slices when safe
 - produce an incremental update record
+- verify the shared freshness contract after the update record is written

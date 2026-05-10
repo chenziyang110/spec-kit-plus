@@ -560,6 +560,10 @@ def test_test_scan_and_build_templates_use_project_cognition_gates():
         assert ".specify/testing/TESTING_PLAYBOOK.md" in content
         assert "[AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content
         assert "[AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`" in content
+        assert "cognition freshness is `support_drift`" in content
+        assert "cognition freshness is `partial_refresh`" in content
+        assert "do not reflexively route to `{{invoke:map-update}}`" in content
+        assert "recommended_next_action" in content
         assert "cognition freshness is `missing` or `stale`" not in content
         assert "cognition freshness is `possibly_stale`" in content
         assert '"BUILD-HANDBOOK.md"' not in content
@@ -699,3 +703,19 @@ def test_implement_and_debug_templates_treat_testing_contract_as_binding():
     assert "write a failing automated repro test before changing production code" in debug_content
     assert "command-tier expectations for `fast smoke`, `focused`, and `full`" in debug_content
     assert "use the fast smoke tier for the cheapest repro check" in debug_content
+
+
+def test_implement_contract_inputs_are_binding_for_execution_and_workers():
+    implement_content = _read("templates/commands/implement.md").lower()
+    worker_prompt = _read("templates/worker-prompts/implementer.md").lower()
+
+    for content in (implement_content, worker_prompt):
+        assert "must-preserve" in content or "must_preserve" in content
+        assert "allowed optimization scope" in content or "allowed_optimization_scope" in content
+        assert "stop-and-reopen" in content or "stop_and_reopen" in content
+
+    assert "handoff-to-implement.json" in implement_content
+    assert "authoritative execution contract" in implement_content
+    assert "must not redefine the product goal" in implement_content
+    assert "execution contract inputs" in worker_prompt
+    assert "needs_context" in worker_prompt

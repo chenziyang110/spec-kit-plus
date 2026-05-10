@@ -2,6 +2,7 @@ import pytest
 from typer.testing import CliRunner
 from specify_cli import app
 import re
+import typer
 from specify_cli.debug.schema import CausalMapRiskTarget, DebugStatus
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.debug.schema import (
@@ -30,7 +31,12 @@ def clean_debug_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def bypass_debug_project_map_preflight(monkeypatch):
+def bypass_debug_project_map_preflight(monkeypatch, request):
+    if request.node.name in {
+        "test_debug_preflight_blocks_on_support_drift",
+        "test_debug_preflight_blocks_on_partial_refresh",
+    }:
+        return
     try:
         import specify_cli.debug.cli as cli_module
     except ModuleNotFoundError:
@@ -175,6 +181,46 @@ def test_debug_same_issue_feedback_reopens_parent_session(clean_debug_dir, monke
     assert "resuming debug session: parent-session" in result.stdout.lower()
     assert seen["slug"] == "parent-session"
     assert seen["resumed"] is True
+
+
+def test_debug_preflight_blocks_on_support_drift(clean_debug_dir, monkeypatch):
+    import specify_cli.debug.cli as cli_module
+    (clean_debug_dir.parent.parent / ".specify").mkdir(exist_ok=True)
+
+    monkeypatch.setattr(
+        cli_module,
+        "inspect_project_map_freshness",
+        lambda _project_root: {
+            "freshness": "support_drift",
+            "state": "support_drift",
+            "readiness": "blocked",
+            "recommended_next_action": "commit_or_ignore_support_files",
+            "reasons": ["tool-managed support surface changed: .specify/templates/runtime-config.template.json"],
+        },
+    )
+
+    with pytest.raises(typer.Exit):
+        cli_module._project_map_preflight_for_debug()
+
+
+def test_debug_preflight_blocks_on_partial_refresh(clean_debug_dir, monkeypatch):
+    import specify_cli.debug.cli as cli_module
+    (clean_debug_dir.parent.parent / ".specify").mkdir(exist_ok=True)
+
+    monkeypatch.setattr(
+        cli_module,
+        "inspect_project_map_freshness",
+        lambda _project_root: {
+            "freshness": "partial_refresh",
+            "state": "partial_refresh",
+            "readiness": "blocked",
+            "recommended_next_action": "run_map_update",
+            "reasons": ["Project cognition refresh data was recorded, but runtime readiness is still blocked for the touched area."],
+        },
+    )
+
+    with pytest.raises(typer.Exit):
+        cli_module._project_map_preflight_for_debug()
 
 def test_debug_awaiting_human_status(clean_debug_dir, monkeypatch):
     import specify_cli.debug.cli as cli_module

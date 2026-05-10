@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from specify_cli.hooks.project_map import (
+    MISSING_BASELINE_FALLBACK_GUIDANCE,
     NON_STALE_FALLBACK_GUIDANCE,
     STALE_FALLBACK_GUIDANCE,
+    SUPPORT_DRIFT_FALLBACK_GUIDANCE,
     project_map_freshness_result,
 )
 from specify_cli.project_map_status import (
@@ -85,13 +87,28 @@ def test_project_cognition_freshness_guidance_prefers_map_update_for_stale_runti
 
 def test_project_map_hook_fallback_wording_names_project_cognition_runtime(monkeypatch) -> None:
     def stale_without_reason(_project_root: Path) -> dict[str, object]:
-        return {"freshness": "stale", "reasons": []}
+        return {
+            "freshness": "stale",
+            "state": "runtime_stale",
+            "readiness": "blocked",
+            "recommended_next_action": "run_map_update",
+            "reasons": [],
+        }
 
     def missing_without_reason(_project_root: Path) -> dict[str, object]:
-        return {"freshness": "missing", "reasons": []}
+        return {"freshness": "missing", "state": "missing_baseline", "readiness": "blocked", "reasons": []}
 
     def unknown_without_reason(_project_root: Path) -> dict[str, object]:
         return {"freshness": "", "reasons": []}
+
+    def support_drift_without_reason(_project_root: Path) -> dict[str, object]:
+        return {
+            "freshness": "support_drift",
+            "state": "support_drift",
+            "readiness": "blocked",
+            "recommended_next_action": "commit_or_ignore_support_files",
+            "reasons": [],
+        }
 
     monkeypatch.setattr("specify_cli.hooks.project_map.inspect_project_map_freshness", stale_without_reason)
     blocked = project_map_freshness_result(PROJECT_ROOT, command_name="implement")
@@ -102,12 +119,18 @@ def test_project_map_hook_fallback_wording_names_project_cognition_runtime(monke
     assert "/sp-map-scan -> /sp-map-build" in blocked.errors[0]
 
     monkeypatch.setattr("specify_cli.hooks.project_map.inspect_project_map_freshness", missing_without_reason)
-    warned = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
-    assert warned.status == "warn"
-    assert warned.warnings == [NON_STALE_FALLBACK_GUIDANCE.format(state="missing")]
-    assert "project cognition runtime freshness" in warned.warnings[0]
-    assert "/sp-map-scan -> /sp-map-build" in warned.warnings[0]
-    assert "/sp-map-update" in warned.warnings[0]
+    blocked_missing = project_map_freshness_result(PROJECT_ROOT, command_name="debug")
+    assert blocked_missing.status == "blocked"
+    assert blocked_missing.errors == [MISSING_BASELINE_FALLBACK_GUIDANCE]
+    assert "/sp-map-scan -> /sp-map-build" in blocked_missing.errors[0]
+    assert "/sp-map-update" not in blocked_missing.errors[0]
+
+    monkeypatch.setattr("specify_cli.hooks.project_map.inspect_project_map_freshness", support_drift_without_reason)
+    support = project_map_freshness_result(PROJECT_ROOT, command_name="implement")
+    assert support.status == "blocked"
+    assert support.errors == [SUPPORT_DRIFT_FALLBACK_GUIDANCE]
+    assert "support" in support.errors[0].lower()
+    assert "/sp-map-update" not in support.errors[0]
 
     monkeypatch.setattr("specify_cli.hooks.project_map.inspect_project_map_freshness", unknown_without_reason)
     unknown = project_map_freshness_result(PROJECT_ROOT, command_name="debug")

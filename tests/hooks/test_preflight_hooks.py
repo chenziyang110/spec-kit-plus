@@ -141,7 +141,7 @@ def test_preflight_explains_implement_block_with_tracker_summary_when_available(
     assert any("current_batch=batch-final" in message for message in result.errors)
 
 
-def test_preflight_warns_when_project_map_status_is_missing_for_brownfield_work(tmp_path: Path):
+def test_preflight_blocks_when_project_map_status_is_missing_for_brownfield_work(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     _write_workflow_state(
@@ -158,9 +158,9 @@ def test_preflight_warns_when_project_map_status_is_missing_for_brownfield_work(
         {"command_name": "specify", "feature_dir": str(feature_dir)},
     )
 
-    assert result.status == "warn"
-    assert result.severity == "warning"
-    assert any("cognition" in message.lower() for message in result.warnings)
+    assert result.status == "blocked"
+    assert result.severity == "critical"
+    assert any("cognition" in message.lower() for message in result.errors)
 
 
 def test_preflight_warns_for_same_feature_implement_resume_when_dirty_origin_matches(tmp_path: Path):
@@ -624,6 +624,37 @@ def test_preflight_blocks_specify_when_dirty_origin_exists(tmp_path: Path):
 
     assert result.status == "blocked"
     assert any("workflow_contract_changed" in message or "cognition" in message.lower() for message in result.errors)
+
+
+def test_preflight_blocks_support_drift_with_support_specific_guidance(monkeypatch, tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "003-new"
+    _write_workflow_state(
+        feature_dir,
+        active_command="sp-specify",
+        status="active",
+        phase_mode="planning-only",
+        next_command="/sp.plan",
+    )
+
+    def support_drift(_project_root: Path) -> dict[str, object]:
+        return {
+            "freshness": "support_drift",
+            "recommended_next_action": "commit_or_ignore_support_files",
+            "reasons": ["tool-managed support surface changed: .specify/templates/runtime-config.template.json"],
+        }
+
+    monkeypatch.setattr("specify_cli.hooks.project_map.inspect_project_map_freshness", support_drift)
+
+    result = run_quality_hook(
+        project,
+        "workflow.preflight",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("support" in message.lower() for message in result.errors)
+    assert not any("sp-map-update" in message.lower() for message in result.errors)
 
 
 def test_preflight_blocks_integrate_when_lane_is_not_ready(tmp_path: Path):

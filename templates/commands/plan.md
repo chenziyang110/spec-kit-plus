@@ -88,7 +88,10 @@ agent_scripts:
 2. **Ensure project cognition runtime exists**:
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
-   - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
+   - [AGENT] If freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`; wait for that refresh before continuing.
+   - [AGENT] If freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
+   - [AGENT] If freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current planning request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before trusting the current map for planning.
    - Check whether `.specify/project-cognition/status.json` exists at the repository root.
    - [AGENT] If the project cognition runtime is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
@@ -100,6 +103,7 @@ agent_scripts:
    - Read `FEATURE_DIR/alignment.md`
    - Read `FEATURE_DIR/context.md`
    - Read `FEATURE_DIR/references.md` if present
+   - Read `FEATURE_DIR/brainstorming/handoff-to-plan.json` if present; preserve route, intent, complexity, and handoff constraints as planning inputs.
    - Read `FEATURE_DIR/deep-research.md` if present
    - Read `FEATURE_DIR/workflow-state.md` if present. When it exists, treat it as semantically required profile-aware planning context, not optional resume trivia.
    - Read `.specify/testing/TESTING_CONTRACT.md` if present
@@ -115,7 +119,7 @@ agent_scripts:
    - [AGENT] Read `.specify/project-cognition/graph/edges.json` when propagation or adjacency is still unclear
    - [AGENT] Read `.specify/project-cognition/graph/claims.json` when truth ownership or competing evidence is still unclear
    - [AGENT] Read `.specify/project-cognition/graph/conflicts.json` when stale assumptions or conflicting signals exist
-   - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence.
+   - If the topical coverage for the touched area is missing, stale, too broad, or task-relevant coverage is insufficient, use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion. Then inspect the minimum live files still needed to replace guesswork with evidence.
    - Read `templates/research-template.md`
    - Read `templates/workflow-state-template.md`
    - Load the copied IMPL_PLAN template

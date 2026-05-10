@@ -2,9 +2,9 @@
 description: Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.
 workflow_contract:
   when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
-  primary_objective: 'Produce a planning-ready specification package grounded in repository reality, while preserving active discovery in `specify-draft.md`.'
-  primary_outputs: '`FEATURE_DIR/specify-draft.md`, `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
-  default_handoff: '`final-handoff-decision` chooses `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` after the fixed heavy discovery lifecycle completes.'
+  primary_objective: 'Run the brainstorming kernel, lock facts, route, intent, and complexity in persisted truth files, then compile the planning-ready specification package.'
+  primary_outputs: '`FEATURE_DIR/brainstorming/facts.json`, `FEATURE_DIR/brainstorming/route.json`, `FEATURE_DIR/brainstorming/intent.json`, `FEATURE_DIR/brainstorming/complexity.json`, `FEATURE_DIR/brainstorming/handoff-to-specify.json`, `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `FEATURE_DIR/workflow-state.md`.'
+  default_handoff: '`final-handoff-decision` chooses `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` after facts-lock, route-lock, intent-lock, and complexity-lock compile cleanly.'
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -64,9 +64,13 @@ implementation-shaping code reads begin.
 5. `.specify/project-cognition/graph/claims.json` when truth ownership or competing evidence is still unclear
 6. `.specify/project-cognition/graph/conflicts.json` when stale assumptions or conflicting signals exist
 
-Freshness enforcement stays blocking. If the project cognition runtime is
-missing, stale, or topic-insufficient for the touched area, refresh it before
-repository analysis continues.
+Freshness enforcement stays blocking. Route from the shared state contract:
+`missing` rebuilds through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`;
+`stale` refreshes through `{{invoke:map-update}}`; `support_drift` stops for
+support-surface cleanup without reflexively routing to `{{invoke:map-update}}`;
+`partial_refresh` means refresh data was recorded but readiness still failed.
+Use `recommended_next_action` for public next-step guidance before repository
+analysis continues.
 
 ## Workflow Phase Lock
 
@@ -75,13 +79,13 @@ repository analysis continues.
 - Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth on resume after compaction for the current command, allowed artifact writes, forbidden actions, authoritative files, next action, and exit criteria.
 - Write `active_command` and `status` under `## Current Command`.
 - Write `phase_mode` and `summary` under `## Phase Mode`.
-- Write only lifecycle progression fields under `## Fixed Lifecycle State`.
+- Write only lifecycle progression fields under `## Fixed Lifecycle State`, preserving the lock state for the brainstorming kernel.
 - Set or update the state for this run with at least:
   - `active_command: sp-specify`
   - `status: active`
   - `phase_mode: planning-only`
-  - `current_stage: intent-analysis`
-  - `current_domain: goal-and-users`
+  - `current_stage: facts-lock`
+  - `current_domain: request-truth`
   - `next_action`
   - `blocker_reason`
   - `final_handoff_decision: pending`
@@ -92,7 +96,7 @@ repository analysis continues.
 
 ## Outline
 
-The text the user typed when invoking this workflow is the starting point, not the finished requirement package. Your responsibility is to analyze the whole feature first, decompose it into capabilities, and emit a planning-ready requirement package with confidence tracking rather than a surface summary.
+The text the user typed when invoking this workflow is the starting point, not the finished requirement package. Your responsibility is to run the internal brainstorming kernel, persist truth in deterministic locks, and only then compile a planning-ready requirement package. Conversation memory is not a valid handoff surface; only persisted truth files and compiled artifacts count.
 
 1. Parse the user description.
    - If empty: ERROR "No feature description provided".
@@ -121,6 +125,11 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Set `SPECIFY_DRAFT_FILE` to `FEATURE_DIR/specify-draft.md`.
    - Set `REFERENCES_FILE` to `FEATURE_DIR/references.md`.
    - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
+   - Set `BRAINSTORMING_FACTS_FILE` to `FEATURE_DIR/brainstorming/facts.json`.
+   - Set `BRAINSTORMING_ROUTE_FILE` to `FEATURE_DIR/brainstorming/route.json`.
+   - Set `BRAINSTORMING_INTENT_FILE` to `FEATURE_DIR/brainstorming/intent.json`.
+   - Set `BRAINSTORMING_COMPLEXITY_FILE` to `FEATURE_DIR/brainstorming/complexity.json`.
+   - Set `HANDOFF_TO_SPECIFY_FILE` to `FEATURE_DIR/brainstorming/handoff-to-specify.json`.
    - Register or refresh the lane immediately with `{{specify-subcmd:lane register --lane-id "$LANE_ID" --feature-dir "$FEATURE_DIR" --branch "$BRANCH_NAME" --worktree "$LANE_WORKTREE" --command specify}}`.
    - [AGENT] Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known.
    - Read `templates/workflow-state-template.md`.
@@ -134,21 +143,24 @@ Generate the pre-analysis output as the first section of `context.md`.
      - `active_command: sp-specify`
      - `status: active`
      - `phase_mode: planning-only`
-     - `current_stage: intent-analysis`
-     - `current_domain: goal-and-users`
+     - `current_stage: facts-lock`
+     - `current_domain: request-truth`
      - `next_action`
      - `blocker_reason`
      - `final_handoff_decision: pending`
-     - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, specify-draft.md, workflow-state.md, checklists/requirements.md`
+     - `allowed_artifact_writes: brainstorming/facts.json, brainstorming/route.json, brainstorming/intent.json, brainstorming/complexity.json, brainstorming/handoff-to-specify.json, spec.md, alignment.md, context.md, references.md, specify-draft.md, workflow-state.md, checklists/requirements.md`
      - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
-     - `authoritative_files: spec.md, alignment.md, context.md, references.md, specify-draft.md`
+     - `authoritative_files: brainstorming/facts.json, brainstorming/route.json, brainstorming/intent.json, brainstorming/complexity.json, brainstorming/handoff-to-specify.json, spec.md, alignment.md, context.md, references.md, specify-draft.md`
    - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
    - If native hook policy redirects a prompt-entry phase jump, return to `WORKFLOW_STATE_FILE`; repeated or explicit phase jumps are blocked by shared workflow policy.
 
 4. Ensure project cognition runtime exists.
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
-   - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
+   - [AGENT] If freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`; wait for that refresh before continuing.
+   - [AGENT] If freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
+   - [AGENT] If freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before deciding whether the existing map is still sufficient.
    - Check whether `.specify/project-cognition/status.json` exists at the repository root.
    - [AGENT] If the project cognition runtime is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
@@ -176,7 +188,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - [AGENT] Read `.specify/project-cognition/slices/change.json`.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Preserve these stronger brownfield testing inputs: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`.
    - From the project cognition runtime, extract the current module ownership, reusable components/services/hooks, integration points, truth-owning surfaces, adjacent workflows, key entities, architectural constraints, change-propagation hotspots, verification entry points, and known unknowns relevant to the request.
-   - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
+   - If the topical coverage for the touched area is missing, stale, or too broad, or task-relevant coverage is insufficient, use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion. Then inspect the minimum live files still needed to replace guesswork with evidence before asking planning-critical questions.
    - Read repository context relevant to the request.
    - Read existing specs/docs if relevant.
    - Read user-supplied references, examples, or linked material when they materially affect the requirement package.
@@ -185,46 +197,55 @@ Generate the pre-analysis output as the first section of `context.md`.
 
 - [AGENT] Create or resume `SPECIFY_DRAFT_FILE` immediately after `FEATURE_DIR` is known.
 - Treat `SPECIFY_DRAFT_FILE` as the durable clarification ledger and resume anchor for `sp-specify`.
+- Treat `SPECIFY_DRAFT_FILE` as the content ledger for the whole discovery run.
 - After every clarification answer, update `SPECIFY_DRAFT_FILE` before asking the next question.
 - Record at least: the intent-analysis summary, current stage, current domain, confirmed facts, low-risk inferences, unresolved items, recent question-batch disposition, adversarial-review findings, completeness gaps, and the next question target.
+- If a later answer invalidates the current path, reopen the current domain instead of layering contradictory requirements into the ledger.
 
-## Fixed Heavy Discovery Lifecycle
+## Brainstorming Kernel Lock Flow
 
-- Treat `SPECIFY_DRAFT_FILE` as the content ledger for the whole discovery run, not as a per-capability scratchpad.
-- `sp-specify` uses a fixed heavy discovery lifecycle. Do not switch into lighter or alternative internal flows based on perceived request simplicity.
+- Treat `SPECIFY_DRAFT_FILE` as the human-readable companion ledger for the whole discovery run, but treat the JSON files under `FEATURE_DIR/brainstorming/` as the authoritative truth layer.
+- `sp-specify` is the public entry shell; internally it must complete the brainstorming kernel before writing or releasing the compiled specification package.
+- Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
 - Always execute these six stages in order:
-  1. `intent-analysis`
-  2. `intent-confirmation`
-  3. `question-batch`
-  4. `batch-adversarial-review`
-  5. `completeness-audit`
+  1. `facts-lock`
+  2. `route-lock`
+  3. `intent-lock`
+  4. `complexity-lock`
+  5. `compile-to-specify`
   6. `final-handoff-decision`
-- Use only these three bounded subagent roles for this command:
+- The previous fixed heavy discovery lifecycle terms (`intent-analysis`, `intent-confirmation`, `question-batch`, `batch-adversarial-review`, `completeness-audit`) may appear only as compatibility labels inside the draft ledger; the deterministic lock state is authoritative.
+- Persist every lock update immediately:
+  - `facts-lock` writes `brainstorming/facts.json`.
+  - `route-lock` writes `brainstorming/route.json`.
+  - `intent-lock` writes `brainstorming/intent.json`.
+  - `complexity-lock` writes `brainstorming/complexity.json`.
+  - `compile-to-specify` writes `brainstorming/handoff-to-specify.json` before `spec.md`, `alignment.md`, `context.md`, or `references.md` are treated as release candidates.
+- Use only these three bounded subagent roles for this command when the runtime supports them:
   - `intent-analyst`
   - `adversarial-reviewer`
   - `completeness-auditor`
-- Use the fixed six-domain order and do not skip a domain entirely:
-  1. `goal-and-users`
-  2. `triggers-and-primary-flow`
-  3. `boundaries-and-non-goals`
-  4. `failure-paths-exceptions-and-permissions`
-  5. `dependencies-constraints-and-upstream-downstream-impact`
-  6. `acceptance-and-completeness-gap-closure`
-- A domain may be marked `closed-by-existing-evidence` when the user input plus repository evidence already closes it strongly, but the workflow must still record that domain in order.
-- `question-batch` rules:
-  - for heavy, reference-sensitive, or boundary-sensitive ambiguity, ask exactly one unresolved high-impact question per turn
-  - grouped questions are allowed only when the current domain is already narrowed to a local low-risk scope that does not change architecture, boundaries, or acceptance shape
-  - do not ask a second high-impact question before the first one is closed
-  - keep each batch within one active domain
-  - do not open the next domain until the current domain is closed or explicitly reopened and re-closed
-- `batch-adversarial-review` rules:
-  - run after every answered question batch
-  - write the findings into `SPECIFY_DRAFT_FILE`
-  - reopen the current domain when contradiction, hidden dependency, project-boundary conflict, or a completeness-threatening omission is found
-- `completeness-audit` rules:
-  - run only after all six domains were processed
-  - evaluate the whole feature for missing capability, missing boundaries, missing adjacent effects, and domain-normal omissions that would make the feature unusable
-- Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
+- Ask questions only for unresolved fields, rule predicates, contradictions, hard unknowns, or soft unknowns that need an explicit downstream contract.
+- Ask exactly one unresolved high-impact question per turn; do not ask a second high-impact question before the first one is closed.
+- Grouped questions are allowed only when the current domain is already narrowed to a local low-risk scope.
+- If a request spans multiple independently valuable deliverables, decompose it into capabilities before detailed clarification. Present the proposed capability split and help the user decompose it into bounded capabilities inside the same spec first; default to one spec with capability decomposition when the work still belongs to one coherent feature boundary.
+- Analyze the whole feature first before asking detailed questions about one capability, so sibling capabilities and validation shape are not missed.
+- Deterministic questioning rule: every question must name the lock it advances, the exact unresolved field or rule predicate, and the artifact that will be updated after the answer.
+- Do not ask broad exploratory questions after a narrower field-level question can close the lock.
+- Dynamic is allowed only after the persisted facts can justify it. Dynamic routing only means route selection derived from `facts.json`, explicit route rules, and recorded rejected-route reasoning; it is not permission to improvise from chat.
+- `route-lock` is valid only when `route.json` records a primary route, matched rules, rejected routes, and any blocking unknowns.
+- `complexity-lock` is valid only when `complexity.json` records one chosen level from `T1 Local`, `T2 Structured`, `T3 Cross-Boundary`, or `T4 Reconstruction` plus matched trigger rules.
+- Unknown is a pending decision object, not a default exit state.
+- Unknown is not an ignored value. Each unresolved unknown must record at least `field`, `question`, `blocking_level`, `resolver`, `latest_resolve_phase`, and `status`.
+- Resolve every unknown through exactly one disposition:
+  - `resolve-now`: ask or inspect now because the lock cannot close without it.
+  - `resolve-by-evidence`: read cited repo, doc, or reference evidence and update the owning truth file.
+  - `defer-with-contract`: carry a soft unknown with an explicit downstream owner, latest resolve phase, and risk statement.
+  - `waive-with-risk`: proceed only with an explicit accepted risk and planning impact.
+- Hard unknowns block handoff. Do not hand off past the current gate while a hard unknown remains unresolved.
+- Soft unknowns may pass only when `handoff-to-specify.json`, `alignment.md`, and `context.md` name the owner, risk, latest resolve phase, and stop-and-reopen condition.
+- Reopen upstream truth instead of silently mutating compiled artifacts when later evidence contradicts a lock.
+- The compiled artifacts are projections of the lock truth. Conversation memory is not a valid handoff surface.
 
 ## Adversarial Review Contract
 
@@ -232,9 +253,9 @@ Generate the pre-analysis output as the first section of `context.md`.
 - The adversarial review output must be written into `SPECIFY_DRAFT_FILE`.
 - The leader must not ignore adversarial blockers; each blocker must be resolved, inferred, deferred, or force-carried explicitly before the domain can close.
 
-## Fixed Lifecycle State
+## Brainstorming Lock State
 
-- Preserve one fixed-heavy lifecycle for all `sp-specify` runs and persist lifecycle state through `current_stage`, `current_domain`, `next_action`, `blocker_reason`, and `final_handoff_decision`.
+- Preserve one deterministic lock flow for all `sp-specify` runs and persist lock state through `current_stage`, `current_domain`, `next_action`, `blocker_reason`, and `final_handoff_decision`.
 
 6. Run a codebase scout before clarification.
    - Treat the project cognition runtime as the default scout artifact for understanding the existing system shape.
@@ -251,7 +272,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - If the topical coverage is too broad, stale, or silent on the touched area, read the minimum targeted live files needed to replace guesswork with evidence.
    - Use the scout summary to eliminate low-value questions, sharpen gray areas, and detect when the user's request conflicts with existing repository patterns.
 
-7. Run `intent-analysis`.
+7. Run `facts-lock`.
    Build a top-down understanding grounded in `.specify/project-cognition/status.json`, `.specify/project-cognition/slices/change.json`, the graph artifacts, and any targeted live-file reads. It must cover:
    - what the user is probably trying to achieve
    - what a complete usable version of the capability likely includes
@@ -265,21 +286,40 @@ Generate the pre-analysis output as the first section of `context.md`.
    - the verification entry points and regression-sensitive surfaces that will need proof before release
    - the known unknowns, stale evidence boundaries, or weakly mapped surfaces that could force more clarification
 
-8. Run `intent-confirmation`.
+8. Run `route-lock`.
+   - Read `brainstorming/facts.json`.
+   - Select a primary route only from persisted fact evidence and explicit route rules.
+   - Record matched rules, rejected routes, blocking unknowns, and route confidence in `brainstorming/route.json`.
+   - If route predicates are missing, ask the smallest deterministic question that closes the missing predicate, or resolve it by evidence before continuing.
+
+9. Run `intent-lock`.
+   - Read `brainstorming/facts.json` and `brainstorming/route.json`.
+   - Lock the goal, non-goals, success criteria, must-preserve invariants, allowed optimization scope, and open questions in `brainstorming/intent.json`.
+   - Do not use chat-only conclusions as a substitute for persisted goal, invariant, or scope fields.
+   - If a decision would change product goal, compatibility promise, acceptance shape, or non-goal boundary, keep questioning or reopen the owning lock.
+
+10. Run `complexity-lock`.
+   - Read `brainstorming/facts.json`, `brainstorming/route.json`, and `brainstorming/intent.json`.
+   - Choose exactly one complexity level from `T1 Local`, `T2 Structured`, `T3 Cross-Boundary`, or `T4 Reconstruction`.
+   - Record matched trigger rules, scope, execution mode, and any deferred soft unknowns in `brainstorming/complexity.json`.
+   - Use `T3 Cross-Boundary` when the change crosses service/process/runtime boundaries, changes shared contracts, or affects multiple owning surfaces.
+   - Use `T4 Reconstruction` when the request requires reference reconstruction, behavioral equivalence, cross-language porting, or broad redesign from an existing source of truth.
+
+11. Run lock confirmation.
    - Give the user a short current-understanding summary naming the likely intended outcome and the major affected surfaces.
    - Treat this as a cheap misunderstanding-correction gate, not a full approval ceremony.
 
-9. Choose collaboration strategy for the fixed roles.
+12. Choose collaboration strategy for the bounded lock-support roles.
    - [AGENT] Before domain questioning begins, assess the current workload shape and agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="specify", snapshot, workload_shape)`.
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
-   - Keep delegated `sp-specify` lanes limited to the fixed lifecycle roles:
+   - Keep delegated `sp-specify` lanes limited to the bounded lock-support roles:
      - `intent-analyst`
      - `adversarial-reviewer`
      - `completeness-auditor`
    - Record the chosen strategy, reason, any blocked dispatch decision, selected lanes, and join points in `alignment.md`.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
-10. Run the fixed domain sequence through `question-batch` and `batch-adversarial-review`.
+13. Run deterministic questioning and adversarial review inside the active lock.
    - Process the domains in this exact order:
      - `goal-and-users`
      - `triggers-and-primary-flow`
@@ -291,7 +331,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Use repository and handbook evidence to close obvious items, but do not skip domain recording.
    - After every answered batch, run `batch-adversarial-review` before proceeding.
 
-11. Analyze the whole feature before decomposing it.
+14. Analyze the whole feature before decomposing it.
    Build a top-down understanding grounded in `.specify/project-cognition/status.json`, `.specify/project-cognition/slices/change.json`, the graph artifacts, and any targeted live-file reads. It must cover:
    - the feature goal
    - intended users and roles
@@ -306,7 +346,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - the known unknowns, stale evidence boundaries, or weakly mapped surfaces that could force more clarification
    - release-shaping risks or external references
 
-12. Decomposition gate.
+15. Decomposition gate.
    - If the request spans multiple independent subsystems, business domains, or release tracks, do not continue as though it were one bounded feature.
    - Default to one spec with capability decomposition when the work still belongs to one coherent feature boundary.
    - Stop and help the user decompose it into bounded capabilities inside the same spec first.
@@ -318,7 +358,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Only continue once the current spec scope is narrow enough to be planned and tested coherently.
    - If the request is already one bounded capability, say so briefly and continue inside the current spec.
 
-13. Capability decomposition.
+16. Capability decomposition.
     - Decompose the analyzed feature into bounded capabilities.
     - For brownfield testing-system work seeded by `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, default capability decomposition to foundation work plus module priority waves instead of vague subsystem buckets.
     - Record the purpose of each capability, what scenarios it supports, and how it depends on other capabilities or prerequisites.
@@ -334,15 +374,15 @@ Generate the pre-analysis output as the first section of `context.md`.
     - If any checkpoint still depends on fuzzy language, reopen clarification for that capability instead of moving on to a sibling capability.
     - If capability boundaries remain unclear, continue clarifying until the decomposition is planning-ready or the user explicitly force proceeds.
 
-14. Run `completeness-audit`.
-    - Run this only after all six fixed domains have been processed.
+17. Run lock completeness audit.
+    - Run this only after the active lock domains and their adversarial checks have been processed.
     - Evaluate the whole feature, not only the most recent domain.
     - Explicitly test for missing capability, missing boundaries, missing adjacent effects, and domain-normal omissions that would make the feature unusable.
     - If a critical gap remains, reopen the relevant domain and return to `question-batch` instead of forcing a handoff.
 
-15. Run implementation-oriented completeness checks.
+18. Run implementation-oriented completeness checks.
 
-16. Run an implementation-oriented analysis pass before concluding alignment.
+19. Run an implementation-oriented analysis pass before concluding alignment.
     Cover at minimum:
     - scenario and usage path coverage
     - capability sequencing or dependency constraints
@@ -355,7 +395,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - acceptance-test shaping details
     - planning-sensitive risks and gaps
 
-16b. Run an engineering-completeness gate for boundary-sensitive work.
+19b. Run an engineering-completeness gate for boundary-sensitive work.
     - Trigger this gate when the feature crosses a service/process/runtime boundary, depends on async or event delivery, creates user-visible persisted state, or adds configuration that changes delivery behavior.
     - Confirm or explicitly defer, with reason, at minimum:
       - trigger/event source when behavior depends on a cross-component signal
@@ -371,7 +411,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - If the user gives a broad answer such as "we can make the internals detailed later", either turn it into a concrete checklist for confirmation or mark it as an explicit deferred risk.
     - Do not treat this gate as implementation brainstorming; stay at the level of requirement-shaping contracts, lifecycle expectations, and planning safety.
 
-16c. Run a feasibility and implementation-chain gate.
+19c. Run a feasibility and implementation-chain gate.
     - For each capability, decide whether the implementation chain is already credible enough for planning.
     - Treat the chain as credible when repository evidence, retained references, or prior working behavior clearly show:
       - trigger/input
@@ -385,7 +425,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - Record feasibility status in `alignment.md` as `Not needed`, `Needed before plan`, `Completed`, or `Blocked`.
     - If the issue is actually requirement ambiguity rather than implementation proof, keep resolving it inside `sp-specify` until `final-handoff-decision` determines the appropriate next command.
 
-17. Identify gray areas before concluding alignment.
+19d. Identify gray areas before concluding alignment.
    - Identify 3-5 planning-relevant gray areas: decisions that could reasonably go multiple ways and would materially change implementation, planning, or testing.
    - Derive gray areas from the combination of user intent, the project cognition runtime, and targeted repository evidence instead of from a generic question catalog.
    - Prefer feature-specific decision surfaces over generic categories.
@@ -415,7 +455,7 @@ Generate the pre-analysis output as the first section of `context.md`.
      - If repository evidence or user intent indicates reference-preserving or rewrite-style work, add `Fidelity Requirements` to `spec.md` and record a behavior-level `Reference Behavior Inventory` rather than only a module or feature label.
      - Synthesize these decisions into `context.md` so downstream planning does not rely on reconstructing them from prose alone.
 
-18. Run a high-impact ambiguity scan.
+19e. Run a high-impact ambiguity scan.
     Detect unresolved ambiguity affecting:
     - scope
     - users/roles

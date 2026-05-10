@@ -26,7 +26,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - **Concurrent lane runtime**: `src/specify_cli/lanes/` adds lane-local durable state, reconcile-before-resume routing, and dedicated lane closeout primitives for independent feature execution.
 - **Enriched task contract generation**: `sp-tasks` produces subagent-ready task contracts with agent role assignment, context navigation pointers, write/read/forbidden scope boundaries, verify commands, and escalation strategy — enabling `sp-implement` to dispatch subagents directly without leader clarification.
 - **Spec quality gate (`spec-lint`)**: `tools/spec-lint/` is a zero-dependency Go binary that mechanically validates spec artifact sets against 8 tiered quality checks before `sp-plan`. Install scripts, CI cross-compilation, and the quality gate spec live alongside the tool. Read `templates/spec-quality-gate.md`.
-- **Brownfield cognition lifecycle**: Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices as the default brownfield runtime truth surface. `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window. Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required. Same-feature `sp-implement` resume may continue with warning when dirty fallback metadata was recorded by that feature's prior implement run, but upstream brownfield entrypoints and other features still require refresh first.
+- **Brownfield cognition lifecycle**: Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices as the default brownfield runtime truth surface. `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window. Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required. Recorded refresh and ready refresh are different outcomes: `partial_refresh` means refresh data was recorded but readiness still failed. Support drift is not runtime-truth staleness and should be resolved as support-surface cleanup, not reflexively routed to `map-update`. Same-feature `sp-implement` resume may continue with warning when dirty fallback metadata was recorded by that feature's prior implement run, but upstream brownfield entrypoints and other features still require refresh first.
 - **Delegated execution contracts**: `src/specify_cli/execution/`, `src/specify_cli/hooks/`, and `src/specify_cli/orchestration/` define packet/result schemas, quality hooks, subagents-first dispatch selection, and state surfaces. Read `.specify/project-map/root/ARCHITECTURE.md`.
 - **Codex team runtime**: `src/specify_cli/codex_team/`, `src/specify_cli/mcp/`, and `extensions/agent-teams/engine/` provide optional Codex team orchestration, state, MCP facade, and bundled engine assets. Read `.specify/project-map/modules/agent-teams-engine/OVERVIEW.md`.
 - **Testing and verification**: Python pytest layers, integration/template contract tests, Codex-team tests, and engine build checks protect generated behavior. Read `.specify/project-map/root/TESTING.md`.
@@ -43,6 +43,7 @@ This repository owns the `specify` CLI, bundled templates/scripts, supported-age
 - The refresh workbench still contains `map-scan` / `map-build` scan packets and refresh workbench artifacts for rebuilding the handbooks.
 - `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
 - Fall back to live code reads only when cognition coverage is missing, stale, too broad, or marked low confidence.
+- Preserve the state vocabulary: `fresh`, `missing`, `stale`, `support_drift`, `partial_refresh`, and `possibly_stale` are machine freshness states; `recommended_next_action` is the public operator guidance.
 
 ## Project Cognition Routes
 
@@ -58,6 +59,7 @@ The cognition model should help answer:
 - which graph claims, conflicts, or slices must be read before source work begins
 - which propagation risks and verification routes matter before changing code
 - what remains unknown and therefore needs live repository confirmation
+- whether the factual freshness state is runtime staleness, support drift, or a partial refresh that still blocks readiness
 
 ## Shared Surfaces
 

@@ -37,3 +37,6 @@ def test_map_update_template_exists_and_is_incremental() -> None:
     assert "diff" in content.lower()
     assert "user supplement" in content.lower()
     assert "incremental" in content.lower()
+    assert "after recording updates, re-evaluate runtime readiness through the shared freshness contract" in content.lower()
+    assert "do not report refresh completion when the runtime remains blocked" in content.lower()
+    assert "partial_refresh" in content.lower()

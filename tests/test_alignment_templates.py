@@ -166,6 +166,16 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "review_topics" not in lowered
     assert "## Spec Quality Gate (`spec-lint`)" not in block
 
+    repo_docs = "\n".join(
+        [
+            _read("README.md").lower(),
+            _read("PROJECT-HANDBOOK.md").lower(),
+            _read("templates/project-handbook-template.md").lower(),
+        ]
+    )
+    assert "recorded refresh and ready refresh" in repo_docs
+    assert "support drift" in repo_docs
+
 
 def test_core_sp_templates_use_learning_review_hooks():
     command_templates_with_signal = {
@@ -295,7 +305,11 @@ def test_specify_template_uses_alignment_first_contract():
     assert "focused" in lowered
     assert "full" in lowered
     assert "project-map freshness helper" in lowered
-    assert "freshness is `missing` or `stale`" in lowered
+    assert "freshness is `missing`" in lowered
+    assert "freshness is `stale`" in lowered
+    assert "freshness is `support_drift`" in lowered
+    assert "freshness is `partial_refresh`" in lowered
+    assert "recommended_next_action" in lowered
     assert "freshness is `possibly_stale`" in lowered
     assert "must_refresh_topics" in lowered
     assert "review_topics" in lowered
@@ -1571,6 +1585,9 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     assert ".specify/project-cognition/graph/claims.json" in shared_gate
     assert ".specify/project-cognition/graph/conflicts.json" in shared_gate
     assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
+    assert "`support_drift` -> stop and tell the user to resolve support-surface drift" in shared_gate
+    assert "`partial_refresh` -> tell the user the refresh was recorded but readiness did not pass" in shared_gate
+    assert "`recommended_next_action`" in shared_gate
     assert "PROJECT-HANDBOOK.md" not in shared_gate
     assert "atlas.entry" not in shared_gate
     assert "compatibility shim" in lowered_shim
@@ -1973,6 +1990,88 @@ def test_specify_template_requires_fixed_heavy_draft_ledger_contract():
     assert "# Specify Observer Worker Prompt" in observer_prompt
     assert "missing_critical_capabilities" in observer_prompt
     assert "release_blockers" in observer_prompt
+
+
+def test_specify_template_requires_brainstorming_lock_flow_and_handoff_chain() -> None:
+    content = _read("templates/commands/specify.md")
+    lowered = content.lower()
+
+    assert "brainstorming kernel" in lowered
+    assert "facts-lock" in lowered
+    assert "route-lock" in lowered
+    assert "intent-lock" in lowered
+    assert "complexity-lock" in lowered
+    assert "brainstorming/facts.json" in content
+    assert "brainstorming/route.json" in content
+    assert "brainstorming/intent.json" in content
+    assert "brainstorming/complexity.json" in content
+    assert "handoff-to-specify.json" in content
+    assert "dynamic is allowed only" in lowered or "dynamic routing only" in lowered
+    assert "hard unknown" in lowered
+    assert "reopen" in lowered
+
+
+def test_compiled_artifact_templates_preserve_route_and_complexity_truth() -> None:
+    spec = _read("templates/spec-template.md")
+    alignment = _read("templates/alignment-template.md")
+    context = _read("templates/context-template.md")
+    references = _read("templates/references-template.md")
+
+    assert "## Brainstorming Truth Inputs" in spec
+    assert "Route: [compiled from route.json]" in spec
+    assert "Complexity: [compiled from complexity.json]" in spec
+    assert "Must Preserve" in spec
+    assert "Allowed Optimization Scope" in spec
+
+    assert "## Route And Complexity Summary" in alignment
+    assert "Primary Route" in alignment
+    assert "Complexity Level: [T1 | T2 | T3 | T4]" in alignment
+    assert "Hard Unknowns Cleared" in alignment
+    assert "Reopen Required" in alignment
+
+    assert "## Brainstorming-Derived Execution Context" in context
+    assert "Truth Owner" in context
+    assert "Compatibility Constraints" in context
+    assert "Allowed Internal Redesign" in context
+
+    assert "## Truth Sources Used For Route And Intent Lock" in references
+
+
+def test_plan_tasks_and_implement_templates_consume_structured_handoff_contracts() -> None:
+    plan = _read("templates/commands/plan.md")
+    tasks = _read("templates/commands/tasks.md")
+    implement = _read("templates/commands/implement.md")
+
+    assert "handoff-to-plan.json" in plan
+    assert "route, intent, complexity" in plan.lower()
+    assert "handoff-to-tasks.json" in tasks
+    assert "task packet" in tasks.lower()
+    assert "handoff-to-implement.json" in implement
+    assert "must-preserve invariants" in implement.lower()
+    assert "allowed optimization scope" in implement.lower()
+    assert "stop-and-reopen conditions" in implement.lower()
+
+
+def test_implement_template_requires_structured_execution_contract_from_tasks() -> None:
+    implement = _read("templates/commands/implement.md").lower()
+
+    assert "handoff-to-implement.json" in implement
+    assert "must-preserve invariants" in implement
+    assert "allowed optimization scope" in implement
+    assert "stop-and-reopen conditions" in implement
+    assert "cannot redefine the product goal" in implement or "must not redefine the product goal" in implement
+
+
+def test_implement_execution_state_template_requires_structured_execution_contract_from_tasks() -> None:
+    content = _read("templates/implement-execution-state-template.json")
+
+    assert '"status": "gathering"' in content
+    assert '"current_batch": null' in content
+    assert '"complexity_level": null' in content
+    assert '"active_packet_ids": []' in content
+    assert '"must_preserve": []' in content
+    assert '"allowed_optimization_scope": []' in content
+    assert '"open_reopen_conditions": []' in content
 
 
 def test_specify_template_locks_fixed_heavy_discovery_lifecycle_contract() -> None:
