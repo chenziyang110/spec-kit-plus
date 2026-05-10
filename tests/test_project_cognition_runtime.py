@@ -46,13 +46,22 @@ def _write_cognition_runtime(
     (cognition_dir / "graph" / "conflicts.json").write_text('{"conflicts": []}\n', encoding="utf-8")
 
 
-def _reference_runtime():
+def _discovery_runtime():
     try:
-        return import_module("specify_cli.cognition.reference")
+        return import_module("specify_cli.cognition.discovery")
     except ModuleNotFoundError as exc:
-        if exc.name not in {"specify_cli.cognition.reference"}:
+        if exc.name not in {"specify_cli.cognition.discovery"}:
             raise
-        pytest.fail(f"cross-project cognition reference helpers are missing: {exc}")
+        pytest.fail(f"cross-project cognition discovery helpers are missing: {exc}")
+
+
+def _reference_read_runtime():
+    try:
+        return import_module("specify_cli.cognition.reference_read")
+    except ModuleNotFoundError as exc:
+        if exc.name not in {"specify_cli.cognition.reference_read"}:
+            raise
+        pytest.fail(f"cross-project cognition reference-read helpers are missing: {exc}")
 
 
 def test_cognition_runtime_paths_live_under_project_cognition(tmp_path: Path) -> None:
@@ -80,59 +89,62 @@ def test_cognition_runtime_paths_live_under_project_cognition(tmp_path: Path) ->
     assert graph_slices_dir(tmp_path) == tmp_path / ".specify" / "project-cognition" / "slices"
 
 
-def test_reference_discovery_requires_explicit_nested_project_roots(tmp_path: Path) -> None:
-    runtime = _reference_runtime()
-    primary = tmp_path / "primary"
-    nested_reference = primary / "vendor" / "reference-app"
-    project_map_only = primary / "vendor" / "project-map-only"
+def test_reference_discovery_recurses_from_explicit_root_to_nested_project_cognition(tmp_path: Path) -> None:
+    runtime = _discovery_runtime()
+    reference_root = tmp_path / "reference-corpus"
+    nested_reference = reference_root / "vendor" / "reference-app"
+    sibling_reference = reference_root / "examples" / "another-app"
+    project_map_only = reference_root / "vendor" / "project-map-only"
 
-    _write_cognition_runtime(primary)
     _write_cognition_runtime(nested_reference)
+    _write_cognition_runtime(sibling_reference)
     (project_map_only / ".specify" / "project-map" / "index").mkdir(parents=True)
     (project_map_only / ".specify" / "project-map" / "index" / "status.json").write_text(
         '{"freshness": "fresh"}\n',
         encoding="utf-8",
     )
 
-    implicit = runtime.discover_reference_projects(primary, explicit_roots=[])
+    implicit = runtime.discover_reference_projects(None)
     assert implicit == []
 
-    discovered = runtime.discover_reference_projects(primary, explicit_roots=[nested_reference, project_map_only])
+    discovered = runtime.discover_reference_projects(reference_root)
 
-    assert [item.project_root for item in discovered] == [nested_reference]
-    assert discovered[0].status_path == nested_reference / ".specify" / "project-cognition" / "status.json"
-    assert discovered[0].role == "supplemental"
-    assert discovered[0].truth_surface == ".specify/project-cognition"
+    discovered_by_root = {item.project_root: item for item in discovered}
+    assert set(discovered_by_root) == {sibling_reference, nested_reference}
+    assert discovered_by_root[nested_reference].status_path == (
+        nested_reference / ".specify" / "project-cognition" / "status.json"
+    )
+    assert {item.role for item in discovered} == {"supplemental-only"}
+    assert {item.truth_surface for item in discovered} == {".specify/project-cognition"}
+    assert all(".specify/project-map/" not in item.status_path.as_posix() for item in discovered)
 
 
 def test_reference_read_plan_admits_only_fresh_supplemental_cognition_and_keeps_minimal_order(
     tmp_path: Path,
 ) -> None:
-    runtime = _reference_runtime()
-    primary = tmp_path / "primary"
+    runtime = _reference_read_runtime()
     fresh_reference = tmp_path / "fresh-reference"
     stale_reference = tmp_path / "stale-reference"
 
-    _write_cognition_runtime(primary)
     _write_cognition_runtime(fresh_reference, baseline_state="fresh")
     _write_cognition_runtime(stale_reference, baseline_state="stale")
 
-    plan = runtime.build_reference_read_plan(
-        primary,
-        explicit_roots=[fresh_reference, stale_reference],
-        workflow="change",
+    result = runtime.read_reference_project_cognition(
+        fresh_reference,
+        slice_name="change",
+        include_graph=["claims", "conflicts"],
     )
 
-    assert [item.project_root for item in plan.admitted] == [fresh_reference]
-    assert [(item.project_root, item.reason) for item in plan.rejected] == [
-        (stale_reference, "cognition-not-fresh")
-    ]
-    assert plan.primary_project_root == primary
-    assert plan.reference_mode == "supplemental-only"
-    assert plan.minimal_read_order == [
+    assert result.project_root == fresh_reference
+    assert result.reference_mode == "supplemental-only"
+    assert result.freshness_rule == "fresh-only"
+    assert result.minimal_read_order == [
         fresh_reference / ".specify" / "project-cognition" / "status.json",
         fresh_reference / ".specify" / "project-cognition" / "slices" / "change.json",
         fresh_reference / ".specify" / "project-cognition" / "graph" / "claims.json",
         fresh_reference / ".specify" / "project-cognition" / "graph" / "conflicts.json",
     ]
-    assert all(".specify/project-map/" not in path.as_posix() for path in plan.minimal_read_order)
+    assert all(".specify/project-map/" not in path.as_posix() for path in result.minimal_read_order)
+
+    with pytest.raises(runtime.ReferenceProjectReadError, match="fresh-only"):
+        runtime.read_reference_project_cognition(stale_reference, slice_name="change")

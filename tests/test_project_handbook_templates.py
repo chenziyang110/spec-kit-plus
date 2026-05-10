@@ -148,9 +148,9 @@ def test_project_handbook_template_defines_cross_project_cognition_reference_con
     lowered = content.lower()
 
     assert "cross-project cognition reference" in lowered
-    assert "explicit" in lowered
-    assert "supplemental" in lowered
-    assert "fresh" in lowered
+    assert "explicit-only" in lowered
+    assert "supplemental-only" in lowered
+    assert "fresh-only" in lowered
     assert "minimal read" in lowered
     assert "`.specify/project-cognition/status.json`" in content
     assert "`.specify/project-cognition/slices/change.json`" in content

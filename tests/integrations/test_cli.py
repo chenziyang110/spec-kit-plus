@@ -2439,8 +2439,9 @@ def test_maybe_bootstrap_codex_teams_environment_runs_psmux_and_initial_commit(m
 def test_cognition_discover_reports_only_explicit_fresh_project_cognition_references(tmp_path):
     runner = CliRunner()
     project = tmp_path / "project"
-    reference = tmp_path / "reference"
-    stale_reference = tmp_path / "stale-reference"
+    reference_root = tmp_path / "reference-corpus"
+    reference = reference_root / "examples" / "reference"
+    stale_reference = reference_root / "vendor" / "stale-reference"
     implicit_nested = project / "vendor" / "implicit"
 
     for root, freshness in (
@@ -2468,10 +2469,8 @@ def test_cognition_discover_reports_only_explicit_fresh_project_cognition_refere
             [
                 "cognition",
                 "discover",
-                "--reference-root",
-                str(reference),
-                "--reference-root",
-                str(stale_reference),
+                "--root",
+                str(reference_root),
                 "--format",
                 "json",
             ],
@@ -2483,7 +2482,9 @@ def test_cognition_discover_reports_only_explicit_fresh_project_cognition_refere
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload["status"] == "ok"
+    assert payload["discovery_rule"] == "explicit-only"
     assert payload["reference_mode"] == "supplemental-only"
+    assert payload["freshness_rule"] == "fresh-only"
     assert payload["primary_truth_surface"] == ".specify/project-cognition"
     assert [item["project_root"] for item in payload["admitted"]] == [str(reference)]
     assert payload["admitted"][0]["freshness"] == "fresh"
@@ -2531,10 +2532,14 @@ def test_cognition_read_outputs_minimal_reference_read_order_without_project_map
             [
                 "cognition",
                 "read",
-                "--reference-root",
+                "--project",
                 str(reference),
-                "--workflow",
+                "--slice",
                 "change",
+                "--include-graph",
+                "claims",
+                "--include-graph",
+                "conflicts",
                 "--format",
                 "json",
             ],
@@ -2546,8 +2551,10 @@ def test_cognition_read_outputs_minimal_reference_read_order_without_project_map
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload["status"] == "ok"
+    assert payload["freshness_rule"] == "fresh-only"
     assert payload["reference_mode"] == "supplemental-only"
-    assert payload["primary_project_root"] == str(project)
+    assert payload["project_root"] == str(reference)
+    assert payload["slice"] == "change"
     assert payload["minimal_read_order"] == [
         str(reference / ".specify" / "project-cognition" / "status.json"),
         str(reference / ".specify" / "project-cognition" / "slices" / "change.json"),

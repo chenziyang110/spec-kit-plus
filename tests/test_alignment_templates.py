@@ -494,9 +494,9 @@ def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     assert ".specify/project-cognition/status.json" in lowered
     assert ".specify/project-cognition/slices/change.json" in lowered
     assert "cross-project cognition reference" in lowered
-    assert "explicit" in lowered
-    assert "supplemental" in lowered
-    assert "fresh" in lowered
+    assert "explicit-only" in lowered
+    assert "supplemental-only" in lowered
+    assert "fresh-only" in lowered
     assert "minimal read" in lowered
     assert "compatibility/export surfaces" in lowered
     assert "primary runtime truth" in lowered or "primary brownfield context surface" in lowered
