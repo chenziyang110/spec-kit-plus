@@ -2437,7 +2437,7 @@ def test_maybe_bootstrap_codex_teams_environment_runs_psmux_and_initial_commit(m
     assert final_status["git_head_available"] is True
 
 
-def test_cognition_discover_reports_only_explicit_fresh_project_cognition_references(tmp_path):
+def test_cognition_discover_reports_nested_project_cognition_candidates(tmp_path):
     runner = CliRunner()
     project = tmp_path / "project"
     reference_root = tmp_path / "reference-corpus"
@@ -2580,3 +2580,67 @@ def test_cognition_read_outputs_minimal_reference_read_order_without_project_map
 
     assert stale_result.exit_code != 0
     assert "fresh-only" in stale_result.output.lower()
+
+
+def test_cognition_read_reports_controlled_errors_for_missing_or_malformed_reference_artifacts(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "project"
+    reference = tmp_path / "reference"
+
+    (project / ".specify" / "project-cognition" / "status.json").parent.mkdir(parents=True)
+    (reference / ".specify" / "project-cognition" / "slices").mkdir(parents=True)
+    (reference / ".specify" / "project-cognition" / "status.json").write_text(
+        json.dumps({"baseline_state": "fresh", "freshness": "fresh", "graph_ready": True}),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        missing_slice = runner.invoke(
+            app,
+            [
+                "cognition",
+                "read",
+                "--project",
+                str(reference),
+                "--slice",
+                "change",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert missing_slice.exit_code != 0
+    assert "slice artifact is missing" in missing_slice.output.lower()
+
+    (reference / ".specify" / "project-cognition" / "status.json").write_text(
+        "{not-json}\n",
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        malformed_status = runner.invoke(
+            app,
+            [
+                "cognition",
+                "read",
+                "--project",
+                str(reference),
+                "--slice",
+                "change",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert malformed_status.exit_code != 0
+    assert "status artifact is malformed" in malformed_status.output.lower()

@@ -13,8 +13,22 @@ class ReferenceProjectReadError(RuntimeError):
     """Raised when a reference project's cognition artifacts cannot be read."""
 
 
-def _read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+def _read_json(path: Path, *, kind: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ReferenceProjectReadError(
+            f"{kind} artifact is missing: {path.as_posix()}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise ReferenceProjectReadError(
+            f"{kind} artifact is malformed: {path.as_posix()}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise ReferenceProjectReadError(
+            f"{kind} artifact must contain a JSON object: {path.as_posix()}"
+        )
+    return payload
 
 
 def _relative_cognition_path(path: Path, project_root: Path) -> str:
@@ -48,7 +62,7 @@ def read_reference_project_cognition(
 ) -> dict[str, Any]:
     """Read the minimal fresh project-cognition artifacts for a reference project."""
     status_path = cognition_status_path(project_root)
-    status_payload = _read_json(status_path)
+    status_payload = _read_json(status_path, kind="status")
     freshness = _freshness_from_status(status_payload)
     if freshness != "fresh":
         raise ReferenceProjectReadError(
@@ -57,7 +71,7 @@ def read_reference_project_cognition(
 
     slice_artifact = _json_artifact_name(slice_name, kind="slice")
     slice_path = graph_slices_dir(project_root) / slice_artifact
-    slice_payload = _read_json(slice_path)
+    slice_payload = _read_json(slice_path, kind="slice")
     slice_record = dict(slice_payload.get("slice", {}))
     slice_record.setdefault("slice_id", Path(slice_artifact).stem)
 
@@ -70,7 +84,7 @@ def read_reference_project_cognition(
         graph_artifact = _json_artifact_name(graph_name, kind="graph")
         graph_path = graph_dir(project_root) / graph_artifact
         graph_key = Path(graph_artifact).stem
-        graph_payload[graph_key] = _read_json(graph_path)
+        graph_payload[graph_key] = _read_json(graph_path, kind="graph")
         minimal_read_order.append(_relative_cognition_path(graph_path, project_root))
 
     return {

@@ -12,8 +12,8 @@ def _write_cognition_runtime(
     slice_name: str = "change.json",
 ) -> None:
     cognition_dir = project_root / ".specify" / "project-cognition"
-    (cognition_dir / "slices").mkdir(parents=True)
-    (cognition_dir / "graph").mkdir(parents=True)
+    (cognition_dir / "slices").mkdir(parents=True, exist_ok=True)
+    (cognition_dir / "graph").mkdir(parents=True, exist_ok=True)
     (cognition_dir / "status.json").write_text(
         json.dumps(
             {
@@ -90,7 +90,9 @@ def test_cognition_runtime_paths_live_under_project_cognition(tmp_path: Path) ->
     assert graph_slices_dir(tmp_path) == tmp_path / ".specify" / "project-cognition" / "slices"
 
 
-def test_reference_discovery_recurses_from_explicit_root_to_nested_project_cognition(tmp_path: Path) -> None:
+def test_reference_discovery_recurses_from_explicit_root_to_nested_project_cognition_candidates(
+    tmp_path: Path,
+) -> None:
     runtime = _discovery_runtime()
     reference_root = tmp_path / "reference-corpus"
     nested_reference = reference_root / "vendor" / "reference-app"
@@ -149,3 +151,25 @@ def test_reference_read_returns_admission_slice_graph_and_provenance_for_fresh_c
 
     with pytest.raises(runtime.ReferenceProjectReadError, match="fresh-only"):
         runtime.read_reference_project_cognition(stale_reference, slice_name="change")
+
+
+def test_reference_read_raises_controlled_error_for_missing_slice_or_malformed_json(
+    tmp_path: Path,
+) -> None:
+    runtime = _reference_read_runtime()
+    project_root = tmp_path / "reference-project"
+
+    _write_cognition_runtime(project_root, baseline_state="fresh")
+    (project_root / ".specify" / "project-cognition" / "slices" / "change.json").unlink()
+
+    with pytest.raises(runtime.ReferenceProjectReadError, match="slice artifact is missing"):
+        runtime.read_reference_project_cognition(project_root, slice_name="change")
+
+    _write_cognition_runtime(project_root, baseline_state="fresh")
+    (project_root / ".specify" / "project-cognition" / "status.json").write_text(
+        "{not-json}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(runtime.ReferenceProjectReadError, match="status artifact is malformed"):
+        runtime.read_reference_project_cognition(project_root, slice_name="change")
