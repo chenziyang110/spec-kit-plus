@@ -86,6 +86,7 @@ analysis continues.
   - `phase_mode: planning-only`
   - `current_stage: facts-lock`
   - `current_domain: none`
+
   - `current_domain: request-truth`
   - `next_action`
   - `blocker_reason`
@@ -182,6 +183,7 @@ Generate the pre-analysis output as the first section of `context.md`.
      - `phase_mode: planning-only`
      - `current_stage: facts-lock`
      - `current_domain: none`
+
      - `current_domain: request-truth`
      - `next_action`
      - `blocker_reason`
@@ -247,7 +249,6 @@ Generate the pre-analysis output as the first section of `context.md`.
 - Treat `SPECIFY_DRAFT_FILE` as the durable clarification ledger and resume anchor for `sp-specify`.
 - Treat `SPECIFY_DRAFT_FILE` as the content ledger for the whole discovery run,
   not as a per-capability scratchpad.
-- Treat `SPECIFY_DRAFT_FILE` as the content ledger for the whole discovery run.
 - After every clarification answer, update `SPECIFY_DRAFT_FILE` before asking the next question.
 - Record at least: the intent-analysis summary, current stage, current domain, confirmed facts, low-risk inferences, unresolved items, recent question-batch disposition, adversarial-review findings, completeness gaps, and the next question target.
 - If a later answer invalidates the current path, reopen the current domain instead of layering contradictory requirements into the ledger.
@@ -257,7 +258,6 @@ Generate the pre-analysis output as the first section of `context.md`.
 - `sp-specify` no longer assumes the request already starts in feature-spec
   shape.
 ## Brainstorming Kernel Lock Flow
-
 - Treat `SPECIFY_DRAFT_FILE` as the human-readable companion ledger for the whole discovery run, but treat the JSON files under `FEATURE_DIR/brainstorming/` as the authoritative truth layer.
 - `sp-specify` is the public entry shell; internally it must complete the brainstorming kernel before writing or releasing the compiled specification package.
 - Only `final-handoff-decision` may decide whether the canonical next command is `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.

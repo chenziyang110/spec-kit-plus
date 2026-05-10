@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from specify_cli import AGENT_CONFIG, AI_ASSISTANT_ALIASES, AI_ASSISTANT_HELP
+from specify_cli import AGENT_CONFIG, AI_ASSISTANT_ALIASES, AI_ASSISTANT_HELP, _get_skills_dir
 from specify_cli.integrations import get_integration
 from specify_cli.extensions import CommandRegistrar
 
@@ -12,7 +12,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class TestAgentConfigConsistency:
-    """Ensure kiro-cli migration stays synchronized across key surfaces."""
+    """Ensure agent config paths stay synchronized across runtime and registrar surfaces."""
+
+    def test_get_skills_dir_uses_agent_config_for_moved_skill_agents(self, tmp_path):
+        """Skills-dir resolution should follow the active agent config for moved skill agents."""
+        assert _get_skills_dir(tmp_path, "agy") == tmp_path / ".agents" / "skills"
+        assert _get_skills_dir(tmp_path, "cursor-agent") == tmp_path / ".cursor" / "skills"
+        assert _get_skills_dir(tmp_path, "trae") == tmp_path / ".trae" / "skills"
+        assert _get_skills_dir(tmp_path, "vibe") == tmp_path / ".vibe" / "skills"
+        assert _get_skills_dir(tmp_path, "codex") == tmp_path / ".codex" / "skills"
 
     def test_runtime_config_uses_kiro_cli_and_removes_q(self):
         """AGENT_CONFIG should include kiro-cli and exclude legacy q."""
@@ -41,6 +49,45 @@ class TestAgentConfigConsistency:
         """Codex runtime config should point at .codex/skills."""
         assert AGENT_CONFIG["codex"]["folder"] == ".codex/"
         assert AGENT_CONFIG["codex"]["commands_subdir"] == "skills"
+
+    def test_runtime_agy_uses_agents_skills(self):
+        """Antigravity runtime config should point at .agents/skills."""
+        assert AGENT_CONFIG["agy"]["folder"] == ".agents/"
+        assert AGENT_CONFIG["agy"]["commands_subdir"] == "skills"
+
+    def test_extension_registrar_includes_agy_skills(self):
+        """Extension command registrar should include agy targeting .agents/skills."""
+        cfg = CommandRegistrar.AGENT_CONFIGS
+
+        assert "agy" in cfg
+        assert cfg["agy"]["dir"] == ".agents/skills"
+        assert cfg["agy"]["extension"] == "/SKILL.md"
+
+    def test_runtime_cursor_agent_uses_native_skills(self):
+        """Cursor Agent runtime config should point at .cursor/skills."""
+        assert AGENT_CONFIG["cursor-agent"]["folder"] == ".cursor/"
+        assert AGENT_CONFIG["cursor-agent"]["commands_subdir"] == "skills"
+
+    def test_extension_registrar_includes_cursor_agent_skills(self):
+        """Extension command registrar should include cursor-agent targeting .cursor/skills."""
+        cfg = CommandRegistrar.AGENT_CONFIGS
+
+        assert "cursor-agent" in cfg
+        assert cfg["cursor-agent"]["dir"] == ".cursor/skills"
+        assert cfg["cursor-agent"]["extension"] == "/SKILL.md"
+
+    def test_runtime_vibe_uses_native_skills(self):
+        """Mistral Vibe runtime config should point at .vibe/skills."""
+        assert AGENT_CONFIG["vibe"]["folder"] == ".vibe/"
+        assert AGENT_CONFIG["vibe"]["commands_subdir"] == "skills"
+
+    def test_extension_registrar_includes_vibe_skills(self):
+        """Extension command registrar should include vibe targeting .vibe/skills."""
+        cfg = CommandRegistrar.AGENT_CONFIGS
+
+        assert "vibe" in cfg
+        assert cfg["vibe"]["dir"] == ".vibe/skills"
+        assert cfg["vibe"]["extension"] == "/SKILL.md"
 
     def test_codex_includes_team_template_but_claude_does_not(self):
         """The Codex-only team surface should not leak into non-Codex template lists."""
@@ -150,19 +197,20 @@ class TestAgentConfigConsistency:
         """AGENT_CONFIG should include trae with correct folder and commands_subdir."""
         assert "trae" in AGENT_CONFIG
         assert AGENT_CONFIG["trae"]["folder"] == ".trae/"
-        assert AGENT_CONFIG["trae"]["commands_subdir"] == "rules"
+        assert AGENT_CONFIG["trae"]["commands_subdir"] == "skills"
         assert AGENT_CONFIG["trae"]["requires_cli"] is False
         assert AGENT_CONFIG["trae"]["install_url"] is None
 
     def test_trae_in_extension_registrar(self):
-        """Extension command registrar should include trae using .trae/rules and markdown, if present."""
+        """Extension command registrar should include trae using .trae/skills and SKILL.md."""
         cfg = CommandRegistrar.AGENT_CONFIGS
 
         assert "trae" in cfg
         trae_cfg = cfg["trae"]
+        assert trae_cfg["dir"] == ".trae/skills"
         assert trae_cfg["format"] == "markdown"
         assert trae_cfg["args"] == "$ARGUMENTS"
-        assert trae_cfg["extension"] == ".md"
+        assert trae_cfg["extension"] == "/SKILL.md"
 
     def test_trae_in_agent_context_scripts(self):
         """Agent context scripts should support trae agent type."""

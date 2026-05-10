@@ -1,6 +1,6 @@
 """Antigravity (agy) integration — skills-based agent.
 
-Antigravity uses ``.agent/skills/sp-<name>/SKILL.md`` layout.
+Antigravity uses ``.agents/skills/sp-<name>/SKILL.md`` layout.
 Explicit command support was deprecated in version 1.20.5;
 ``--skills`` defaults to ``True``.
 """
@@ -16,13 +16,13 @@ class AgyIntegration(SkillsIntegration):
     key = "agy"
     config = {
         "name": "Antigravity",
-        "folder": ".agent/",
+        "folder": ".agents/",
         "commands_subdir": "skills",
         "install_url": None,
         "requires_cli": False,
     }
     registrar_config = {
-        "dir": ".agent/skills",
+        "dir": ".agents/skills",
         "format": "markdown",
         "args": "$ARGUMENTS",
         "extension": "/SKILL.md",

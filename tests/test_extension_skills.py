@@ -246,6 +246,16 @@ class TestExtensionManagerGetSkillsDir:
         result = manager._get_skills_dir()
         assert result is None
 
+    def test_returns_cursor_skills_dir_for_native_skill_integration(self, project_dir):
+        """Cursor agent should resolve to the moved .cursor/skills directory."""
+        _create_init_options(project_dir, ai="cursor-agent", ai_skills=True)
+        skills_dir = _create_skills_dir(project_dir, ai="cursor-agent")
+
+        manager = ExtensionManager(project_dir)
+        result = manager._get_skills_dir()
+
+        assert result == skills_dir
+
 
 class TestBuiltInSkillGeneration:
     """Built-in skill scaffolding should expose the latest command surfaces."""
@@ -741,6 +751,17 @@ def test_team_template_has_valid_frontmatter_boundary():
 
 
 # ===== Extension Skill Registration Tests =====
+
+def test_extension_skills_follow_cursor_skills_dir(project_dir, extension_dir):
+    _create_init_options(project_dir, ai="cursor-agent", ai_skills=True)
+    skills_dir = _create_skills_dir(project_dir, ai="cursor-agent")
+
+    manager = ExtensionManager(project_dir)
+    manager.install_from_directory(extension_dir, "0.1.0", register_commands=False)
+
+    assert (skills_dir / "sp-test-ext-hello" / "SKILL.md").exists()
+    assert (skills_dir / "sp-test-ext-world" / "SKILL.md").exists()
+
 
 class TestExtensionSkillRegistration:
     """Test _register_extension_skills() on ExtensionManager."""

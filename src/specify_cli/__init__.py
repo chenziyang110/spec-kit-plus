@@ -3449,7 +3449,9 @@ def init(
         step_num = 2
 
     # Determine skill display mode for the next-steps panel.
-    # Skills integrations (codex, kimi, agy) should show skill invocation syntax.
+    # Skills integrations should advertise the installed skills directory and
+    # render skills-oriented next-step copy, even when their invocation syntax
+    # differs across agents.
     from .integrations.base import SkillsIntegration as _SkillsInt
     _is_skills_integration = isinstance(resolved_integration, _SkillsInt)
 
@@ -3457,7 +3459,18 @@ def init(
     claude_skill_mode = selected_ai == "claude" and (ai_skills or _is_skills_integration)
     kimi_skill_mode = selected_ai == "kimi"
     agy_skill_mode = selected_ai == "agy" and _is_skills_integration
-    native_skill_mode = codex_skill_mode or claude_skill_mode or kimi_skill_mode or agy_skill_mode
+    cursor_agent_skill_mode = selected_ai == "cursor-agent" and _is_skills_integration
+    trae_skill_mode = selected_ai == "trae" and _is_skills_integration
+    vibe_skill_mode = selected_ai == "vibe" and _is_skills_integration
+    native_skill_mode = (
+        codex_skill_mode
+        or claude_skill_mode
+        or kimi_skill_mode
+        or agy_skill_mode
+        or cursor_agent_skill_mode
+        or trae_skill_mode
+        or vibe_skill_mode
+    )
 
     if native_skill_mode and not ai_skills:
         agent_start_labels = {
@@ -3465,6 +3478,9 @@ def init(
             "claude": "Claude",
             "kimi": "Kimi",
             "agy": "Antigravity",
+            "cursor-agent": "Cursor Agent",
+            "trae": "Trae",
+            "vibe": "Mistral Vibe",
         }
         agent_label = agent_start_labels.get(
             selected_ai,
@@ -3503,10 +3519,14 @@ def init(
     def _display_cmd(name: str) -> str:
         if codex_skill_mode or agy_skill_mode:
             return f"$sp-{name}"
+        if cursor_agent_skill_mode or vibe_skill_mode:
+            return f"/sp-{name}"
         if claude_skill_mode:
             return f"/sp-{name}"
         if kimi_skill_mode:
             return f"/skill:sp-{name}"
+        if trae_skill_mode:
+            return f"$sp-{name}"
         return f"/sp.{name}"
 
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
