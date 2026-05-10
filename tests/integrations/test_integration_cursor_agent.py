@@ -1,14 +1,31 @@
 """Tests for CursorAgentIntegration."""
 
-from .test_integration_base_markdown import MarkdownIntegrationTests
+from .test_integration_base_skills import SkillsIntegrationTests
 
 
-class TestCursorAgentIntegration(MarkdownIntegrationTests):
+class TestCursorAgentIntegration(SkillsIntegrationTests):
     KEY = "cursor-agent"
     FOLDER = ".cursor/"
-    COMMANDS_SUBDIR = "commands"
-    REGISTRAR_DIR = ".cursor/commands"
+    COMMANDS_SUBDIR = "skills"
+    REGISTRAR_DIR = ".cursor/skills"
     CONTEXT_FILE = ".cursor/rules/specify-rules.mdc"
+
+
+def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "cursor-skills-runtime"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "cursor-agent", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
+    assert (target / ".cursor" / "skills" / "sp-plan" / "SKILL.md").exists()
+    assert (target / ".cursor" / "skills" / "spec-kit-workflow-routing" / "SKILL.md").exists()
 
 
 def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
@@ -25,7 +42,7 @@ def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
 
     assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
 
-    skill_path = target / ".cursor" / "commands" / "sp.quick.md"
+    skill_path = target / ".cursor" / "skills" / "sp-quick" / "SKILL.md"
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert ".specify/memory/constitution.md" in content
@@ -58,7 +75,7 @@ def test_cursor_generated_sp_quick_prefers_subagent_execution(tmp_path):
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in content
 
 
-def test_cursor_runtime_commands_hard_gate_project_map_reads(tmp_path):
+def test_cursor_runtime_skills_hard_gate_project_map_reads(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -73,9 +90,9 @@ def test_cursor_runtime_commands_hard_gate_project_map_reads(tmp_path):
     assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
 
     for rel in (
-        ".cursor/commands/sp.implement.md",
-        ".cursor/commands/sp.debug.md",
-        ".cursor/commands/sp.quick.md",
+        ".cursor/skills/sp-implement/SKILL.md",
+        ".cursor/skills/sp-debug/SKILL.md",
+        ".cursor/skills/sp-quick/SKILL.md",
     ):
         content = (target / rel).read_text(encoding="utf-8").lower()
         assert "crucial first step" in content

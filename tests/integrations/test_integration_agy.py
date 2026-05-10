@@ -5,9 +5,9 @@ from .test_integration_base_skills import SkillsIntegrationTests
 
 class TestAgyIntegration(SkillsIntegrationTests):
     KEY = "agy"
-    FOLDER = ".agent/"
+    FOLDER = ".agents/"
     COMMANDS_SUBDIR = "skills"
-    REGISTRAR_DIR = ".agent/skills"
+    REGISTRAR_DIR = ".agents/skills"
     CONTEXT_FILE = "AGENTS.md"
 
 
@@ -24,4 +24,4 @@ class TestAgyAutoPromote:
         result = runner.invoke(app, ["init", str(target), "--ai", "agy", "--no-git", "--script", "sh"])
 
         assert result.exit_code == 0, f"init --ai agy failed: {result.output}"
-        assert (target / ".agent" / "skills" / "sp-plan" / "SKILL.md").exists()
+        assert (target / ".agents" / "skills" / "sp-plan" / "SKILL.md").exists()
