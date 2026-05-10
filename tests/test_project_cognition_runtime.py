@@ -23,6 +23,7 @@ def _write_cognition_runtime(
                 "baseline_branch": "main",
                 "baseline_built_at": "2026-05-10T00:00:00Z",
                 "graph_ready": True,
+                "freshness": baseline_state,
             }
         ),
         encoding="utf-8",
@@ -104,22 +105,20 @@ def test_reference_discovery_recurses_from_explicit_root_to_nested_project_cogni
         encoding="utf-8",
     )
 
-    implicit = runtime.discover_reference_projects(None)
-    assert implicit == []
+    payload = runtime.discover_reference_projects(reference_root)
 
-    discovered = runtime.discover_reference_projects(reference_root)
-
-    discovered_by_root = {item.project_root: item for item in discovered}
-    assert set(discovered_by_root) == {sibling_reference, nested_reference}
-    assert discovered_by_root[nested_reference].status_path == (
-        nested_reference / ".specify" / "project-cognition" / "status.json"
-    )
-    assert {item.role for item in discovered} == {"supplemental-only"}
-    assert {item.truth_surface for item in discovered} == {".specify/project-cognition"}
-    assert all(".specify/project-map/" not in item.status_path.as_posix() for item in discovered)
+    project_roots = {Path(project["root"]) for project in payload["projects"]}
+    assert project_roots == {sibling_reference, nested_reference}
+    assert {
+        Path(project["status_path"]) for project in payload["projects"]
+    } == {
+        sibling_reference / ".specify" / "project-cognition" / "status.json",
+        nested_reference / ".specify" / "project-cognition" / "status.json",
+    }
+    assert all(".specify/project-map/" not in json.dumps(project) for project in payload["projects"])
 
 
-def test_reference_read_plan_admits_only_fresh_supplemental_cognition_and_keeps_minimal_order(
+def test_reference_read_returns_admission_slice_graph_and_provenance_for_fresh_cognition(
     tmp_path: Path,
 ) -> None:
     runtime = _reference_read_runtime()
@@ -135,16 +134,12 @@ def test_reference_read_plan_admits_only_fresh_supplemental_cognition_and_keeps_
         include_graph=["claims", "conflicts"],
     )
 
-    assert result.project_root == fresh_reference
-    assert result.reference_mode == "supplemental-only"
-    assert result.freshness_rule == "fresh-only"
-    assert result.minimal_read_order == [
-        fresh_reference / ".specify" / "project-cognition" / "status.json",
-        fresh_reference / ".specify" / "project-cognition" / "slices" / "change.json",
-        fresh_reference / ".specify" / "project-cognition" / "graph" / "claims.json",
-        fresh_reference / ".specify" / "project-cognition" / "graph" / "conflicts.json",
-    ]
-    assert all(".specify/project-map/" not in path.as_posix() for path in result.minimal_read_order)
+    assert result["admission"]["freshness"] == "fresh"
+    assert result["slice"]["slice_id"] == "change"
+    assert "claims" in result["graph"]
+    assert "conflicts" in result["graph"]
+    assert result["provenance"]["project_root"] == str(fresh_reference)
+    assert ".specify/project-map/" not in json.dumps(result)
 
     with pytest.raises(runtime.ReferenceProjectReadError, match="fresh-only"):
         runtime.read_reference_project_cognition(stale_reference, slice_name="change")

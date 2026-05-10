@@ -2441,13 +2441,13 @@ def test_cognition_discover_reports_only_explicit_fresh_project_cognition_refere
     project = tmp_path / "project"
     reference_root = tmp_path / "reference-corpus"
     reference = reference_root / "examples" / "reference"
-    stale_reference = reference_root / "vendor" / "stale-reference"
+    nested_reference = reference_root / "vendor" / "nested-reference"
     implicit_nested = project / "vendor" / "implicit"
 
     for root, freshness in (
         (project, "fresh"),
         (reference, "fresh"),
-        (stale_reference, "stale"),
+        (nested_reference, "stale"),
         (implicit_nested, "fresh"),
     ):
         (root / ".specify" / "project-cognition" / "slices").mkdir(parents=True)
@@ -2481,16 +2481,8 @@ def test_cognition_discover_reports_only_explicit_fresh_project_cognition_refere
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["status"] == "ok"
-    assert payload["discovery_rule"] == "explicit-only"
-    assert payload["reference_mode"] == "supplemental-only"
-    assert payload["freshness_rule"] == "fresh-only"
-    assert payload["primary_truth_surface"] == ".specify/project-cognition"
-    assert [item["project_root"] for item in payload["admitted"]] == [str(reference)]
-    assert payload["admitted"][0]["freshness"] == "fresh"
-    assert payload["rejected"][0]["project_root"] == str(stale_reference)
-    assert payload["rejected"][0]["reason"] == "cognition-not-fresh"
-    assert all("implicit" not in json.dumps(item) for item in payload["admitted"])
+    assert {Path(project["root"]) for project in payload["projects"]} == {reference, nested_reference}
+    assert all("implicit" not in json.dumps(project) for project in payload["projects"])
     assert ".specify/project-map" not in json.dumps(payload)
 
 
@@ -2499,11 +2491,13 @@ def test_cognition_read_outputs_minimal_reference_read_order_without_project_map
     project = tmp_path / "project"
     reference = tmp_path / "reference"
 
-    for root in (project, reference):
+    stale_reference = tmp_path / "stale-reference"
+
+    for root, freshness in ((project, "fresh"), (reference, "fresh"), (stale_reference, "stale")):
         (root / ".specify" / "project-cognition" / "slices").mkdir(parents=True)
         (root / ".specify" / "project-cognition" / "graph").mkdir(parents=True)
         (root / ".specify" / "project-cognition" / "status.json").write_text(
-            json.dumps({"baseline_state": "fresh", "graph_ready": True}),
+            json.dumps({"baseline_state": freshness, "freshness": freshness, "graph_ready": True}),
             encoding="utf-8",
         )
         (root / ".specify" / "project-cognition" / "slices" / "change.json").write_text(
@@ -2550,15 +2544,32 @@ def test_cognition_read_outputs_minimal_reference_read_order_without_project_map
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["status"] == "ok"
-    assert payload["freshness_rule"] == "fresh-only"
-    assert payload["reference_mode"] == "supplemental-only"
-    assert payload["project_root"] == str(reference)
-    assert payload["slice"] == "change"
-    assert payload["minimal_read_order"] == [
-        str(reference / ".specify" / "project-cognition" / "status.json"),
-        str(reference / ".specify" / "project-cognition" / "slices" / "change.json"),
-        str(reference / ".specify" / "project-cognition" / "graph" / "claims.json"),
-        str(reference / ".specify" / "project-cognition" / "graph" / "conflicts.json"),
-    ]
+    assert payload["admission"]["freshness"] == "fresh"
+    assert payload["slice"]["slice_id"] == "change"
+    assert "claims" in payload["graph"]
+    assert "conflicts" in payload["graph"]
+    assert "provenance" in payload
     assert ".specify/project-map" not in json.dumps(payload)
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        stale_result = runner.invoke(
+            app,
+            [
+                "cognition",
+                "read",
+                "--project",
+                str(stale_reference),
+                "--slice",
+                "change",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert stale_result.exit_code != 0
+    assert "fresh-only" in stale_result.output.lower()
