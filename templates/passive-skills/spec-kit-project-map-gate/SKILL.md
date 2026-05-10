@@ -36,15 +36,23 @@ judgment in an established Spec Kit Plus repository:
 - Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
 - Feature creation remains `{{invoke:specify}}` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate branch-creation command.
 
-## Missing Or Stale Cognition
+## Freshness State Guidance
 
 - If the project cognition runtime is missing, route through the canonical
   `sp-map-scan -> sp-map-build` workflow detour before continuing. When giving
   the user an explicit command to type, write
   `{{invoke:map-scan}} -> {{invoke:map-build}}`.
-- If the project cognition runtime is stale or too weak for a localized touched
-  area, route through `sp-map-update` first. When giving the user an explicit
+- If the project cognition runtime is stale for a localized touched area, route
+  through `sp-map-update` first. When giving the user an explicit
   command to type, write `{{invoke:map-update}}`.
+- If the freshness state is `support_drift`, stop and tell the user to resolve
+  support-surface drift; do not reflexively route to `sp-map-update`.
+- If the freshness state is `partial_refresh`, tell the user the refresh was
+  recorded but readiness did not pass; follow the reported
+  `recommended_next_action` instead of implying success.
+- Preserve the distinction between the machine freshness field and public state
+  guidance: `freshness` records factual state, while `recommended_next_action`
+  tells the operator what to do next.
 - If no usable localized baseline remains, route through
   `{{invoke:map-scan}} -> {{invoke:map-build}}`.
 - Treat that detour as a user-invoked workflow handoff. Do not silently switch into

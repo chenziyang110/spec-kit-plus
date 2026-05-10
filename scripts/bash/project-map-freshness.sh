@@ -261,7 +261,12 @@ classify_path() {
             echo "ignore"
             return 0
             ;;
-        .specify/templates/*|\
+        .specify/templates/runtime-config.template.json|\
+        .specify/templates/testing/support/*)
+            echo "support_drift"
+            return 0
+            ;;
+        .specify/templates/project-map/*|\
         .specify/memory/*|\
         .specify/extensions.yml|\
         .github/workflows/*|\
@@ -270,6 +275,10 @@ classify_path() {
         composer.json|composer.lock|gemfile|gemfile.lock|\
         dockerfile|docker-compose.yml|docker-compose.yaml|makefile)
             echo "stale"
+            return 0
+            ;;
+        .specify/templates/*)
+            echo "ignore"
             return 0
             ;;
     esac
@@ -542,11 +551,50 @@ emit_check_json() {
     local dirty_origin_feature_dir="${12:-}"
     local dirty_origin_lane_id="${13:-}"
     local dirty_scope_paths_json="${14:-[]}"
+    local state="fresh"
+    local readiness="blocked"
+    local recommended_next_action="retry_current_workflow"
+
+    case "$freshness" in
+        missing)
+            state="missing_baseline"
+            readiness="blocked"
+            recommended_next_action="run_map_scan_build"
+            ;;
+        stale)
+            state="runtime_stale"
+            readiness="blocked"
+            recommended_next_action="run_map_update"
+            ;;
+        possibly_stale)
+            state="runtime_stale"
+            readiness="review"
+            recommended_next_action="run_map_update"
+            ;;
+        support_drift)
+            state="support_drift"
+            readiness="blocked"
+            recommended_next_action="commit_or_ignore_support_files"
+            ;;
+        partial_refresh)
+            state="partial_refresh"
+            readiness="blocked"
+            recommended_next_action="run_map_update"
+            ;;
+        fresh)
+            state="fresh"
+            readiness="ready"
+            recommended_next_action="retry_current_workflow"
+            ;;
+    esac
 
     cat <<EOF
 {
   "status_path": "$(json_escape "$STATUS_PATH")",
   "freshness": "$(json_escape "$freshness")",
+  "state": "$(json_escape "$state")",
+  "readiness": "$(json_escape "$readiness")",
+  "recommended_next_action": "$(json_escape "$recommended_next_action")",
   "head_commit": "$(json_escape "$head_commit")",
   "last_mapped_commit": "$(json_escape "$last_mapped_commit")",
   "manual_force_stale": $dirty,
@@ -755,10 +803,20 @@ PY
         done < <(suggested_topics_for_path "$candidate_path")
 
         if [[ "$classification" == "stale" ]]; then
-            worst="stale"
-            reasons+=("high-impact compatibility/export change: $candidate_path")
+            if [[ "$last_refresh_scope" == "partial" ]]; then
+                worst="partial_refresh"
+                reasons+=("partial cognition refresh is recorded but runtime-truth drift remains: $candidate_path")
+            else
+                worst="stale"
+                reasons+=("high-impact compatibility/export change: $candidate_path")
+            fi
+        elif [[ "$classification" == "support_drift" && "$worst" != "stale" ]]; then
+            worst="support_drift"
+            reasons+=("tool-managed support surface changed: $candidate_path")
         elif [[ "$classification" == "possibly_stale" && "$worst" != "stale" ]]; then
-            worst="possibly_stale"
+            if [[ "$worst" != "support_drift" ]]; then
+                worst="possibly_stale"
+            fi
             if [[ "$covered_by_last_refresh" == true ]]; then
                 reasons+=("covered topic changed since last partial map: $candidate_path")
             else

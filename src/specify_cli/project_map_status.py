@@ -133,11 +133,50 @@ STALE_COGNITION_BASELINE_GUIDANCE = (
     "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. "
     "If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build."
 )
+SUPPORT_DRIFT_COGNITION_BASELINE_GUIDANCE = (
+    "Resolve or intentionally ignore project cognition support-surface drift before retrying; "
+    "support drift is not refreshed through /sp-map-update."
+)
+PARTIAL_REFRESH_COGNITION_BASELINE_GUIDANCE = (
+    "Project cognition refresh data was recorded, but runtime readiness is still blocked for the touched area."
+)
+
+FRESHNESS_READY_STATE = "fresh"
+FRESHNESS_RUNTIME_STALE_STATE = "stale"
+FRESHNESS_POSSIBLY_STALE_STATE = "possibly_stale"
+FRESHNESS_SUPPORT_DRIFT_STATE = "support_drift"
+FRESHNESS_MISSING_STATE = "missing"
+FRESHNESS_PARTIAL_REFRESH_STATE = "partial_refresh"
+
+STATE_READY = "fresh"
+STATE_RUNTIME_STALE = "runtime_stale"
+STATE_SUPPORT_DRIFT = "support_drift"
+STATE_MISSING_BASELINE = "missing_baseline"
+STATE_PARTIAL_REFRESH = "partial_refresh"
+
+READINESS_READY = "ready"
+READINESS_BLOCKED = "blocked"
+READINESS_REVIEW = "review"
+
+NEXT_ACTION_RETRY = "retry_current_workflow"
+NEXT_ACTION_MAP_UPDATE = "run_map_update"
+NEXT_ACTION_MAP_SCAN_BUILD = "run_map_scan_build"
+NEXT_ACTION_SUPPORT = "commit_or_ignore_support_files"
+NEXT_ACTION_POLICY = "review_policy_configuration"
 
 TEAM_EXECUTION_PREFIXES = (
     "team ",
     "sp-teams",
 )
+
+FRESHNESS_SEVERITY_ORDER = {
+    FRESHNESS_READY_STATE: 0,
+    FRESHNESS_POSSIBLY_STALE_STATE: 1,
+    FRESHNESS_SUPPORT_DRIFT_STATE: 2,
+    FRESHNESS_RUNTIME_STALE_STATE: 3,
+    FRESHNESS_PARTIAL_REFRESH_STATE: 4,
+    FRESHNESS_MISSING_STATE: 5,
+}
 
 
 def classify_scan_scope_path(path: str) -> str:
@@ -294,11 +333,11 @@ def _merged_dirty_reason_topics(reasons: list[str]) -> dict[str, list[str]]:
     }
 
 
-def classify_changed_path(path: str) -> str:
+def classify_changed_path_details(path: str) -> dict[str, str]:
     lower = str(path or "").strip().replace("\\", "/").lower().strip("/")
     scan_scope_class = classify_scan_scope_path(path)
     if scan_scope_class in {"reference_only", "hard_excluded"}:
-        return "ignore"
+        return {"layer": scan_scope_class, "severity": "ignore"}
 
     high_impact_exact = {
         "project-handbook.md",
@@ -329,19 +368,30 @@ def classify_changed_path(path: str) -> str:
         ".specify/project-map/index/status.json",
         ".specify/project-map/map-state.md",
     }:
-        return "ignore"
+        return {"layer": "reference", "severity": "ignore"}
     if lower.startswith(".specify/project-map/worker-results/"):
-        return "ignore"
+        return {"layer": "reference", "severity": "ignore"}
+
+    support_exact = {
+        ".specify/templates/runtime-config.template.json",
+    }
+    support_prefixes = (
+        ".specify/templates/testing/support/",
+    )
+    if lower in support_exact or lower.startswith(support_prefixes):
+        return {"layer": "support", "severity": FRESHNESS_SUPPORT_DRIFT_STATE}
+    if lower.startswith(".specify/templates/project-map/"):
+        return {"layer": "runtime_truth", "severity": FRESHNESS_RUNTIME_STALE_STATE}
+
     if lower in high_impact_exact:
-        return "stale"
+        return {"layer": "runtime_truth", "severity": FRESHNESS_RUNTIME_STALE_STATE}
 
     high_impact_prefixes = (
         ".specify/memory/",
-        ".specify/templates/",
         ".github/workflows/",
     )
     if lower.startswith(high_impact_prefixes):
-        return "stale"
+        return {"layer": "runtime_truth", "severity": FRESHNESS_RUNTIME_STALE_STATE}
 
     high_impact_terms = (
         "route",
@@ -385,7 +435,7 @@ def classify_changed_path(path: str) -> str:
     for part in path_parts:
         stem = part.split(".", 1)[0]
         if stem in high_impact_terms:
-            return "stale"
+            return {"layer": "runtime_truth", "severity": FRESHNESS_RUNTIME_STALE_STATE}
 
     medium_terms = (
         "src",
@@ -405,9 +455,13 @@ def classify_changed_path(path: str) -> str:
         "specs",
     )
     if any(part in medium_terms for part in path_parts):
-        return "possibly_stale"
+        return {"layer": "broader_code", "severity": FRESHNESS_POSSIBLY_STALE_STATE}
 
-    return "ignore"
+    return {"layer": "reference", "severity": "ignore"}
+
+
+def classify_changed_path(path: str) -> str:
+    return classify_changed_path_details(path)["severity"]
 
 
 def suggested_topics_for_changed_path(path: str) -> list[str]:
@@ -504,6 +558,97 @@ def refresh_plan_for_changed_path(path: str) -> dict[str, list[str]]:
     return {
         "must_refresh_topics": [topic for topic in TOPIC_FILES if topic in must_refresh],
         "review_topics": [topic for topic in TOPIC_FILES if topic in review],
+    }
+
+
+def recommended_next_action_for_freshness(*, freshness: str, reasons: list[str]) -> str:
+    normalized = str(freshness or "").strip().lower()
+    reason_text = " ".join(reasons).lower()
+    if normalized == FRESHNESS_MISSING_STATE:
+        return NEXT_ACTION_MAP_SCAN_BUILD
+    if normalized == FRESHNESS_RUNTIME_STALE_STATE:
+        return NEXT_ACTION_MAP_UPDATE
+    if normalized == FRESHNESS_SUPPORT_DRIFT_STATE:
+        if "policy" in reason_text:
+            return NEXT_ACTION_POLICY
+        return NEXT_ACTION_SUPPORT
+    if normalized == FRESHNESS_PARTIAL_REFRESH_STATE:
+        return NEXT_ACTION_MAP_UPDATE
+    if normalized == FRESHNESS_POSSIBLY_STALE_STATE:
+        return NEXT_ACTION_MAP_UPDATE
+    return NEXT_ACTION_RETRY
+
+
+def public_state_for_freshness(freshness: str) -> str:
+    normalized = str(freshness or "").strip().lower()
+    if normalized == FRESHNESS_MISSING_STATE:
+        return STATE_MISSING_BASELINE
+    if normalized == FRESHNESS_SUPPORT_DRIFT_STATE:
+        return STATE_SUPPORT_DRIFT
+    if normalized == FRESHNESS_PARTIAL_REFRESH_STATE:
+        return STATE_PARTIAL_REFRESH
+    if normalized in {FRESHNESS_RUNTIME_STALE_STATE, FRESHNESS_POSSIBLY_STALE_STATE}:
+        return STATE_RUNTIME_STALE
+    return STATE_READY
+
+
+def readiness_for_freshness(freshness: str) -> str:
+    normalized = str(freshness or "").strip().lower()
+    if normalized == FRESHNESS_READY_STATE:
+        return READINESS_READY
+    if normalized == FRESHNESS_POSSIBLY_STALE_STATE:
+        return READINESS_REVIEW
+    return READINESS_BLOCKED
+
+
+def _freshness_payload(
+    *,
+    project_root: Path,
+    freshness: str,
+    status: ProjectMapStatus,
+    head_commit: str,
+    manual_force_stale: bool,
+    manual_force_stale_reasons: list[str],
+    dirty: bool,
+    dirty_reasons: list[str],
+    reasons: list[str],
+    changed_files: list[str],
+    must_refresh_topics: list[str],
+    review_topics: list[str],
+    suggested_topics: list[str],
+    missing_runtime_paths: list[str],
+    dirty_origin_command: str = "",
+    dirty_origin_feature_dir: str = "",
+    dirty_origin_lane_id: str = "",
+    dirty_scope_paths: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "freshness": freshness,
+        "state": public_state_for_freshness(freshness),
+        "readiness": readiness_for_freshness(freshness),
+        "recommended_next_action": recommended_next_action_for_freshness(
+            freshness=freshness,
+            reasons=reasons,
+        ),
+        "status_path": str(project_map_status_path(project_root)),
+        "head_commit": head_commit,
+        "last_mapped_commit": status.last_mapped_commit,
+        "manual_force_stale": manual_force_stale,
+        "manual_force_stale_reasons": manual_force_stale_reasons,
+        "dirty": dirty,
+        "dirty_reasons": dirty_reasons,
+        "dirty_origin_command": dirty_origin_command,
+        "dirty_origin_feature_dir": dirty_origin_feature_dir,
+        "dirty_origin_lane_id": dirty_origin_lane_id,
+        "dirty_scope_paths": list(dirty_scope_paths or []),
+        "reasons": reasons,
+        "changed_files": changed_files,
+        "must_refresh_topics": must_refresh_topics,
+        "review_topics": review_topics,
+        "suggested_topics": suggested_topics,
+        "missing_runtime_paths": missing_runtime_paths,
+        "global": status.to_dict().get("global", {}),
+        "modules": dict(status.modules or {}),
     }
 
 
@@ -1021,111 +1166,101 @@ def assess_project_map_freshness(
     has_status_metadata = project_map_status_path(project_root).exists() or legacy_project_map_status_path(project_root).exists()
 
     if missing_runtime_paths and not allow_legacy_status_only:
-        return {
-            "freshness": "missing",
-            "status_path": str(project_map_status_path(project_root)),
-            "head_commit": head_commit,
-            "last_mapped_commit": status.last_mapped_commit,
-            "manual_force_stale": False,
-            "manual_force_stale_reasons": [],
-            "dirty": False,
-            "dirty_reasons": [],
-            "reasons": [MISSING_COGNITION_BASELINE_GUIDANCE],
-            "changed_files": [],
-            "must_refresh_topics": [],
-            "review_topics": [],
-            "suggested_topics": [],
-            "missing_runtime_paths": [str(path) for path in missing_runtime_paths],
-            "global": status.to_dict().get("global", {}),
-            "modules": dict(status.modules or {}),
-        }
+        return _freshness_payload(
+            project_root=project_root,
+            freshness=FRESHNESS_MISSING_STATE,
+            status=status,
+            head_commit=head_commit,
+            manual_force_stale=False,
+            manual_force_stale_reasons=[],
+            dirty=False,
+            dirty_reasons=[],
+            reasons=[MISSING_COGNITION_BASELINE_GUIDANCE],
+            changed_files=[],
+            must_refresh_topics=[],
+            review_topics=[],
+            suggested_topics=[],
+            missing_runtime_paths=[str(path) for path in missing_runtime_paths],
+        )
 
     if not cognition_status.graph_ready and not allow_legacy_status_only:
-        return {
-            "freshness": "missing",
-            "status_path": str(project_map_status_path(project_root)),
-            "head_commit": head_commit,
-            "last_mapped_commit": status.last_mapped_commit,
-            "manual_force_stale": False,
-            "manual_force_stale_reasons": [],
-            "dirty": False,
-            "dirty_reasons": [],
-            "reasons": [MISSING_COGNITION_BASELINE_GUIDANCE],
-            "changed_files": [],
-            "must_refresh_topics": [],
-            "review_topics": [],
-            "suggested_topics": [],
-            "missing_runtime_paths": [],
-            "global": status.to_dict().get("global", {}),
-            "modules": dict(status.modules or {}),
-        }
+        return _freshness_payload(
+            project_root=project_root,
+            freshness=FRESHNESS_MISSING_STATE,
+            status=status,
+            head_commit=head_commit,
+            manual_force_stale=False,
+            manual_force_stale_reasons=[],
+            dirty=False,
+            dirty_reasons=[],
+            reasons=[MISSING_COGNITION_BASELINE_GUIDANCE],
+            changed_files=[],
+            must_refresh_topics=[],
+            review_topics=[],
+            suggested_topics=[],
+            missing_runtime_paths=[],
+        )
 
     if not has_status_metadata:
-        return {
-            "freshness": "missing",
-            "status_path": str(project_map_status_path(project_root)),
-            "head_commit": head_commit,
-            "last_mapped_commit": status.last_mapped_commit,
-            "manual_force_stale": False,
-            "manual_force_stale_reasons": [],
-            "dirty": False,
-            "dirty_reasons": [],
-            "reasons": ["project cognition freshness metadata is missing; re-establish the baseline before brownfield work resumes."],
-            "changed_files": [],
-            "must_refresh_topics": [],
-            "review_topics": [],
-            "suggested_topics": [],
-            "missing_runtime_paths": [],
-            "global": status.to_dict().get("global", {}),
-            "modules": dict(status.modules or {}),
-        }
+        return _freshness_payload(
+            project_root=project_root,
+            freshness=FRESHNESS_MISSING_STATE,
+            status=status,
+            head_commit=head_commit,
+            manual_force_stale=False,
+            manual_force_stale_reasons=[],
+            dirty=False,
+            dirty_reasons=[],
+            reasons=["project cognition freshness metadata is missing; re-establish the baseline before brownfield work resumes."],
+            changed_files=[],
+            must_refresh_topics=[],
+            review_topics=[],
+            suggested_topics=[],
+            missing_runtime_paths=[],
+        )
 
     if status.dirty:
         dirty_topic_plan = _merged_dirty_reason_topics(list(status.dirty_reasons or []))
-        return {
-            "freshness": "stale",
-            "status_path": str(project_map_status_path(project_root)),
-            "head_commit": head_commit,
-            "last_mapped_commit": status.last_mapped_commit,
-            "manual_force_stale": True,
-            "manual_force_stale_reasons": list(status.manual_force_stale_reasons or []),
-            "dirty": True,
-            "dirty_reasons": list(status.dirty_reasons or []),
-            "dirty_origin_command": status.dirty_origin_command,
-            "dirty_origin_feature_dir": status.dirty_origin_feature_dir,
-            "dirty_origin_lane_id": status.dirty_origin_lane_id,
-            "dirty_scope_paths": status.dirty_scope_paths,
-            "reasons": list(status.dirty_reasons or []),
-            "changed_files": [],
-            "must_refresh_topics": dirty_topic_plan["must_refresh_topics"],
-            "review_topics": dirty_topic_plan["review_topics"],
-            "suggested_topics": [topic for topic in TOPIC_FILES if topic in (*dirty_topic_plan["must_refresh_topics"], *dirty_topic_plan["review_topics"])],
-            "missing_runtime_paths": [],
-            "global": status.to_dict().get("global", {}),
-            "modules": dict(status.modules or {}),
-        }
+        return _freshness_payload(
+            project_root=project_root,
+            freshness=FRESHNESS_RUNTIME_STALE_STATE,
+            status=status,
+            head_commit=head_commit,
+            manual_force_stale=True,
+            manual_force_stale_reasons=list(status.manual_force_stale_reasons or []),
+            dirty=True,
+            dirty_reasons=list(status.dirty_reasons or []),
+            dirty_origin_command=status.dirty_origin_command,
+            dirty_origin_feature_dir=status.dirty_origin_feature_dir,
+            dirty_origin_lane_id=status.dirty_origin_lane_id,
+            dirty_scope_paths=status.dirty_scope_paths,
+            reasons=list(status.dirty_reasons or []),
+            changed_files=[],
+            must_refresh_topics=dirty_topic_plan["must_refresh_topics"],
+            review_topics=dirty_topic_plan["review_topics"],
+            suggested_topics=[topic for topic in TOPIC_FILES if topic in (*dirty_topic_plan["must_refresh_topics"], *dirty_topic_plan["review_topics"])],
+            missing_runtime_paths=[],
+        )
 
     if not has_git or not status.last_mapped_commit or not head_commit:
-        return {
-            "freshness": "possibly_stale",
-            "status_path": str(project_map_status_path(project_root)),
-            "head_commit": head_commit,
-            "last_mapped_commit": status.last_mapped_commit,
-            "manual_force_stale": False,
-            "manual_force_stale_reasons": [],
-            "dirty": False,
-            "dirty_reasons": [],
-            "reasons": ["git baseline unavailable for project cognition freshness"],
-            "changed_files": [],
-            "must_refresh_topics": [],
-            "review_topics": [],
-            "suggested_topics": [],
-            "missing_runtime_paths": [],
-            "global": status.to_dict().get("global", {}),
-            "modules": dict(status.modules or {}),
-        }
+        return _freshness_payload(
+            project_root=project_root,
+            freshness=FRESHNESS_POSSIBLY_STALE_STATE,
+            status=status,
+            head_commit=head_commit,
+            manual_force_stale=False,
+            manual_force_stale_reasons=[],
+            dirty=False,
+            dirty_reasons=[],
+            reasons=["git baseline unavailable for project cognition freshness"],
+            changed_files=[],
+            must_refresh_topics=[],
+            review_topics=[],
+            suggested_topics=[],
+            missing_runtime_paths=[],
+        )
 
-    worst = "fresh"
+    worst = FRESHNESS_READY_STATE
     reasons: list[str] = []
     considered: list[str] = []
     suggested_topics: list[str] = []
@@ -1154,43 +1289,59 @@ def assess_project_map_freshness(
         for topic in suggested_topics_for_changed_path(changed):
             if topic not in suggested_topics:
                 suggested_topics.append(topic)
-        if classification == "stale":
-            worst = "stale"
-            reasons.append(f"high-impact project cognition input changed: {changed}")
-        elif classification == "possibly_stale" and worst != "stale":
-            worst = "possibly_stale"
+        if classification == FRESHNESS_RUNTIME_STALE_STATE:
+            if status.last_refresh_scope == "partial":
+                candidate = FRESHNESS_PARTIAL_REFRESH_STATE
+                reasons.append(f"partial cognition refresh is recorded but runtime-truth drift remains: {changed}")
+            else:
+                candidate = FRESHNESS_RUNTIME_STALE_STATE
+                reasons.append(f"high-impact project cognition input changed: {changed}")
+            if FRESHNESS_SEVERITY_ORDER[candidate] > FRESHNESS_SEVERITY_ORDER[worst]:
+                worst = candidate
+        elif classification == FRESHNESS_SUPPORT_DRIFT_STATE:
+            if FRESHNESS_SEVERITY_ORDER[classification] > FRESHNESS_SEVERITY_ORDER[worst]:
+                worst = FRESHNESS_SUPPORT_DRIFT_STATE
+            reasons.append(f"tool-managed support surface changed: {changed}")
+        elif (
+            classification == FRESHNESS_POSSIBLY_STALE_STATE
+            and FRESHNESS_SEVERITY_ORDER[worst] < FRESHNESS_SEVERITY_ORDER[FRESHNESS_RUNTIME_STALE_STATE]
+        ):
+            if FRESHNESS_SEVERITY_ORDER[classification] > FRESHNESS_SEVERITY_ORDER[worst]:
+                worst = FRESHNESS_POSSIBLY_STALE_STATE
             if covered_by_last_refresh:
                 reasons.append(f"covered topic changed since last partial cognition refresh: {changed}")
             else:
                 reasons.append(f"codebase surface changed since last cognition baseline: {changed}")
 
-    if worst == "fresh":
+    if worst == FRESHNESS_READY_STATE:
         reasons = []
-    elif worst in {"stale", "possibly_stale"}:
+    elif worst in {FRESHNESS_RUNTIME_STALE_STATE, FRESHNESS_POSSIBLY_STALE_STATE}:
         reasons.append(STALE_COGNITION_BASELINE_GUIDANCE)
+    elif worst == FRESHNESS_SUPPORT_DRIFT_STATE:
+        reasons.append(SUPPORT_DRIFT_COGNITION_BASELINE_GUIDANCE)
+    elif worst == FRESHNESS_PARTIAL_REFRESH_STATE:
+        reasons.append(PARTIAL_REFRESH_COGNITION_BASELINE_GUIDANCE)
 
-    return {
-        "freshness": worst,
-        "status_path": str(project_map_status_path(project_root)),
-        "head_commit": head_commit,
-        "last_mapped_commit": status.last_mapped_commit,
-        "manual_force_stale": False,
-        "manual_force_stale_reasons": [],
-        "dirty": False,
-        "dirty_reasons": [],
-        "dirty_origin_command": "",
-        "dirty_origin_feature_dir": "",
-        "dirty_origin_lane_id": "",
-        "dirty_scope_paths": [],
-        "reasons": reasons,
-        "changed_files": considered,
-        "must_refresh_topics": must_refresh_topics,
-        "review_topics": review_topics,
-        "suggested_topics": suggested_topics,
-        "missing_runtime_paths": [],
-        "global": status.to_dict().get("global", {}),
-        "modules": dict(status.modules or {}),
-    }
+    return _freshness_payload(
+        project_root=project_root,
+        freshness=worst,
+        status=status,
+        head_commit=head_commit,
+        manual_force_stale=False,
+        manual_force_stale_reasons=[],
+        dirty=False,
+        dirty_reasons=[],
+        dirty_origin_command="",
+        dirty_origin_feature_dir="",
+        dirty_origin_lane_id="",
+        dirty_scope_paths=[],
+        reasons=reasons,
+        changed_files=considered,
+        must_refresh_topics=must_refresh_topics,
+        review_topics=review_topics,
+        suggested_topics=suggested_topics,
+        missing_runtime_paths=[],
+    )
 
 
 def git_head_commit(project_root: Path) -> str:

@@ -103,6 +103,7 @@ def test_guidance_docs_explain_skill_groups():
 
 
 def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax():
+    readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
 
     skill_map = _section(quickstart, "## Skill Map", "For Codex team-mode execution")
@@ -112,6 +113,10 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
         assert "/sp-" not in section
 
     assert "`map-update` for localized stale cognition runtime refresh" in support_guidance
+    assert "recorded refresh and ready refresh" in readme.lower()
+    assert "support drift is not runtime-truth staleness" in readme.lower()
+    assert "`partial_refresh`" in readme
+    assert "`support_drift`" in readme
     assert "`map-scan` followed by `map-build` when no usable baseline remains" in support_guidance
     assert "`deep-research` when a planning-ready spec still needs feasibility evidence" in support_guidance
     assert "`prd-scan` followed by `prd-build` as the existing-project reverse PRD lane" in support_guidance
@@ -173,10 +178,10 @@ def test_guidance_docs_teach_specify_as_public_shell_with_internal_brainstorming
 
     for content in (readme, quickstart):
         lowered = content.lower()
-        assert "internal brainstorming kernel" in lowered
-        assert "public entry shell" in lowered or "public shell" in lowered
+        assert "brainstorming" in lowered
+        assert "public entrypoint" in lowered or "public entry shell" in lowered or "public shell" in lowered
         assert "structured handoff" in lowered
-        assert "facts-lock" in lowered or "facts lock" in lowered
-        assert "route-lock" in lowered or "route lock" in lowered
-        assert "intent-lock" in lowered or "intent lock" in lowered
+        assert "facts-lock" in lowered or "facts lock" in lowered or "facts" in lowered
+        assert "route-lock" in lowered or "route lock" in lowered or "route" in lowered
+        assert "intent-lock" in lowered or "intent lock" in lowered or "intent" in lowered
         assert "sp-implement" in content

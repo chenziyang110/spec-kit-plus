@@ -2794,6 +2794,64 @@ def test_hook_complete_refresh_accepts_json_format_alias(tmp_path: Path):
     assert payload["status"] == "blocked"
 
 
+def test_project_map_preflight_support_drift_copy_does_not_route_to_map_update(tmp_path: Path, monkeypatch):
+    project = _create_project(tmp_path)
+    (project / ".specify" / "integration.json").write_text(
+        json.dumps({"integration": "codex"}),
+        encoding="utf-8",
+    )
+
+    def support_drift(_project_root: Path, *, command_name: str = "") -> dict[str, object]:
+        return {
+            "freshness": "support_drift",
+            "state": "support_drift",
+            "readiness": "blocked",
+            "recommended_next_action": "commit_or_ignore_support_files",
+            "status_path": str(project / ".specify" / "project-map" / "index" / "status.json"),
+            "reasons": ["tool-managed support surface changed: .specify/templates/runtime-config.template.json"],
+            "changed_files": [".specify/templates/runtime-config.template.json"],
+            "must_refresh_topics": [],
+            "review_topics": [],
+        }
+
+    monkeypatch.setattr("specify_cli.inspect_project_map_freshness_for_command", support_drift)
+
+    result = _invoke_in_project(project, ["sp-teams", "--dispatch", "REQ-001"])
+
+    assert result.exit_code == 1
+    assert "support" in result.output.lower()
+    assert "sp-map-update" not in result.output.lower()
+
+
+def test_project_map_preflight_partial_refresh_copy_explains_refresh_recorded_but_not_ready(tmp_path: Path, monkeypatch):
+    project = _create_project(tmp_path)
+    (project / ".specify" / "integration.json").write_text(
+        json.dumps({"integration": "codex"}),
+        encoding="utf-8",
+    )
+
+    def partial_refresh(_project_root: Path, *, command_name: str = "") -> dict[str, object]:
+        return {
+            "freshness": "partial_refresh",
+            "state": "partial_refresh",
+            "readiness": "blocked",
+            "recommended_next_action": "run_map_update",
+            "status_path": str(project / ".specify" / "project-map" / "index" / "status.json"),
+            "reasons": ["Project cognition refresh data was recorded, but runtime readiness is still blocked for the touched area."],
+            "changed_files": ["src/routes/api.ts"],
+            "must_refresh_topics": ["INTEGRATIONS.md"],
+            "review_topics": ["ARCHITECTURE.md"],
+        }
+
+    monkeypatch.setattr("specify_cli.inspect_project_map_freshness_for_command", partial_refresh)
+
+    result = _invoke_in_project(project, ["sp-teams", "--dispatch", "REQ-001"])
+
+    assert result.exit_code == 1
+    assert "refresh data was recorded" in result.output.lower()
+    assert "still blocked" in result.output.lower()
+
+
 def test_hook_capture_learning_records_candidate(tmp_path: Path):
     project = _create_project(tmp_path)
 

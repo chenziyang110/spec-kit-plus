@@ -72,6 +72,8 @@ Use `execution_surface: native-subagents`.
    - Check whether `.specify/project-cognition/status.json` exists.
    - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - [AGENT] If cognition freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`; if no usable baseline remains, rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+   - [AGENT] If cognition freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
+   - [AGENT] If cognition freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
    - [AGENT] If cognition freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If checklist-relevant coverage is stale for the current feature area, stop and tell the user to run `{{invoke:map-update}}`; if no usable baseline remains, rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
    - [AGENT] Read `.specify/project-cognition/status.json`.
    - [AGENT] Read `.specify/project-cognition/slices/change.json`.

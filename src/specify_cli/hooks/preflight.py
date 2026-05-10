@@ -37,7 +37,8 @@ def workflow_preflight_hook(project_root: Path, payload: dict[str, object]) -> H
             current_lane_id = str(preview_checkpoint.get("lane_id") or "").strip()
         if (
             freshness.status == "blocked"
-            and str(freshness_payload.get("freshness", "")).strip().lower() == "stale"
+            and str(freshness_payload.get("state", freshness_payload.get("freshness", ""))).strip().lower() == "runtime_stale"
+            and str(freshness_payload.get("recommended_next_action", "")).strip().lower() == "run_map_update"
             and str(freshness_payload.get("dirty_origin_command", "")).strip().lower() == "implement"
             and (
                 (

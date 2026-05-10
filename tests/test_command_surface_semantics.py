@@ -525,3 +525,16 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
     assert "possibly_stale" not in bash
     assert "must_refresh_topics" not in bash
     assert "review_topics" not in bash
+
+
+def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
+    readme = read_template("README.md").lower()
+    handbook = read_template("PROJECT-HANDBOOK.md").lower()
+    handbook_template = read_template("templates/project-handbook-template.md").lower()
+
+    for content in (readme, handbook, handbook_template):
+        assert "recorded refresh and ready refresh" in content
+        assert "support drift" in content
+        assert "support_drift" in content
+        assert "partial_refresh" in content
+        assert "recommended_next_action" in content

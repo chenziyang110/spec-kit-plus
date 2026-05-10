@@ -835,6 +835,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert status_payload["freshness"] == "missing"
         assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-map/index/status.json")
         assert check_payload["freshness"] == "possibly_stale"
+        assert check_payload["state"] == "runtime_stale"
         assert check_payload["reasons"] == ["git baseline unavailable for project-map compatibility/export freshness"]
 
     def test_project_map_mark_dirty_sets_runtime_stale_state(self, tmp_path):
@@ -1100,7 +1101,53 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         refresh_payload = json.loads(refresh_result.output)
         status_payload = json.loads(status_result.output)
         assert refresh_payload["freshness"] == "possibly_stale"
+        assert refresh_payload["state"] == "runtime_stale"
+        assert "recommended_next_action" in refresh_payload
         assert status_payload["last_refresh_reason"] == "map-build"
+
+    def test_project_map_record_refresh_json_reports_support_drift_as_not_ready(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "project-map-record-refresh-support-drift"
+        project.mkdir()
+        runner = CliRunner()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            init_result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "claude",
+                    "--script",
+                    "sh",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+            support_file = project / ".specify" / "templates" / "runtime-config.template.json"
+            support_file.parent.mkdir(parents=True, exist_ok=True)
+            support_file.write_text('{"runtime": "changed"}\n', encoding="utf-8")
+            refresh_result = runner.invoke(
+                app,
+                ["project-map", "record-refresh", "--reason", "manual", "--format", "json"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert init_result.exit_code == 0, init_result.output
+        assert refresh_result.exit_code == 0, refresh_result.output
+
+        payload = json.loads(refresh_result.output)
+        assert payload["freshness"] == "support_drift"
+        assert payload["state"] == "support_drift"
+        assert payload["readiness"] == "blocked"
+        assert payload["recommended_next_action"] == "commit_or_ignore_support_files"
 
     def test_init_installs_shared_worker_prompt_templates(self, tmp_path):
         from typer.testing import CliRunner

@@ -2,6 +2,10 @@
 
 `spec-kit-plus` is a maintained fork of Spec Kit focused on practical Spec-Driven Development workflow support for local AI coding agents.
 
+`specify` is the public entrypoint for requirement discovery. Internally it runs
+the brainstorming lock flow, persists facts, route, and intent truth, and hands
+structured handoff context to `sp-implement` and later workflow stages.
+
 This repository contains:
 
 - the `specify` CLI
@@ -297,6 +301,8 @@ Conditional gates and follow-up commands:
 - Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices such as `.specify/project-cognition/slices/change.json` as the default brownfield runtime truth surface.
 - `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
+- Recorded refresh and ready refresh are different outcomes: refresh commands may write update metadata, then still report `partial_refresh` when the shared freshness contract says runtime readiness remains blocked.
+- Support drift is not runtime-truth staleness. When `freshness` is `support_drift`, resolve or ignore the support-surface change instead of reflexively routing to `map-update`.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` do not directly rewrite project cognition content; when they discover the current cognition runtime is too weak or likely outdated for the touched area, they should use `map-update` for localized refresh when possible, or `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
 - `test-scan` to run a deep, read-only testing-system scan using leader-managed scout subagents, then write `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, and `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`
 - `test-build` to consume scan-approved lanes, coordinate leader/subagent test-building waves, update tests/fixtures/config as authorized by lane packets, bootstrap or refresh bundled language testing skills, establish a coverage baseline, capture manual validation evidence, and write the durable testing contract plus standard test/coverage playbook
@@ -316,7 +322,7 @@ Conditional gates and follow-up commands:
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing subagent validation evidence)
 
 Already have code? Resolve `.specify/project-cognition/status.json` and the workflow-appropriate cognition slice first. Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
-Generated projects track cognition freshness in `.specify/project-cognition/status.json`, so brownfield workflows can decide whether the current cognition baseline is fresh, possibly stale, or stale before proceeding. Ordinary `sp-*` workflows should treat cognition freshness as a hard gate before source-level work rather than a warn-only hint.
+Generated projects track cognition freshness in `.specify/project-cognition/status.json`, so brownfield workflows can decide whether the current cognition baseline is `fresh`, `missing`, `stale`, `support_drift`, `partial_refresh`, or `possibly_stale` before proceeding. Ordinary `sp-*` workflows should treat cognition freshness as a hard gate before source-level work rather than a warn-only hint, while using `recommended_next_action` for public state guidance.
 
 Routing guide for lightweight work:
 
@@ -690,6 +696,8 @@ Navigation and technical truth are now cognition-first:
 - Generated projects use `.specify/project-cognition/status.json` plus workflow-appropriate slices as the default brownfield runtime truth surface.
 - Ordinary brownfield workflows should read the cognition status and the smallest required slice before broader repository analysis.
 - `fresh` means the last handbook refresh completed against a known git baseline, and `.specify/project-cognition/status.json` records that git-baseline freshness truth source.
+- `support_drift` means support/tool-managed surfaces changed without proving runtime-truth staleness; resolve or ignore those support surfaces instead of treating them as a localized runtime refresh.
+- `partial_refresh` means refresh data was recorded but the ready refresh check still failed; do not report refresh completion until readiness passes.
 - `sp-map-scan` still performs diff-based scope selection when entered, but the refresh workbench remains internal to `map-scan` / `map-build`.
 - Ordinary runtime consumption should prefer `debug-handbook.md` or `build-handbook.md` plus the workflow's fixed chapter set only as compatibility/export views.
 - `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` are support-only/reference-only surfaces for ordinary runtime consumption.

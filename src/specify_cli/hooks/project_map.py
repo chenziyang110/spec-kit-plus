@@ -18,21 +18,35 @@ from .events import PROJECT_MAP_COMPLETE_REFRESH, PROJECT_MAP_MARK_DIRTY
 from .types import HookResult, QualityHookError
 
 
-STALE_BLOCK_COMMANDS = {"implement", "quick", "fast", "specify", "plan", "tasks"}
+STALE_BLOCK_COMMANDS = {"implement", "quick", "fast", "specify", "plan", "tasks", "debug"}
 STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is stale; refresh through /sp-map-update, "
     "or rebuild through /sp-map-scan -> /sp-map-build if no usable baseline remains"
 )
+SUPPORT_DRIFT_FALLBACK_GUIDANCE = (
+    "project cognition runtime freshness has support-surface drift; resolve, commit, or intentionally ignore "
+    "the support files before retrying"
+)
+PARTIAL_REFRESH_FALLBACK_GUIDANCE = (
+    "project cognition refresh data was recorded, but runtime readiness is still blocked; finish the runtime refresh "
+    "through /sp-map-update before retrying"
+)
 NON_STALE_FALLBACK_GUIDANCE = (
     "project cognition runtime freshness is {state}; create the initial baseline through "
     "/sp-map-scan -> /sp-map-build when missing, or refresh through /sp-map-update when stale"
+)
+MISSING_BASELINE_FALLBACK_GUIDANCE = (
+    "project cognition runtime freshness is missing; create the initial baseline through /sp-map-scan -> /sp-map-build before retrying"
 )
 
 
 def project_map_freshness_result(project_root: Path, *, command_name: str) -> HookResult:
     normalized = command_name.strip().lower()
     freshness = inspect_project_map_freshness(project_root)
-    state = str(freshness.get("freshness", "")).strip().lower()
+    raw_freshness = str(freshness.get("freshness", "")).strip().lower()
+    state = str(freshness.get("state", freshness.get("freshness", ""))).strip().lower()
+    readiness = str(freshness.get("readiness", "")).strip().lower()
+    next_action = str(freshness.get("recommended_next_action", "")).strip().lower()
     reasons = [str(item) for item in freshness.get("reasons", []) if str(item).strip()]
 
     if state == "fresh":
@@ -42,7 +56,45 @@ def project_map_freshness_result(project_root: Path, *, command_name: str) -> Ho
             severity="info",
             data={"freshness": freshness},
         )
-    if state == "stale" and normalized in STALE_BLOCK_COMMANDS:
+    if state == "missing_baseline" and normalized in STALE_BLOCK_COMMANDS:
+        return HookResult(
+            event="project_map.refresh.validate",
+            status="blocked",
+            severity="critical",
+            errors=reasons or [MISSING_BASELINE_FALLBACK_GUIDANCE],
+            data={"freshness": freshness},
+        )
+    if (
+        state == "runtime_stale"
+        and readiness == "blocked"
+        and raw_freshness != "possibly_stale"
+        and next_action == "run_map_update"
+        and normalized in STALE_BLOCK_COMMANDS
+    ):
+        return HookResult(
+            event="project_map.refresh.validate",
+            status="blocked",
+            severity="critical",
+            errors=reasons or [STALE_FALLBACK_GUIDANCE],
+            data={"freshness": freshness},
+        )
+    if state == "support_drift" and normalized in STALE_BLOCK_COMMANDS:
+        return HookResult(
+            event="project_map.refresh.validate",
+            status="blocked",
+            severity="critical",
+            errors=reasons or [SUPPORT_DRIFT_FALLBACK_GUIDANCE],
+            data={"freshness": freshness},
+        )
+    if state == "partial_refresh" and normalized in STALE_BLOCK_COMMANDS:
+        return HookResult(
+            event="project_map.refresh.validate",
+            status="blocked",
+            severity="critical",
+            errors=reasons or [PARTIAL_REFRESH_FALLBACK_GUIDANCE],
+            data={"freshness": freshness},
+        )
+    if readiness == "blocked" and next_action == "run_map_update" and normalized in STALE_BLOCK_COMMANDS:
         return HookResult(
             event="project_map.refresh.validate",
             status="blocked",

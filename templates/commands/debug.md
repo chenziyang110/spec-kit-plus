@@ -153,6 +153,8 @@ reads, pass the cognition gate by reading:
 - If competing truths, stale assumptions, or contradiction signals exist, read `.specify/project-cognition/graph/conflicts.json`.
 - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues.
 - [AGENT] If cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`; wait for that refresh before root-cause analysis continues.
+- [AGENT] If cognition freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
+- [AGENT] If cognition freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
 - [AGENT] If cognition freshness is `possibly_stale`, inspect the changed paths, reasons, and slice coverage. Use `{{invoke:map-update}}` when the failing area is localized; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains.
 - Treat task-relevant cognition coverage as insufficient when the failing area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - [AGENT] If task-relevant cognition coverage is insufficient for the failing area, stop and tell the user to refresh through `{{invoke:map-update}}` when localized, or rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before root-cause analysis continues.

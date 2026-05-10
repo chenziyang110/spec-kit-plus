@@ -294,6 +294,7 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
     )
 
     assert stale["freshness"] == "stale"
+    assert stale["state"] == "runtime_stale"
     assert stale["reasons"] == [
         "high-impact project cognition input changed: src/router/index.ts",
         "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
@@ -302,6 +303,7 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
     assert stale["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert stale["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
     assert maybe["freshness"] == "possibly_stale"
+    assert maybe["state"] == "runtime_stale"
     assert maybe["reasons"] == [
         "codebase surface changed since last cognition baseline: src/feature/local_fix.py",
         "Use /sp-map-update when the project cognition runtime is stale or too weak for the touched area. If no usable baseline remains, rebuild it with /sp-map-scan followed by /sp-map-build.",
@@ -310,10 +312,70 @@ def test_assess_project_map_freshness_classifies_changed_files(tmp_path):
     assert maybe["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert maybe["suggested_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]
     assert fresh["freshness"] == "fresh"
+    assert fresh["state"] == "fresh"
     assert fresh["reasons"] == []
     assert fresh["must_refresh_topics"] == []
     assert fresh["review_topics"] == []
     assert fresh["suggested_topics"] == []
+
+
+def test_assess_project_map_freshness_classifies_support_drift(tmp_path):
+    mod = _load_module()
+    _write_cognition_baseline(tmp_path)
+
+    mod.mark_project_map_refreshed(
+        tmp_path,
+        head_commit="base123",
+        branch="main",
+        reason="manual",
+        mapped_at="2026-04-21T00:00:00Z",
+    )
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="head456",
+        changed_files=[".specify/templates/runtime-config.template.json"],
+        has_git=True,
+    )
+
+    assert result["freshness"] == "support_drift"
+    assert result["state"] == "support_drift"
+    assert result["readiness"] == "blocked"
+    assert result["recommended_next_action"] in {
+        "commit_or_ignore_support_files",
+        "review_policy_configuration",
+    }
+    assert any("support" in reason.lower() for reason in result["reasons"])
+
+
+def test_assess_project_map_freshness_reports_partial_refresh_when_recorded_update_remains_blocked(tmp_path):
+    mod = _load_module()
+    _write_cognition_baseline(tmp_path)
+
+    mod.mark_project_map_refreshed(
+        tmp_path,
+        head_commit="base123",
+        branch="main",
+        reason="topic-refresh",
+        mapped_at="2026-04-21T00:00:00Z",
+        refresh_topics=["STRUCTURE.md"],
+        refresh_scope="partial",
+        refresh_basis="topic-refresh",
+        changed_files_basis=["src/feature/local_fix.py"],
+    )
+
+    result = mod.assess_project_map_freshness(
+        tmp_path,
+        head_commit="head456",
+        changed_files=["src/routes/api.ts"],
+        has_git=True,
+    )
+
+    assert result["freshness"] == "partial_refresh"
+    assert result["state"] == "partial_refresh"
+    assert result["readiness"] == "blocked"
+    assert result["recommended_next_action"] != "retry_current_workflow"
+    assert any("partial" in reason.lower() for reason in result["reasons"])
 
 
 def test_assess_project_map_freshness_ignores_reference_only_project_map_changes(tmp_path):
@@ -387,6 +449,7 @@ def test_assess_project_map_freshness_downgrades_to_review_only_when_partial_ref
     )
 
     assert result["freshness"] == "possibly_stale"
+    assert result["state"] == "runtime_stale"
     assert result["must_refresh_topics"] == []
     assert result["review_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]
     assert result["suggested_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "TESTING.md"]

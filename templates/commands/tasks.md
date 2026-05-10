@@ -82,7 +82,10 @@ scripts:
 2. **Ensure project cognition runtime exists**:
    - Check whether `.specify/project-map/index/status.json` exists.
    - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
-   - [AGENT] If freshness is `missing` or `stale`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
+   - [AGENT] If freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
+   - [AGENT] If freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`; wait for that refresh before continuing.
+   - [AGENT] If freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
+   - [AGENT] If freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
    - [AGENT] If freshness is `possibly_stale`, inspect the reported changed paths and reasons plus `must_refresh_topics` and `review_topics`. If `must_refresh_topics` is non-empty for the current task-generation request, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing. If only `review_topics` are non-empty, review those topic files before generating task batches.
    - Check whether `.specify/project-cognition/status.json` exists at the repository root.
    - [AGENT] If the project cognition runtime is missing, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
@@ -93,6 +96,7 @@ scripts:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities), context.md (implementation context)
    - **Required when present**: plan-contract.json (authoritative route, intent, complexity, must-preserve invariants, allowed optimization scope, and planning obligations)
    - **Required when present**: alignment.md (locked decisions, outstanding questions, planning gate context)
+   - **Required when present**: brainstorming/handoff-to-tasks.json (route, intent, complexity, task packet shaping, and handoff constraints)
    - **Required when present**: workflow-state.md (current phase lock, allowed actions, forbidden actions, resume contract, active profile, activated gates, task-shaping rules, and required evidence)
    - **Required when present**: `.specify/testing/TESTING_CONTRACT.md` (project-level testing rules and required regression behavior)
    - **Required when present**: `.specify/testing/TESTING_PLAYBOOK.md` (canonical test and coverage commands)
@@ -106,7 +110,7 @@ scripts:
    - **Required**: [AGENT] Read `.specify/project-cognition/status.json`
    - **Required**: [AGENT] Read `.specify/project-cognition/slices/change.json`
    - **Required when needed**: [AGENT] Read `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice alone does not close ownership, propagation, or conflicting-truth questions
-   - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: run `/sp-map-scan` followed by `/sp-map-build` before continuing, then inspect the minimum live files still needed to replace guesswork with evidence
+   - **If topical coverage is missing/stale/too broad or task-relevant coverage is insufficient**: use the shared freshness result to choose the next action: localized runtime staleness uses `/sp-map-update`, missing or unusable baselines use `/sp-map-scan` followed by `/sp-map-build`, support drift is resolved as support-surface cleanup, and `partial_refresh` is not completion; then inspect the minimum live files still needed to replace guesswork with evidence
    - **Required**: Read `templates/workflow-state-template.md`
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 

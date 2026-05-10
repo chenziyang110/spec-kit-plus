@@ -77,6 +77,10 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "contrarian candidate" in content
     assert "cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content
     assert "cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`" in content
+    assert "cognition freshness is `support_drift`" in content
+    assert "cognition freshness is `partial_refresh`" in content
+    assert "do not reflexively route to `{{invoke:map-update}}`" in content
+    assert "recommended_next_action" in content
     assert "cognition freshness is `missing` or `stale`" not in content
     assert "cognition freshness is `possibly_stale`" in content
     assert "{{invoke:map-update}}" in content

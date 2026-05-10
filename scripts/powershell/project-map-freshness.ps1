@@ -175,7 +175,10 @@ function Classify-Path {
         '^\.ruff_cache/' { return "ignore" }
         '^dist/' { return "ignore" }
         '^build/' { return "ignore" }
-        '^\.specify/templates/' { return "stale" }
+        '^\.specify/templates/runtime-config\.template\.json$' { return "support_drift" }
+        '^\.specify/templates/testing/support/' { return "support_drift" }
+        '^\.specify/templates/project-map/' { return "stale" }
+        '^\.specify/templates/' { return "ignore" }
         '^\.specify/memory/' { return "stale" }
         '^\.specify/extensions\.yml$' { return "stale" }
         '^\.github/workflows/' { return "stale" }
@@ -352,9 +355,48 @@ function Emit-CheckResult {
         [object[]]$DirtyScopePaths = @()
     )
 
+    $state = "fresh"
+    $readiness = "blocked"
+    $recommendedNextAction = "retry_current_workflow"
+    switch ($Freshness) {
+        "missing" {
+            $state = "missing_baseline"
+            $readiness = "blocked"
+            $recommendedNextAction = "run_map_scan_build"
+        }
+        "stale" {
+            $state = "runtime_stale"
+            $readiness = "blocked"
+            $recommendedNextAction = "run_map_update"
+        }
+        "possibly_stale" {
+            $state = "runtime_stale"
+            $readiness = "review"
+            $recommendedNextAction = "run_map_update"
+        }
+        "support_drift" {
+            $state = "support_drift"
+            $readiness = "blocked"
+            $recommendedNextAction = "commit_or_ignore_support_files"
+        }
+        "partial_refresh" {
+            $state = "partial_refresh"
+            $readiness = "blocked"
+            $recommendedNextAction = "run_map_update"
+        }
+        "fresh" {
+            $state = "fresh"
+            $readiness = "ready"
+            $recommendedNextAction = "retry_current_workflow"
+        }
+    }
+
     [ordered]@{
         status_path = $statusPath
         freshness = $Freshness
+        state = $state
+        readiness = $readiness
+        recommended_next_action = $recommendedNextAction
         head_commit = $HeadCommit
         last_mapped_commit = $LastMappedCommit
         manual_force_stale = $Dirty
@@ -476,10 +518,20 @@ function Invoke-Check {
         }
         $classification = Classify-Path -Path $candidatePath
         if ($classification -eq "stale") {
-            $worst = "stale"
-            $reasons.Add("high-impact compatibility/export change: $candidatePath")
+            if ($lastRefreshScope -eq "partial") {
+                $worst = "partial_refresh"
+                $reasons.Add("partial cognition refresh is recorded but runtime-truth drift remains: $candidatePath")
+            } else {
+                $worst = "stale"
+                $reasons.Add("high-impact compatibility/export change: $candidatePath")
+            }
+        } elseif ($classification -eq "support_drift" -and $worst -ne "stale") {
+            $worst = "support_drift"
+            $reasons.Add("tool-managed support surface changed: $candidatePath")
         } elseif ($classification -eq "possibly_stale" -and $worst -ne "stale") {
-            $worst = "possibly_stale"
+            if ($worst -ne "support_drift") {
+                $worst = "possibly_stale"
+            }
             if ($coveredByLastRefresh) {
                 $reasons.Add("covered topic changed since last partial map: $candidatePath")
             } else {

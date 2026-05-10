@@ -390,12 +390,12 @@ class IntegrationBase(ABC):
 
         return content + "\n".join(lines) + "\n"
 
-    def _append_specify_brainstorming_guidance(
+    def _append_specify_brainstorming_kernel_guidance(
         self,
         *,
         content: str,
     ) -> str:
-        """Append brainstorming-kernel `sp-specify` guidance when absent."""
+        """Append brainstorming-kernel `sp-specify` lifecycle guidance when absent."""
 
         marker = "## Brainstorming Kernel"
         if marker in content:
@@ -405,10 +405,10 @@ class IntegrationBase(ABC):
             "\n"
             "## Brainstorming Kernel\n\n"
             "- `sp-specify` is the public entry shell and must begin with the internal brainstorming kernel.\n"
-            "- Progress through `facts-lock`, `route-lock`, `intent-lock`, and `complexity-lock` before the final specification package is compiled.\n"
+            "- Progress through `facts-lock`, `route-lock`, `intent-lock`, and `complexity-lock` before compiling the final specification package.\n"
             "- Ask questions only for unresolved fields or rule predicates.\n"
             "- Dynamic routing is valid only when it is derived from persisted facts and explicit rules.\n"
-            "- Conversation memory is not a valid handoff surface.\n"
+            "- Conversation memory is not a valid handoff surface; only persisted truth files count.\n"
             "- Downstream stages must reopen upstream truth explicitly instead of silently mutating it.\n"
         )
         return content + addendum
@@ -476,7 +476,7 @@ class IntegrationBase(ABC):
             "\n"
             f"## {agent_name} Project-Map Hard Gate\n\n"
             f"**Crucial First Step**: You MUST pass the project cognition contract first by reading the required `.specify/project-cognition/` status and slice artifacts {command_step}.\n"
-            "- If the required project cognition baseline is missing, stale, or too weak for the touched area, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}` to create the initial cognition baseline. After that, use `{{invoke:map-update}}` when the graph runtime is stale or too weak for the touched area.\n"
+            "- Interpret the shared freshness contract by state: `missing` rebuilds through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `stale` refreshes through `{{invoke:map-update}}`; `support_drift` requires resolving support-surface drift without reflexively routing to `{{invoke:map-update}}`; `partial_refresh` means refresh data was recorded but readiness still failed, so follow `recommended_next_action`.\n"
             "- Treat the project cognition runtime as the primary brownfield context surface; do not fall back to chat memory or ad hoc repository instincts when graph-native runtime coverage should be the source of truth.\n"
             "- Treat this as a hard gate, not a best-effort reminder; do not continue until the required project cognition status and slice artifacts exist and are strong enough for the workflow.\n"
         )
@@ -1754,7 +1754,7 @@ class SkillsIntegration(IntegrationBase):
                 command_name=command_name,
             )
             if command_name == "specify":
-                skill_content = self._append_specify_brainstorming_guidance(
+                skill_content = self._append_specify_brainstorming_kernel_guidance(
                     content=skill_content,
                 )
 
