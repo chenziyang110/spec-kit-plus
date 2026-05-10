@@ -139,6 +139,12 @@ def test_reference_read_returns_admission_slice_graph_and_provenance_for_fresh_c
     assert "claims" in result["graph"]
     assert "conflicts" in result["graph"]
     assert result["provenance"]["project_root"] == str(fresh_reference)
+    assert result["minimal_read_order"] == [
+        ".specify/project-cognition/status.json",
+        ".specify/project-cognition/slices/change.json",
+        ".specify/project-cognition/graph/claims.json",
+        ".specify/project-cognition/graph/conflicts.json",
+    ]
     assert ".specify/project-map/" not in json.dumps(result)
 
     with pytest.raises(runtime.ReferenceProjectReadError, match="fresh-only"):

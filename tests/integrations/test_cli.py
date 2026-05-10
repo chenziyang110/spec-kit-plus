@@ -2549,6 +2549,12 @@ def test_cognition_read_outputs_minimal_reference_read_order_without_project_map
     assert "claims" in payload["graph"]
     assert "conflicts" in payload["graph"]
     assert "provenance" in payload
+    assert payload["minimal_read_order"] == [
+        ".specify/project-cognition/status.json",
+        ".specify/project-cognition/slices/change.json",
+        ".specify/project-cognition/graph/claims.json",
+        ".specify/project-cognition/graph/conflicts.json",
+    ]
     assert ".specify/project-map" not in json.dumps(payload)
 
     old_cwd = os.getcwd()
