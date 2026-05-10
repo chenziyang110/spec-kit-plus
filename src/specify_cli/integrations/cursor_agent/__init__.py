@@ -157,7 +157,7 @@ class CursorAgentIntegration(SkillsIntegration):
             return None
 
         content = path.read_text(encoding="utf-8")
-        if "Crucial First Step" in content:
+        if "## Cursor Project Map Gate" in content:
             return None
 
         addendum = (
@@ -277,12 +277,10 @@ class CursorAgentIntegration(SkillsIntegration):
             snapshot=cursor_snapshot,
             heading="Subagent Dispatch Contract",
         )
-        if "## Cursor Worker Result Contract" not in content:
+        if "## Cursor Worker Status Deltas" not in content:
             content += (
                 "\n"
-                "## Cursor Worker Result Contract\n\n"
-                f"- Preferred result contract: {descriptor.result_contract_hint}\n"
-                f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
+                "## Cursor Worker Status Deltas\n\n"
                 "- Normalize worker-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
                 "- Keep `reported_status` when normalization occurs so Cursor lane output can be reconciled with canonical orchestration state.\n"
                 "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
