@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class TestAgentConfigConsistency:
-    """Ensure kiro-cli migration stays synchronized across key surfaces."""
+    """Ensure agent config paths stay synchronized across runtime and registrar surfaces."""
 
     def test_runtime_config_uses_kiro_cli_and_removes_q(self):
         """AGENT_CONFIG should include kiro-cli and exclude legacy q."""

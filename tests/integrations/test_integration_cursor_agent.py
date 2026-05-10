@@ -98,7 +98,7 @@ def test_cursor_runtime_skills_hard_gate_project_map_reads(tmp_path):
         assert "crucial first step" in content
         assert "map-scan" in content
         assert "map-build" in content
-        if "sp.debug" in rel:
+        if "sp-debug" in rel:
             assert "debug-handbook.md" in content
             assert "debug-workflow-contract" in content
         else:
