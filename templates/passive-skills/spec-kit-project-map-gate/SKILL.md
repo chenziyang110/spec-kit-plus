@@ -24,6 +24,9 @@ judgment in an established Spec Kit Plus repository:
 - Read `.specify/project-cognition/status.json` first.
 - Read `.specify/project-cognition/slices/debug.json` for `sp-debug`.
 - Read `.specify/project-cognition/slices/change.json` for other ordinary brownfield workflows.
+- Treat the project cognition runtime as the cross-project cognition reference:
+  explicit-only, supplemental-only, fresh-only, and minimal read before broader
+  live-code inspection.
 - Read targeted graph artifacts, such as `.specify/project-cognition/graph/claims.json` or `.specify/project-cognition/graph/conflicts.json`, only when the active workflow needs ownership or conflict resolution beyond the slice.
 - Treat `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` as compatibility/export surfaces, not the default runtime truth path.
 - Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`

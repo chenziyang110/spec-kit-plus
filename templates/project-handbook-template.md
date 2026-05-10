@@ -28,6 +28,9 @@ and what sits clearly outside the system boundary.]
 - **Default runtime truth**:
   - `.specify/project-cognition/status.json` for freshness, coverage, stale paths, and refresh metadata
   - workflow-appropriate cognition slices such as `.specify/project-cognition/slices/change.json` or `.specify/project-cognition/slices/debug.json`
+- **Cross-project cognition reference**: use the project cognition runtime as
+  explicit-only, supplemental-only, fresh-only context with a minimal read before
+  broader source inspection.
 - `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` are compatibility/export views during the migration window, not the default runtime truth path.
 - Read this handbook only when a user or workflow explicitly asks for the compatibility/export view.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
