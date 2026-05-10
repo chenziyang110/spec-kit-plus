@@ -1,21 +1,33 @@
 """Trae IDE integration."""
 
-from ..base import MarkdownIntegration
+from ..base import IntegrationOption, SkillsIntegration
 
 
-class TraeIntegration(MarkdownIntegration):
+class TraeIntegration(SkillsIntegration):
     key = "trae"
     config = {
         "name": "Trae",
         "folder": ".trae/",
-        "commands_subdir": "rules",
+        "commands_subdir": "skills",
         "install_url": None,
         "requires_cli": False,
     }
     registrar_config = {
-        "dir": ".trae/rules",
+        "dir": ".trae/skills",
         "format": "markdown",
         "args": "$ARGUMENTS",
-        "extension": ".md",
+        "extension": "/SKILL.md",
     }
-    context_file = ".trae/rules/AGENTS.md"
+    context_file = ".trae/rules/project_rules.md"
+    multi_install_safe = True
+
+    @classmethod
+    def options(cls) -> list[IntegrationOption]:
+        return [
+            IntegrationOption(
+                "--skills",
+                is_flag=True,
+                default=True,
+                help="Install as agent skills (default for Trae)",
+            ),
+        ]

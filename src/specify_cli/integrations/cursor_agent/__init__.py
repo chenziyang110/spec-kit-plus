@@ -4,29 +4,39 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-from typing import Any
 
-from ..base import MarkdownIntegration
+from ..base import IntegrationOption, SkillsIntegration
 from ..manifest import IntegrationManifest
 from ...orchestration import CapabilitySnapshot, describe_delegation_surface
 
 
-class CursorAgentIntegration(MarkdownIntegration):
+class CursorAgentIntegration(SkillsIntegration):
     key = "cursor-agent"
     config = {
         "name": "Cursor",
         "folder": ".cursor/",
-        "commands_subdir": "commands",
+        "commands_subdir": "skills",
         "install_url": None,
         "requires_cli": False,
     }
     registrar_config = {
-        "dir": ".cursor/commands",
+        "dir": ".cursor/skills",
         "format": "markdown",
         "args": "$ARGUMENTS",
-        "extension": ".md",
+        "extension": "/SKILL.md",
     }
     context_file = ".cursor/rules/specify-rules.mdc"
+
+    @classmethod
+    def options(cls) -> list[IntegrationOption]:
+        return [
+            IntegrationOption(
+                "--skills",
+                is_flag=True,
+                default=True,
+                help="Install as agent skills (default for Cursor)",
+            ),
+        ]
 
     @staticmethod
     def _append_runtime_handbook_compatibility(
@@ -78,29 +88,37 @@ class CursorAgentIntegration(MarkdownIntegration):
     def _runtime_capability_snapshot(self) -> CapabilitySnapshot:
         return self._cursor_capability_snapshot()
 
-    def setup(
+    def augment_generated_skills(
         self,
+        created: list[Path],
         project_root: Path,
-        manifest,
-        parsed_options: dict[str, Any] | None = None,
-        **opts: Any,
-    ) -> list[Path]:
-        created = super().setup(
-            project_root,
-            manifest,
-            parsed_options=parsed_options,
-            **opts,
-        )
+        manifest: IntegrationManifest,
+        skills_dir: Path,
+    ) -> None:
+        runtime_skills = {
+            "implement": skills_dir / "sp-implement" / "SKILL.md",
+            "debug": skills_dir / "sp-debug" / "SKILL.md",
+            "quick": skills_dir / "sp-quick" / "SKILL.md",
+        }
+        for command_name, path in runtime_skills.items():
+            self._append_project_map_gate_to_file(
+                project_root=project_root,
+                manifest=manifest,
+                path=path,
+            )
+            self._append_runtime_handbook_compatibility_to_file(
+                project_root=project_root,
+                manifest=manifest,
+                path=path,
+                command_name=command_name,
+            )
 
-        commands_dir = self.commands_dest(project_root)
-        self._augment_quick_command(
+        self._augment_quick_skill(
             created,
             project_root,
             manifest,
-            commands_dir / "sp.quick.md",
+            runtime_skills["quick"],
         )
-
-        return created
 
     def post_init_bootstrap(
         self,
@@ -108,33 +126,92 @@ class CursorAgentIntegration(MarkdownIntegration):
         manifest: IntegrationManifest,
     ) -> list[Path]:
         updated_files: list[Path] = []
-        commands_dir = self.commands_dest(project_root)
+        skills_dir = self.skills_dest(project_root)
         for stem in ("implement", "debug", "quick"):
-            path = commands_dir / self.command_filename(stem)
-            if not path.exists():
-                continue
-            content = path.read_text(encoding="utf-8")
-            updated = self._append_runtime_handbook_compatibility(
-                content=content,
+            path = skills_dir / f"sp-{stem}" / "SKILL.md"
+            project_map_update = self._append_project_map_gate_to_file(
+                project_root=project_root,
+                manifest=manifest,
+                path=path,
+            )
+            updated = self._append_runtime_handbook_compatibility_to_file(
+                project_root=project_root,
+                manifest=manifest,
+                path=path,
                 command_name=stem,
             )
-            if updated != content:
-                path.write_text(updated, encoding="utf-8")
-                self.record_file_in_manifest(path, project_root, manifest)
-                updated_files.append(path)
+            updated = updated or project_map_update
+            if updated is None:
+                continue
+            updated_files.append(updated)
         return updated_files
 
-    def _augment_quick_command(
+    def _append_project_map_gate_to_file(
+        self,
+        *,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        path: Path,
+    ) -> Path | None:
+        if not path.exists():
+            return None
+
+        content = path.read_text(encoding="utf-8")
+        if "Crucial First Step" in content:
+            return None
+
+        addendum = (
+            "\n"
+            "## Cursor Project Map Gate\n\n"
+            "**Crucial First Step**: Before repository analysis or implementation, read the current project cognition baseline and verify whether `sp-map-scan` or `sp-map-build` must refresh it.\n"
+            "- Use `.specify/project-cognition/` as the graph-native project map source when present.\n"
+            "- If the map is missing, stale, or too incomplete for the requested work, run or request `sp-map-scan` before relying on local assumptions.\n"
+            "- If scan evidence exists but the graph artifacts are missing or stale, run or request `sp-map-build` before accepting the map as current.\n"
+            "- Continue only after the project map state is fresh enough for the active workflow or a concrete blocker is recorded.\n"
+        )
+
+        if "## Orchestration Model" in content:
+            updated = content.replace("## Orchestration Model", addendum + "\n## Orchestration Model", 1)
+        elif "## Cursor Leader Gate" in content:
+            updated = content.replace("## Cursor Leader Gate", addendum + "\n## Cursor Leader Gate", 1)
+        else:
+            updated = content + addendum
+
+        self.write_file_and_record(updated, path, project_root, manifest)
+        return path
+
+    def _append_runtime_handbook_compatibility_to_file(
+        self,
+        *,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        path: Path,
+        command_name: str,
+    ) -> Path | None:
+        if not path.exists():
+            return None
+        content = path.read_text(encoding="utf-8")
+        updated = self._append_runtime_handbook_compatibility(
+            content=content,
+            command_name=command_name,
+        )
+        if updated == content:
+            return None
+        path.write_text(updated, encoding="utf-8")
+        self.record_file_in_manifest(path, project_root, manifest)
+        return path
+
+    def _augment_quick_skill(
         self,
         created: list[Path],
         project_root: Path,
         manifest,
-        quick_command: Path,
+        quick_skill: Path,
     ) -> None:
-        if quick_command not in created or not quick_command.is_file():
+        if quick_skill not in created or not quick_skill.is_file():
             return
 
-        content = quick_command.read_text(encoding="utf-8")
+        content = quick_skill.read_text(encoding="utf-8")
         cursor_snapshot = self._cursor_capability_snapshot()
         descriptor = describe_delegation_surface(
             command_name="quick",
@@ -169,7 +246,7 @@ class CursorAgentIntegration(MarkdownIntegration):
 
         marker = "## Cursor Subagent Execution"
         if marker in content:
-            self.write_file_and_record(content, quick_command, project_root, manifest)
+            self.write_file_and_record(content, quick_skill, project_root, manifest)
             return
 
         addendum = (
@@ -212,4 +289,4 @@ class CursorAgentIntegration(MarkdownIntegration):
                 "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
             )
 
-        self.write_file_and_record(content, quick_command, project_root, manifest)
+        self.write_file_and_record(content, quick_skill, project_root, manifest)
