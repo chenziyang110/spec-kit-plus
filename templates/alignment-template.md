@@ -10,6 +10,13 @@
 the major affected surfaces, and the biggest ambiguity discovered during
 intent-analysis.]
 
+## Route And Complexity Summary
+
+- **Primary Route**: [Locked route selected from route.json]
+- **Complexity Level: [T1 | T2 | T3 | T4]**: [Locked complexity level carried from complexity.json]
+- **Hard Unknowns Cleared**: [Which hard unknowns were resolved before handoff]
+- **Reopen Required**: [Whether downstream work must reopen upstream truth before continuing]
+
 ## Domain Closure Log
 
 | Domain | Closure State | Evidence Basis | Notes |
