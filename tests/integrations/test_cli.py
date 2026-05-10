@@ -383,6 +383,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
     assert "helper command surface" in lowered
     assert "specify integration repair" in lowered
 
+
     def test_integration_copilot_creates_files(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -2433,3 +2434,124 @@ def test_maybe_bootstrap_codex_teams_environment_runs_psmux_and_initial_commit(m
     assert calls == ["psmux", "git"]
     assert final_status["runtime_backend_available"] is True
     assert final_status["git_head_available"] is True
+
+
+def test_cognition_discover_reports_only_explicit_fresh_project_cognition_references(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "project"
+    reference = tmp_path / "reference"
+    stale_reference = tmp_path / "stale-reference"
+    implicit_nested = project / "vendor" / "implicit"
+
+    for root, freshness in (
+        (project, "fresh"),
+        (reference, "fresh"),
+        (stale_reference, "stale"),
+        (implicit_nested, "fresh"),
+    ):
+        (root / ".specify" / "project-cognition" / "slices").mkdir(parents=True)
+        (root / ".specify" / "project-cognition" / "status.json").write_text(
+            json.dumps({"baseline_state": freshness, "graph_ready": True}),
+            encoding="utf-8",
+        )
+    (project / "vendor" / "map-only" / ".specify" / "project-map" / "index").mkdir(parents=True)
+    (project / "vendor" / "map-only" / ".specify" / "project-map" / "index" / "status.json").write_text(
+        json.dumps({"freshness": "fresh"}),
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "cognition",
+                "discover",
+                "--reference-root",
+                str(reference),
+                "--reference-root",
+                str(stale_reference),
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["reference_mode"] == "supplemental-only"
+    assert payload["primary_truth_surface"] == ".specify/project-cognition"
+    assert [item["project_root"] for item in payload["admitted"]] == [str(reference)]
+    assert payload["admitted"][0]["freshness"] == "fresh"
+    assert payload["rejected"][0]["project_root"] == str(stale_reference)
+    assert payload["rejected"][0]["reason"] == "cognition-not-fresh"
+    assert all("implicit" not in json.dumps(item) for item in payload["admitted"])
+    assert ".specify/project-map" not in json.dumps(payload)
+
+
+def test_cognition_read_outputs_minimal_reference_read_order_without_project_map_fallback(tmp_path):
+    runner = CliRunner()
+    project = tmp_path / "project"
+    reference = tmp_path / "reference"
+
+    for root in (project, reference):
+        (root / ".specify" / "project-cognition" / "slices").mkdir(parents=True)
+        (root / ".specify" / "project-cognition" / "graph").mkdir(parents=True)
+        (root / ".specify" / "project-cognition" / "status.json").write_text(
+            json.dumps({"baseline_state": "fresh", "graph_ready": True}),
+            encoding="utf-8",
+        )
+        (root / ".specify" / "project-cognition" / "slices" / "change.json").write_text(
+            json.dumps({"slice": {"minimal_read_set": []}}),
+            encoding="utf-8",
+        )
+        (root / ".specify" / "project-cognition" / "graph" / "claims.json").write_text(
+            '{"claims": []}\n',
+            encoding="utf-8",
+        )
+        (root / ".specify" / "project-cognition" / "graph" / "conflicts.json").write_text(
+            '{"conflicts": []}\n',
+            encoding="utf-8",
+        )
+    (reference / ".specify" / "project-map" / "root").mkdir(parents=True)
+    (reference / ".specify" / "project-map" / "root" / "ARCHITECTURE.md").write_text(
+        "# legacy export\n",
+        encoding="utf-8",
+    )
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "cognition",
+                "read",
+                "--reference-root",
+                str(reference),
+                "--workflow",
+                "change",
+                "--format",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["reference_mode"] == "supplemental-only"
+    assert payload["primary_project_root"] == str(project)
+    assert payload["minimal_read_order"] == [
+        str(reference / ".specify" / "project-cognition" / "status.json"),
+        str(reference / ".specify" / "project-cognition" / "slices" / "change.json"),
+        str(reference / ".specify" / "project-cognition" / "graph" / "claims.json"),
+        str(reference / ".specify" / "project-cognition" / "graph" / "conflicts.json"),
+    ]
+    assert ".specify/project-map" not in json.dumps(payload)
