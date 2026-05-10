@@ -679,6 +679,80 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "/sp-teams" not in result.output.lower()
         assert "(codex-only)" not in result.output.lower()
 
+    def test_cursor_init_uses_skills_surface_and_new_directory(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "cursor-plus-brand"
+        project.mkdir()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "cursor-agent",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert "Spec Kit Plus skills were" in result.output
+        assert ".cursor/skills" in result.output
+        assert "Start using skills with your AI agent" in result.output
+        assert "/sp-plan" in result.output
+        assert "/sp.specify" not in result.output
+        assert "Support and gate skills" in result.output
+        assert "Support and gate commands" not in result.output
+
+    def test_vibe_init_uses_skills_surface_and_new_directory(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        project = tmp_path / "vibe-plus-brand"
+        project.mkdir()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "init",
+                    "--here",
+                    "--ai",
+                    "vibe",
+                    "--script",
+                    "sh",
+                    "--no-git",
+                    "--ignore-agent-tools",
+                ],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert "Spec Kit Plus skills were" in result.output
+        assert ".vibe/skills" in result.output
+        assert "Start using skills with your AI agent" in result.output
+        assert "/sp-plan" in result.output
+        assert "/sp.specify" not in result.output
+        assert "Support and gate skills" in result.output
+        assert "Support and gate commands" not in result.output
+
     def test_init_directory_conflict_uses_normalized_error_surface(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app

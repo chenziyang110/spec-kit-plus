@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from specify_cli import AGENT_CONFIG, AI_ASSISTANT_ALIASES, AI_ASSISTANT_HELP
+from specify_cli import AGENT_CONFIG, AI_ASSISTANT_ALIASES, AI_ASSISTANT_HELP, _get_skills_dir
 from specify_cli.integrations import get_integration
 from specify_cli.extensions import CommandRegistrar
 
@@ -13,6 +13,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 class TestAgentConfigConsistency:
     """Ensure agent config paths stay synchronized across runtime and registrar surfaces."""
+
+    def test_get_skills_dir_uses_agent_config_for_moved_skill_agents(self, tmp_path):
+        """Skills-dir resolution should follow the active agent config for moved skill agents."""
+        assert _get_skills_dir(tmp_path, "agy") == tmp_path / ".agents" / "skills"
+        assert _get_skills_dir(tmp_path, "cursor-agent") == tmp_path / ".cursor" / "skills"
+        assert _get_skills_dir(tmp_path, "trae") == tmp_path / ".trae" / "skills"
+        assert _get_skills_dir(tmp_path, "vibe") == tmp_path / ".vibe" / "skills"
+        assert _get_skills_dir(tmp_path, "codex") == tmp_path / ".codex" / "skills"
 
     def test_runtime_config_uses_kiro_cli_and_removes_q(self):
         """AGENT_CONFIG should include kiro-cli and exclude legacy q."""
