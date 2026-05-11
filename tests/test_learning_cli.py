@@ -412,6 +412,190 @@ def test_learning_capture_writes_index_and_detail_doc(tmp_path: Path) -> None:
     assert false_start in detail_content
 
 
+def test_learning_capture_confirm_keeps_index_occurrence_count_aligned(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    args = [
+        "learning",
+        "capture",
+        "--command",
+        "implement",
+        "--type",
+        "pitfall",
+        "--summary",
+        "Keep launcher helper recurrence counts aligned",
+        "--evidence",
+        "Candidate capture should not make index counts drift on confirm.",
+        "--recurrence-key",
+        "cli.launcher-helper.count-alignment",
+        "--format",
+        "json",
+    ]
+    candidate = _invoke_in_project(project, args)
+    confirmed = _invoke_in_project(project, [*args[:-2], "--confirm", *args[-2:]])
+
+    assert candidate.exit_code == 0, candidate.stdout
+    assert confirmed.exit_code == 0, confirmed.stdout
+    payload = json.loads(confirmed.stdout)
+    assert payload["entry"]["occurrence_count"] == 1
+    assert payload["index_entry"]["occurrence_count"] == payload["entry"]["occurrence_count"]
+
+
+def test_learning_promote_refreshes_index_detail_status(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    captured = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            "Refresh detail docs after explicit promotion",
+            "--evidence",
+            "Promotion should update the linked detail machine payload.",
+            "--recurrence-key",
+            "cli.detail-doc.promotion-refresh",
+            "--format",
+            "json",
+        ],
+    )
+    assert captured.exit_code == 0, captured.stdout
+    detail_path = Path(json.loads(captured.stdout)["detail_path"])
+
+    promoted = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "promote",
+            "--recurrence-key",
+            "cli.detail-doc.promotion-refresh",
+            "--target",
+            "learning",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert promoted.exit_code == 0, promoted.stdout
+    detail_content = detail_path.read_text(encoding="utf-8")
+    assert '"status": "confirmed"' in detail_content
+    assert '"status": "candidate"' not in detail_content
+
+
+def test_learning_start_auto_promote_refreshes_index_detail_status(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    args = [
+        "learning",
+        "capture",
+        "--command",
+        "plan",
+        "--type",
+        "workflow_gap",
+        "--summary",
+        "Refresh detail docs after auto promotion",
+        "--evidence",
+        "Auto-promotion should update the linked detail machine payload.",
+        "--recurrence-key",
+        "cli.detail-doc.auto-promotion-refresh",
+        "--format",
+        "json",
+    ]
+    captured = _invoke_in_project(project, args)
+    _invoke_in_project(project, args)
+    assert captured.exit_code == 0, captured.stdout
+    detail_path = Path(json.loads(captured.stdout)["detail_path"])
+
+    started = _invoke_in_project(project, ["learning", "start", "--command", "plan", "--format", "json"])
+
+    assert started.exit_code == 0, started.stdout
+    detail_content = detail_path.read_text(encoding="utf-8")
+    assert '"status": "confirmed"' in detail_content
+    assert '"status": "candidate"' not in detail_content
+
+
+def test_learning_capture_sanitizes_existing_index_detail_path(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
+    index_path.write_text(
+        "\n".join(
+            [
+                "# Project Learning Index",
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps(
+                    [
+                        {
+                            "id": "learn-2026-05-11-cli-detail-path-escape",
+                            "problem": "Existing malicious detail path must not escape",
+                            "lesson": "Keep generated learning detail writes contained.",
+                            "learning_type": "pitfall",
+                            "source_command": "sp-implement",
+                            "recurrence_key": "cli.detail-path.escape",
+                            "applies_to": ["sp-implement"],
+                            "trigger_signals": ["pitfall", "medium"],
+                            "detail": "../../outside.md",
+                            "first_seen": "2026-05-11T00:00:00Z",
+                            "last_seen": "2026-05-11T00:00:00Z",
+                            "occurrence_count": 1,
+                            "signal_strength": "medium",
+                        }
+                    ],
+                    indent=2,
+                ),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            "Existing malicious detail path must not escape",
+            "--evidence",
+            "Capture should rewrite unsafe detail paths inside learning memory.",
+            "--recurrence-key",
+            "cli.detail-path.escape",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
+    detail_path = Path(payload["detail_path"]).resolve()
+    assert detail_path.is_relative_to(learning_dir)
+    assert payload["index_entry"]["detail"].startswith("./learn-")
+    assert not (project / ".specify" / "outside.md").exists()
+
+
 def test_learning_start_filters_relevant_candidates_by_command(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)

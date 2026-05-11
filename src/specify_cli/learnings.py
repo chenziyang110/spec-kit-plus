@@ -880,7 +880,7 @@ def _merge_index_entry(existing: LearningIndexEntry, new_entry: LearningIndexEnt
         detail=existing.detail,
         first_seen=existing.first_seen,
         last_seen=new_entry.last_seen,
-        occurrence_count=existing.occurrence_count + 1,
+        occurrence_count=new_entry.occurrence_count,
         signal_strength="high" if "high" in {existing.signal_strength, new_entry.signal_strength} else "medium" if "medium" in {existing.signal_strength, new_entry.signal_strength} else "low",
     )
 
@@ -950,11 +950,23 @@ def _render_learning_detail(entry: LearningEntry, index_entry: LearningIndexEntr
 
 
 def _write_learning_detail(paths: LearningPaths, entry: LearningEntry, index_entry: LearningIndexEntry) -> Path:
+    learning_dir = paths.learning_index.parent
     detail_name = index_entry.detail.removeprefix("./")
-    detail_path = paths.learning_index.parent / detail_name
+    detail_path = learning_dir / detail_name
+    if not detail_path.resolve().is_relative_to(learning_dir.resolve()):
+        index_entry.detail = _detail_ref_for_index_id(index_entry.id)
+        detail_path = learning_dir / index_entry.detail.removeprefix("./")
     detail_path.parent.mkdir(parents=True, exist_ok=True)
     detail_path.write_text(_render_learning_detail(entry, index_entry), encoding="utf-8")
     return detail_path
+
+
+def _sync_learning_index_detail(paths: LearningPaths, stored: LearningEntry) -> tuple[LearningIndexEntry, Path]:
+    index_preamble, index_entries = _read_index_entries(paths.learning_index)
+    index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
+    detail_path = _write_learning_detail(paths, stored, stored_index)
+    _write_index_entries(paths.learning_index, index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(), index_entries)
+    return stored_index, detail_path
 
 
 def _remove_by_recurrence(entries: list[LearningEntry], recurrence_key: str) -> list[LearningEntry]:
@@ -1493,6 +1505,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
             )
             learning_entries, stored = _upsert_entry(learning_entries, promoted_entry, status="confirmed")
             auto_promoted.append(stored)
+            _sync_learning_index_detail(paths, stored)
             _append_review_note(
                 paths.review,
                 f"auto-promoted `{stored.recurrence_key}` to project learnings during `{normalized_command}` start",
@@ -1673,10 +1686,7 @@ def capture_learning(
         candidate_entries = _remove_by_recurrence(candidate_entries, stored.recurrence_key)
         _write_entries(paths.candidates, candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
         _append_review_note(paths.review, f"confirmed `{stored.recurrence_key}` from `{stored.source_command}`")
-        index_preamble, index_entries = _read_index_entries(paths.learning_index)
-        index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
-        _write_index_entries(paths.learning_index, index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(), index_entries)
-        detail_path = _write_learning_detail(paths, stored, stored_index)
+        stored_index, detail_path = _sync_learning_index_detail(paths, stored)
         return {
             "status": "confirmed",
             "entry": stored.to_payload(),
@@ -1689,10 +1699,7 @@ def capture_learning(
     candidate_entries, stored = _upsert_entry(candidate_entries, entry, status="candidate")
     _write_entries(paths.candidates, preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
     _append_review_note(paths.review, f"captured candidate `{stored.recurrence_key}` from `{stored.source_command}`")
-    index_preamble, index_entries = _read_index_entries(paths.learning_index)
-    index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
-    _write_index_entries(paths.learning_index, index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(), index_entries)
-    detail_path = _write_learning_detail(paths, stored, stored_index)
+    stored_index, detail_path = _sync_learning_index_detail(paths, stored)
     return {
         "status": "candidate",
         "entry": stored.to_payload(),
@@ -1825,7 +1832,13 @@ def promote_learning(
         _write_entries(paths.project_learnings, learning_preamble or LEARNINGS_TEMPLATE_TEXT.rstrip(), learning_entries)
         _write_entries(paths.candidates, candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
         _append_review_note(paths.review, f"promoted `{recurrence_key}` to project learnings from `{source_layer}`")
-        return {"status": "confirmed", "entry": stored.to_payload()}
+        stored_index, detail_path = _sync_learning_index_detail(paths, stored)
+        return {
+            "status": "confirmed",
+            "entry": stored.to_payload(),
+            "index_entry": stored_index.to_payload(),
+            "detail_path": str(detail_path),
+        }
 
     source_entry.status = "promoted-rule"
     rule_entries, stored = _upsert_entry(rule_entries, source_entry, status="promoted-rule")
@@ -1835,7 +1848,13 @@ def promote_learning(
     _write_entries(paths.project_learnings, learning_preamble or LEARNINGS_TEMPLATE_TEXT.rstrip(), learning_entries)
     _write_entries(paths.candidates, candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
     _append_review_note(paths.review, f"promoted `{recurrence_key}` to project rules from `{source_layer}`")
-    return {"status": "promoted-rule", "entry": stored.to_payload()}
+    stored_index, detail_path = _sync_learning_index_detail(paths, stored)
+    return {
+        "status": "promoted-rule",
+        "entry": stored.to_payload(),
+        "index_entry": stored_index.to_payload(),
+        "detail_path": str(detail_path),
+    }
 
 
 def _entry_counts(project_root: Path) -> dict[str, int]:
