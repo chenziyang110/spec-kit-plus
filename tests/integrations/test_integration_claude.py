@@ -2256,6 +2256,10 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
     assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in content
     assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
     assert "dispatch only from validated `workertaskpacket`" in content
+    assert "max_parallel_subagents = 4" in content
+    assert "implement-slot-1" in content
+    assert "launch all selected lanes in the current `parallel-subagents` wave before waiting".lower() in content
+    assert "whole ready parallel batch" in content
     assert "## claude dispatch-first gate" not in content
     assert "attempt native subagent execution before leader-inline fallback" not in content
 

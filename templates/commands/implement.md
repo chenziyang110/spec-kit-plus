@@ -356,8 +356,10 @@ until the cognition gate has passed.
    - **Task phases**: Setup, Tests, Core, Integration, Polish
    - **Task dependencies**: Sequential vs parallel execution rules
    - **Task details**: ID, description, file paths, parallel markers [P]
+   - **Lane identity**: Treat each task as a lane-level execution unit unless an explicit wrapper task defines a serial coordination step
    - **Ready tasks**: Tasks whose prerequisites are complete within the current phase
    - **Parallel batches**: Ready tasks that can execute together without write-set conflicts
+   - **Batch summaries**: Treat batch range labels such as `T012-T021` as summaries, not as one executable lane identity or one batch-owner `WorkerTaskPacket`
    - **Join points**: Synchronization steps that must complete before downstream work starts
    - **Execution flow**: Order and dependency requirements
    - **REQUIRED**: Run pre-dispatch validation (see Pre-Dispatch Validation section) on every task in the current ready batch before compiling WorkerTaskPacket.
@@ -368,6 +370,15 @@ until the cognition gate has passed.
    - **Agent routing**: When a task specifies an `agent` role, dispatch to that role's subagent type. When no agent is specified, default to a general executor lane. Do not route security-sensitive tasks to general-purpose agents when a matching specialist exists.
    - The invoking runtime acts as the leader: it reads the current planning artifacts, selects the next executable phase and ready batch, and dispatches work instead of performing concrete implementation directly.
    - The shared implement template is the primary source of truth for this leader-owned milestone scheduler contract, and integration-specific addenda must preserve the same semantics.
+   - Fixed runtime budget:
+     ```text
+     max_parallel_subagents = 4
+     ```
+   - Fixed execution slots for current-wave bookkeeping:
+     - `implement-slot-1`
+     - `implement-slot-2`
+     - `implement-slot-3`
+     - `implement-slot-4`
    - Use the shared policy function before each batch with the current agent capability snapshot: `choose_subagent_dispatch(command_name="implement", snapshot, workload_shape)`
    - Also classify whether the current batch needs a review gate before the join point: `classify_review_gate_policy(workload_shape)`
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
@@ -383,6 +394,7 @@ until the cognition gate has passed.
        - If exactly one safe validated packet is ready and native subagents are available, dispatch `one-subagent`.
        - If two or more safe validated packets with isolated write sets are ready and native subagents are available, dispatch `parallel-subagents`.
        - No other dispatch outcome is valid.
+   - A `parallel batch` is the current ready set of isolated lane-level tasks bounded by a join point.
    - A lane is dispatch-ready only if its validated `WorkerTaskPacket` includes: objective, authoritative inputs, read scope, write scope, forbidden drift, validation checks, and done condition.
    - If any required packet field is missing, do not dispatch and do not execute inline.
    - The only legal action is to repair the packet or stop as `subagent-blocked`.
@@ -391,6 +403,13 @@ until the cognition gate has passed.
    - Dispatch failure is not permission to continue locally.
    - Resume only after the blocking runtime or packet condition is explicitly repaired.
    - Re-evaluate subagent dispatch at every new parallel batch or join point instead of choosing once for the whole feature
+   - When `parallel-subagents` is selected, choose the current wave from the ready batch and dispatch at most four validated isolated lanes.
+   - Launch all selected lanes in the current `parallel-subagents` wave before waiting.
+   - Wait only at the current wave join point after the full wave has been launched.
+   - If the ready batch contains more than four dispatch-ready isolated lanes, execute multiple waves and re-evaluate after each wave.
+   - A single implementation subagent may own one validated lane packet, but it must not own the whole ready parallel batch.
+   - Do not dispatch a batch-wide objective such as `Implement T012-T021 migrations` as one implementation lane.
+   - Do not treat a batch range label as one `WorkerTaskPacket`.
    - Refine only the current executable window after each join point. Do not pre-expand later batches when their exact shape depends on current batch evidence.
    - Grouped parallelism is the default when multiple ready tasks have isolated write sets and stable upstream inputs.
    - Pipeline execution is preferred when outputs flow stage-by-stage from one bounded task to the next and each stage becomes the next stage's input.
@@ -413,6 +432,8 @@ until the cognition gate has passed.
     - **Autonomous Loop**: You **MUST** continue processing the next ready sequential tasks automatically without stopping after a single task. Stop only when you reach a **Join Point** (awaiting parallel task results), or when all tasks in the current phase are complete.
    - **Respect dependencies**: Run sequential tasks in order, and only run [P] tasks inside their declared or inferred parallel batches
    - **Capability-aware execution**: After selecting dispatch, execute the current ready batch through `one-subagent`, `parallel-subagents`, or `parallel-subagents` when selected by policy; otherwise record `subagent-blocked` while preserving join-point semantics.
+   - **Wave discipline**: For `parallel-subagents`, the current wave is not complete until every selected lane has returned a structured handoff or has been explicitly classified as blocked, stale, or deferred.
+   - **Wave progression**: After each wave, consume and validate every structured handoff, update execution state, then decide whether the next wave may launch.
    - Once a batch clears the subagent-readiness bar, do not stop to ask the user whether it should switch to subagent execution; dispatch by default, and if dispatch concretely fails, record `subagent-blocked` with the blocker and stop for escalation or recovery.
     - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
     - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
@@ -438,6 +459,7 @@ until the cognition gate has passed.
    - Report progress after each completed task
    - Halt execution if any non-parallel task fails
    - For tasks in parallel batches, continue with successful tasks, report failed ones, and do not cross the batch's join point until the failed work is resolved or explicitly deferred
+   - A completed wave does not automatically complete the whole ready batch; do not cross the batch join point until every lane in the batch is accepted or explicitly blocked/deferred under the workflow contract
    - Planned validation tasks are still ready work. If the remaining tasks are executable tests, E2E checks, security verification, quickstart validation, or other scripted validation work already present in `tasks.md`, continue automatically instead of asking whether validation should start.
    - Do not stop to ask whether validation should start unless a manual-only check or approval step is explicitly recorded in the tracker or task plan.
    - If a subagent lane flips to `completed` or drifts into `idle` before the promised handoff, result file, or completion evidence arrives, treat it as a stale lane rather than accepted work: probe once for the missing handoff, then re-dispatch, block, or defer explicitly instead of silently continuing

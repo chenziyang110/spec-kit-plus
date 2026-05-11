@@ -181,10 +181,15 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
     - Carry profile-required evidence into task completion criteria instead of relying only on generic behavior validation. When the active profile requires screenshots, trace IDs, reference comparisons, migration proof, or other required evidence, attach that evidence obligation to the relevant task done condition or join point pass condition.
     - If `Implementation Constitution` defines boundary-defining references or forbidden drift, add an implementation-guardrails phase before setup so implementers must confirm the existing pattern before changing code
     - **Task Guardrail Index**: Add task-to-guardrail mapping when tasks inherit execution rules from plan.md or constitution.md. Keep the mapping compact so downstream execution can resolve applicable hard rules per task.
+    - Treat `[P]` as a lane-level parallel-eligible marker, not as permission to collapse multiple tasks into one batch-owner execution lane.
     - For every `[P]` task or parallel batch, include: objective, write set, required references, forbidden drift, validation command, and done condition — the information downstream execution needs to dispatch work safely
     - Generate dependency graph showing user story completion order
     - Derive a write set for each task (files or shared registration surfaces it will modify)
     - Group ready tasks into each phase's parallel batches using those write sets
+    - A `parallel batch` is the current ready set of isolated lane-level tasks bounded by a join point.
+    - Batch range labels such as `T012-T021` are summaries, not executable lane identities.
+    - Each `[P]` task remains a lane-level execution unit unless an explicit wrapper task defines a serial coordination step.
+    - Identify the member lanes of a parallel batch explicitly enough that downstream execution does not infer one batch-owner implementer task from the range label alone.
     - Grouped parallelism is the default when multiple ready tasks have isolated write sets and do not depend on each other's outputs
     - Prefer moving shared registrations, export barrels, schema indexes, router tables, and other coordination edits into explicit serial join tasks so the surrounding feature work can stay parallel-ready
     - Pipeline is preferred when outputs flow linearly from one bounded lane to the next, for example transform -> generate -> validate
@@ -280,6 +285,7 @@ Every task MUST strictly follow this format:
 3. **[P] marker**: Include ONLY if task is parallelizable
    - Parallelizable means the task has an isolated write set, no dependencies on incomplete tasks, stable upstream inputs, and an independent verification path
    - Treat shared registration files, index/exports, router tables, dependency injection containers, and other coordination surfaces as part of the write set
+   - `[P]` means the task is parallel-eligible as one lane-level execution unit; it does not turn a task range or phase label into one executable lane
 4. **[Story] label**: REQUIRED for user story phase tasks only
    - Format: [US1], [US2], [US3], etc. (maps to user stories from spec.md)
    - Setup phase: NO story label

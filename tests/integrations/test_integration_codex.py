@@ -324,6 +324,10 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "If any required packet field is missing, do not dispatch and do not execute inline." in content
     assert "The only legal action is to repair the packet or stop as `subagent-blocked`." in content
     assert "Dispatch failure is not permission to continue locally." in content
+    assert "max_parallel_subagents = 4" in content
+    assert "implement-slot-1" in content
+    assert "launch all selected lanes in the current `parallel-subagents` wave before waiting" in content
+    assert "whole ready parallel batch" in content
 
 
 def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guidance(tmp_path):

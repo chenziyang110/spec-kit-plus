@@ -814,6 +814,9 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "stop decomposition once the current executable window is atomic" in lowered
     assert "leave later phases at the coarser story or phase level" in lowered
     assert "grouped parallelism is the default" in lowered
+    assert "parallel-eligible" in lowered
+    assert "batch range labels such as `t012-t021` are summaries, not executable lane identities" in lowered
+    assert "lane-level execution unit" in lowered
     assert "pipeline is preferred when outputs flow linearly from one bounded lane to the next" in lowered
     assert "every pipeline stage still needs an explicit checkpoint" in lowered
     assert "classify_review_gate_policy(workload_shape)" in content
@@ -826,6 +829,17 @@ def test_tasks_template_documents_shared_routing_before_decomposition():
     assert "successful-refresh finalizer" in lowered
     assert "manual override/fallback" in lowered
     assert "specify team" not in lowered
+
+
+def test_implement_template_wave_budget_contract():
+    content = _read("templates/commands/implement.md")
+    lowered = content.lower()
+
+    assert "max_parallel_subagents = 4" in content
+    assert "implement-slot-1" in content
+    assert "implement-slot-4" in content
+    assert "launch all selected lanes in the current `parallel-subagents` wave before waiting" in lowered
+    assert "whole ready parallel batch" in lowered
 
 
 def test_explain_template_documents_conservative_routing_contract():
