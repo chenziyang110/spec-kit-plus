@@ -753,6 +753,10 @@ def read_learning_entries(path: Path) -> tuple[str, list[LearningEntry]]:
     return _read_entries(path)
 
 
+def read_learning_index_entries(path: Path) -> tuple[str, list[LearningIndexEntry]]:
+    return _read_index_entries(path)
+
+
 def _write_entries(path: Path, preamble: str, entries: list[LearningEntry]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_render_learning_file(preamble, entries), encoding="utf-8")
