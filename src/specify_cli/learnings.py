@@ -949,11 +949,19 @@ def _render_learning_detail(entry: LearningEntry, index_entry: LearningIndexEntr
     )
 
 
+def _is_valid_detail_ref(detail_ref: str) -> bool:
+    detail_ref = str(detail_ref)
+    if not detail_ref.startswith("./"):
+        return False
+    detail_name = detail_ref.removeprefix("./")
+    return bool(re.fullmatch(r"learn-[A-Za-z0-9][A-Za-z0-9._-]*\.md", detail_name))
+
+
 def _write_learning_detail(paths: LearningPaths, entry: LearningEntry, index_entry: LearningIndexEntry) -> Path:
     learning_dir = paths.learning_index.parent
     detail_name = index_entry.detail.removeprefix("./")
     detail_path = learning_dir / detail_name
-    if not detail_path.resolve().is_relative_to(learning_dir.resolve()):
+    if not _is_valid_detail_ref(index_entry.detail) or not detail_path.resolve().is_relative_to(learning_dir.resolve()):
         index_entry.id = _learning_index_id(entry.recurrence_key, entry.first_seen)
         index_entry.detail = _detail_ref_for_index_id(index_entry.id)
         detail_path = learning_dir / index_entry.detail.removeprefix("./")
