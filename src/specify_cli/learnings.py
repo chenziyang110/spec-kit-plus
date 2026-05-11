@@ -646,7 +646,8 @@ def _render_learning_file(preamble: str, entries: list[LearningEntry]) -> str:
 
 
 def _learning_index_id(recurrence_key: str, first_seen: str) -> str:
-    return f"learn-{first_seen[:10]}-{_slugify(recurrence_key)[:72]}"
+    recurrence_hash = hashlib.sha256(recurrence_key.encode("utf-8")).hexdigest()[:10]
+    return f"learn-{first_seen[:10]}-{_slugify(recurrence_key)[:56]}-{recurrence_hash}"
 
 
 def _detail_ref_for_index_id(index_id: str) -> str:

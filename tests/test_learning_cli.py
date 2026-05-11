@@ -412,6 +412,74 @@ def test_learning_capture_writes_index_and_detail_doc(tmp_path: Path) -> None:
     assert false_start in detail_content
 
 
+def test_learning_capture_uses_unique_detail_refs_for_long_common_recurrence_prefixes(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    common_prefix = "cli." + "project-launcher-helper-drift-" * 4
+    first_summary = "First long-prefix launcher learning"
+    second_summary = "Second long-prefix launcher learning"
+    first_evidence = "First evidence must stay in its own detail file."
+    second_evidence = "Second evidence must stay in its own detail file."
+
+    first = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            first_summary,
+            "--evidence",
+            first_evidence,
+            "--recurrence-key",
+            f"{common_prefix}first",
+            "--format",
+            "json",
+        ],
+    )
+    second = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            second_summary,
+            "--evidence",
+            second_evidence,
+            "--recurrence-key",
+            f"{common_prefix}second",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert first.exit_code == 0, first.stdout
+    assert second.exit_code == 0, second.stdout
+    first_payload = json.loads(first.stdout)
+    second_payload = json.loads(second.stdout)
+    first_detail = first_payload["index_entry"]["detail"]
+    second_detail = second_payload["index_entry"]["detail"]
+    assert first_detail != second_detail
+
+    learning_dir = project / ".specify" / "memory" / "learnings"
+    first_detail_content = (learning_dir / first_detail.removeprefix("./")).read_text(encoding="utf-8")
+    second_detail_content = (learning_dir / second_detail.removeprefix("./")).read_text(encoding="utf-8")
+    assert first_summary in first_detail_content
+    assert first_evidence in first_detail_content
+    assert second_summary in second_detail_content
+    assert second_evidence in second_detail_content
+
+
 def test_learning_capture_confirm_keeps_index_occurrence_count_aligned(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
