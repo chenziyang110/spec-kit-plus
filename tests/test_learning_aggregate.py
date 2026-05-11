@@ -173,6 +173,44 @@ def test_aggregate_learning_state_reads_index_entries(tmp_path: Path) -> None:
     assert "cli.project-launcher-helper-drift" in keys
     matched = next(item for item in patterns if item["recurrence_key"] == "cli.project-launcher-helper-drift")
     assert "learning_index" in matched["layers"]
+    assert matched["total_occurrences"] == 1
+    assert matched["promotion_state"] == "approaching_threshold"
+
+
+def test_aggregate_learning_state_uses_index_as_fallback_without_source_entry(tmp_path: Path) -> None:
+    project = tmp_path
+    _seed_learning_templates(project)
+    capture_learning(
+        project,
+        command_name="implement",
+        learning_type="tooling_trap",
+        summary="Use the project launcher for generated helper commands",
+        evidence="The generated launcher selected a different specify executable than PATH.",
+        recurrence_key="cli.project-launcher-helper-drift",
+        signal_strength="medium",
+    )
+    candidates_path = project / ".planning" / "learnings" / "candidates.md"
+    candidates_content = candidates_path.read_text(encoding="utf-8")
+    candidates_path.write_text(
+        candidates_content.replace(
+            candidates_content[
+                candidates_content.index("<!-- SPECKIT_LEARNING_DATA_BEGIN -->") :
+                candidates_content.index("<!-- SPECKIT_LEARNING_DATA_END -->")
+            ],
+            "<!-- SPECKIT_LEARNING_DATA_BEGIN -->\n[]\n",
+        ),
+        encoding="utf-8",
+    )
+
+    report = aggregate_learning_state(project)
+
+    patterns = report["patterns"]
+    keys = [item["recurrence_key"] for item in patterns]
+    assert "cli.project-launcher-helper-drift" in keys
+    matched = next(item for item in patterns if item["recurrence_key"] == "cli.project-launcher-helper-drift")
+    assert matched["layers"] == ["learning_index"]
+    assert matched["total_occurrences"] == 1
+    assert matched["promotion_state"] == "informational"
 
 
 def test_render_learning_aggregate_report_includes_promotion_ready_and_stale_sections() -> None:

@@ -120,8 +120,9 @@ def aggregate_learning_patterns(
 
     patterns: list[AggregatedLearningPattern] = []
     for recurrence_key, grouped_entries in grouped.items():
-        entries = [entry for _layer, entry in grouped_entries]
         layers = [layer for layer, _entry in grouped_entries]
+        source_entries = [entry for layer, entry in grouped_entries if layer != "learning_index"]
+        entries = source_entries or [entry for _layer, entry in grouped_entries]
         layer_counts = {
             "candidate": layers.count("candidate"),
             "confirmed": layers.count("confirmed"),
