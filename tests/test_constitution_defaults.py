@@ -162,7 +162,7 @@ def test_ensure_learning_memory_from_templates_materializes_defaults(tmp_path):
     assert "Project Learnings" in learnings_path.read_text(encoding="utf-8")
     index_content = index_path.read_text(encoding="utf-8")
     assert "Project Learning Index" in index_content
-    assert "detail" in index_content
+    assert "Open only the linked detail documents" in index_content
     assert "trigger_signals" in index_content
     assert "Shared defaults that later `sp-xxx` workflows should follow" in rules_path.read_text(encoding="utf-8")
     assert "Confirmed project learnings that are reusable" in learnings_path.read_text(encoding="utf-8")

@@ -184,8 +184,6 @@ class TestClaudeIntegration:
                 ".specify/memory/project-rules.md",
                 ".specify/project-map/status.json",
                 ".specify/project-map/index/status.json",
-                ".specify/templates/project-learning-detail-template.md",
-                ".specify/templates/project-learnings-index-template.md",
             ]
         )
 

@@ -501,8 +501,6 @@ class MarkdownIntegrationTests:
         files.append(".specify/memory/learnings/INDEX.md")
         files.append(".specify/memory/project-learnings.md")
         files.append(".specify/memory/project-rules.md")
-        files.append(".specify/templates/project-learning-detail-template.md")
-        files.append(".specify/templates/project-learnings-index-template.md")
         files.append(".specify/project-map/status.json")
         files.append(".specify/project-map/index/status.json")
         return sorted(files)
