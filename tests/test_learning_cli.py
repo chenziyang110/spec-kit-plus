@@ -297,7 +297,7 @@ def test_learning_ensure_creates_learning_index(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     assert payload["exists"]["learning_index"] is True
-    assert payload["paths"]["learning_index"].endswith(".specify/memory/learnings/INDEX.md")
+    assert payload["paths"]["learning_index"].replace("\\", "/").endswith(".specify/memory/learnings/INDEX.md")
     assert (project / ".specify" / "memory" / "learnings" / "INDEX.md").exists()
 
 

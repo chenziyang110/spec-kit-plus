@@ -119,13 +119,13 @@ class LearningPaths:
 
     def to_dict(self) -> dict[str, str]:
         return {
-            "constitution": self.constitution.as_posix(),
-            "project_rules": self.project_rules.as_posix(),
-            "project_learnings": self.project_learnings.as_posix(),
-            "learning_index": self.learning_index.as_posix(),
-            "learning_detail_template": self.learning_detail_template.as_posix(),
-            "candidates": self.candidates.as_posix(),
-            "review": self.review.as_posix(),
+            "constitution": str(self.constitution),
+            "project_rules": str(self.project_rules),
+            "project_learnings": str(self.project_learnings),
+            "learning_index": str(self.learning_index),
+            "learning_detail_template": str(self.learning_detail_template),
+            "candidates": str(self.candidates),
+            "review": str(self.review),
         }
 
 
