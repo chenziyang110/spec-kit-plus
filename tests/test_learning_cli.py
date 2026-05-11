@@ -365,7 +365,7 @@ def test_learning_capture_writes_index_and_detail_doc(tmp_path: Path) -> None:
     _seed_learning_templates(project)
     _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
 
-    summary = "Project launcher helper drift must be captured in shared memory"
+    summary = "Run generated helper commands from the project launcher"
     evidence_fragment = "Launcher command wiring drifted from generated helper expectations."
     false_start = "patched only the generated helper without updating the shared launcher surface"
     result = _invoke_in_project(
@@ -396,7 +396,7 @@ def test_learning_capture_writes_index_and_detail_doc(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     index_entry = payload["index_entry"]
     assert index_entry["recurrence_key"] == "cli.project-launcher-helper-drift"
-    assert index_entry["problem"] == summary
+    assert index_entry["problem"] == "Run generated helper commands from the project launcher"
     assert "sp-implement" in index_entry["applies_to"]
     assert index_entry["detail"].startswith("./learn-")
 
