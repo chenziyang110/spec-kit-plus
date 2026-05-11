@@ -1522,6 +1522,14 @@ def is_index_relevant_to_command(entry: LearningIndexEntry, command_name: str) -
     return normalize_command_name(command_name) in entry.applies_to
 
 
+def _recommended_detail_doc_paths(learning_dir: Path, entries: list[LearningIndexEntry]) -> list[str]:
+    return [
+        str(_detail_path_for_ref(learning_dir, entry.detail).resolve())
+        for entry in entries
+        if _is_valid_detail_ref(entry.detail) and _detail_ref_resolves_inside(learning_dir, entry.detail)
+    ]
+
+
 def is_highest_signal(entry: LearningEntry) -> bool:
     return entry.signal_strength == "high" or entry.occurrence_count >= 2
 
@@ -1570,7 +1578,6 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
     rule_preamble, rule_entries = _read_entries(paths.project_rules)
     learning_preamble, learning_entries = _read_entries(paths.project_learnings)
     candidate_preamble, candidate_entries = _read_entries(paths.candidates)
-    index_preamble, index_entries = _read_index_entries(paths.learning_index)
 
     auto_promoted: list[LearningEntry] = []
     remaining_candidates: list[LearningEntry] = []
@@ -1605,6 +1612,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         )
         candidate_entries = remaining_candidates
 
+    index_preamble, index_entries = _read_index_entries(paths.learning_index)
     relevant_rules = [entry.to_payload() for entry in rule_entries if is_relevant_to_command(entry, normalized_command)]
     relevant_learnings = [entry.to_payload() for entry in learning_entries if is_relevant_to_command(entry, normalized_command)]
     relevant_candidates = [entry.to_payload() for entry in candidate_entries if is_relevant_to_command(entry, normalized_command)]
@@ -1613,11 +1621,12 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         for entry in index_entries
         if is_index_relevant_to_command(entry, normalized_command)
     ]
-    recommended_detail_docs = [
-        str((paths.learning_index.parent / entry.detail.removeprefix("./")).resolve())
+    relevant_detail_entries = [
+        entry
         for entry in index_entries
         if is_index_relevant_to_command(entry, normalized_command)
     ]
+    recommended_detail_docs = _recommended_detail_doc_paths(paths.learning_index.parent, relevant_detail_entries)
 
     promotable = [
         entry.to_payload()

@@ -1418,7 +1418,10 @@ def test_learning_start_returns_relevant_index_entries_and_detail_refs(tmp_path:
         "debug.focused-repro-before-scope-widening"
     ]
     assert payload["recommended_detail_docs"]
-    assert payload["recommended_detail_docs"][0].replace("\\", "/").endswith(".md")
+    learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
+    recommended_detail = Path(payload["recommended_detail_docs"][0]).resolve()
+    assert recommended_detail.is_relative_to(learning_dir)
+    assert recommended_detail.suffix == ".md"
     assert payload["summary_counts"]["relevant_index_entries"] == 1
 
 
@@ -1456,9 +1459,16 @@ def test_learning_start_auto_promotes_repeated_medium_signal_candidates(tmp_path
     auto_promoted = [entry["summary"] for entry in payload["auto_promoted"]]
     relevant_learnings = [entry["summary"] for entry in payload["relevant_learnings"]]
     relevant_candidates = [entry["summary"] for entry in payload["relevant_candidates"]]
+    relevant_index_entries = [entry["problem"] for entry in payload["relevant_index_entries"]]
     assert "Always preserve verification tasks in planning" in auto_promoted
     assert "Always preserve verification tasks in planning" in relevant_learnings
     assert "Always preserve verification tasks in planning" not in relevant_candidates
+    assert "Always preserve verification tasks in planning" in relevant_index_entries
+    assert payload["recommended_detail_docs"]
+    learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
+    recommended_detail = Path(payload["recommended_detail_docs"][0]).resolve()
+    assert recommended_detail.is_relative_to(learning_dir)
+    assert recommended_detail.suffix == ".md"
 
 
 def test_learning_capture_confirm_and_promote_rule_flow(tmp_path: Path) -> None:
