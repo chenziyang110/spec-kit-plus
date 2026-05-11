@@ -480,6 +480,107 @@ def test_learning_capture_uses_unique_detail_refs_for_long_common_recurrence_pre
     assert second_evidence in second_detail_content
 
 
+def test_learning_capture_repairs_existing_duplicate_valid_detail_ref(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    shared_detail_ref = "./learn-2026-05-11-shared.md"
+    shared_other_summary = "Other stale detail owner"
+    shared_other_evidence = "Other stale detail content must remain untouched."
+    index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
+    index_path.write_text(
+        "\n".join(
+            [
+                "# Project Learning Index",
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps(
+                    [
+                        {
+                            "id": "learn-2026-05-11-duplicate-first",
+                            "problem": "Captured duplicate detail owner",
+                            "lesson": "First duplicate row should get a repaired detail ref.",
+                            "learning_type": "pitfall",
+                            "source_command": "sp-implement",
+                            "recurrence_key": "cli.duplicate-detail.first",
+                            "applies_to": ["sp-implement"],
+                            "trigger_signals": ["pitfall", "medium"],
+                            "detail": shared_detail_ref,
+                            "first_seen": "2026-05-11T00:00:00Z",
+                            "last_seen": "2026-05-11T00:00:00Z",
+                            "occurrence_count": 1,
+                            "signal_strength": "medium",
+                        },
+                        {
+                            "id": "learn-2026-05-11-duplicate-other",
+                            "problem": shared_other_summary,
+                            "lesson": shared_other_evidence,
+                            "learning_type": "pitfall",
+                            "source_command": "sp-implement",
+                            "recurrence_key": "cli.duplicate-detail.other",
+                            "applies_to": ["sp-implement"],
+                            "trigger_signals": ["pitfall", "medium"],
+                            "detail": shared_detail_ref,
+                            "first_seen": "2026-05-11T00:00:00Z",
+                            "last_seen": "2026-05-11T00:00:00Z",
+                            "occurrence_count": 1,
+                            "signal_strength": "medium",
+                        },
+                    ],
+                    indent=2,
+                ),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    learning_dir = project / ".specify" / "memory" / "learnings"
+    shared_detail_path = learning_dir / shared_detail_ref.removeprefix("./")
+    shared_detail_path.write_text(
+        f"# {shared_other_summary}\n\n## Evidence\n\n{shared_other_evidence}\n",
+        encoding="utf-8",
+    )
+
+    summary = "Captured duplicate detail owner"
+    evidence = "Captured detail content must move to a unique detail document."
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            summary,
+            "--evidence",
+            evidence,
+            "--recurrence-key",
+            "cli.duplicate-detail.first",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    repaired_detail_ref = payload["index_entry"]["detail"]
+    assert repaired_detail_ref != shared_detail_ref
+    assert repaired_detail_ref.startswith("./learn-")
+
+    repaired_detail_content = (learning_dir / repaired_detail_ref.removeprefix("./")).read_text(encoding="utf-8")
+    shared_detail_content = shared_detail_path.read_text(encoding="utf-8")
+    assert summary in repaired_detail_content
+    assert evidence in repaired_detail_content
+    assert shared_other_summary in shared_detail_content
+    assert shared_other_evidence in shared_detail_content
+    assert evidence not in shared_detail_content
+
+
 def test_learning_capture_confirm_keeps_index_occurrence_count_aligned(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)

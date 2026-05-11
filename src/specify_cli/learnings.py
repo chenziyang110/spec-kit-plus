@@ -976,6 +976,12 @@ def _write_learning_detail(paths: LearningPaths, entry: LearningEntry, index_ent
 def _sync_learning_index_detail(paths: LearningPaths, stored: LearningEntry) -> tuple[LearningIndexEntry, Path]:
     index_preamble, index_entries = _read_index_entries(paths.learning_index)
     index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
+    if any(
+        entry.recurrence_key != stored_index.recurrence_key and entry.detail == stored_index.detail
+        for entry in index_entries
+    ):
+        stored_index.id = _learning_index_id(stored.recurrence_key, stored.first_seen)
+        stored_index.detail = _detail_ref_for_index_id(stored_index.id)
     detail_path = _write_learning_detail(paths, stored, stored_index)
     _write_index_entries(paths.learning_index, index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(), index_entries)
     return stored_index, detail_path
