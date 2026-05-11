@@ -359,6 +359,59 @@ def test_learning_capture_merges_by_recurrence_key_and_increments_count(tmp_path
     assert second_payload["needs_confirmation"] is True
 
 
+def test_learning_capture_writes_index_and_detail_doc(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    summary = "Project launcher helper drift must be captured in shared memory"
+    evidence_fragment = "Launcher command wiring drifted from generated helper expectations."
+    false_start = "patched only the generated helper without updating the shared launcher surface"
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "workflow_gap",
+            "--summary",
+            summary,
+            "--evidence",
+            f"{evidence_fragment}\nShared helper tests exposed the mismatch.",
+            "--recurrence-key",
+            "cli.project-launcher-helper-drift",
+            "--applies-to",
+            "sp-implement",
+            "--false-start",
+            false_start,
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    index_entry = payload["index_entry"]
+    assert index_entry["recurrence_key"] == "cli.project-launcher-helper-drift"
+    assert index_entry["problem"] == summary
+    assert "sp-implement" in index_entry["applies_to"]
+    assert index_entry["detail"].startswith("./learn-")
+
+    index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
+    index_content = index_path.read_text(encoding="utf-8")
+    assert "cli.project-launcher-helper-drift" in index_content
+    assert index_entry["detail"] in index_content
+
+    detail_path = index_path.parent / index_entry["detail"].removeprefix("./")
+    detail_content = detail_path.read_text(encoding="utf-8")
+    assert summary in detail_content
+    assert evidence_fragment in detail_content
+    assert false_start in detail_content
+
+
 def test_learning_start_filters_relevant_candidates_by_command(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
