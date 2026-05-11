@@ -838,8 +838,13 @@ def test_implement_template_wave_budget_contract():
     assert "max_parallel_subagents = 4" in content
     assert "implement-slot-1" in content
     assert "implement-slot-4" in content
+    assert "current selected wave" in lowered
+    assert "at most four validated isolated lanes" in lowered
+    assert "more than four dispatch-ready isolated lanes" in lowered
+    assert "execute multiple waves" in lowered
     assert "launch all selected lanes in the current `parallel-subagents` wave before waiting" in lowered
     assert "whole ready parallel batch" in lowered
+    assert "implement t012-t021 migrations" in lowered
 
 
 def test_explain_template_documents_conservative_routing_contract():

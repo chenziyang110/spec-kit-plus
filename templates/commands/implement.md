@@ -403,7 +403,7 @@ until the cognition gate has passed.
    - Dispatch failure is not permission to continue locally.
    - Resume only after the blocking runtime or packet condition is explicitly repaired.
    - Re-evaluate subagent dispatch at every new parallel batch or join point instead of choosing once for the whole feature
-   - When `parallel-subagents` is selected, choose the current wave from the ready batch and dispatch at most four validated isolated lanes.
+   - When `parallel-subagents` is selected, choose the current selected wave from the ready batch and dispatch at most four validated isolated lanes.
    - Launch all selected lanes in the current `parallel-subagents` wave before waiting.
    - Wait only at the current wave join point after the full wave has been launched.
    - If the ready batch contains more than four dispatch-ready isolated lanes, execute multiple waves and re-evaluate after each wave.

@@ -326,8 +326,13 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "Dispatch failure is not permission to continue locally." in content
     assert "max_parallel_subagents = 4" in content
     assert "implement-slot-1" in content
+    assert "current selected wave" in content
+    assert "at most four validated isolated lanes" in content
+    assert "more than four dispatch-ready isolated lanes" in content
+    assert "execute multiple waves" in content
     assert "launch all selected lanes in the current `parallel-subagents` wave before waiting" in content
     assert "whole ready parallel batch" in content
+    assert "current batch, `wait_agent` to join them" not in content
 
 
 def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guidance(tmp_path):
