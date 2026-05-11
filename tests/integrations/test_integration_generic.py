@@ -41,10 +41,13 @@ class TestGenericIntegration:
             ".specify/integrations/generic/scripts/update-context.sh",
             ".specify/integrations/speckit.manifest.json",
             ".specify/memory/constitution.md",
+            ".specify/memory/learnings/INDEX.md",
             ".specify/memory/project-learnings.md",
             ".specify/memory/project-rules.md",
             ".specify/project-map/status.json",
             ".specify/project-map/index/status.json",
+            ".specify/templates/project-learning-detail-template.md",
+            ".specify/templates/project-learnings-index-template.md",
         ]
 
         if script_variant == "sh":

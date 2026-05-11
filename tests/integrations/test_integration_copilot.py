@@ -50,10 +50,13 @@ class TestCopilotIntegration:
                 ".specify/integrations/copilot/scripts/update-context.ps1",
                 ".specify/integrations/copilot/scripts/update-context.sh",
                 ".specify/memory/constitution.md",
+                ".specify/memory/learnings/INDEX.md",
                 ".specify/memory/project-learnings.md",
                 ".specify/memory/project-rules.md",
                 ".specify/project-map/status.json",
                 ".specify/project-map/index/status.json",
+                ".specify/templates/project-learning-detail-template.md",
+                ".specify/templates/project-learnings-index-template.md",
             ]
         )
 
