@@ -154,22 +154,27 @@ def test_project_learning_focuses_on_memory_triggers_storage_and_promotion() -> 
 
     assert "this skill is about the memory system itself" in content
     assert "it is not a catalog of `sp-*` workflows" in content
-    assert "the user should not have to manually remind the agent to remember recurring pitfalls" in content
-    assert "what counts as memory-worthy knowledge" in content
+    assert "the user should not have to" in content
+    assert "manually remind the agent to remember recurring pitfalls" in content
+    assert "what to record" in content
+    assert "what to skip" in content
+    assert ".specify/memory/learnings/index.md" in content
+    assert "learning reflex" in content
+    assert "one detailed markdown document per lesson" in content
     assert "memory layers" in content
     assert "learning types" in content
     assert "required behavior" in content
     assert "capture heuristics" in content
     assert "promotion heuristics" in content
     assert "injection goal" in content
-    assert "learning start --command <command-name>" in content
+    assert "learning start --command implement --format json" in content
     assert "hook review-learning --command <command-name>" in content
+    assert "learning capture-auto --command implement --feature-dir" in content
     assert "command shape: `{{specify-subcmd:hook capture-learning --command <command-name>" in content
     assert "native hooks are an optional enhancement" in content
     assert "without native hooks" in content
-    assert "single high-signal candidates should still appear in start-time warnings" in content
-    assert "repeated high-signal candidates" in content
-    assert "should auto-promote" in content
+    assert "candidate/confirmed" not in content
+    assert "candidate layer" not in content
     assert "testing-state.md" in content
     assert "workflow-state.md" in content
 

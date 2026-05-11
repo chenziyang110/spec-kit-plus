@@ -178,6 +178,11 @@ def _assert_managed_block_v2_contract(block: str) -> None:
 
 
 def test_core_sp_templates_use_learning_review_hooks():
+    learning_layer = _read("templates/command-partials/common/learning-layer.md")
+    assert ".specify/memory/learnings/INDEX.md" in learning_layer
+    assert "Learning Reflex" in learning_layer
+    assert "detail document" in learning_layer
+
     command_templates_with_signal = {
         "specify": "templates/commands/specify.md",
         "clarify": "templates/commands/clarify.md",
@@ -201,11 +206,14 @@ def test_core_sp_templates_use_learning_review_hooks():
     quick_content = _read("templates/commands/quick.md")
     assert "{{specify-subcmd:learning start --command quick --format json}}" in quick_content or "Passive Project Learning Layer" in quick_content
     assert "{{specify-subcmd:hook review-learning --command quick" not in quick_content
-    assert "Auto-capture learnings on resolution only. No review, no signal." in quick_content
+    assert ".specify/memory/learnings/INDEX.md" in quick_content
+    assert "Learning Reflex" in quick_content
+    assert "detail document" in quick_content
 
     fast_content = _read("templates/commands/fast.md")
-    assert "Skip all learning hooks" in fast_content
-    assert "Do not run learning start, signal, review, or capture" in fast_content
+    assert ".specify/memory/learnings/INDEX.md" in fast_content
+    assert "Learning Reflex" in fast_content
+    assert "detail document" in fast_content
     assert "{{specify-subcmd:learning capture --command fast ...}}" not in fast_content
 
 

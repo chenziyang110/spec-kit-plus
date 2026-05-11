@@ -4,26 +4,35 @@ Learning capture is proportional to command complexity:
 
 | Tier | Learning Behavior |
 |------|-------------------|
-| trivial | Skip all learning hooks. No capture. |
-| light | Auto-capture on resolution only. No review, no signal. |
-| heavy | Full learning: start → signal on friction → review → capture-auto |
+| trivial | Skip learning unless the task escalates or exposes reusable project memory. |
+| light | Read the learning index and auto-capture from durable state on resolution when useful. |
+| heavy | Full learning: start -> read index -> signal friction -> closeout capture into index/detail. |
+
+### Learning Reflex
+
+Before final closeout, ask whether a future senior engineer would benefit from
+seeing this lesson before related work. If yes, update the learning index and
+detail document. Do not ask the user for routine permission to record low-risk
+project memory. Do not bury reusable lessons only in chat, task files, or
+workflow-state.
 
 ### Tier: trivial
-- Do not run `{{specify-subcmd:learning start}}`.
-- Do not read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, or `.specify/memory/project-learnings.md`.
-- Do not review `.planning/learnings/candidates.md`.
-- Do not invoke any learning hooks.
+- Do not run `{{specify-subcmd:learning start}}` unless the task escalates.
+- Do not invoke learning hooks for ordinary one-off edits.
 
 ### Tier: light
+- Run `{{specify-subcmd:learning start}}` with the current command name when available.
+- Read `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md` before local context.
+- Open only detail docs linked from relevant index entries.
+- On resolution, prefer `{{specify-subcmd:learning capture-auto}}` when durable state contains reusable friction.
 
 ### Tier: heavy
-- Run `{{specify-subcmd:learning start}}` with the current command name to initialize passive learning files so the current run sees relevant shared project memory.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
-- Review `.planning/learnings/candidates.md` only when it still contains relevant candidate learnings after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
-- When friction appears, signal it through `{{specify-subcmd:hook signal-learning}}` with relevant counts (retries, hypothesis-changes, validation-failures, false-starts, hidden-dependencies).
-- Before final completion or blocked reporting, use the `review-learning` helper surface for terminal closeout.
-  Command shape: `{{specify-subcmd:hook review-learning --command <command-name> --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
-- Prefer `{{specify-subcmd:learning capture-auto}}` when the durable state already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- When durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface instead of auto-capture.
+- Run `{{specify-subcmd:learning start}}` with the current command name so shared memory and relevant detail refs are visible.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
+- Open only linked detail docs whose `applies_to` or `trigger_signals` match the current work.
+- When friction appears, signal it through `{{specify-subcmd:hook signal-learning}}` with relevant counts.
+- Before final completion or blocked reporting, perform learning closeout: capture or merge an index/detail lesson when future reuse is plausible, or explicitly decide the run was one-off.
+- Prefer `{{specify-subcmd:learning capture-auto}}` when durable state already preserves route reasons, false starts, hidden dependencies, validation gaps, or reusable constraints.
+- Use manual `capture-learning` only when durable state does not capture the lesson cleanly.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
-- Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
+- Promote to `project-rules.md` or constitution only after recurrence, explicit user confirmation, or stable cross-workflow governance value.
