@@ -303,6 +303,8 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-rules-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learnings-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "project-learnings-index-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "project-learning-detail-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "testing" / "testing-contract-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "testing" / "testing-playbook-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "testing" / "coverage-baseline-template.json").exists()

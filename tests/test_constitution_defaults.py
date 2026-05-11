@@ -24,7 +24,12 @@ def _seed_learning_templates(project_path: Path) -> None:
     templates_root = Path(__file__).resolve().parents[1] / "templates"
     target_root = project_path / ".specify" / "templates"
     target_root.mkdir(parents=True, exist_ok=True)
-    for name in ("project-rules-template.md", "project-learnings-template.md"):
+    for name in (
+        "project-rules-template.md",
+        "project-learnings-template.md",
+        "project-learnings-index-template.md",
+        "project-learning-detail-template.md",
+    ):
         source_template = templates_root / name
         target_template = target_root / name
         target_template.write_text(source_template.read_text(encoding="utf-8"), encoding="utf-8")
@@ -148,11 +153,17 @@ def test_ensure_learning_memory_from_templates_materializes_defaults(tmp_path):
 
     rules_path = project_path / ".specify" / "memory" / "project-rules.md"
     learnings_path = project_path / ".specify" / "memory" / "project-learnings.md"
+    index_path = project_path / ".specify" / "memory" / "learnings" / "INDEX.md"
 
     assert rules_path.exists()
     assert learnings_path.exists()
+    assert index_path.exists()
     assert "Project Rules" in rules_path.read_text(encoding="utf-8")
     assert "Project Learnings" in learnings_path.read_text(encoding="utf-8")
+    index_content = index_path.read_text(encoding="utf-8")
+    assert "Project Learning Index" in index_content
+    assert "detail" in index_content
+    assert "trigger_signals" in index_content
     assert "Shared defaults that later `sp-xxx` workflows should follow" in rules_path.read_text(encoding="utf-8")
     assert "Confirmed project learnings that are reusable" in learnings_path.read_text(encoding="utf-8")
 
