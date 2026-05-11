@@ -298,7 +298,15 @@ def test_learning_ensure_creates_learning_index(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["exists"]["learning_index"] is True
     assert payload["paths"]["learning_index"].replace("\\", "/").endswith(".specify/memory/learnings/INDEX.md")
-    assert (project / ".specify" / "memory" / "learnings" / "INDEX.md").exists()
+    assert payload["paths"]["learning_detail_template"].replace("\\", "/").endswith(
+        ".specify/templates/project-learning-detail-template.md"
+    )
+    index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
+    assert index_path.exists()
+    index_content = index_path.read_text(encoding="utf-8")
+    assert "# Project Learning Index" in index_content
+    assert "<!-- SPECKIT_LEARNING_DATA_BEGIN -->" in index_content
+    assert "<!-- SPECKIT_LEARNING_DATA_END -->" in index_content
 
 
 def test_learning_status_reports_missing_runtime_files_without_mutation(tmp_path: Path) -> None:
