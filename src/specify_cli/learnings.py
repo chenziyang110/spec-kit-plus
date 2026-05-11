@@ -958,16 +958,29 @@ def _is_valid_detail_ref(detail_ref: str) -> bool:
     return bool(re.fullmatch(r"learn-[A-Za-z0-9][A-Za-z0-9._-]*\.md", detail_name))
 
 
+def _detail_path_for_ref(learning_dir: Path, detail_ref: str) -> Path:
+    return learning_dir / str(detail_ref).removeprefix("./")
+
+
+def _detail_ref_resolves_inside(learning_dir: Path, detail_ref: str) -> bool:
+    return _detail_path_for_ref(learning_dir, detail_ref).resolve().is_relative_to(learning_dir.resolve())
+
+
+def _repair_detail_ref_from_learning(
+    learning_dir: Path, entry: LearningEntry, index_entry: LearningIndexEntry
+) -> None:
+    if _is_valid_detail_ref(index_entry.detail) and _detail_ref_resolves_inside(learning_dir, index_entry.detail):
+        return
+    index_entry.id = _learning_index_id(entry.recurrence_key, entry.first_seen)
+    index_entry.detail = _detail_ref_for_index_id(index_entry.id)
+    if not _detail_ref_resolves_inside(learning_dir, index_entry.detail):
+        raise ValueError("learning detail path escapes learning memory directory")
+
+
 def _write_learning_detail(paths: LearningPaths, entry: LearningEntry, index_entry: LearningIndexEntry) -> Path:
     learning_dir = paths.learning_index.parent
-    detail_name = index_entry.detail.removeprefix("./")
-    detail_path = learning_dir / detail_name
-    if not _is_valid_detail_ref(index_entry.detail) or not detail_path.resolve().is_relative_to(learning_dir.resolve()):
-        index_entry.id = _learning_index_id(entry.recurrence_key, entry.first_seen)
-        index_entry.detail = _detail_ref_for_index_id(index_entry.id)
-        detail_path = learning_dir / index_entry.detail.removeprefix("./")
-        if not detail_path.resolve().is_relative_to(learning_dir.resolve()):
-            raise ValueError("learning detail path escapes learning memory directory")
+    _repair_detail_ref_from_learning(learning_dir, entry, index_entry)
+    detail_path = _detail_path_for_ref(learning_dir, index_entry.detail)
     detail_path.parent.mkdir(parents=True, exist_ok=True)
     detail_path.write_text(_render_learning_detail(entry, index_entry), encoding="utf-8")
     return detail_path
@@ -999,6 +1012,7 @@ def _unused_detail_ref(
 def _sync_learning_index_detail(paths: LearningPaths, stored: LearningEntry) -> tuple[LearningIndexEntry, Path]:
     index_preamble, index_entries = _read_index_entries(paths.learning_index)
     index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
+    _repair_detail_ref_from_learning(paths.learning_index.parent, stored, stored_index)
     if _detail_ref_used_by_other(index_entries, stored_index.detail, stored_index.recurrence_key):
         stored_index.id, stored_index.detail = _unused_detail_ref(
             index_entries,

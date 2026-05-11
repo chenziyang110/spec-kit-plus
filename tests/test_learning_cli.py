@@ -687,6 +687,113 @@ def test_learning_capture_repairs_duplicate_ref_when_canonical_is_already_taken(
     assert evidence not in shared_detail_content
 
 
+def test_learning_capture_repairs_unsafe_ref_before_canonical_duplicate_check(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    recurrence_key = "cli.duplicate-detail.unsafe-current"
+    stale_first_seen = "2026-05-11T00:00:00Z"
+    recurrence_hash = hashlib.sha256(recurrence_key.encode("utf-8")).hexdigest()[:10]
+    canonical_id = f"learn-2026-05-11-cli-duplicate-detail-unsafe-current-{recurrence_hash}"
+    canonical_detail_ref = f"./{canonical_id}.md"
+    unsafe_detail_ref = "../../outside.md"
+    other_summary = "Other unsafe-canonical owner"
+    other_evidence = "Other unsafe-canonical content must remain untouched."
+    index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
+    index_path.write_text(
+        "\n".join(
+            [
+                "# Project Learning Index",
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps(
+                    [
+                        {
+                            "id": "../unsafe-current-id",
+                            "problem": "Captured unsafe current detail owner",
+                            "lesson": "Unsafe detail should repair before duplicate detection.",
+                            "learning_type": "pitfall",
+                            "source_command": "sp-implement",
+                            "recurrence_key": recurrence_key,
+                            "applies_to": ["sp-implement"],
+                            "trigger_signals": ["pitfall", "medium"],
+                            "detail": unsafe_detail_ref,
+                            "first_seen": stale_first_seen,
+                            "last_seen": stale_first_seen,
+                            "occurrence_count": 1,
+                            "signal_strength": "medium",
+                        },
+                        {
+                            "id": "learn-2026-05-11-other-unsafe-canonical-owner",
+                            "problem": other_summary,
+                            "lesson": other_evidence,
+                            "learning_type": "pitfall",
+                            "source_command": "sp-implement",
+                            "recurrence_key": "cli.duplicate-detail.unsafe-other",
+                            "applies_to": ["sp-implement"],
+                            "trigger_signals": ["pitfall", "medium"],
+                            "detail": canonical_detail_ref,
+                            "first_seen": stale_first_seen,
+                            "last_seen": stale_first_seen,
+                            "occurrence_count": 1,
+                            "signal_strength": "medium",
+                        },
+                    ],
+                    indent=2,
+                ),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    learning_dir = project / ".specify" / "memory" / "learnings"
+    canonical_detail_path = learning_dir / canonical_detail_ref.removeprefix("./")
+    canonical_detail_path.write_text(
+        f"# {other_summary}\n\n## Evidence\n\n{other_evidence}\n",
+        encoding="utf-8",
+    )
+
+    summary = "Captured unsafe current detail owner"
+    evidence = "Unsafe current detail content must use a unique repaired detail file."
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            summary,
+            "--evidence",
+            evidence,
+            "--recurrence-key",
+            recurrence_key,
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    repaired_detail_ref = payload["index_entry"]["detail"]
+    assert repaired_detail_ref != unsafe_detail_ref
+    assert repaired_detail_ref != canonical_detail_ref
+    assert repaired_detail_ref.startswith("./learn-")
+
+    repaired_detail_content = (learning_dir / repaired_detail_ref.removeprefix("./")).read_text(encoding="utf-8")
+    canonical_detail_content = canonical_detail_path.read_text(encoding="utf-8")
+    assert summary in repaired_detail_content
+    assert evidence in repaired_detail_content
+    assert other_summary in canonical_detail_content
+    assert other_evidence in canonical_detail_content
+    assert evidence not in canonical_detail_content
+
+
 def test_learning_capture_confirm_keeps_index_occurrence_count_aligned(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
