@@ -697,7 +697,7 @@ def _render_index_entry_summary(entry: LearningIndexEntry) -> str:
         f"- Occurrence Count: {entry.occurrence_count}\n"
         f"- First Seen: `{entry.first_seen}`\n"
         f"- Last Seen: `{entry.last_seen}`\n"
-        f"- Detail: [{entry.detail}]({entry.detail})\n\n"
+        f"- Detail: `{entry.detail}`\n\n"
         f"#### Lesson\n\n{entry.lesson}\n"
     )
 
@@ -949,9 +949,12 @@ def _render_learning_detail(entry: LearningEntry, index_entry: LearningIndexEntr
     )
 
 
-def _write_learning_detail(path: Path, entry: LearningEntry, index_entry: LearningIndexEntry) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_render_learning_detail(entry, index_entry), encoding="utf-8")
+def _write_learning_detail(paths: LearningPaths, entry: LearningEntry, index_entry: LearningIndexEntry) -> Path:
+    detail_name = index_entry.detail.removeprefix("./")
+    detail_path = paths.learning_index.parent / detail_name
+    detail_path.parent.mkdir(parents=True, exist_ok=True)
+    detail_path.write_text(_render_learning_detail(entry, index_entry), encoding="utf-8")
+    return detail_path
 
 
 def _remove_by_recurrence(entries: list[LearningEntry], recurrence_key: str) -> list[LearningEntry]:
@@ -1662,14 +1665,6 @@ def capture_learning(
         promotion_hint=promotion_hint,
     )
 
-    def persist_index_detail(stored: LearningEntry) -> tuple[LearningIndexEntry, Path]:
-        index_preamble, index_entries = _read_index_entries(paths.learning_index)
-        index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
-        _write_index_entries(paths.learning_index, index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(), index_entries)
-        detail_path = paths.learning_index.parent / stored_index.detail.removeprefix("./")
-        _write_learning_detail(detail_path, stored, stored_index)
-        return stored_index, detail_path
-
     if confirm:
         preamble, learning_entries = _read_entries(paths.project_learnings)
         learning_entries, stored = _upsert_entry(learning_entries, entry, status="confirmed")
@@ -1678,7 +1673,10 @@ def capture_learning(
         candidate_entries = _remove_by_recurrence(candidate_entries, stored.recurrence_key)
         _write_entries(paths.candidates, candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
         _append_review_note(paths.review, f"confirmed `{stored.recurrence_key}` from `{stored.source_command}`")
-        stored_index, detail_path = persist_index_detail(stored)
+        index_preamble, index_entries = _read_index_entries(paths.learning_index)
+        index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
+        _write_index_entries(paths.learning_index, index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(), index_entries)
+        detail_path = _write_learning_detail(paths, stored, stored_index)
         return {
             "status": "confirmed",
             "entry": stored.to_payload(),
@@ -1691,7 +1689,10 @@ def capture_learning(
     candidate_entries, stored = _upsert_entry(candidate_entries, entry, status="candidate")
     _write_entries(paths.candidates, preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
     _append_review_note(paths.review, f"captured candidate `{stored.recurrence_key}` from `{stored.source_command}`")
-    stored_index, detail_path = persist_index_detail(stored)
+    index_preamble, index_entries = _read_index_entries(paths.learning_index)
+    index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
+    _write_index_entries(paths.learning_index, index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(), index_entries)
+    detail_path = _write_learning_detail(paths, stored, stored_index)
     return {
         "status": "candidate",
         "entry": stored.to_payload(),
