@@ -954,8 +954,11 @@ def _write_learning_detail(paths: LearningPaths, entry: LearningEntry, index_ent
     detail_name = index_entry.detail.removeprefix("./")
     detail_path = learning_dir / detail_name
     if not detail_path.resolve().is_relative_to(learning_dir.resolve()):
+        index_entry.id = _learning_index_id(entry.recurrence_key, entry.first_seen)
         index_entry.detail = _detail_ref_for_index_id(index_entry.id)
         detail_path = learning_dir / index_entry.detail.removeprefix("./")
+        if not detail_path.resolve().is_relative_to(learning_dir.resolve()):
+            raise ValueError("learning detail path escapes learning memory directory")
     detail_path.parent.mkdir(parents=True, exist_ok=True)
     detail_path.write_text(_render_learning_detail(entry, index_entry), encoding="utf-8")
     return detail_path

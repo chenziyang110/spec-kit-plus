@@ -596,6 +596,76 @@ def test_learning_capture_sanitizes_existing_index_detail_path(tmp_path: Path) -
     assert not (project / ".specify" / "outside.md").exists()
 
 
+def test_learning_capture_sanitizes_existing_index_detail_path_and_id(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
+    index_path.write_text(
+        "\n".join(
+            [
+                "# Project Learning Index",
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps(
+                    [
+                        {
+                            "id": "../outside-via-id",
+                            "problem": "Existing malicious detail id must not escape",
+                            "lesson": "Keep fallback detail writes contained.",
+                            "learning_type": "pitfall",
+                            "source_command": "sp-implement",
+                            "recurrence_key": "cli.detail-path.escape-via-id",
+                            "applies_to": ["sp-implement"],
+                            "trigger_signals": ["pitfall", "medium"],
+                            "detail": "../../outside.md",
+                            "first_seen": "2026-05-11T00:00:00Z",
+                            "last_seen": "2026-05-11T00:00:00Z",
+                            "occurrence_count": 1,
+                            "signal_strength": "medium",
+                        }
+                    ],
+                    indent=2,
+                ),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            "Existing malicious detail id must not escape",
+            "--evidence",
+            "Capture should not trust an existing index id when repairing detail paths.",
+            "--recurrence-key",
+            "cli.detail-path.escape-via-id",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
+    detail_path = Path(payload["detail_path"]).resolve()
+    assert detail_path.is_relative_to(learning_dir)
+    assert payload["index_entry"]["detail"].startswith("./learn-")
+    assert not (project / ".specify" / "outside.md").exists()
+    assert not (project / ".specify" / "memory" / "outside-via-id.md").exists()
+
+
 def test_learning_start_filters_relevant_candidates_by_command(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
