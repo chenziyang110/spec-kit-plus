@@ -1,4 +1,5 @@
 import json
+import hashlib
 import os
 from pathlib import Path
 
@@ -578,6 +579,111 @@ def test_learning_capture_repairs_existing_duplicate_valid_detail_ref(tmp_path: 
     assert evidence in repaired_detail_content
     assert shared_other_summary in shared_detail_content
     assert shared_other_evidence in shared_detail_content
+    assert evidence not in shared_detail_content
+
+
+def test_learning_capture_repairs_duplicate_ref_when_canonical_is_already_taken(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    recurrence_key = "cli.duplicate-detail.canonical-first"
+    stale_first_seen = "2026-05-11T00:00:00Z"
+    recurrence_hash = hashlib.sha256(recurrence_key.encode("utf-8")).hexdigest()[:10]
+    canonical_id = f"learn-2026-05-11-cli-duplicate-detail-canonical-first-{recurrence_hash}"
+    shared_detail_ref = f"./{canonical_id}.md"
+    other_summary = "Other canonical detail owner"
+    other_evidence = "Other canonical detail content must remain untouched."
+    index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
+    index_path.write_text(
+        "\n".join(
+            [
+                "# Project Learning Index",
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps(
+                    [
+                        {
+                            "id": canonical_id,
+                            "problem": "Captured canonical duplicate owner",
+                            "lesson": "Canonical duplicate should get an alternate detail ref.",
+                            "learning_type": "pitfall",
+                            "source_command": "sp-implement",
+                            "recurrence_key": recurrence_key,
+                            "applies_to": ["sp-implement"],
+                            "trigger_signals": ["pitfall", "medium"],
+                            "detail": shared_detail_ref,
+                            "first_seen": stale_first_seen,
+                            "last_seen": stale_first_seen,
+                            "occurrence_count": 1,
+                            "signal_strength": "medium",
+                        },
+                        {
+                            "id": "learn-2026-05-11-other-canonical-owner",
+                            "problem": other_summary,
+                            "lesson": other_evidence,
+                            "learning_type": "pitfall",
+                            "source_command": "sp-implement",
+                            "recurrence_key": "cli.duplicate-detail.canonical-other",
+                            "applies_to": ["sp-implement"],
+                            "trigger_signals": ["pitfall", "medium"],
+                            "detail": shared_detail_ref,
+                            "first_seen": stale_first_seen,
+                            "last_seen": stale_first_seen,
+                            "occurrence_count": 1,
+                            "signal_strength": "medium",
+                        },
+                    ],
+                    indent=2,
+                ),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    learning_dir = project / ".specify" / "memory" / "learnings"
+    shared_detail_path = learning_dir / shared_detail_ref.removeprefix("./")
+    shared_detail_path.write_text(
+        f"# {other_summary}\n\n## Evidence\n\n{other_evidence}\n",
+        encoding="utf-8",
+    )
+
+    summary = "Captured canonical duplicate owner"
+    evidence = "Captured canonical collision content must use an alternate detail file."
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            summary,
+            "--evidence",
+            evidence,
+            "--recurrence-key",
+            recurrence_key,
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    repaired_detail_ref = payload["index_entry"]["detail"]
+    assert repaired_detail_ref != shared_detail_ref
+    assert repaired_detail_ref.startswith("./learn-")
+
+    repaired_detail_content = (learning_dir / repaired_detail_ref.removeprefix("./")).read_text(encoding="utf-8")
+    shared_detail_content = shared_detail_path.read_text(encoding="utf-8")
+    assert summary in repaired_detail_content
+    assert evidence in repaired_detail_content
+    assert other_summary in shared_detail_content
+    assert other_evidence in shared_detail_content
     assert evidence not in shared_detail_content
 
 

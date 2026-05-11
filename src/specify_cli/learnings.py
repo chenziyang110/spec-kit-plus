@@ -973,15 +973,40 @@ def _write_learning_detail(paths: LearningPaths, entry: LearningEntry, index_ent
     return detail_path
 
 
+def _detail_ref_used_by_other(
+    entries: list[LearningIndexEntry], detail_ref: str, recurrence_key: str
+) -> bool:
+    return any(
+        entry.recurrence_key != recurrence_key and entry.detail == detail_ref
+        for entry in entries
+    )
+
+
+def _unused_detail_ref(
+    entries: list[LearningIndexEntry], recurrence_key: str, first_seen: str
+) -> tuple[str, str]:
+    base_id = _learning_index_id(recurrence_key, first_seen)
+    candidate_id = base_id
+    candidate_detail = _detail_ref_for_index_id(candidate_id)
+    suffix = 2
+    while _detail_ref_used_by_other(entries, candidate_detail, recurrence_key):
+        candidate_id = f"{base_id}-{suffix}"
+        candidate_detail = _detail_ref_for_index_id(candidate_id)
+        suffix += 1
+    return candidate_id, candidate_detail
+
+
 def _sync_learning_index_detail(paths: LearningPaths, stored: LearningEntry) -> tuple[LearningIndexEntry, Path]:
     index_preamble, index_entries = _read_index_entries(paths.learning_index)
     index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
-    if any(
-        entry.recurrence_key != stored_index.recurrence_key and entry.detail == stored_index.detail
-        for entry in index_entries
-    ):
-        stored_index.id = _learning_index_id(stored.recurrence_key, stored.first_seen)
-        stored_index.detail = _detail_ref_for_index_id(stored_index.id)
+    if _detail_ref_used_by_other(index_entries, stored_index.detail, stored_index.recurrence_key):
+        stored_index.id, stored_index.detail = _unused_detail_ref(
+            index_entries,
+            stored.recurrence_key,
+            stored.first_seen,
+        )
+    if _detail_ref_used_by_other(index_entries, stored_index.detail, stored_index.recurrence_key):
+        raise ValueError("learning detail ref is already used by another recurrence key")
     detail_path = _write_learning_detail(paths, stored, stored_index)
     _write_index_entries(paths.learning_index, index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(), index_entries)
     return stored_index, detail_path
