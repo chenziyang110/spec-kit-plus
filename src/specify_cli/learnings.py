@@ -84,6 +84,17 @@ LEARNINGS_TEMPLATE_TEXT = (
     "learning files until they mature.\n\n"
     "---\n"
 )
+LEARNING_INDEX_TEMPLATE_TEXT = (
+    "# Project Learning Index\n\n"
+    "Thin first-read index of reusable engineering lessons for later `sp-xxx` workflows.\n\n"
+    "Read this file after `.specify/memory/project-rules.md` and before command-local\n"
+    "context. Open only the linked detail documents whose `applies_to` or\n"
+    "`trigger_signals` match the current work.\n\n"
+    "---\n\n"
+    f"{MACHINE_BEGIN}\n[]\n{MACHINE_END}\n\n"
+    "## Managed Entries\n\n"
+    "_No learning index entries recorded yet._\n"
+)
 CANDIDATES_TEMPLATE_TEXT = (
     "# Candidate Learnings\n\n"
     "Passive candidate learnings captured from `sp-xxx` workflows.\n\n"
@@ -101,16 +112,20 @@ class LearningPaths:
     constitution: Path
     project_rules: Path
     project_learnings: Path
+    learning_index: Path
+    learning_detail_template: Path
     candidates: Path
     review: Path
 
     def to_dict(self) -> dict[str, str]:
         return {
-            "constitution": str(self.constitution),
-            "project_rules": str(self.project_rules),
-            "project_learnings": str(self.project_learnings),
-            "candidates": str(self.candidates),
-            "review": str(self.review),
+            "constitution": self.constitution.as_posix(),
+            "project_rules": self.project_rules.as_posix(),
+            "project_learnings": self.project_learnings.as_posix(),
+            "learning_index": self.learning_index.as_posix(),
+            "learning_detail_template": self.learning_detail_template.as_posix(),
+            "candidates": self.candidates.as_posix(),
+            "review": self.review.as_posix(),
         }
 
 
@@ -181,11 +196,14 @@ class AutoCaptureSuggestion:
 
 def build_learning_paths(project_root: Path) -> LearningPaths:
     memory_dir = project_root / ".specify" / "memory"
+    learning_memory_dir = memory_dir / "learnings"
     learning_dir = project_root / ".planning" / "learnings"
     return LearningPaths(
         constitution=memory_dir / "constitution.md",
         project_rules=memory_dir / "project-rules.md",
         project_learnings=memory_dir / "project-learnings.md",
+        learning_index=learning_memory_dir / "INDEX.md",
+        learning_detail_template=project_root / ".specify" / "templates" / "project-learning-detail-template.md",
         candidates=learning_dir / "candidates.md",
         review=learning_dir / "review.md",
     )
@@ -636,6 +654,12 @@ def ensure_learning_memory_from_templates(
         LEARNINGS_TEMPLATE_TEXT,
     ):
         created.append("project-learnings.md")
+    if _seed_from_template(
+        paths.learning_index,
+        templates_root / "project-learnings-index-template.md",
+        LEARNING_INDEX_TEMPLATE_TEXT,
+    ):
+        created.append("learnings/INDEX.md")
 
     if tracker:
         tracker.add("learning-memory", "Project learning memory")
@@ -1609,6 +1633,7 @@ def learning_status_payload(
             "constitution": paths.constitution.exists(),
             "project_rules": paths.project_rules.exists(),
             "project_learnings": paths.project_learnings.exists(),
+            "learning_index": paths.learning_index.exists(),
         },
         "counts": _entry_counts(project_root),
     }

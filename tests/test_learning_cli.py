@@ -25,7 +25,12 @@ def _seed_learning_templates(project_path: Path) -> None:
     templates_root = Path(__file__).resolve().parents[1] / "templates"
     target_root = project_path / ".specify" / "templates"
     target_root.mkdir(parents=True, exist_ok=True)
-    for name in ("project-rules-template.md", "project-learnings-template.md"):
+    for name in (
+        "project-rules-template.md",
+        "project-learnings-template.md",
+        "project-learnings-index-template.md",
+        "project-learning-detail-template.md",
+    ):
         (target_root / name).write_text((templates_root / name).read_text(encoding="utf-8"), encoding="utf-8")
 
 
@@ -282,6 +287,20 @@ def test_learning_ensure_creates_stable_and_runtime_files(tmp_path: Path) -> Non
     assert (project / ".planning" / "learnings" / "review.md").exists()
 
 
+def test_learning_ensure_creates_learning_index(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+
+    result = _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["exists"]["learning_index"] is True
+    assert payload["paths"]["learning_index"].endswith(".specify/memory/learnings/INDEX.md")
+    assert (project / ".specify" / "memory" / "learnings" / "INDEX.md").exists()
+
+
 def test_learning_status_reports_missing_runtime_files_without_mutation(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
@@ -293,6 +312,7 @@ def test_learning_status_reports_missing_runtime_files_without_mutation(tmp_path
     payload = json.loads(result.stdout)
     assert payload["exists"]["project_rules"] is False
     assert payload["exists"]["project_learnings"] is False
+    assert payload["exists"]["learning_index"] is False
     assert payload["exists"]["candidates"] is False
     assert payload["exists"]["review"] is False
 

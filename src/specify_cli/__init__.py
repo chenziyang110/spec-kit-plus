@@ -1639,6 +1639,7 @@ def learning_ensure_command(
     rows = [
         ("Project Rules", f"[dim]{payload['paths']['project_rules']}[/dim]"),
         ("Project Learnings", f"[dim]{payload['paths']['project_learnings']}[/dim]"),
+        ("Learning Index", f"[dim]{payload['paths']['learning_index']}[/dim]"),
     ]
     if include_runtime:
         rows.extend(
@@ -1665,6 +1666,7 @@ def learning_status_command(
     rows = [
         ("Project Rules", "present" if payload["exists"]["project_rules"] else "missing"),
         ("Project Learnings", "present" if payload["exists"]["project_learnings"] else "missing"),
+        ("Learning Index", "present" if payload["exists"]["learning_index"] else "missing"),
         ("Candidates", "present" if payload["exists"]["candidates"] else "missing"),
         ("Review", "present" if payload["exists"]["review"] else "missing"),
     ]
