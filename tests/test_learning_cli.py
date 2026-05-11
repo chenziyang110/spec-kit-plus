@@ -1386,6 +1386,42 @@ def test_learning_start_filters_relevant_candidates_by_command(tmp_path: Path) -
     assert "Need explicit validation tasks" not in summaries
 
 
+def test_learning_start_returns_relevant_index_entries_and_detail_refs(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "debug",
+            "--type",
+            "recovery_path",
+            "--summary",
+            "Re-run the focused repro before widening debug scope",
+            "--evidence",
+            "The failing behavior disappeared only after the minimal repro was restored.",
+            "--recurrence-key",
+            "debug.focused-repro-before-scope-widening",
+            "--format",
+            "json",
+        ],
+    )
+
+    result = _invoke_in_project(project, ["learning", "start", "--command", "debug", "--format", "json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert [entry["recurrence_key"] for entry in payload["relevant_index_entries"]] == [
+        "debug.focused-repro-before-scope-widening"
+    ]
+    assert payload["recommended_detail_docs"]
+    assert payload["recommended_detail_docs"][0].replace("\\", "/").endswith(".md")
+    assert payload["summary_counts"]["relevant_index_entries"] == 1
+
+
 def test_learning_start_auto_promotes_repeated_medium_signal_candidates(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)

@@ -1691,6 +1691,8 @@ def learning_start_command(
         ("Relevant Rules", str(len(payload["relevant_rules"]))),
         ("Relevant Learnings", str(len(payload["relevant_learnings"]))),
         ("Relevant Candidates", str(len(payload["relevant_candidates"]))),
+        ("Relevant Index Entries", str(len(payload["relevant_index_entries"]))),
+        ("Recommended Details", str(len(payload["recommended_detail_docs"]))),
         ("Preflight Warnings", str(len(payload["preflight_warnings"]))),
         ("Auto Promoted", str(len(payload["auto_promoted"]))),
         ("Promotable", str(len(payload["promotable_candidates"]))),

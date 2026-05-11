@@ -1518,6 +1518,10 @@ def is_relevant_to_command(entry: LearningEntry, command_name: str) -> bool:
     return normalize_command_name(command_name) in entry.applies_to
 
 
+def is_index_relevant_to_command(entry: LearningIndexEntry, command_name: str) -> bool:
+    return normalize_command_name(command_name) in entry.applies_to
+
+
 def is_highest_signal(entry: LearningEntry) -> bool:
     return entry.signal_strength == "high" or entry.occurrence_count >= 2
 
@@ -1566,6 +1570,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
     rule_preamble, rule_entries = _read_entries(paths.project_rules)
     learning_preamble, learning_entries = _read_entries(paths.project_learnings)
     candidate_preamble, candidate_entries = _read_entries(paths.candidates)
+    index_preamble, index_entries = _read_index_entries(paths.learning_index)
 
     auto_promoted: list[LearningEntry] = []
     remaining_candidates: list[LearningEntry] = []
@@ -1603,6 +1608,16 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
     relevant_rules = [entry.to_payload() for entry in rule_entries if is_relevant_to_command(entry, normalized_command)]
     relevant_learnings = [entry.to_payload() for entry in learning_entries if is_relevant_to_command(entry, normalized_command)]
     relevant_candidates = [entry.to_payload() for entry in candidate_entries if is_relevant_to_command(entry, normalized_command)]
+    relevant_index_entries = [
+        entry.to_payload()
+        for entry in index_entries
+        if is_index_relevant_to_command(entry, normalized_command)
+    ]
+    recommended_detail_docs = [
+        str((paths.learning_index.parent / entry.detail.removeprefix("./")).resolve())
+        for entry in index_entries
+        if is_index_relevant_to_command(entry, normalized_command)
+    ]
 
     promotable = [
         entry.to_payload()
@@ -1695,6 +1710,8 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         "relevant_rules": relevant_rules,
         "relevant_learnings": relevant_learnings,
         "relevant_candidates": relevant_candidates,
+        "relevant_index_entries": relevant_index_entries,
+        "recommended_detail_docs": recommended_detail_docs,
         "auto_promoted": [entry.to_payload() for entry in auto_promoted],
         "promotable_candidates": promotable,
         "confirmation_candidates": confirmation_candidates,
@@ -1703,6 +1720,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
             "relevant_rules": len(relevant_rules),
             "relevant_learnings": len(relevant_learnings),
             "relevant_candidates": len(relevant_candidates),
+            "relevant_index_entries": len(relevant_index_entries),
             "auto_promoted": len(auto_promoted),
             "promotable_candidates": len(promotable),
             "confirmation_candidates": len(confirmation_candidates),
