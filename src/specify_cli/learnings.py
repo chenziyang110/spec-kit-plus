@@ -1404,6 +1404,26 @@ def _suggest_workflow_state_auto_capture(
                 ),
             )
         )
+    if blocked_reason and not (next_command and route_reason):
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="workflow_gap",
+                summary="Blocked workflow-state closeout should preserve the blocker as a reusable learning signal",
+                recurrence_key=f"{command_name}.workflow-state-preserves-blocked-reason",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from workflow-state.md",
+                    [
+                        ("feature_dir", feature_dir),
+                        ("command", command_name),
+                        ("status", status),
+                        ("phase_mode", phase_mode),
+                        ("blocked_reason", blocked_reason),
+                        ("next_command", next_command),
+                        ("next_action", next_action),
+                    ],
+                ),
+            )
+        )
     if false_starts:
         suggestions.append(
             AutoCaptureSuggestion(
@@ -1877,12 +1897,13 @@ def capture_auto_learning(
             applies_to=suggestion.applies_to,
             confirm=False,
         )
-        captured.append(payload["entry"])
+        captured.append(payload)
 
     registry[fingerprint] = {
         "command": normalized_command,
         "source_path": str(source_path),
-        "recurrence_keys": [entry["recurrence_key"] for entry in captured],
+        "recurrence_keys": [item["entry"]["recurrence_key"] for item in captured],
+        "captured_entries": [item["entry"] for item in captured],
         "captured_at": now_iso(),
     }
     _write_auto_capture_registry(project_root, registry)

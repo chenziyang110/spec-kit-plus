@@ -1963,10 +1963,38 @@ def test_learning_capture_auto_implement_writes_candidates_from_tracker_state(tm
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    summaries = [entry["summary"] for entry in payload["captured"]]
+    summaries = [item["entry"]["summary"] for item in payload["captured"]]
     assert payload["status"] == "captured"
     assert "Rerun planned validation after implementation recovery before resolving the feature" in summaries
     assert "Failed implementation tasks should keep execution in recovery until validation turns green" in summaries
+
+
+def test_learning_capture_auto_implement_writes_index_details(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    _write_implement_tracker(
+        feature_dir,
+        status="resolved",
+        retry_attempts=1,
+        failed_tasks=["T004"],
+        completed_checks=["pytest tests/test_demo.py -q"],
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["learning", "capture-auto", "--command", "implement", "--feature-dir", str(feature_dir), "--format", "json"],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "captured"
+    captured = payload["captured"][0]
+    assert "index_entry" in captured
+    detail_path = Path(captured["detail_path"])
+    assert detail_path.exists()
+    assert "Observed auto-capture evidence" in detail_path.read_text(encoding="utf-8")
 
 
 def test_learning_capture_auto_implement_extracts_gap_and_constraint_patterns(tmp_path: Path) -> None:
@@ -2014,7 +2042,7 @@ def test_learning_capture_auto_implement_extracts_gap_and_constraint_patterns(tm
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    keys = [entry["recurrence_key"] for entry in payload["captured"]]
+    keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
     assert "implement.execution-blockers-feed-back-into-planning" in keys
     assert "implement.external-or-human-blockers-are-project-constraints" in keys
 
@@ -2042,7 +2070,7 @@ def test_learning_capture_auto_debug_writes_candidates_from_resolved_session(tmp
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     assert payload["status"] == "captured"
-    keys = [entry["recurrence_key"] for entry in payload["captured"]]
+    keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
     assert "debug.return-to-investigation-after-failed-verification" in keys
     assert "debug.research-checkpoint-after-repeated-verification-failure" in keys
 
@@ -2213,7 +2241,7 @@ def test_learning_capture_auto_quick_extracts_fallback_constraint(tmp_path: Path
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    keys = [entry["recurrence_key"] for entry in payload["captured"]]
+    keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
     assert "quick.leader-inline-fallback-preserves-runtime-unavailability-reason" in keys
 
 
@@ -2253,11 +2281,35 @@ def test_learning_capture_auto_test_extracts_followup_route_and_validation_gaps(
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    keys = [entry["recurrence_key"] for entry in payload["captured"]]
+    keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
     assert payload["status"] == "captured"
     assert "test-scan.open-gaps-require-explicit-follow-up-route" in keys
     assert "test-scan.complete-state-requires-manual-validation-evidence" in keys
     assert "test-scan.brownfield-programs-start-from-unit-test-system-request" in keys
+
+
+def test_learning_capture_auto_workflow_state_records_blocked_reason(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    feature_dir = project / ".specify" / "features" / "002-demo"
+    _write_workflow_state(
+        feature_dir,
+        next_command="",
+        status="blocked",
+        blocked_reason="Generated command guidance omitted the runtime helper argument required by the CLI.",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["learning", "capture-auto", "--command", "plan", "--feature-dir", str(feature_dir), "--format", "json"],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "captured"
+    keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
+    assert "sp-plan.workflow-state-preserves-blocked-reason" in keys
 
 
 def test_learning_capture_auto_plan_extracts_route_reason_false_starts_and_constraints(tmp_path: Path) -> None:
@@ -2292,7 +2344,7 @@ def test_learning_capture_auto_plan_extracts_route_reason_false_starts_and_const
 
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    keys = [entry["recurrence_key"] for entry in payload["captured"]]
+    keys = [item["entry"]["recurrence_key"] for item in payload["captured"]]
     assert payload["status"] == "captured"
     assert "sp-plan.workflow-state-preserves-reentry-reason" in keys
     assert "sp-plan.workflow-state-preserves-false-starts" in keys
