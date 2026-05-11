@@ -645,9 +645,16 @@ def _render_learning_file(preamble: str, entries: list[LearningEntry]) -> str:
     return "\n".join(sections)
 
 
+def _learning_index_date_prefix(first_seen: str) -> str:
+    prefix = str(first_seen or "")[:10]
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", prefix):
+        return prefix
+    return "unknown-date"
+
+
 def _learning_index_id(recurrence_key: str, first_seen: str) -> str:
     recurrence_hash = hashlib.sha256(recurrence_key.encode("utf-8")).hexdigest()[:10]
-    return f"learn-{first_seen[:10]}-{_slugify(recurrence_key)[:56]}-{recurrence_hash}"
+    return f"learn-{_learning_index_date_prefix(first_seen)}-{_slugify(recurrence_key)[:56]}-{recurrence_hash}"
 
 
 def _detail_ref_for_index_id(index_id: str) -> str:
@@ -977,7 +984,7 @@ def _repair_detail_ref_from_learning(
         return
     index_entry.id = _learning_index_id(entry.recurrence_key, entry.first_seen)
     index_entry.detail = _detail_ref_for_index_id(index_entry.id)
-    if not _detail_ref_resolves_inside(learning_dir, index_entry.detail):
+    if not _is_valid_detail_ref(index_entry.detail) or not _detail_ref_resolves_inside(learning_dir, index_entry.detail):
         raise ValueError("learning detail path escapes learning memory directory")
 
 
@@ -1027,6 +1034,8 @@ def _sync_learning_index_detail(paths: LearningPaths, stored: LearningEntry) -> 
             stored.first_seen,
             learning_dir,
         )
+        if not _is_valid_detail_ref(stored_index.detail) or not _detail_ref_resolves_inside(learning_dir, stored_index.detail):
+            raise ValueError("learning detail path escapes learning memory directory")
     if _detail_ref_used_by_other(index_entries, stored_index.detail, stored_index.recurrence_key, learning_dir):
         raise ValueError("learning detail ref is already used by another recurrence key")
     detail_path = _write_learning_detail(paths, stored, stored_index)

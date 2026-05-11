@@ -779,6 +779,122 @@ def test_learning_capture_repairs_case_variant_detail_ref_collision(tmp_path: Pa
     assert evidence not in canonical_detail_content
 
 
+def test_learning_capture_sanitizes_malformed_legacy_first_seen_for_detail_ref(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    recurrence_key = "cli.malformed-first-seen.detail-ref"
+    summary = "Sanitize malformed first seen for detail refs"
+    evidence = "Malformed legacy timestamps must not create nested detail paths."
+    legacy_payload = {
+        "id": "LRN-legacy-malformed-first-seen",
+        "summary": "Legacy malformed first seen",
+        "learning_type": "pitfall",
+        "source_command": "sp-implement",
+        "evidence": "Legacy evidence",
+        "recurrence_key": recurrence_key,
+        "default_scope": "implementation-heavy",
+        "applies_to": ["sp-implement"],
+        "signal_strength": "medium",
+        "status": "candidate",
+        "first_seen": "../../bad",
+        "last_seen": "../../bad",
+        "occurrence_count": 1,
+        "pain_score": 0,
+        "false_starts": [],
+        "rejected_paths": [],
+        "decisive_signal": "",
+        "root_cause_family": "",
+        "injection_targets": [],
+        "promotion_hint": "",
+    }
+    candidate_path = project / ".planning" / "learnings" / "candidates.md"
+    candidate_path.write_text(
+        "\n".join(
+            [
+                "# Candidate Learnings",
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps([legacy_payload], indent=2),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    index_path = project / ".specify" / "memory" / "learnings" / "INDEX.md"
+    index_path.write_text(
+        "\n".join(
+            [
+                "# Project Learning Index",
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps(
+                    [
+                        {
+                            "id": "learn-legacy-malformed-first-seen",
+                            "problem": "Legacy malformed first seen",
+                            "lesson": "Legacy evidence",
+                            "learning_type": "pitfall",
+                            "source_command": "sp-implement",
+                            "recurrence_key": recurrence_key,
+                            "applies_to": ["sp-implement"],
+                            "trigger_signals": ["pitfall", "medium"],
+                            "detail": "../../outside.md",
+                            "first_seen": "../../bad",
+                            "last_seen": "../../bad",
+                            "occurrence_count": 1,
+                            "signal_strength": "medium",
+                        }
+                    ],
+                    indent=2,
+                ),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture",
+            "--command",
+            "implement",
+            "--type",
+            "pitfall",
+            "--summary",
+            summary,
+            "--evidence",
+            evidence,
+            "--recurrence-key",
+            recurrence_key,
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    detail_ref = payload["index_entry"]["detail"]
+    detail_name = detail_ref.removeprefix("./")
+    learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
+    detail_path = Path(payload["detail_path"]).resolve()
+    assert detail_ref.startswith("./learn-")
+    assert "/" not in detail_name
+    assert "\\" not in detail_name
+    assert detail_path.is_relative_to(learning_dir)
+    assert detail_path.exists()
+    detail_content = detail_path.read_text(encoding="utf-8")
+    assert summary in detail_content
+    assert evidence in detail_content
+
+
 def test_learning_capture_repairs_unsafe_ref_before_canonical_duplicate_check(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
