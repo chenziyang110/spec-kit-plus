@@ -31,17 +31,17 @@ Reconstruct or refresh the graph-native project cognition runtime from a complet
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader graph-build context.
 - Open only learning detail docs linked from map-build-relevant index entries.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When graph reconstruction friction appears, use the `signal-learning` helper surface: `{{specify-subcmd:hook signal-learning --command map-build --route-changes <n> --artifact-rewrites <n> --validation-failures <n>}}`.
-- [AGENT] Before reporting completion or a blocked build, use the `review-learning` helper surface: `{{specify-subcmd:hook review-learning --command map-build --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`.
+- [AGENT] When graph reconstruction friction exposes route changes, artifact rewrites, validation gaps, false starts, hidden dependencies, or reusable constraints, make sure `map-state.md` captures that durable context.
+- [AGENT] When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 
 ## Process
 
 - Start with validation, not writing.
-- Run `{{specify-subcmd:hook checkpoint --command map-build}}` before long-running reconstruction, join-point acceptance, or compaction-risk transitions.
+- Update `map-state.md` before long-running reconstruction, join-point acceptance, compaction-risk transitions, or any stop where resume will depend on more than the visible conversation.
 - Validate scan inputs before execution and compile/validate `MapBuildPacket` inputs before dispatch.
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
-- Use `{{specify-subcmd:hook complete-refresh}}` only after the graph-ready baseline and accepted compatibility/export refresh outputs are complete.
+- Use `project-map complete-refresh` only after the graph-ready baseline and accepted compatibility/export refresh outputs are complete.
 
 ## Hard Boundary
 
@@ -163,7 +163,7 @@ At minimum, claims must include:
 Before reporting completion:
 
 - use `complete-refresh` once the graph-ready baseline and compatibility/export refresh workbench outputs have been accepted
-- use `{{specify-subcmd:hook complete-refresh}}` once the graph-ready baseline and compatibility/export refresh workbench outputs have been accepted
+- use `project-map complete-refresh` once the graph-ready baseline and compatibility/export refresh workbench outputs have been accepted
 - confirm that graph artifacts were written under `.specify/project-cognition/graph/`
 - confirm that slices were published under `.specify/project-cognition/slices/`
 - confirm that `status.json` reflects a graph-ready baseline

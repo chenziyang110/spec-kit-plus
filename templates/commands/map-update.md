@@ -42,7 +42,7 @@ Use `execution_surface: native-subagents`.
 - It must not silently escalate to a full rebuild without recording why.
 - It must prefer metadata-only or single-slice updates when those are sufficient.
 - After recording updates, re-evaluate runtime readiness through the shared freshness contract.
-- If the re-evaluated runtime is `fresh` with `readiness=ready`, finalize the successful refresh through `{{specify-subcmd:hook complete-refresh}}` so compatibility freshness metadata cannot remain stale.
+- If the re-evaluated runtime is `fresh` with `readiness=ready`, finalize the successful refresh through `project-map complete-refresh` so compatibility freshness metadata cannot remain stale.
 - Do not report refresh completion when the runtime remains blocked.
 - A recorded refresh is not automatically a ready refresh: `partial_refresh` means update metadata was written but readiness still failed.
 
@@ -70,7 +70,7 @@ The canonical outputs for this command are:
 - refreshed affected graph artifacts
 - refreshed affected slices
 - the post-recording freshness result, including `freshness`, `readiness`, and `recommended_next_action`
-- when the post-recording freshness result is ready, a completed compatibility finalizer via `{{specify-subcmd:hook complete-refresh}}`
+- when the post-recording freshness result is ready, a completed compatibility finalizer via `project-map complete-refresh`
 
 ## Guardrails
 

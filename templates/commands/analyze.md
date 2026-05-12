@@ -53,22 +53,19 @@ When recommending manual implementation resumption to the user, tell them to run
   - `forbidden_actions: edit source code, edit tests, edit planning artifacts, start implementation before the gate is cleared`
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before continuing.
 
-## First-Party Workflow Quality Hooks
+## Workflow Quality Requirements
 
-- Once `FEATURE_DIR` is known, use `{{specify-subcmd:hook preflight --command analyze --feature-dir "$FEATURE_DIR"}}` before deeper analysis so stale brownfield routing or invalid workflow entry is surfaced through the shared product guardrail layer.
-- After `WORKFLOW_STATE_FILE` is created or resumed, use `{{specify-subcmd:hook validate-state --command analyze --feature-dir "$FEATURE_DIR"}}` so the shared validator confirms `workflow-state.md` matches the `sp-analyze` contract.
-- Before final gate reporting, use `{{specify-subcmd:hook validate-artifacts --command analyze --feature-dir "$FEATURE_DIR"}}` so the required analyze-side artifact set is checked by the shared hook surface.
-- Before compaction-risk transitions or after large findings synthesis, use `{{specify-subcmd:hook checkpoint --command analyze --feature-dir "$FEATURE_DIR"}}` to emit a resume-safe checkpoint payload from `workflow-state.md`.
-- Run `{{specify-subcmd:learning start --command analyze --format json}}` when available, then use the `signal-learning` helper surface if the analysis exposes repeated artifact rewrites, route changes, false starts, or hidden dependencies.
+- Confirm project cognition freshness and valid workflow entry before deeper analysis begins.
+- Keep `workflow-state.md` current as the durable gate-state source of truth for whether implementation may proceed, which stage must reopen, and what evidence supports the decision.
+- Verify the analysis report, cleared or blocked gate result, and any durable artifact outcomes before final reporting instead of relying on chat narration.
+- Update durable analysis state before compaction-risk transitions, large findings synthesis, remediation handoffs, or any stop where resume will depend on more than the visible conversation.
+- Run `{{specify-subcmd:learning start --command analyze --format json}}` when available so passive learning files exist and the current analysis sees relevant shared project memory.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader analysis context.
 - Open only learning detail docs linked from analysis-relevant index entries.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-  Command shape: `{{specify-subcmd:hook signal-learning --command analyze --retry-attempts <n> --hypothesis-changes <n>}}`
-- Before final cleared or blocked gate reporting, use the `review-learning` helper surface.
-  Command shape: `{{specify-subcmd:hook review-learning --command analyze --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- When analysis friction exposes repeated artifact rewrites, route changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
 - Prefer `{{specify-subcmd:learning capture-auto --command analyze --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- When durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 
 ## Execution Steps
 

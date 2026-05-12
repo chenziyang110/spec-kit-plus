@@ -50,9 +50,9 @@ Upgrade to `/sp-specify` immediately if:
 
 ## Passive Project Learning Layer
 
-{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+Fast path does not load the full passive learning layer.
 
-**This command tier: trivial.** Skip all learning hooks. Do not read constitution, project-rules, or project-learnings. Do not run learning start, signal, review, or capture.
+**This command tier: trivial.** Skip all learning hooks. Do not read constitution, project-rules, or project-learnings. Do not run learning start, signal, review, or capture. Learning Reflex is acknowledged but not executed on the fast path; leave `.specify/memory/learnings/INDEX.md` and any linked detail document untouched unless the task is upgraded out of the fast path.
 
 ## Process
 
@@ -73,7 +73,7 @@ Upgrade to `/sp-specify` immediately if:
 3. **Execute the fast lane**
    - Perform the fast-path change directly.
    - Keep the allowed write scope local and explicit.
-   - Before reading any non-obvious path, prefer `{{specify-subcmd:hook validate-read-path --target-path "<candidate path>"}}` when you are unsure whether the path stays inside the repository or whether it may be a sensitive file.
+   - Before reading any non-obvious path, confirm the resolved path stays inside the repository and is not a credential, secret, private key, or other sensitive file. If path safety is uncertain, stop and ask for a safer explicit path instead of probing broadly.
    - If the task is behavior-changing rather than docs-only, write a failing targeted test or failing repro check before editing production code.
    - The direct execution notes must include that RED gate before production edits.
    - Do not use manual sanity checks as a substitute for red when behavior changes.
@@ -90,8 +90,8 @@ Upgrade to `/sp-specify` immediately if:
 5. **Report**
    - Summarize what changed, what was verified, and any remaining risk.
    - [AGENT] Keep the fast-path closeout truthful: report the exact verification you ran and any residual risk instead of implying broader validation.
-   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
-   - If a refresh cannot be completed now, use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and recommend `{{invoke:map-update}}` for localized touched-area refresh, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
+   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `project-map complete-refresh` as the successful-refresh finalizer.
+   - If a refresh cannot be completed now, use `project-map mark-dirty --reason "<reason>"` as the manual override/fallback and recommend `{{invoke:map-update}}` for localized touched-area refresh, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
 
 ## Output Contract
 

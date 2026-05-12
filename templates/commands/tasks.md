@@ -27,11 +27,11 @@ scripts:
 - If it exists, read it and look for entries under the `hooks.before_tasks` key
 {{spec-kit-include: ../command-partials/common/extension-hooks-body.md}}
 
-**Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
-- Use `{{specify-subcmd:hook preflight --command tasks --feature-dir "$FEATURE_DIR"}}` before decomposition continues so stale project-map or invalid workflow-entry state is blocked by the shared product guardrail layer.
-- After `WORKFLOW_STATE_FILE` is created or resumed, use `{{specify-subcmd:hook validate-state --command tasks --feature-dir "$FEATURE_DIR"}}` so the shared validator confirms `workflow-state.md` matches the `sp-tasks` contract.
-- Before final handoff, use `{{specify-subcmd:hook validate-artifacts --command tasks --feature-dir "$FEATURE_DIR"}}` so the required `tasks.md` and `workflow-state.md` outputs are machine-checked instead of inferred from chat progress.
-- Before compaction-risk transitions or after major task-batch synthesis, use `{{specify-subcmd:hook checkpoint --command tasks --feature-dir "$FEATURE_DIR"}}` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+**Maintain workflow quality without hook choreography**:
+- Confirm project cognition freshness and valid workflow entry before decomposition continues.
+- Keep `workflow-state.md` current as the durable source of truth for phase, allowed artifact writes, next action, and exit criteria.
+- Verify the final `tasks.md` and `workflow-state.md` outputs before handoff instead of relying on chat narration.
+- Update durable state before compaction-risk transitions, major task-batch synthesis handoffs, or any stop where resume will depend on more than the visible conversation.
 
 ## Passive Project Learning Layer
 
@@ -39,13 +39,9 @@ scripts:
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader task-generation context.
 - Open only learning detail docs linked from task-generation-relevant index entries, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When task-shaping friction appears, use the `signal-learning` helper surface with artifact-rewrite, route-change, false-start, or hidden-dependency counts.
-  Command shape: `{{specify-subcmd:hook signal-learning --command tasks --artifact-rewrites <n> --route-changes <n> --false-start "<summary>"}}`
-- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `routing_mistake`, `verification_gap`, `decision_debt`, or `project_constraint` exists.
-  Command shape: `{{specify-subcmd:hook review-learning --command tasks --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] When task-shaping friction exposes artifact rewrites, route changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
 - [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command tasks --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- [AGENT] When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- [AGENT] When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Workflow Phase Lock
@@ -241,7 +237,7 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
     - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
     - workflow-state path
     - Recommended next command: `{{invoke:analyze}}`
-    - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the project cognition runtime, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield implementation proceeds.
+    - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the project cognition runtime, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `project-map complete-refresh` as the successful-refresh finalizer, otherwise use `project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield implementation proceeds.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
      - `active_command: sp-tasks`
      - `phase_mode: task-generation-only`

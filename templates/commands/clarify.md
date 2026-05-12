@@ -74,13 +74,9 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader clarification context.
 - Open only learning detail docs linked from clarification-relevant index entries, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- When clarification friction appears, use the `signal-learning` helper surface with user-correction, scope-change, route-change, false-start, or hidden-dependency counts.
-  Command shape: `{{specify-subcmd:hook signal-learning --command clarify --user-corrections <n> --scope-changes <n> --route-changes <n>}}`
-- Before final completion or blocked reporting, use the `review-learning` helper surface.
-  Command shape: `{{specify-subcmd:hook review-learning --command clarify --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- When clarification friction exposes user corrections, scope changes, route changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
 - Prefer `{{specify-subcmd:learning capture-auto --command clarify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
    - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command clarify --ensure-worktree}}` before guessing from branch-only context.
@@ -182,7 +178,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first
    - whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning
    - updated `workflow-state.md` path
-   - if this repair pass proves the current project cognition runtime no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield implementation proceeds
+   - if this repair pass proves the current project cognition runtime no longer captures the touched area's ownership, workflow, integration boundary, or verification surface accurately enough, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `project-map complete-refresh` as the successful-refresh finalizer, otherwise use `project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield implementation proceeds
 
 ## Presentation Contract
 

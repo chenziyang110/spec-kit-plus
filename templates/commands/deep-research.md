@@ -64,11 +64,11 @@ Use `execution_surface: native-subagents`.
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently.
 
-**Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
-- Use `{{specify-subcmd:hook preflight --command deep-research --feature-dir "$FEATURE_DIR"}}` before deeper workflow execution so stale brownfield routing or invalid workflow entry is caught by the shared product guardrail layer.
-- After `WORKFLOW_STATE_FILE` is created or resumed, use `{{specify-subcmd:hook validate-state --command deep-research --feature-dir "$FEATURE_DIR"}}` so the shared validator confirms `workflow-state.md` matches the `sp-deep-research` contract.
-- Before final handoff, use `{{specify-subcmd:hook validate-artifacts --command deep-research --feature-dir "$FEATURE_DIR"}}` so the required `deep-research.md` and `workflow-state.md` set is machine-checked.
-- Before compaction-risk transitions or after prototype evidence is synthesized, use `{{specify-subcmd:hook checkpoint --command deep-research --feature-dir "$FEATURE_DIR"}}` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+**Maintain workflow quality without hook choreography**:
+- Confirm project cognition freshness and valid workflow entry before deeper research begins.
+- Keep `workflow-state.md` current as the durable source of truth for phase, allowed artifact writes, next action, and exit criteria.
+- Verify the final `deep-research.md` and `workflow-state.md` outputs before handoff instead of relying on chat narration.
+- Update durable state before compaction-risk transitions, prototype-evidence synthesis handoffs, or any stop where resume will depend on more than the visible conversation.
 
 ## Passive Project Learning Layer
 
@@ -76,13 +76,9 @@ Use `execution_surface: native-subagents`.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
 - Open only learning detail docs linked from research-relevant index entries, especially feasibility, hidden dependency, prototype failure, or repeated research-gap lessons.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When feasibility friction appears, use the `signal-learning` helper surface with route-change, false-start, hidden-dependency, command-failure, or validation-failure counts.
-  Command shape: `{{specify-subcmd:hook signal-learning --command deep-research --route-changes <n> --command-failures <n> --validation-failures <n>}}`
-- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface.
-  Command shape: `{{specify-subcmd:hook review-learning --command deep-research --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] When feasibility friction exposes route changes, false starts, hidden dependencies, command failures, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
 - [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command deep-research --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- [AGENT] When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- [AGENT] When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 
 ## Workflow Phase Lock
 

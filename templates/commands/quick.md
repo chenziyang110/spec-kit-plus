@@ -49,15 +49,12 @@ Treat task-relevant coverage as insufficient when the touched area still lacks
 ownership, placement, workflow, integration, or verification guidance before
 choosing the quick-task lane shape.
 
-## First-Party Workflow Quality Hooks
+## Workflow Quality Requirements
 
-- Once the quick workspace exists, use `{{specify-subcmd:hook preflight --command quick --workspace ".planning/quick/<id>-<slug>"}}` before deeper execution so the shared product guardrail layer can block stale brownfield routing or invalid quick-task entry.
-- After `STATUS.md` is created or resumed, use `{{specify-subcmd:hook validate-state --command quick --workspace ".planning/quick/<id>-<slug>"}}` so the shared validator confirms the quick-task source of truth is resumable.
-- Use `{{specify-subcmd:hook validate-session-state --command quick --workspace ".planning/quick/<id>-<slug>"}}` when you need a machine-readable summary of quick-task resume truth rather than trusting chat narration.
-- Before resume-sensitive continuation or phase-sensitive quick-task routing, prefer `{{specify-subcmd:hook workflow-policy --command quick --workspace ".planning/quick/<id>-<slug>" --trigger pre-tool}}`.
-- Before compaction-risk transitions, join points, or delegated fan-out, use `{{specify-subcmd:hook monitor-context --command quick --workspace ".planning/quick/<id>-<slug>"}}` and follow checkpoint recommendations with `{{specify-subcmd:hook checkpoint --command quick --workspace ".planning/quick/<id>-<slug>"}}`.
-- When you need a compact native-session recovery capsule, follow checkpointing with `{{specify-subcmd:hook build-compaction --command quick --workspace ".planning/quick/<id>-<slug>" --trigger before-stop}}`.
-- When you want a compact operator-facing summary instead of re-reading the whole file, use `{{specify-subcmd:hook render-statusline --command quick --workspace ".planning/quick/<id>-<slug>"}}`.
+- Confirm project cognition freshness and valid quick-task entry before deeper execution.
+- Keep `STATUS.md` current as the durable quick-task source of truth for scope, lane state, blockers, verification, and terminal status.
+- Validate each `WorkerTaskPacket` or equivalent execution contract before dispatch and require a structured handoff before accepting delegated work.
+- Update durable state before compaction-risk transitions, join points, delegated fan-out, or any stop where resume will depend on more than the visible conversation.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader quick-task context.
 - Open only learning detail docs linked from quick-task-relevant index entries.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
@@ -292,8 +289,8 @@ resume_decision: [resume here | blocked waiting | resolved]
   - any unverified surface or remaining gap is called out explicitly instead of being implied away
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
-- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before marking the quick task `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
-- If a refresh cannot be completed now, use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and tell the user to run `{{invoke:map-update}}` before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
+- If the quick task changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before marking the quick task `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `project-map complete-refresh` as the successful-refresh finalizer.
+- If a refresh cannot be completed now, use `project-map mark-dirty` as the manual override/fallback and tell the user to run `{{invoke:map-update}}` before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
 
 ## Propagating Change Rule
 
@@ -324,7 +321,15 @@ resume_decision: [resume here | blocked waiting | resolved]
 - Produce scoped implementation changes, verification evidence, and a truthful resolved/blocked state for the quick task.
 - Preserve escalation history so it is clear why the task stayed quick or needed to grow.
 
-{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+## Passive Project Learning Layer
+
+- Run `{{specify-subcmd:learning start --command quick --format json}}` when available so passive learning files exist and the current quick task sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader quick-task context.
+- Open only learning detail docs linked from quick-task-relevant index entries.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail document without asking for routine permission.
+- Prefer `{{specify-subcmd:learning capture-auto --command quick --format json}}` when `STATUS.md` already preserves route reasons, false starts, hidden dependencies, validation gaps, or reusable constraints.
+- When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
+- Treat this as passive shared memory, not as a separate user-visible quick-task command.
 
 **This command tier: light.** Auto-capture learnings on resolution only. No review, no signal.
 

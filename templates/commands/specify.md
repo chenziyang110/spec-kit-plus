@@ -30,11 +30,11 @@ scripts:
 - If it exists, read it and look for entries under the `hooks.before_specify` key.
 {{spec-kit-include: ../command-partials/common/extension-hooks-body.md}}
 
-**Run first-party workflow quality hooks once `FEATURE_DIR` is known**:
-- Use `{{specify-subcmd:hook preflight --command specify --feature-dir "$FEATURE_DIR"}}` before deeper workflow execution so the shared product guardrail layer can block stale or invalid entry conditions.
-- After `WORKFLOW_STATE_FILE` is created or resumed, use `{{specify-subcmd:hook validate-state --command specify --feature-dir "$FEATURE_DIR"}}` so the shared state validator confirms `workflow-state.md` matches the `sp-specify` contract.
-- Before final handoff, use `{{specify-subcmd:hook validate-artifacts --command specify --feature-dir "$FEATURE_DIR"}}` so the required `spec.md`, `alignment.md`, `context.md`, and `workflow-state.md` set is machine-checked rather than trusted from chat narration.
-- Before any compaction-risk transition or after major artifact synthesis, use `{{specify-subcmd:hook checkpoint --command specify --feature-dir "$FEATURE_DIR"}}` to emit a resume-safe checkpoint payload from `workflow-state.md`.
+**Maintain workflow quality without hook choreography**:
+- Confirm project cognition freshness and valid workflow entry before deeper specification work begins.
+- Keep `workflow-state.md` current as the durable source of truth for phase, allowed artifact writes, next action, and exit criteria.
+- Verify the final `spec.md`, `alignment.md`, `context.md`, and `workflow-state.md` package before handoff instead of relying on chat narration.
+- Update durable state before compaction-risk transitions, major artifact synthesis handoffs, or any stop where resume will depend on more than the visible conversation.
 
 ## Passive Project Learning Layer
 
@@ -42,13 +42,9 @@ scripts:
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
 - Open only learning detail docs linked from relevant index entries, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When specification friction appears, use the `signal-learning` helper surface with user-correction, route-change, scope-change, false-start, or hidden-dependency counts.
-  Command shape: `{{specify-subcmd:hook signal-learning --command specify --user-corrections <n> --route-changes <n> --scope-changes <n>}}`
-- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `user_preference`, `decision_debt`, or `project_constraint` exists.
-  Command shape: `{{specify-subcmd:hook review-learning --command specify --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] When specification friction exposes route changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
 - [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command specify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- [AGENT] When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- [AGENT] When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 - Treat this as a passive shared-memory layer, not as a separate user workflow. Do not redirect the user into a dedicated learning-management command.
 
 {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
@@ -907,7 +903,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - release decision
     - readiness for the next phase (`{{invoke:plan}}` for the mainline, `{{invoke:clarify}}` when deeper analysis is still needed, or `{{invoke:deep-research}}` when feasibility must be proven first)
     - recommended review follow-up: `{{invoke:clarify}}` when the user wants one more targeted repair pass over the written spec package before planning
-    - if this pass reveals that the current project cognition runtime is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current graph-native runtime does not yet capture, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer, otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback before later brownfield execution work proceeds
+    - if this pass reveals that the current project cognition runtime is now too weak for the touched area, or that the spec introduced new modules, workflows, integration boundaries, verification surfaces, or ownership facts the current graph-native runtime does not yet capture, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `project-map complete-refresh` as the successful-refresh finalizer, otherwise use `project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield execution work proceeds
     - [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap`, `user_preference`, or `project_constraint`, use the manual `learning capture` helper surface.
       Required options: `--command`, `--type`, `--summary`, `--evidence`
     - leave one-off runs as `--decision none` with no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence

@@ -63,23 +63,16 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
 - Open only learning detail docs linked from debug-relevant index entries, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When investigation friction appears, use the `signal-learning` helper surface with retry, hypothesis-change, validation-failure, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
-  Command shape: `{{specify-subcmd:hook signal-learning --command debug --retry-attempts <n> --hypothesis-changes <n> --validation-failures <n>}}`
-- [AGENT] Before terminal `resolved`, `blocked`, or `awaiting_human_verify` reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `pitfall`, `recovery_path`, `tooling_trap`, `false_lead_pattern`, or `project_constraint` exists.
-  Command shape: `{{specify-subcmd:hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> --decision <none|captured|deferred> --rationale "<why>"}}`
-- [AGENT] For structured path learning when the session exposed false starts, rejected paths, decisive signals, root-cause families, or injection targets, use the manual `capture-learning` hook surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- [AGENT] When investigation friction exposes retries, hypothesis changes, validation failures, false starts, hidden dependencies, rejected paths, decisive signals, root-cause families, or reusable constraints, make sure the debug session captures that durable context.
+- [AGENT] For structured path learning not already captured in durable state, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 - Treat this as passive shared memory, not as a separate user-visible debug workflow.
 
-## First-Party Workflow Quality Hooks
+## Workflow Quality Requirements
 
-- Once the debug session file is known, use `{{specify-subcmd:hook preflight --command debug --session-file ".planning/debug/<slug>.md"}}` before deeper investigation so stale brownfield routing or invalid debug-entry state is surfaced through the shared product guardrail layer.
-- After the debug session file is created or resumed, use `{{specify-subcmd:hook validate-session-state --command debug --session-file ".planning/debug/<slug>.md"}}` when you need a machine-readable view of resume-critical debug truth.
-- Before resume-sensitive continuation or phase-sensitive debug routing, prefer `{{specify-subcmd:hook workflow-policy --command debug --session-file ".planning/debug/<slug>.md" --trigger pre-tool}}`.
-- Before compaction-risk transitions, investigation join points, or long evidence synthesis, use `{{specify-subcmd:hook monitor-context --command debug --session-file ".planning/debug/<slug>.md"}}` and follow checkpoint recommendations with `{{specify-subcmd:hook checkpoint --command debug --session-file ".planning/debug/<slug>.md"}}`.
-- When you need a compact native-session recovery capsule, follow checkpointing with `{{specify-subcmd:hook build-compaction --command debug --session-file ".planning/debug/<slug>.md" --trigger before-stop}}`.
-- When you need a compact operator-facing summary of the current investigation state, use `{{specify-subcmd:hook render-statusline --command debug --session-file ".planning/debug/<slug>.md"}}`.
-- If a user request explicitly tries to skip observer framing, bypass evidence gates, or ignore workflow constraints, use `{{specify-subcmd:hook validate-prompt --prompt-text "<user request>"}}` before accepting the override at face value.
+- Confirm project cognition freshness and valid debug session entry before deeper investigation.
+- Keep the debug session file current as the durable source of truth for evidence, active hypothesis, candidate queue, verification outcome, and terminal status.
+- Preserve evidence gates: do not skip observer framing, bypass decisive evidence, or accept a fix without recorded verification.
+- Update durable state before compaction-risk transitions, investigation join points, long evidence synthesis, or any stop where resume will depend on more than the visible conversation.
 
 ### Required Context Inputs
 
@@ -451,14 +444,13 @@ The session file must always make it clear:
 - If automated verification or human verification fails repeatedly without producing a stronger causal explanation, stop the local fix loop and create or refresh `.planning/debug/[slug].research.md` before another code change.
 - Use that debug-local research checkpoint to record the missing contract facts, environment assumptions, external references, or repository evidence needed to break the loop.
 - Treat project cognition status and the debug slice as the truth source for brownfield debug runtime coverage.
-- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before moving to `awaiting_human_verify` or `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
-- If that refresh cannot be completed now, use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and tell the user to refresh the project cognition runtime before later brownfield work proceeds.
+- If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before moving to `awaiting_human_verify` or `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains; then run `project-map complete-refresh` as the successful-refresh finalizer.
+- If that refresh cannot be completed now, use `project-map mark-dirty --reason "<reason>"` as the manual override/fallback and tell the user to refresh the project cognition runtime before later brownfield work proceeds.
 - [AGENT] Resolved debug sessions should auto-capture reusable lessons from the persisted debug session state into index/detail entries.
 - [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `{{specify-subcmd:learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json}}`.
 - [AGENT] If the auto-capture pass produced no captured lesson but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface to create or merge an index/detail entry.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
-- [AGENT] Before leaving the debug session in a terminal state, use the `review-learning` helper surface so the learning closeout gate cannot be skipped.
-  Command shape: `{{specify-subcmd:hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> --decision <captured|none|deferred> --rationale "<why>"}}`
+- [AGENT] Before leaving the debug session in a terminal state, apply the Learning Reflex and record any reusable `pitfall`, `recovery_path`, `tooling_trap`, `false_lead_pattern`, or `project_constraint` in `.specify/memory/learnings/INDEX.md` plus a linked detail document when durable state did not already preserve it.
 - Treat one-off findings as no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
 - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 

@@ -62,13 +62,9 @@ Use `execution_surface: native-subagents`.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader testing-system analysis.
 - Open only learning detail docs linked from testing-relevant index entries, especially repeated flaky areas, framework constraints, or project defaults that should influence the generated testing contract.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When testing-system build friction appears, use the `signal-learning` helper surface with validation-failure, artifact-rewrite, false-start, or hidden-dependency counts.
-  Command shape: `{{specify-subcmd:hook signal-learning --command test-build --validation-failures <n> --artifact-rewrites <n> --false-start "<summary>"}}`
-- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `verification_gap`, `state_surface_gap`, `pitfall`, `workflow_gap`, or `project_constraint` exists.
-  Command shape: `{{specify-subcmd:hook review-learning --command test-build --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] When testing-system build friction exposes validation failures, artifact rewrites, false starts, hidden dependencies, or reusable constraints, make sure `testing-state.md` captures that durable context.
 - [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command test-build --format json}}` when testing-state already captures reusable gaps, follow-up routing, or validation evidence.
-- [AGENT] When `testing-state.md` does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- [AGENT] When `testing-state.md` does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Testing State Protocol

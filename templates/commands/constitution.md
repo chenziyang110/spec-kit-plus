@@ -55,20 +55,14 @@ missing, copy the template first.
   would benefit from seeing this lesson before related work. If yes, update
   `.specify/memory/learnings/INDEX.md` and the linked detail markdown document
   without asking for routine permission.
-- When constitution work exposes repeated decision debt, rule conflict, or
-  promotion friction, use the `signal-learning` helper surface
-  Command shape: `{{specify-subcmd:hook signal-learning --command constitution --user-corrections <n> --scope-changes <n> --route-changes <n>}}`
-  so the workflow records reusable learning pressure instead of treating it as
-  chat-only discussion.
-- Before final reporting, run
-- use the `review-learning` helper surface for terminal closeout;
-  Command shape: `{{specify-subcmd:hook review-learning --command constitution --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
-  use `--decision none --rationale "..."` only when no reusable
-  `decision_debt`, `workflow_gap`, `user_preference`, or `project_constraint`
-  exists.
+- When constitution work exposes repeated decision debt, rule conflict, route
+  changes, hidden dependencies, or promotion friction, make sure durable state
+  captures that reusable learning pressure instead of treating it as chat-only
+  discussion.
 - Prefer `{{specify-subcmd:learning capture-auto --command constitution --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- When the durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- When the durable state does not capture the reusable lesson cleanly, update
+  `.specify/memory/learnings/INDEX.md` and a linked detail document with the
+  command, type, summary, and evidence.
 - Treat project rules or learnings that conflict with the amended constitution
   as mandatory follow-up work: either realign them in this run or flag them
   explicitly in the Sync Impact Report.
@@ -80,8 +74,8 @@ missing, copy the template first.
   `/sp-map-scan` followed by `/sp-map-build` before continuing or mark the refresh as a blocking
   follow-up rather than fabricating repository context.
 - If an amendment affects project cognition runtime truth and a full refresh can be completed now,
-  do it and use `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer;
-  otherwise use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback.
+  do it and use `project-map complete-refresh` as the successful-refresh finalizer;
+  otherwise use `project-map mark-dirty --reason "<reason>"` as the manual override/fallback.
 - If the amendment changes structure, ownership, workflows, testing strategy, integrations, or operator expectations, mark the related project cognition compatibility/export surface for refresh in the Sync Impact Report even if the constitution update itself is complete. Use this exact framing: mark the related project cognition compatibility/export surface for refresh.
 
 ## Downstream Re-entry Contract
@@ -110,19 +104,14 @@ missing, copy the template first.
     the constitution amendment lands
   - a `next_command` of `/sp-specify`, `/sp-plan`, `/sp-tasks`, or
     `/sp-analyze` as required by the affected artifacts
-- When the local CLI is available and an active feature package is affected,
-  use `{{specify-subcmd:hook validate-state --command constitution --feature-dir "$FEATURE_DIR"}}`
-  after updating `workflow-state.md` so the shared validator confirms the
-  constitution handoff state is resume-safe.
+- When an active feature package is affected, keep `workflow-state.md` current
+  so the constitution handoff state is resume-safe.
 - Before final handoff from a constitution amendment that affects an active
-  feature package, use
-  `{{specify-subcmd:hook validate-artifacts --command constitution --feature-dir "$FEATURE_DIR"}}`
-  so the amended `.specify/memory/constitution.md` and the downstream
-  `workflow-state.md` handoff are machine-checked together.
+  feature package, verify the constitution artifact set, including amended
+  `.specify/memory/constitution.md` and downstream `workflow-state.md`.
 - Before any compaction-risk transition during a constitution amendment that
-  affects an active feature package, use
-  `{{specify-subcmd:hook checkpoint --command constitution --feature-dir "$FEATURE_DIR"}}`
-  so the downstream re-entry path survives session recovery.
+  affects an active feature package, update durable state before handoff so the
+  downstream re-entry path survives session recovery.
 
 Follow this execution flow:
 

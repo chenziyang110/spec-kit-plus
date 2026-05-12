@@ -34,8 +34,8 @@ Use `execution_surface: native-subagents`.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader scan context.
 - Open only learning detail docs linked from map-scan-relevant index entries.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When scan friction appears, use the `signal-learning` helper surface: `{{specify-subcmd:hook signal-learning --command map-scan --route-changes <n> --artifact-rewrites <n> --false-start "<summary>"}}`.
-- [AGENT] Before reporting completion or a blocked scan, use the `review-learning` helper surface: `{{specify-subcmd:hook review-learning --command map-scan --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`.
+- [AGENT] When scan friction exposes route changes, artifact rewrites, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `map-state.md` captures that durable context.
+- [AGENT] When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 
 ## Hard Boundary
 

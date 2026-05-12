@@ -28,13 +28,9 @@ Use `execution_surface: native-subagents`.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broad scan work.
 - Open only learning detail docs linked from testing-relevant index entries, especially repeated flaky areas, framework constraints, or project defaults that should influence the scan.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When scan friction appears, use the `signal-learning` helper surface with route-change, false-start, hidden-dependency, or validation-failure counts.
-  Command shape: `{{specify-subcmd:hook signal-learning --command test-scan --route-changes <n> --validation-failures <n> --false-start "<summary>"}}`
-- [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `verification_gap`, `state_surface_gap`, `workflow_gap`, `routing_mistake`, or `project_constraint` exists.
-  Command shape: `{{specify-subcmd:hook review-learning --command test-scan --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`
+- [AGENT] When scan friction exposes route changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `testing-state.md` captures that durable context.
 - [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command test-scan --format json}}` when `testing-state.md` already captures reusable gaps, route reasons, or validation evidence.
-- [AGENT] When durable state does not capture the reusable lesson cleanly, use the manual `capture-learning` hook surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- [AGENT] When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
 - Treat this as passive shared memory, not as a separate user-visible workflow.
 
 ## Testing State Protocol
