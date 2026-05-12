@@ -376,16 +376,8 @@ Passive project learning layer:
 - `specify learning aggregate --format json`
 - `specify learning promote`
   - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
-- `specify hook signal-learning`
-  - Command shape: `specify hook signal-learning --command <workflow> --retry-attempts <n> --hypothesis-changes <n>`
-- `specify hook review-learning`
-  - Command shape: `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"`
-- `specify hook capture-learning`
-  - Required options: `--command`, `--type`, `--summary`, `--evidence`
-- `specify hook inject-learning`
-  - Command shape: `specify hook inject-learning --command <workflow> --type <type> --summary "<summary>"`
 - Use `specify learning aggregate` when you want a grouped, promotion-oriented summary of candidate, confirmed, and promoted learning patterns before deciding what should become a shared learning or rule.
-- This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across every `sp-*` workflow, with `review-learning` acting as the terminal learning gate and `capture-learning` preserving structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
+- This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across every `sp-*` workflow, with direct learning-memory commands preserving structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
 - Durable eval helpers turn promoted rules into local regression checks:
   - `specify eval create`
     - Command shape: `specify eval create --recurrence-key <key> --summary "<summary>"`
@@ -393,41 +385,22 @@ Passive project learning layer:
   - `specify eval run --format json`
 - Use `specify eval create` after a rule or learning becomes stable enough that the repository should keep proving it, not just remember it.
 
-First-party workflow quality hooks:
+First-party hook runtime:
 
-- `specify hook preflight`
-  - Command shape: `specify hook preflight --command <workflow> --feature-dir <dir>`
-- `specify hook validate-state`
-  - Command shape: `specify hook validate-state --command <workflow> --feature-dir <dir>`
-- `specify hook validate-artifacts`
-  - Command shape: `specify hook validate-artifacts --command <workflow> --feature-dir <dir>`
-- `specify hook checkpoint`
-  - Command shape: `specify hook checkpoint --command <workflow> --feature-dir <dir>`
-- `specify hook monitor-context`
-  - Command shape: `specify hook monitor-context --command <workflow> --feature-dir <dir>`
-- `specify hook validate-session-state`
-  - Command shape: `specify hook validate-session-state --command <workflow> --feature-dir <dir>`
-- `specify hook render-statusline`
-  - Command shape: `specify hook render-statusline --command <workflow> --feature-dir <dir>`
-- `specify hook validate-packet`
-  - Command shape: `specify hook validate-packet --packet-file <path>`
-- `specify hook validate-result`
-  - Command shape: `specify hook validate-result --packet-file <packet> --result-file <result>`
-- `specify hook validate-read-path`
-  - Command shape: `specify hook validate-read-path --target-path <path>`
-- `specify hook validate-prompt`
-  - Command shape: `specify hook validate-prompt --prompt-text "<text>"`
-- `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` cover workflow transitions and last-mile commit integrity.
-- `specify hook workflow-policy`
-  - Command shape: `specify hook workflow-policy --command <workflow> --feature-dir <dir>`
-- `specify hook build-compaction`
-  - Command shape: `specify hook build-compaction --command <workflow> --feature-dir <dir>`
-- `specify hook read-compaction`
-  - Command shape: `specify hook read-compaction --command <workflow> --feature-dir <dir>`
-- `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
-- `specify hook mark-dirty`
-  - Command shape: `specify hook mark-dirty --reason "<reason>" [--origin-command <workflow>] [--origin-feature-dir <dir>] [--origin-lane-id <lane-id>] [--packet-file <packet-json>]`
-- `specify hook complete-refresh` is the compatibility-named successful-refresh finalizer for project cognition freshness updates after a successful cognition refresh or rebuild. `specify hook mark-dirty --reason "<reason>"` remains the shared manual override/fallback when the required cognition refresh cannot be completed in the current pass; origin metadata and optional packet-derived dirty scope explain whether the stale state came from the current lane's `implement` resume or from another lane that should stay blocked.
+- `specify hook ...` is a compatibility, diagnostic, and native-adapter surface. Normal `sp-*` workflow steps should not call `specify hook ...`; generated workflows express quality requirements through durable state, artifact, packet, result, verification, learning, and project cognition contracts instead.
+- Keep using hook commands when debugging a generated project, preserving compatibility with older generated assets, or running a native adapter that translates host hook events into shared checks.
+- Important diagnostic command shapes:
+  - `specify hook validate-state --command <workflow> --feature-dir <dir>`
+  - `specify hook validate-session-state --command <workflow> --feature-dir <dir>`
+  - `specify hook validate-packet --packet-file <path>`
+  - `specify hook validate-result --packet-file <packet> --result-file <result>`
+  - `specify hook validate-read-path --target-path <path>`
+  - `specify hook validate-prompt --prompt-text "<text>"`
+- Project cognition freshness should use the public project-map/project-cognition commands:
+  - Command shape: `specify project-map complete-refresh`
+  - Command shape: `specify project-map mark-dirty --reason "<reason>" [--origin-command <workflow>] [--origin-feature-dir <dir>] [--origin-lane-id <lane-id>] [--packet-file <packet-json>]`
+  - Command shape: `specify project-cognition complete-refresh`
+  - Command shape: `specify project-cognition mark-dirty --reason "<reason>" [--origin-command <workflow>] [--origin-feature-dir <dir>] [--origin-lane-id <lane-id>] [--packet-file <packet-json>]`
 
 Claude Code integration note:
 
@@ -436,8 +409,8 @@ Claude Code integration note:
   - `SessionStart` statusline/orientation context plus bounded compaction-backed resume cues
   - `UserPromptSubmit` prompt-guard checks plus shared workflow-policy enforcement
   - `PreToolUse` shared workflow-policy checks, read-boundary checks, and inline commit-message validation
-  - `PostToolUse` session-state drift warnings for active implement/quick/debug flows, plus soft `signal-learning` warnings and compaction refresh guidance when workflow state records reusable friction
-  - `Stop` context-monitor checkpoint blocking or advisory output before stop, plus compaction-backed resume cues and soft `signal-learning` warnings when active workflow state crosses the pain threshold
+  - `PostToolUse` session-state drift warnings for active implement/quick/debug flows, plus soft learning-signal warnings and compaction refresh guidance when workflow state records reusable friction
+  - `Stop` context-monitor checkpoint blocking or advisory output before stop, plus compaction-backed resume cues and soft learning-signal warnings when active workflow state crosses the pain threshold
 - These adapters are intentionally thin: they call back into the shared `specify hook ...` command surface instead of re-implementing workflow truth inside standalone Claude scripts.
 
 Codex/OMX integration note:
@@ -446,17 +419,17 @@ Codex/OMX integration note:
 - The managed Codex native hook set covers `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop`.
 - `SessionStart` and `Stop` can append bounded compaction-backed resume cues from the shared hook surface.
 - `UserPromptSubmit` can bridge shared workflow-policy blocking when the active workflow is being asked to jump phases unsafely.
-- `PostToolUse` and `Stop` bridge shared `specify hook signal-learning` warnings when active workflow state records reusable friction.
-- Learning capture and terminal learning review still stay in the shared `specify hook capture-learning` / `review-learning` surfaces; native Codex hooks only surface the signal.
+- `PostToolUse` and `Stop` bridge shared learning-signal warnings when active workflow state records reusable friction.
+- Learning capture and terminal learning review remain direct learning-memory responsibilities; native hooks may surface soft signals, but normal `sp-*` workflow steps should not call hook learning commands.
 
 Gemini integration note:
 
 - `specify init --ai gemini` installs thin native adapters in `.gemini/hooks/` and merges project-local `.gemini/settings.json`.
 - The managed Gemini native hook set covers `SessionStart`, `BeforeAgent`, and `BeforeTool`.
 - `SessionStart` can append bounded compaction-backed resume cues from the shared hook surface.
-- `BeforeAgent` applies shared prompt guards, targeted workflow-policy checks for explicit phase jumps, and soft `signal-learning` warnings when active workflow state records reusable friction.
+- `BeforeAgent` applies shared prompt guards, targeted workflow-policy checks for explicit phase jumps, and soft learning-signal warnings when active workflow state records reusable friction.
 - `BeforeTool` applies shared read-boundary and inline commit-message validation.
-- As with Claude and Codex, learning capture and terminal review remain shared `specify hook capture-learning` / `review-learning` responsibilities.
+- As with Claude and Codex, learning capture and terminal learning review remain direct learning-memory responsibilities; native hooks may surface soft signals, but normal `sp-*` workflow steps should not call hook learning commands.
 
 Native hook coverage matrix:
 

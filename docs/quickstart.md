@@ -328,43 +328,28 @@ Passive project learning layer:
   - `specify learning aggregate --format json`
   - `specify learning promote`
     - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
-  - `specify hook signal-learning`
-    - Command shape: `specify hook signal-learning --command <workflow> --retry-attempts <n> --hypothesis-changes <n>`
-  - `specify hook review-learning`
-    - Command shape: `specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"`
-  - `specify hook capture-learning`
-    - Required options: `--command`, `--type`, `--summary`, `--evidence`
-  - `specify hook inject-learning`
-    - Command shape: `specify hook inject-learning --command <workflow> --type <type> --summary "<summary>"`
 - `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
-- Treat this as an internal/runtime helper surface, not as a separate daily slash workflow. `review-learning` is the terminal learning gate, and `capture-learning` preserves structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
+- Treat this as an internal/runtime helper surface, not as a separate daily slash workflow. Direct learning-memory commands preserve structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
 - Durable eval helpers exist once a rule should become executable proof instead of only remembered guidance:
   - `specify eval create`
     - Command shape: `specify eval create --recurrence-key <key> --summary "<summary>"`
   - `specify eval status --format json`
   - `specify eval run --format json`
 
-First-party workflow quality hooks:
+Hook runtime and diagnostics:
 
-- Use `specify hook preflight` when you want the product-level gate result rather than relying only on prompt wording.
-  - Command shape: `specify hook preflight --command <workflow> --feature-dir <dir>`
-- Use `specify hook validate-state` and `specify hook validate-session-state` to inspect or enforce the current source-of-truth workflow state.
-  - Command shape: `specify hook validate-state --command <workflow> --feature-dir <dir>`
-  - Command shape: `specify hook validate-session-state --command <workflow> --feature-dir <dir>`
-- Use `specify hook validate-artifacts` to check that the promised artifact set really exists.
-  - Command shape: `specify hook validate-artifacts --command <workflow> --feature-dir <dir>`
-- Use `specify hook checkpoint` to build a resume-safe checkpoint from the active workflow state file.
-  - Command shape: `specify hook checkpoint --command <workflow> --feature-dir <dir>`
-- Use `specify hook monitor-context` to trigger proactive checkpointing before compaction or a risky transition.
-  - Command shape: `specify hook monitor-context --command <workflow> --feature-dir <dir>`
-- Use `specify hook validate-packet` and `specify hook validate-result` for subagent integrity.
-  - Command shape: `specify hook validate-packet --packet-file <path>`
-  - Command shape: `specify hook validate-result --packet-file <packet> --result-file <result>`
-- Use `specify hook validate-read-path` and `specify hook validate-prompt` when path safety or workflow-bypass language is in doubt.
-  - Command shape: `specify hook validate-read-path --target-path <path>`
-  - Command shape: `specify hook validate-prompt --prompt-text "<text>"`
-- Use `specify hook validate-boundary`, `validate-phase-boundary`, and `validate-commit` to enforce workflow transitions and commit-time integrity.
-- Use `specify hook signal-learning`, `review-learning`, `capture-learning`, and `inject-learning` to turn passive project learning into a cross-workflow closeout gate instead of relying only on agent memory.
+- `specify hook ...` is kept for compatibility, diagnostics, tests, and native adapters. Normal `sp-*` workflow steps should not call `specify hook ...`.
+- Use durable workflow state, artifact checks, packet/result contracts, verification output, and direct project learning memory during normal work.
+- Diagnostic command shapes:
+  - `specify hook validate-state --command <workflow> --feature-dir <dir>`
+  - `specify hook validate-session-state --command <workflow> --feature-dir <dir>`
+  - `specify hook validate-packet --packet-file <path>`
+  - `specify hook validate-result --packet-file <packet> --result-file <result>`
+- Use project cognition commands for freshness:
+  - Command shape: `specify project-map complete-refresh`
+  - Command shape: `specify project-map mark-dirty --reason "<reason>"`
+  - Command shape: `specify project-cognition complete-refresh`
+  - Command shape: `specify project-cognition mark-dirty --reason "<reason>"`
 
 Claude Code project-local integration:
 
@@ -375,16 +360,16 @@ Claude Code project-local integration:
   - `SessionStart` into `specify hook render-statusline`
   - `UserPromptSubmit` into `specify hook validate-prompt`
   - `PreToolUse` into `specify hook validate-read-path` / `specify hook validate-commit`
-  - `PostToolUse` into `specify hook validate-session-state` for active resumable workflows and soft `specify hook signal-learning` warnings when workflow state records reusable friction
-  - `Stop` into `specify hook monitor-context --trigger before_stop` and soft `specify hook signal-learning` warnings when active workflow state crosses the pain threshold
+  - `PostToolUse` into `specify hook validate-session-state` for active resumable workflows and soft learning-signal warnings when workflow state records reusable friction
+  - `Stop` into `specify hook monitor-context --trigger before_stop` and soft learning-signal warnings when active workflow state crosses the pain threshold
 - If an existing `.claude/settings.json` cannot be parsed, it is preserved and hook registration is skipped rather than overwritten.
 
 Codex/OMX native integration:
 
 - OMX manages Codex native hooks through `.codex/hooks.json` and `codex-native-hook.js`.
 - The managed Codex native hooks cover `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop`.
-- `PostToolUse` and `Stop` also surface soft `specify hook signal-learning` warnings when active workflow state records reusable friction.
-- Learning capture and terminal learning review remain shared `specify hook capture-learning` / `review-learning` responsibilities rather than native-hook decisions.
+- `PostToolUse` and `Stop` also surface soft learning-signal warnings when active workflow state records reusable friction.
+- Learning capture and terminal learning review remain direct learning-memory responsibilities; native hooks may surface soft signals, but normal `sp-*` workflow steps should not call hook learning commands.
 
 Gemini native integration:
 
@@ -393,9 +378,9 @@ Gemini native integration:
 - The shared launcher resolves Python at hook execution time, then delegates to the existing project-local Gemini dispatch script.
 - The managed Gemini native hooks bridge:
   - `SessionStart` into `specify hook render-statusline`
-  - `BeforeAgent` into `specify hook validate-prompt` and soft `specify hook signal-learning` warnings when active workflow state records reusable friction
+  - `BeforeAgent` into `specify hook validate-prompt` and soft learning-signal warnings when active workflow state records reusable friction
   - `BeforeTool` into `specify hook validate-read-path` / `specify hook validate-commit`
-- Learning capture and terminal learning review remain shared `specify hook capture-learning` / `review-learning` responsibilities rather than native-hook decisions.
+- Learning capture and terminal learning review remain direct learning-memory responsibilities; native hooks may surface soft signals, but normal `sp-*` workflow steps should not call hook learning commands.
 
 Native hook coverage matrix:
 
