@@ -319,7 +319,16 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "testing" / "testing-playbook-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "testing" / "coverage-baseline-template.json").exists()
 
-        for skill_name in ("sp-specify", "sp-deep-research", "sp-plan", "sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
+        for skill_name in (
+            "sp-specify",
+            "sp-deep-research",
+            "sp-plan",
+            "sp-test-scan",
+            "sp-test-build",
+            "sp-implement",
+            "sp-debug",
+            "sp-quick",
+        ):
             body = _body_without_frontmatter(skills_dir / skill_name / "SKILL.md").lower()
             assert ".specify/memory/project-rules.md" in body
             assert ".specify/memory/learnings/index.md" in body
@@ -327,6 +336,12 @@ class TestBuiltInSkillGeneration:
             assert ".planning/learnings/candidates.md" not in body or "compatibility" in body
             assert "workflow contract summary" in body
             assert "routing metadata only" in body
+        fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md").lower()
+        assert "skip all learning hooks" in fast_body
+        assert "do not read constitution, project-rules, or project-learnings" in fast_body
+        assert ".specify/memory/learnings/index.md" in fast_body
+        assert "workflow contract summary" in fast_body
+        assert "routing metadata only" in fast_body
         constitution_body = _body_without_frontmatter(skills_dir / "sp-constitution" / "SKILL.md").lower()
         constitution = (project_dir / ".specify" / "memory" / "constitution.md").read_text(encoding="utf-8").lower()
         assert ".specify/memory/project-rules.md" in constitution_body

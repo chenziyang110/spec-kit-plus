@@ -244,7 +244,7 @@ Freshness is enforced as a blocking graph-native gate.
     - generated artifacts
     - workflow-state path
     - recommended follow-up quality check: `{{invoke:checklist}}` for a requirements/plan package audit before moving on to decomposition
-    - if the planning pass introduces or sharpens new architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current project cognition runtime does not yet encode, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `project-map complete-refresh` as the successful-refresh finalizer, otherwise use `project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield implementation proceeds
+    - if the planning pass introduces or sharpens new architecture boundaries, ownership splits, integration surfaces, workflow contracts, or verification routes that the current project cognition runtime does not yet encode, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `specify project-map complete-refresh` as the successful-refresh finalizer, otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield implementation proceeds
     - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
       - `active_command: sp-plan`
       - `phase_mode: design-only`

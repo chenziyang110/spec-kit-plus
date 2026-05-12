@@ -84,21 +84,21 @@ EXECUTION_TEMPLATE_EXPECTED_FRAGMENTS = {
         "WorkerTaskPacket",
         "WorkerTaskResult",
         "structured handoff",
-        "project-map complete-refresh",
-        "project-map mark-dirty",
+        "specify project-map complete-refresh",
+        'specify project-map mark-dirty --reason "<reason>"',
     ),
     "templates/commands/quick.md": (
         "STATUS.md",
         "WorkerTaskPacket",
         "structured handoff",
-        "project-map complete-refresh",
-        "project-map mark-dirty",
+        "specify project-map complete-refresh",
+        'specify project-map mark-dirty --reason "<reason>"',
     ),
     "templates/commands/debug.md": (
         "debug session",
         "evidence",
-        "project-map complete-refresh",
-        "project-map mark-dirty",
+        "specify project-map complete-refresh",
+        'specify project-map mark-dirty --reason "<reason>"',
     ),
 }
 

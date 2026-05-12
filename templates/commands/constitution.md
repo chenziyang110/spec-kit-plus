@@ -74,8 +74,8 @@ missing, copy the template first.
   `/sp-map-scan` followed by `/sp-map-build` before continuing or mark the refresh as a blocking
   follow-up rather than fabricating repository context.
 - If an amendment affects project cognition runtime truth and a full refresh can be completed now,
-  do it and use `project-map complete-refresh` as the successful-refresh finalizer;
-  otherwise use `project-map mark-dirty --reason "<reason>"` as the manual override/fallback.
+  do it and use `specify project-map complete-refresh` as the successful-refresh finalizer;
+  otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback.
 - If the amendment changes structure, ownership, workflows, testing strategy, integrations, or operator expectations, mark the related project cognition compatibility/export surface for refresh in the Sync Impact Report even if the constitution update itself is complete. Use this exact framing: mark the related project cognition compatibility/export surface for refresh.
 
 ## Downstream Re-entry Contract

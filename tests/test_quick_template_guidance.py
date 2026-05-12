@@ -243,7 +243,8 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "complete-refresh" in content
     assert "successful-refresh finalizer" in content
     assert "if a refresh cannot be completed now" in content
-    assert "use `project-map mark-dirty` as the manual override/fallback" in content
+    assert "use `specify project-map mark-dirty` as the manual override/fallback" in content
+    assert "command shape `specify project-map mark-dirty --reason \"<reason>\"`" in content
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:

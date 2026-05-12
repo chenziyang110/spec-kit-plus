@@ -90,8 +90,8 @@ Fast path does not load the full passive learning layer.
 5. **Report**
    - Summarize what changed, what was verified, and any remaining risk.
    - [AGENT] Keep the fast-path closeout truthful: report the exact verification you ran and any residual risk instead of implying broader validation.
-   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `project-map complete-refresh` as the successful-refresh finalizer.
-   - If a refresh cannot be completed now, use `project-map mark-dirty --reason "<reason>"` as the manual override/fallback and recommend `{{invoke:map-update}}` for localized touched-area refresh, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
+   - If the fast-path change unexpectedly touched truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other map-level coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized. Rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains or a full rebuild is required; then run `specify project-map complete-refresh` as the successful-refresh finalizer.
+   - If a refresh cannot be completed now, use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback and recommend `{{invoke:map-update}}` for localized touched-area refresh, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed.
 
 ## Output Contract
 

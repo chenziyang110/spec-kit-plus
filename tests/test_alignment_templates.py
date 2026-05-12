@@ -1952,7 +1952,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
     stale_normal_path_phrases = [
         "should mark `.specify/project-map/index/status.json` dirty and run",
         "mark `.specify/project-map/index/status.json` dirty through the project cognition freshness helper and recommend",
-        "prefer `project-map mark-dirty` as the shared dirty-mark path",
+        "prefer `specify project-map mark-dirty` as the shared dirty-mark path",
     ]
     for path in legacy_owned_surfaces:
         lowered = _read(path).lower()

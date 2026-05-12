@@ -41,7 +41,7 @@ Reconstruct or refresh the graph-native project cognition runtime from a complet
 - Validate scan inputs before execution and compile/validate `MapBuildPacket` inputs before dispatch.
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
-- Use `project-map complete-refresh` only after the graph-ready baseline and accepted compatibility/export refresh outputs are complete.
+- Use `specify project-map complete-refresh` only after the graph-ready baseline and accepted compatibility/export refresh outputs are complete.
 
 ## Hard Boundary
 
@@ -162,7 +162,7 @@ At minimum, claims must include:
 
 Before reporting completion:
 
-- use `project-map complete-refresh` once the graph-ready baseline and compatibility/export refresh workbench outputs have been accepted
+- use `specify project-map complete-refresh` once the graph-ready baseline and compatibility/export refresh workbench outputs have been accepted
 - confirm that graph artifacts were written under `.specify/project-cognition/graph/`
 - confirm that slices were published under `.specify/project-cognition/slices/`
 - confirm that `status.json` reflects a graph-ready baseline
