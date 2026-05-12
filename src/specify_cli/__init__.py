@@ -779,7 +779,7 @@ def _ensure_project_map_artifacts_exist(project_root: Path) -> list[Path]:
     for path in missing:
         console.print(f"- {path}")
     console.print(
-        "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] first so the graph-native project cognition baseline and its compatibility/export outputs exist, then retry [cyan]project-map complete-refresh[/cyan]. Use [cyan]project-map record-refresh[/cyan] only for low-level/manual recovery."
+        "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] first so the graph-native project cognition baseline and its compatibility/export outputs exist, then retry [cyan]specify project-map complete-refresh[/cyan]. Use [cyan]specify project-map record-refresh[/cyan] only for low-level/manual recovery."
     )
     raise typer.Exit(1)
 
@@ -965,7 +965,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Supporting handbook/project-map artifacts under `.specify/project-map/` are compatibility/export outputs, not the ordinary first-read runtime contract for workflow routing.",
             "- If the graph-native cognition baseline is missing, stop and tell the user to run the runtime's `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.",
             "- If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.",
-            "- Treat graph-runtime freshness as the truth source. If a full refresh can be completed now, do it and use `project-map complete-refresh` as the successful-refresh finalizer; otherwise use `project-map mark-dirty` as the manual override/fallback.",
+            '- Treat graph-runtime freshness as the truth source. If a full refresh can be completed now, do it and use `specify project-map complete-refresh` as the successful-refresh finalizer; otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback.',
             "",
             "## Project Memory",
             "",
@@ -1019,7 +1019,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "- If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh the graph-native project cognition baseline.",
             "- If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation as the primary maintenance path.",
-            "- Reserve `sp-map-scan` followed by `sp-map-build` for missing baselines or explicit full rebuild cases; when a full refresh can be completed now, use `project-map complete-refresh` as the successful-refresh finalizer, otherwise use `project-map mark-dirty` as the manual override/fallback.",
+            '- Reserve `sp-map-scan` followed by `sp-map-build` for missing baselines or explicit full rebuild cases; when a full refresh can be completed now, use `specify project-map complete-refresh` as the successful-refresh finalizer, otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback.',
             "- Do not treat consumed project cognition graph context as self-maintaining; the agent changing map-level truth is responsible for keeping the graph-native runtime current.",
             "",
             "- Preserve content outside this managed block.",

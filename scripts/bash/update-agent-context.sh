@@ -171,7 +171,7 @@ render_speckit_managed_block() {
 - If the cognition baseline is missing, run `sp-map-scan` followed by `sp-map-build` before continuing.
 - Treat graph-runtime freshness as the truth source.
 - Run `sp-map-scan`, then `sp-map-build` to create the initial cognition baseline.
-- If a full refresh can be completed now, use `project-map complete-refresh` as the successful-refresh finalizer. Otherwise use `project-map mark-dirty` as the manual override/fallback before continuing.
+- If a full refresh can be completed now, use `specify project-map complete-refresh` as the successful-refresh finalizer. Otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before continuing.
 - If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.
 - Do not treat consumed project cognition graph context as self-maintaining.
 
@@ -259,7 +259,7 @@ render_speckit_managed_block() {
 - If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh the graph-native project cognition baseline.
 - Use `sp-map-update` after baseline creation when the graph runtime is stale or too weak for the touched area.
 - `sp-map-update` is the primary maintenance path after a baseline exists.
-- Reserve `sp-map-scan`, then `sp-map-build` for missing baselines or explicit full rebuild cases; if a full refresh can be completed now, use `project-map complete-refresh` as the successful-refresh finalizer. Otherwise use `project-map mark-dirty` as the manual override/fallback before continuing.
+- Reserve `sp-map-scan`, then `sp-map-build` for missing baselines or explicit full rebuild cases; if a full refresh can be completed now, use `specify project-map complete-refresh` as the successful-refresh finalizer. Otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before continuing.
 - Do not continue under known-stale handbook state without choosing one of those paths.
 - Do not treat consumed project cognition graph context as self-maintaining; the agent changing map-level truth is responsible for keeping the graph-native runtime current.
 

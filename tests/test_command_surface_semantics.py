@@ -526,8 +526,10 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "learning reflex" in content
         assert ".specify/memory/learnings/index.md" in content
         assert "future senior engineer" in content
-        assert "project-map complete-refresh" in content
-        assert "project-map mark-dirty" in content
+        assert "specify project-map complete-refresh" in content
+        assert 'specify project-map mark-dirty --reason "<reason>"' in content
+        assert ("use `" + "project" + "-map complete-refresh`") not in content
+        assert ("use `" + "project" + "-map mark-dirty`") not in content
         assert "do not continue under known-stale handbook state without choosing one of those paths" in content
         assert "structured handoff, result file, or runtime-managed result" in content
         assert "`sp-teams` only" in content
