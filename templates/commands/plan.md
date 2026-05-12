@@ -254,7 +254,7 @@ Freshness is enforced as a blocking graph-native gate.
      - `next_command: /sp.tasks`
 - [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap` or `project_constraint`, use the manual `learning capture` helper surface.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
-   - keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence
+   - leave one-off runs as `--decision none` with no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence
    - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory
    - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 

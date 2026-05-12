@@ -26,6 +26,10 @@ def _read_project_file(path: str) -> str:
 def _assert_learning_index_detail_model(content: str) -> None:
     assert ".specify/memory/learnings/INDEX.md" in content
     assert "detail document" in content or "detail docs" in content
+    lowered = content.lower()
+    assert "returns no candidates" not in lowered
+    assert "auto-capture learning candidates" not in lowered
+    assert "keep lower-signal items as candidates" not in lowered
 
 
 def _extract_step_6_strategy_block(content: str) -> str:
