@@ -681,7 +681,7 @@ Navigation and technical truth are now cognition-first:
 - `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` are support-only/reference-only surfaces for ordinary runtime consumption.
 - `DEBUG-HANDBOOK.md`, `BUILD-HANDBOOK.md`, and `.specify/project-map/**` remain compatibility/export surfaces only during the migration window.
 - Use `map-update` for localized stale cognition runtime refresh; use `map-scan` followed by `map-build` when no usable baseline remains or a full rebuild is required.
-- If a full refresh can be completed now, use `project-map complete-refresh` as the successful-refresh finalizer; otherwise use `project-map mark-dirty` as the manual override/fallback.
+- If a full refresh can be completed now, use `specify project-map complete-refresh` as the successful-refresh finalizer; otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback.
 - This repository does not treat its own root `.specify/` directory as committed source-of-truth content; repo-local `.specify/` state is disposable and may be regenerated.
 - After a successful refresh, record the new fresh cognition baseline. Use dirty fallback metadata only when the required refresh cannot be completed now, so same-feature resume can warn instead of self-blocking while upstream brownfield entrypoints and other features still require refresh.
 - Any code change that alters project cognition meaning must update the cognition runtime.

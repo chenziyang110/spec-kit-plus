@@ -208,8 +208,8 @@ incompatibility, then run `specify integration repair` before continuing with
 When the feature touches an established boundary pattern in the target project, make that constraint explicit before coding starts:
 
 - For brownfield runtime refresh decisions, treat `.specify/project-cognition/status.json` as the truth source for git-baseline freshness.
-- If a full refresh can be completed now, use `project-map complete-refresh` as the successful-refresh finalizer.
-- Otherwise use `project-map mark-dirty` as the shared manual override/fallback before later brownfield work continues.
+- If a full refresh can be completed now, use `specify project-map complete-refresh` as the successful-refresh finalizer.
+- Otherwise use `specify project-map mark-dirty --reason "<reason>"` as the shared manual override/fallback before later brownfield work continues.
 
 - `plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
 - Use `Implementation Constitution` for architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus.
