@@ -212,13 +212,25 @@ def test_core_sp_templates_use_direct_passive_learning_without_hook_gates():
 
     for template_path in command_templates:
         content = _read(template_path)
-        assert "{{specify-subcmd:hook signal-learning" not in content
-        assert "{{specify-subcmd:hook review-learning" not in content
-        assert "{{specify-subcmd:hook capture-learning" not in content
-        assert "{{specify-subcmd:hook inject-learning" not in content
-        assert ".specify/memory/learnings/INDEX.md" in content
-        assert "Learning Reflex" in content
-        assert "detail document" in content
+        assert "{{specify-subcmd:hook signal-learning" not in content, (
+            f"{template_path} should use direct passive learning, not signal-learning hooks"
+        )
+        assert "{{specify-subcmd:hook review-learning" not in content, (
+            f"{template_path} should use direct passive learning, not review-learning hooks"
+        )
+        assert "{{specify-subcmd:hook capture-learning" not in content, (
+            f"{template_path} should use direct passive learning, not capture-learning hooks"
+        )
+        assert "{{specify-subcmd:hook inject-learning" not in content, (
+            f"{template_path} should use direct passive learning, not inject-learning hooks"
+        )
+        assert ".specify/memory/learnings/INDEX.md" in content, (
+            f"{template_path} should preserve the learning index reference"
+        )
+        assert "Learning Reflex" in content, f"{template_path} should preserve Learning Reflex guidance"
+        assert "detail document" in content, (
+            f"{template_path} should preserve learning detail document guidance"
+        )
 
     quick_content = _read("templates/commands/quick.md")
     assert "{{specify-subcmd:learning start --command quick --format json}}" in quick_content or "Passive Project Learning Layer" in quick_content
