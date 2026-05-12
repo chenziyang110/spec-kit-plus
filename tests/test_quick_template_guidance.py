@@ -225,7 +225,7 @@ def test_quick_template_rejects_sampling_for_propagating_change_completion() -> 
     assert "do not claim completion" in content
 
 
-def test_quick_template_requires_summary_transparency_for_verified_and_unverified_surfaces() -> None:
+def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change() -> None:
     content = read_template("templates/commands/quick.md").lower()
 
     assert "summary artifact" in content
@@ -238,7 +238,7 @@ def test_quick_template_requires_summary_transparency_for_verified_and_unverifie
     assert "complete-refresh" in content
     assert "successful-refresh finalizer" in content
     assert "if a refresh cannot be completed now" in content
-    assert "use `{{specify-subcmd:hook mark-dirty --reason \"<reason>\"}}` as the manual override/fallback" in content
+    assert "use `project-map mark-dirty` as the manual override/fallback" in content
     assert "manual override/fallback" in content
 
 

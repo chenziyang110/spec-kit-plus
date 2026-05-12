@@ -168,9 +168,9 @@ def test_project_learning_focuses_on_memory_triggers_storage_and_promotion() -> 
     assert "promotion heuristics" in content
     assert "injection goal" in content
     assert "learning start --command implement --format json" in content
-    assert "hook review-learning --command <command-name>" in content
     assert "learning capture-auto --command implement --feature-dir" in content
-    assert "command shape: `{{specify-subcmd:hook capture-learning --command <command-name>" in content
+    assert "hook review-learning --command <command-name>" not in content
+    assert "{{specify-subcmd:hook capture-learning" not in content
     assert "native hooks are an optional enhancement" in content
     assert "without native hooks" in content
     assert "candidate/confirmed" not in content

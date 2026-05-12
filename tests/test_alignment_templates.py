@@ -188,35 +188,42 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "support drift" in repo_docs
 
 
-def test_core_sp_templates_use_learning_review_hooks():
+def test_core_sp_templates_use_direct_passive_learning_without_hook_gates():
     learning_layer = _read("templates/command-partials/common/learning-layer.md")
     assert ".specify/memory/learnings/INDEX.md" in learning_layer
     assert "Learning Reflex" in learning_layer
     assert "detail document" in learning_layer
+    assert "learning capture-auto" in learning_layer
 
-    command_templates_with_signal = {
-        "specify": "templates/commands/specify.md",
-        "clarify": "templates/commands/clarify.md",
-        "deep-research": "templates/commands/deep-research.md",
-        "plan": "templates/commands/plan.md",
-        "tasks": "templates/commands/tasks.md",
-        "analyze": "templates/commands/analyze.md",
-        "test-scan": "templates/commands/test-scan.md",
-        "test-build": "templates/commands/test-build.md",
-        "implement": "templates/commands/implement.md",
-        "debug": "templates/commands/debug.md",
-        "map-scan": "templates/commands/map-scan.md",
-        "map-build": "templates/commands/map-build.md",
-    }
+    command_templates = (
+        "templates/commands/specify.md",
+        "templates/commands/clarify.md",
+        "templates/commands/deep-research.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+        "templates/commands/analyze.md",
+        "templates/commands/test-scan.md",
+        "templates/commands/test-build.md",
+        "templates/commands/implement.md",
+        "templates/commands/debug.md",
+        "templates/commands/map-scan.md",
+        "templates/commands/map-build.md",
+    )
 
-    for command_name, template_path in command_templates_with_signal.items():
+    for template_path in command_templates:
         content = _read(template_path)
-        assert "{{specify-subcmd:hook signal-learning" in content
-        assert f"{{{{specify-subcmd:hook review-learning --command {command_name}" in content
+        assert "{{specify-subcmd:hook signal-learning" not in content
+        assert "{{specify-subcmd:hook review-learning" not in content
+        assert "{{specify-subcmd:hook capture-learning" not in content
+        assert "{{specify-subcmd:hook inject-learning" not in content
+        assert ".specify/memory/learnings/INDEX.md" in content
+        assert "Learning Reflex" in content
+        assert "detail document" in content
 
     quick_content = _read("templates/commands/quick.md")
     assert "{{specify-subcmd:learning start --command quick --format json}}" in quick_content or "Passive Project Learning Layer" in quick_content
     assert "{{specify-subcmd:hook review-learning --command quick" not in quick_content
+    assert "{{specify-subcmd:hook capture-learning" not in quick_content
     assert ".specify/memory/learnings/INDEX.md" in quick_content
     assert "Learning Reflex" in quick_content
     assert "detail document" in quick_content
@@ -294,14 +301,16 @@ def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_
         assert "/sp.test-scan" not in content
 
 
-def test_project_learning_skill_documents_product_level_hooks():
+def test_project_learning_skill_documents_direct_learning_helpers_not_hook_gates():
     content = _read("templates/passive-skills/spec-kit-project-learning/SKILL.md")
 
-    assert "First-Party Learning Hooks" in content
-    assert "{{specify-subcmd:hook signal-learning" in content
-    assert "{{specify-subcmd:hook review-learning" in content
-    assert "{{specify-subcmd:hook capture-learning" in content
-    assert "{{specify-subcmd:hook inject-learning" in content
+    assert "Direct Learning Helpers" in content
+    assert "learning start" in content
+    assert "learning capture-auto" in content
+    assert "{{specify-subcmd:hook signal-learning" not in content
+    assert "{{specify-subcmd:hook review-learning" not in content
+    assert "{{specify-subcmd:hook capture-learning" not in content
+    assert "{{specify-subcmd:hook inject-learning" not in content
     assert "tooling_trap" in content
     assert "map_coverage_gap" in content
     assert "Do NOT" in content
@@ -606,9 +615,10 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "/sp-analyze" in content
     assert "active_command: sp-constitution" in lowered
     assert "phase_mode: planning-only" in lowered
-    assert "{{specify-subcmd:hook validate-state --command constitution --feature-dir \"$feature_dir\"}}" in lowered
-    assert "{{specify-subcmd:hook validate-artifacts --command constitution --feature-dir \"$feature_dir\"}}" in lowered
-    assert "{{specify-subcmd:hook checkpoint --command constitution --feature-dir \"$feature_dir\"}}" in lowered
+    assert "{{specify-subcmd:hook" not in lowered
+    assert "keep `workflow-state.md` current" in lowered
+    assert "verify the constitution artifact set" in lowered
+    assert "update durable state before handoff" in lowered
     assert "highest affected downstream stage" in lowered
     assert "do not always hand off directly to `/sp-specify`" in lowered
     assert "active `spec.md`, `plan.md`, `tasks.md`, or `workflow-state.md`" in content
@@ -1930,7 +1940,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
     stale_normal_path_phrases = [
         "should mark `.specify/project-map/index/status.json` dirty and run",
         "mark `.specify/project-map/index/status.json` dirty through the project cognition freshness helper and recommend",
-        "prefer `{{specify-subcmd:hook mark-dirty --reason \"<reason>\"}}` as the shared dirty-mark path",
+        "prefer `project-map mark-dirty` as the shared dirty-mark path",
     ]
     for path in legacy_owned_surfaces:
         lowered = _read(path).lower()

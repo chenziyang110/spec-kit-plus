@@ -475,12 +475,14 @@ def test_readme_and_quickstart_label_workflow_hook_helper_surfaces_as_command_sh
     assert "specify hook validate-state --command <workflow> ..." not in readme
     assert "specify hook workflow-policy --command <workflow> ..." not in readme
     assert "specify hook build-compaction --command <workflow> ..." not in readme
+    assert "normal `sp-*` workflow steps should not call `specify hook" in readme
     assert "command shape:" in readme
 
     assert "use `specify hook preflight --command <workflow> ...`" not in quickstart
     assert "use `specify hook validate-state --command <workflow> ...`" not in quickstart
     assert "use `specify hook checkpoint --command <workflow> ...`" not in quickstart
     assert "use `specify hook monitor-context --command <workflow> ...`" not in quickstart
+    assert "normal `sp-*` workflow steps should not call `specify hook" in quickstart
     assert "command shape:" in quickstart
 
 
@@ -495,7 +497,9 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "specify quick status <id>" in readme
     assert "quick-task helper command shapes:" in readme
     assert "command shape: `specify quick status <id>`" in readme
-    assert "command shape: `specify hook mark-dirty --reason " in readme
+    assert "command shape: `specify hook mark-dirty --reason " not in readme
+    assert "command shape: `specify project-map mark-dirty --reason " in readme
+    assert "command shape: `specify project-cognition mark-dirty --reason " in readme
     assert "--origin-command <workflow>" in readme
     assert "--origin-feature-dir <dir>" in readme
     assert "--packet-file <packet-json>" in readme
