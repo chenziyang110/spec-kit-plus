@@ -51,7 +51,8 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert ".specify/memory/learnings/index.md" in content
     assert "linked learning detail docs" in content
     assert "learning start --command debug --format json" in content
-    assert "manual `capture-learning` hook surface" in content
+    assert "manual `learning capture` helper surface" in content
+    assert "manual `capture-learning` hook surface" not in content
     assert "debug cognition gate" in content
     assert "pass the cognition gate before" in content
     assert ".specify/project-cognition/status.json" in content
