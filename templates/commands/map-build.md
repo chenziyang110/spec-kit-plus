@@ -162,7 +162,6 @@ At minimum, claims must include:
 
 Before reporting completion:
 
-- use `complete-refresh` once the graph-ready baseline and compatibility/export refresh workbench outputs have been accepted
 - use `project-map complete-refresh` once the graph-ready baseline and compatibility/export refresh workbench outputs have been accepted
 - confirm that graph artifacts were written under `.specify/project-cognition/graph/`
 - confirm that slices were published under `.specify/project-cognition/slices/`
