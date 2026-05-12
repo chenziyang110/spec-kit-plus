@@ -788,9 +788,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert "scope gate" in content
-    assert "skip all learning hooks" in content
-    assert "do not read constitution, project-rules, or project-learnings" in content
-    assert "leave `.specify/memory/learnings/index.md`" in content
+    assert ".specify/memory/project-rules.md" in content
+    assert ".specify/memory/learnings/index.md" in content
+    assert "future senior engineer" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/slices/change.json" in content
