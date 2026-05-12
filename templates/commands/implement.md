@@ -202,6 +202,15 @@ human_needed_checks:
   applies_to: current feature execution
 ```
 
+### Resume Audit Gate
+
+- On every resume, treat checked tasks as claims that need evidence, not evidence themselves.
+- If `implement-tracker.md` is `resolved`, all tasks appear checked, or the previous session exit is unknown, run `{{specify-subcmd:implement resume-audit --feature-dir "$FEATURE_DIR" --format json}}` before final reporting or new closeout.
+- Treat `terminal-audit-required` as validation/recovery work, not completion.
+- Require consumer evidence for tasks that create UI components, routes, providers, registries, factories, configs, tests, API handlers, or other reusable surfaces.
+- Do not preserve `resolved` when the audit finds missing wiring, missing validation evidence, stale subagent handoff, unresolved `open_gaps`, or unexecuted planned validation tasks.
+- If resume audit fails, update `implement-tracker.md` to `validating` or `recovering` with the audit gaps and continue from the smallest executable repair batch.
+
 ## Outline
 
 1. Run `{SCRIPT}` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").

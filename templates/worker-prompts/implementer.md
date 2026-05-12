@@ -23,6 +23,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
   - write the failing test first
   - verify the RED state before editing production code
   - rerun the same gate and capture the GREEN state before reporting success
+- For any task that creates a reusable surface such as a UI component, route, provider, registry entry, factory branch, config field, API handler, or test file, return consumer evidence showing where that surface is imported, registered, rendered, executed, or included. A created but not wired file is not complete.
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.
 - Prefer `DONE_WITH_CONCERNS` over silent guessing when the work is complete but confidence is mixed.
 

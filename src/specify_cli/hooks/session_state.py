@@ -13,6 +13,7 @@ from .checkpoint_serializers import (
 )
 from .events import WORKFLOW_SESSION_STATE_VALIDATE
 from .types import HookResult, QualityHookError
+from specify_cli.implement_audit import audit_implement_resume
 
 
 def session_state_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
@@ -46,6 +47,15 @@ def session_state_hook(project_root: Path, payload: dict[str, object]) -> HookRe
                 f"workflow-state next_command is {next_command}, but implement-tracker still reports active execution"
             )
 
+        resume_audit = audit_implement_resume(project_root, feature_dir)
+        if (
+            resume_audit["resume_classification"] == "terminal-audit-required"
+            and not resume_audit["trusted_terminal_state"]
+        ):
+            warnings.append(
+                "implement resume audit requires validation before trusting terminal tracker state"
+            )
+
         result_status = "warn" if warnings else "ok"
         severity = "warning" if warnings else "info"
         return HookResult(
@@ -60,7 +70,8 @@ def session_state_hook(project_root: Path, payload: dict[str, object]) -> HookRe
                     "tracker_status": tracker.get("status", ""),
                     "current_batch": tracker.get("current_batch", ""),
                     "resume_decision": tracker.get("resume_decision", ""),
-                }
+                },
+                "resume_audit": resume_audit,
             },
         )
 
@@ -110,4 +121,3 @@ def _required_path(project_root: Path, payload: dict[str, object], key: str) -> 
     if not path.is_absolute():
         path = (project_root / path).resolve()
     return path
-

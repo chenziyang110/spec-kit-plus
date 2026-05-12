@@ -280,3 +280,38 @@ def test_validate_worker_task_result_rejects_success_when_a_validation_gate_is_m
 
     assert exc.value.code == "DP3"
     assert "validation gate" in exc.value.message
+
+
+def test_validate_worker_task_result_rejects_missing_required_consumer_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.consumer_surfaces = ["DeviceProviderPage renders ClaudeForm"]
+    sample_packet.required_evidence = ["consumer_evidence"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented auth flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/slices/change.json",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_result(result, sample_packet)
+
+    assert exc.value.code == "DP3"
+    assert "consumer evidence" in exc.value.message

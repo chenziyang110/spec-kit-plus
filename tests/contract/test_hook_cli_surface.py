@@ -1865,6 +1865,119 @@ def test_hook_validate_packet_outputs_parseable_json(tmp_path: Path):
     assert payload["status"] == "ok"
 
 
+def test_implement_resume_audit_cli_blocks_false_resolved_state(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: resolved",
+                "feature: 001-demo",
+                "resume_decision: resolved",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: final",
+                "next_action: report completion",
+                "",
+                "## Open Gaps",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["implement", "resume-audit", "--feature-dir", str(feature_dir), "--format", "json"],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["status"] == "fail"
+    assert payload["recommended_tracker_status"] == "validating"
+
+
+def test_validate_session_state_surfaces_terminal_audit_required(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: resolved",
+                "feature: 001-demo",
+                "resume_decision: resolved",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: final",
+                "next_action: report completion",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["hook", "validate-session-state", "--command", "implement", "--feature-dir", str(feature_dir)],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["status"] == "warn"
+    audit = payload["data"]["resume_audit"]
+    assert audit["resume_classification"] == "terminal-audit-required"
+    assert audit["trusted_terminal_state"] is False
+
+
+def test_implement_closeout_blocks_false_resolved_state(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: resolved\nfeature: 001-demo\nresume_decision: resolved\n---\n\n## Current Focus\nnext_action: report completion\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        ["implement", "closeout", "--feature-dir", str(feature_dir), "--format", "json"],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert payload["resume_audit"]["trusted_terminal_state"] is False
+
 def test_hook_monitor_context_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)
     workspace = project / ".planning" / "quick" / "260427-004-demo-quick-task"

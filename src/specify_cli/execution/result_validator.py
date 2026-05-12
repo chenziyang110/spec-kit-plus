@@ -96,4 +96,16 @@ def validate_worker_task_result(
                     "DP3",
                     f"worker result is missing validation output for gate: {command}",
                 )
+        required_evidence = {
+            item.strip().lower()
+            for item in packet.required_evidence
+            if item.strip()
+        }
+        if packet.consumer_surfaces or "consumer_evidence" in required_evidence:
+            if not result.consumer_evidence:
+                raise PacketValidationError("DP3", "worker result is missing consumer evidence")
+        if "acceptance_evidence" in required_evidence and not result.acceptance_evidence:
+            raise PacketValidationError("DP3", "worker result is missing acceptance evidence")
+        if "manual_evidence" in required_evidence and not result.manual_evidence:
+            raise PacketValidationError("DP3", "worker result is missing manual evidence")
     return result

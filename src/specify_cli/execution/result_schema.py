@@ -34,6 +34,9 @@ class WorkerTaskResult:
     failed_assumptions: list[str] = field(default_factory=list)
     suggested_recovery_actions: list[str] = field(default_factory=list)
     rule_acknowledgement: RuleAcknowledgement = field(default_factory=RuleAcknowledgement)
+    acceptance_evidence: list[dict[str, str]] = field(default_factory=list)
+    consumer_evidence: list[dict[str, str]] = field(default_factory=list)
+    manual_evidence: list[dict[str, str]] = field(default_factory=list)
 
 
 def _filter_dataclass_payload(cls: type, payload: dict[str, object]) -> dict[str, object]:
@@ -45,6 +48,23 @@ def worker_task_result_payload(result: WorkerTaskResult) -> dict[str, object]:
     """Return a JSON-serializable payload for a worker result."""
 
     return asdict(result)
+
+
+def _normalize_evidence_items(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        evidence = {
+            str(key).strip(): str(raw_value).strip()
+            for key, raw_value in item.items()
+            if str(key).strip() and str(raw_value).strip()
+        }
+        if evidence:
+            normalized.append(evidence)
+    return normalized
 
 
 def worker_task_result_from_json(text: str) -> WorkerTaskResult:
@@ -72,6 +92,15 @@ def worker_task_result_from_json(text: str) -> WorkerTaskResult:
     ]
     rule_acknowledgement = RuleAcknowledgement(**raw_ack)
     result_payload = _filter_dataclass_payload(WorkerTaskResult, payload)
+    result_payload["acceptance_evidence"] = _normalize_evidence_items(
+        result_payload.get("acceptance_evidence", [])
+    )
+    result_payload["consumer_evidence"] = _normalize_evidence_items(
+        result_payload.get("consumer_evidence", [])
+    )
+    result_payload["manual_evidence"] = _normalize_evidence_items(
+        result_payload.get("manual_evidence", [])
+    )
     result_payload["validation_results"] = validation_results
     result_payload["rule_acknowledgement"] = rule_acknowledgement
     return WorkerTaskResult(**result_payload)

@@ -1380,6 +1380,7 @@ def implement_closeout(
 ):
     """Validate implementation closeout state and auto-capture learnings."""
     from .hooks.engine import run_quality_hook
+    from .implement_audit import audit_implement_resume
 
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
@@ -1402,6 +1403,23 @@ def implement_closeout(
                 console.print(f"- {error}")
         raise typer.Exit(1)
 
+    resume_audit = audit_implement_resume(project_root, resolved_feature_dir)
+    if resume_audit["status"] in {"fail", "conflict"}:
+        payload = {
+            "status": "blocked",
+            "feature_dir": str(resolved_feature_dir),
+            "hook_result": hook_result.to_dict(),
+            "resume_audit": resume_audit,
+        }
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print("[red]Error:[/red] Implement closeout blocked by resume audit.")
+            console.print(str(resume_audit["recommended_next_action"]))
+            for gap in resume_audit.get("open_gaps", []):
+                console.print(f"- {gap}")
+        raise typer.Exit(1)
+
     auto_payload = capture_auto_learning(
         project_root,
         command_name="implement",
@@ -1411,6 +1429,7 @@ def implement_closeout(
         "status": "ok",
         "feature_dir": str(resolved_feature_dir),
         "hook_result": hook_result.to_dict(),
+        "resume_audit": resume_audit,
         "auto_capture": auto_payload,
     }
     if output_format.lower() == "json":
@@ -1427,6 +1446,42 @@ def implement_closeout(
         rows.append(("Reason", str(auto_payload["reason"])))
     console.print(_cli_panel(_labeled_grid(rows), title="Implement Closeout", border_style="cyan"))
 
+
+@implement_app.command("resume-audit")
+def implement_resume_audit(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory containing tasks.md and implement-tracker.md"),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+):
+    """Audit terminal-looking implementation state before trusting resume completion."""
+    from .implement_audit import audit_implement_resume
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = Path(feature_dir)
+    if not resolved_feature_dir.is_absolute():
+        resolved_feature_dir = (project_root / resolved_feature_dir).resolve()
+
+    payload = audit_implement_resume(project_root, resolved_feature_dir)
+    audit_failed = payload["status"] in {"fail", "conflict"}
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+        if audit_failed:
+            raise typer.Exit(1)
+        return
+
+    rows = [
+        ("Feature Dir", str(resolved_feature_dir)),
+        ("Audit Status", str(payload["status"])),
+        ("Classification", str(payload["resume_classification"])),
+        ("Trusted Terminal State", str(payload["trusted_terminal_state"]).lower()),
+        ("Recommended Status", str(payload["recommended_tracker_status"])),
+        ("Next Action", str(payload["recommended_next_action"])),
+    ]
+    console.print(_cli_panel(_labeled_grid(rows), title="Implement Resume Audit", border_style="cyan"))
+    for gap in payload.get("open_gaps", []):
+        console.print(f"- {gap}")
+    if audit_failed:
+        raise typer.Exit(1)
 
 @testing_app.command("inventory")
 def testing_inventory_command(

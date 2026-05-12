@@ -75,6 +75,9 @@ class WorkerTaskPacket:
     context_nav: list[dict[str, str]] = field(default_factory=list)
     anti_goals: list[str] = field(default_factory=list)
     verify_commands: list[str] = field(default_factory=list)
+    acceptance_criteria: list[str] = field(default_factory=list)
+    consumer_surfaces: list[str] = field(default_factory=list)
+    required_evidence: list[str] = field(default_factory=list)
     escalation_role: str = "debugger"
     retry_max: int = 2
     packet_version: int = 2

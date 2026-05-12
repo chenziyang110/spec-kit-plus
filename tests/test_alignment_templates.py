@@ -1633,6 +1633,15 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert no_safe_batch < one_subagent < parallel_subagents
 
 
+def test_implement_template_requires_resume_audit_before_trusting_terminal_state():
+    content = _read("templates/commands/implement.md")
+    lowered = content.lower()
+    assert "resume audit" in lowered
+    assert "terminal-audit-required" in lowered
+    assert "checked tasks as claims" in lowered
+    assert "consumer evidence" in lowered
+    assert "do not preserve `resolved`" in lowered
+
 def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
@@ -1799,6 +1808,8 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "red state" in implementer.lower()
     assert "green state" in implementer.lower()
     assert "do not claim verification that was not run" in implementer.lower()
+    assert "consumer evidence" in implementer.lower()
+    assert "created but not wired" in implementer.lower()
 
     assert "# Debug Investigator Worker Prompt" in debug_investigator
     assert "current hypothesis" in debug_investigator.lower()
