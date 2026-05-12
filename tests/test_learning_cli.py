@@ -115,6 +115,40 @@ def _write_implement_tracker(
     (feature_dir / "implement-tracker.md").write_text("\n".join(flattened) + "\n", encoding="utf-8")
 
 
+def _write_tasks_and_worker_result(feature_dir: Path) -> None:
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "# Tasks",
+                "",
+                "- [X] T001 Refresh validation fixture evidence",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    worker_results = feature_dir / "worker-results"
+    worker_results.mkdir(parents=True, exist_ok=True)
+    (worker_results / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "success",
+                "validation_results": [
+                    {
+                        "command": "pytest -q",
+                        "status": "passed",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def _write_workflow_state(
     feature_dir: Path,
     *,
@@ -2364,6 +2398,7 @@ def test_implement_closeout_validates_state_and_auto_captures(tmp_path: Path) ->
         failed_tasks=["T002"],
         completed_checks=["pytest -q"],
     )
+    _write_tasks_and_worker_result(feature_dir)
 
     result = _invoke_in_project(
         project,

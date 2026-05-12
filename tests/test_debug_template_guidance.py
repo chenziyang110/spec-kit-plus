@@ -48,8 +48,8 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "you are not the default evidence worker for every lane" in content
     assert "route, integrate, and decide rather than manually performing every lane sequentially" in content
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    assert ".specify/memory/learnings/index.md" in content
+    assert "linked learning detail docs" in content
     assert "learning start --command debug --format json" in content
     assert "manual `capture-learning` hook surface" in content
     assert "debug cognition gate" in content

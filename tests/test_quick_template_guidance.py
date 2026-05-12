@@ -40,8 +40,8 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "you are the quick-task leader" in content
     assert "you are not the default implementer for the quick task" in content
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    assert ".specify/memory/learnings/index.md" in content
+    assert "linked detail markdown document" in content
     assert "passive project learning layer" in content
     assert "passive project learning layer" in content
     assert "project cognition gate" in content

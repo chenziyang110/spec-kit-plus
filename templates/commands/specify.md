@@ -420,6 +420,7 @@ Generate the pre-analysis output as the first section of `context.md`.
    - If the request is already one bounded capability, say so briefly and continue inside the current spec.
 
 16. Capability decomposition.
+    - Decompose the request into capabilities before detailed gray-area questioning.
     - Decompose the analyzed feature into bounded capabilities.
     - For brownfield testing-system work seeded by `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`, default capability decomposition to foundation work plus module priority waves instead of vague subsystem buckets.
     - Record the purpose of each capability, what scenarios it supports, and how it depends on other capabilities or prerequisites.
@@ -624,6 +625,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - If the user corrects the recap, update the active understanding and continue clarification.
     - If planning-critical gaps remain after the recap, do not release `Aligned: ready for plan`.
     - Only this stage may record `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` as the canonical next command.
+    - Clarify planning-critical ambiguity before release; if it survives this pass, keep the package unresolved and route to `/sp.clarify`.
     - Use `/sp.plan` when the requirement package is planning-ready.
     - Use `/sp.clarify` when the package is salvageable but planning-critical ambiguity still remains.
     - Use `/sp.deep-research` when the requirements are clear enough but a planning-critical implementation chain still needs external proof or a disposable demo.

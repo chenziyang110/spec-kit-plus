@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 
+import pytest
+
+import specify_cli.orchestration.state_store as state_store
 from specify_cli.orchestration.state_store import (
     batch_path,
     lane_path,
@@ -53,3 +56,44 @@ def test_read_json_returns_none_for_missing_files(tmp_path: Path):
     path = task_path(tmp_path, "missing")
 
     assert read_json(path) is None
+
+
+def test_write_json_retries_transient_replace_permission_error(monkeypatch, tmp_path: Path):
+    path = session_path(tmp_path, "session-locked")
+    attempts = 0
+    real_replace = state_store.os.replace
+
+    def _flaky_replace(src: Path, dst: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise PermissionError(13, "Permission denied", str(dst))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(state_store.os, "replace", _flaky_replace)
+    monkeypatch.setattr(state_store.time, "sleep", lambda _seconds: None)
+
+    payload = {"session_id": "session-locked", "status": "running"}
+    written = write_json(path, payload)
+
+    assert written == path
+    assert attempts == 2
+    assert read_json(path) == payload
+
+
+def test_write_json_reraises_persistent_replace_permission_error(monkeypatch, tmp_path: Path):
+    path = session_path(tmp_path, "session-locked")
+    attempts = 0
+
+    def _locked_replace(src: Path, dst: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        raise PermissionError(13, "Permission denied", str(dst))
+
+    monkeypatch.setattr(state_store.os, "replace", _locked_replace)
+    monkeypatch.setattr(state_store.time, "sleep", lambda _seconds: None)
+
+    with pytest.raises(PermissionError):
+        write_json(path, {"session_id": "session-locked"})
+
+    assert attempts == state_store.REPLACE_RETRY_ATTEMPTS

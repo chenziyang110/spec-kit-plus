@@ -6,7 +6,12 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
 from typing import Any
+
+
+REPLACE_RETRY_ATTEMPTS = 5
+REPLACE_RETRY_DELAY_S = 0.02
 
 
 def orchestration_root(project_root: Path) -> Path:
@@ -65,11 +70,26 @@ def write_json(path: Path, payload: dict[str, Any]) -> Path:
         ) as handle:
             temp_path = Path(handle.name)
             handle.write(json.dumps(payload, indent=2) + "\n")
-        os.replace(temp_path, path)
+        _replace_with_retries(temp_path, path)
     finally:
         if temp_path is not None and temp_path.exists():
             temp_path.unlink(missing_ok=True)
     return path
+
+
+def _replace_with_retries(temp_path: Path, path: Path) -> None:
+    last_error: OSError | None = None
+    for attempt in range(REPLACE_RETRY_ATTEMPTS):
+        try:
+            os.replace(temp_path, path)
+            return
+        except OSError as exc:
+            last_error = exc
+            if not isinstance(exc, PermissionError) or attempt == REPLACE_RETRY_ATTEMPTS - 1:
+                raise
+            time.sleep(REPLACE_RETRY_DELAY_S)
+    if last_error is not None:
+        raise last_error
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
