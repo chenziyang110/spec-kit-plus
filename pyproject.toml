@@ -80,7 +80,7 @@ packages = ["src/specify_cli"]
 
 [project.optional-dependencies]
 mcp = [
-    "mcp[cli]>=1,<2",
+    "mcp[cli]>=1.27.1,<2",
 ]
 test = [
     "pytest>=7.0",
