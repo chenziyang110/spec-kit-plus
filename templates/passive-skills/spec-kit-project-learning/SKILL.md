@@ -251,8 +251,8 @@ The lesson should influence future work by being surfaced at the right time:
 - before the same tooling trap gets misdiagnosed
 - before the same project constraint is forgotten
 
-That is why `inject-learning` exists: to route prevention back into the right
-shared surface.
+That is why captured lessons must be surfaced through start-time memory,
+relevant detail links, and promotion into stronger rule layers when justified.
 
 ## Behavioral Rules
 

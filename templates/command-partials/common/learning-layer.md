@@ -6,7 +6,7 @@ Learning capture is proportional to command complexity:
 |------|-------------------|
 | trivial | Skip learning unless the task escalates or exposes reusable project memory. |
 | light | Read the learning index and auto-capture from durable state on resolution when useful. |
-| heavy | Full learning: start -> read index -> signal friction -> closeout capture into index/detail. |
+| heavy | Full learning: start -> read index -> track reusable friction in durable state -> closeout capture into index/detail. |
 
 ### Learning Reflex
 
