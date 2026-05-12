@@ -27,6 +27,8 @@ def _assert_learning_index_detail_model(content: str) -> None:
     assert ".specify/memory/learnings/INDEX.md" in content
     assert "detail document" in content or "detail docs" in content
     lowered = content.lower()
+    assert ".specify/memory/project-learnings.md" not in lowered
+    assert ".planning/learnings/candidates.md" not in lowered
     assert "returns no candidates" not in lowered
     assert "auto-capture learning candidates" not in lowered
     assert "keep lower-signal items as candidates" not in lowered
