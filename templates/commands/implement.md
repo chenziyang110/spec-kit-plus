@@ -105,9 +105,10 @@ After checks complete, record results in `implement-tracker.md`:
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `{{specify-subcmd:learning start --command implement --format json}}` when available so passive learning files exist, the current implementation run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader execution context.
-- Review `.planning/learnings/candidates.md` only when it still contains implementation-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
+- [AGENT] Run `{{specify-subcmd:learning start --command implement --format json}}` when available so passive learning files exist and the current implementation run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader execution context.
+- Open only learning detail docs linked from implementation-relevant index entries, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When implementation friction appears, use the `signal-learning` helper surface with retry, validation-failure, route-change, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
   Command shape: `{{specify-subcmd:hook signal-learning --command implement --retry-attempts <n> --validation-failures <n> --route-changes <n>}}`
 - [AGENT] Before terminal `resolved` or `blocked` reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `pitfall`, `recovery_path`, `verification_gap`, `state_surface_gap`, or `project_constraint` exists.
@@ -263,12 +264,12 @@ human_needed_checks:
    - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: add targeted graph or testing artifacts, refresh through `/sp-map-update` when localized, or rebuild through `/sp-map-scan` followed by `/sp-map-build` only when needed; then inspect the minimum live files still needed to replace guesswork with evidence.
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read `.specify/memory/project-rules.md` if present.
-   - **REQUIRED**: Read `.specify/memory/project-learnings.md` if present.
+   - **REQUIRED**: Read `.specify/memory/learnings/INDEX.md` if present.
    - **REQUIRED WHEN PRESENT**: Read `.specify/testing/TESTING_CONTRACT.md` before choosing the next batch so testing obligations are treated as binding execution constraints.
    - **REQUIRED WHEN PRESENT**: Read `.specify/testing/TESTING_PLAYBOOK.md` before verification so canonical test and coverage commands come from the project playbook instead of ad hoc guessing.
    - **REQUIRED WHEN PRESENT**: Read `.specify/testing/COVERAGE_BASELINE.json` before final validation when coverage policy exists for the touched modules.
    - **COMMAND-TIER MODEL**: Preserve command-tier expectations for `fast smoke`, `focused`, and `full`; run the focused tier as the lane acceptance check, use fast smoke for early signal when useful, and reserve full for broader regression or final verification.
-   - **IF `.planning/learnings/candidates.md` EXISTS**: Inspect only the entries relevant to implementation so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
+   - **IF RELEVANT LEARNING DETAIL DOCS EXIST**: Open only the linked docs relevant to implementation so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
    - **REQUIRED WHEN PRESENT**: Read `FEATURE_DIR/brainstorming/handoff-to-implement.json` and preserve its route, intent, complexity, must-preserve invariants, allowed optimization scope, and stop-and-reopen conditions as binding execution inputs.
@@ -522,11 +523,11 @@ After each task completion, emit a gate self-check. After all tasks, emit a fina
    - If you cannot complete that refresh in the current pass, use `{{specify-subcmd:hook mark-dirty --reason "<reason>" --origin-command implement --origin-feature-dir "$FEATURE_DIR" --origin-lane-id "$LANE_ID" --packet-file <packet-json>}}` as the manual override/fallback whenever `LANE_ID` and a validated packet are available, and tell the user to run `{{invoke:map-update}}` before the next brownfield workflow proceeds, escalating to `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when needed. The same lane's later `sp-implement` resume may continue with a warning only when the recorded dirty scope overlaps the current packet scope, but upstream brownfield entrypoints and other features must refresh first.
    - Only mark the tracker `resolved` after required tasks are complete, blockers are cleared, and the validation pass is truthfully green or explicitly waiting on recorded human verification
    - [AGENT] Before the final completion report, run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` so implementation session state is validated and retry-heavy patterns are auto-captured from `implement-tracker.md`.
-- [AGENT] If the closeout auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface.
+- [AGENT] If the closeout auto-capture pass produced no captured lesson but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface to create or merge an index/detail entry.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
 - [AGENT] Before the final completion report, use the `review-learning` helper surface so the learning closeout gate cannot be skipped.
   Command shape: `{{specify-subcmd:hook review-learning --command implement --terminal-status <resolved|blocked> --decision <captured|none|deferred> --rationale "<why>"}}`
-   - Keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
+   - Treat one-off findings as no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
    - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
    - Report final status with summary of completed work, remaining human-needed checks, and any unresolved gaps
 

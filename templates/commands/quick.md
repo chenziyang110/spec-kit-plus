@@ -58,6 +58,9 @@ choosing the quick-task lane shape.
 - Before compaction-risk transitions, join points, or delegated fan-out, use `{{specify-subcmd:hook monitor-context --command quick --workspace ".planning/quick/<id>-<slug>"}}` and follow checkpoint recommendations with `{{specify-subcmd:hook checkpoint --command quick --workspace ".planning/quick/<id>-<slug>"}}`.
 - When you need a compact native-session recovery capsule, follow checkpointing with `{{specify-subcmd:hook build-compaction --command quick --workspace ".planning/quick/<id>-<slug>" --trigger before-stop}}`.
 - When you want a compact operator-facing summary instead of re-reading the whole file, use `{{specify-subcmd:hook render-statusline --command quick --workspace ".planning/quick/<id>-<slug>"}}`.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader quick-task context.
+- Open only learning detail docs linked from quick-task-relevant index entries.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 
 ## Scope Gate
 

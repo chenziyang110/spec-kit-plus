@@ -41,6 +41,7 @@ class TestGenericIntegration:
             ".specify/integrations/generic/scripts/update-context.sh",
             ".specify/integrations/speckit.manifest.json",
             ".specify/memory/constitution.md",
+            ".specify/memory/learnings/INDEX.md",
             ".specify/memory/project-learnings.md",
             ".specify/memory/project-rules.md",
             ".specify/project-map/status.json",

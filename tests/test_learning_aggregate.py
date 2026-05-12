@@ -8,6 +8,19 @@ from specify_cli.learning_aggregate import (
 )
 
 
+def _seed_learning_templates(project_path: Path) -> None:
+    templates_root = Path(__file__).resolve().parents[1] / "templates"
+    target_root = project_path / ".specify" / "templates"
+    target_root.mkdir(parents=True, exist_ok=True)
+    for name in (
+        "project-rules-template.md",
+        "project-learnings-template.md",
+        "project-learnings-index-template.md",
+        "project-learning-detail-template.md",
+    ):
+        (target_root / name).write_text((templates_root / name).read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def _entry(
     *,
     recurrence_key: str,
@@ -111,13 +124,7 @@ def test_aggregate_learning_patterns_marks_confirmed_project_constraint_as_rule_
 
 def test_aggregate_learning_state_reads_candidates_confirmed_and_rules(tmp_path: Path) -> None:
     project = tmp_path
-    (project / ".specify" / "templates").mkdir(parents=True, exist_ok=True)
-    templates_root = Path(__file__).resolve().parents[1] / "templates"
-    for name in ("project-rules-template.md", "project-learnings-template.md"):
-        (project / ".specify" / "templates" / name).write_text(
-            (templates_root / name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+    _seed_learning_templates(project)
 
     ensure_learning_files(project)
     capture_learning(
@@ -144,6 +151,66 @@ def test_aggregate_learning_state_reads_candidates_confirmed_and_rules(tmp_path:
     assert report["counts"]["confirmed"] == 1
     assert report["counts"]["candidates"] == 0
     assert report["patterns"][0]["recurrence_key"] == "shared.boundary.pattern"
+
+
+def test_aggregate_learning_state_reads_index_entries(tmp_path: Path) -> None:
+    project = tmp_path
+    _seed_learning_templates(project)
+    capture_learning(
+        project,
+        command_name="implement",
+        learning_type="tooling_trap",
+        summary="Use the project launcher for generated helper commands",
+        evidence="The generated launcher selected a different specify executable than PATH.",
+        recurrence_key="cli.project-launcher-helper-drift",
+        signal_strength="high",
+    )
+
+    report = aggregate_learning_state(project)
+
+    patterns = report["patterns"]
+    keys = [item["recurrence_key"] for item in patterns]
+    assert "cli.project-launcher-helper-drift" in keys
+    matched = next(item for item in patterns if item["recurrence_key"] == "cli.project-launcher-helper-drift")
+    assert "learning_index" in matched["layers"]
+    assert matched["total_occurrences"] == 1
+    assert matched["promotion_state"] == "approaching_threshold"
+
+
+def test_aggregate_learning_state_uses_index_as_fallback_without_source_entry(tmp_path: Path) -> None:
+    project = tmp_path
+    _seed_learning_templates(project)
+    capture_learning(
+        project,
+        command_name="implement",
+        learning_type="tooling_trap",
+        summary="Use the project launcher for generated helper commands",
+        evidence="The generated launcher selected a different specify executable than PATH.",
+        recurrence_key="cli.project-launcher-helper-drift",
+        signal_strength="medium",
+    )
+    candidates_path = project / ".planning" / "learnings" / "candidates.md"
+    candidates_content = candidates_path.read_text(encoding="utf-8")
+    candidates_path.write_text(
+        candidates_content.replace(
+            candidates_content[
+                candidates_content.index("<!-- SPECKIT_LEARNING_DATA_BEGIN -->") :
+                candidates_content.index("<!-- SPECKIT_LEARNING_DATA_END -->")
+            ],
+            "<!-- SPECKIT_LEARNING_DATA_BEGIN -->\n[]\n",
+        ),
+        encoding="utf-8",
+    )
+
+    report = aggregate_learning_state(project)
+
+    patterns = report["patterns"]
+    keys = [item["recurrence_key"] for item in patterns]
+    assert "cli.project-launcher-helper-drift" in keys
+    matched = next(item for item in patterns if item["recurrence_key"] == "cli.project-launcher-helper-drift")
+    assert matched["layers"] == ["learning_index"]
+    assert matched["total_occurrences"] == 1
+    assert matched["promotion_state"] == "informational"
 
 
 def test_render_learning_aggregate_report_includes_promotion_ready_and_stale_sections() -> None:

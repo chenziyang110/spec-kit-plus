@@ -22,6 +22,18 @@ def _read(path: str) -> str:
 def _read_project_file(path: str) -> str:
     return (PROJECT_ROOT / path).read_text(encoding="utf-8")
 
+
+def _assert_learning_index_detail_model(content: str) -> None:
+    assert ".specify/memory/learnings/INDEX.md" in content
+    assert "detail document" in content or "detail docs" in content
+    lowered = content.lower()
+    assert ".specify/memory/project-learnings.md" not in lowered
+    assert ".planning/learnings/candidates.md" not in lowered
+    assert "returns no candidates" not in lowered
+    assert "auto-capture learning candidates" not in lowered
+    assert "keep lower-signal items as candidates" not in lowered
+
+
 def _extract_step_6_strategy_block(content: str) -> str:
     lowered = content.lower()
     start = lowered.find("6. select subagent dispatch for each ready batch before writing code:")
@@ -120,8 +132,7 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "Treat the learning layer as workflow-execution infrastructure, not as optional notes." in block
     assert "`.specify/memory/constitution.md` is the principle-level source of truth when present." in block
     assert "`.specify/memory/project-rules.md` holds stable defaults and reusable constraints." in block
-    assert "`.specify/memory/project-learnings.md` holds confirmed reusable lessons." in block
-    assert "`.planning/learnings/candidates.md` is a lower-confidence candidate layer and should influence work only when relevant to the touched area." in block
+    _assert_learning_index_detail_model(block)
 
     assert "## Delegated Execution Defaults" in block
     assert "Dispatch native subagents by default for independent, bounded lanes when parallel work materially improves speed, quality, or verification confidence." in block
@@ -178,6 +189,11 @@ def _assert_managed_block_v2_contract(block: str) -> None:
 
 
 def test_core_sp_templates_use_learning_review_hooks():
+    learning_layer = _read("templates/command-partials/common/learning-layer.md")
+    assert ".specify/memory/learnings/INDEX.md" in learning_layer
+    assert "Learning Reflex" in learning_layer
+    assert "detail document" in learning_layer
+
     command_templates_with_signal = {
         "specify": "templates/commands/specify.md",
         "clarify": "templates/commands/clarify.md",
@@ -201,12 +217,42 @@ def test_core_sp_templates_use_learning_review_hooks():
     quick_content = _read("templates/commands/quick.md")
     assert "{{specify-subcmd:learning start --command quick --format json}}" in quick_content or "Passive Project Learning Layer" in quick_content
     assert "{{specify-subcmd:hook review-learning --command quick" not in quick_content
-    assert "Auto-capture learnings on resolution only. No review, no signal." in quick_content
+    assert ".specify/memory/learnings/INDEX.md" in quick_content
+    assert "Learning Reflex" in quick_content
+    assert "detail document" in quick_content
 
     fast_content = _read("templates/commands/fast.md")
-    assert "Skip all learning hooks" in fast_content
-    assert "Do not run learning start, signal, review, or capture" in fast_content
+    assert ".specify/memory/learnings/INDEX.md" in fast_content
+    assert "Learning Reflex" in fast_content
+    assert "detail document" in fast_content
     assert "{{specify-subcmd:learning capture --command fast ...}}" not in fast_content
+
+
+def test_owned_workflow_templates_use_learning_index_reflex() -> None:
+    owned_workflow_templates = (
+        "templates/commands/specify.md",
+        "templates/commands/clarify.md",
+        "templates/commands/constitution.md",
+        "templates/commands/deep-research.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+        "templates/commands/analyze.md",
+        "templates/commands/checklist.md",
+        "templates/commands/implement.md",
+        "templates/commands/debug.md",
+        "templates/commands/quick.md",
+        "templates/commands/test-scan.md",
+        "templates/commands/test-build.md",
+        "templates/commands/map-scan.md",
+        "templates/commands/map-build.md",
+    )
+
+    for template_path in owned_workflow_templates:
+        content = _read(template_path)
+        assert ".specify/memory/constitution.md" in content
+        assert ".specify/memory/project-rules.md" in content
+        assert ".specify/memory/learnings/INDEX.md" in content
+        assert "Learning Reflex" in content or "future senior engineer" in content
 
 
 def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_placeholders() -> None:
@@ -284,8 +330,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`." in content
     assert "When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding." in content
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command specify --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/index/status.json" in content
@@ -550,8 +595,7 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     lowered = content.lower()
 
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command constitution --format json}}" in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-map/index/status.json" in content
@@ -609,8 +653,7 @@ def test_plan_template_requires_alignment_report_before_planning():
     assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in content
     assert "When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding." in content
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command plan --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/index/status.json" in content
@@ -988,8 +1031,7 @@ def test_debug_template_reads_constitution_and_feature_context_before_fixing() -
     assert "### Required Context Inputs" in content
     assert ".specify/memory/constitution.md" in content
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command debug --format json}}" in content
     assert "spec.md`, `plan.md`, and `tasks.md`" in content
     assert "`context.md` exists for the active feature" in content
@@ -1480,8 +1522,7 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "VERIFICATION-ROUTES" not in content
     assert "PROJECT-HANDBOOK.md" not in content
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command implement --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
@@ -1796,8 +1837,7 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "Output the questions (label Q1/Q2/Q3)." in content
     assert ".specify/memory/constitution.md" in content
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
     assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
     assert ".specify/project-cognition/status.json" in lowered

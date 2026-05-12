@@ -73,8 +73,9 @@ Use `execution_surface: native-subagents`.
 ## Passive Project Learning Layer
 
 - [AGENT] Run `{{specify-subcmd:learning start --command deep-research --format json}}` when available so the research pass sees relevant shared project memory.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
-- Review `.planning/learnings/candidates.md` only when it still contains candidates relevant to feasibility, hidden dependencies, prototype failures, or repeated research gaps.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
+- Open only learning detail docs linked from research-relevant index entries, especially feasibility, hidden dependency, prototype failure, or repeated research-gap lessons.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When feasibility friction appears, use the `signal-learning` helper surface with route-change, false-start, hidden-dependency, command-failure, or validation-failure counts.
   Command shape: `{{specify-subcmd:hook signal-learning --command deep-research --route-changes <n> --command-failures <n> --validation-failures <n>}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface.
@@ -231,7 +232,8 @@ Use `execution_surface: native-subagents`.
    - `FEATURE_DIR/deep-research.md` if present
    - `.specify/memory/constitution.md` if present
    - `.specify/memory/project-rules.md` if present
-   - `.specify/memory/project-learnings.md` if present
+   - `.specify/memory/learnings/INDEX.md` if present
+   - relevant linked learning detail docs from the learning index
    - `.specify/project-cognition/status.json` if present
    - `.specify/project-cognition/slices/change.json` if present
    - `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice does not prove the current implementation pattern safely

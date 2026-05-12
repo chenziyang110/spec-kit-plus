@@ -356,11 +356,12 @@ Required action markers:
 
 Passive project learning layer:
 
-- Generated projects now include `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` as stable shared project memory below the constitution.
+- Generated projects include `.specify/memory/learnings/INDEX.md` as the thin first-read learning layer.
+- Each reusable lesson may link to one detail markdown document per lesson under `.specify/memory/learnings/`.
+- `project-learnings.md` remains a compatibility summary; new captures write index/detail memory first.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work.
 - This shared project memory is available across later work in the repository, not just when a `sp-*` workflow is active.
-- Runtime candidate learnings live under `.planning/learnings/candidates.md`, with `.planning/learnings/review.md` tracking passive promotion notes.
 - The major workflow templates now read the passive project learning layer before deeper command-local context so recurring pitfalls, constraints, and user defaults can influence later runs.
-- The passive start step can auto-promote repeated non-high-signal candidates into shared learnings before the command does deeper local analysis.
 - Low-level helper commands exist for the passive learning lifecycle:
 - `specify learning ensure --format json`
 - `specify learning status --format json`

@@ -498,6 +498,7 @@ class MarkdownIntegrationTests:
             files.append(f".specify/templates/{name}")
 
         files.append(".specify/memory/constitution.md")
+        files.append(".specify/memory/learnings/INDEX.md")
         files.append(".specify/memory/project-learnings.md")
         files.append(".specify/memory/project-rules.md")
         files.append(".specify/project-map/status.json")
@@ -576,6 +577,8 @@ class MarkdownIntegrationTests:
         assert "map-update" in content
         assert "graph-native cognition baseline" in content.lower()
         assert ".specify/memory/project-rules.md" in content
+        assert ".specify/memory/learnings/INDEX.md" in content
+        assert "Learning Reflex" in content or "future senior engineer" in content
         assert "Shared project memory is always available" in content
         assert "not just when a `sp-*` workflow is active" in content
         assert "## Workflow Routing" in content

@@ -46,12 +46,15 @@ missing, copy the template first.
   available so passive learning files exist before deeper context collection.
 - Read `.specify/memory/constitution.md`,
   `.specify/memory/project-rules.md`, and
-  `.specify/memory/project-learnings.md` in that order before broader
+  `.specify/memory/learnings/INDEX.md` in that order before broader
   repository context.
-- Review `.planning/learnings/candidates.md` only when it still contains
-  constitution-relevant candidate learnings after the passive start step,
+- Open only learning detail docs linked from constitution-relevant index entries,
   especially repeated workflow gaps, stable user defaults, or lower-order
   rules that may need promotion or retirement.
+- Learning Reflex: before final closeout, ask whether a future senior engineer
+  would benefit from seeing this lesson before related work. If yes, update
+  `.specify/memory/learnings/INDEX.md` and the linked detail markdown document
+  without asking for routine permission.
 - When constitution work exposes repeated decision debt, rule conflict, or
   promotion friction, use the `signal-learning` helper surface
   Command shape: `{{specify-subcmd:hook signal-learning --command constitution --user-corrections <n> --scope-changes <n> --route-changes <n>}}`
@@ -171,8 +174,8 @@ Follow this execution flow:
    - Read each command file in `.specify/templates/commands/*.md` (including
      this one) to verify no outdated references remain when generic guidance is
      required.
-   - Read `.specify/memory/project-rules.md` and
-     `.specify/memory/project-learnings.md` and resolve or explicitly report
+   - Read `.specify/memory/project-rules.md`,
+     `.specify/memory/learnings/INDEX.md`, and relevant learning detail docs and resolve or explicitly report
      any lower-order guidance that now conflicts with the amended constitution.
 - If the amendment changes navigation, structure, ownership, workflow,
   testing, integration, or operations expectations, mark the runtime

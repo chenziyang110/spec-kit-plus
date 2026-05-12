@@ -84,6 +84,17 @@ LEARNINGS_TEMPLATE_TEXT = (
     "learning files until they mature.\n\n"
     "---\n"
 )
+LEARNING_INDEX_TEMPLATE_TEXT = (
+    "# Project Learning Index\n\n"
+    "Thin first-read index of reusable engineering lessons for later `sp-xxx` workflows.\n\n"
+    "Read this file after `.specify/memory/project-rules.md` and before command-local\n"
+    "context. Open only the linked detail documents whose `applies_to` or\n"
+    "`trigger_signals` match the current work.\n\n"
+    "---\n\n"
+    f"{MACHINE_BEGIN}\n[]\n{MACHINE_END}\n\n"
+    "## Managed Entries\n\n"
+    "_No learning index entries recorded yet._\n"
+)
 CANDIDATES_TEMPLATE_TEXT = (
     "# Candidate Learnings\n\n"
     "Passive candidate learnings captured from `sp-xxx` workflows.\n\n"
@@ -101,6 +112,8 @@ class LearningPaths:
     constitution: Path
     project_rules: Path
     project_learnings: Path
+    learning_index: Path
+    learning_detail_template: Path
     candidates: Path
     review: Path
 
@@ -109,6 +122,8 @@ class LearningPaths:
             "constitution": str(self.constitution),
             "project_rules": str(self.project_rules),
             "project_learnings": str(self.project_learnings),
+            "learning_index": str(self.learning_index),
+            "learning_detail_template": str(self.learning_detail_template),
             "candidates": str(self.candidates),
             "review": str(self.review),
         }
@@ -169,6 +184,44 @@ class LearningEntry:
         )
 
 
+@dataclass
+class LearningIndexEntry:
+    id: str
+    problem: str
+    lesson: str
+    learning_type: str
+    source_command: str
+    recurrence_key: str
+    applies_to: list[str]
+    trigger_signals: list[str]
+    detail: str
+    first_seen: str
+    last_seen: str
+    occurrence_count: int = 1
+    signal_strength: str = "medium"
+
+    def to_payload(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "LearningIndexEntry":
+        return cls(
+            id=str(payload["id"]),
+            problem=str(payload["problem"]),
+            lesson=str(payload["lesson"]),
+            learning_type=normalize_learning_type(str(payload["learning_type"])),
+            source_command=normalize_command_name(str(payload["source_command"])),
+            recurrence_key=str(payload["recurrence_key"]),
+            applies_to=[normalize_command_name(item) for item in _coerce_str_list(payload.get("applies_to"))],
+            trigger_signals=_coerce_str_list(payload.get("trigger_signals")),
+            detail=str(payload["detail"]),
+            first_seen=str(payload["first_seen"]),
+            last_seen=str(payload["last_seen"]),
+            occurrence_count=int(payload.get("occurrence_count", 1)),
+            signal_strength=normalize_signal_strength(str(payload.get("signal_strength", "medium"))),
+        )
+
+
 @dataclass(frozen=True)
 class AutoCaptureSuggestion:
     learning_type: str
@@ -181,11 +234,14 @@ class AutoCaptureSuggestion:
 
 def build_learning_paths(project_root: Path) -> LearningPaths:
     memory_dir = project_root / ".specify" / "memory"
+    learning_memory_dir = memory_dir / "learnings"
     learning_dir = project_root / ".planning" / "learnings"
     return LearningPaths(
         constitution=memory_dir / "constitution.md",
         project_rules=memory_dir / "project-rules.md",
         project_learnings=memory_dir / "project-learnings.md",
+        learning_index=learning_memory_dir / "INDEX.md",
+        learning_detail_template=project_root / ".specify" / "templates" / "project-learning-detail-template.md",
         candidates=learning_dir / "candidates.md",
         review=learning_dir / "review.md",
     )
@@ -589,6 +645,103 @@ def _render_learning_file(preamble: str, entries: list[LearningEntry]) -> str:
     return "\n".join(sections)
 
 
+def _learning_index_date_prefix(first_seen: str) -> str:
+    prefix = str(first_seen or "")[:10]
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", prefix):
+        return prefix
+    return "unknown-date"
+
+
+def _learning_index_id(recurrence_key: str, first_seen: str) -> str:
+    recurrence_hash = hashlib.sha256(recurrence_key.encode("utf-8")).hexdigest()[:10]
+    return f"learn-{_learning_index_date_prefix(first_seen)}-{_slugify(recurrence_key)[:56]}-{recurrence_hash}"
+
+
+def _detail_ref_for_index_id(index_id: str) -> str:
+    return f"./{index_id}.md"
+
+
+def _trigger_signals_from_entry(entry: LearningEntry) -> list[str]:
+    signals = [entry.learning_type, entry.signal_strength]
+    signals.extend(entry.false_starts)
+    signals.extend(entry.rejected_paths)
+    if entry.decisive_signal:
+        signals.append(entry.decisive_signal)
+    if entry.root_cause_family:
+        signals.append(entry.root_cause_family)
+    return sorted(dict.fromkeys(signal for signal in signals if str(signal).strip()))
+
+
+def _index_entry_from_learning(entry: LearningEntry) -> LearningIndexEntry:
+    index_id = _learning_index_id(entry.recurrence_key, entry.first_seen)
+    return LearningIndexEntry(
+        id=index_id,
+        problem=entry.summary,
+        lesson=entry.evidence.splitlines()[0] if entry.evidence.strip() else entry.summary,
+        learning_type=entry.learning_type,
+        source_command=entry.source_command,
+        recurrence_key=entry.recurrence_key,
+        applies_to=entry.applies_to,
+        trigger_signals=_trigger_signals_from_entry(entry),
+        detail=_detail_ref_for_index_id(index_id),
+        first_seen=entry.first_seen,
+        last_seen=entry.last_seen,
+        occurrence_count=entry.occurrence_count,
+        signal_strength=entry.signal_strength,
+    )
+
+
+def _render_index_entry_summary(entry: LearningIndexEntry) -> str:
+    applies = ", ".join(entry.applies_to)
+    triggers = ", ".join(entry.trigger_signals)
+    return (
+        f"### {entry.id} - {entry.problem}\n\n"
+        f"- Type: `{entry.learning_type}`\n"
+        f"- Source Command: `{entry.source_command}`\n"
+        f"- Recurrence Key: `{entry.recurrence_key}`\n"
+        f"- Applies To: {applies}\n"
+        f"- Trigger Signals: {triggers}\n"
+        f"- Signal: `{entry.signal_strength}`\n"
+        f"- Occurrence Count: {entry.occurrence_count}\n"
+        f"- First Seen: `{entry.first_seen}`\n"
+        f"- Last Seen: `{entry.last_seen}`\n"
+        f"- Detail: `{entry.detail}`\n\n"
+        f"#### Lesson\n\n{entry.lesson}\n"
+    )
+
+
+def _read_index_entries(path: Path) -> tuple[str, list[LearningIndexEntry]]:
+    if not path.exists():
+        return "", []
+    preamble, payloads = _extract_payload_block(path.read_text(encoding="utf-8"))
+    return preamble, [LearningIndexEntry.from_payload(payload) for payload in payloads]
+
+
+def _render_learning_index_file(preamble: str, entries: list[LearningIndexEntry]) -> str:
+    payload = [entry.to_payload() for entry in entries]
+    sections = [
+        preamble.rstrip(),
+        "",
+        MACHINE_BEGIN,
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        MACHINE_END,
+        "",
+        "## Managed Entries",
+        "",
+    ]
+    if not entries:
+        sections.append("_No learning index entries recorded yet._")
+    else:
+        sections.append("\n\n---\n\n".join(_render_index_entry_summary(entry) for entry in entries))
+    sections.append("")
+    return "\n".join(sections)
+
+
+def _write_index_entries(path: Path, preamble: str, entries: list[LearningIndexEntry]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_render_learning_index_file(preamble, entries), encoding="utf-8")
+
+
 def _read_entries(path: Path) -> tuple[str, list[LearningEntry]]:
     if not path.exists():
         return "", []
@@ -598,6 +751,10 @@ def _read_entries(path: Path) -> tuple[str, list[LearningEntry]]:
 
 def read_learning_entries(path: Path) -> tuple[str, list[LearningEntry]]:
     return _read_entries(path)
+
+
+def read_learning_index_entries(path: Path) -> tuple[str, list[LearningIndexEntry]]:
+    return _read_index_entries(path)
 
 
 def _write_entries(path: Path, preamble: str, entries: list[LearningEntry]) -> None:
@@ -636,6 +793,12 @@ def ensure_learning_memory_from_templates(
         LEARNINGS_TEMPLATE_TEXT,
     ):
         created.append("project-learnings.md")
+    if _seed_from_template(
+        paths.learning_index,
+        templates_root / "project-learnings-index-template.md",
+        LEARNING_INDEX_TEMPLATE_TEXT,
+    ):
+        created.append("learnings/INDEX.md")
 
     if tracker:
         tracker.add("learning-memory", "Project learning memory")
@@ -714,6 +877,174 @@ def _upsert_entry(entries: list[LearningEntry], new_entry: LearningEntry, *, sta
         new_entry.status = status
     updated.append(new_entry)
     return updated, new_entry
+
+
+def _merge_index_entry(existing: LearningIndexEntry, new_entry: LearningIndexEntry) -> LearningIndexEntry:
+    return LearningIndexEntry(
+        id=existing.id,
+        problem=new_entry.problem or existing.problem,
+        lesson=new_entry.lesson or existing.lesson,
+        learning_type=existing.learning_type,
+        source_command=new_entry.source_command or existing.source_command,
+        recurrence_key=existing.recurrence_key,
+        applies_to=sorted(dict.fromkeys([*existing.applies_to, *new_entry.applies_to])),
+        trigger_signals=sorted(dict.fromkeys([*existing.trigger_signals, *new_entry.trigger_signals])),
+        detail=existing.detail,
+        first_seen=existing.first_seen,
+        last_seen=new_entry.last_seen,
+        occurrence_count=new_entry.occurrence_count,
+        signal_strength="high" if "high" in {existing.signal_strength, new_entry.signal_strength} else "medium" if "medium" in {existing.signal_strength, new_entry.signal_strength} else "low",
+    )
+
+
+def _upsert_index_entry(
+    entries: list[LearningIndexEntry], new_entry: LearningIndexEntry
+) -> tuple[list[LearningIndexEntry], LearningIndexEntry]:
+    updated = list(entries)
+    for index, existing in enumerate(updated):
+        if existing.recurrence_key == new_entry.recurrence_key:
+            merged = _merge_index_entry(existing, new_entry)
+            updated[index] = merged
+            return updated, merged
+    updated.append(new_entry)
+    return updated, new_entry
+
+
+def _render_learning_detail(entry: LearningEntry, index_entry: LearningIndexEntry) -> str:
+    payload = [entry.to_payload()]
+    false_starts = "\n".join(f"- {item}" for item in entry.false_starts) or "_No false starts recorded._"
+    rejected_paths = "\n".join(f"- {item}" for item in entry.rejected_paths) or "_No rejected paths recorded._"
+    triggers = "\n".join(f"- {item}" for item in index_entry.trigger_signals) or "_No trigger signals recorded._"
+    return "\n".join(
+        [
+            f"# {index_entry.problem}",
+            "",
+            MACHINE_BEGIN,
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            MACHINE_END,
+            "",
+            "## Problem",
+            "",
+            index_entry.problem,
+            "",
+            "## Lesson",
+            "",
+            index_entry.lesson,
+            "",
+            "## When To Apply",
+            "",
+            ", ".join(index_entry.applies_to),
+            "",
+            "## Trigger Signals",
+            "",
+            triggers,
+            "",
+            "## Evidence",
+            "",
+            entry.evidence,
+            "",
+            "## Prevention Or Recovery",
+            "",
+            f"Decisive signal: {entry.decisive_signal or 'not recorded'}",
+            "",
+            "False starts:",
+            false_starts,
+            "",
+            "Rejected paths:",
+            rejected_paths,
+            "",
+            "## Exceptions",
+            "",
+            "_No exceptions recorded yet._",
+            "",
+        ]
+    )
+
+
+def _is_valid_detail_ref(detail_ref: str) -> bool:
+    detail_ref = str(detail_ref)
+    if not detail_ref.startswith("./"):
+        return False
+    detail_name = detail_ref.removeprefix("./")
+    return bool(re.fullmatch(r"learn-[A-Za-z0-9][A-Za-z0-9._-]*\.md", detail_name))
+
+
+def _detail_path_for_ref(learning_dir: Path, detail_ref: str) -> Path:
+    return learning_dir / str(detail_ref).removeprefix("./")
+
+
+def _detail_ref_resolves_inside(learning_dir: Path, detail_ref: str) -> bool:
+    return _detail_path_for_ref(learning_dir, detail_ref).resolve().is_relative_to(learning_dir.resolve())
+
+
+def _normalized_detail_path_key(learning_dir: Path, detail_ref: str) -> str:
+    return str(_detail_path_for_ref(learning_dir, detail_ref).resolve()).casefold()
+
+
+def _repair_detail_ref_from_learning(
+    learning_dir: Path, entry: LearningEntry, index_entry: LearningIndexEntry
+) -> None:
+    if _is_valid_detail_ref(index_entry.detail) and _detail_ref_resolves_inside(learning_dir, index_entry.detail):
+        return
+    index_entry.id = _learning_index_id(entry.recurrence_key, entry.first_seen)
+    index_entry.detail = _detail_ref_for_index_id(index_entry.id)
+    if not _is_valid_detail_ref(index_entry.detail) or not _detail_ref_resolves_inside(learning_dir, index_entry.detail):
+        raise ValueError("learning detail path escapes learning memory directory")
+
+
+def _write_learning_detail(paths: LearningPaths, entry: LearningEntry, index_entry: LearningIndexEntry) -> Path:
+    learning_dir = paths.learning_index.parent
+    _repair_detail_ref_from_learning(learning_dir, entry, index_entry)
+    detail_path = _detail_path_for_ref(learning_dir, index_entry.detail)
+    detail_path.parent.mkdir(parents=True, exist_ok=True)
+    detail_path.write_text(_render_learning_detail(entry, index_entry), encoding="utf-8")
+    return detail_path
+
+
+def _detail_ref_used_by_other(
+    entries: list[LearningIndexEntry], detail_ref: str, recurrence_key: str, learning_dir: Path
+) -> bool:
+    detail_key = _normalized_detail_path_key(learning_dir, detail_ref)
+    return any(
+        entry.recurrence_key != recurrence_key
+        and _normalized_detail_path_key(learning_dir, entry.detail) == detail_key
+        for entry in entries
+    )
+
+
+def _unused_detail_ref(
+    entries: list[LearningIndexEntry], recurrence_key: str, first_seen: str, learning_dir: Path
+) -> tuple[str, str]:
+    base_id = _learning_index_id(recurrence_key, first_seen)
+    candidate_id = base_id
+    candidate_detail = _detail_ref_for_index_id(candidate_id)
+    suffix = 2
+    while _detail_ref_used_by_other(entries, candidate_detail, recurrence_key, learning_dir):
+        candidate_id = f"{base_id}-{suffix}"
+        candidate_detail = _detail_ref_for_index_id(candidate_id)
+        suffix += 1
+    return candidate_id, candidate_detail
+
+
+def _sync_learning_index_detail(paths: LearningPaths, stored: LearningEntry) -> tuple[LearningIndexEntry, Path]:
+    index_preamble, index_entries = _read_index_entries(paths.learning_index)
+    index_entries, stored_index = _upsert_index_entry(index_entries, _index_entry_from_learning(stored))
+    learning_dir = paths.learning_index.parent
+    _repair_detail_ref_from_learning(learning_dir, stored, stored_index)
+    if _detail_ref_used_by_other(index_entries, stored_index.detail, stored_index.recurrence_key, learning_dir):
+        stored_index.id, stored_index.detail = _unused_detail_ref(
+            index_entries,
+            stored.recurrence_key,
+            stored.first_seen,
+            learning_dir,
+        )
+        if not _is_valid_detail_ref(stored_index.detail) or not _detail_ref_resolves_inside(learning_dir, stored_index.detail):
+            raise ValueError("learning detail path escapes learning memory directory")
+    if _detail_ref_used_by_other(index_entries, stored_index.detail, stored_index.recurrence_key, learning_dir):
+        raise ValueError("learning detail ref is already used by another recurrence key")
+    detail_path = _write_learning_detail(paths, stored, stored_index)
+    _write_index_entries(paths.learning_index, index_preamble or LEARNING_INDEX_TEMPLATE_TEXT.rstrip(), index_entries)
+    return stored_index, detail_path
 
 
 def _remove_by_recurrence(entries: list[LearningEntry], recurrence_key: str) -> list[LearningEntry]:
@@ -1077,6 +1408,26 @@ def _suggest_workflow_state_auto_capture(
                 ),
             )
         )
+    if blocked_reason and not (next_command and route_reason):
+        suggestions.append(
+            AutoCaptureSuggestion(
+                learning_type="workflow_gap",
+                summary="Blocked workflow-state closeout should preserve the blocker as a reusable learning signal",
+                recurrence_key=f"{command_name}.workflow-state-preserves-blocked-reason",
+                evidence=_format_evidence(
+                    "Observed auto-capture evidence from workflow-state.md",
+                    [
+                        ("feature_dir", feature_dir),
+                        ("command", command_name),
+                        ("status", status),
+                        ("phase_mode", phase_mode),
+                        ("blocked_reason", blocked_reason),
+                        ("next_command", next_command),
+                        ("next_action", next_action),
+                    ],
+                ),
+            )
+        )
     if false_starts:
         suggestions.append(
             AutoCaptureSuggestion(
@@ -1191,6 +1542,18 @@ def is_relevant_to_command(entry: LearningEntry, command_name: str) -> bool:
     return normalize_command_name(command_name) in entry.applies_to
 
 
+def is_index_relevant_to_command(entry: LearningIndexEntry, command_name: str) -> bool:
+    return normalize_command_name(command_name) in entry.applies_to
+
+
+def _recommended_detail_doc_paths(learning_dir: Path, entries: list[LearningIndexEntry]) -> list[str]:
+    return [
+        str(_detail_path_for_ref(learning_dir, entry.detail).resolve())
+        for entry in entries
+        if _is_valid_detail_ref(entry.detail) and _detail_ref_resolves_inside(learning_dir, entry.detail)
+    ]
+
+
 def is_highest_signal(entry: LearningEntry) -> bool:
     return entry.signal_strength == "high" or entry.occurrence_count >= 2
 
@@ -1252,6 +1615,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
             )
             learning_entries, stored = _upsert_entry(learning_entries, promoted_entry, status="confirmed")
             auto_promoted.append(stored)
+            _sync_learning_index_detail(paths, stored)
             _append_review_note(
                 paths.review,
                 f"auto-promoted `{stored.recurrence_key}` to project learnings during `{normalized_command}` start",
@@ -1272,9 +1636,21 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         )
         candidate_entries = remaining_candidates
 
+    index_preamble, index_entries = _read_index_entries(paths.learning_index)
     relevant_rules = [entry.to_payload() for entry in rule_entries if is_relevant_to_command(entry, normalized_command)]
     relevant_learnings = [entry.to_payload() for entry in learning_entries if is_relevant_to_command(entry, normalized_command)]
     relevant_candidates = [entry.to_payload() for entry in candidate_entries if is_relevant_to_command(entry, normalized_command)]
+    relevant_index_entries = [
+        entry.to_payload()
+        for entry in index_entries
+        if is_index_relevant_to_command(entry, normalized_command)
+    ]
+    relevant_detail_entries = [
+        entry
+        for entry in index_entries
+        if is_index_relevant_to_command(entry, normalized_command)
+    ]
+    recommended_detail_docs = _recommended_detail_doc_paths(paths.learning_index.parent, relevant_detail_entries)
 
     promotable = [
         entry.to_payload()
@@ -1367,6 +1743,8 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         "relevant_rules": relevant_rules,
         "relevant_learnings": relevant_learnings,
         "relevant_candidates": relevant_candidates,
+        "relevant_index_entries": relevant_index_entries,
+        "recommended_detail_docs": recommended_detail_docs,
         "auto_promoted": [entry.to_payload() for entry in auto_promoted],
         "promotable_candidates": promotable,
         "confirmation_candidates": confirmation_candidates,
@@ -1375,6 +1753,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
             "relevant_rules": len(relevant_rules),
             "relevant_learnings": len(relevant_learnings),
             "relevant_candidates": len(relevant_candidates),
+            "relevant_index_entries": len(relevant_index_entries),
             "auto_promoted": len(auto_promoted),
             "promotable_candidates": len(promotable),
             "confirmation_candidates": len(confirmation_candidates),
@@ -1432,9 +1811,12 @@ def capture_learning(
         candidate_entries = _remove_by_recurrence(candidate_entries, stored.recurrence_key)
         _write_entries(paths.candidates, candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
         _append_review_note(paths.review, f"confirmed `{stored.recurrence_key}` from `{stored.source_command}`")
+        stored_index, detail_path = _sync_learning_index_detail(paths, stored)
         return {
             "status": "confirmed",
             "entry": stored.to_payload(),
+            "index_entry": stored_index.to_payload(),
+            "detail_path": str(detail_path),
             "needs_confirmation": False,
         }
 
@@ -1442,9 +1824,12 @@ def capture_learning(
     candidate_entries, stored = _upsert_entry(candidate_entries, entry, status="candidate")
     _write_entries(paths.candidates, preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
     _append_review_note(paths.review, f"captured candidate `{stored.recurrence_key}` from `{stored.source_command}`")
+    stored_index, detail_path = _sync_learning_index_detail(paths, stored)
     return {
         "status": "candidate",
         "entry": stored.to_payload(),
+        "index_entry": stored_index.to_payload(),
+        "detail_path": str(detail_path),
         "needs_confirmation": is_highest_signal(stored),
     }
 
@@ -1516,12 +1901,13 @@ def capture_auto_learning(
             applies_to=suggestion.applies_to,
             confirm=False,
         )
-        captured.append(payload["entry"])
+        captured.append(payload)
 
     registry[fingerprint] = {
         "command": normalized_command,
         "source_path": str(source_path),
-        "recurrence_keys": [entry["recurrence_key"] for entry in captured],
+        "recurrence_keys": [item["entry"]["recurrence_key"] for item in captured],
+        "captured_entries": [item["entry"] for item in captured],
         "captured_at": now_iso(),
     }
     _write_auto_capture_registry(project_root, registry)
@@ -1572,7 +1958,13 @@ def promote_learning(
         _write_entries(paths.project_learnings, learning_preamble or LEARNINGS_TEMPLATE_TEXT.rstrip(), learning_entries)
         _write_entries(paths.candidates, candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
         _append_review_note(paths.review, f"promoted `{recurrence_key}` to project learnings from `{source_layer}`")
-        return {"status": "confirmed", "entry": stored.to_payload()}
+        stored_index, detail_path = _sync_learning_index_detail(paths, stored)
+        return {
+            "status": "confirmed",
+            "entry": stored.to_payload(),
+            "index_entry": stored_index.to_payload(),
+            "detail_path": str(detail_path),
+        }
 
     source_entry.status = "promoted-rule"
     rule_entries, stored = _upsert_entry(rule_entries, source_entry, status="promoted-rule")
@@ -1582,7 +1974,13 @@ def promote_learning(
     _write_entries(paths.project_learnings, learning_preamble or LEARNINGS_TEMPLATE_TEXT.rstrip(), learning_entries)
     _write_entries(paths.candidates, candidate_preamble or CANDIDATES_TEMPLATE_TEXT.rstrip(), candidate_entries)
     _append_review_note(paths.review, f"promoted `{recurrence_key}` to project rules from `{source_layer}`")
-    return {"status": "promoted-rule", "entry": stored.to_payload()}
+    stored_index, detail_path = _sync_learning_index_detail(paths, stored)
+    return {
+        "status": "promoted-rule",
+        "entry": stored.to_payload(),
+        "index_entry": stored_index.to_payload(),
+        "detail_path": str(detail_path),
+    }
 
 
 def _entry_counts(project_root: Path) -> dict[str, int]:
@@ -1609,6 +2007,7 @@ def learning_status_payload(
             "constitution": paths.constitution.exists(),
             "project_rules": paths.project_rules.exists(),
             "project_learnings": paths.project_learnings.exists(),
+            "learning_index": paths.learning_index.exists(),
         },
         "counts": _entry_counts(project_root),
     }

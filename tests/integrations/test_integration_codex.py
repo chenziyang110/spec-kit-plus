@@ -61,6 +61,8 @@ class TestCodexIntegration(SkillsIntegrationTests):
         assert ".specify/project-cognition/" in content
         assert "map-update" in content
         assert ".specify/memory/project-rules.md" in content
+        assert ".specify/memory/learnings/INDEX.md" in content
+        assert "Learning Reflex" in content or "future senior engineer" in content
         assert "## Workflow Routing" in content
         assert "sp-debug" in content
         assert "sp-test-scan" in content
@@ -359,8 +361,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "wait_agent" in content
         assert ".specify/project-cognition/" in content
         assert ".specify/memory/project-rules.md" in content
-        assert ".specify/memory/project-learnings.md" in content
-        assert ".planning/learnings/candidates.md" in content
+        assert ".specify/memory/learnings/index.md" in content
+        assert "future senior engineer" in content
+        assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
         assert "if collaboration is justified" not in content
         assert "would benefit from them" not in content
         assert "make the next path explicit" not in content
@@ -417,8 +420,9 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
 
     constitution_content = (skills_dir / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert ".specify/memory/project-rules.md" in constitution_content
-    assert ".specify/memory/project-learnings.md" in constitution_content
-    assert ".planning/learnings/candidates.md" in constitution_content
+    assert ".specify/memory/learnings/index.md" in constitution_content
+    assert "future senior engineer" in constitution_content
+    assert ".planning/learnings/candidates.md" not in constitution_content or "compatibility" in constitution_content
     assert "learning start --command constitution --format json" in constitution_content
     assert ".specify/project-cognition/status.json" in constitution_content
     assert "build-handbook.md" not in constitution_content
@@ -616,8 +620,9 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    assert ".specify/memory/learnings/index.md" in content
+    assert "future senior engineer" in content
+    assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "codex subagent evidence collection" in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/slices/debug.json" in content
@@ -744,8 +749,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
 
     assert "scope gate" in content
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    assert ".specify/memory/learnings/index.md" in content
+    assert "future senior engineer" in content
+    assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/slices/change.json" in content
     assert "build-handbook.md" not in content
@@ -783,8 +789,9 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
 
     assert ".planning/quick/" in content
     assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/project-learnings.md" in content
-    assert ".planning/learnings/candidates.md" in content
+    assert ".specify/memory/learnings/index.md" in content
+    assert "future senior engineer" in content
+    assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/slices/change.json" in content
     assert "build-handbook.md" not in content

@@ -8,8 +8,10 @@ from typing import Literal
 from .learnings import (
     LearningEntry,
     build_learning_paths,
+    default_scope_for_type,
     ensure_learning_files,
     read_learning_entries,
+    read_learning_index_entries,
 )
 
 
@@ -33,6 +35,7 @@ class AggregatedLearningPattern:
     first_seen: str
     last_seen: str
     total_occurrences: int
+    layers: list[str]
     layer_counts: dict[str, int]
     recommended_target: str | None
     promotion_state: PromotionState
@@ -102,6 +105,7 @@ def aggregate_learning_patterns(
     candidate_entries: list[LearningEntry],
     confirmed_entries: list[LearningEntry],
     rule_entries: list[LearningEntry],
+    index_entries: list[LearningEntry] | None = None,
     stale_after_days: int = 90,
 ) -> list[AggregatedLearningPattern]:
     grouped: dict[str, list[tuple[str, LearningEntry]]] = {}
@@ -109,14 +113,16 @@ def aggregate_learning_patterns(
         ("candidate", candidate_entries),
         ("confirmed", confirmed_entries),
         ("rule", rule_entries),
+        ("learning_index", index_entries or []),
     ):
         for entry in entries:
             grouped.setdefault(entry.recurrence_key, []).append((layer_name, entry))
 
     patterns: list[AggregatedLearningPattern] = []
     for recurrence_key, grouped_entries in grouped.items():
-        entries = [entry for _layer, entry in grouped_entries]
         layers = [layer for layer, _entry in grouped_entries]
+        source_entries = [entry for layer, entry in grouped_entries if layer != "learning_index"]
+        entries = source_entries or [entry for _layer, entry in grouped_entries]
         layer_counts = {
             "candidate": layers.count("candidate"),
             "confirmed": layers.count("confirmed"),
@@ -138,6 +144,7 @@ def aggregate_learning_patterns(
                 first_seen=min(entry.first_seen for entry in entries),
                 last_seen=max(entry.last_seen for entry in entries),
                 total_occurrences=sum(entry.occurrence_count for entry in entries),
+                layers=_unique(layers),
                 layer_counts=layer_counts,
                 recommended_target=_recommended_target(
                     learning_types,
@@ -175,11 +182,33 @@ def aggregate_learning_state(
     _candidate_preamble, candidate_entries = read_learning_entries(paths.candidates)
     _learning_preamble, confirmed_entries = read_learning_entries(paths.project_learnings)
     _rule_preamble, rule_entries = read_learning_entries(paths.project_rules)
+    _index_preamble, learning_index_entries = (
+        read_learning_index_entries(paths.learning_index) if paths.learning_index.exists() else ("", [])
+    )
+    index_as_learning_entries = [
+        LearningEntry(
+            id=entry.id,
+            summary=entry.problem,
+            learning_type=entry.learning_type,
+            source_command=entry.source_command,
+            evidence=entry.lesson,
+            recurrence_key=entry.recurrence_key,
+            default_scope=default_scope_for_type(entry.learning_type),
+            applies_to=entry.applies_to,
+            signal_strength=entry.signal_strength,
+            status="candidate",
+            first_seen=entry.first_seen,
+            last_seen=entry.last_seen,
+            occurrence_count=entry.occurrence_count,
+        )
+        for entry in learning_index_entries
+    ]
 
     patterns = aggregate_learning_patterns(
         candidate_entries=candidate_entries,
         confirmed_entries=confirmed_entries,
         rule_entries=rule_entries,
+        index_entries=index_as_learning_entries,
         stale_after_days=stale_after_days,
     )
     if command_name:

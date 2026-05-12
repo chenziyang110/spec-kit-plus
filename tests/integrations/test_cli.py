@@ -200,8 +200,11 @@ class TestInitIntegrationFlag:
         quick_content = (skills_dir / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert ".specify/memory/constitution.md" in quick_content
         assert ".specify/memory/project-rules.md" in quick_content
-        assert ".specify/memory/project-learnings.md" in quick_content
-        assert ".planning/learnings/candidates.md" in quick_content
+        assert ".specify/memory/learnings/index.md" in quick_content
+        assert "learning reflex" in quick_content
+        assert "future senior engineer" in quick_content
+        assert ".specify/memory/project-learnings.md" not in quick_content
+        assert ".planning/learnings/candidates.md" not in quick_content
         assert ".specify/project-cognition/" in quick_content
         assert "project cognition contract" in quick_content
         assert "status and slice artifacts" in quick_content

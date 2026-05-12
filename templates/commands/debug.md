@@ -59,9 +59,10 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `{{specify-subcmd:learning start --command debug --format json}}` when available so passive learning files exist, the current debug run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
-- Review `.planning/learnings/candidates.md` only when it still contains debug-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
+- [AGENT] Run `{{specify-subcmd:learning start --command debug --format json}}` when available so passive learning files exist and the current debug run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
+- Open only learning detail docs linked from debug-relevant index entries, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When investigation friction appears, use the `signal-learning` helper surface with retry, hypothesis-change, validation-failure, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
   Command shape: `{{specify-subcmd:hook signal-learning --command debug --retry-attempts <n> --hypothesis-changes <n> --validation-failures <n>}}`
 - [AGENT] Before terminal `resolved`, `blocked`, or `awaiting_human_verify` reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `pitfall`, `recovery_path`, `tooling_trap`, `false_lead_pattern`, or `project_constraint` exists.
@@ -84,8 +85,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 - `.specify/memory/constitution.md`
 - `.specify/memory/project-rules.md`
-- `.specify/memory/project-learnings.md`
-- `.planning/learnings/candidates.md`
+- `.specify/memory/learnings/INDEX.md`
+- Relevant linked learning detail docs
 - the active feature's `spec.md`, `plan.md`, and `tasks.md`
 - if `context.md` exists for the active feature, read it before proposing a fix
 
@@ -161,8 +162,8 @@ reads, pass the cognition gate by reading:
 - Use the debug cognition slice to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
 - Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
-- Read `.specify/memory/project-learnings.md` if present before forming or validating a fix.
-- If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to the failing area so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
+- Read `.specify/memory/learnings/INDEX.md` if present before forming or validating a fix.
+- Open only linked learning detail docs relevant to the failing area so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
 - The causal map is produced by a **think subagent** (dispatched automatically by the graph engine at Stage 1A). The constraints below apply to that subagent, not to the leader.
 - During observer framing, the think subagent must not read source files, test files, log files, or feature-specific planning artifacts such as `spec.md`, `plan.md`, `tasks.md`, or `context.md`.
 - The think subagent must not read test files or test outputs; save those for the investigator phase.
@@ -452,13 +453,13 @@ The session file must always make it clear:
 - Treat project cognition status and the debug slice as the truth source for brownfield debug runtime coverage.
 - If the fix changed truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other cognition coverage facts, and verification is truthfully green and no explicit blocker prevents completion, refresh the project cognition runtime through `{{invoke:map-update}}` when the touched area is localized before moving to `awaiting_human_verify` or `resolved`; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains; then run `{{specify-subcmd:hook complete-refresh}}` as the successful-refresh finalizer.
 - If that refresh cannot be completed now, use `{{specify-subcmd:hook mark-dirty --reason "<reason>"}}` as the manual override/fallback and tell the user to refresh the project cognition runtime before later brownfield work proceeds.
-- [AGENT] Resolved debug sessions should auto-capture learning candidates from the persisted debug session state.
+- [AGENT] Resolved debug sessions should auto-capture reusable lessons from the persisted debug session state into index/detail entries.
 - [AGENT] If you are finalizing outside the normal debug CLI closeout path, run `{{specify-subcmd:learning capture-auto --command debug --session-file .planning/debug/[slug].md --format json}}`.
-- [AGENT] If the auto-capture pass returns no candidates but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface.
+- [AGENT] If the auto-capture pass produced no captured lesson but you still discovered a reusable `pitfall`, `recovery_path`, or `project_constraint`, use the manual `learning capture` helper surface to create or merge an index/detail entry.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
 - [AGENT] Before leaving the debug session in a terminal state, use the `review-learning` helper surface so the learning closeout gate cannot be skipped.
   Command shape: `{{specify-subcmd:hook review-learning --command debug --terminal-status <resolved|blocked|awaiting-human-verify> --decision <captured|none|deferred> --rationale "<why>"}}`
-- Keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
+- Treat one-off findings as no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence.
 - Only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory.
 
 ## Checkpoint Protocol

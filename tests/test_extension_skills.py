@@ -313,6 +313,8 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-rules-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learnings-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "project-learnings-index-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "project-learning-detail-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "testing" / "testing-contract-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "testing" / "testing-playbook-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "testing" / "coverage-baseline-template.json").exists()
@@ -320,15 +322,17 @@ class TestBuiltInSkillGeneration:
         for skill_name in ("sp-specify", "sp-deep-research", "sp-plan", "sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", "sp-fast", "sp-quick"):
             body = _body_without_frontmatter(skills_dir / skill_name / "SKILL.md").lower()
             assert ".specify/memory/project-rules.md" in body
-            assert ".specify/memory/project-learnings.md" in body
-            assert ".planning/learnings/candidates.md" in body
+            assert ".specify/memory/learnings/index.md" in body
+            assert "learning reflex" in body or "future senior engineer" in body
+            assert ".planning/learnings/candidates.md" not in body or "compatibility" in body
             assert "workflow contract summary" in body
             assert "routing metadata only" in body
         constitution_body = _body_without_frontmatter(skills_dir / "sp-constitution" / "SKILL.md").lower()
         constitution = (project_dir / ".specify" / "memory" / "constitution.md").read_text(encoding="utf-8").lower()
         assert ".specify/memory/project-rules.md" in constitution_body
-        assert ".specify/memory/project-learnings.md" in constitution_body
-        assert ".planning/learnings/candidates.md" in constitution_body
+        assert ".specify/memory/learnings/index.md" in constitution_body
+        assert "learning reflex" in constitution_body or "future senior engineer" in constitution_body
+        assert ".planning/learnings/candidates.md" not in constitution_body or "compatibility" in constitution_body
         assert "specify learning start --command constitution --format json" in constitution_body
         assert ".specify/project-cognition/status.json" in constitution
         assert "workflow-appropriate cognition" in constitution
@@ -599,8 +603,9 @@ class TestBuiltInSkillGeneration:
         checklist_lower = checklist_body.lower()
         assert ".specify/memory/constitution.md" in checklist_lower
         assert ".specify/memory/project-rules.md" in checklist_lower
-        assert ".specify/memory/project-learnings.md" in checklist_lower
-        assert ".planning/learnings/candidates.md" in checklist_lower
+        assert ".specify/memory/learnings/index.md" in checklist_lower
+        assert "learning reflex" in checklist_lower or "future senior engineer" in checklist_lower
+        assert ".planning/learnings/candidates.md" not in checklist_lower or "compatibility" in checklist_lower
         assert "specify learning start --command checklist --format json" in checklist_lower
         assert "specify learning capture --command checklist" in checklist_lower
         assert ".specify/project-cognition/status.json" in checklist_lower

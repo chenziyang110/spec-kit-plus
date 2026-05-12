@@ -568,6 +568,8 @@ class SkillsIntegrationTests:
         assert "map-update" in content
         assert "graph-native cognition baseline" in content.lower()
         assert ".specify/memory/project-rules.md" in content
+        assert ".specify/memory/learnings/INDEX.md" in content
+        assert "Learning Reflex" in content or "future senior engineer" in content
         assert "Shared project memory is always available" in content
         assert "not just when a `sp-*` workflow is active" in content
         assert "## Workflow Routing" in content
@@ -726,6 +728,7 @@ class SkillsIntegrationTests:
             f".specify/integrations/{self.KEY}/scripts/update-context.sh",
             ".specify/integrations/speckit.manifest.json",
             ".specify/memory/constitution.md",
+            ".specify/memory/learnings/INDEX.md",
             ".specify/memory/project-learnings.md",
             ".specify/memory/project-rules.md",
             ".specify/project-map/status.json",

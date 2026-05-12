@@ -60,6 +60,9 @@ When recommending manual implementation resumption to the user, tell them to run
 - Before final gate reporting, use `{{specify-subcmd:hook validate-artifacts --command analyze --feature-dir "$FEATURE_DIR"}}` so the required analyze-side artifact set is checked by the shared hook surface.
 - Before compaction-risk transitions or after large findings synthesis, use `{{specify-subcmd:hook checkpoint --command analyze --feature-dir "$FEATURE_DIR"}}` to emit a resume-safe checkpoint payload from `workflow-state.md`.
 - Run `{{specify-subcmd:learning start --command analyze --format json}}` when available, then use the `signal-learning` helper surface if the analysis exposes repeated artifact rewrites, route changes, false starts, or hidden dependencies.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader analysis context.
+- Open only learning detail docs linked from analysis-relevant index entries.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
   Command shape: `{{specify-subcmd:hook signal-learning --command analyze --retry-attempts <n> --hypothesis-changes <n>}}`
 - Before final cleared or blocked gate reporting, use the `review-learning` helper surface.
   Command shape: `{{specify-subcmd:hook review-learning --command analyze --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`

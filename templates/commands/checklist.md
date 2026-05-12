@@ -49,8 +49,9 @@ Use `execution_surface: native-subagents`.
 ## Passive Project Learning Layer
 
 - [AGENT] Run `{{specify-subcmd:learning start --command checklist --format json}}` when available so passive learning files exist and the current checklist run can consume reusable requirement-quality lessons before generating new review items.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader checklist shaping.
-- Review `.planning/learnings/candidates.md` only when it still contains checklist-relevant candidate learnings after the passive start step, especially repeated requirement gaps, review defaults, or project constraints that should shape the generated checklist.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader checklist shaping.
+- Open only learning detail docs linked from checklist-relevant index entries, especially repeated requirement gaps, review defaults, or project constraints that should shape the generated checklist.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When checklist-shaping friction appears, use the `signal-learning` helper surface with user-correction, artifact-rewrite, scope-change, false-start, or hidden-dependency counts.
   Command shape: `{{specify-subcmd:hook signal-learning --command checklist --user-corrections <n> --artifact-rewrites <n> --scope-changes <n>}}`
 - [AGENT] Before final reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `decision_debt`, or `project_constraint` exists.

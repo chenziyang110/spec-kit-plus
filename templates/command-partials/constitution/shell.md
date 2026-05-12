@@ -6,7 +6,7 @@ Create or update the project constitution as the authoritative rule layer for do
 
 ## Context
 
-- Primary inputs: the current constitution, the user's requested principle changes, the stable shared memory layer (`project-rules.md`, `project-learnings.md`), and any repository context needed to derive missing values.
+- Primary inputs: the current constitution, the user's requested principle changes, the stable shared memory layer (`project-rules.md`, `learnings/INDEX.md`, and relevant learning detail docs), and any repository context needed to derive missing values.
 - The constitution must stay synchronized with dependent templates and guidance files.
 - Constitution amendments may invalidate downstream planning artifacts, active workflow state, or lower-order project memory and must be treated as a workflow re-entry event when that happens.
 - Versioning and governance metadata are part of the contract, not optional decoration.
@@ -14,7 +14,7 @@ Create or update the project constitution as the authoritative rule layer for do
 ## Process
 
 - Run `{{specify-subcmd:learning start --command constitution --format json}}` when available so passive learning files exist and relevant shared memory is visible before broader context collection.
-- Load the current constitution, then read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` in that order before broader repository context.
+- Load the current constitution, then read `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md` in that order before broader repository context. Open only relevant learning detail docs linked from the index.
 - If the repository already has code and you need repo-derived evidence, read `.specify/project-cognition/status.json` plus the smallest relevant cognition slice or graph artifact first and use `.specify/project-map/index/status.json` to assess git-baseline freshness before trusting any compatibility/export artifact. If the cognition baseline is missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing or explicitly report the refresh as a blocking follow-up. If the cognition runtime is stale or too weak for the touched area, use `/sp-map-update` when possible before broader work continues.
 - Load the current constitution and identify unresolved placeholders or requested changes.
 - Derive the right version bump and updated governance metadata.

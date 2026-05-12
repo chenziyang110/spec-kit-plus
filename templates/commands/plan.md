@@ -41,9 +41,10 @@ agent_scripts:
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `{{specify-subcmd:learning start --command plan --format json}}` when available so passive learning files exist, the current planning run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader planning context.
-- Review `.planning/learnings/candidates.md` only when it still contains planning-relevant candidate learnings after the passive start step, especially repeated workflow gaps or project constraints that would otherwise be rediscovered during planning.
+- [AGENT] Run `{{specify-subcmd:learning start --command plan --format json}}` when available so passive learning files exist and the current planning run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader planning context.
+- Open only learning detail docs linked from planning-relevant index entries, especially repeated workflow gaps or project constraints that would otherwise be rediscovered during planning.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When planning friction appears, use the `signal-learning` helper surface with route-change, artifact-rewrite, user-correction, false-start, or hidden-dependency counts.
   Command shape: `{{specify-subcmd:hook signal-learning --command plan --route-changes <n> --artifact-rewrites <n> --user-corrections <n>}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `routing_mistake`, `state_surface_gap`, `decision_debt`, or `project_constraint` exists.
@@ -113,8 +114,8 @@ agent_scripts:
    - Read `.specify/testing/COVERAGE_BASELINE.json` if present
    - Read `.specify/memory/constitution.md`
    - Read `.specify/memory/project-rules.md` if present
-   - Read `.specify/memory/project-learnings.md` if present
-   - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to planning so repeated workflow gaps, implementation constraints, and user defaults are not rediscovered from scratch
+   - Read `.specify/memory/learnings/INDEX.md` if present
+   - Open only linked learning detail docs relevant to planning so repeated workflow gaps, implementation constraints, and user defaults are not rediscovered from scratch
    - [AGENT] Read `.specify/project-cognition/status.json`
    - [AGENT] Read `.specify/project-cognition/slices/change.json`
    - [AGENT] Read `.specify/project-cognition/graph/nodes.json` when ownership or placement is still unclear
@@ -257,7 +258,7 @@ Freshness is enforced as a blocking graph-native gate.
      - `next_command: /sp.tasks`
 - [AGENT] before final completion text, if auto-capture did not preserve a reusable `workflow_gap` or `project_constraint`, use the manual `learning capture` helper surface.
   Required options: `--command`, `--type`, `--summary`, `--evidence`
-   - keep lower-signal items as candidates and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence
+   - leave one-off runs as `--decision none` with no reusable lesson; store reusable lessons as index/detail entries, and use `{{specify-subcmd:learning promote --target learning ...}}` only after explicit confirmation or proven recurrence
    - only ask for confirmation when a new learning is highest-signal, such as an explicit user default, clear cross-stage reuse, or repeated recurrence that should become shared project memory
    - Use the user's current language for the completion report and any explanatory text, while preserving literal command names, file paths, and fixed status values exactly as written.
 

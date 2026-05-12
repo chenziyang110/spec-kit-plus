@@ -960,7 +960,15 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "## Project Memory",
             "",
-            "- Passive project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`.",
+            "- Passive project memory lives under `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md`.",
+            "- Treat the learning layer as workflow-execution infrastructure, not as optional notes.",
+            "- `.specify/memory/constitution.md` is the principle-level source of truth when present.",
+            "- `.specify/memory/project-rules.md` holds stable defaults and reusable constraints.",
+            "- `.specify/memory/learnings/INDEX.md` is the searchable learning index for reusable lessons.",
+            "- Open only learning detail docs linked from relevant index entries.",
+            "- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work.",
+            "- If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.",
+            "- Do not bury reusable lessons only in chat, task files, or workflow-state.",
             "- Shared project memory is always available to later work in this repository, not just when a `sp-*` workflow is active.",
             "- Prefer generated project-local Spec Kit workflows, skills, and commands over ad-hoc execution when they fit the task.",
             "",
@@ -1692,6 +1700,7 @@ def learning_ensure_command(
     rows = [
         ("Project Rules", f"[dim]{payload['paths']['project_rules']}[/dim]"),
         ("Project Learnings", f"[dim]{payload['paths']['project_learnings']}[/dim]"),
+        ("Learning Index", f"[dim]{payload['paths']['learning_index']}[/dim]"),
     ]
     if include_runtime:
         rows.extend(
@@ -1718,6 +1727,7 @@ def learning_status_command(
     rows = [
         ("Project Rules", "present" if payload["exists"]["project_rules"] else "missing"),
         ("Project Learnings", "present" if payload["exists"]["project_learnings"] else "missing"),
+        ("Learning Index", "present" if payload["exists"]["learning_index"] else "missing"),
         ("Candidates", "present" if payload["exists"]["candidates"] else "missing"),
         ("Review", "present" if payload["exists"]["review"] else "missing"),
     ]
@@ -1742,6 +1752,8 @@ def learning_start_command(
         ("Relevant Rules", str(len(payload["relevant_rules"]))),
         ("Relevant Learnings", str(len(payload["relevant_learnings"]))),
         ("Relevant Candidates", str(len(payload["relevant_candidates"]))),
+        ("Relevant Index Entries", str(len(payload["relevant_index_entries"]))),
+        ("Recommended Details", str(len(payload["recommended_detail_docs"]))),
         ("Preflight Warnings", str(len(payload["preflight_warnings"]))),
         ("Auto Promoted", str(len(payload["auto_promoted"]))),
         ("Promotable", str(len(payload["promotable_candidates"]))),
