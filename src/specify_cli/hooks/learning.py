@@ -73,7 +73,9 @@ def _coerce_str_list(value: Any) -> list[str]:
 
 
 def _now_iso() -> str:
-    return datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
 
 
 def _signal_state_path(project_root: Path) -> Path:
@@ -97,13 +99,19 @@ def _load_signal_state(project_root: Path) -> dict[str, dict[str, object]]:
     }
 
 
-def _write_signal_state(project_root: Path, state: dict[str, dict[str, object]]) -> None:
+def _write_signal_state(
+    project_root: Path, state: dict[str, dict[str, object]]
+) -> None:
     path = _signal_state_path(project_root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
 
-def _record_recent_signal(project_root: Path, *, command_name: str, payload: dict[str, object]) -> None:
+def _record_recent_signal(
+    project_root: Path, *, command_name: str, payload: dict[str, object]
+) -> None:
     state = _load_signal_state(project_root)
     state[command_name] = payload
     _write_signal_state(project_root, state)
@@ -117,7 +125,9 @@ def _clear_recent_signal(project_root: Path, *, command_name: str) -> None:
     _write_signal_state(project_root, state)
 
 
-def _recent_signal_for_command(project_root: Path, *, command_name: str) -> dict[str, object] | None:
+def _recent_signal_for_command(
+    project_root: Path, *, command_name: str
+) -> dict[str, object] | None:
     state = _load_signal_state(project_root)
     payload = state.get(command_name)
     if not isinstance(payload, dict):
@@ -152,7 +162,9 @@ def _pain_score(payload: dict[str, object]) -> tuple[int, dict[str, int]]:
         "route_changes": _coerce_int(payload.get("route_changes")) * 2,
         "scope_changes": _coerce_int(payload.get("scope_changes")),
         "false_starts": len(_coerce_str_list(payload.get("false_starts"))),
-        "hidden_dependencies": len(_coerce_str_list(payload.get("hidden_dependencies"))),
+        "hidden_dependencies": len(
+            _coerce_str_list(payload.get("hidden_dependencies"))
+        ),
     }
     return sum(factors.values()), factors
 
@@ -163,14 +175,42 @@ def derive_injection_targets(command_name: str, learning_type: str) -> list[str]
     command = _sp_command(command_name)
     normalized_type = normalize_learning_type(learning_type)
     targets_by_type = {
-        "routing_mistake": ["spec-kit-workflow-routing", "sp-fast", "sp-quick", "sp-specify"],
-        "verification_gap": ["sp-test-scan", "sp-test-build", "sp-implement", "sp-debug", ".specify/testing/TESTING_CONTRACT.md"],
-        "state_surface_gap": ["workflow-state.md", "implement-tracker.md", "STATUS.md", "sp-implement", "sp-quick"],
-        "map_coverage_gap": ["sp-map-scan", "sp-map-build", "PROJECT-HANDBOOK.md", ".specify/project-map/"],
+        "routing_mistake": [
+            "spec-kit-workflow-routing",
+            "sp-fast",
+            "sp-quick",
+            "sp-specify",
+        ],
+        "verification_gap": [
+            "sp-test-scan",
+            "sp-test-build",
+            "sp-implement",
+            "sp-debug",
+            ".specify/testing/TESTING_CONTRACT.md",
+        ],
+        "state_surface_gap": [
+            "workflow-state.md",
+            "implement-tracker.md",
+            "STATUS.md",
+            "sp-implement",
+            "sp-quick",
+        ],
+        "map_coverage_gap": [
+            "sp-map-scan",
+            "sp-map-build",
+            "PROJECT-HANDBOOK.md",
+            ".specify/project-map/",
+        ],
         "tooling_trap": ["sp-debug", "sp-implement", "sp-map-scan", "sp-map-build"],
         "false_lead_pattern": ["sp-debug", "sp-implement"],
         "near_miss": ["sp-implement", "sp-debug", "project-rules"],
-        "decision_debt": ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "ADR"],
+        "decision_debt": [
+            "sp-specify",
+            "sp-deep-research",
+            "sp-plan",
+            "sp-tasks",
+            "ADR",
+        ],
         "workflow_gap": ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks"],
         "project_constraint": ["project-rules", "project-learnings", command],
         "recovery_path": ["sp-debug", "sp-implement", "sp-quick"],
@@ -217,8 +257,8 @@ def learning_signal_hook(project_root: Path, payload: dict[str, object]) -> Hook
         status="warn",
         severity="warning",
         actions=[
-            f"run `specify hook review-learning --command {command_name} --terminal-status resolved` before terminal closeout",
-            "if the friction exposed a reusable pitfall, workflow gap, hidden constraint, or tooling trap, capture it with `specify hook capture-learning` after supplying `--type`, `--summary`, and `--evidence`",
+            f"before terminal reporting, record a learning review decision for `sp-{command_name}`: `none`, `captured`, or `deferred`",
+            "if the friction exposed a reusable pitfall, workflow gap, hidden constraint, or tooling trap, capture it in `.specify/memory/learnings/INDEX.md` and one linked detail document with type, summary, and evidence",
         ],
         warnings=[
             f"learning pain score {score} crossed threshold {PAIN_THRESHOLD}; this workflow has reusable-learning signal"
@@ -254,8 +294,9 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
                 "learning review is required before terminal workflow closeout; provide a review decision or capture a candidate learning"
             ],
             actions=[
-                f"run `specify hook review-learning --command {command_name} --terminal-status {terminal_status} --decision none --rationale \"no reusable learning\"` when no reusable learning exists",
-                f"when this run exposed reusable friction, use `specify hook capture-learning --command {command_name}` with `--type`, `--summary`, and `--evidence`",
+                f"record a learning review decision for `sp-{command_name}` with status `{terminal_status}` before terminal reporting",
+                "when no reusable learning exists, record decision `none` with rationale `no reusable learning`",
+                "when this run exposed reusable friction, capture it in `.specify/memory/learnings/INDEX.md` and one linked detail document with type, summary, and evidence",
             ],
             data={"command": f"sp-{command_name}", "terminal_status": terminal_status},
         )
@@ -266,8 +307,15 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
             event=WORKFLOW_LEARNING_REVIEW,
             status="blocked",
             severity="critical",
-            errors=["learning review decision must be one of: " + ", ".join(sorted(LEARNING_REVIEW_DECISIONS))],
-            data={"command": f"sp-{command_name}", "terminal_status": terminal_status, "review": raw_review},
+            errors=[
+                "learning review decision must be one of: "
+                + ", ".join(sorted(LEARNING_REVIEW_DECISIONS))
+            ],
+            data={
+                "command": f"sp-{command_name}",
+                "terminal_status": terminal_status,
+                "review": raw_review,
+            },
         )
     rationale = str(raw_review.get("rationale") or "").strip()
     if decision == "none" and not rationale:
@@ -276,10 +324,16 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
             status="blocked",
             severity="critical",
             errors=["learning review decision `none` requires a rationale"],
-            data={"command": f"sp-{command_name}", "terminal_status": terminal_status, "review": raw_review},
+            data={
+                "command": f"sp-{command_name}",
+                "terminal_status": terminal_status,
+                "review": raw_review,
+            },
         )
     if decision == "none":
-        recent_signal = _recent_signal_for_command(_project_root, command_name=command_name)
+        recent_signal = _recent_signal_for_command(
+            _project_root, command_name=command_name
+        )
         if recent_signal is not None:
             return HookResult(
                 event=WORKFLOW_LEARNING_REVIEW,
@@ -289,8 +343,8 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
                     "recent friction signal indicates reusable learning value; `decision=none` is not allowed until the learning is captured or explicitly deferred"
                 ],
                 actions=[
-                    f"preserve the reusable lesson with `specify hook capture-learning --command {command_name}` after supplying `--type`, `--summary`, and `--evidence`",
-                    f"or rerun `specify hook review-learning --command {command_name} --terminal-status {terminal_status} --decision deferred --rationale \"capture deferred\"` when capture must wait",
+                    "preserve the reusable lesson in `.specify/memory/learnings/INDEX.md` and one linked detail document with type, summary, and evidence",
+                    f"or record a deferred learning review for `sp-{command_name}` with status `{terminal_status}` and rationale `capture deferred` when capture must wait",
                 ],
                 data={
                     "command": f"sp-{command_name}",
@@ -375,7 +429,9 @@ def learning_capture_hook(project_root: Path, payload: dict[str, object]) -> Hoo
         event=WORKFLOW_LEARNING_CAPTURE,
         status="repaired",
         severity="info",
-        actions=[f"captured learning candidate `{capture_payload['entry']['recurrence_key']}`"],
+        actions=[
+            f"captured learning candidate `{capture_payload['entry']['recurrence_key']}`"
+        ],
         writes={"learning_candidates": ".planning/learnings/candidates.md"},
         data={"capture": capture_payload, "injection_targets": injection_targets},
     )

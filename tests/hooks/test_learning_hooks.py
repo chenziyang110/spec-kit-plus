@@ -23,9 +23,11 @@ def test_learning_review_blocks_terminal_closeout_without_review(tmp_path: Path)
     assert any("learning review" in message.lower() for message in result.errors)
     assert all("..." not in action for action in result.actions)
     assert all("<" not in action for action in result.actions)
-    assert any("--type" in action for action in result.actions)
-    assert any("--summary" in action for action in result.actions)
-    assert any("--evidence" in action for action in result.actions)
+    assert any(
+        ".specify/memory/learnings/INDEX.md" in action for action in result.actions
+    )
+    assert any("one linked detail document" in action for action in result.actions)
+    assert any("type, summary, and evidence" in action for action in result.actions)
 
 
 def test_learning_review_allows_explicit_none_decision(tmp_path: Path):
@@ -48,7 +50,9 @@ def test_learning_review_allows_explicit_none_decision(tmp_path: Path):
     assert result.data["review"]["decision"] == "none"
 
 
-def test_learning_review_blocks_none_decision_when_recent_friction_signal_exists(tmp_path: Path):
+def test_learning_review_blocks_none_decision_when_recent_friction_signal_exists(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
 
     signal_result = run_quality_hook(
@@ -77,9 +81,20 @@ def test_learning_review_blocks_none_decision_when_recent_friction_signal_exists
 
     assert signal_result.status == "warn"
     assert review_result.status == "blocked"
-    assert any("recent friction signal" in message.lower() for message in review_result.errors)
+    assert any(
+        "recent friction signal" in message.lower() for message in review_result.errors
+    )
     assert all("..." not in action for action in review_result.actions)
-    assert any("--type" in action for action in review_result.actions)
+    assert any(
+        ".specify/memory/learnings/INDEX.md" in action
+        for action in review_result.actions
+    )
+    assert any(
+        "one linked detail document" in action for action in review_result.actions
+    )
+    assert any(
+        "type, summary, and evidence" in action for action in review_result.actions
+    )
 
 
 def test_learning_review_clears_recent_signal_after_non_none_decision(tmp_path: Path):
@@ -141,7 +156,9 @@ def test_learning_signal_warns_when_pain_score_crosses_threshold(tmp_path: Path)
 
     assert result.status == "warn"
     assert result.data["pain_score"] >= 5
-    assert "run `specify hook review-learning" in result.actions[0]
+    assert "record a learning review decision" in result.actions[0]
+    assert ".specify/memory/learnings/INDEX.md" in " ".join(result.actions)
+    assert "specify hook" not in " ".join(result.actions)
 
 
 def test_learning_inject_derives_targets_from_learning_type(tmp_path: Path):
