@@ -816,7 +816,8 @@ class TestGeminiIntegration(TomlIntegrationTests):
         payload = json.loads(result.stdout.strip())
         additional_context = payload["hookSpecificOutput"]["additionalContext"]
         assert "learning pain score" in additional_context
-        assert "review-learning --command implement" in additional_context
+        assert "record a learning review decision for `sp-implement`" in additional_context
+        assert ".specify/memory/learnings/INDEX.md" in additional_context
         assert "init --here --force ..." not in additional_context
 
     def test_install_uninstall_roundtrip(self, tmp_path):
