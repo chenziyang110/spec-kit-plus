@@ -38,9 +38,9 @@ scripts:
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `{{specify-subcmd:learning start --command specify --format json}}` when available so passive learning files exist, the current specification run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
-- Review `.planning/learnings/candidates.md` only when it still contains candidate learnings relevant to specification after the passive start step, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
+- [AGENT] Run `{{specify-subcmd:learning start --command specify --format json}}` when available so passive learning files exist and the current specification run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
+- Open only learning detail docs linked from relevant index entries, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
 - [AGENT] When specification friction appears, use the `signal-learning` helper surface with user-correction, route-change, scope-change, false-start, or hidden-dependency counts.
   Command shape: `{{specify-subcmd:hook signal-learning --command specify --user-corrections <n> --route-changes <n> --scope-changes <n>}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `user_preference`, `decision_debt`, or `project_constraint` exists.
@@ -182,8 +182,8 @@ Generate the pre-analysis output as the first section of `context.md`.
    - Read `templates/workflow-state-template.md`.
    - Read `.specify/memory/constitution.md` if present.
    - Read `.specify/memory/project-rules.md` if present.
-   - Read `.specify/memory/project-learnings.md` if present.
-   - If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
+   - Read `.specify/memory/learnings/INDEX.md` if present.
+   - Open only linked learning detail docs relevant to specification so repeated workflow gaps, user preferences, and project constraints are not rediscovered from scratch.
    - [AGENT] Read `.specify/project-cognition/status.json`.
    - [AGENT] Read `.specify/project-cognition/slices/change.json`.
    - If `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md` exists and the request is about brownfield testing-system construction, read it and treat it as the primary brownfield testing-program input before clarification. Preserve these stronger brownfield testing inputs: module priority waves, covered-module policy, `small / medium / large` policy, scenario matrix expectations, local integration seam expectations, allowed testability refactors, coverage goals, CI gate expectations, and command-tier expectations for `fast smoke`, `focused`, and `full`.

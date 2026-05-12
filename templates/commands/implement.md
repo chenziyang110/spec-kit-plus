@@ -105,9 +105,9 @@ After checks complete, record results in `implement-tracker.md`:
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `{{specify-subcmd:learning start --command implement --format json}}` when available so passive learning files exist, the current implementation run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader execution context.
-- Review `.planning/learnings/candidates.md` only when it still contains implementation-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
+- [AGENT] Run `{{specify-subcmd:learning start --command implement --format json}}` when available so passive learning files exist and the current implementation run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader execution context.
+- Open only learning detail docs linked from implementation-relevant index entries, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
 - [AGENT] When implementation friction appears, use the `signal-learning` helper surface with retry, validation-failure, route-change, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
   Command shape: `{{specify-subcmd:hook signal-learning --command implement --retry-attempts <n> --validation-failures <n> --route-changes <n>}}`
 - [AGENT] Before terminal `resolved` or `blocked` reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `pitfall`, `recovery_path`, `verification_gap`, `state_surface_gap`, or `project_constraint` exists.
@@ -261,12 +261,12 @@ human_needed_checks:
    - **IF TASK-RELEVANT COVERAGE IS INSUFFICIENT**: add targeted graph or testing artifacts, refresh through `/sp-map-update` when localized, or rebuild through `/sp-map-scan` followed by `/sp-map-build` only when needed; then inspect the minimum live files still needed to replace guesswork with evidence.
    - **REQUIRED**: Read `.specify/memory/constitution.md` if present.
    - **REQUIRED**: Read `.specify/memory/project-rules.md` if present.
-   - **REQUIRED**: Read `.specify/memory/project-learnings.md` if present.
+   - **REQUIRED**: Read `.specify/memory/learnings/INDEX.md` if present.
    - **REQUIRED WHEN PRESENT**: Read `.specify/testing/TESTING_CONTRACT.md` before choosing the next batch so testing obligations are treated as binding execution constraints.
    - **REQUIRED WHEN PRESENT**: Read `.specify/testing/TESTING_PLAYBOOK.md` before verification so canonical test and coverage commands come from the project playbook instead of ad hoc guessing.
    - **REQUIRED WHEN PRESENT**: Read `.specify/testing/COVERAGE_BASELINE.json` before final validation when coverage policy exists for the touched modules.
    - **COMMAND-TIER MODEL**: Preserve command-tier expectations for `fast smoke`, `focused`, and `full`; run the focused tier as the lane acceptance check, use fast smoke for early signal when useful, and reserve full for broader regression or final verification.
-   - **IF `.planning/learnings/candidates.md` EXISTS**: Inspect only the entries relevant to implementation so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
+   - **IF RELEVANT LEARNING DETAIL DOCS EXIST**: Open only the linked docs relevant to implementation so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan
    - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
    - **REQUIRED**: Extract `Implementation Constitution` from `plan.md` when present and treat it as binding execution guidance rather than advisory background

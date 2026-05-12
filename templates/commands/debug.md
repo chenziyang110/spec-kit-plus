@@ -59,9 +59,9 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `{{specify-subcmd:learning start --command debug --format json}}` when available so passive learning files exist, the current debug run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader command-local context.
-- Review `.planning/learnings/candidates.md` only when it still contains debug-relevant candidate learnings after the passive start step, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
+- [AGENT] Run `{{specify-subcmd:learning start --command debug --format json}}` when available so passive learning files exist and the current debug run sees relevant shared project memory.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
+- Open only learning detail docs linked from debug-relevant index entries, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
 - [AGENT] When investigation friction appears, use the `signal-learning` helper surface with retry, hypothesis-change, validation-failure, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
   Command shape: `{{specify-subcmd:hook signal-learning --command debug --retry-attempts <n> --hypothesis-changes <n> --validation-failures <n>}}`
 - [AGENT] Before terminal `resolved`, `blocked`, or `awaiting_human_verify` reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `pitfall`, `recovery_path`, `tooling_trap`, `false_lead_pattern`, or `project_constraint` exists.
@@ -84,8 +84,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 - `.specify/memory/constitution.md`
 - `.specify/memory/project-rules.md`
-- `.specify/memory/project-learnings.md`
-- `.planning/learnings/candidates.md`
+- `.specify/memory/learnings/INDEX.md`
+- Relevant linked learning detail docs
 - the active feature's `spec.md`, `plan.md`, and `tasks.md`
 - if `context.md` exists for the active feature, read it before proposing a fix
 
@@ -161,8 +161,8 @@ reads, pass the cognition gate by reading:
 - Use the debug cognition slice to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
 - Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
-- Read `.specify/memory/project-learnings.md` if present before forming or validating a fix.
-- If `.planning/learnings/candidates.md` exists, inspect only the entries relevant to the failing area so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
+- Read `.specify/memory/learnings/INDEX.md` if present before forming or validating a fix.
+- Open only linked learning detail docs relevant to the failing area so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
 - The causal map is produced by a **think subagent** (dispatched automatically by the graph engine at Stage 1A). The constraints below apply to that subagent, not to the leader.
 - During observer framing, the think subagent must not read source files, test files, log files, or feature-specific planning artifacts such as `spec.md`, `plan.md`, `tasks.md`, or `context.md`.
 - The think subagent must not read test files or test outputs; save those for the investigator phase.
