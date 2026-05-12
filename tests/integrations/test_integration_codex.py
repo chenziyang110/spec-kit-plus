@@ -236,12 +236,31 @@ def test_codex_generated_skills_render_launcher_backed_runtime_commands(tmp_path
 
     constitution_content = (target / ".codex" / "skills" / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8")
     implement_content = (target / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
+    quick_content = (target / ".codex" / "skills" / "sp-quick" / "SKILL.md").read_text(encoding="utf-8")
 
     assert "learning start --command constitution --format json" in constitution_content
-    assert "validate-state --command implement" in implement_content
-    assert "validate-session-state --command implement" in implement_content
     assert "{{specify-subcmd:" not in constitution_content
+
+    for content in (implement_content, quick_content):
+        assert "WorkerTaskPacket" in content
+        assert "structured handoff" in content.lower()
+        assert "{{specify-subcmd:hook" not in content
+
     assert "{{specify-subcmd:" not in implement_content
+    assert "{{specify-subcmd:" not in quick_content
+
+    routine_hook_guidance = (
+        "hook validate-state --command implement",
+        "hook validate-session-state --command implement",
+        "hook validate-packet --packet-file",
+        "hook validate-state --command quick",
+        "hook validate-session-state --command quick",
+        "hook monitor-context --command quick",
+        "hook checkpoint --command quick",
+    )
+    for fragment in routine_hook_guidance:
+        assert fragment not in implement_content
+        assert fragment not in quick_content
 
 
 def test_codex_implement_teams_template_keeps_only_backend_specific_guidance():
@@ -769,9 +788,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     content = skill_path.read_text(encoding="utf-8").lower()
 
     assert "scope gate" in content
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/index.md" in content
-    assert "future senior engineer" in content
+    assert "skip all learning hooks" in content
+    assert "do not read constitution, project-rules, or project-learnings" in content
+    assert "leave `.specify/memory/learnings/index.md`" in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/slices/change.json" in content
