@@ -188,24 +188,23 @@ Typical durable-state sources include:
 - `workflow-state.md` when it preserves route reasons, false starts, hidden
   dependencies, validation gaps, or reusable constraints
 
-## First-Party Learning Hooks
+## Direct Learning Helpers
 
-Use this hook surface when memory handling needs product-level enforcement or
-richer signal capture:
+Use direct learning helpers for low-noise memory lifecycle work. Do not turn ordinary workflow closeout into hook choreography.
 
-- `{{specify-subcmd:hook signal-learning}}`
-  - Command shape: `{{specify-subcmd:hook signal-learning --command <command-name> --retry-attempts <n> --hypothesis-changes <n>}}`
-- `{{specify-subcmd:hook review-learning}}`
-  - Command shape: `{{specify-subcmd:hook review-learning --command <command-name> --terminal-status <status> --decision <none|captured|deferred> --rationale "<why>"}}`
-- `{{specify-subcmd:hook capture-learning}}`
-  - Required options: `--command`, `--type`, `--summary`, `--evidence`
-  - Command shape: `{{specify-subcmd:hook capture-learning --command <command-name> --type <type> --summary "<summary>" --evidence "<evidence>"}}`
-- `{{specify-subcmd:hook inject-learning}}`
-  - Command shape: `{{specify-subcmd:hook inject-learning --command <command-name> --type <type> --summary "<summary>"}}`
+- `{{specify-subcmd:learning start}}`
+  - Command shape: `{{specify-subcmd:learning start --command <command-name> --format json}}`
+- `{{specify-subcmd:learning capture-auto}}`
+  - Command shape: `{{specify-subcmd:learning capture-auto --command <command-name> --format json}}`
+  - Use this when durable workflow state already preserves route reasons, false starts, hidden dependencies, validation gaps, or reusable constraints.
+- Manual memory capture
+  - Update `.specify/memory/learnings/INDEX.md` and one linked detail markdown document when automatic capture cannot express the lesson clearly.
+- `{{specify-subcmd:learning aggregate}}`
+  - Command shape: `{{specify-subcmd:learning aggregate --format json}}`
+- `{{specify-subcmd:learning promote}}`
+  - Command shape: `{{specify-subcmd:learning promote --recurrence-key <key> --target learning|rule}}`
 
-The terminal review-learning surface is intentionally narrow: use the real
-`review-learning` helper shape above and do not add removed artifact-origin
-helper options back into examples or generated guidance.
+Hook-based learning commands remain compatibility and native-adapter internals. Normal `sp-*` workflow steps should not call them.
 
 ## Capture Heuristics
 

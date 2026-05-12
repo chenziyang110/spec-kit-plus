@@ -30,9 +30,7 @@ workflow-state.
 - Run `{{specify-subcmd:learning start}}` with the current command name so shared memory and relevant detail refs are visible.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
 - Open only linked detail docs whose `applies_to` or `trigger_signals` match the current work.
-- When friction appears, signal it through `{{specify-subcmd:hook signal-learning}}` with relevant counts.
 - Before final completion or blocked reporting, perform learning closeout: capture or merge an index/detail lesson when future reuse is plausible, or explicitly decide the run was one-off.
 - Prefer `{{specify-subcmd:learning capture-auto}}` when durable state already preserves route reasons, false starts, hidden dependencies, validation gaps, or reusable constraints.
-- Use manual `capture-learning` only when durable state does not capture the lesson cleanly.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
+- Use manual memory edits only when durable state does not capture the lesson cleanly: update `.specify/memory/learnings/INDEX.md` and one linked detail markdown document.
 - Promote to `project-rules.md` or constitution only after recurrence, explicit user confirmation, or stable cross-workflow governance value.
