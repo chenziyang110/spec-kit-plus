@@ -363,6 +363,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
     """Inspect persisted launcher and generated runtime surfaces for stale or broken state."""
 
     issues: list[dict[str, str]] = []
+    learning_index = project_root / ".specify" / "memory" / "learnings" / "INDEX.md"
 
     def _read_text_if_exists(path: Path) -> str:
         try:
@@ -393,6 +394,15 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                     "repair": "Repair `.specify/config.json`. If regeneration is required, use the `specify init --here --force` command surface from a trusted launcher source and supply the same integration-specific options that originally bootstrapped the project.",
                 }
             )
+
+    if (project_root / ".specify").exists() and not learning_index.exists():
+        issues.append(
+            {
+                "code": "missing-learning-index",
+                "summary": "Generated project memory is missing the self-learning v2 index.",
+                "repair": "Run `specify learning ensure` or refresh generated assets with `specify integration repair`.",
+            }
+        )
 
     powershell_common = project_root / ".specify" / "scripts" / "powershell" / "common.ps1"
     powershell_common_text = _read_text_if_exists(powershell_common)

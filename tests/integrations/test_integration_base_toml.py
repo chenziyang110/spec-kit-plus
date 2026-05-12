@@ -724,6 +724,8 @@ class TomlIntegrationTests:
         assert "map-update" in content
         assert "two workflow handbooks" in content
         assert ".specify/memory/project-rules.md" in content
+        assert ".specify/memory/learnings/INDEX.md" in content
+        assert "Learning Reflex" in content or "future senior engineer" in content
         assert "## Workflow Routing" in content
         assert "sp-fast" in content
         assert "sp-quick" in content

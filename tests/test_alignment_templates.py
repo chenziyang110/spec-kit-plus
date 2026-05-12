@@ -249,6 +249,8 @@ def test_owned_workflow_templates_use_learning_index_reflex() -> None:
 
     for template_path in owned_workflow_templates:
         content = _read(template_path)
+        assert ".specify/memory/constitution.md" in content
+        assert ".specify/memory/project-rules.md" in content
         assert ".specify/memory/learnings/INDEX.md" in content
         assert "Learning Reflex" in content or "future senior engineer" in content
 

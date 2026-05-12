@@ -201,6 +201,21 @@ def test_diagnose_project_runtime_compatibility_reports_broken_launcher(tmp_path
     assert "<agent>" not in broken["repair"]
 
 
+def test_runtime_diagnostics_warn_when_learning_index_missing(tmp_path):
+    project = tmp_path
+    skill_dir = project / ".specify" / "templates" / "passive-skills" / "spec-kit-project-learning"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "Learning Reflex\n.specify/memory/learnings/INDEX.md\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(project)
+
+    codes = [issue["code"] for issue in issues]
+    assert "missing-learning-index" in codes
+
+
 def test_diagnose_project_runtime_compatibility_reports_stale_powershell_resolver(tmp_path):
     common_path = tmp_path / ".specify" / "scripts" / "powershell" / "common.ps1"
     common_path.parent.mkdir(parents=True)

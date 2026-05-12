@@ -537,6 +537,10 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
     handbook = read_template("PROJECT-HANDBOOK.md").lower()
     handbook_template = read_template("templates/project-handbook-template.md").lower()
 
+    assert ".specify/memory/learnings/index.md" in readme
+    assert "one detail markdown document per lesson" in readme
+    assert "learning reflex" in readme
+
     for content in (readme, handbook, handbook_template):
         assert "recorded refresh and ready refresh" in content
         assert "support drift" in content

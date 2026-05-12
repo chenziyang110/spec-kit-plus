@@ -28,7 +28,8 @@ Reconstruct or refresh the graph-native project cognition runtime from a complet
 ## Passive Project Learning Layer
 
 - [AGENT] Run `{{specify-subcmd:learning start --command map-build --format json}}` when available so passive learning files exist and repeated graph-build blind spots can be promoted at start.
-- Read `.specify/memory/learnings/INDEX.md` before broader graph-build context and open only learning detail docs linked from map-build-relevant index entries.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader graph-build context.
+- Open only learning detail docs linked from map-build-relevant index entries.
 - Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When graph reconstruction friction appears, use the `signal-learning` helper surface: `{{specify-subcmd:hook signal-learning --command map-build --route-changes <n> --artifact-rewrites <n> --validation-failures <n>}}`.
 - [AGENT] Before reporting completion or a blocked build, use the `review-learning` helper surface: `{{specify-subcmd:hook review-learning --command map-build --terminal-status <resolved|blocked> --decision <none|captured|deferred> --rationale "<why>"}}`.
