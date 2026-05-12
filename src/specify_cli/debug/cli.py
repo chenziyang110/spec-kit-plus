@@ -16,6 +16,7 @@ from .dispatch import (
 from .utils import generate_slug, get_debug_dir
 from .graph import run_debug_session
 from ..learnings import capture_auto_learning
+from ..project_cognition_status import inspect_project_cognition_freshness
 from ..project_map_status import inspect_project_map_freshness
 
 console = Console()
@@ -58,7 +59,7 @@ def _project_map_preflight_for_debug() -> None:
     if not (project_root / ".specify").exists():
         return
 
-    result = inspect_project_map_freshness(project_root)
+    result = inspect_project_cognition_freshness(project_root)
     state = str(result.get("state", result["freshness"])).strip().lower()
     if state in {"missing_baseline", "runtime_stale", "support_drift", "partial_refresh"}:
         if state == "support_drift":

@@ -600,6 +600,10 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "affected claim refresh" in update_content
     assert "user supplement normalization" in update_content
     assert "conflict reconciliation" in update_content
+    assert "prefer the smallest executable update lane set" in update_content
+    assert "user-supplied scope remains authoritative unless repository evidence disproves it" in update_content
+    assert "do not turn a one-slice or metadata-only refresh into scan-style parallel exploration" in update_content
+    assert "leader-inline-fallback for a one-lane update is preferred over forcing extra subagents" in update_content
 
 
 def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guidance(tmp_path):
@@ -663,7 +667,23 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "root-cause mode" in content
 
 
-def test_codex_generated_sp_specify_mentions_structured_handoff_and_reopen(tmp_path):
+def test_codex_generated_specify_skill_mentions_structured_handoff_and_reopen(tmp_path):
+    from specify_cli.integrations.codex import CodexIntegration
+    from specify_cli.integrations.manifest import IntegrationManifest
+
+    target = tmp_path / "codex-specify"
+    integration = CodexIntegration()
+    manifest = IntegrationManifest("codex", target)
+    integration.setup(target, manifest)
+    content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "structured handoff" in content
+    assert "reopen" in content
+    assert "conversation memory is not a valid handoff surface" in content
+    assert "## fixed heavy discovery lifecycle" not in content
+    assert "use the fixed heavy discovery lifecycle" not in content
+
+
+def test_codex_generated_sp_specify_uses_brainstorming_kernel_wording(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -688,23 +708,24 @@ def test_codex_generated_sp_specify_mentions_structured_handoff_and_reopen(tmp_p
     assert "structured handoff" in lowered
     assert "reopen" in lowered
     assert "conversation memory is not a valid handoff surface" in lowered
+    assert "persisted truth files" in lowered
+    assert "task classification" not in lowered
+    assert "active_profile" not in content
+    assert "coverage_mode" not in content
+    assert "observer gate" not in lowered
+    assert "leader-inline-fallback" not in lowered
 
 
 def test_codex_generated_implement_skill_mentions_optimization_scope_and_reopen(tmp_path):
-    from typer.testing import CliRunner
-    from specify_cli import app
+    from specify_cli.integrations.codex import CodexIntegration
+    from specify_cli.integrations.manifest import IntegrationManifest
 
-    runner = CliRunner()
-    target = tmp_path / "codex-implement-contract"
-
-    result = runner.invoke(
-        app,
-        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
-    )
-
-    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
-
+    target = tmp_path / "codex-implement"
+    integration = CodexIntegration()
+    manifest = IntegrationManifest("codex", target)
+    integration.setup(target, manifest)
     content = (target / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
+
     assert "allowed optimization scope" in content
     assert "must-preserve invariants" in content
     assert "reopen" in content

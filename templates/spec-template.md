@@ -5,6 +5,18 @@
 **Status**: Draft  
 **Input**: User description: "$ARGUMENTS"
 
+## Brainstorming Truth Inputs
+
+- Route: [compiled from route.json]
+- Complexity: [compiled from complexity.json]
+- Truth Owner: [compiled from facts.json and route.json]
+- Must Preserve:
+  - [compiled invariant]
+- Allowed Optimization Scope:
+  - [compiled scope]
+- Soft Unknowns Carried:
+  - [field, owner, latest resolve phase, and risk if any]
+
 ## Overview *(mandatory)*
 
 ### Feature Goal

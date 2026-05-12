@@ -139,7 +139,7 @@ def test_project_map_mark_dirty_hook_updates_status_file(tmp_path: Path):
 
     result = run_quality_hook(
         project,
-        "project_map.mark_dirty",
+        "project_cognition.mark_dirty",
         {
             "reason": "shared surface changed",
             "origin_command": "implement",

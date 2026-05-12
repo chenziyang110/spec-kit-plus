@@ -530,6 +530,7 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "possibly_stale" not in content
         assert "must_refresh_topics" not in content
         assert "review_topics" not in content
+    assert "project-cognition" in read_template("src/specify_cli/__init__.py").lower()
 
 
 def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:

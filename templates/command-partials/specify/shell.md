@@ -10,19 +10,17 @@ planning.
 ## Context
 
 - Primary inputs: the user's request, the current repository state, passive learning files, and the project cognition runtime (`.specify/project-cognition/status.json`, required slices, graph artifacts, and targeted live evidence).
-- Working state lives under the active `FEATURE_DIR`, especially the
-  `brainstorming/` truth artifacts plus `spec.md`, `alignment.md`, `context.md`,
-  `references.md`, and `workflow-state.md`.
+- Brainstorming truth lives under the active `FEATURE_DIR/brainstorming/`, especially `facts.json`, `route.json`, `intent.json`, `complexity.json`, and `handoff-to-specify.json`.
+- Compiled working state lives under the active `FEATURE_DIR`, especially `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md`.
 - This command is specification-only. It is not permission to implement code.
 
 ## Process
 
-- Establish or resume the active feature workspace, workflow-state file, and
-  brainstorming truth artifacts.
+- Establish or resume the active feature workspace, workflow-state file, and brainstorming truth files.
 - Load just enough repository context to understand ownership, constraints, and adjacent surfaces.
+- Progress through `facts-lock`, `route-lock`, `intent-lock`, and `complexity-lock`, asking deterministic questions only for unresolved fields or rule predicates.
 - Clarify planning-critical ambiguity and decompose the request into capabilities before compiling the locked truth layer into the specification artifact set.
-- Lock facts, route, intent, and complexity before compiling the specification
-  artifact set.
+- Compile the locked truth into the specification artifact set.
 - Decide whether the package is ready for `/sp-plan` or still needs another clarification/enhancement pass.
 
 ## Output Contract
@@ -35,12 +33,12 @@ planning.
   when needed.
 - Treat structured handoff truth as authoritative when it exists; do not rely on
   chat-only conclusions.
-- Report what was decided, what remains open, and the recommended next command.
+- Report what was locked, what remains open, and the recommended next command.
 - Do not imply planning readiness when planning-critical ambiguity still remains.
 
 ## Guardrails
 
 - Do not edit source code, tests, or implementation files from `sp-specify`.
 - Do not skip planning-critical clarification just because the request sounds simple.
-- Do not treat conversation memory as a valid handoff surface.
+- Do not treat conversation memory as a valid handoff surface; persisted truth files are the handoff source.
 - Do not treat this summary block as the workflow itself; the detailed contract below remains authoritative.

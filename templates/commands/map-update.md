@@ -26,7 +26,10 @@ Use `execution_surface: native-subagents`.
 ## Process
 
 - Read the current graph-native baseline and determine the affected closure before editing runtime outputs.
+- Prefer the smallest update that can truthfully restore readiness.
+- Treat explicit user corrections and user-supplied scope as first-class routing input; user-supplied scope is authoritative for the touched area unless repository evidence disproves it.
 - Dispatch only validated incremental update lanes with bounded affected scope.
+- A tiny localized refresh may stay as one bounded lane even when native subagents are available.
 - If a safe update lane cannot be packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 - Rebuild only the affected graph slices when the evidence proves the scoped refresh is sufficient.
 
@@ -35,8 +38,11 @@ Use `execution_surface: native-subagents`.
 - `sp-map-update` is the normal maintenance entrypoint after baseline build.
 - It must accept both diff-driven and user-supplement-driven updates.
 - It must update graph-native cognition artifacts incrementally.
+- It must treat `.specify/project-cognition/status.json` as the runtime truth source for post-update readiness.
 - It must not silently escalate to a full rebuild without recording why.
+- It must prefer metadata-only or single-slice updates when those are sufficient.
 - After recording updates, re-evaluate runtime readiness through the shared freshness contract.
+- If the re-evaluated runtime is `fresh` with `readiness=ready`, finalize the successful refresh through `{{specify-subcmd:hook complete-refresh}}` so compatibility freshness metadata cannot remain stale.
 - Do not report refresh completion when the runtime remains blocked.
 - A recorded refresh is not automatically a ready refresh: `partial_refresh` means update metadata was written but readiness still failed.
 
@@ -64,13 +70,21 @@ The canonical outputs for this command are:
 - refreshed affected graph artifacts
 - refreshed affected slices
 - the post-recording freshness result, including `freshness`, `readiness`, and `recommended_next_action`
+- when the post-recording freshness result is ready, a completed compatibility finalizer via `{{specify-subcmd:hook complete-refresh}}`
 
 ## Guardrails
 
 - Do not silently escalate to a full rebuild without recording why.
 - Do not refresh unaffected slices just because the touched area is ambiguous.
 - Do not invent closure when changed paths or user supplements do not support the update.
+- Do not re-read or rewrite the full graph when status.json, graph/updates.json, and one or two affected slices are sufficient.
+- Do not split small localized updates into parallel scan-style lanes just because subagents are available.
 - If the affected update lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
+
+## Escalation Boundary
+
+- Escalate to `sp-map-scan`, then `sp-map-build` only when the current baseline is unusable or the affected closure cannot be bounded safely.
+- Record the exact reason for escalation, including which closure or readiness fact could not be resolved incrementally.
 
 ## Update Duties
 
@@ -83,3 +97,4 @@ The canonical outputs for this command are:
 - rebuild only affected graph slices when safe
 - produce an incremental update record
 - verify the shared freshness contract after the update record is written
+- run the successful-refresh finalizer when that verification proves the runtime ready

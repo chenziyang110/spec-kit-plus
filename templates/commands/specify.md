@@ -207,7 +207,7 @@ Generate the pre-analysis output as the first section of `context.md`.
 
 5. Ensure project cognition runtime exists.
    - Check whether `.specify/project-map/index/status.json` exists.
-   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
+   - If it exists, use the project cognition freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
    - [AGENT] If freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
    - [AGENT] If freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`; wait for that refresh before continuing.
    - [AGENT] If freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
@@ -456,7 +456,7 @@ Generate the pre-analysis output as the first section of `context.md`.
     - acceptance-test shaping details
     - planning-sensitive risks and gaps
 
-19b. Run an engineering-completeness gate for boundary-sensitive work.
+16b. Run an engineering-completeness gate for boundary-sensitive work.
     - Trigger this gate when the feature crosses a service/process/runtime boundary, depends on async or event delivery, creates user-visible persisted state, or adds configuration that changes delivery behavior.
     - Confirm or explicitly defer, with reason, at minimum:
       - trigger/event source when behavior depends on a cross-component signal

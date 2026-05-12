@@ -82,7 +82,7 @@ scripts:
 
 2. **Ensure project cognition runtime exists**:
    - Check whether `.specify/project-map/index/status.json` exists.
-   - If it exists, use the project-map freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
+   - If it exists, use the project cognition freshness helper for the active script variant to assess freshness before trusting the current project cognition baseline.
    - [AGENT] If freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before continuing.
    - [AGENT] If freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`; wait for that refresh before continuing.
    - [AGENT] If freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.

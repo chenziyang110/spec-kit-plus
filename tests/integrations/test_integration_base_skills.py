@@ -15,10 +15,26 @@ import yaml
 
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
 from specify_cli.integrations.base import SkillsIntegration
+from specify_cli.integrations.codex import CodexIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+
+
+def test_generated_specify_skill_teaches_brainstorming_kernel_contract(tmp_path):
+    target = tmp_path / "codex-skill"
+    integration = CodexIntegration()
+    manifest = IntegrationManifest("codex", target)
+    integration.setup(target, manifest)
+    skill = target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+    content = skill.read_text(encoding="utf-8").lower()
+    assert "brainstorming kernel" in content
+    assert "facts-lock" in content
+    assert "route-lock" in content
+    assert "intent-lock" in content
+    assert "complexity-lock" in content
+    assert "## fixed heavy discovery lifecycle" not in content
 
 
 def _assert_downstream_testing_control_plane(skill_content: str) -> None:
@@ -731,6 +747,7 @@ class SkillsIntegrationTests:
             ".specify/memory/learnings/INDEX.md",
             ".specify/memory/project-learnings.md",
             ".specify/memory/project-rules.md",
+            ".specify/project-cognition/status.json",
             ".specify/project-map/status.json",
             ".specify/project-map/index/status.json",
         ]

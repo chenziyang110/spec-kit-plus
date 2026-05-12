@@ -349,7 +349,7 @@ def test_specify_template_uses_alignment_first_contract():
     assert "fast smoke" in lowered
     assert "focused" in lowered
     assert "full" in lowered
-    assert "project-map freshness helper" in lowered
+    assert "project cognition freshness helper" in lowered
     assert "freshness is `missing`" in lowered
     assert "freshness is `stale`" in lowered
     assert "freshness is `support_drift`" in lowered
@@ -1642,6 +1642,7 @@ def test_implement_template_requires_resume_audit_before_trusting_terminal_state
     assert "consumer evidence" in lowered
     assert "do not preserve `resolved`" in lowered
 
+
 def test_implement_template_defines_leader_only_milestone_scheduler_contract():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
@@ -1928,7 +1929,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
 
     stale_normal_path_phrases = [
         "should mark `.specify/project-map/index/status.json` dirty and run",
-        "mark `.specify/project-map/index/status.json` dirty through the project-map freshness helper and recommend",
+        "mark `.specify/project-map/index/status.json` dirty through the project cognition freshness helper and recommend",
         "prefer `{{specify-subcmd:hook mark-dirty --reason \"<reason>\"}}` as the shared dirty-mark path",
     ]
     for path in legacy_owned_surfaces:

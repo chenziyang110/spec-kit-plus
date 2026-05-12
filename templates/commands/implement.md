@@ -250,6 +250,11 @@ human_needed_checks:
 
 3. Load and analyze the implementation context:
    - **REQUIRED**: [AGENT] Create or resume `FEATURE_DIR/implement-tracker.md` immediately after `FEATURE_DIR` is known.
+   - **REQUIRED WHEN PRESENT**: Read `handoff-to-implement.json` and treat it as the authoritative execution contract from tasks.
+   - **STRUCTURED EXECUTION CONTRACT**: Do not reinterpret product intent from chat memory when `handoff-to-implement.json` disagrees or is more specific.
+   - **STRUCTURED EXECUTION CONTRACT**: Treat `must-preserve invariants`, `allowed optimization scope`, `required validation`, and `stop-and-reopen conditions` as binding execution fields.
+   - **STRUCTURED EXECUTION CONTRACT**: You must not redefine the product goal, widen locked intent, or implement outside the allowed optimization scope.
+   - **STRUCTURED EXECUTION CONTRACT**: If a needed change would violate the current execution contract or require redefining the user's locked goal, stop and reopen the upstream truth layer instead of implementing through ambiguity.
    - **REQUIRED WHEN PRESENT**: Read `FEATURE_DIR/workflow-state.md` if present before choosing the next batch.
    - **REQUIRED WHEN PRESENT**: Read `handoff-to-implement.json` when present and treat it as the authoritative execution contract.
    - **REQUIRED WHEN PRESENT**: Treat `must-preserve invariants`, `allowed optimization scope`, `required validation`, and `stop-and-reopen conditions` from that contract as binding execution fields.

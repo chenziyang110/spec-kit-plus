@@ -38,6 +38,12 @@ def _write_cognition_baseline(project_root: Path, *, graph_ready: bool = True) -
     (cognition_dir / "slices" / "change.json").write_text('{"slice": {"slice_id": "change"}}\n', encoding="utf-8")
 
 
+def _write_cognition_status(project_root: Path, payload: str) -> None:
+    cognition_dir = project_root / ".specify" / "project-cognition"
+    cognition_dir.mkdir(parents=True, exist_ok=True)
+    (cognition_dir / "status.json").write_text(payload, encoding="utf-8")
+
+
 def test_project_map_status_round_trip(tmp_path):
     mod = _load_module()
     _write_cognition_baseline(tmp_path)
@@ -239,6 +245,10 @@ def test_complete_project_map_refresh_clears_manual_override_and_writes_refresh_
     assert status.manual_force_stale_reasons == []
     assert status.last_refresh_commit
     assert status.last_refresh_basis == "map-build"
+
+    cognition_payload = (tmp_path / ".specify" / "project-cognition" / "status.json").read_text(encoding="utf-8")
+    assert '"freshness": "fresh"' in cognition_payload
+    assert '"manual_force_stale": false' in cognition_payload
 
 
 def test_mark_project_map_refreshed_accepts_partial_topic_scope(tmp_path):
@@ -567,3 +577,57 @@ def test_inspect_project_map_freshness_reads_git_worktree(tmp_path):
     assert result["must_refresh_topics"] == ["INTEGRATIONS.md", "WORKFLOWS.md"]
     assert result["review_topics"] == ["ARCHITECTURE.md", "TESTING.md"]
     assert result["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
+
+
+def test_inspect_project_map_freshness_prefers_cognition_status_metadata_over_stale_compat_status(tmp_path):
+    mod = _load_module()
+    _write_cognition_baseline(tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+    (tmp_path / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=tmp_path, check=True)
+
+    mod.write_project_map_status(
+        tmp_path,
+        mod.ProjectMapStatus(
+            global_freshness="stale",
+            global_last_refresh_commit="legacy123",
+            global_last_refresh_at="2026-04-21T00:00:00Z",
+            global_last_refresh_branch="main",
+            global_dirty=True,
+            global_dirty_reasons=["workflow_contract_changed"],
+        ),
+    )
+    _write_cognition_status(
+        tmp_path,
+        """{
+  "version": 2,
+  "baseline_state": "ready",
+  "baseline_commit": "__HEAD__",
+  "baseline_branch": "main",
+  "baseline_built_at": "2026-05-11T00:00:00Z",
+  "graph_ready": true,
+  "freshness": "fresh",
+  "last_refresh_reason": "map-update",
+  "last_refresh_topics": ["INTEGRATIONS.md"],
+  "last_refresh_scope": "partial",
+  "last_refresh_basis": "map-update",
+  "manual_force_stale": false,
+  "manual_force_stale_reasons": [],
+  "dirty": false,
+  "dirty_reasons": []
+}
+""",
+    )
+    head_commit = mod.git_head_commit(tmp_path)
+    status_path = tmp_path / ".specify" / "project-cognition" / "status.json"
+    status_path.write_text(status_path.read_text(encoding="utf-8").replace("__HEAD__", head_commit), encoding="utf-8")
+
+    result = mod.inspect_project_map_freshness(tmp_path)
+
+    assert result["freshness"] == "fresh"
+    assert result["state"] == "fresh"
+    assert result["dirty"] is False
+    assert result["last_mapped_commit"] == head_commit

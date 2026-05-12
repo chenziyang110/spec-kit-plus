@@ -102,13 +102,15 @@ from specify_cli.learnings import (
     promote_learning,
     start_learning_session,
 )
-from specify_cli.project_map_status import (
+from specify_cli.project_cognition_status import (
     ProjectMapStatus,
     TOPIC_FILES,
     clear_project_map_dirty,
     complete_project_map_refresh,
     git_branch_name,
     git_head_commit,
+    inspect_project_cognition_freshness,
+    inspect_project_cognition_freshness_for_command,
     inspect_project_map_freshness,
     inspect_project_map_freshness_for_command,
     legacy_project_map_status_path,
@@ -480,9 +482,16 @@ testing_app = typer.Typer(
 )
 app.add_typer(testing_app, name="testing")
 
+project_cognition_app = typer.Typer(
+    name="project-cognition",
+    help="Inspect project cognition freshness and finalize or override refresh state",
+    add_completion=False,
+)
+app.add_typer(project_cognition_app, name="project-cognition")
+
 project_map_app = typer.Typer(
     name="project-map",
-    help="Inspect graph-native cognition baseline freshness and finalize or override refresh state",
+    help="Compatibility alias for project-cognition commands",
     add_completion=False,
 )
 app.add_typer(project_map_app, name="project-map")
@@ -657,7 +666,7 @@ def _current_specify_entrypoint() -> str:
 
 def _render_project_map_freshness(result: dict[str, Any]) -> None:
     rows = [
-        ("Freshness", f"[cyan]{result['freshness']}[/cyan]"),
+        ("Cognition Freshness", f"[cyan]{result['freshness']}[/cyan]"),
         ("Readiness", f"[cyan]{result.get('readiness', 'unknown')}[/cyan]"),
         ("Next Action", f"[cyan]{result.get('recommended_next_action', 'unknown')}[/cyan]"),
         ("Status File", f"[dim]{result['status_path']}[/dim]"),
@@ -669,7 +678,7 @@ def _render_project_map_freshness(result: dict[str, Any]) -> None:
     if result.get("dirty"):
         rows.append(("Dirty", "[yellow]true[/yellow]"))
 
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Map", border_style="cyan"))
+    console.print(_cli_panel(_labeled_grid(rows), title="Project Cognition", border_style="cyan"))
 
     reasons = result.get("reasons") or []
     if reasons:
@@ -693,7 +702,7 @@ def _render_project_map_freshness(result: dict[str, Any]) -> None:
 def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_name: str) -> None:
     state = str(result.get("state", result.get("freshness", ""))).strip().lower()
     console.print(
-        f"[red]Error:[/red] Project-map freshness is {state or 'unknown'} for [cyan]{command_name}[/cyan]."
+        f"[red]Error:[/red] Project cognition freshness is {state or 'unknown'} for [cyan]{command_name}[/cyan]."
     )
     if state == "missing_baseline":
         console.print(
@@ -728,7 +737,7 @@ def _project_map_preflight(
     command_name: str,
     block_on: set[str] | None = None,
 ) -> dict[str, Any]:
-    result = inspect_project_map_freshness_for_command(
+    result = inspect_project_cognition_freshness_for_command(
         project_root,
         command_name=command_name,
     )
@@ -744,7 +753,7 @@ def _project_map_preflight(
     if freshness == "runtime_stale" and readiness == "review":
         _render_project_map_freshness(result)
         console.print(
-            f"[yellow]Warning:[/yellow] Project-map freshness is runtime_stale for [cyan]{command_name}[/cyan]."
+            f"[yellow]Warning:[/yellow] Project cognition freshness is runtime_stale for [cyan]{command_name}[/cyan]."
         )
         console.print(
             "Continue only if the current task is still local; otherwise refresh the project cognition runtime first, typically through [cyan]/sp-map-update[/cyan]."
@@ -1483,6 +1492,7 @@ def implement_resume_audit(
     if audit_failed:
         raise typer.Exit(1)
 
+
 @testing_app.command("inventory")
 def testing_inventory_command(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
@@ -1523,13 +1533,14 @@ def testing_inventory_command(
 
 
 @project_map_app.command("check")
+@project_cognition_app.command("check")
 def project_map_check(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
     """Inspect git-baseline project cognition freshness for the working tree."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
-    result = inspect_project_map_freshness(project_root)
+    result = inspect_project_cognition_freshness(project_root)
     if output_format.lower() == "json":
         print_json(result, indent=2)
         return
@@ -1537,6 +1548,7 @@ def project_map_check(
 
 
 @project_map_app.command("mark-dirty")
+@project_cognition_app.command("mark-dirty")
 def project_map_mark_dirty(
     reason: str = typer.Argument(..., help="Why the current work needs a manual dirty override/fallback"),
     origin_command: str = typer.Option("", "--origin-command", help="Optional workflow command that created the dirty fallback"),
@@ -1564,7 +1576,7 @@ def project_map_mark_dirty(
         origin_lane_id=origin_lane_id.strip(),
         scope_paths=scope_paths,
     )
-    result = inspect_project_map_freshness(project_root)
+    result = inspect_project_cognition_freshness(project_root)
     if output_format.lower() == "json":
         print_json(result, indent=2)
         return
@@ -1572,6 +1584,7 @@ def project_map_mark_dirty(
 
 
 @project_map_app.command("clear-dirty")
+@project_cognition_app.command("clear-dirty")
 def project_map_clear_dirty(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
@@ -1579,7 +1592,7 @@ def project_map_clear_dirty(
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     clear_project_map_dirty(project_root)
-    result = inspect_project_map_freshness(project_root)
+    result = inspect_project_cognition_freshness(project_root)
     if output_format.lower() == "json":
         print_json(result, indent=2)
         return
@@ -1587,6 +1600,7 @@ def project_map_clear_dirty(
 
 
 @project_map_app.command("record-refresh")
+@project_cognition_app.command("record-refresh")
 def project_map_record_refresh(
     reason: str = typer.Option("manual", "--reason", help="Why the map was refreshed"),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
@@ -1601,7 +1615,7 @@ def project_map_record_refresh(
         branch=git_branch_name(project_root),
         reason=reason,
     )
-    result = inspect_project_map_freshness(project_root)
+    result = inspect_project_cognition_freshness(project_root)
     if output_format.lower() == "json":
         print_json(result, indent=2)
         return
@@ -1609,6 +1623,7 @@ def project_map_record_refresh(
 
 
 @project_map_app.command("complete-refresh")
+@project_cognition_app.command("complete-refresh")
 def project_map_complete_refresh(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
@@ -1617,7 +1632,7 @@ def project_map_complete_refresh(
     _require_spec_kit_plus_project(project_root)
     _ensure_project_map_artifacts_exist(project_root)
     complete_project_map_refresh(project_root)
-    result = inspect_project_map_freshness(project_root)
+    result = inspect_project_cognition_freshness(project_root)
     if output_format.lower() == "json":
         print_json(result, indent=2)
         return
@@ -1625,6 +1640,7 @@ def project_map_complete_refresh(
 
 
 @project_map_app.command("refresh-topics")
+@project_cognition_app.command("refresh-topics")
 def project_map_refresh_topics_command(
     topics: list[str] = typer.Argument(..., help="One or more canonical topic files to record as refreshed"),
     reason: str = typer.Option("topic-refresh", "--reason", help="Why these topics were refreshed"),
@@ -1659,6 +1675,7 @@ def project_map_refresh_topics_command(
 
 
 @project_map_app.command("status")
+@project_cognition_app.command("status")
 def project_map_status_command(
     output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
 ):
@@ -5352,7 +5369,7 @@ def hook_mark_dirty_command(
     _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
-        "project_map.mark_dirty",
+        "project_cognition.mark_dirty",
         {
             "reason": reason,
             "origin_command": origin_command.strip(),
@@ -5373,7 +5390,7 @@ def hook_complete_refresh_command(
     _validate_hook_output_format(output_format)
     _run_hook_and_print(
         project_root,
-        "project_map.complete_refresh",
+        "project_cognition.complete_refresh",
         {},
     )
 

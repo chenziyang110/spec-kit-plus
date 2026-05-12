@@ -40,3 +40,8 @@ def test_map_update_template_exists_and_is_incremental() -> None:
     assert "after recording updates, re-evaluate runtime readiness through the shared freshness contract" in content.lower()
     assert "do not report refresh completion when the runtime remains blocked" in content.lower()
     assert "partial_refresh" in content.lower()
+    assert "user-supplied scope is authoritative for the touched area unless repository evidence disproves it" in content.lower()
+    assert "prefer the smallest update that can truthfully restore readiness" in content.lower()
+    assert "do not re-read or rewrite the full graph when status.json, graph/updates.json, and one or two affected slices are sufficient" in content.lower()
+    assert "do not split small localized updates into parallel scan-style lanes just because subagents are available" in content.lower()
+    assert "escalate to `sp-map-scan`, then `sp-map-build` only when the current baseline is unusable or the affected closure cannot be bounded safely" in content.lower()

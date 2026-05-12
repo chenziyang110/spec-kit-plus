@@ -20,6 +20,20 @@ class CognitionStatus:
     graph_ready: bool = False
     stale_paths: list[str] = field(default_factory=list)
     stale_reasons: list[str] = field(default_factory=list)
+    freshness: str = ""
+    last_refresh_reason: str = ""
+    last_refresh_topics: list[str] = field(default_factory=list)
+    last_refresh_scope: str = ""
+    last_refresh_basis: str = ""
+    last_refresh_changed_files_basis: list[str] = field(default_factory=list)
+    manual_force_stale: bool = False
+    manual_force_stale_reasons: list[str] = field(default_factory=list)
+    dirty: bool = False
+    dirty_reasons: list[str] = field(default_factory=list)
+    dirty_origin_command: str = ""
+    dirty_origin_feature_dir: str = ""
+    dirty_origin_lane_id: str = ""
+    dirty_scope_paths: list[str] = field(default_factory=list)
 
 
 def _coerce_string_list(value: object) -> list[str]:
@@ -53,4 +67,22 @@ def read_cognition_status(project_root: Path) -> CognitionStatus:
         graph_ready=raw_graph_ready if isinstance(raw_graph_ready, bool) else False,
         stale_paths=_coerce_string_list(payload.get("stale_paths", [])),
         stale_reasons=_coerce_string_list(payload.get("stale_reasons", [])),
+        freshness=str(payload.get("freshness", "")),
+        last_refresh_reason=str(payload.get("last_refresh_reason", "")),
+        last_refresh_topics=_coerce_string_list(payload.get("last_refresh_topics", [])),
+        last_refresh_scope=str(payload.get("last_refresh_scope", "")),
+        last_refresh_basis=str(payload.get("last_refresh_basis", "")),
+        last_refresh_changed_files_basis=_coerce_string_list(payload.get("last_refresh_changed_files_basis", [])),
+        manual_force_stale=bool(payload.get("manual_force_stale", payload.get("dirty", False))),
+        manual_force_stale_reasons=_coerce_string_list(
+            payload.get("manual_force_stale_reasons", payload.get("dirty_reasons", payload.get("stale_reasons", [])))
+        ),
+        dirty=bool(payload.get("dirty", payload.get("manual_force_stale", False))),
+        dirty_reasons=_coerce_string_list(
+            payload.get("dirty_reasons", payload.get("manual_force_stale_reasons", payload.get("stale_reasons", [])))
+        ),
+        dirty_origin_command=str(payload.get("dirty_origin_command", "")),
+        dirty_origin_feature_dir=str(payload.get("dirty_origin_feature_dir", "")),
+        dirty_origin_lane_id=str(payload.get("dirty_origin_lane_id", "")),
+        dirty_scope_paths=_coerce_string_list(payload.get("dirty_scope_paths", [])),
     )

@@ -15,6 +15,8 @@ from .events import (
     CANONICAL_HOOK_EVENTS,
     DELEGATION_JOIN_VALIDATE,
     DELEGATION_PACKET_VALIDATE,
+    PROJECT_COGNITION_COMPLETE_REFRESH,
+    PROJECT_COGNITION_MARK_DIRTY,
     PROJECT_MAP_COMPLETE_REFRESH,
     PROJECT_MAP_MARK_DIRTY,
     WORKFLOW_ARTIFACTS_VALIDATE,
@@ -45,7 +47,7 @@ from .learning import (
 )
 from .prompt_guard import prompt_guard_hook
 from .preflight import workflow_preflight_hook
-from .project_map import complete_refresh_hook, mark_dirty_hook
+from .project_cognition import complete_refresh_hook, mark_dirty_hook
 from .read_guard import read_guard_hook
 from .session_state import session_state_hook
 from .state_validation import validate_state_hook
@@ -80,10 +82,12 @@ _HOOK_REGISTRY: dict[str, HookFn] = {
     WORKFLOW_LEARNING_INJECT: learning_inject_hook,
     DELEGATION_PACKET_VALIDATE: validate_packet_hook,
     DELEGATION_JOIN_VALIDATE: validate_join_hook,
+    PROJECT_COGNITION_MARK_DIRTY: mark_dirty_hook,
+    PROJECT_COGNITION_COMPLETE_REFRESH: complete_refresh_hook,
     PROJECT_MAP_MARK_DIRTY: mark_dirty_hook,
     PROJECT_MAP_COMPLETE_REFRESH: complete_refresh_hook,
 }
-# Project-map event names stay stable while wording treats complete-refresh as the finalizer.
+# Project-map event names remain as compatibility aliases while project-cognition names become the preferred internal path.
 
 
 def run_quality_hook(

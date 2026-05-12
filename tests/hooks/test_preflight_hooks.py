@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import subprocess
 
 from specify_cli.hooks.engine import run_quality_hook
 from specify_cli.project_map_status import ProjectMapStatus, write_project_map_status
@@ -626,6 +627,74 @@ def test_preflight_blocks_specify_when_dirty_origin_exists(tmp_path: Path):
     assert any("workflow_contract_changed" in message or "cognition" in message.lower() for message in result.errors)
 
 
+def test_preflight_uses_cognition_status_metadata_before_stale_project_map_status(tmp_path: Path):
+    project = _create_project(tmp_path)
+    _write_cognition_baseline(project)
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
+    (project / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=project, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=project, check=True)
+    feature_dir = project / "specs" / "003-new"
+    _write_workflow_state(
+        feature_dir,
+        active_command="sp-specify",
+        status="active",
+        phase_mode="planning-only",
+        next_command="/sp.plan",
+    )
+    write_project_map_status(
+        project,
+        ProjectMapStatus(
+            global_freshness="stale",
+            global_dirty=True,
+            global_dirty_reasons=["workflow_contract_changed"],
+            global_dirty_origin_command="implement",
+            global_dirty_origin_feature_dir="specs/001-demo",
+            global_dirty_origin_lane_id="lane-001",
+        ),
+    )
+    (project / ".specify" / "project-cognition" / "status.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "baseline_state": "ready",
+                "baseline_commit": subprocess.run(
+                    ["git", "-C", str(project), "rev-parse", "HEAD"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                ).stdout.strip(),
+                "baseline_branch": "main",
+                "baseline_built_at": "2026-05-11T00:00:00Z",
+                "graph_ready": True,
+                "freshness": "fresh",
+                "last_refresh_reason": "map-update",
+                "last_refresh_topics": ["INTEGRATIONS.md"],
+                "last_refresh_scope": "partial",
+                "last_refresh_basis": "map-update",
+                "manual_force_stale": False,
+                "manual_force_stale_reasons": [],
+                "dirty": False,
+                "dirty_reasons": [],
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.preflight",
+        {"command_name": "specify", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+
+
 def test_preflight_blocks_support_drift_with_support_specific_guidance(monkeypatch, tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "003-new"
@@ -644,7 +713,7 @@ def test_preflight_blocks_support_drift_with_support_specific_guidance(monkeypat
             "reasons": ["tool-managed support surface changed: .specify/templates/runtime-config.template.json"],
         }
 
-    monkeypatch.setattr("specify_cli.hooks.project_map.inspect_project_map_freshness", support_drift)
+    monkeypatch.setattr("specify_cli.hooks.project_cognition.inspect_project_cognition_freshness", support_drift)
 
     result = run_quality_hook(
         project,

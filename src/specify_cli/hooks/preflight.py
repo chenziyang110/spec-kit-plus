@@ -9,13 +9,13 @@ from specify_cli.lanes.state_store import iter_lane_records
 
 from .checkpoint_serializers import normalize_command_name, serialize_workflow_state
 from .events import WORKFLOW_PREFLIGHT
-from .project_map import project_map_freshness_result
+from .project_cognition import project_cognition_freshness_result
 from .types import HookResult, QualityHookError
 
 
 def workflow_preflight_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
     command_name = normalize_command_name(str(payload.get("command_name") or ""))
-    freshness = project_map_freshness_result(project_root, command_name=command_name)
+    freshness = project_cognition_freshness_result(project_root, command_name=command_name)
     freshness_payload = freshness.data.get("freshness", {})
 
     errors = list(freshness.errors)

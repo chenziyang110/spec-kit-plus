@@ -5,11 +5,11 @@
 
 ## System Summary
 
-`spec-kit-plus` is a Python-first CLI and asset-packaging repository for practical Spec-Driven Development workflows across local AI coding agents. The primary product surface is the `specify` command implemented in `src/specify_cli/__init__.py`; it initializes projects, installs agent-specific workflow files, manages project-map freshness, exposes testing/learning/hook/eval helper surfaces, and provides the Codex-only `sp-teams` runtime path.
+`spec-kit-plus` is a Python-first CLI and asset-packaging repository for practical Spec-Driven Development workflows across local AI coding agents. The primary product surface is the `specify` command implemented in `src/specify_cli/__init__.py`; it initializes projects, installs agent-specific workflow files, manages project cognition freshness and compatibility exports, exposes testing/learning/hook/eval helper surfaces, and provides the Codex-only `sp-teams` runtime path.
 
 The repository has three mapped runtime modules:
 
-- `specify-cli-core`: Python CLI, integration registry, project-map freshness, learning/testing/eval helpers, execution packet/result contracts, hooks, orchestration policy, and Codex team Python control plane.
+- `specify-cli-core`: Python CLI, integration registry, project cognition freshness and compatibility-export helpers, learning/testing/eval helpers, execution packet/result contracts, hooks, orchestration policy, and Codex team Python control plane.
 - `templates-generated-surfaces`: workflow command templates, command partials, passive skills, project-map/testing templates, scripts, and worker prompts that are copied or transformed into downstream projects.
 - `agent-teams-engine`: bundled optional Node/TypeScript plus Rust runtime assets for Codex team coordination.
 
@@ -91,7 +91,7 @@ The cognition model should help answer:
 - Subagents-first dispatch vocabulary propagates into orchestration tests, generated workflow tests, integration tests, README/quickstart guidance, context scripts, and project-map docs.
 - Workflow-handbook guidance now propagates from `templates/project-handbook-template.md`, workflow command templates, packet context helpers, and handbook-validation rules into initialized projects, map refresh helpers, and tests.
 - Packet/result schema changes propagate into execution helpers, hooks, Codex team runtime, generated workflow prompts, and contract tests.
-- Project-map freshness changes propagate into Python helpers, Bash/PowerShell scripts, hook commands, and brownfield gates.
+- Project cognition freshness changes propagate into Python helpers, Bash/PowerShell scripts, hook commands, and brownfield gates.
 - Engine packaging changes propagate through `pyproject.toml` force-includes, `extensions/agent-teams/engine/`, Codex team installer/runtime tests, and release artifacts.
 
 ## Change Impact Guide

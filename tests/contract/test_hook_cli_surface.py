@@ -1978,6 +1978,7 @@ def test_implement_closeout_blocks_false_resolved_state(tmp_path: Path):
     assert payload["status"] == "blocked"
     assert payload["resume_audit"]["trusted_terminal_state"] is False
 
+
 def test_hook_monitor_context_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)
     workspace = project / ".planning" / "quick" / "260427-004-demo-quick-task"
@@ -2903,7 +2904,7 @@ def test_hook_complete_refresh_accepts_json_format_alias(tmp_path: Path):
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output.strip())
-    assert payload["event"] == "project_map.complete_refresh"
+    assert payload["event"] == "project_cognition.complete_refresh"
     assert payload["status"] == "blocked"
 
 
@@ -2927,7 +2928,7 @@ def test_project_map_preflight_support_drift_copy_does_not_route_to_map_update(t
             "review_topics": [],
         }
 
-    monkeypatch.setattr("specify_cli.inspect_project_map_freshness_for_command", support_drift)
+    monkeypatch.setattr("specify_cli.inspect_project_cognition_freshness_for_command", support_drift)
 
     result = _invoke_in_project(project, ["sp-teams", "--dispatch", "REQ-001"])
 
@@ -2956,7 +2957,7 @@ def test_project_map_preflight_partial_refresh_copy_explains_refresh_recorded_bu
             "review_topics": ["ARCHITECTURE.md"],
         }
 
-    monkeypatch.setattr("specify_cli.inspect_project_map_freshness_for_command", partial_refresh)
+    monkeypatch.setattr("specify_cli.inspect_project_cognition_freshness_for_command", partial_refresh)
 
     result = _invoke_in_project(project, ["sp-teams", "--dispatch", "REQ-001"])
 

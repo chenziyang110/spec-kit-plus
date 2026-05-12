@@ -111,5 +111,5 @@ def test_team_command_dispatch_blocks_when_project_map_is_dirty(monkeypatch, cod
         )
 
     assert result.exit_code != 0
-    assert "Project-map freshness is runtime_stale" in result.output
+    assert "Cognition Freshness" in result.output
     assert "/sp-map-scan, then /sp-map-build" in result.output

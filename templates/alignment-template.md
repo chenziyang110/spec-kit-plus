@@ -4,6 +4,20 @@
 **Created**: [DATE]  
 **Status**: [Aligned: ready for plan | Force proceed with known risks]
 
+## Route And Complexity Summary
+
+- Primary Route: [route]
+- Matched Route Rules:
+  - [rule id and evidence]
+- Complexity Level: [T1 | T2 | T3 | T4]
+- Matched Complexity Rules:
+  - [rule id and evidence]
+- Hard Unknowns Cleared: [yes/no]
+- Soft Unknowns Carried:
+  - [field, owner, latest resolve phase, and risk if any]
+- Reopen Required: [yes/no]
+- Structured Handoff: [brainstorming/handoff-to-specify.json status]
+
 ## Initial Intent Analysis
 
 [Summarize the initial feature-shape hypothesis, the likely intended outcome,

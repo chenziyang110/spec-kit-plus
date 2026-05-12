@@ -3,6 +3,11 @@
 **Feature Branch**: `[###-feature-name]`  
 **Created**: [DATE]
 
+## Truth Sources Used For Route And Intent Lock
+
+- [source path or user-supplied reference]
+- [repository evidence, PRD input, existing implementation, policy, or user answer that justified a locked route, intent, invariant, or complexity rule]
+
 ## Reference Entries
 
 ## Truth Sources Used For Route And Intent Lock

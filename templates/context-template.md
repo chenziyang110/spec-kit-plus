@@ -5,6 +5,22 @@
 **Status**: Ready for planning  
 **Derived From**: `spec.md`, `alignment.md`, retained references, and discovery evidence
 
+## Brainstorming-Derived Execution Context
+
+- **Truth Owner**: [repo | prd | mixed]
+- **Primary Route**: [compiled route]
+- **Complexity Level**: [T1 | T2 | T3 | T4]
+- **Compatibility Constraints**:
+  - [constraint]
+- **Must-Preserve Invariants**:
+  - [invariant]
+- **Allowed Internal Redesign**:
+  - [yes/no and notes]
+- **Allowed Optimization Scope**:
+  - [scope planners and implementers may improve without reopening intent]
+- **Stop-And-Reopen Conditions**:
+  - [condition that requires upstream truth to reopen]
+
 ## Affected Surfaces
 
 - [Primary module, workflow, interface, or artifact this feature changes]
