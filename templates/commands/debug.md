@@ -62,6 +62,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - [AGENT] Run `{{specify-subcmd:learning start --command debug --format json}}` when available so passive learning files exist and the current debug run sees relevant shared project memory.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
 - Open only learning detail docs linked from debug-relevant index entries, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When investigation friction appears, use the `signal-learning` helper surface with retry, hypothesis-change, validation-failure, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
   Command shape: `{{specify-subcmd:hook signal-learning --command debug --retry-attempts <n> --hypothesis-changes <n> --validation-failures <n>}}`
 - [AGENT] Before terminal `resolved`, `blocked`, or `awaiting_human_verify` reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `pitfall`, `recovery_path`, `tooling_trap`, `false_lead_pattern`, or `project_constraint` exists.

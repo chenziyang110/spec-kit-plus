@@ -44,6 +44,7 @@ agent_scripts:
 - [AGENT] Run `{{specify-subcmd:learning start --command plan --format json}}` when available so passive learning files exist and the current planning run sees relevant shared project memory.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader planning context.
 - Open only learning detail docs linked from planning-relevant index entries, especially repeated workflow gaps or project constraints that would otherwise be rediscovered during planning.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When planning friction appears, use the `signal-learning` helper surface with route-change, artifact-rewrite, user-correction, false-start, or hidden-dependency counts.
   Command shape: `{{specify-subcmd:hook signal-learning --command plan --route-changes <n> --artifact-rewrites <n> --user-corrections <n>}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `routing_mistake`, `state_surface_gap`, `decision_debt`, or `project_constraint` exists.

@@ -51,6 +51,10 @@ missing, copy the template first.
 - Open only learning detail docs linked from constitution-relevant index entries,
   especially repeated workflow gaps, stable user defaults, or lower-order
   rules that may need promotion or retirement.
+- Learning Reflex: before final closeout, ask whether a future senior engineer
+  would benefit from seeing this lesson before related work. If yes, update
+  `.specify/memory/learnings/INDEX.md` and the linked detail markdown document
+  without asking for routine permission.
 - When constitution work exposes repeated decision debt, rule conflict, or
   promotion friction, use the `signal-learning` helper surface
   Command shape: `{{specify-subcmd:hook signal-learning --command constitution --user-corrections <n> --scope-changes <n> --route-changes <n>}}`

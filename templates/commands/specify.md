@@ -41,6 +41,7 @@ scripts:
 - [AGENT] Run `{{specify-subcmd:learning start --command specify --format json}}` when available so passive learning files exist and the current specification run sees relevant shared project memory.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
 - Open only learning detail docs linked from relevant index entries, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When specification friction appears, use the `signal-learning` helper surface with user-correction, route-change, scope-change, false-start, or hidden-dependency counts.
   Command shape: `{{specify-subcmd:hook signal-learning --command specify --user-corrections <n> --route-changes <n> --scope-changes <n>}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `user_preference`, `decision_debt`, or `project_constraint` exists.

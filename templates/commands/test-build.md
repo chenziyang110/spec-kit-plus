@@ -58,9 +58,10 @@ Use `execution_surface: native-subagents`.
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `{{specify-subcmd:learning start --command test-build --format json}}` when available so passive learning files exist, the current testing-system build sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader testing-system analysis.
-- Review `.planning/learnings/candidates.md` only when it still contains testing-relevant candidate learnings after the passive start step, especially repeated flaky areas, framework constraints, or project defaults that should influence the generated testing contract.
+- [AGENT] Run `{{specify-subcmd:learning start --command test-build --format json}}` when available so passive learning files exist, the current testing-system build sees relevant shared project memory, and repeated high-signal lessons can be surfaced through the learning index at start.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader testing-system analysis.
+- Open only learning detail docs linked from testing-relevant index entries, especially repeated flaky areas, framework constraints, or project defaults that should influence the generated testing contract.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When testing-system build friction appears, use the `signal-learning` helper surface with validation-failure, artifact-rewrite, false-start, or hidden-dependency counts.
   Command shape: `{{specify-subcmd:hook signal-learning --command test-build --validation-failures <n> --artifact-rewrites <n> --false-start "<summary>"}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `verification_gap`, `state_surface_gap`, `pitfall`, `workflow_gap`, or `project_constraint` exists.
@@ -117,7 +118,7 @@ Use `execution_surface: native-subagents`.
      - which startup, CI, or operator commands are required to run tests safely
    - [AGENT] If testing-surface cognition coverage is insufficient for the current repository, stop and tell the user to refresh through `{{invoke:map-update}}` when localized, or rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Read `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present.
-   - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.
+   - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` when present; open only relevant linked learning detail docs.
 
 2. **Validate scan/build inputs before execution**
    - [AGENT] Read `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, and `.specify/testing/TEST_BUILD_PLAN.json` before selecting work.

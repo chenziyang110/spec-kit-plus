@@ -514,17 +514,22 @@ def test_update_agent_context_managed_block_emitters_remain_cross_shell_equivale
 
 def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_memory_semantics() -> None:
     bash = read_template("scripts/bash/update-agent-context.sh").lower()
+    powershell = read_template("scripts/powershell/update-agent-context.ps1").lower()
 
-    assert "treat `sp-*` names as canonical workflow identities" in bash
-    assert "treat the learning layer as workflow-execution infrastructure" in bash
-    assert "project-map complete-refresh" in bash
-    assert "project-map mark-dirty" in bash
-    assert "do not continue under known-stale handbook state without choosing one of those paths" in bash
-    assert "structured handoff, result file, or runtime-managed result" in bash
-    assert "`sp-teams` only" in bash
-    assert "possibly_stale" not in bash
-    assert "must_refresh_topics" not in bash
-    assert "review_topics" not in bash
+    for content in (bash, powershell):
+        assert "treat `sp-*` names as canonical workflow identities" in content
+        assert "treat the learning layer as workflow-execution infrastructure" in content
+        assert "learning reflex" in content
+        assert ".specify/memory/learnings/index.md" in content
+        assert "future senior engineer" in content
+        assert "project-map complete-refresh" in content
+        assert "project-map mark-dirty" in content
+        assert "do not continue under known-stale handbook state without choosing one of those paths" in content
+        assert "structured handoff, result file, or runtime-managed result" in content
+        assert "`sp-teams` only" in content
+        assert "possibly_stale" not in content
+        assert "must_refresh_topics" not in content
+        assert "review_topics" not in content
 
 
 def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:

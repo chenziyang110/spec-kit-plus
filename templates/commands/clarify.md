@@ -71,6 +71,9 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 ## Passive Project Learning Layer
 
 - Run `{{specify-subcmd:learning start --command clarify --format json}}` when available so this repair pass can consume existing project rules and learnings.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader clarification context.
+- Open only learning detail docs linked from clarification-relevant index entries, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - When clarification friction appears, use the `signal-learning` helper surface with user-correction, scope-change, route-change, false-start, or hidden-dependency counts.
   Command shape: `{{specify-subcmd:hook signal-learning --command clarify --user-corrections <n> --scope-changes <n> --route-changes <n>}}`
 - Before final completion or blocked reporting, use the `review-learning` helper surface.
@@ -110,7 +113,8 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - `FEATURE_DIR/references.md` if present
    - `.specify/memory/constitution.md` if present
    - `.specify/memory/project-rules.md` if present
-   - `.specify/memory/project-learnings.md` if present
+   - `.specify/memory/learnings/INDEX.md` if present
+   - relevant linked learning detail docs from the learning index
    - `.specify/project-cognition/status.json` if present
    - `.specify/project-cognition/slices/change.json` if present
    - `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice does not answer the touched planning-critical gap safely

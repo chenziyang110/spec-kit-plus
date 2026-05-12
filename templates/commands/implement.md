@@ -108,6 +108,7 @@ After checks complete, record results in `implement-tracker.md`:
 - [AGENT] Run `{{specify-subcmd:learning start --command implement --format json}}` when available so passive learning files exist and the current implementation run sees relevant shared project memory.
 - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader execution context.
 - Open only learning detail docs linked from implementation-relevant index entries, especially repeated pitfalls, recovery paths, or project constraints for the touched area.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When implementation friction appears, use the `signal-learning` helper surface with retry, validation-failure, route-change, false-start, or hidden-dependency counts so reusable pain is surfaced before closeout.
   Command shape: `{{specify-subcmd:hook signal-learning --command implement --retry-attempts <n> --validation-failures <n> --route-changes <n>}}`
 - [AGENT] Before terminal `resolved` or `blocked` reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `pitfall`, `recovery_path`, `verification_gap`, `state_surface_gap`, or `project_constraint` exists.

@@ -228,6 +228,31 @@ def test_core_sp_templates_use_learning_review_hooks():
     assert "{{specify-subcmd:learning capture --command fast ...}}" not in fast_content
 
 
+def test_owned_workflow_templates_use_learning_index_reflex() -> None:
+    owned_workflow_templates = (
+        "templates/commands/specify.md",
+        "templates/commands/clarify.md",
+        "templates/commands/constitution.md",
+        "templates/commands/deep-research.md",
+        "templates/commands/plan.md",
+        "templates/commands/tasks.md",
+        "templates/commands/analyze.md",
+        "templates/commands/checklist.md",
+        "templates/commands/implement.md",
+        "templates/commands/debug.md",
+        "templates/commands/quick.md",
+        "templates/commands/test-scan.md",
+        "templates/commands/test-build.md",
+        "templates/commands/map-scan.md",
+        "templates/commands/map-build.md",
+    )
+
+    for template_path in owned_workflow_templates:
+        content = _read(template_path)
+        assert ".specify/memory/learnings/INDEX.md" in content
+        assert "Learning Reflex" in content or "future senior engineer" in content
+
+
 def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_placeholders() -> None:
     task3_owned_handoffs = {
         "templates/commands/analyze.md": [

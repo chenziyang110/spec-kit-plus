@@ -35,9 +35,10 @@ scripts:
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `{{specify-subcmd:learning start --command tasks --format json}}` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated candidates, including repeated high-signal candidates, can be auto-promoted into shared learnings at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broader task-generation context.
-- Review `.planning/learnings/candidates.md` only when it still contains task-generation-relevant candidate learnings after the passive start step, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
+- [AGENT] Run `{{specify-subcmd:learning start --command tasks --format json}}` when available so passive learning files exist, the current task-generation run sees relevant shared project memory, and repeated high-signal lessons can be surfaced through the learning index at start.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader task-generation context.
+- Open only learning detail docs linked from task-generation-relevant index entries, especially repeated workflow gaps, project constraints, or validation misses that should influence task decomposition.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When task-shaping friction appears, use the `signal-learning` helper surface with artifact-rewrite, route-change, false-start, or hidden-dependency counts.
   Command shape: `{{specify-subcmd:hook signal-learning --command tasks --artifact-rewrites <n> --route-changes <n> --false-start "<summary>"}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `workflow_gap`, `routing_mistake`, `verification_gap`, `decision_debt`, or `project_constraint` exists.
@@ -104,8 +105,8 @@ scripts:
    - **Optional**: data-model.md (entities), contracts/ (interface contracts), research.md (decisions), quickstart.md (test scenarios)
    - **Required when present**: `.specify/memory/constitution.md` (project constitution and mandatory principles that tasks must preserve)
    - **Required when present**: `.specify/memory/project-rules.md` (shared project defaults that task generation should preserve)
-   - **Required when present**: `.specify/memory/project-learnings.md` (confirmed reusable project learnings that may shape decomposition, validation, or guardrails)
-   - **If `.planning/learnings/candidates.md` exists**: inspect only the entries relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
+   - **Required when present**: `.specify/memory/learnings/INDEX.md` (searchable reusable learning index that may shape decomposition, validation, or guardrails)
+   - **Required when relevant index entries exist**: open only the linked learning detail docs relevant to task generation so repeated workflow gaps, project constraints, and validation misses are not rediscovered from scratch
    - **Required**: [AGENT] Read `.specify/project-cognition/status.json`
    - **Required**: [AGENT] Read `.specify/project-cognition/slices/change.json`
    - **Required when needed**: [AGENT] Read `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice alone does not close ownership, propagation, or conflicting-truth questions

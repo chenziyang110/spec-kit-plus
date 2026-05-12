@@ -24,9 +24,10 @@ Use `execution_surface: native-subagents`.
 
 ## Passive Project Learning Layer
 
-- [AGENT] Run `{{specify-subcmd:learning start --command test-scan --format json}}` when available so passive learning files exist, the scan sees relevant shared project memory, and repeated testing-system candidates can be auto-promoted at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` in that order before broad scan work.
-- Review `.planning/learnings/candidates.md` only when it still contains testing-relevant candidate learnings after the passive start step.
+- [AGENT] Run `{{specify-subcmd:learning start --command test-scan --format json}}` when available so passive learning files exist, the scan sees relevant shared project memory, and repeated testing-system lessons can be surfaced through the learning index at start.
+- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broad scan work.
+- Open only learning detail docs linked from testing-relevant index entries, especially repeated flaky areas, framework constraints, or project defaults that should influence the scan.
+- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
 - [AGENT] When scan friction appears, use the `signal-learning` helper surface with route-change, false-start, hidden-dependency, or validation-failure counts.
   Command shape: `{{specify-subcmd:hook signal-learning --command test-scan --route-changes <n> --validation-failures <n> --false-start "<summary>"}}`
 - [AGENT] Before final completion or blocked reporting, use the `review-learning` helper surface; use `--decision none` only when no reusable `verification_gap`, `state_surface_gap`, `workflow_gap`, `routing_mistake`, or `project_constraint` exists.
@@ -70,7 +71,7 @@ Use `execution_surface: native-subagents`.
    - [AGENT] If cognition freshness is `possibly_stale`, inspect changed paths, reasons, and change-slice coverage. If testing, workflow, integration, or architecture topics are stale for the scan area, use `{{invoke:map-update}}` when localized; rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only when no usable localized baseline remains.
    - [AGENT] If the project cognition status or change slice is insufficient for the touched area, stop and tell the user to refresh through `{{invoke:map-update}}` when localized, or rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
    - Read `.specify/testing/TESTING_CONTRACT.md` and `.specify/testing/TESTING_PLAYBOOK.md` when present.
-   - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/project-learnings.md` when present.
+   - Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` when present; open only relevant linked learning detail docs.
 
 2. **Run the canonical inventory seed**
    - Run `{{specify-subcmd:testing inventory --format json}}` from the repository root.
