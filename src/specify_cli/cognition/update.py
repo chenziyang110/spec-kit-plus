@@ -24,6 +24,7 @@ def apply_cognition_update(
         return {
             "readiness": "needs_rebuild",
             "recommended_next_action": "run_map_scan_build",
+            "update_id": "",
             "changed_paths": _normalize_paths(changed_paths),
             "affected_nodes": [],
             "missing_coverage": ["project cognition database has no active generation"],
@@ -37,6 +38,7 @@ def apply_cognition_update(
             return {
                 "readiness": "needs_update",
                 "recommended_next_action": "run_map_update",
+                "update_id": "",
                 "changed_paths": normalized_paths,
                 "affected_nodes": [],
                 "missing_coverage": [
@@ -75,7 +77,15 @@ def apply_cognition_update(
 
 
 def _normalize_paths(paths: list[str]) -> list[str]:
-    return [path.replace("\\", "/") for path in paths]
+    normalized_paths: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        normalized = path.replace("\\", "/")
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        normalized_paths.append(normalized)
+    return normalized_paths
 
 
 def _resolve_path_coverage(conn: Any, generation_id: str, paths: list[str]) -> tuple[list[str], list[str]]:
