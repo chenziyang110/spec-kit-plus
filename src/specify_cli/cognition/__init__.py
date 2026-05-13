@@ -2,7 +2,15 @@
 
 from .diff import build_diff_impact_payload
 from .discovery import discover_reference_projects
+from .db import (
+    connect_cognition_db,
+    cognition_transaction,
+    ensure_cognition_db,
+    get_active_generation_id,
+    seed_active_generation,
+)
 from .paths import (
+    cognition_db_path,
     cognition_dir,
     cognition_status_path,
     coverage_path,
@@ -55,10 +63,14 @@ __all__ = [
     "SliceRecord",
     "UpdateEventRecord",
     "build_diff_impact_payload",
+    "cognition_db_path",
     "cognition_dir",
     "cognition_status_path",
+    "cognition_transaction",
+    "connect_cognition_db",
     "coverage_path",
     "discover_reference_projects",
+    "ensure_cognition_db",
     "ensure_cognition_runtime_dirs",
     "evidence_dir",
     "graph_claims_path",
@@ -68,6 +80,7 @@ __all__ = [
     "graph_nodes_path",
     "graph_slices_dir",
     "graph_updates_path",
+    "get_active_generation_id",
     "provisional_dir",
     "provisional_edges_path",
     "provisional_nodes_path",
@@ -76,6 +89,7 @@ __all__ = [
     "read_reference_project_cognition",
     "read_json_artifact",
     "ReferenceProjectReadError",
+    "seed_active_generation",
     "write_cognition_status",
     "write_coverage",
     "write_graph_claims",

@@ -13,6 +13,10 @@ def cognition_status_path(project_root: Path) -> Path:
     return cognition_dir(project_root) / "status.json"
 
 
+def cognition_db_path(project_root: Path) -> Path:
+    return cognition_dir(project_root) / "project-cognition.db"
+
+
 def graph_dir(project_root: Path) -> Path:
     return cognition_dir(project_root) / "graph"
 
