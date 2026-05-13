@@ -20,6 +20,12 @@ from specify_cli.integrations.manifest import IntegrationManifest
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+STALE_COGNITION_ADDENDUM_PHRASES = (
+    "status and slice artifacts",
+    "status and debug-oriented slice artifacts",
+    "required project cognition status and slice artifacts",
+    "graph-native runtime coverage",
+)
 
 
 def _assert_downstream_testing_control_plane(command_content: str) -> None:
@@ -83,6 +89,19 @@ class TomlIntegrationTests:
     def test_registered(self):
         assert self.KEY in INTEGRATION_REGISTRY
         assert get_integration(self.KEY) is not None
+
+    def test_generated_commands_do_not_include_obsolete_cognition_addenda(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        commands_dir = i.commands_dest(tmp_path)
+        generated = "\n".join(path.read_text(encoding="utf-8").lower() for path in commands_dir.glob("**/*.toml"))
+
+        assert "project-cognition query" in generated
+        assert "minimal_live_reads" in generated
+        for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
+            assert phrase not in generated
 
     def test_is_toml_integration(self):
         assert isinstance(get_integration(self.KEY), TomlIntegration)

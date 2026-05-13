@@ -471,14 +471,15 @@ class IntegrationBase(ABC):
             "debug": "before any investigation or fixes",
             "quick": "before repository analysis or implementation",
         }[command_name]
+        query_gate = self._project_cognition_query_gate_line(command_name=command_name, command_step=command_step)
 
         addendum = (
             "\n"
             f"## {agent_name} Project-Map Hard Gate\n\n"
-            f"**Crucial First Step**: You MUST pass the project cognition contract first by reading the required `.specify/project-cognition/` status and slice artifacts {command_step}.\n"
-            "- Interpret the shared freshness contract by state: `missing` rebuilds through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `stale` refreshes through `{{invoke:map-update}}`; `support_drift` requires resolving support-surface drift without reflexively routing to `{{invoke:map-update}}`; `partial_refresh` means refresh data was recorded but readiness still failed, so follow `recommended_next_action`.\n"
-            "- Treat the project cognition runtime as the primary brownfield context surface; do not fall back to chat memory or ad hoc repository instincts when graph-native runtime coverage should be the source of truth.\n"
-            "- Treat this as a hard gate, not a best-effort reminder; do not continue until the required project cognition status and slice artifacts exist and are strong enough for the workflow.\n"
+            f"{query_gate}\n"
+            "- Interpret returned readiness: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads`; `ambiguous` asks the user to choose; `needs_update` routes through `{{invoke:map-update}}`; `needs_rebuild` routes through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `blocked` stops with the runtime issue.\n"
+            "- Treat the project cognition query bundle as the primary brownfield context surface; do not fall back to chat memory or ad hoc repository instincts when query-backed runtime coverage should be the source of truth.\n"
+            "- Treat this as a hard gate, not a best-effort reminder; do not continue until the returned readiness and task-local bundle are strong enough for the workflow.\n"
         )
 
         insert_before = None
@@ -492,6 +493,18 @@ class IntegrationBase(ABC):
         if insert_before:
             return content.replace(insert_before, addendum + f"\n{insert_before}", 1)
         return content + addendum
+
+    def _project_cognition_query_gate_line(self, *, command_name: str, command_step: str) -> str:
+        intent = {
+            "debug": "debug",
+            "implement": "implement",
+            "quick": "implement",
+        }.get(command_name, "implement")
+        return (
+            "**Crucial First Step**: You MUST query project cognition first with "
+            f"`specify project-cognition query --intent {intent} --query \"$ARGUMENTS\" --format json` "
+            f"{command_step}, then use the returned readiness, task-local bundle, and `minimal_live_reads`."
+        )
 
     def _append_toml_debug_runtime_bridge(
         self,
@@ -511,8 +524,8 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"## {agent_name} Debug Compatibility Bridge\n\n"
-            f"- {bridge_label}: read `{handbook}` when a compatibility/export debug view is needed alongside the graph-native runtime.\n"
-            "- Fixed chapter IDs required for debug remain compatibility identifiers layered on top of the graph-native runtime, not a replacement brownfield truth source.\n"
+            f"- {bridge_label}: read `{handbook}` only when a compatibility/export debug view is needed alongside the query-backed runtime.\n"
+            "- Fixed chapter IDs required for debug remain compatibility identifiers layered on top of the query-backed runtime, not a replacement brownfield truth source.\n"
             f"- Compatibility tag: `{contract}`.\n"
         )
 
@@ -579,7 +592,7 @@ class IntegrationBase(ABC):
             f"## {agent_name} Leader Gate\n\n"
             f"When running `sp-implement` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
             "\n"
-            "**Crucial First Step**: You MUST pass the project cognition contract first by reading the required `.specify/project-cognition/` status and slice artifacts before any implementation actions.\n"
+            f"{self._project_cognition_query_gate_line(command_name='implement', command_step='before any implementation actions')}\n"
             "\n"
             "**Autonomous Blocker Recovery (Hard Rule)**:\n"
             "- If technical blockers arise (e.g. build errors, missing toolchain components like Win32/x86, environment mismatches), you **MUST** attempt autonomous escalation to a specialist subagent (for example a build/toolchain specialist) **BEFORE** asking the user for intervention.\n"
@@ -667,7 +680,7 @@ class IntegrationBase(ABC):
             f"## {agent_name} Leader Gate\n\n"
             f"When running `sp-debug` in {agent_name}, you are the **leader**, not a freeform debugger.\n"
             "\n"
-            "**Crucial First Step**: You MUST pass the project cognition contract first by reading the required `.specify/project-cognition/` status and debug-oriented slice artifacts before any investigation or fixes.\n"
+            f"{self._project_cognition_query_gate_line(command_name='debug', command_step='before any investigation or fixes')}\n"
             "\n"
             "Before applying fixes or running multiple independent investigation actions yourself:\n"
             "- Read the current debug session state and identify whether the investigation has two or more independent evidence-gathering lanes.\n"
@@ -735,7 +748,7 @@ class IntegrationBase(ABC):
             f"## {agent_name} Leader Gate\n\n"
             f"When running `sp-quick` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
             "\n"
-            "**Crucial First Step**: You MUST pass the project cognition contract first by reading the required `.specify/project-cognition/` status and slice artifacts before repository analysis or implementation.\n"
+            f"{self._project_cognition_query_gate_line(command_name='quick', command_step='before repository analysis or implementation')}\n"
             "\n"
             "Before code edits, test edits, or implementation commands:\n"
             "- Read `.specify/memory/constitution.md` first if it exists.\n"
@@ -1931,7 +1944,7 @@ class SkillsIntegration(IntegrationBase):
                 f"## {agent_name} Leader Gate\n\n"
                 f"When running `sp-debug` in {agent_name}, you are the **leader**, not a freeform debugger.\n"
                 "\n"
-                "**Crucial First Step**: You MUST read the required `.specify/project-cognition/` status and debug-oriented slice artifacts before any investigation or fixes.\n"
+                f"{self._project_cognition_query_gate_line(command_name='debug', command_step='before any investigation or fixes')}\n"
                 "\n"
                 "Before applying fixes or running multiple independent investigation actions yourself:\n"
                 "- Read the current debug session state and identify whether the investigation has two or more independent evidence-gathering lanes.\n"
@@ -2043,7 +2056,7 @@ class SkillsIntegration(IntegrationBase):
                 f"## {agent_name} Leader Gate\n\n"
                 f"When running `sp-quick` in {agent_name}, you are the **leader**, not the concrete implementer.\n"
                 "\n"
-                "**Crucial First Step**: You MUST read the required `.specify/project-cognition/` status and slice artifacts before repository analysis or implementation.\n"
+                f"{self._project_cognition_query_gate_line(command_name='quick', command_step='before repository analysis or implementation')}\n"
                 "\n"
                 "Before code edits, test edits, or implementation commands:\n"
                 "- Read `.specify/memory/constitution.md` first if it exists.\n"

@@ -4,6 +4,13 @@ from pathlib import Path
 
 from .test_integration_base_skills import SkillsIntegrationTests
 
+STALE_COGNITION_ADDENDUM_PHRASES = (
+    "status and slice artifacts",
+    "status and debug-oriented slice artifacts",
+    "required project cognition status and slice artifacts",
+    "graph-native runtime coverage",
+)
+
 
 def _assert_stable_subagent_contract(content: str) -> None:
     lower = content.lower()
@@ -68,6 +75,22 @@ class TestCodexIntegration(SkillsIntegrationTests):
         assert "sp-test-scan" in content
         assert "sp-test-build" in content
         assert "## Map Maintenance" in content
+
+    def test_codex_generated_skills_do_not_include_obsolete_cognition_addenda(self, tmp_path):
+        from specify_cli.integrations import get_integration
+        from specify_cli.integrations.manifest import IntegrationManifest
+
+        integration = get_integration(self.KEY)
+        manifest = IntegrationManifest(self.KEY, tmp_path)
+        integration.setup(tmp_path, manifest)
+
+        skills_dir = tmp_path / ".codex" / "skills"
+        generated = "\n".join(path.read_text(encoding="utf-8").lower() for path in skills_dir.glob("**/SKILL.md"))
+
+        assert "project-cognition query" in generated
+        assert "minimal_live_reads" in generated
+        for phrase in STALE_COGNITION_ADDENDUM_PHRASES:
+            assert phrase not in generated
 
 
 class TestCodexAutoPromote:
