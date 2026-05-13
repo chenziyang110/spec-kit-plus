@@ -1,3 +1,4 @@
+from contextlib import closing
 import sqlite3
 from pathlib import Path
 
@@ -20,7 +21,7 @@ def test_ensure_cognition_db_creates_schema_and_active_generation(tmp_path: Path
     assert db_path == cognition_db_path(tmp_path)
     assert db_path.exists()
 
-    with connect_cognition_db(tmp_path) as conn:
+    with closing(connect_cognition_db(tmp_path)) as conn:
         table_names = {
             row["name"]
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual')")
@@ -45,7 +46,7 @@ def test_seed_active_generation_is_query_visible(tmp_path: Path) -> None:
     assert generation_id
     assert get_active_generation_id(tmp_path) == generation_id
 
-    with connect_cognition_db(tmp_path) as conn:
+    with closing(connect_cognition_db(tmp_path)) as conn:
         row = conn.execute(
             "SELECT state, source_commit FROM generations WHERE id = ?",
             (generation_id,),
@@ -54,10 +55,32 @@ def test_seed_active_generation_is_query_visible(tmp_path: Path) -> None:
     assert dict(row) == {"state": "active", "source_commit": "abc123"}
 
 
+def test_reseeding_active_generation_preserves_existing_graph_rows(tmp_path: Path) -> None:
+    ensure_cognition_db(tmp_path)
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('NODE-1', ?, 'capability', 'Login', 'high', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+
+    assert seed_active_generation(tmp_path, source_commit="def456") == generation_id
+
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        row = conn.execute(
+            "SELECT generation_id, title FROM nodes WHERE id = 'NODE-1'",
+        ).fetchone()
+
+    assert dict(row) == {"generation_id": generation_id, "title": "Login"}
+
+
 def test_staging_generation_is_not_active(tmp_path: Path) -> None:
     ensure_cognition_db(tmp_path)
 
-    with connect_cognition_db(tmp_path) as conn:
+    with closing(connect_cognition_db(tmp_path)) as conn:
         conn.execute(
             "INSERT INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json) "
             "VALUES ('GEN-STAGING', 1, 'scan', 'staging', 'abc123', '2026-05-13T00:00:00Z', '', '', '{}')"
@@ -70,7 +93,7 @@ def test_staging_generation_is_not_active(tmp_path: Path) -> None:
 def test_connection_uses_row_factory_and_foreign_keys(tmp_path: Path) -> None:
     ensure_cognition_db(tmp_path)
 
-    with connect_cognition_db(tmp_path) as conn:
+    with closing(connect_cognition_db(tmp_path)) as conn:
         row = conn.execute("PRAGMA foreign_keys").fetchone()
         assert isinstance(row, sqlite3.Row)
         assert row[0] == 1

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -46,7 +46,7 @@ def cognition_transaction(project_root: Path) -> Iterator[sqlite3.Connection]:
 def ensure_cognition_db(project_root: Path) -> Path:
     cognition_dir(project_root).mkdir(parents=True, exist_ok=True)
     path = cognition_db_path(project_root)
-    with connect_cognition_db(project_root) as conn:
+    with closing(connect_cognition_db(project_root)) as conn:
         _create_schema(conn)
         conn.execute(
             "INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES (?, ?, ?)",
@@ -312,7 +312,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
 
 def get_active_generation_id(project_root: Path) -> str:
     ensure_cognition_db(project_root)
-    with connect_cognition_db(project_root) as conn:
+    with closing(connect_cognition_db(project_root)) as conn:
         row = conn.execute(
             "SELECT id FROM generations WHERE state = 'active' ORDER BY sequence DESC LIMIT 1"
         ).fetchone()
@@ -326,8 +326,17 @@ def seed_active_generation(project_root: Path, *, source_commit: str = "") -> st
     with cognition_transaction(project_root) as conn:
         conn.execute("UPDATE generations SET state = 'superseded', superseded_at = ? WHERE state = 'active'", (now,))
         conn.execute(
-            "INSERT OR REPLACE INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET "
+            "sequence = excluded.sequence, "
+            "kind = excluded.kind, "
+            "state = excluded.state, "
+            "source_commit = excluded.source_commit, "
+            "started_at = excluded.started_at, "
+            "published_at = excluded.published_at, "
+            "superseded_at = excluded.superseded_at, "
+            "attrs_json = excluded.attrs_json",
             (generation_id, 1, "seed", "active", source_commit, now, now, "", "{}"),
         )
     return generation_id
