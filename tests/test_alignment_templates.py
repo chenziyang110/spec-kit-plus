@@ -1823,6 +1823,9 @@ def test_tasks_template_requires_analyze_compatible_self_audit_and_remediation_m
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
+    assert "default_handoff: '/sp.analyze for normal completed or non-escalated task generation" in content
+    assert "/sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth" in content
+    assert "send: false" in content
     assert "Analyze-Compatible Task Self-Audit" in content
     assert "buildable `FR-*`" in content
     assert "locked planning decision" in lowered

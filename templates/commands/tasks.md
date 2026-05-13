@@ -4,12 +4,12 @@ workflow_contract:
   when_to_use: Planning artifacts already exist and the remaining gap is concrete execution slicing rather than more design work.
   primary_objective: Produce `tasks.md` with dependency ordering, guardrail carry-forward, execution batches, and join points.
   primary_outputs: '`FEATURE_DIR/tasks.md` and the task decomposition metadata needed for later analysis and implementation.'
-  default_handoff: '/sp.analyze for cross-artifact drift checks; only continue to /sp.implement after analyze clears upstream drift.'
-handoffs: 
+  default_handoff: '/sp.analyze for normal completed or non-escalated task generation; /sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth; only continue to /sp.implement after analyze clears upstream drift.'
+handoffs:
   - label: Analyze For Consistency
     agent: sp.analyze
     prompt: Run a project analysis for consistency
-    send: true
+    send: false
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json
   ps: scripts/powershell/check-prerequisites.ps1 -Json
