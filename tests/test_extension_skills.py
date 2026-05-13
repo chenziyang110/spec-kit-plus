@@ -619,11 +619,14 @@ class TestBuiltInSkillGeneration:
         assert ".planning/learnings/candidates.md" not in checklist_lower or "compatibility" in checklist_lower
         assert "specify learning start --command checklist --format json" in checklist_lower
         assert "specify learning capture --command checklist" in checklist_lower
-        assert ".specify/project-cognition/status.json" in checklist_lower
-        assert ".specify/project-cognition/slices/change.json" in checklist_lower
+        assert "project-cognition query --intent plan" in checklist_lower
+        assert "task-local bundle" in checklist_lower
+        assert "minimal_live_reads" in checklist_lower
+        assert ".specify/project-cognition/slices/change.json" not in checklist_lower
         assert "build-handbook.md" not in checklist_lower
-        assert "project cognition runtime cannot tell you the touched area's owning surfaces" in checklist_lower
-        assert "run `{{invoke:map-update}}`" in checklist_body or "run `/sp-map-update`" in checklist_body
+        assert "touched area's owning surfaces" in checklist_lower
+        assert "recommended_next_action" in checklist_lower
+        assert "`needs_update`: route through `{{invoke:map-update}}`" in checklist_body or "`needs_update`: route through `/sp-map-update`" in checklist_body
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
         assert "recommend `/sp-plan`" in checklist_lower
         assert "recommend `/sp-analyze`" in checklist_lower
