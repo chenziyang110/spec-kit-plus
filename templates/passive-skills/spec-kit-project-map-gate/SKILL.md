@@ -23,6 +23,10 @@ judgment in an established Spec Kit Plus repository:
 
 - Use `specify project-cognition query` to retrieve the task-local project
   cognition bundle. Treat raw graph JSON artifacts as obsolete runtime surfaces.
+- For `sp-discussion`, product framing may begin before the cognition gate. Before
+  technical options, affected-surface claims, source-code reads, or
+  source-grounded recommendations, use `specify project-cognition query` to
+  retrieve the task-local project cognition bundle.
 - Treat the project cognition runtime as the cross-project cognition reference:
   explicit-only, supplemental-only, fresh-only, and minimal read before broader
   live-code inspection.

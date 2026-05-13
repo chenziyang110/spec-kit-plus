@@ -325,6 +325,110 @@ def test_project_learning_skill_documents_direct_learning_helpers_not_hook_gates
     assert "Do NOT" in content
 
 
+def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
+    content = _read_project_file("templates/commands/discussion.md")
+    lowered = content.lower()
+
+    assert "sp-discussion" in content
+    assert "senior technical expert" in lowered
+    assert "senior product manager" in lowered
+    assert ".specify/discussions/<slug>/" in content
+    assert "discussion-state.md" in content
+    assert "discussion-log.md" in content
+    assert "requirements.md" in content
+    assert "technical-options.md" in content
+    assert "project-context.md" in content
+    assert "open-questions.md" in content
+    assert "handoff-to-specify.md" in content
+    assert "active | blocked | handoff-ready | completed | abandoned" in content
+    assert "multiple incomplete discussions" in lowered
+    assert "updated_at" in content
+    assert "do not create feature branches" in lowered
+    assert "do not edit source code" in lowered
+    assert "do not edit tests" in lowered
+    assert "do not automatically run" in lowered
+    assert "explicit user" in lowered
+    assert "{{spec-kit-include: ../command-partials/discussion/shell.md}}" in content
+
+
+def test_discussion_staged_cognition_gate_and_technical_options_contract() -> None:
+    content = _read("templates/commands/discussion.md")
+    lowered = content.lower()
+
+    assert "product framing may begin before project cognition" in lowered
+    assert "forbidden before the cognition gate" in lowered
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/slices/change.json" in content
+    assert "clearly greenfield" in lowered
+    assert "source-code reads" in lowered
+    assert "technical options board" in lowered
+    assert "minimal viable path" in lowered
+    assert "architecture-correct path" in lowered
+    assert "expansion-ready path" in lowered
+    assert "2-3" in content
+
+
+def test_discussion_state_template_is_independent_from_feature_workflow_state() -> None:
+    content = _read("templates/discussion-state-template.md")
+    workflow_state = _read("templates/workflow-state-template.md")
+    hook_state = _read_project_file("src/specify_cli/hooks/state_validation.py")
+    start = hook_state.index("EXPECTED_WORKFLOW_STATE = {")
+    end = hook_state.index("}\n\n\ndef validate_state_hook", start) + 1
+    expected_workflow_state = hook_state[start:end]
+
+    assert "state_surface: discussion-state" in content
+    assert "active_command: sp-discussion" in content
+    assert "phase_mode: discussion-only" in content
+    assert "status: active | blocked | handoff-ready | completed | abandoned" in content
+    assert "updated_at:" in content
+    assert "## Allowed Artifact Writes" in content
+    assert "discussion-state.md" in content
+    assert "handoff-to-specify.md" in content
+    assert "sp-discussion" not in workflow_state
+    assert '"discussion"' not in expected_workflow_state
+    assert "sp-discussion" not in expected_workflow_state
+
+
+def test_specify_consumes_explicit_discussion_handoff_without_bypassing_kernel() -> None:
+    content = _read("templates/commands/specify.md")
+    lowered = content.lower()
+
+    assert ".specify/discussions/<slug>/handoff-to-specify.md" in content
+    assert "pasted discussion handoff" in lowered
+    assert "entry_source: sp-discussion" in content
+    assert "authoritative input" in lowered
+    assert "not a bypass" in lowered
+    assert "confirmed requirements" in lowered
+    assert "open questions" in lowered
+    assert "blocking_level" in content
+    assert "references.md" in content
+    assert "reopen reason" in lowered
+
+
+def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    lowered = content.lower()
+
+    assert "sp-discussion" in content
+    assert "rough idea" in lowered
+    assert "not-yet-ready" in lowered
+    assert "pre-spec" in lowered or "before formal specification" in lowered
+    assert "explicit handoff" in lowered
+    assert "{{invoke:discussion}}" in content
+    assert "{{invoke:specify}}" in content
+
+
+def test_project_map_gate_has_staged_discussion_gate() -> None:
+    content = _read("templates/passive-skills/spec-kit-project-map-gate/SKILL.md")
+    lowered = content.lower()
+
+    assert "sp-discussion" in content
+    assert "product framing" in lowered
+    assert "before the cognition gate" in lowered
+    assert "technical options" in lowered
+    assert ".specify/project-cognition/slices/change.json" in content
+
+
 def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()
@@ -1655,6 +1759,11 @@ def test_implement_template_supports_capability_aware_parallel_batches():
     assert "If any required packet field is missing, do not dispatch and do not execute inline." in content
     assert "The only legal action is to repair the packet or stop as `subagent-blocked`." in content
     assert "Dispatch failure is not permission to continue locally." in content
+    assert "Do not persist native subagent dispatch failures" in content
+    assert "runtime-surface failure metadata" in lowered
+    assert "without writing a durable fallback decision to `implement-tracker.md`" in content
+    assert "dispatch fallback" not in lowered
+    assert "actual_surface: leader-inline" not in lowered
     assert "delegation_confidence" not in lowered
     assert "enough context" not in lowered
     assert "low-context" not in lowered

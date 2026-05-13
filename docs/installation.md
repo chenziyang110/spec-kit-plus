@@ -115,6 +115,12 @@ compiles from the scan package without a second repository scan. It remains a
 peer workflow path to `specify` and does not automatically hand off to `plan`.
 `prd` remains a deprecated compatibility entrypoint only.
 
+Use the canonical `discussion` workflow for rough ideas that need resumable
+product and technical exploration before formal specification with `specify`. It stores
+`.specify/discussions/<slug>/` artifacts and only creates
+`handoff-to-specify.md` when the user explicitly asks to hand off; it does not
+automatically invoke `specify`.
+
 The `.specify/scripts` directory will contain both `.sh` and `.ps1` scripts.
 
 ## Troubleshooting

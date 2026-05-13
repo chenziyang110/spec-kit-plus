@@ -416,6 +416,7 @@ until the cognition gate has passed.
    - Do not classify lane readiness by judgment alone. A lane is incomplete only when one or more required packet fields or required references are missing.
    - If subagent dispatch is unavailable for the current batch, the only legal action is `subagent-blocked`.
    - Dispatch failure is not permission to continue locally.
+   - Do not persist native subagent dispatch failures, durable inline fallback labels, or runtime-surface failure metadata in `implement-tracker.md`; report that current runtime event in the response, stop the batch, and re-evaluate dispatch capability on the next run.
    - Resume only after the blocking runtime or packet condition is explicitly repaired.
    - Re-evaluate subagent dispatch at every new parallel batch or join point instead of choosing once for the whole feature
    - When `parallel-subagents` is selected, choose the current selected wave from the ready batch and dispatch at most four validated isolated lanes.
@@ -449,7 +450,7 @@ until the cognition gate has passed.
    - **Capability-aware execution**: After selecting dispatch, execute the current ready batch through `one-subagent`, `parallel-subagents`, or `parallel-subagents` when selected by policy; otherwise record `subagent-blocked` while preserving join-point semantics.
    - **Wave discipline**: For `parallel-subagents`, the current wave is not complete until every selected lane has returned a structured handoff or has been explicitly classified as blocked, stale, or deferred.
    - **Wave progression**: After each wave, consume and validate every structured handoff, update execution state, then decide whether the next wave may launch.
-   - Once a batch clears the subagent-readiness bar, do not stop to ask the user whether it should switch to subagent execution; dispatch by default, and if dispatch concretely fails, record `subagent-blocked` with the blocker and stop for escalation or recovery.
+   - Once a batch clears the subagent-readiness bar, do not stop to ask the user whether it should switch to subagent execution; dispatch by default, and if native dispatch concretely fails, report the runtime failure in the response and stop without writing a durable fallback decision to `implement-tracker.md`.
     - Runtime-visible state should reflect join points, retry-pending work, and blockers rather than hiding those transitions behind chat-only narration.
     - After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.
     - Do not stop after a single completed batch just because one subagent, assignee, or lane has gone idle; if ready work still exists for the milestone, keep selecting the next batch and continue.

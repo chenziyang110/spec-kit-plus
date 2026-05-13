@@ -280,6 +280,11 @@ class IntegrationBase(ABC):
                 "capability split confirmation",
                 "current-understanding confirmation before `Aligned: ready for plan`",
             ],
+            "discussion": [
+                "one high-impact product or technical clarification",
+                "resume selection when multiple incomplete discussions exist",
+                "explicit handoff confirmation before writing `handoff-to-specify.md`",
+            ],
             "clarify": [
                 "high-impact gap confirmation",
                 "scope or constraint confirmation when enhancement changes planning readiness",
@@ -307,6 +312,7 @@ class IntegrationBase(ABC):
     def _question_tool_fallback_hint(self, command_name: str) -> str:
         fallback_hints = {
             "specify": "If the native tool is unavailable in the current runtime or the tool call fails, fall back to the shared open question block structure already defined in this template.",
+            "discussion": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text product or technical question and continue with the discussion state update.",
             "clarify": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
             "deep-research": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text question about the missing feasibility or research-track decision, then continue with the existing research workflow.",
             "checklist": "If the native tool is unavailable in the current runtime or the tool call fails, keep the template's existing `Q1`/`Q2`/`Q3` (and optional `Q4`/`Q5`) textual question format.",
@@ -325,7 +331,7 @@ class IntegrationBase(ABC):
         agent_name: str,
         command_name: str,
     ) -> str:
-        question_driven_commands = {"specify", "clarify", "deep-research", "checklist", "quick", "debug"}
+        question_driven_commands = {"specify", "discussion", "clarify", "deep-research", "checklist", "quick", "debug"}
         if command_name not in question_driven_commands:
             return content
 
@@ -1905,7 +1911,7 @@ class SkillsIntegration(IntegrationBase):
                 "- If subagent dispatch is unavailable or the packet is incomplete for the current selected wave or ready batch context, use `subagent-blocked`, record the blocker, and preserve the same join-point discipline.\n"
                 "- Re-check the strategy after every join point instead of assuming the first choice still applies.\n"
                 "- The leader dispatches subagents rather than executing the implementation itself when the batch is ready for subagent work.\n"
-                "- Once one safe lane clears the subagent-readiness bar, do **not** ask the user whether it should switch to subagent execution; dispatch the subagent by default and only discuss fallback after dispatch concretely fails.\n"
+                "- Once one safe lane clears the subagent-readiness bar, do **not** ask the user whether it should switch to subagent execution; dispatch the subagent by default, and if native dispatch concretely fails, report that runtime event in the response and stop without writing a durable fallback decision to `implement-tracker.md`.\n"
                 "- After each completed batch, the leader re-evaluates milestone state, selects the next executable phase and ready batch in roadmap order, and continues automatically until the milestone is complete or blocked.\n"
             )
             content += addendum

@@ -11,6 +11,18 @@ from typer.testing import CliRunner
 from specify_cli import app
 
 
+def test_top_level_cli_exposes_discussion_entrypoint():
+    runner = CliRunner()
+    root_help = runner.invoke(app, ["--help"], catch_exceptions=False)
+    discussion_help = runner.invoke(app, ["discussion", "--help"], catch_exceptions=False)
+
+    assert root_help.exit_code == 0, root_help.output
+    assert discussion_help.exit_code == 0, discussion_help.output
+    assert "discussion" in root_help.output
+    assert "resumable product/technical" in discussion_help.output.lower()
+    assert "discussion before formal specification" in discussion_help.output.lower()
+
+
 class TestInitIntegrationFlag:
     @staticmethod
     def _frontmatter(skill_path):
@@ -176,6 +188,7 @@ class TestInitIntegrationFlag:
         assert result.exit_code == 0, result.output
 
         skills_dir = project / ".claude" / "skills"
+        assert (skills_dir / "sp-discussion" / "SKILL.md").exists()
         for skill_name in ("sp-specify", "sp-plan", "sp-test-scan", "sp-test-build", "sp-tasks", "sp-explain", "sp-debug"):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "execution_model: subagent-mandatory" in content
@@ -617,6 +630,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "Codex-only runtime" in result.output
         assert "$sp-constitution" in result.output
         assert "$sp-specify" in result.output
+        assert "$sp-discussion" in result.output
         assert "$sp-plan" in result.output
         assert "$sp-tasks" in result.output
         assert "$sp-implement" in result.output
@@ -685,6 +699,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "Support skills" in result.output
         assert "/sp-constitution" in result.output
         assert "/sp-specify" in result.output
+        assert "/sp-discussion" in result.output
         assert "/sp-plan" in result.output
         assert "/sp-tasks" in result.output
         assert "/sp-implement" in result.output
@@ -833,6 +848,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
 
         skills_dir = project / ".codex" / "skills"
 
+        assert (skills_dir / "sp-discussion" / "SKILL.md").exists()
         assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
         assert (skills_dir / "sp-deep-research" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()

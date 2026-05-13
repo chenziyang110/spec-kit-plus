@@ -60,6 +60,22 @@ def _assert_downstream_testing_control_plane(command_content: str) -> None:
     assert "covered-module status values and the minimum evidence required" in command_lower
 
 
+def _assert_discussion_contract(command_content: str) -> None:
+    command_lower = command_content.lower()
+
+    assert "sp-discussion" in command_content
+    assert ".specify/discussions/<slug>/" in command_content
+    assert "discussion-state.md" in command_content
+    assert "handoff-to-specify.md" in command_content
+    assert (
+        "explicit user" in command_lower
+        or "user explicitly" in command_lower
+        or "explicit-user-request" in command_lower
+    )
+    assert "senior technical expert" in command_lower
+    assert "senior product manager" in command_lower
+
+
 class MarkdownIntegrationTests:
     """Mixin — set class-level constants and inherit these tests.
 
@@ -210,6 +226,15 @@ class MarkdownIntegrationTests:
         assert "closeout" in content or "close out" in content
         assert "do not fold this workflow into `sp-implement`" in content
 
+    def test_discussion_command_preserves_pre_specification_contract(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        discussion_path = i.commands_dest(tmp_path) / i.command_filename("discussion")
+        assert discussion_path.exists()
+        _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+
     def test_runtime_commands_hard_gate_project_cognition_reads(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
@@ -304,7 +329,12 @@ class MarkdownIntegrationTests:
             content = (i.commands_dest(tmp_path) / f"sp.{name}.md").read_text(encoding="utf-8").lower()
             assert "subagent dispatch contract" in content
             assert "subagent dispatch" in content
-            assert "fallback path" in content
+            if name == "implement":
+                assert "durable fallback decision" in content
+                assert "dispatch fallback" not in content
+                assert "actual_surface: leader-inline" not in content
+            else:
+                assert "fallback path" in content
             assert "subagent result contract" in content
             assert "result handoff path" in content
             assert "reported_status" in content
@@ -340,7 +370,7 @@ class MarkdownIntegrationTests:
         i.setup(tmp_path, m)
         agent_name = i.config["name"].replace(" CLI", "").lower()
 
-        for name in ("specify", "clarify", "deep-research", "checklist", "quick", "debug"):
+        for name in ("specify", "discussion", "clarify", "deep-research", "checklist", "quick", "debug"):
             content = (i.commands_dest(tmp_path) / f"sp.{name}.md").read_text(encoding="utf-8").lower()
             assert f"## {agent_name} structured question preference" in content
             assert "native structured question tool" in content
@@ -357,6 +387,7 @@ class MarkdownIntegrationTests:
                 or "plain-text clarification" in content
                 or "missing-information question" in content
                 or "research-track decision" in content
+                or "one high-impact question" in content
             )
             assert "active question exactly once" in content
 
