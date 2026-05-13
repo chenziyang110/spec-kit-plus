@@ -1009,7 +1009,10 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "Closed-loop requirement" in content
     assert "complete blocker bundle" in lowered
     assert "Blocker Bundle" in content
-    assert "finish the full detection matrix before selecting the single recommended next command" in lowered
+    assert "Limit the visible findings table to 50 rows for readability" in content
+    assert "`Blocker Bundle` and `workflow-state.md` MUST enumerate every blocking finding" in content
+    assert "Do not place blocking findings only in overflow summaries" in content
+    assert "complete the full detection matrix before selecting the single `recommended next command`" in lowered
     assert "Stable Finding Identity" in content
     assert "fingerprint-first" in lowered
     assert "reuse the prior ID" in content
@@ -1019,6 +1022,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "introduced_by_remediation" in content
     assert "upstream_artifact_changed" in content
     assert "detector_scope_changed" in content
+    assert "Persist attribution per new blocking finding in the `Analyze Gate` `blocker_bundle`" in content
     assert "No more than one task-layer remediation cycle is expected" in content
     assert "Do not treat repeated task/analyze loops as normal workflow" in content
     assert "Recommended Next Command" in content
@@ -1034,7 +1038,9 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "gate_cycle" in content
     assert "highest_invalid_stage" in content
     assert "blocker_bundle" in content
+    assert "`blocker_bundle: [finding ID | invalid stage | status | attribution | compact summary | remediation requirement]`" in content
     assert "artifact_fingerprint_basis" in content
+    assert "record its attribution on that `blocker_bundle` row" in content
     assert "If the remaining issue is execution-only, the re-entry chain MUST begin at `{{invoke:implement}}` or `{{invoke:debug}}`." in content
     assert "exact workflow re-entry path" in content
 
@@ -1064,11 +1070,14 @@ def test_workflow_state_template_supports_analyze_gate_phase():
     assert "gate_cycle" in content
     assert "highest_invalid_stage" in content
     assert "blocker_bundle" in content
+    assert "[finding-id | invalid-stage | open | attribution | compact summary | remediation requirement]" in content
+    assert "blocker_attribution_values" in content
     assert "artifact_fingerprint_basis" in content
     assert "missed_by_previous_analyze" in content
     assert "introduced_by_remediation" in content
     assert "upstream_artifact_changed" in content
     assert "detector_scope_changed" in content
+    assert "new_finding_attribution" not in content
     assert "/sp.constitution" not in content
 
 

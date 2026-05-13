@@ -40,7 +40,6 @@ Preserve canonical `/sp.implement` only in workflow-state fields.
 When recommending manual implementation resumption to the user, tell them to run `{{invoke:implement}}`.
 
 **Convergence requirement**: Complete the full detection matrix before selecting the single `Recommended Next Command`. Do not stop analysis after finding enough evidence to route backward. The report must include the complete blocker bundle for the current artifact set, grouped by invalid stage, so downstream remediation does not discover same-artifact blockers one cycle at a time.
-Agents must finish the full detection matrix before selecting the single recommended next command.
 
 **Constitution Authority**: The project constitution (`.specify/memory/constitution.md`) is **non-negotiable** within this analysis scope. Constitution conflicts are automatically CRITICAL and require adjustment of the spec, plan, or tasks—not dilution, reinterpretation, or silent ignoring of the principle. If a principle itself needs to change, that must occur in a separate, explicit constitution update outside `/sp.analyze`.
 
@@ -76,6 +75,7 @@ Agents must finish the full detection matrix before selecting the single recomme
   - `upstream_artifact_changed`: an authoritative input changed since the prior analyze pass.
   - `detector_scope_changed`: the workflow template or analysis instructions changed the detector scope between runs.
 - If there is no evidence for `introduced_by_remediation`, `upstream_artifact_changed`, or `detector_scope_changed`, use `missed_by_previous_analyze`.
+- Persist attribution per new blocking finding in the `Analyze Gate` `blocker_bundle`; report-body attribution without durable blocker-row attribution is not sufficient for revalidation.
 - No more than one task-layer remediation cycle is expected. If revalidation finds new task-layer blockers that were detectable before remediation, classify them as a previous analyze miss or a tasks self-audit failure. Do not treat repeated task/analyze loops as normal workflow.
 
 ## Workflow Quality Requirements
@@ -189,7 +189,7 @@ Create internal representations (do not include raw artifacts in output):
 
 ### 5. Detection Passes (Token-Efficient Analysis)
 
-Focus on high-signal findings. Limit to 50 findings total; aggregate remainder in overflow summary.
+Focus on high-signal findings in the report body. Limit the visible findings table to 50 rows for readability, but do not omit blockers from the durable gate result: `Blocker Bundle` and `workflow-state.md` MUST enumerate every blocking finding. Overflow summaries may cover only non-blocking findings.
 
 #### A. Duplication Detection
 
@@ -283,6 +283,8 @@ Output a Markdown report (no file writes) with the following structure:
 
 **Blocker Bundle:**
 
+The `Blocker Bundle` MUST enumerate every blocking finding even when the visible findings table is capped at 50 rows. Do not place blocking findings only in overflow summaries.
+
 | Invalid Stage | Blocking Finding IDs | Required Re-entry | Notes |
 |---------------|----------------------|-------------------|-------|
 | clarify | [IDs or none] | `{{invoke:clarify}}` | Reopen spec/context truth, then regenerate downstream artifacts |
@@ -358,10 +360,10 @@ Always update or preserve the `Analyze Gate` section in `WORKFLOW_STATE_FILE` wi
 - `gate_status: cleared | blocked`
 - `gate_cycle: [integer]`
 - `highest_invalid_stage: clarify | deep-research | plan | tasks | execution-only | none`
-- `blocker_bundle: [finding ID | invalid stage | status | compact summary]`
+- `blocker_bundle: [finding ID | invalid stage | status | attribution | compact summary | remediation requirement]`
 - `artifact_fingerprint_basis: [spec.md/context.md/plan.md/tasks.md summaries or hashes when available]`
 
-When revalidation finds a new blocker, record its attribution in the blocker bundle or report body using `missed_by_previous_analyze`, `introduced_by_remediation`, `upstream_artifact_changed`, or `detector_scope_changed`.
+When revalidation finds a new blocker, record its attribution on that `blocker_bundle` row using `missed_by_previous_analyze`, `introduced_by_remediation`, `upstream_artifact_changed`, or `detector_scope_changed`.
 
 - When no upstream remediation is required, record the analyze gate as cleared and hand off to implementation.
 - If no upstream remediation is required:

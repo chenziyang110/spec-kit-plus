@@ -43,13 +43,13 @@
 - gate_cycle: [0]
 - highest_invalid_stage: [none | clarify | deep-research | plan | tasks | execution-only]
 - blocker_bundle:
-  - [finding-id | invalid-stage | open | compact summary and remediation requirement]
+  - [finding-id | invalid-stage | open | attribution | compact summary | remediation requirement]
+- blocker_attribution_values: [none | missed_by_previous_analyze | introduced_by_remediation | upstream_artifact_changed | detector_scope_changed]
 - artifact_fingerprint_basis:
   - spec.md: [summary or hash when available]
   - context.md: [summary or hash when available]
   - plan.md: [summary or hash when available]
   - tasks.md: [summary or hash when available]
-- new_finding_attribution: [none | missed_by_previous_analyze | introduced_by_remediation | upstream_artifact_changed | detector_scope_changed]
 
 ## Handoff Files
 
