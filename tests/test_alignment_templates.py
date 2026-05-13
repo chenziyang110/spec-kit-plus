@@ -1819,6 +1819,26 @@ def test_tasks_template_fail_closes_into_analyze_before_implement():
     assert "do not hand off directly to `{{invoke:implement}}` from `sp-tasks`" in lowered
 
 
+def test_tasks_template_requires_analyze_compatible_self_audit_and_remediation_mode():
+    content = _read("templates/commands/tasks.md")
+    lowered = content.lower()
+
+    assert "Analyze-Compatible Task Self-Audit" in content
+    assert "buildable `FR-*`" in content
+    assert "locked planning decision" in lowered
+    assert "Implementation Constitution" in content
+    assert "Task Guardrail Index" in content
+    assert "DP1" in content
+    assert "DP2" in content
+    assert "DP3" in content
+    assert "Analyze Remediation Mapping" in content
+    assert "resolved | deferred | not_applicable | escalated" in content
+    assert "Escalation is terminal for the current `sp-tasks` run" in content
+    assert "sets `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
+    assert "No more than one task-layer remediation cycle is expected" in content
+    assert "Do not treat repeated task/analyze loops as normal workflow" in content
+
+
 def test_implement_template_honors_pending_analyze_gate_from_workflow_state():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()

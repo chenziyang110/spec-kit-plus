@@ -56,6 +56,9 @@ scripts:
   - `forbidden_actions: edit source code, edit tests, implement behavior, start execution from task-generation artifacts`
 - Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution.
 - Implementation remains blocked until `{{invoke:analyze}}` confirms the current task package does not need upstream regeneration.
+- If `WORKFLOW_STATE_FILE` records a blocked `sp-analyze` gate with `next_command: /sp.tasks`, enter remediation mode before regenerating `tasks.md`.
+- In remediation mode, read the prior `Analyze Gate` blocker bundle first. Do not start from a blank task-generation pass.
+- No more than one task-layer remediation cycle is expected. If repeated `sp-tasks -> sp-analyze` loops occur for blockers that were detectable before remediation, treat that as a previous analyze miss or a tasks self-audit failure. Do not treat repeated task/analyze loops as normal workflow.
 - Do not hand off directly to `{{invoke:implement}}` from `sp-tasks`; the analyze gate is mandatory unless the user is explicitly resuming a previously cleared execution state.
 - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
 
@@ -151,6 +154,12 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
     - Keep `sp-tasks` aligned with the persisted first-release profile contract: `active_profile` must be one of the two supported profiles, `Standard Delivery` or `Reference-Implementation`.
     - If `workflow-state.md` presents an unsupported `active_profile` during first release, `sp-tasks` stops before decomposition and tells the operator to repair/re-run upstream routing state before task generation continues.
     - Treat `Scenario profile inputs` as task-shaping inputs: active profile, routing reason, activated gates, fidelity obligations, deviation review requirements, and required evidence.
+    - **Analyze remediation mode**: If `workflow-state.md` contains an open `Analyze Gate` blocker bundle for `sp-tasks`, map each task-layer finding to exactly one disposition: `resolved | deferred | not_applicable | escalated`.
+    - `resolved`: fix the issue in this task pass and name the task, guardrail, checkpoint, packet field, or section evidence.
+    - `deferred`: keep the issue explicit with the downstream condition that must clear it.
+    - `not_applicable`: state why the prior finding no longer applies and cite the artifact evidence.
+    - `escalated`: stop task generation for the current pass because the missing truth belongs to `plan`, `clarify`, or `deep-research`.
+    - Escalation is terminal for the current `sp-tasks` run. If required upstream truth is missing, write the escalation evidence into `workflow-state.md` and set `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`. This sets `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` instead of sending the user back through `/sp.analyze` first.
     - Load plan.md and extract tech stack, libraries, project structure
     - Extract `Locked Planning Decisions`, `Implementation Constitution`, `Canonical References`, `Input Risks From Alignment`, and `Decision Preservation Check` from plan.md when present
     - If `Reference Fidelity Inputs` or `Reference Behavior Inventory` exist, map every preserved or redesigned reference behavior to at least one task, checkpoint, join point, or explicit deferred note before `tasks.md` is finalized.
@@ -197,6 +206,17 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
     - Add explicit join points after every parallel batch so downstream tasks know where synchronization happens
     - For every explicit join point, include a validation target, a validation command or concrete manual check, and a pass condition
     - Create parallel execution examples per user story
+    - **Analyze-Compatible Task Self-Audit**: Before finalizing `tasks.md`, run the task-layer subset of the `sp-analyze` checks against the generated task package.
+    - Confirm every buildable `FR-*` and buildable success criterion has at least one task, checkpoint, or explicit deferred note.
+    - Confirm every locked planning decision that affects implementation, compatibility, rollout, validation, sequencing, architecture shape, or guardrails appears in `tasks.md`.
+    - Confirm `Implementation Constitution` rules from `plan.md` are preserved through a guardrail phase, `Task Guardrail Index`, task notes, or explicit escalation.
+    - Confirm the `Task Guardrail Index` maps applicable guardrails to concrete implementation tasks.
+    - Confirm each `[P]` task or explicit parallel batch has objective, write set, required references, forbidden drift, validation command, and done condition.
+    - Confirm task packet readiness covers `DP1`, `DP2`, and `DP3` as far as task generation can determine before implementation.
+    - Confirm reference fidelity behavior items map to task IDs, checkpoints, join points, or explicit deferred notes.
+    - Confirm unmapped tasks are justified as setup, polish, verification, or cross-cutting work, or remove them.
+    - Confirm task dependencies and parallel batches do not contain obvious write-set conflicts.
+    - If the self-audit finds task-layer defects, repair them before completing `sp-tasks`. If the defect requires missing upstream truth, escalate instead of producing speculative tasks.
     - Validate task completeness (each user story has all needed tasks, independently testable)
     - Validate decision preservation: if a locked planning decision or implementation constitution rule affects implementation, compatibility, rollout, validation, sequencing, or architecture shape, at least one task or phase note must preserve it explicitly instead of silently dropping it
     - Validate reference behavior preservation: if a preserved or redesigned reference behavior exists in the spec/plan package, at least one task, checkpoint, or explicit deferred note must account for it before task generation can complete
@@ -219,6 +239,7 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
    - Fidelity checkpoints before `Reference-Implementation` batches that can materially change the reference-preserved surface
    - Deviation Review join points before downstream work continues when an implementation may intentionally diverge from the reference contract
    - Task completion criteria that carry required evidence from the active profile instead of relying only on generic behavior validation
+   - Analyze Remediation Mapping section when regenerating tasks after a blocked `sp-analyze` gate
    - Parallel execution examples per story
     - Planning inputs section showing locked decisions, carried risks, and required validation references when they materially shape execution
     - Planning inputs section showing implementation constitution rules when they materially shape execution
@@ -236,6 +257,21 @@ Task generation may stay focused on the plan artifacts afterward, but it may not
     - Confirm first-release profile scope stayed within the two supported profiles: `Standard Delivery` and `Reference-Implementation`
     - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
     - workflow-state path
+    - Analyze remediation summary when remediation mode is active:
+      - handled previous analyze findings count
+      - resolved count
+      - deferred count
+      - not_applicable count
+      - escalated count
+      - evidence sections or task IDs for resolved findings
+    - Analyze-Compatible Task Self-Audit result:
+      - coverage mapping status
+      - locked decision preservation status
+      - guardrail mapping status
+      - DP1/DP2/DP3 packet-readiness status
+      - reference fidelity mapping status
+      - unmapped task status
+      - write-set conflict status
     - Recommended next command: `{{invoke:analyze}}`
     - If the decomposition exposes new shared surfaces, workflow joins, or validation entry points not yet in the project cognition runtime, treat git-baseline freshness in `.specify/project-map/index/status.json` as the truth source; if a full refresh can be completed now, run `/sp-map-scan` followed by `/sp-map-build` and `specify project-map complete-refresh` as the successful-refresh finalizer, otherwise use `specify project-map mark-dirty --reason "<reason>"` as the manual override/fallback before later brownfield implementation proceeds.
    - before final completion text, write or update `WORKFLOW_STATE_FILE` so it records:
