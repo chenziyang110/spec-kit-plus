@@ -46,6 +46,13 @@ def _coerce_string_list(value: object) -> list[str]:
     return [str(item) for item in value]
 
 
+def _coerce_int(value: object, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def write_cognition_status(project_root: Path, status: CognitionStatus) -> Path:
     path = cognition_status_path(project_root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,8 +78,8 @@ def read_cognition_status(project_root: Path) -> CognitionStatus:
         graph_ready=raw_graph_ready if isinstance(raw_graph_ready, bool) else False,
         graph_store_path=str(payload.get("graph_store_path", "")),
         active_generation_id=str(payload.get("active_generation_id", "")),
-        query_contract_version=int(payload.get("query_contract_version", 0)),
-        update_contract_version=int(payload.get("update_contract_version", 0)),
+        query_contract_version=_coerce_int(payload.get("query_contract_version", 0)),
+        update_contract_version=_coerce_int(payload.get("update_contract_version", 0)),
         stale_paths=_coerce_string_list(payload.get("stale_paths", [])),
         stale_reasons=_coerce_string_list(payload.get("stale_reasons", [])),
         freshness=str(payload.get("freshness", "")),

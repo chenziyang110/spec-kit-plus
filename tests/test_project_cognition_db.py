@@ -5,6 +5,7 @@ from pathlib import Path
 from specify_cli.cognition import (
     CognitionStatus,
     cognition_db_path,
+    cognition_status_path,
     connect_cognition_db,
     ensure_cognition_db,
     get_active_generation_id,
@@ -121,3 +122,17 @@ def test_cognition_status_round_trips_database_runtime_fields(tmp_path: Path) ->
     assert status.active_generation_id == "GEN-0001"
     assert status.query_contract_version == 1
     assert status.update_contract_version == 1
+
+
+def test_cognition_status_tolerates_malformed_database_contract_versions(tmp_path: Path) -> None:
+    path = cognition_status_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        '{"query_contract_version": "unknown", "update_contract_version": {}}\n',
+        encoding="utf-8",
+    )
+
+    status = read_cognition_status(tmp_path)
+
+    assert status.query_contract_version == 0
+    assert status.update_contract_version == 0
