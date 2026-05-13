@@ -31,8 +31,8 @@ def apply_cognition_update(
 
     normalized_paths = _normalize_paths(changed_paths)
     with cognition_transaction(project_root) as conn:
-        affected_nodes = _affected_nodes_for_paths(conn, generation_id, normalized_paths)
-        if not affected_nodes:
+        affected_nodes, missing_paths = _resolve_path_coverage(conn, generation_id, normalized_paths)
+        if missing_paths:
             conn.rollback()
             return {
                 "readiness": "needs_update",
@@ -40,7 +40,7 @@ def apply_cognition_update(
                 "changed_paths": normalized_paths,
                 "affected_nodes": [],
                 "missing_coverage": [
-                    f"path not covered by project cognition index: {path}" for path in normalized_paths
+                    f"path not covered by project cognition index: {path}" for path in missing_paths
                 ],
             }
 
@@ -78,12 +78,16 @@ def _normalize_paths(paths: list[str]) -> list[str]:
     return [path.replace("\\", "/") for path in paths]
 
 
-def _affected_nodes_for_paths(conn: Any, generation_id: str, paths: list[str]) -> list[str]:
-    if not paths:
-        return []
-    placeholders = ",".join("?" for _ in paths)
-    rows = conn.execute(
-        f"SELECT DISTINCT node_id FROM path_index WHERE generation_id = ? AND path IN ({placeholders})",
-        (generation_id, *paths),
-    ).fetchall()
-    return sorted(str(row["node_id"]) for row in rows)
+def _resolve_path_coverage(conn: Any, generation_id: str, paths: list[str]) -> tuple[list[str], list[str]]:
+    affected_nodes: set[str] = set()
+    missing_paths: list[str] = []
+    for path in paths:
+        rows = conn.execute(
+            "SELECT node_id FROM path_index WHERE generation_id = ? AND path = ?",
+            (generation_id, path),
+        ).fetchall()
+        if not rows:
+            missing_paths.append(path)
+            continue
+        affected_nodes.update(str(row["node_id"]) for row in rows)
+    return sorted(affected_nodes), missing_paths

@@ -192,3 +192,39 @@ def test_apply_cognition_update_rolls_back_when_path_missing(tmp_path: Path) -> 
     with closing(connect_cognition_db(tmp_path)) as conn:
         updates = conn.execute("SELECT id FROM updates").fetchall()
     assert updates == []
+
+
+def test_apply_cognition_update_rolls_back_when_any_path_missing(tmp_path: Path) -> None:
+    ensure_cognition_db(tmp_path)
+    generation_id = seed_active_generation(tmp_path, source_commit="abc123")
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        conn.execute(
+            "INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) "
+            "VALUES ('E-update', ?, 'file', 'src/auth/login.ts', 'abc123', '1-80', 'test', 'old', '2026-05-13T00:00:00Z', '{}')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) "
+            "VALUES ('capability:auth.login', ?, 'capability', 'User login', 'strong', '{}', '2026-05-13T00:00:00Z', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.execute(
+            "INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) "
+            "VALUES ('P-update', ?, 'src/auth/login.ts', 'capability:auth.login', 'implements', 'strong', 'E-update', '2026-05-13T00:00:00Z')",
+            (generation_id,),
+        )
+        conn.commit()
+
+    result = apply_cognition_update(
+        tmp_path,
+        changed_paths=["src/auth/login.ts", "src/auth/missing.ts"],
+        reason="unit-test",
+    )
+
+    assert result["readiness"] == "needs_update"
+    assert result["recommended_next_action"] == "run_map_update"
+    assert result["affected_nodes"] == []
+    assert result["missing_coverage"] == ["path not covered by project cognition index: src/auth/missing.ts"]
+    with closing(connect_cognition_db(tmp_path)) as conn:
+        updates = conn.execute("SELECT id FROM updates").fetchall()
+    assert updates == []
