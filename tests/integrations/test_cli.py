@@ -2553,6 +2553,7 @@ def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):
     project = tmp_path / "query-empty-runtime"
     project.mkdir()
     (project / ".specify").mkdir()
+    db_path = project / ".specify" / "project-cognition" / "project-cognition.db"
 
     old_cwd = os.getcwd()
     try:
@@ -2569,6 +2570,7 @@ def test_project_cognition_query_outputs_json_for_empty_runtime(tmp_path):
     payload = json.loads(result.output)
     assert payload["readiness"] == "needs_rebuild"
     assert payload["recommended_next_action"] == "run_map_scan_build"
+    assert not db_path.exists()
 
 
 def test_cognition_read_outputs_minimal_reference_read_order_without_project_map_fallback(tmp_path):

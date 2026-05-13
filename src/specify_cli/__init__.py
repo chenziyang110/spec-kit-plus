@@ -83,7 +83,7 @@ from specify_cli.codex_team.runtime_bridge import (
     submit_runtime_result,
 )
 from specify_cli.cli_output import print_json
-from specify_cli.cognition import apply_cognition_update, query_project_cognition
+from specify_cli.cognition import apply_cognition_update, cognition_db_path, query_project_cognition
 from specify_cli.execution import (
     build_result_handoff_path,
     write_normalized_result_handoff,
@@ -1719,7 +1719,21 @@ def project_cognition_query_command(
     """Return a task-local project cognition bundle from the active project's graph store."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
-    payload = query_project_cognition(project_root, intent=intent, query_text=query_text, paths=paths)
+    if cognition_db_path(project_root).exists():
+        payload = query_project_cognition(project_root, intent=intent, query_text=query_text, paths=paths)
+    else:
+        payload = {
+            "readiness": "needs_rebuild",
+            "recommended_next_action": "run_map_scan_build",
+            "intent": intent,
+            "query": query_text,
+            "capability_candidates": [],
+            "symptom_candidates": [],
+            "affected_nodes": [],
+            "minimal_live_reads": [],
+            "missing_coverage": ["project cognition database has no active generation"],
+            "subgraph": {"nodes": [], "edges": [], "claims": [], "conflicts": []},
+        }
     if output_format.lower() == "json":
         print_json(payload, indent=2)
         return
