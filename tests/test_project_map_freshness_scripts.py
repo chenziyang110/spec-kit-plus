@@ -78,6 +78,14 @@ def _run_powershell(repo: Path, *args: str) -> dict:
     return json.loads(result.stdout)
 
 
+def _project_cognition_status_path(repo: Path) -> Path:
+    return repo / ".specify" / "project-cognition" / "status.json"
+
+
+def _legacy_project_map_status_path(repo: Path) -> Path:
+    return repo / ".specify" / "project-map" / "status.json"
+
+
 def _seed_canonical_map(repo: Path) -> None:
     (repo / "PROJECT-HANDBOOK.md").write_text("# Handbook\n", encoding="utf-8")
     project_map_dir = repo / ".specify" / "project-map"
@@ -109,7 +117,7 @@ def _commit_seeded_map(repo: Path) -> None:
 
 def _seed_legacy_status(repo: Path, *, dirty: bool = True, dirty_reasons: list[str] | None = None) -> Path:
     reasons = dirty_reasons if dirty_reasons is not None else (["workflow_contract_changed"] if dirty else [])
-    status_path = repo / ".specify" / "project-map" / "status.json"
+    status_path = _legacy_project_map_status_path(repo)
     status_path.parent.mkdir(parents=True, exist_ok=True)
     status_path.write_text(
         json.dumps(
@@ -149,7 +157,7 @@ def test_bash_project_map_freshness_lifecycle(git_repo: Path):
     assert refreshed["state"] == "fresh"
     assert refreshed["readiness"] == "ready"
     assert refreshed["recommended_next_action"] == "retry_current_workflow"
-    assert refreshed["status_path"].endswith(".specify/project-map/index/status.json")
+    assert refreshed["status_path"].endswith(".specify/project-cognition/status.json")
 
     dirty = _run_bash(
         git_repo,
@@ -181,7 +189,7 @@ def test_bash_check_reads_legacy_project_map_status(git_repo: Path):
     assert result["freshness"] == "stale"
     assert result["dirty"] is True
     assert result["dirty_reasons"] == ["workflow_contract_changed"]
-    assert result["status_path"].endswith(".specify/project-map/index/status.json")
+    assert result["status_path"].endswith(".specify/project-cognition/status.json")
     assert result["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
 
 
@@ -191,8 +199,10 @@ def test_bash_mark_dirty_migrates_legacy_status_to_canonical_path(git_repo: Path
     result = _run_bash(git_repo, "mark-dirty", "shared_surface_changed")
 
     assert result["freshness"] == "stale"
-    assert (git_repo / ".specify" / "project-map" / "index" / "status.json").exists()
-    payload = json.loads((git_repo / ".specify" / "project-map" / "status.json").read_text(encoding="utf-8"))
+    assert _project_cognition_status_path(git_repo).exists()
+    assert _legacy_project_map_status_path(git_repo).exists()
+    assert not (git_repo / ".specify" / "project-map" / "index" / "status.json").exists()
+    payload = json.loads(_project_cognition_status_path(git_repo).read_text(encoding="utf-8"))
     assert payload["dirty_reasons"] == ["shared_surface_changed"]
 
 
@@ -277,7 +287,7 @@ def test_project_map_freshness_helpers_report_partial_refresh_for_stale_runtime_
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
 
-    status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
+    status_path = _project_cognition_status_path(git_repo)
     status_path.parent.mkdir(parents=True, exist_ok=True)
     status_path.write_text(
         json.dumps(
@@ -443,7 +453,7 @@ def test_powershell_check_reads_legacy_project_map_status(git_repo: Path):
     assert result["freshness"] == "stale"
     assert result["dirty"] is True
     assert result["dirty_reasons"] == ["workflow_contract_changed"]
-    assert result["status_path"].replace("\\", "/").endswith(".specify/project-map/index/status.json")
+    assert result["status_path"].replace("\\", "/").endswith(".specify/project-cognition/status.json")
     assert result["suggested_topics"] == ["ARCHITECTURE.md", "INTEGRATIONS.md", "WORKFLOWS.md", "TESTING.md"]
 
 
@@ -521,7 +531,7 @@ def test_bash_complete_refresh_uses_map_codebase_reason(git_repo: Path):
     refreshed = _run_bash(git_repo, "complete-refresh")
 
     assert refreshed["freshness"] == "fresh"
-    status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
+    status_path = _project_cognition_status_path(git_repo)
     payload = json.loads(status_path.read_text(encoding="utf-8"))
     assert payload["last_refresh_reason"] == "map-build"
     assert payload["last_refresh_topics"] == ["ARCHITECTURE.md", "STRUCTURE.md", "CONVENTIONS.md", "INTEGRATIONS.md", "OPERATIONS.md", "WORKFLOWS.md", "TESTING.md"]
@@ -566,7 +576,7 @@ def test_complete_refresh_clears_manual_force_stale_fields_in_shell_helpers(git_
     assert ps_refreshed["dirty_origin_lane_id"] == ""
     assert ps_refreshed["dirty_scope_paths"] == []
 
-    payload = json.loads((git_repo / ".specify" / "project-map" / "index" / "status.json").read_text(encoding="utf-8"))
+    payload = json.loads(_project_cognition_status_path(git_repo).read_text(encoding="utf-8"))
     assert payload["manual_force_stale"] is False
     assert payload["manual_force_stale_reasons"] == []
     assert payload["dirty"] is False
@@ -581,7 +591,7 @@ def test_bash_prefers_present_empty_manual_force_stale_reasons_over_legacy_dirty
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
 
-    status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
+    status_path = _project_cognition_status_path(git_repo)
     status_path.parent.mkdir(parents=True, exist_ok=True)
     status_path.write_text(
         json.dumps(
@@ -629,7 +639,7 @@ def test_bash_check_downgrades_to_review_only_when_partial_refresh_already_cover
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
 
-    status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
+    status_path = _project_cognition_status_path(git_repo)
     status_path.parent.mkdir(parents=True, exist_ok=True)
     status_path.write_text(
         json.dumps(
@@ -667,7 +677,7 @@ def test_bash_check_downgrades_to_review_only_when_partial_refresh_already_cover
 
 
 def test_powershell_check_downgrades_to_review_only_when_partial_refresh_already_covers_topics(git_repo: Path):
-    status_path = git_repo / ".specify" / "project-map" / "index" / "status.json"
+    status_path = _project_cognition_status_path(git_repo)
     status_path.parent.mkdir(parents=True, exist_ok=True)
     status_path.write_text(
         json.dumps(
