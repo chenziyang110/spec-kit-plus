@@ -23,9 +23,10 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     content = _read("templates/command-partials/common/context-loading-gradient.md")
     lowered = content.lower()
 
-    assert "specify project-cognition query" in content
+    assert "launcher-backed project cognition query" in lowered
     assert "task-local project" in lowered
-    assert "raw graph JSON artifacts as obsolete runtime surfaces" in content
+    assert "raw" in lowered
+    assert "graph json artifacts as obsolete runtime surfaces" in lowered
     assert "runtime handbook gate" not in lowered
     assert "workflow handbooks as the mandatory pre-source knowledge base" not in lowered
     assert "PROJECT-HANDBOOK.md" not in content
@@ -57,5 +58,5 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
 
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/project-cognition.db" in content
-    assert "specify project-cognition query" in content
+    assert "task-local project cognition query bundle" in lowered
     assert "workflow-appropriate slices" not in lowered

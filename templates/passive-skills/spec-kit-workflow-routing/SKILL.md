@@ -103,8 +103,9 @@ standalone branch-creation command.
 - For brownfield debug or extension work, the selected workflow must consume the
   project cognition runtime and capability truth layer when a capability or
   symptom route exists; do not jump straight to broad repository search.
-- Use `specify project-cognition query` to retrieve the task-local project
-  cognition bundle. Treat raw graph JSON artifacts as obsolete runtime surfaces.
+- Use the launcher-backed project cognition query required by the selected
+  workflow contract to retrieve the task-local project cognition bundle. Treat
+  raw graph JSON artifacts as obsolete runtime surfaces.
 
 ## User Invocation Examples
 

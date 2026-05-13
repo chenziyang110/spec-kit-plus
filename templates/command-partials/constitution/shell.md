@@ -18,7 +18,7 @@ Create or update the project constitution as the authoritative rule layer for do
 - If the repository already has code and you need repo-derived evidence, read `.specify/project-cognition/status.json` plus the smallest relevant cognition slice or graph artifact first to assess git-baseline freshness before trusting any compatibility/export artifact. If the cognition baseline is missing, run `/sp-map-scan` followed by `/sp-map-build` before continuing or explicitly report the refresh as a blocking follow-up. If the cognition runtime is stale or too weak for the touched area, use `/sp-map-update` when possible before broader work continues.
 - Load the current constitution and identify unresolved placeholders or requested changes.
 - Derive the right version bump and updated governance metadata.
-- Rewrite the constitution and propagate any downstream template, docs, compatibility/export output, project-map, or lower-memory updates required by the amendment.
+- Rewrite the constitution and propagate any downstream template, docs, compatibility/export output, project cognition runtime, or lower-memory updates required by the amendment.
 - If a principle change invalidates active `spec.md`, `plan.md`, `tasks.md`, or `workflow-state.md`, reopen the highest affected downstream stage instead of always handing off directly to `/sp-specify`.
 
 ## Output Contract

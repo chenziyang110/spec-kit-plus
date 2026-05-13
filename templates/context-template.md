@@ -84,7 +84,7 @@
 
 ## Canonical References
 
-- [Spec, ADR, policy, project-map entry, or repository doc downstream work must read]
+- [Spec, ADR, policy, project cognition entry, or repository doc downstream work must read]
 - [Reference example or external contract that constrains delivery]
 
 ## Outstanding Questions

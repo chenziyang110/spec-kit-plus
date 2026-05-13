@@ -25,6 +25,15 @@ def _write_cognition_baseline(project: Path) -> None:
     (cognition_dir / "project-cognition.db").write_bytes(b"SQLite test database marker")
 
 
+def _write_dirty_cognition_status(project: Path, status: ProjectMapStatus) -> None:
+    status_path = write_project_map_status(project, status)
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    for key in ("baseline_state", "graph_ready", "readiness"):
+        payload.pop(key, None)
+    payload["freshness"] = status.freshness
+    status_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def _write_workflow_state(
     feature_dir: Path,
     *,
@@ -198,7 +207,7 @@ def test_preflight_warns_for_same_feature_implement_resume_when_dirty_origin_mat
         next_command="/sp.implement",
         lane_id="lane-001",
     )
-    write_project_map_status(
+    _write_dirty_cognition_status(
         project,
         ProjectMapStatus(
             global_freshness="stale",
@@ -232,7 +241,7 @@ def test_preflight_blocks_same_feature_implement_when_lane_id_differs(tmp_path: 
         next_command="/sp.implement",
         lane_id="lane-002",
     )
-    write_project_map_status(
+    _write_dirty_cognition_status(
         project,
         ProjectMapStatus(
             global_freshness="stale",
@@ -308,7 +317,7 @@ def test_preflight_blocks_same_lane_implement_when_dirty_scope_does_not_overlap(
         ),
         encoding="utf-8",
     )
-    write_project_map_status(
+    _write_dirty_cognition_status(
         project,
         ProjectMapStatus(
             global_freshness="stale",
@@ -390,7 +399,7 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_overlaps(tmp_path:
         ),
         encoding="utf-8",
     )
-    write_project_map_status(
+    _write_dirty_cognition_status(
         project,
         ProjectMapStatus(
             global_freshness="stale",
@@ -472,7 +481,7 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_shared_config_f
         ),
         encoding="utf-8",
     )
-    write_project_map_status(
+    _write_dirty_cognition_status(
         project,
         ProjectMapStatus(
             global_freshness="stale",
@@ -554,7 +563,7 @@ def test_preflight_warns_same_lane_implement_when_dirty_scope_is_workflow_surfac
         ),
         encoding="utf-8",
     )
-    write_project_map_status(
+    _write_dirty_cognition_status(
         project,
         ProjectMapStatus(
             global_freshness="stale",
@@ -594,7 +603,7 @@ def test_preflight_blocks_cross_feature_implement_when_dirty_origin_differs(tmp_
         next_command="/sp.implement",
         lane_id="lane-002",
     )
-    write_project_map_status(
+    _write_dirty_cognition_status(
         project,
         ProjectMapStatus(
             global_freshness="stale",
@@ -627,7 +636,7 @@ def test_preflight_blocks_specify_when_dirty_origin_exists(tmp_path: Path):
         phase_mode="planning-only",
         next_command="/sp.plan",
     )
-    write_project_map_status(
+    _write_dirty_cognition_status(
         project,
         ProjectMapStatus(
             global_freshness="stale",
@@ -666,7 +675,7 @@ def test_preflight_uses_cognition_status_metadata_before_stale_project_map_statu
         phase_mode="planning-only",
         next_command="/sp.plan",
     )
-    write_project_map_status(
+    _write_dirty_cognition_status(
         project,
         ProjectMapStatus(
             global_freshness="stale",

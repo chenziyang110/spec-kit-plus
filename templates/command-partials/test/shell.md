@@ -7,7 +7,7 @@ Route project-level testing-system work into the right phase: `/sp-test-scan` fo
 ## Context
 
 - This command is project-level, not feature-level. It operates on the repository's testing-system lifecycle rather than on a single `FEATURE_DIR`.
-- Primary inputs are user intent, existing `.specify/testing/` artifacts, the `specify project-cognition query` task-local bundle with readiness and returned `minimal_live_reads`, and any project memory files.
+- Primary inputs are user intent, existing `.specify/testing/` artifacts, the task-local project cognition query bundle with readiness and returned `minimal_live_reads`, and any project memory files.
 - Scan outputs live under `.specify/testing/TEST_SCAN.md`, `.specify/testing/TEST_BUILD_PLAN.md`, `.specify/testing/TEST_BUILD_PLAN.json`, and `.specify/testing/UNIT_TEST_SYSTEM_REQUEST.md`.
 - Build outputs live under `.specify/testing/TESTING_CONTRACT.md`, `.specify/testing/TESTING_PLAYBOOK.md`, `.specify/testing/COVERAGE_BASELINE.json`, and repository-local test assets.
 - Treat the bundled `*-testing` skills as the built-in Spec Kit testing language lane. In the Spec Kit Plus source repo they live under `templates/passive-skills/*-testing/`; in generated projects they live under `.specify/templates/passive-skills/*-testing/`.

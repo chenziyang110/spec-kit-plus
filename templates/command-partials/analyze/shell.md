@@ -6,7 +6,7 @@ Perform a read-only analysis pass that checks whether the current spec, context,
 
 ## Context
 
-- Primary inputs: `spec.md`, `context.md`, `plan.md`, `tasks.md`, passive learning files, the `specify project-cognition query` task-local bundle with readiness and returned `minimal_live_reads`, and the smallest workflow-local state files needed for the touched area.
+- Primary inputs: `spec.md`, `context.md`, `plan.md`, `tasks.md`, passive learning files, the task-local project cognition query bundle with readiness and returned `minimal_live_reads`, and the smallest workflow-local state files needed for the touched area.
 - The constitution remains the highest local authority for this analysis surface.
 - This command produces findings only; it does not rewrite the artifact set.
 

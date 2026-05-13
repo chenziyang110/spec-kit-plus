@@ -33,7 +33,7 @@ Route first, packetize second, dispatch third.
 1. **Select the owning workflow**: Route to canonical `sp-tasks` when a plan lacks
    executable task packets. Route to canonical `sp-implement` for planned feature
    execution, `sp-quick` for lightweight tracked work, `sp-debug` for root-cause
-   work, and the relevant map/test workflow for project-map or testing-system
+   work, and the relevant map/test workflow for project cognition or testing-system
    lanes. When telling the user what to type, use `{{invoke:tasks}}`,
    `{{invoke:implement}}`, `{{invoke:quick}}`, or `{{invoke:debug}}`.
 2. **Build the execution packet**: Every lane needs a validated

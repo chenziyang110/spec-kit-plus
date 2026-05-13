@@ -150,7 +150,7 @@ def test_project_map_mark_dirty_hook_updates_status_file(tmp_path: Path):
 
     assert result.status == "ok"
     assert result.severity == "info"
-    status_path = project / ".specify" / "project-map" / "status.json"
+    status_path = project / ".specify" / "project-cognition" / "status.json"
     payload = json.loads(status_path.read_text(encoding="utf-8"))
     assert payload["dirty"] is True
     assert payload["freshness"] == "stale"

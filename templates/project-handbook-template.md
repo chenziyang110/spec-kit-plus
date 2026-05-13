@@ -32,7 +32,7 @@ and what sits clearly outside the system boundary.]
 - **Default runtime truth**:
   - `.specify/project-cognition/status.json` for freshness, coverage, stale paths, and refresh metadata
   - `.specify/project-cognition/project-cognition.db` as the canonical graph store
-  - the task-local bundle returned by `specify project-cognition query`, including readiness and `minimal_live_reads`
+  - the task-local project cognition query bundle, including readiness and `minimal_live_reads`
 - **Cross-project cognition reference**: use the project cognition runtime as
   explicit-only, supplemental-only, fresh-only context with a minimal read before
   broader source inspection.
@@ -52,7 +52,7 @@ Describe the handbook export model explicitly:
 - **Debug export**: `DEBUG-HANDBOOK.md` — compatibility view of symptom routing, likely truth owners, failure propagation, investigation playbooks, and verification exit rules
 - **Build/change export**: `BUILD-HANDBOOK.md` — compatibility view of product capability map, workflow sequences, change entrypoints, collaboration routes, propagation risks, implementation playbooks, and verification routes
 - **Legacy project-map alias**: `specify project-map ...` routes to project cognition for existing projects; new workflows should not read or require `.specify/project-map/**`
-- **Runtime truth**: `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and the task-local bundle returned by `specify project-cognition query`
+- **Runtime truth**: `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and the task-local project cognition query bundle
 
 The export model should help the reader distinguish compatibility views from
 the graph-native cognition runtime used before broader code reads begin.
@@ -113,7 +113,7 @@ the graph-native cognition runtime used before broader code reads begin.
 
 - `.specify/project-cognition/status.json` - default runtime status, freshness, coverage, stale paths, and refresh metadata
 - `.specify/project-cognition/project-cognition.db` - canonical SQLite graph store
-- `specify project-cognition query` - default route to task-local cognition bundles, readiness, and `minimal_live_reads`
+- project cognition query bundle - default route to task-local cognition bundles, readiness, and `minimal_live_reads`
 - `DEBUG-HANDBOOK.md` - compatibility/export debug view
 - `BUILD-HANDBOOK.md` - compatibility/export build/change view
 - `specify project-map ...` - legacy CLI alias for existing projects, not the new runtime truth path

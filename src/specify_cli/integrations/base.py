@@ -463,12 +463,12 @@ class IntegrationBase(ABC):
         agent_name: str,
         command_name: str,
     ) -> str:
-        """Append a hard project-map read gate for runtime-facing commands when absent."""
+        """Append a hard project cognition read gate for runtime-facing commands when absent."""
 
         if command_name not in {"implement", "debug", "quick"}:
             return content
 
-        marker = f"## {agent_name} Project-Map Hard Gate"
+        marker = f"## {agent_name} Project Cognition Hard Gate"
         if marker in content:
             return content
 
@@ -481,7 +481,7 @@ class IntegrationBase(ABC):
 
         addendum = (
             "\n"
-            f"## {agent_name} Project-Map Hard Gate\n\n"
+            f"## {agent_name} Project Cognition Hard Gate\n\n"
             f"{query_gate}\n"
             "- Interpret returned readiness: `ready` continues with the task-local bundle; `review` permits only returned `minimal_live_reads`; `ambiguous` asks the user to choose; `needs_update` routes through `{{invoke:map-update}}`; `needs_rebuild` routes through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `blocked` stops with the runtime issue.\n"
             "- Treat the project cognition query bundle as the primary brownfield context surface; do not fall back to chat memory or ad hoc repository instincts when query-backed runtime coverage should be the source of truth.\n"

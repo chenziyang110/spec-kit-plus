@@ -71,7 +71,8 @@ def test_included_workflow_partials_use_query_backed_runtime_inputs() -> None:
     for path in partials:
         content = _read(path).lower()
         assert "specify project-cognition query" in content or "project cognition query" in content
-        assert "task-local bundle" in content
+        assert "task-local" in content
+        assert "bundle" in content
         assert "readiness" in content
         assert "minimal_live_reads" in content
         assert "required slices" not in content

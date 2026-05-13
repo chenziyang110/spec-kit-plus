@@ -16,7 +16,7 @@
 ## Scan Inputs
 
 - Inventory source: `specify testing inventory --format json`
-- Handbook/project-map inputs:
+- Project cognition inputs:
 - Project memory inputs:
 - Existing testing artifacts:
 

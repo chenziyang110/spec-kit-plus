@@ -124,7 +124,8 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "Treat `sp-*` names as canonical workflow identities." in block
 
     assert "## Brownfield Context Gate" in block
-    assert "specify project-cognition query" in lowered
+    assert "project-cognition query --intent <workflow-intent>" in lowered
+    assert "project launcher configured in `.specify/config.json`" in lowered
     assert "raw graph json artifacts as obsolete runtime surfaces" in lowered
     assert "project cognition under `.specify/project-cognition/` is the runtime truth surface" in lowered
     assert "legacy project-map exports are not the ordinary first-read runtime contract" in lowered
@@ -431,7 +432,7 @@ def test_project_map_gate_has_staged_discussion_gate() -> None:
     assert "product framing" in lowered
     assert "before the cognition gate" in lowered
     assert "technical options" in lowered
-    assert "specify project-cognition query" in lowered
+    assert "launcher-backed project cognition query" in lowered
     assert "retrieve the task-local project cognition bundle" in lowered
 
 
@@ -662,7 +663,7 @@ def test_templates_lock_cross_project_cognition_reference_rules() -> None:
     combined = "\n".join([managed_block, routing_skill, plan_shell, map_scan_shell])
     lowered = combined.lower()
 
-    assert "specify project-cognition query" in lowered
+    assert "project cognition query" in lowered
     assert "task-local project" in lowered
     assert "cross-project cognition reference" in lowered
     assert "explicit-only" in lowered
@@ -1859,8 +1860,9 @@ def test_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> None:
     assert _launcher_query("implement") in build_template
     assert "minimal_live_reads" in build_template
     assert "project cognition runtime" in lowered_gate
-    assert "specify project-cognition query" in shared_gate
-    assert "raw graph JSON artifacts as obsolete runtime surfaces" in shared_gate
+    assert "launcher-backed project cognition query" in lowered_gate
+    assert "raw" in lowered_gate
+    assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
     assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
     assert "`support_drift` -> stop and tell the user to resolve support-surface drift" in shared_gate
     assert "`partial_refresh` -> tell the user the refresh was recorded but readiness did not pass" in shared_gate
@@ -2158,7 +2160,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
             assert "successful-refresh finalizer" in lowered
             assert "manual override/fallback" in lowered
             assert "if a full refresh can be completed now" in lowered
-            assert "otherwise use" in lowered
+            assert "otherwise" in lowered
         for phrase in stale_normal_path_phrases:
             assert phrase not in lowered
 

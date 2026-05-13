@@ -98,7 +98,7 @@ alternative_cause_candidates:
   - candidate: [candidate cause]
     failure_shape: [truth_owner_logic | control_observation_drift | projection_render | cache_snapshot | boundary_contract | config_flag_env | ordering_concurrency]
     why_it_fits: [why it fits the symptom]
-    map_evidence: [which handbook/project-map evidence supports it]
+    map_evidence: [which project cognition evidence supports it]
     would_rule_out: [what missing information or evidence would eliminate it]
     recommended_first_probe: [best first probe for this specific candidate]
 
@@ -310,7 +310,7 @@ loop_restoration_proof:
 
 **Observer Framing:**
 - OVERWRITE/REFINE before evidence investigation begins
-- Must be built from the user report plus handbook/project-map context only
+- Must be built from the user report plus project cognition context only
 - Do not use code files, test files, logs, or direct repro results here
 - Capture an outsider analysis, not a final root-cause verdict
 - This section is incomplete until `summary`, `primary_suspected_loop`, `suspected_owning_layer`, `suspected_truth_owner`, `recommended_first_probe`, and at least one `alternative_cause_candidate` are filled

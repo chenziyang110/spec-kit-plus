@@ -4,8 +4,8 @@
 > an independent navigation checklist.
 
 - Load and enforce `context-loading-gradient.md`.
-- Treat the `specify project-cognition query` task-local bundle, readiness, and
-  returned `minimal_live_reads` as the primary runtime read surfaces.
+- Treat the task-local project cognition query bundle, readiness, and returned
+  `minimal_live_reads` as the primary runtime read surfaces.
 - If the project cognition runtime is missing, create the initial baseline via
   `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - If the project cognition runtime is stale or insufficient for the touched

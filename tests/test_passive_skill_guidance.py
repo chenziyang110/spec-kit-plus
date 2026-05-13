@@ -137,7 +137,7 @@ def test_project_map_gate_references_routing_and_learning_roles() -> None:
     assert "spec-kit-project-learning" in content
     assert "route selection" in content
     assert "shared memory capture layer" in content
-    assert "specify project-cognition query" in content
+    assert "launcher-backed project cognition query" in content
     assert "task-local project" in content
     assert "raw graph json artifacts as obsolete runtime surfaces" in content
     assert "runtime truth surface" in content

@@ -6,7 +6,7 @@ Translate the approved specification package into explicit implementation design
 
 ## Context
 
-- Primary inputs: `spec.md`, `alignment.md`, `context.md`, `references.md`, the compiled brainstorming truth and any `plan-contract.json` contract, the `specify project-cognition query` task-local bundle with readiness and returned `minimal_live_reads`, and passive learning files.
+- Primary inputs: `spec.md`, `alignment.md`, `context.md`, `references.md`, the compiled brainstorming truth and any `plan-contract.json` contract, the task-local project cognition query bundle with readiness and returned `minimal_live_reads`, and passive learning files.
 - Working state lives in the active `FEATURE_DIR`, especially `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, and `workflow-state.md`.
 - This command is design-only. Planning does not grant permission to start execution.
 

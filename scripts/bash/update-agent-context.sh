@@ -163,7 +163,7 @@ render_speckit_managed_block() {
 
 ## Brownfield Context Gate
 
-- The runtime atlas is query-backed: run `specify project-cognition query --intent <workflow-intent> --query "$ARGUMENTS" --format json` to retrieve the task-local project cognition bundle before broader repository analysis, planning, debugging, or implementation begins.
+- The runtime atlas is query-backed: invoke the project launcher configured in `.specify/config.json` with `project-cognition query --intent <workflow-intent> --query "$ARGUMENTS" --format json` to retrieve the task-local project cognition bundle before broader repository analysis, planning, debugging, or implementation begins. Fall back to PATH `specify` only when no project launcher is configured.
 - Treat `.specify/project-cognition/project-cognition.db` as the canonical graph store and `.specify/project-cognition/status.json` as the lightweight freshness entrypoint.
 - Use the returned readiness, task-local bundle, and `minimal_live_reads`; treat raw graph JSON artifacts as obsolete runtime surfaces, and do not replace the query bundle with raw graph JSON or slice reads.
 - The runtime atlas now resolves to task-local query bundles and two workflow handbooks, while project cognition remains the primary runtime truth surface for brownfield routing.
@@ -171,7 +171,7 @@ render_speckit_managed_block() {
 - When a project launcher is configured in `.specify/config.json`, use that launcher instead of PATH `specify`.
 - If the graph-native cognition baseline is missing, stop and tell the user to run the runtime's `map-scan` workflow entrypoint followed by `map-build`, then wait for that refresh before continuing.
 - If the graph runtime is stale or too weak for the touched area, use `sp-map-update` after baseline creation before broader work continues.
-- Treat graph-runtime freshness as the truth source. If a full refresh can be completed now, do it and use `specify project-cognition complete-refresh --format json` as the successful-refresh finalizer; otherwise use `specify project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback.
+- Treat graph-runtime freshness as the truth source. If a full refresh can be completed now, do it and invoke the project launcher with `project-cognition complete-refresh --format json` as the successful-refresh finalizer; otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback. Fall back to PATH `specify` only when no project launcher is configured.
 
 ## Project Memory
 
@@ -250,7 +250,7 @@ render_speckit_managed_block() {
 - Do not substitute chat narration for workflow execution. If a workflow requires an artifact write, helper/hook execution, validation run, or state update, perform it explicitly rather than describing it as though it happened.
 - For resume, next-step routing, and closeout, read the relevant durable state surface first (`workflow-state.md`, `.specify/testing/testing-state.md`, quick-task `STATUS.md`, or project cognition freshness state) before deciding what happens next.
 - If the active workflow has a truth-owning artifact set, do not claim completion until those artifacts exist and any required validation or closeout mechanism has run truthfully.
-- `specify project-cognition query` determines whether query-backed cognition coverage can be trusted as fresh and records the git-aligned baseline freshness truth source.
+- The project cognition query determines whether query-backed cognition coverage can be trusted as fresh and records the git-aligned baseline freshness truth source.
 
 ## Map Maintenance
 
@@ -258,7 +258,7 @@ render_speckit_managed_block() {
 - If a change alters architecture boundaries, ownership, workflow names, integration contracts, or verification entry points, refresh the query-backed project cognition baseline.
 - Use `sp-map-update` after baseline creation when the query-backed runtime is stale or too weak for the touched area.
 - `sp-map-update` is the primary maintenance path after a baseline exists.
-- Reserve `sp-map-scan`, then `sp-map-build` for missing baselines or explicit full rebuild cases; if a full refresh can be completed now, use `specify project-cognition complete-refresh --format json` as the successful-refresh finalizer. Otherwise use `specify project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback before continuing.
+- Reserve `sp-map-scan`, then `sp-map-build` for missing baselines or explicit full rebuild cases; if a full refresh can be completed now, invoke the project launcher with `project-cognition complete-refresh --format json` as the successful-refresh finalizer. Otherwise invoke the project launcher with `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback before continuing. Fall back to PATH `specify` only when no project launcher is configured.
 - Do not continue under known-stale handbook state without choosing one of those paths.
 - Do not treat consumed project cognition query context as self-maintaining; the agent changing map-level truth is responsible for keeping the query-backed runtime current.
 

@@ -1227,24 +1227,6 @@ def assess_project_map_freshness(
         or any(status_path.exists() for status_path in legacy_project_map_status_paths(project_root))
     )
 
-    if has_status_metadata and (not has_git or not status.last_mapped_commit or not head_commit):
-        return _freshness_payload(
-            project_root=project_root,
-            freshness=FRESHNESS_POSSIBLY_STALE_STATE,
-            status=status,
-            head_commit=head_commit,
-            manual_force_stale=False,
-            manual_force_stale_reasons=[],
-            dirty=False,
-            dirty_reasons=[],
-            reasons=["git baseline unavailable for project cognition freshness"],
-            changed_files=[],
-            must_refresh_topics=[],
-            review_topics=[],
-            suggested_topics=[],
-            missing_runtime_paths=[],
-        )
-
     if missing_runtime_paths and not allow_legacy_status_only and not has_status_metadata:
         return _freshness_payload(
             project_root=project_root,
@@ -1319,6 +1301,24 @@ def assess_project_map_freshness(
             must_refresh_topics=dirty_topic_plan["must_refresh_topics"],
             review_topics=dirty_topic_plan["review_topics"],
             suggested_topics=[topic for topic in TOPIC_FILES if topic in (*dirty_topic_plan["must_refresh_topics"], *dirty_topic_plan["review_topics"])],
+            missing_runtime_paths=[],
+        )
+
+    if has_status_metadata and (not has_git or not status.last_mapped_commit or not head_commit):
+        return _freshness_payload(
+            project_root=project_root,
+            freshness=FRESHNESS_POSSIBLY_STALE_STATE,
+            status=status,
+            head_commit=head_commit,
+            manual_force_stale=False,
+            manual_force_stale_reasons=[],
+            dirty=False,
+            dirty_reasons=[],
+            reasons=["git baseline unavailable for project cognition freshness"],
+            changed_files=[],
+            must_refresh_topics=[],
+            review_topics=[],
+            suggested_topics=[],
             missing_runtime_paths=[],
         )
 

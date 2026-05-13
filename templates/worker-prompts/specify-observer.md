@@ -8,7 +8,7 @@ the final requirement package.
 
 - Provide the user request summary, current stage, current domain, and the
   latest `specify-draft.md` state.
-- Provide the relevant project-map and handbook summary.
+- Provide the relevant project cognition and compatibility/export summary.
 - State whether this is a `batch-adversarial-review` pass or a
   `final-handoff-decision` readiness check.
 

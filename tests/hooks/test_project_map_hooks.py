@@ -27,7 +27,7 @@ def test_mark_dirty_hook_normalizes_reason(tmp_path: Path):
     )
 
     assert result.status == "ok"
-    payload = json.loads((project / ".specify" / "project-map" / "status.json").read_text(encoding="utf-8"))
+    payload = json.loads((project / ".specify" / "project-cognition" / "status.json").read_text(encoding="utf-8"))
     assert payload["dirty_reasons"] == ["workflow_contract_changed"]
     assert payload["dirty_origin_command"] == "implement"
     assert payload["dirty_origin_feature_dir"] == "specs/001-demo"

@@ -210,7 +210,7 @@ class CodexIntegration(SkillsIntegration):
                 "- Use `leader-inline-fallback` only after recording why Codex native subagents are unavailable or unsafe.\n"
                 "- Suggested bounded atlas synthesis lanes include root architecture/structure, conventions/testing, integrations/runtime, and workflow/operations mapping.\n"
                 f"- Use the scan package as the subagent input contract; do not let subagents invent unscanned coverage or skip reverse coverage checks.\n"
-                f"- Use `wait_agent` only at the documented join points before writing compatibility/export outputs such as `PROJECT-HANDBOOK.md`, before updating compatibility/export atlas files under `.specify/project-map/`, and before the final packet evidence and consistency pass.\n"
+                f"- Use `wait_agent` only at the documented join points before writing compatibility/export outputs such as `PROJECT-HANDBOOK.md`, before updating project cognition workbench outputs, and before the final packet evidence and consistency pass.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )

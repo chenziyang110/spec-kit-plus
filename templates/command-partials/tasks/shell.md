@@ -6,7 +6,7 @@ Convert the plan package into dependency-aware execution tasks that preserve pla
 
 ## Context
 
-- Primary inputs: `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `context.md`, `plan-contract.json` when present, and the `specify project-cognition query` task-local bundle with readiness and returned `minimal_live_reads`.
+- Primary inputs: `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `context.md`, `plan-contract.json` when present, and the task-local project cognition query bundle with readiness and returned `minimal_live_reads`.
 - Working state lives in `FEATURE_DIR/tasks.md` plus any decomposition metadata needed for later analysis or implementation routing.
 - This command is task-generation-only. It should not cross into execution.
 

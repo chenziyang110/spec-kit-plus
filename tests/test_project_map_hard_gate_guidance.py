@@ -39,8 +39,9 @@ def test_ordinary_sp_workflows_use_shared_project_cognition_gate() -> None:
     lowered_gate = shared_gate.lower()
 
     assert "project cognition runtime" in lowered_gate
-    assert "specify project-cognition query" in shared_gate
-    assert "raw graph JSON artifacts as obsolete runtime surfaces" in shared_gate
+    assert "launcher-backed project cognition query" in lowered_gate
+    assert "raw" in lowered_gate
+    assert "graph json artifacts as obsolete runtime surfaces" in lowered_gate
     assert "`missing` -> block and refresh through `sp-map-scan -> sp-map-build`" in shared_gate
     assert "`stale` -> block and refresh through `sp-map-update`" in shared_gate
     assert "Do not treat handbook-first or layered project-map files as the primary runtime read surfaces" in shared_gate

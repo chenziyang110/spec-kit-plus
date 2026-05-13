@@ -22,12 +22,13 @@ The skill name is legacy; the runtime gate it describes is project cognition.
 Before code edits, investigation, planning against existing code, or architectural
 judgment in an established Spec Kit Plus repository:
 
-- Use `specify project-cognition query` to retrieve the task-local project
-  cognition bundle. Treat raw graph JSON artifacts as obsolete runtime surfaces.
+- Use the launcher-backed project cognition query required by the active
+  workflow contract to retrieve the task-local project cognition bundle. Treat
+  raw graph JSON artifacts as obsolete runtime surfaces.
 - For `sp-discussion`, product framing may begin before the cognition gate. Before
   technical options, affected-surface claims, source-code reads, or
-  source-grounded recommendations, use `specify project-cognition query` to
-  retrieve the task-local project cognition bundle.
+  source-grounded recommendations, use the active workflow's launcher-backed
+  project cognition query to retrieve the task-local project cognition bundle.
 - Treat the project cognition runtime as the cross-project cognition reference:
   explicit-only, supplemental-only, fresh-only, and minimal read before broader
   live-code inspection.
