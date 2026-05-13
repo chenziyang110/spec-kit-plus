@@ -79,7 +79,15 @@ The recommended next command is still based on the highest invalid stage. The di
 
 ### 2. Stable Finding Identity
 
-Findings need stable IDs that survive revalidation. Category-only IDs such as `BG2` are too coarse. The design uses a category prefix plus sequence number within a run, with enough stable evidence in the finding row to match later runs.
+Findings need stable IDs that survive revalidation. Category-only IDs such as `BG2` are too coarse, but run-local sequence numbers are also not enough because detection order can change. The stable identity contract is fingerprint-first:
+
+1. Build a canonical finding fingerprint from category, invalid stage, artifact, requirement or section key when available, normalized summary, and remediation requirement.
+2. Before assigning IDs, load the previous analyze gate ledger from `workflow-state.md`.
+3. Match current findings to previous open or recently cleared findings by fingerprint first, and reuse the prior ID when the fingerprint matches.
+4. Allocate a new ID only for a genuinely new fingerprint.
+5. For new fingerprints, allocate the next unused category sequence after sorting by category, artifact, section key, and normalized summary, or use a short fingerprint-derived suffix if the implementation can do that deterministically.
+
+This keeps examples such as `BG2-001` readable while making the reuse rule explicit. The ID is stable because the prior fingerprint wins, not because the current run happened to discover findings in the same order.
 
 Recommended ID families:
 
@@ -141,6 +149,8 @@ In remediation mode, `sp-tasks` must read the prior analyze blocker bundle befor
 - `not_applicable`: no longer applicable, with evidence.
 - `escalated`: cannot be fixed at the task layer and must reopen `plan`, `clarify`, or `deep-research`.
 
+Escalation is terminal for the current `sp-tasks` run. If `sp-tasks` detects missing upstream truth, it records the escalation evidence in `workflow-state.md` and sets `next_command` directly to the required upstream command (`/sp.plan`, `/sp.clarify`, or `/sp.deep-research`). It must not finish by sending the user back through `/sp.analyze` first. `sp-analyze` remains mandatory after upstream artifacts have been repaired and tasks have been regenerated.
+
 `tasks.md` should include an `Analyze Remediation Mapping` section when remediation mode is active:
 
 ```markdown
@@ -160,11 +170,22 @@ Remediation mode: handled 5 previous analyze findings
 resolved: 4
 deferred: 0
 not_applicable: 0
-escalated: 1
+escalated: 0
 next_command: /sp.analyze
 ```
 
-If any finding is escalated, `sp-analyze` should confirm the higher invalid stage on revalidation instead of letting the user continue cycling through `sp-tasks`.
+If a finding is escalated, the final report uses the upstream command instead:
+
+```text
+Remediation mode: handled 5 previous analyze findings
+resolved: 3
+deferred: 0
+not_applicable: 0
+escalated: 2
+next_command: /sp.plan
+```
+
+The upstream workflow owns the repair, then `sp-tasks` regenerates from repaired truth and hands off to `sp-analyze` for the normal gate.
 
 ### 6. Workflow State Persistence
 
@@ -231,12 +252,12 @@ sp-analyze
 Upstream escalation path:
 
 ```text
-sp-analyze
-  -> blocker bundle includes plan-stage blocker
-  -> workflow-state next_command: /sp.plan
-  -> sp-plan repairs upstream truth
+sp-tasks or sp-analyze
+  -> detects missing upstream truth
+  -> workflow-state next_command: /sp.plan, /sp.clarify, or /sp.deep-research
+  -> upstream workflow repairs authoritative truth
   -> sp-tasks regenerates from repaired truth
-  -> sp-analyze revalidation
+  -> sp-analyze gate
 ```
 
 ## Files Expected to Change
@@ -246,6 +267,7 @@ Primary surfaces:
 - `templates/commands/analyze.md`
 - `templates/commands/tasks.md`
 - `templates/tasks-template.md`
+- `templates/workflow-state-template.md`
 - `README.md`
 - `PROJECT-HANDBOOK.md`
 - `tests/test_alignment_templates.py`
@@ -253,11 +275,12 @@ Primary surfaces:
 
 Possible secondary surfaces:
 
-- `templates/workflow-state-template.md`
 - `tests/integrations/test_integration_codex.py`
 - `tests/integrations/test_cli.py`
+- `src/specify_cli/hooks/checkpoint_serializers.py`
+- related workflow-state serializer or compaction tests
 
-The secondary surfaces should change only if template projection or CLI output tests assert the older analyze gate wording.
+The secondary surfaces should change only if template projection, CLI output tests, or workflow-state serialization paths assert or preserve the older analyze gate shape. If a serializer or compaction helper reads named `workflow-state.md` sections, it must preserve the new `Analyze Gate` section rather than dropping it.
 
 ## Acceptance Criteria
 
@@ -266,6 +289,8 @@ The secondary surfaces should change only if template projection or CLI output t
 - `sp-tasks` guidance requires an analyze-compatible task self-audit before final handoff.
 - `sp-tasks` guidance requires remediation mode when returning from a blocked analyze gate.
 - `tasks.md` template includes an `Analyze Remediation Mapping` section or equivalent generated-output requirement.
+- `templates/workflow-state-template.md` includes an `Analyze Gate` section with gate status, cycle, highest invalid stage, blocker bundle, and artifact fingerprint basis.
+- Any workflow-state serializer or compaction path touched by implementation preserves the `Analyze Gate` section.
 - README/handbook guidance says repeated task/analyze loops are abnormal and should be diagnosed.
 - Regression tests assert the new blocker bundle, self-audit, attribution, remediation mapping, and anti-loop language.
 - Existing tests continue to assert that `sp-tasks` hands off to `sp-analyze` and that implementation remains blocked until analyze clears.
@@ -291,4 +316,3 @@ The secondary surfaces should change only if template projection or CLI output t
 - Keep `sp-analyze` read-only for planning artifacts.
 - Keep `sp-tasks -> sp-analyze` mandatory.
 - Treat repeated task-layer loops as a workflow quality failure to diagnose, not as a normal convergence pattern.
-
