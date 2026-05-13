@@ -28,6 +28,8 @@ The approved direction is:
 - make `map-update` a transactional, index-driven incremental updater
 - require query results to carry evidence traces, candidate scoring, and
   ambiguity handling
+- replace the existing JSON-graph freshness, finalizer, hook-validation,
+  template, and test contracts in the same implementation lane
 
 This is a runtime architecture change, not a prompt-only adjustment.
 
@@ -85,13 +87,16 @@ Without this, two bad outcomes are possible:
 
 ## Non-Goals
 
-- Do not preserve backwards compatibility with the current JSON graph runtime.
+- Do not preserve downstream backwards compatibility with the current JSON graph
+  runtime.
 - Do not add Neo4j, Gremlin, or another external graph database dependency.
 - Do not make agents read raw graph tables directly.
 - Do not make every natural-language match automatic.
 - Do not optimize for human-readable graph artifacts as the primary interface.
 - Do not keep `nodes.json`, `edges.json`, `claims.json`, or `conflicts.json` as
   canonical truth.
+- Do not keep the current `project-map` compatibility alias as a required
+  runtime surface after this replacement lands.
 
 ## Approved Direction
 
@@ -108,11 +113,11 @@ Use a SQLite-backed property graph store:
 - schema version
 - baseline state
 - freshness state
-- readiness state
 - baseline commit and branch
 - last update id
 - graph store path
 - query/update compatibility version
+- active graph generation id
 
 `project-cognition.db` becomes the canonical truth store for:
 
@@ -132,6 +137,31 @@ Large JSON graph files are removed from the runtime path. Optional exports can
 exist later, but they are not part of correctness, freshness, or workflow
 consumption.
 
+## Synchronized Replacement Boundary
+
+This design does not require compatibility with already-generated downstream
+projects, but it does require a synchronized replacement inside this repository.
+
+The implementation must update the following surfaces together:
+
+- `src/specify_cli/project_cognition_status.py` so canonical runtime paths check
+  `status.json` and `project-cognition.db`, not JSON graph files
+- `src/specify_cli/__init__.py` so finalizers and preflight messages no longer
+  require compatibility/export graph artifacts
+- `src/specify_cli/hooks/artifact_validation.py` so `map-scan`, `map-build`,
+  and `map-update` validate the database runtime contract
+- workflow templates and passive skills so workflows call
+  `project-cognition query` instead of reading raw graph artifacts
+- integration and contract tests so required generated inventory matches the new
+  runtime truth surface
+
+No implementation slice may ship with the new database writer while old
+freshness, finalizer, or hook validation still require
+`graph/nodes.json`, `graph/edges.json`, `graph/claims.json`, or
+`graph/conflicts.json`.
+
+This is a hard replacement, not a dual-write migration.
+
 ## Usage Model
 
 Workflows do not read graph artifacts.
@@ -139,13 +169,13 @@ Workflows do not read graph artifacts.
 They ask the cognition runtime for a task-local bundle:
 
 ```text
-specify cognition query --intent debug --query "valid password login fails"
+specify project-cognition query --intent debug --query "valid password login fails"
 ```
 
 or, when paths are already known:
 
 ```text
-specify cognition query --intent implement --paths src/auth/login.ts tests/auth/login.test.ts
+specify project-cognition query --intent implement --paths src/auth/login.ts tests/auth/login.test.ts
 ```
 
 The response contains:
@@ -272,6 +302,8 @@ It performs multi-route candidate retrieval:
 - optional semantic candidate lookup when indexed evidence is weak
 
 Every candidate must carry a `matched_by` trace.
+Every graph-backed trace must include enough provenance to recover the source
+evidence row or claim row that produced the match.
 
 Candidate confidence is derived from:
 
@@ -309,6 +341,54 @@ Semantic guesses are allowed only as low-confidence candidates. They must not be
 reported as graph-backed truth unless at least one indexed or evidence-backed
 route supports them.
 
+## Freshness and Query Readiness
+
+The public freshness contract remains the machine gate for workflow preflight.
+Query/update readiness is a task-local decision layered on top of freshness.
+
+Freshness states:
+
+- `fresh`
+- `missing`
+- `stale`
+- `support_drift`
+- `partial_refresh`
+- `possibly_stale`
+
+Query/update readiness states:
+
+- `ready`
+- `review`
+- `ambiguous`
+- `needs_update`
+- `needs_rebuild`
+- `blocked`
+
+Mapping rules:
+
+| Freshness | Runtime Readiness | Workflow Meaning |
+|-----------|-------------------|------------------|
+| `fresh` | `ready`, `review`, or `ambiguous` | Runtime baseline is admissible; task-local query may still require live verification or user choice. |
+| `possibly_stale` | `review` or `needs_update` | Runtime baseline exists, but touched-scope coverage must be checked before execution. |
+| `stale` | `needs_update` | Localized incremental update is required before trusting task-local cognition. |
+| `partial_refresh` | `needs_update` or `needs_rebuild` | Refresh data exists but readiness failed; do not report completion. |
+| `missing` | `needs_rebuild` | Run `map-scan`, then `map-build`. |
+| `support_drift` | `blocked` | Resolve support-surface drift; do not route through `map-update` by default. |
+
+`status.json` stores public freshness and active generation metadata. Query
+responses store task-local readiness. Workflow gates must not replace freshness
+with query readiness; they combine them.
+
+Recommended actions are derived from the pair:
+
+- `fresh + ready` -> `retry_current_workflow`
+- `fresh + review` -> `perform_minimal_live_reads`
+- `fresh + ambiguous` -> `ask_user_to_select_candidate`
+- `stale + needs_update` -> `run_map_update`
+- `partial_refresh + needs_update` -> `run_map_update`
+- `missing + needs_rebuild` -> `run_map_scan_build`
+- `support_drift + blocked` -> `resolve_support_drift`
+
 ## SQLite Data Model
 
 The initial canonical schema should include the following tables.
@@ -322,11 +402,42 @@ metadata(key primary key, value_json, updated_at)
 Stores schema version, baseline metadata, and runtime options that belong in the
 database rather than `status.json`.
 
+### Generations
+
+```text
+generations(
+  id primary key,
+  sequence,
+  kind,
+  state,
+  source_commit,
+  started_at,
+  published_at,
+  superseded_at,
+  attrs_json
+)
+```
+
+Allowed `state` values:
+
+- `staging`
+- `active`
+- `superseded`
+- `failed`
+
+Every row that can affect query results carries a `generation_id`. Query APIs
+only read rows from the active generation recorded in `status.json`.
+
+`map-scan` writes staging rows. `map-build` publishes a generation atomically.
+`map-update` updates only active-generation rows inside a SQLite transaction.
+Failed updates roll back, so partial rows are not visible to queries.
+
 ### Evidence
 
 ```text
 evidence(
   id primary key,
+  generation_id,
   source_kind,
   source_path,
   commit_sha,
@@ -351,6 +462,7 @@ evidence(commit_sha)
 ```text
 observations(
   id primary key,
+  generation_id,
   observation_type,
   summary,
   attrs_json,
@@ -370,6 +482,7 @@ observation_evidence(observation_id, evidence_id)
 ```text
 nodes(
   id primary key,
+  generation_id,
   type,
   title,
   confidence,
@@ -391,6 +504,7 @@ nodes(confidence)
 ```text
 edges(
   id primary key,
+  generation_id,
   type,
   source_id,
   target_id,
@@ -409,6 +523,19 @@ edges(target_id)
 edges(type)
 edges(source_id, type)
 edges(target_id, type)
+edges(generation_id)
+```
+
+Join table:
+
+```text
+edge_evidence(edge_id, evidence_id)
+```
+
+### Node Evidence
+
+```text
+node_evidence(node_id, evidence_id)
 ```
 
 ### Claims
@@ -416,6 +543,7 @@ edges(target_id, type)
 ```text
 claims(
   id primary key,
+  generation_id,
   subject_ref,
   predicate,
   object_ref,
@@ -448,6 +576,7 @@ claim_evidence(claim_id, evidence_id)
 ```text
 conflicts(
   id primary key,
+  generation_id,
   subject_ref,
   conflict_type,
   impact_scope,
@@ -475,10 +604,13 @@ conflicts(resolution_status)
 
 ```text
 path_index(
+  id primary key,
+  generation_id,
   path,
   node_id,
   relation,
   confidence,
+  evidence_id,
   updated_at
 )
 ```
@@ -490,17 +622,21 @@ Indexes:
 ```text
 path_index(path)
 path_index(node_id)
+path_index(generation_id, path)
 ```
 
 ### Symbol Index
 
 ```text
 symbol_index(
+  id primary key,
+  generation_id,
   symbol_name,
   normalized_symbol,
   node_id,
   path,
   relation,
+  evidence_id,
   confidence
 )
 ```
@@ -511,12 +647,15 @@ Indexes:
 symbol_index(normalized_symbol)
 symbol_index(path)
 symbol_index(node_id)
+symbol_index(generation_id, normalized_symbol)
 ```
 
 ### Alias Index
 
 ```text
 alias_index(
+  id primary key,
+  generation_id,
   alias,
   normalized_alias,
   target_type,
@@ -542,17 +681,21 @@ Indexes:
 alias_index(normalized_alias)
 alias_index(target_id)
 alias_index(target_type, normalized_alias)
+alias_index(generation_id, normalized_alias)
 ```
 
 ### Entrypoint Index
 
 ```text
 entrypoint_index(
+  id primary key,
+  generation_id,
   entrypoint_key,
   entrypoint_type,
   node_id,
   capability_id,
   path,
+  evidence_id,
   confidence
 )
 ```
@@ -569,11 +712,14 @@ Examples:
 
 ```text
 test_index(
+  id primary key,
+  generation_id,
   test_path,
   test_name,
   node_id,
   capability_id,
   verification_node_id,
+  evidence_id,
   confidence
 )
 ```
@@ -582,6 +728,8 @@ test_index(
 
 ```text
 slice_members(
+  id primary key,
+  generation_id,
   slice_id,
   object_type,
   object_id,
@@ -596,13 +744,30 @@ Indexes:
 ```text
 slice_members(slice_id)
 slice_members(object_id)
+slice_members(generation_id, slice_id)
 ```
+
+### Full Text Search
+
+SQLite FTS tables support controlled text retrieval without scanning all claims
+or observations:
+
+```text
+claim_fts(claim_id, subject_ref, predicate, object_text, content)
+observation_fts(observation_id, observation_type, summary, content)
+alias_fts(alias_id, alias, normalized_alias, target_id, content)
+```
+
+The resolver may use claim text lookup only through these FTS tables or another
+explicit indexed text surface. It must not table-scan `claims` as the initial
+contract.
 
 ### Query Examples
 
 ```text
 query_examples(
   id primary key,
+  generation_id,
   query_text,
   intent,
   expected_target_type,
@@ -621,6 +786,7 @@ symptoms.
 ```text
 updates(
   id primary key,
+  generation_id,
   trigger,
   changed_paths_json,
   affected_nodes_json,
@@ -654,8 +820,10 @@ Responsibilities:
 
 Primary output:
 
-- staged records in `project-cognition.db`
+- staged records in `project-cognition.db` under a staging generation
 - status metadata showing scan completed but graph not yet published
+
+Query APIs must ignore this staging generation.
 
 ### `map-build`
 
@@ -672,12 +840,18 @@ Responsibilities:
 - build alias, path, symbol, entrypoint, test, and slice indexes
 - seed query examples for high-value capabilities
 - run query recall checks
-- publish runtime readiness in `status.json`
+- atomically publish the accepted generation and runtime readiness in
+  `status.json`
 
 Primary output:
 
 - canonical `project-cognition.db`
 - ready `status.json`
+
+Publishing means one generation becomes active and all prior active generations
+become superseded in the same transaction. If publication fails, queries keep
+using the previous active generation or report `missing` when no active
+generation exists.
 
 ### `map-update`
 
@@ -703,6 +877,11 @@ Primary output:
 `map-update` must not read or rewrite full graph exports because full graph
 exports are no longer canonical.
 
+`map-update` may mutate active-generation rows, but only inside one transaction.
+If validation fails, the transaction rolls back and the prior active graph
+remains visible. The command may then record a failed update attempt in a
+separate transaction after rollback.
+
 ## Transactional Update Algorithm
 
 For changed paths:
@@ -710,7 +889,8 @@ For changed paths:
 ```text
 BEGIN IMMEDIATE
   normalize changed paths
-  affected_nodes = SELECT node_id FROM path_index WHERE path IN changed_paths
+  affected_nodes = SELECT node_id FROM path_index
+    WHERE generation_id = active_generation AND path IN changed_paths
   if affected_nodes is empty:
     run bounded fallback live discovery for changed paths
     create provisional affected nodes or return needs_rebuild
@@ -727,8 +907,10 @@ BEGIN IMMEDIATE
   update conflicts for affected subjects
   update aliases whose sources changed
   recompute affected slice_members
+  run query recall checks for affected capabilities
+  validate freshness/readiness mapping
   insert update event
-  update status metadata
+  update status metadata with last_update_id and freshness
 COMMIT
 ```
 
@@ -766,7 +948,7 @@ login has a bug: valid password login fails
 Workflow call:
 
 ```text
-specify cognition query --intent debug --query "login valid password login fails"
+specify project-cognition query --intent debug --query "login valid password login fails"
 ```
 
 Resolver steps:
@@ -800,9 +982,10 @@ one.
 If indexed lookup fails but live fallback finds `src/auth/login.ts`, the
 response reports missing graph coverage and routes to `map-update`.
 
-## Readiness States
+## Query Readiness States
 
-Query and update commands should use a shared readiness vocabulary:
+Query and update commands should use the task-local readiness vocabulary defined
+above:
 
 - `ready`: graph query is sufficiently grounded for the requested task
 - `review`: graph query is usable but requires targeted live verification
@@ -811,9 +994,10 @@ Query and update commands should use a shared readiness vocabulary:
   requested task
 - `needs_rebuild`: baseline or indexes are not reliable enough for incremental
   repair
-- `blocked`: runtime is corrupt, missing, or incompatible
+- `blocked`: runtime is corrupt, missing, incompatible, or blocked by support
+  drift
 
-Readiness is separate from recommended action.
+Readiness remains separate from public freshness and recommended action.
 
 Recommended actions:
 
@@ -823,6 +1007,7 @@ Recommended actions:
 - `run_map_update`
 - `run_map_scan_build`
 - `repair_or_rebuild_database`
+- `resolve_support_drift`
 
 ## Accuracy Protections
 
@@ -899,15 +1084,28 @@ The system must explain the exact reason for escalation.
 Add or formalize the following helper commands:
 
 ```text
-specify cognition status [--format json]
-specify cognition query --intent <intent> [--query <text>] [--paths <paths...>] [--format json]
-specify cognition update --changed-paths <paths...> [--reason <reason>] [--format json]
-specify cognition rebuild
-specify cognition doctor
+specify project-cognition status [--format json]
+specify project-cognition query --intent <intent> [--query <text>] [--paths <paths...>] [--format json]
+specify project-cognition update --changed-paths <paths...> [--reason <reason>] [--format json]
+specify project-cognition rebuild
+specify project-cognition doctor
 ```
 
 `sp-map-scan`, `sp-map-build`, and `sp-map-update` remain workflow-level
-commands. The `cognition` CLI group is the lower-level runtime API they use.
+commands. The `project-cognition` CLI group is the lower-level local runtime API
+they use.
+
+The existing `cognition` CLI group remains reserved for cross-project reference
+discovery and reference reads. It must not receive local graph runtime query or
+update commands. This keeps the boundary clear:
+
+- `project-cognition`: active project runtime status, query, update, rebuild,
+  doctor
+- `cognition`: external reference project discovery/read helpers
+
+The old `project-map` compatibility alias should be removed or reduced to a
+deprecation stub during this replacement because backwards compatibility is not
+part of this design.
 
 ## Testing Surface
 
@@ -915,45 +1113,72 @@ Regression coverage should include:
 
 - schema creation and migration from empty runtime
 - `map-scan` stages evidence and indexes without publishing ready truth
+- queries ignore staged `map-scan` rows until `map-build` publishes a generation
 - `map-build` creates graph nodes, edges, indexes, slices, and query examples
-- `cognition query` returns a task-local bundle without raw graph artifacts
+- `project-cognition query` returns a task-local bundle without raw graph
+  artifacts
+- local runtime commands are under `project-cognition`, while `cognition`
+  remains cross-project reference only
 - login query resolves by aliases, entrypoints, symbols, and tests
 - ambiguous login query returns multiple candidates
 - query with missing coverage returns `needs_update`
 - `map-update` changes only affected rows for a small path change
 - `map-update` rolls back on failed bounded update
+- failed `map-update` does not alter the active generation
 - update events record affected paths, nodes, claims, and slices
 - query recall checks degrade readiness when examples fail
+- evidence traces resolve to evidence rows for aliases, paths, symbols,
+  entrypoints, tests, nodes, edges, and claims
+- claim text lookup uses FTS rather than table scans
+- public freshness states map predictably to task-local readiness states
 - workflow templates no longer require direct reads of raw graph JSON files
 
 ## Rollout Strategy
 
-Because backwards compatibility is not required, the rollout can be a direct
-runtime replacement:
+Because downstream backwards compatibility is not required, the rollout can be a
+direct runtime replacement. It still must be synchronized across all current
+runtime consumers:
 
 1. Add SQLite schema and repository/query/update APIs.
-2. Change `map-scan` to stage evidence and indexes in the database.
-3. Change `map-build` to compile the database graph and mark status ready.
-4. Change `map-update` to use path-indexed transactional updates.
-5. Change workflow templates to use `cognition query` instead of raw graph
+2. Replace canonical runtime path checks so required paths are `status.json` and
+   `project-cognition.db`.
+3. Replace hook artifact validation for `map-scan`, `map-build`, and
+   `map-update` with database-generation validation.
+4. Change `map-scan` to stage evidence and indexes in the database.
+5. Change `map-build` to compile the database graph, publish the active
+   generation, and mark status ready.
+6. Change `map-update` to use path-indexed transactional active-generation
+   updates.
+7. Change workflow templates to use `project-cognition query` instead of raw graph
    reads.
-6. Remove raw graph JSON artifacts from required runtime paths and tests.
-7. Add query recall and localized update regression coverage.
+8. Remove raw graph JSON artifacts from required runtime paths and tests.
+9. Remove or deprecate `project-map` runtime aliases.
+10. Add query recall, evidence trace, readiness mapping, staging isolation, and
+    localized update regression coverage.
 
 ## Acceptance Criteria
 
 - Workflows no longer require reading `graph/nodes.json`, `graph/edges.json`,
   `graph/claims.json`, or `graph/conflicts.json`.
+- Freshness/finalizer code no longer requires those JSON graph artifacts.
+- Hook artifact validation no longer requires those JSON graph artifacts.
 - `project-cognition.db` is the canonical graph truth store.
-- `status.json` points to the active graph store and records readiness.
-- `cognition query` returns task-local bundles with evidence traces.
+- `status.json` points to the active graph store and active generation and
+  records public freshness.
+- `project-cognition query` returns task-local bundles with evidence traces.
+- The existing `cognition` command group remains cross-project reference only.
 - Natural-language capability and symptom matching returns candidates with
   `matched_by` evidence.
+- Every graph-backed `matched_by` route can be traced to evidence, claim, or
+  indexed source rows.
 - Ambiguous query results are surfaced as ambiguous, not silently resolved.
 - Missing graph coverage is surfaced as `needs_update`.
 - Small changed-path updates do not read or rewrite full graph artifacts.
 - `map-update` uses transactions and rolls back incomplete updates.
+- `map-scan` staging rows cannot leak into query results before publication.
 - Query recall tests protect high-value capability lookup.
+- FTS-backed claim, observation, and alias search exists before claim text
+  lookup is enabled.
 - `map-scan`, `map-build`, and `map-update` have distinct responsibilities and
   no longer share a heavy all-graph read/write path.
 
