@@ -182,17 +182,23 @@ class TestInitIntegrationFlag:
         debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
         assert 'choose_subagent_dispatch(command_name="debug"' in debug_content
         assert "capability-aware investigation" in debug_content
-        assert ".specify/project-cognition/status.json" in debug_content
-        assert ".specify/project-cognition/slices/debug.json" in debug_content
-        assert ".specify/project-cognition/graph/claims.json" in debug_content
-        assert ".specify/project-cognition/graph/conflicts.json" in debug_content
+        assert "project-cognition query --intent debug" in debug_content
+        assert "returned readiness" in debug_content
+        assert "task-local bundle" in debug_content
+        assert "minimal_live_reads" in debug_content
+        assert ".specify/project-cognition/slices/debug.json" not in debug_content
+        assert ".specify/project-cognition/graph/claims.json" not in debug_content
+        assert ".specify/project-cognition/graph/conflicts.json" not in debug_content
         assert "debug-handbook.md" not in debug_content
         assert "debug-workflow-contract" not in debug_content
         assert "spawn_agent" not in debug_content
 
         fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
-        assert ".specify/project-cognition/status.json" in fast_content
-        assert ".specify/project-cognition/slices/change.json" in fast_content
+        assert "project-cognition query --intent implement" in fast_content
+        assert "returned readiness" in fast_content
+        assert "task-local bundle" in fast_content
+        assert "minimal_live_reads" in fast_content
+        assert ".specify/project-cognition/slices/change.json" not in fast_content
         assert "build-handbook.md" not in fast_content
         assert "shared surfaces" in fast_content
         assert "change-propagation hotspot" in fast_content
@@ -205,9 +211,13 @@ class TestInitIntegrationFlag:
         assert "future senior engineer" in quick_content
         assert ".specify/memory/project-learnings.md" not in quick_content
         assert ".planning/learnings/candidates.md" not in quick_content
-        assert ".specify/project-cognition/" in quick_content
-        assert "project cognition contract" in quick_content
-        assert "status and slice artifacts" in quick_content
+        assert "project-cognition query --intent implement" in quick_content
+        assert "project cognition query" in quick_content
+        assert "returned readiness" in quick_content
+        assert "task-local bundle" in quick_content
+        assert "minimal_live_reads" in quick_content
+        assert "status and slice artifacts" not in quick_content
+        assert ".specify/project-cognition/slices/change.json" not in quick_content
         assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content
         assert "attempt the smallest safe recovery step before declaring the task blocked" in quick_content
         assert "retry_attempts" in quick_content
