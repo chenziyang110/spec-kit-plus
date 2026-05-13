@@ -75,6 +75,22 @@ def _assert_downstream_testing_control_plane(skill_content: str) -> None:
     assert "covered-module status values and the minimum evidence required" in skill_lower
 
 
+def _assert_discussion_contract(skill_content: str) -> None:
+    skill_lower = skill_content.lower()
+
+    assert "sp-discussion" in skill_content
+    assert ".specify/discussions/<slug>/" in skill_content
+    assert "discussion-state.md" in skill_content
+    assert "handoff-to-specify.md" in skill_content
+    assert (
+        "explicit user" in skill_lower
+        or "user explicitly" in skill_lower
+        or "explicit-user-request" in skill_lower
+    )
+    assert "senior technical expert" in skill_lower
+    assert "senior product manager" in skill_lower
+
+
 class SkillsIntegrationTests:
     """Mixin — set class-level constants and inherit these tests.
 
@@ -212,6 +228,15 @@ class SkillsIntegrationTests:
         content = integrate_path.read_text(encoding="utf-8").lower()
         assert "closeout" in content or "close out" in content
         assert "do not fold this workflow into `sp-implement`" in content
+
+    def test_discussion_skill_preserves_pre_specification_contract(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        discussion_path = i.skills_dest(tmp_path) / "sp-discussion" / "SKILL.md"
+        assert discussion_path.exists()
+        _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
 
     def test_passive_skills_use_distinct_non_sp_namespace(self, tmp_path):
         i = get_integration(self.KEY)
