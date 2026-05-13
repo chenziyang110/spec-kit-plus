@@ -986,6 +986,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- Use `sp-fast` only for trivial, low-risk local changes that do not need planning artifacts.",
             "- Use `sp-quick` for bounded tasks that need lightweight tracking but not the full `specify -> plan -> tasks -> implement` flow.",
             "- Use `sp-auto` when repository state already records the recommended next step and the user wants one continue entrypoint instead of naming the exact workflow manually.",
+            "- Use `sp-discussion` when a rough idea needs resumable senior product and technical discussion before formal specification.",
             "- Use `sp-specify` when scope, behavior, constraints, or acceptance criteria need explicit alignment before planning.",
             "- Use `sp-map-scan` when a graph-native cognition baseline must be created from project-internal evidence before deeper brownfield work.",
             "- Use `sp-map-build` when a completed graph-native evidence baseline must be reconstructed into graph nodes, claims, conflicts, and slices.",
@@ -3020,6 +3021,7 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
+    "discussion": "Use when a rough idea or requirement needs a resumable product/technical discussion before formal specification.",
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",
     "prd-build": "Use when a validated PRD scan package exists and the final PRD suite must be compiled from it without a second repository scan.",
@@ -3072,6 +3074,12 @@ def map_build_command() -> None:
 def map_update_command() -> None:
     """Workflow entrypoint surface for incremental cognition runtime refresh."""
     _workflow_entrypoint_surface_only("map-update")
+
+
+@app.command("discussion", help=SKILL_DESCRIPTIONS["discussion"])
+def discussion_command() -> None:
+    """Workflow entrypoint surface for resumable pre-specification discussion."""
+    _workflow_entrypoint_surface_only("discussion")
 
 
 def _install_codex_team_assets_if_needed(
@@ -3687,6 +3695,7 @@ def init(
     steps_lines.append(f"   - [cyan]{_display_cmd('test-scan')}[/] - Deep-scan the testing surface and produce build-ready lanes")
     steps_lines.append(f"   - [cyan]{_display_cmd('test-build')}[/] - Build the unit testing system from scan-approved lanes with leader/subagent coordination")
     steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
+    steps_lines.append(f"   - [cyan]{_display_cmd('discussion')}[/] - Mature a rough idea through resumable product and technical discussion before formal specification")
     steps_lines.append(f"   - [cyan]{_display_cmd('prd-scan')}[/] - Produce heavy reconstruction PRD scan outputs with subagent-mandatory L4 Reconstruction-Ready evidence and config-contracts.json")
     steps_lines.append(f"   - [cyan]{_display_cmd('prd-build')}[/] - Compile the final PRD suite from a validated PRD scan package without a second repository scan")
     steps_lines.append(f"   - [cyan]{_display_cmd('prd')}[/] - Deprecated compatibility entrypoint; routes older reverse-PRD habits to the scan/build flow")
@@ -3726,6 +3735,7 @@ def init(
             f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the project cognition graph, claims, conflicts, and slices from the scan baseline",
             f"○ [cyan]{_display_cmd('map-update')}[/] [bright_black](after baseline)[/bright_black] - Refresh the project cognition runtime incrementally when changed areas or user supplements land",
             f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",
+            f"○ [cyan]{_display_cmd('discussion')}[/] [bright_black](pre-spec discussion)[/bright_black] - Preserve product and technical discussion state before explicit handoff to [cyan]{_display_cmd('specify')}[/]",
             f"○ [cyan]{_display_cmd('prd-scan')}[/] [bright_black](existing-project PRD scan)[/bright_black] - Produce the heavy reconstruction scan package for reverse-PRD work before final synthesis, including subagent-mandatory evidence and config-contracts.json",
             f"○ [cyan]{_display_cmd('prd-build')}[/] [bright_black](after prd-scan)[/bright_black] - Compile the final PRD suite from a validated scan package without turning build back into an ad hoc scan",
             f"○ [cyan]{_display_cmd('prd')}[/] [bright_black](deprecated compatibility)[/bright_black] - Compatibility entrypoint only; prefer the canonical [cyan]{_display_cmd('prd-scan')}[/] -> [cyan]{_display_cmd('prd-build')}[/] flow",

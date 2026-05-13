@@ -1,6 +1,6 @@
 ---
 name: "spec-kit-workflow-routing"
-description: "Use when working inside a Spec Kit Plus repository and the user asks for feature work, planning, implementation, explanation, debugging, or code changes without explicitly naming the right sp-* workflow. Route the request to the correct active skill before proceeding."
+description: "Use when working inside a Spec Kit Plus repository and the user asks for feature work, discussion, planning, implementation, explanation, debugging, or code changes without explicitly naming the right sp-* workflow. Route the request to the correct active skill before proceeding."
 origin: spec-kit-plus
 ---
 
@@ -64,8 +64,12 @@ standalone branch-creation command.
   scan-approved lanes should construct or refresh the unit testing system.
 - Use `sp-auto` when repository state already records the recommended next step
   and the user wants to continue without naming the exact workflow manually.
-- Use `sp-specify` for new capability, behavior, or requirement changes that need an
-  aligned spec package before implementation.
+- Use `sp-discussion` for rough ideas, not-yet-ready requirements, or multi-turn
+  product/technical exploration before formal specification. It preserves
+  `.specify/discussions/<slug>/` state and only hands off to `sp-specify` on
+  explicit user request through explicit handoff.
+- Use `sp-specify` for new capability, behavior, or requirement changes that are
+  ready for an aligned spec package before implementation.
 - Use `sp-prd-scan -> sp-prd-build` when an existing repository needs a current-state PRD suite reverse-extracted from code, docs, tests, routes, UI/API surfaces, and project-map evidence. Treat that pair as the canonical heavy reconstruction PRD lane, a peer workflow path to `sp-specify`, not as a pre-plan requirement, and do not automatically hand off to planning.
 - Require the PRD lane to follow `subagent-mandatory` scan semantics for
   substantive runs, carry contract artifacts such as `config-contracts.json`,
@@ -107,6 +111,7 @@ state, or artifact handoffs. Use projected invocation placeholders when telling 
 user what to type:
 
 - New capability alignment: `{{invoke:specify}}`
+- Pre-spec discussion: `{{invoke:discussion}}`
 - Existing-project PRD extraction: `{{invoke:prd-scan}} -> {{invoke:prd-build}}`
 - Planning handoff: `{{invoke:plan}}`
 - Task generation: `{{invoke:tasks}}`
@@ -142,6 +147,8 @@ user what to type:
 - Keep `sp-*` workflows as the visible daily surface. This passive skill should guide
   into them, not become a competing workflow.
 - If the user is already invoking the correct `sp-*` skill, do not redirect.
+- Do not skip from `sp-discussion` into `sp-specify` unless the user explicitly
+  requests handoff.
 - If a required next step is a user-invoked workflow entrypoint rather than an
   in-workflow action, stop the current flow and tell the user exactly what to run.
 - Do not self-execute a different explicit `sp-*` workflow just because the current

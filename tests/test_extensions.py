@@ -38,6 +38,12 @@ from specify_cli.extensions import (
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def test_fallback_core_command_names_include_discussion():
+    from specify_cli.extensions import _FALLBACK_CORE_COMMAND_NAMES
+
+    assert "discussion" in _FALLBACK_CORE_COMMAND_NAMES
+
+
 # ===== Fixtures =====
 
 @pytest.fixture

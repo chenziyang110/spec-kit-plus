@@ -23,7 +23,13 @@ judgment in an established Spec Kit Plus repository:
 
 - Read `.specify/project-cognition/status.json` first.
 - Read `.specify/project-cognition/slices/debug.json` for `sp-debug`.
-- Read `.specify/project-cognition/slices/change.json` for other ordinary brownfield workflows.
+- Read `.specify/project-cognition/slices/change.json` for other ordinary
+  brownfield workflows, including `sp-discussion` once it reaches technical
+  options or source-grounded discussion.
+- For `sp-discussion`, product framing may begin before the cognition gate. Before
+  technical options, affected-surface claims, source-code reads, or
+  source-grounded recommendations, read `.specify/project-cognition/status.json`
+  and `.specify/project-cognition/slices/change.json`.
 - Treat the project cognition runtime as the cross-project cognition reference:
   explicit-only, supplemental-only, fresh-only, and minimal read before broader
   live-code inspection.

@@ -408,6 +408,30 @@ def test_specify_consumes_explicit_discussion_handoff_without_bypassing_kernel()
     assert "reopen reason" in lowered
 
 
+def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    lowered = content.lower()
+
+    assert "sp-discussion" in content
+    assert "rough idea" in lowered
+    assert "not-yet-ready" in lowered
+    assert "pre-spec" in lowered or "before formal specification" in lowered
+    assert "explicit handoff" in lowered
+    assert "{{invoke:discussion}}" in content
+    assert "{{invoke:specify}}" in content
+
+
+def test_project_map_gate_has_staged_discussion_gate() -> None:
+    content = _read("templates/passive-skills/spec-kit-project-map-gate/SKILL.md")
+    lowered = content.lower()
+
+    assert "sp-discussion" in content
+    assert "product framing" in lowered
+    assert "before the cognition gate" in lowered
+    assert "technical options" in lowered
+    assert ".specify/project-cognition/slices/change.json" in content
+
+
 def test_specify_template_uses_alignment_first_contract():
     content = _read("templates/commands/specify.md")
     lowered = content.lower()

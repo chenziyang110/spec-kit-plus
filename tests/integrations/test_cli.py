@@ -11,6 +11,18 @@ from typer.testing import CliRunner
 from specify_cli import app
 
 
+def test_top_level_cli_exposes_discussion_entrypoint():
+    runner = CliRunner()
+    root_help = runner.invoke(app, ["--help"], catch_exceptions=False)
+    discussion_help = runner.invoke(app, ["discussion", "--help"], catch_exceptions=False)
+
+    assert root_help.exit_code == 0, root_help.output
+    assert discussion_help.exit_code == 0, discussion_help.output
+    assert "discussion" in root_help.output
+    assert "resumable product/technical" in discussion_help.output.lower()
+    assert "discussion before formal specification" in discussion_help.output.lower()
+
+
 class TestInitIntegrationFlag:
     @staticmethod
     def _frontmatter(skill_path):
