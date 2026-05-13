@@ -27,6 +27,7 @@ from .paths import (
     provisional_nodes_path,
     provisional_observations_path,
 )
+from .query import query_project_cognition
 from .reference_read import ReferenceProjectReadError, read_reference_project_cognition
 from .schema import (
     ClaimRecord,
@@ -85,6 +86,7 @@ __all__ = [
     "provisional_edges_path",
     "provisional_nodes_path",
     "provisional_observations_path",
+    "query_project_cognition",
     "read_cognition_status",
     "read_reference_project_cognition",
     "read_json_artifact",
