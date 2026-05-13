@@ -72,10 +72,9 @@ class TestInitIntegrationFlag:
         assert (project / ".codex" / "skills" / "sp-teams" / "SKILL.md").exists()
         assert (project / ".specify" / "teams" / "runtime.json").exists()
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "QUICK-NAV.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "root" / "ARCHITECTURE.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "root" / "OPERATIONS.md").exists()
-        assert (project / ".specify" / "project-map" / "status.json").exists()
+        assert (project / ".specify" / "project-cognition" / "status.json").exists()
+        assert not (project / ".specify" / "templates" / "project-map").exists()
+        assert not (project / ".specify" / "project-map").exists()
         assert "sp-teams" in result.output
         assert "Codex Teams Readiness" in result.output
         assert "git repo detected" in result.output
@@ -587,10 +586,9 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert (project / ".github" / "prompts" / "sp.plan.prompt.md").exists()
         assert (project / ".specify" / "scripts" / "bash" / "common.sh").exists()
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "QUICK-NAV.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "root" / "ARCHITECTURE.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "root" / "OPERATIONS.md").exists()
-        assert (project / ".specify" / "project-map" / "status.json").exists()
+        assert (project / ".specify" / "project-cognition" / "status.json").exists()
+        assert not (project / ".specify" / "templates" / "project-map").exists()
+        assert not (project / ".specify" / "project-map").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
         assert (project / ".specify" / "templates" / "spec-template.md").exists()
 
@@ -1005,8 +1003,8 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-scan" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-build" / "SKILL.md").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "index" / "capabilities.json").exists()
-        assert (project / ".specify" / "templates" / "project-map" / "index" / "symptoms.json").exists()
+        assert not (project / ".specify" / "templates" / "project-map").exists()
+        assert not (project / ".specify" / "project-map").exists()
         assert not (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
 

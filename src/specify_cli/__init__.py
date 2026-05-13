@@ -2735,6 +2735,8 @@ def _install_shared_infra(
                 continue
 
             rel_path = src_path.relative_to(templates_src)
+            if rel_path.parts and rel_path.parts[0] == "project-map":
+                continue
             dst = dest_templates / rel_path
             dst.parent.mkdir(parents=True, exist_ok=True)
             if dst.exists() and not overwrite_existing:
@@ -2752,7 +2754,6 @@ def _install_shared_infra(
             extra_template_dirs = (
                 "command-partials",
                 "passive-skills",
-                "project-map",
                 "worker-prompts",
             )
             for extra_name in extra_template_dirs:

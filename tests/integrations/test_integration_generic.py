@@ -25,9 +25,12 @@ class TestGenericIntegration:
             return []
 
         return sorted(
-            path.relative_to(templates_dir).as_posix()
+            rel_path
             for path in templates_dir.rglob("*")
-            if path.is_file() and path.name != "vscode-settings.json"
+            if path.is_file()
+            and path.name != "vscode-settings.json"
+            for rel_path in (path.relative_to(templates_dir).as_posix(),)
+            if not rel_path.startswith("project-map/")
         )
 
     @classmethod
@@ -45,8 +48,6 @@ class TestGenericIntegration:
             ".specify/memory/project-learnings.md",
             ".specify/memory/project-rules.md",
             ".specify/project-cognition/status.json",
-            ".specify/project-map/status.json",
-            ".specify/project-map/index/status.json",
         ]
 
         if script_variant == "sh":

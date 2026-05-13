@@ -112,9 +112,9 @@ class TestCodexAutoPromote:
         assert (target / ".codex" / "skills" / "spec-kit-project-map-gate" / "SKILL.md").exists()
         assert (target / ".specify" / "teams" / "runtime.json").exists()
         assert (target / ".specify" / "templates" / "project-handbook-template.md").exists()
-        assert (target / ".specify" / "templates" / "project-map" / "ARCHITECTURE.md").exists()
-        assert (target / ".specify" / "templates" / "project-map" / "OPERATIONS.md").exists()
-        assert (target / ".specify" / "project-map" / "status.json").exists()
+        assert (target / ".specify" / "project-cognition" / "status.json").exists()
+        assert not (target / ".specify" / "templates" / "project-map").exists()
+        assert not (target / ".specify" / "project-map").exists()
 
         _assert_stable_subagent_contract((target / "AGENTS.md").read_text(encoding="utf-8"))
 
@@ -472,7 +472,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert "learning start --command constitution --format json" in constitution_content
     assert ".specify/project-cognition/status.json" in constitution_content
     assert "build-handbook.md" not in constitution_content
-    assert ".specify/project-map/index/status.json" in constitution_content
+    assert ".specify/project-map/index/status.json" not in constitution_content
     assert "/sp-map-scan" in constitution_content
     assert "/sp-map-build" in constitution_content
     assert "workflow-state.md" in constitution_content
