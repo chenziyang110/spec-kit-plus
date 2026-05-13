@@ -1854,10 +1854,11 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:learning start --command checklist --format json}}" in lowered
     assert "required options: `--command`, `--type`, `--summary`, `--evidence`" in lowered
-    assert ".specify/project-cognition/status.json" in lowered
-    assert ".specify/project-cognition/slices/change.json" in lowered
+    assert "project-cognition query --intent plan" in lowered
+    assert "returned readiness" in lowered
+    assert "minimal_live_reads" in lowered
     assert "build-handbook.md" not in lowered
-    assert "run `{{invoke:map-update}}`" in lowered
+    assert "`needs_update`: route through `{{invoke:map-update}}`" in lowered
     assert "if the checklist reveals planning-critical requirement gaps" in lowered
     assert "recommend `/sp-specify`" in lowered or "recommend `/sp.specify`" in lowered
     assert "recommend `/sp-plan`" in lowered

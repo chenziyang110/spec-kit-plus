@@ -20,7 +20,7 @@ def test_build_worker_bootstrap_payload_includes_packet_metadata() -> None:
         additional_metadata={
             "packet_summary": "task_id: T002",
             "required_references": "src/contracts/auth.py",
-            "context_bundle": "1. .specify/project-cognition/status.json [project_map] - runtime status baseline; 2. .specify/project-cognition/slices/change.json [task_reference] - active change slice",
+            "context_bundle": "1. .specify/project-cognition/status.json [project_map] - freshness entrypoint; 2. .specify/project-cognition/project-cognition.db [project_map] - query-backed graph store",
             "forbidden_drift": "Do not create a parallel auth stack",
             "validation_gates": "pytest tests/unit/test_auth_service.py -q",
             "native_dispatch_hint": "Dispatch bounded lanes through `spawn_agent`.",
@@ -32,7 +32,7 @@ def test_build_worker_bootstrap_payload_includes_packet_metadata() -> None:
     assert "packet_summary: task_id: T002" in payload.instructions
     assert "required_references: src/contracts/auth.py" in payload.instructions
     assert (
-        "context_bundle: 1. .specify/project-cognition/status.json [project_map] - runtime status baseline; 2. .specify/project-cognition/slices/change.json [task_reference] - active change slice"
+        "context_bundle: 1. .specify/project-cognition/status.json [project_map] - freshness entrypoint; 2. .specify/project-cognition/project-cognition.db [project_map] - query-backed graph store"
         in payload.instructions
     )
     assert "forbidden_drift: Do not create a parallel auth stack" in payload.instructions

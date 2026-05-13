@@ -27,8 +27,8 @@ def test_project_handbook_template_exists_and_routes_to_project_cognition():
     assert "## Topic Map" in content
     assert "## Compatibility Export Model" in content
     assert "`.specify/project-cognition/status.json`" in content
-    assert "`.specify/project-cognition/slices/change.json`" in content
-    assert "`.specify/project-cognition/slices/debug.json`" in content
+    assert "`.specify/project-cognition/project-cognition.db`" in content
+    assert "`specify project-cognition query`" in content
     assert "`DEBUG-HANDBOOK.md`" in content
     assert "`BUILD-HANDBOOK.md`" in content
     assert "compatibility/export views during the migration window" in content
@@ -138,7 +138,8 @@ def test_project_handbook_template_points_readers_to_project_cognition_first():
     content = _read("templates/project-handbook-template.md")
 
     assert "`.specify/project-cognition/status.json` for freshness" in content
-    assert "workflow-appropriate cognition slices" in content
+    assert "`.specify/project-cognition/project-cognition.db` as the canonical graph store" in content
+    assert "task-local bundle returned by `specify project-cognition query`" in content
     assert "not the default runtime truth path" in content
     assert "Use `Where To Read Next` for task-oriented routing." in content
 
@@ -153,7 +154,8 @@ def test_project_handbook_template_defines_cross_project_cognition_reference_con
     assert "fresh-only" in lowered
     assert "minimal read" in lowered
     assert "`.specify/project-cognition/status.json`" in content
-    assert "`.specify/project-cognition/slices/change.json`" in content
+    assert "`.specify/project-cognition/project-cognition.db`" in content
+    assert "`specify project-cognition query`" in content
     assert "`.specify/project-map/**`" in content
     assert "not the default runtime truth path" in content
     assert "project-map as primary truth" not in lowered

@@ -134,8 +134,12 @@ class TestInitIntegrationFlag:
         assert "execution_model: subagent-mandatory" in content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
-        assert ".specify/project-cognition/status.json" in content.lower()
-        assert ".specify/project-cognition/slices/change.json" in content.lower()
+        assert "project-cognition query --intent implement" in content
+        assert "readiness" in content
+        assert "task-local bundle" in content
+        assert "minimal_live_reads" in content
+        assert ".specify/project-cognition/slices/change.json" not in content.lower()
+        assert "status and slice artifacts" not in content.lower()
         assert "build-handbook.md" not in content.lower()
         assert "build-workflow-contract" not in content.lower()
         assert "change-entrypoints" not in content.lower()
@@ -985,7 +989,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
                         "write_scope": ["src/demo.py"],
                         "read_scope": [
                             ".specify/project-cognition/status.json",
-                            ".specify/project-cognition/slices/change.json",
+                            ".specify/project-cognition/project-cognition.db",
                         ],
                     },
                     "context_bundle": [
@@ -999,13 +1003,13 @@ def test_check_reports_workflow_contract_drift(tmp_path):
                             "selection_reason": "cognition status is the primary runtime truth surface",
                         },
                         {
-                            "path": ".specify/project-cognition/slices/change.json",
-                            "kind": "task_reference",
-                            "purpose": "workflow-specific cognition change slice",
+                            "path": ".specify/project-cognition/project-cognition.db",
+                            "kind": "project_map",
+                            "purpose": "query-backed cognition graph store",
                             "required_for": ["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                             "read_order": 2,
                             "must_read": True,
-                            "selection_reason": "change slice carries touched-scope context and conflict signals",
+                            "selection_reason": "project-cognition query returns the task-local bundle and minimal_live_reads",
                         }
                     ],
                     "required_references": [{"path": "src/demo.py", "reason": "canonical implementation reference"}],

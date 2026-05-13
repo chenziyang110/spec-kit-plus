@@ -65,17 +65,16 @@ Use `execution_surface: native-subagents`.
    - All file paths must be absolute.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
-2. **Read brownfield navigation context before shaping the checklist**
-   - Check whether `.specify/project-cognition/status.json` exists.
-   - [AGENT] If cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that refresh before continuing.
-   - [AGENT] If cognition freshness is `stale`, stop and tell the user to run `{{invoke:map-update}}`; if no usable baseline remains, rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-   - [AGENT] If cognition freshness is `support_drift`, stop and tell the user to resolve support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
-   - [AGENT] If cognition freshness is `partial_refresh`, stop and tell the user the refresh was recorded but readiness did not pass; follow `recommended_next_action`.
-   - [AGENT] If cognition freshness is `possibly_stale`, inspect the reported changed paths, reasons, `must_refresh_topics`, and `review_topics`. If checklist-relevant coverage is stale for the current feature area, stop and tell the user to run `{{invoke:map-update}}`; if no usable baseline remains, rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
-   - [AGENT] Read `.specify/project-cognition/status.json`.
-   - [AGENT] Read `.specify/project-cognition/slices/change.json`.
-   - [AGENT] Read `.specify/project-cognition/graph/nodes.json`, `.specify/project-cognition/graph/edges.json`, `.specify/project-cognition/graph/claims.json`, and `.specify/project-cognition/graph/conflicts.json` when the change slice alone does not close ownership, propagation, or conflicting-truth questions.
-   - Treat this as a coverage-model check, not a file-presence check. If the project cognition runtime cannot tell you the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, stop and tell the user to run `{{invoke:map-update}}`; if no usable baseline remains, rebuild through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+2. **Query brownfield navigation context before shaping the checklist**
+   - [AGENT] Run or emulate `specify project-cognition query --intent plan --query "$ARGUMENTS" --format json`.
+   - [AGENT] Use the returned readiness:
+     - `ready`: continue with the returned task-local bundle.
+     - `review`: perform only the returned `minimal_live_reads` before continuing.
+     - `ambiguous`: ask the user to select the intended candidate.
+     - `needs_update`: route through `{{invoke:map-update}}`.
+     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+     - `blocked`: stop and report the blocking runtime issue.
+   - Treat this as a coverage-model check, not a file-presence check. If the returned task-local bundle cannot identify the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, route through the returned `recommended_next_action`.
 
 3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
    - Be generated from the user's phrasing + extracted signals from spec/plan/tasks

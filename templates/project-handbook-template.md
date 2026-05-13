@@ -27,7 +27,8 @@ and what sits clearly outside the system boundary.]
 - Start here for compatibility/export orientation.
 - **Default runtime truth**:
   - `.specify/project-cognition/status.json` for freshness, coverage, stale paths, and refresh metadata
-  - workflow-appropriate cognition slices such as `.specify/project-cognition/slices/change.json` or `.specify/project-cognition/slices/debug.json`
+  - `.specify/project-cognition/project-cognition.db` as the canonical graph store
+  - the task-local bundle returned by `specify project-cognition query`, including readiness and `minimal_live_reads`
 - **Cross-project cognition reference**: use the project cognition runtime as
   explicit-only, supplemental-only, fresh-only context with a minimal read before
   broader source inspection.
@@ -47,7 +48,7 @@ Describe the handbook export model explicitly:
 - **Debug export**: `DEBUG-HANDBOOK.md` — compatibility view of symptom routing, likely truth owners, failure propagation, investigation playbooks, and verification exit rules
 - **Build/change export**: `BUILD-HANDBOOK.md` — compatibility view of product capability map, workflow sequences, change entrypoints, collaboration routes, propagation risks, implementation playbooks, and verification routes
 - **Project-map exports**: `.specify/project-map/**` — support-only, reference-only, or export-only continuity surfaces
-- **Runtime truth**: `.specify/project-cognition/status.json` plus workflow-appropriate cognition slices
+- **Runtime truth**: `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and the task-local bundle returned by `specify project-cognition query`
 
 The export model should help the reader distinguish compatibility views from
 the graph-native cognition runtime used before broader code reads begin.
@@ -107,8 +108,8 @@ the graph-native cognition runtime used before broader code reads begin.
 ## Topic Map
 
 - `.specify/project-cognition/status.json` - default runtime status, freshness, coverage, stale paths, and refresh metadata
-- `.specify/project-cognition/slices/change.json` - default change/build slice for ordinary brownfield workflows
-- `.specify/project-cognition/slices/debug.json` - default debug slice for symptom investigation
+- `.specify/project-cognition/project-cognition.db` - canonical SQLite graph store
+- `specify project-cognition query` - default route to task-local cognition bundles, readiness, and `minimal_live_reads`
 - `DEBUG-HANDBOOK.md` - compatibility/export debug view
 - `BUILD-HANDBOOK.md` - compatibility/export build/change view
 - `.specify/project-map/**` - compatibility/export and refresh-workbench surfaces, not the primary runtime truth path
