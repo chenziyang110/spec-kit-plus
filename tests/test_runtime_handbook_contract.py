@@ -49,3 +49,13 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
         assert "build-handbook.md" not in lowered
         assert "build-workflow-contract" not in lowered
         assert "runtime handbook" not in lowered
+
+
+def test_runtime_handbook_docs_are_query_backed() -> None:
+    content = _read("PROJECT-HANDBOOK.md")
+    lowered = content.lower()
+
+    assert ".specify/project-cognition/status.json" in content
+    assert ".specify/project-cognition/project-cognition.db" in content
+    assert "specify project-cognition query" in content
+    assert "workflow-appropriate slices" not in lowered

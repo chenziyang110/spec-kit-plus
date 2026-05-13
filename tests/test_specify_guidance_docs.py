@@ -130,6 +130,16 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows" in support_guidance
 
 
+def test_repo_docs_route_brownfield_runtime_through_cognition_query() -> None:
+    readme = _read("README.md").lower()
+    handbook = _read("PROJECT-HANDBOOK.md").lower()
+
+    for content in (readme, handbook):
+        assert "project-cognition query" in content
+        assert "project-cognition.db" in content
+        assert "workflow-appropriate slices" not in content
+
+
 def test_quickstart_taskify_walkthrough_frames_literal_sp_examples_as_claude_style():
     quickstart = _read("docs/quickstart.md")
     walkthrough = _section(quickstart, "## Detailed Example: Building Taskify", "## Key Principles")
