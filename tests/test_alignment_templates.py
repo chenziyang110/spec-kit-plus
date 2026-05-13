@@ -329,7 +329,7 @@ def test_project_learning_skill_documents_direct_learning_helpers_not_hook_gates
 
 
 def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
-    content = _read("templates/commands/discussion.md")
+    content = _read_project_file("templates/commands/discussion.md")
     lowered = content.lower()
 
     assert "sp-discussion" in content
