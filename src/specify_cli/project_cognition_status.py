@@ -11,7 +11,7 @@ addition to freshness status.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
@@ -237,6 +237,17 @@ def project_map_status_path(project_root: Path) -> Path:
 
 def legacy_project_map_status_path(project_root: Path) -> Path:
     return project_map_dir(project_root) / STATUS_FILENAME
+
+
+def project_cognition_status_metadata_path(project_root: Path) -> Path:
+    return cognition_status_path(project_root)
+
+
+def legacy_project_map_status_paths(project_root: Path) -> tuple[Path, Path]:
+    return (
+        project_map_status_path(project_root),
+        legacy_project_map_status_path(project_root),
+    )
 
 
 def canonical_cognition_runtime_paths(project_root: Path) -> list[Path]:
@@ -627,7 +638,7 @@ def _freshness_payload(
             freshness=freshness,
             reasons=reasons,
         ),
-        "status_path": str(project_map_status_path(project_root)),
+        "status_path": str(project_cognition_status_metadata_path(project_root)),
         "head_commit": head_commit,
         "last_mapped_commit": status.last_mapped_commit,
         "manual_force_stale": manual_force_stale,
@@ -996,15 +1007,17 @@ class ProjectMapStatus:
         )
         return cls(
             version=int(data.get("version", 1)),
-            last_mapped_commit=str(data.get("last_mapped_commit", "")),
-            last_mapped_at=str(data.get("last_mapped_at", "")),
-            last_mapped_branch=str(data.get("last_mapped_branch", "")),
-            freshness=str(data.get("freshness", "missing")),
-            last_refresh_reason=str(data.get("last_refresh_reason", "")),
-            last_refresh_topics=list(data.get("last_refresh_topics", []) or []),
-            last_refresh_scope=str(data.get("last_refresh_scope", "full")),
-            last_refresh_basis=str(data.get("last_refresh_basis", "")),
-            last_refresh_changed_files_basis=list(data.get("last_refresh_changed_files_basis", []) or []),
+            last_mapped_commit=str(data.get("last_mapped_commit", data.get("global_last_refresh_commit", ""))),
+            last_mapped_at=str(data.get("last_mapped_at", data.get("global_last_refresh_at", ""))),
+            last_mapped_branch=str(data.get("last_mapped_branch", data.get("global_last_refresh_branch", ""))),
+            freshness=str(data.get("freshness", data.get("global_freshness", "missing"))),
+            last_refresh_reason=str(data.get("last_refresh_reason", data.get("global_last_refresh_reason", ""))),
+            last_refresh_topics=list(data.get("last_refresh_topics", data.get("global_last_refresh_topics", [])) or []),
+            last_refresh_scope=str(data.get("last_refresh_scope", data.get("global_last_refresh_scope", "full"))),
+            last_refresh_basis=str(data.get("last_refresh_basis", data.get("global_last_refresh_basis", ""))),
+            last_refresh_changed_files_basis=list(
+                data.get("last_refresh_changed_files_basis", data.get("global_last_refresh_changed_files_basis", [])) or []
+            ),
             dirty=bool(manual_force_stale),
             dirty_reasons=list(manual_force_stale_reasons or []),
             dirty_origin_command=str(data.get("dirty_origin_command", "")),
@@ -1016,7 +1029,12 @@ class ProjectMapStatus:
 
 
 def read_project_map_status(project_root: Path) -> ProjectMapStatus:
-    for status_path in (project_map_status_path(project_root), legacy_project_map_status_path(project_root)):
+    canonical_path = project_cognition_status_metadata_path(project_root)
+    if canonical_path.exists():
+        shared_status = read_scan_status(canonical_path, status_family="project-cognition")
+        if shared_status.raw_payload:
+            return ProjectMapStatus.from_dict(shared_status.raw_payload)
+    for status_path in legacy_project_map_status_paths(project_root):
         if not status_path.exists():
             continue
         shared_status = read_scan_status(status_path, status_family="project-map")
@@ -1027,17 +1045,19 @@ def read_project_map_status(project_root: Path) -> ProjectMapStatus:
 
 
 def write_project_map_status(project_root: Path, status: ProjectMapStatus) -> Path:
-    status_path = project_map_status_path(project_root)
+    status_path = project_cognition_status_metadata_path(project_root)
     payload = status.to_dict()
     write_scan_payload(status_path, payload)
-    legacy_path = legacy_project_map_status_path(project_root)
-    if legacy_path != status_path:
-        write_scan_payload(legacy_path, payload)
-    _write_cognition_freshness_metadata(project_root, status)
+    _write_cognition_freshness_metadata(project_root, status, legacy_status_payload=payload)
     return status_path
 
 
-def _write_cognition_freshness_metadata(project_root: Path, status: ProjectMapStatus) -> Path:
+def _write_cognition_freshness_metadata(
+    project_root: Path,
+    status: ProjectMapStatus,
+    *,
+    legacy_status_payload: dict[str, Any] | None = None,
+) -> Path:
     cognition_status = read_cognition_status(project_root)
     merged = CognitionStatus(
         version=max(int(cognition_status.version or 1), 2),
@@ -1047,6 +1067,10 @@ def _write_cognition_freshness_metadata(project_root: Path, status: ProjectMapSt
         baseline_built_at=status.last_mapped_at or cognition_status.baseline_built_at,
         last_update_id=cognition_status.last_update_id,
         graph_ready=cognition_status.graph_ready,
+        graph_store_path=cognition_status.graph_store_path,
+        active_generation_id=cognition_status.active_generation_id,
+        query_contract_version=cognition_status.query_contract_version,
+        update_contract_version=cognition_status.update_contract_version,
         stale_paths=list(cognition_status.stale_paths or []),
         stale_reasons=list(cognition_status.stale_reasons or []),
         freshness=status.freshness,
@@ -1066,7 +1090,11 @@ def _write_cognition_freshness_metadata(project_root: Path, status: ProjectMapSt
     )
     if merged.graph_ready and merged.baseline_state == "missing":
         merged.baseline_state = "ready"
-    return write_cognition_status(project_root, merged)
+    if legacy_status_payload is None:
+        return write_cognition_status(project_root, merged)
+    merged_payload = dict(legacy_status_payload)
+    merged_payload.update(asdict(merged))
+    return write_scan_payload(cognition_status_path(project_root), merged_payload)
 
 
 def mark_project_map_refreshed(
@@ -1195,11 +1223,29 @@ def assess_project_map_freshness(
     missing_runtime_paths = missing_canonical_project_map_paths(project_root)
     has_status_metadata = bool(
         cognition_status.freshness
-        or project_map_status_path(project_root).exists()
-        or legacy_project_map_status_path(project_root).exists()
+        or project_cognition_status_metadata_path(project_root).exists()
+        or any(status_path.exists() for status_path in legacy_project_map_status_paths(project_root))
     )
 
-    if missing_runtime_paths and not allow_legacy_status_only:
+    if has_status_metadata and (not has_git or not status.last_mapped_commit or not head_commit):
+        return _freshness_payload(
+            project_root=project_root,
+            freshness=FRESHNESS_POSSIBLY_STALE_STATE,
+            status=status,
+            head_commit=head_commit,
+            manual_force_stale=False,
+            manual_force_stale_reasons=[],
+            dirty=False,
+            dirty_reasons=[],
+            reasons=["git baseline unavailable for project cognition freshness"],
+            changed_files=[],
+            must_refresh_topics=[],
+            review_topics=[],
+            suggested_topics=[],
+            missing_runtime_paths=[],
+        )
+
+    if missing_runtime_paths and not allow_legacy_status_only and not has_status_metadata:
         return _freshness_payload(
             project_root=project_root,
             freshness=FRESHNESS_MISSING_STATE,
@@ -1217,7 +1263,7 @@ def assess_project_map_freshness(
             missing_runtime_paths=[str(path) for path in missing_runtime_paths],
         )
 
-    if not cognition_status.graph_ready and not allow_legacy_status_only:
+    if not cognition_status.graph_ready and not allow_legacy_status_only and not has_status_metadata:
         return _freshness_payload(
             project_root=project_root,
             freshness=FRESHNESS_MISSING_STATE,
@@ -1273,24 +1319,6 @@ def assess_project_map_freshness(
             must_refresh_topics=dirty_topic_plan["must_refresh_topics"],
             review_topics=dirty_topic_plan["review_topics"],
             suggested_topics=[topic for topic in TOPIC_FILES if topic in (*dirty_topic_plan["must_refresh_topics"], *dirty_topic_plan["review_topics"])],
-            missing_runtime_paths=[],
-        )
-
-    if not has_git or not status.last_mapped_commit or not head_commit:
-        return _freshness_payload(
-            project_root=project_root,
-            freshness=FRESHNESS_POSSIBLY_STALE_STATE,
-            status=status,
-            head_commit=head_commit,
-            manual_force_stale=False,
-            manual_force_stale_reasons=[],
-            dirty=False,
-            dirty_reasons=[],
-            reasons=["git baseline unavailable for project cognition freshness"],
-            changed_files=[],
-            must_refresh_topics=[],
-            review_topics=[],
-            suggested_topics=[],
             missing_runtime_paths=[],
         )
 

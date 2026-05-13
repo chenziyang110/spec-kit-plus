@@ -39,7 +39,7 @@ def _write_cognition_status(project_root: Path, payload: str) -> None:
     (cognition_dir / "status.json").write_text(payload, encoding="utf-8")
 
 
-def test_project_map_status_round_trip(tmp_path):
+def test_project_cognition_status_round_trip_writes_canonical_status(tmp_path):
     mod = _load_module()
     _write_cognition_baseline(tmp_path)
 
@@ -65,12 +65,34 @@ def test_project_map_status_round_trip(tmp_path):
     written = mod.write_project_map_status(tmp_path, status)
     loaded = mod.read_project_map_status(tmp_path)
 
-    assert written == tmp_path / ".specify" / "project-map" / "index" / "status.json"
+    assert written == tmp_path / ".specify" / "project-cognition" / "status.json"
+    assert not (tmp_path / ".specify" / "project-map" / "status.json").exists()
+    assert not (tmp_path / ".specify" / "project-map" / "index" / "status.json").exists()
     assert loaded.version == 2
     assert loaded.global_last_refresh_commit == "abc123"
     assert loaded.global_freshness == "fresh"
     assert loaded.global_affected_root_docs == ["WORKFLOWS.md"]
     assert loaded.modules["specify-cli-core"]["deep_status"] == "deep_stale"
+
+
+def test_read_project_cognition_status_preserves_legacy_project_map_fallback(tmp_path):
+    mod = _load_module()
+    legacy_path = tmp_path / ".specify" / "project-map" / "index" / "status.json"
+    legacy_path.parent.mkdir(parents=True)
+    legacy_path.write_text(
+        (
+            '{"version": 2, "global_freshness": "fresh", '
+            '"global_last_refresh_commit": "legacy123", '
+            '"global_last_refresh_at": "2026-04-21T00:00:00Z"}\n'
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = mod.read_project_map_status(tmp_path)
+
+    assert loaded.version == 2
+    assert loaded.global_last_refresh_commit == "legacy123"
+    assert loaded.global_freshness == "fresh"
 
 
 def test_missing_canonical_project_map_paths_lists_required_outputs(tmp_path):

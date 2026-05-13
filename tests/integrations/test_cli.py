@@ -367,6 +367,82 @@ def test_check_reports_project_runtime_compatibility_issues(tmp_path):
     assert "bash-compatible launcher command" in result.output.lower()
 
 
+def test_project_cognition_status_and_check_commands_render_seeded_state_without_project_map(tmp_path):
+    project = tmp_path / "project-cognition-status"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        init_result = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--ai",
+                "claude",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+        status_result = runner.invoke(app, ["project-cognition", "status", "--format", "json"], catch_exceptions=False)
+        check_result = runner.invoke(app, ["project-cognition", "check", "--format", "json"], catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+
+    assert init_result.exit_code == 0, init_result.output
+    assert status_result.exit_code == 0, status_result.output
+    assert check_result.exit_code == 0, check_result.output
+
+    status_payload = json.loads(status_result.output)
+    check_payload = json.loads(check_result.output)
+    assert (project / ".specify" / "project-cognition" / "status.json").exists()
+    assert not (project / ".specify" / "project-map" / "status.json").exists()
+    assert not (project / ".specify" / "project-map" / "index" / "status.json").exists()
+    assert status_payload["freshness"] == "missing"
+    assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-cognition/status.json")
+    assert check_payload["freshness"] == "possibly_stale"
+    assert check_payload["state"] == "runtime_stale"
+    assert check_payload["reasons"] == ["git baseline unavailable for project cognition freshness"]
+
+
+def test_project_map_namespace_remains_legacy_alias_for_cognition_status(tmp_path):
+    project = tmp_path / "project-map-legacy-alias"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        init_result = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--ai",
+                "claude",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+        alias_result = runner.invoke(app, ["project-map", "status", "--format", "json"], catch_exceptions=False)
+    finally:
+        os.chdir(old_cwd)
+
+    assert init_result.exit_code == 0, init_result.output
+    assert alias_result.exit_code == 0, alias_result.output
+
+    payload = json.loads(alias_result.output)
+    assert payload["status_path"].replace("\\", "/").endswith(".specify/project-cognition/status.json")
+
+
 def test_init_installs_brainstorming_truth_templates(tmp_path):
     runner = CliRunner()
     project = tmp_path / "demo"
@@ -905,87 +981,6 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert result.exit_code == 0, result.output
         for command in ("list", "status", "resume", "close", "archive"):
             assert command in result.output
-
-    def test_project_map_status_and_check_commands_render_seeded_state(self, tmp_path):
-        from typer.testing import CliRunner
-        from specify_cli import app
-
-        project = tmp_path / "project-map-status"
-        project.mkdir()
-        runner = CliRunner()
-
-        old_cwd = os.getcwd()
-        try:
-            os.chdir(project)
-            init_result = runner.invoke(
-                app,
-                [
-                    "init",
-                    "--here",
-                    "--ai",
-                    "claude",
-                    "--script",
-                    "sh",
-                    "--no-git",
-                    "--ignore-agent-tools",
-                ],
-                catch_exceptions=False,
-            )
-            status_result = runner.invoke(app, ["project-map", "status", "--format", "json"], catch_exceptions=False)
-            check_result = runner.invoke(app, ["project-map", "check", "--format", "json"], catch_exceptions=False)
-        finally:
-            os.chdir(old_cwd)
-
-        assert init_result.exit_code == 0, init_result.output
-        assert status_result.exit_code == 0, status_result.output
-        assert check_result.exit_code == 0, check_result.output
-
-        status_payload = json.loads(status_result.output)
-        check_payload = json.loads(check_result.output)
-        assert status_payload["freshness"] == "missing"
-        assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-map/index/status.json")
-        assert check_payload["freshness"] == "possibly_stale"
-        assert check_payload["state"] == "runtime_stale"
-        assert check_payload["reasons"] == ["git baseline unavailable for project-map compatibility/export freshness"]
-
-    def test_project_cognition_namespace_mirrors_project_map_commands(self, tmp_path):
-        from typer.testing import CliRunner
-        from specify_cli import app
-
-        project = tmp_path / "project-cognition-status"
-        project.mkdir()
-        runner = CliRunner()
-
-        old_cwd = os.getcwd()
-        try:
-            os.chdir(project)
-            init_result = runner.invoke(
-                app,
-                [
-                    "init",
-                    "--here",
-                    "--ai",
-                    "claude",
-                    "--script",
-                    "sh",
-                    "--no-git",
-                    "--ignore-agent-tools",
-                ],
-                catch_exceptions=False,
-            )
-            status_result = runner.invoke(app, ["project-cognition", "status", "--format", "json"], catch_exceptions=False)
-            check_result = runner.invoke(app, ["project-cognition", "check", "--format", "json"], catch_exceptions=False)
-        finally:
-            os.chdir(old_cwd)
-
-        assert init_result.exit_code == 0, init_result.output
-        assert status_result.exit_code == 0, status_result.output
-        assert check_result.exit_code == 0, check_result.output
-
-        status_payload = json.loads(status_result.output)
-        check_payload = json.loads(check_result.output)
-        assert status_payload["status_path"].replace("\\", "/").endswith(".specify/project-map/index/status.json")
-        assert check_payload["freshness"] == "possibly_stale"
 
     def test_project_map_mark_dirty_sets_runtime_stale_state(self, tmp_path):
         from typer.testing import CliRunner

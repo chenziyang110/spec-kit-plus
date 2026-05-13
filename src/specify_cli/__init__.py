@@ -83,7 +83,7 @@ from specify_cli.codex_team.runtime_bridge import (
     submit_runtime_result,
 )
 from specify_cli.cli_output import print_json
-from specify_cli.cognition import apply_cognition_update, cognition_db_path, query_project_cognition
+from specify_cli.cognition import apply_cognition_update, cognition_db_path, cognition_status_path, query_project_cognition
 from specify_cli.execution import (
     build_result_handoff_path,
     write_normalized_result_handoff,
@@ -112,11 +112,10 @@ from specify_cli.project_cognition_status import (
     git_head_commit,
     inspect_project_cognition_freshness,
     inspect_project_cognition_freshness_for_command,
-    legacy_project_map_status_path,
     mark_project_map_dirty,
     mark_project_map_refreshed,
     missing_canonical_project_map_paths,
-    project_map_status_path,
+    project_cognition_status_metadata_path,
     read_project_map_status,
     refresh_project_map_topics,
     write_project_map_status,
@@ -1662,7 +1661,7 @@ def project_map_refresh_topics_command(
         reason=reason,
     )
     payload = status.to_dict()
-    payload["status_path"] = str(project_map_status_path(project_root))
+    payload["status_path"] = str(project_cognition_status_metadata_path(project_root))
     if output_format.lower() == "json":
         print_json(payload, indent=2)
         return
@@ -1684,7 +1683,7 @@ def project_map_status_command(
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     status = read_project_map_status(project_root).to_dict()
-    status["status_path"] = str(project_map_status_path(project_root))
+    status["status_path"] = str(project_cognition_status_metadata_path(project_root))
     if output_format.lower() == "json":
         print_json(status, indent=2)
         return
@@ -2797,13 +2796,10 @@ def _install_shared_infra(
 
     # Seed the live project cognition status file so downstream workflows share a
     # stable freshness surface even before the first real map refresh.
-    status_path = project_map_status_path(project_path)
+    status_path = cognition_status_path(project_path)
     if not status_path.exists():
-        write_project_map_status(project_path, ProjectMapStatus())
-        manifest.record_existing(status_path.relative_to(project_path).as_posix())
-        legacy_status_path = legacy_project_map_status_path(project_path)
-        if legacy_status_path.exists():
-            manifest.record_existing(legacy_status_path.relative_to(project_path).as_posix())
+        written_status = write_project_map_status(project_path, ProjectMapStatus())
+        manifest.record_existing(written_status.relative_to(project_path).as_posix())
 
     if skipped_files:
         import logging
