@@ -72,7 +72,7 @@ The only canonical runtime outputs for this command are:
 - `.specify/project-cognition/status.json`
 - `.specify/project-cognition/project-cognition.db`
 - query/update helper readiness metadata
-- join-point `worker-results` evidence for delegated build lanes until the leader accepts the final graph-ready baseline
+- join-point `worker-results` evidence for delegated build lanes until the leader accepts the final query-ready baseline
 - `.specify/project-map/worker-results/<packet-id>.json`
 
 Do not publish handbook-first runtime truth from this command. Do not publish raw graph JSON artifacts or slices as runtime truth.
@@ -151,7 +151,7 @@ At minimum, claims must include:
 
 - Use `choose_subagent_dispatch(command_name="map-build", snapshot, workload_shape)` before lane execution.
 - Dispatch each build lane from a validated `MapBuildPacket`.
-- Recommended build lanes include graph normalization, claim synthesis, conflict review, and slice generation.
+- Recommended build lanes include DB normalization, claim synthesis, conflict review, and queryable task-local bundle generation.
 - The leader owns final graph consistency and readiness state.
 
 ## Completion Rule

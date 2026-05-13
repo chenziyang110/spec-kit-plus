@@ -55,10 +55,8 @@ def test_debug_template_documents_single_path_intake_contract() -> None:
     assert "manual `capture-learning` hook surface" not in content
     assert "debug cognition gate" in content
     assert "pass the cognition gate before" in content
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/debug.json" in content
-    assert ".specify/project-cognition/graph/claims.json" in content
-    assert ".specify/project-cognition/graph/conflicts.json" in content
+    assert "project-cognition query --intent debug" in content
+    assert "minimal_live_reads" in content
     assert "debug-handbook.md" not in content
     assert "debug-workflow-contract" not in content
     assert "symptom-to-surface-routing" not in content

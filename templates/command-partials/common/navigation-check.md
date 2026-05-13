@@ -4,10 +4,10 @@
 > an independent navigation checklist.
 
 - Load and enforce `context-loading-gradient.md`.
-- Treat `.specify/project-cognition/status.json` plus the workflow-required
-  graph slice artifacts as the primary runtime read surfaces.
+- Treat the `specify project-cognition query` task-local bundle, readiness, and
+  returned `minimal_live_reads` as the primary runtime read surfaces.
 - If the project cognition runtime is missing, create the initial baseline via
   `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - If the project cognition runtime is stale or insufficient for the touched
-  graph scope, prefer `{{invoke:map-update}}`; rebuild only when no usable
+  query scope, prefer `{{invoke:map-update}}`; rebuild only when no usable
   baseline remains.

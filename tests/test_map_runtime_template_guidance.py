@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from .template_utils import read_template
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -25,8 +27,19 @@ def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> N
     }
     readiness_states = ["ready", "review", "ambiguous", "needs_update", "needs_rebuild", "blocked"]
 
+    obsolete_primary_input_phrases = [
+        "required slices",
+        "graph artifacts as primary workflow inputs",
+        "graph artifacts as the primary",
+        "graph slice artifacts as the primary",
+        "status.json`, required slices",
+        "status.json`, `slices/change.json`",
+        "status.json`, `slices/debug.json`",
+        ".specify/project-cognition/status.json`, required slices",
+    ]
+
     for name, intent in workflow_intents.items():
-        content = (PROJECT_ROOT / "templates" / "commands" / name).read_text(encoding="utf-8").lower()
+        content = read_template(f"templates/commands/{name}").lower()
         assert "project-cognition query" in content
         assert f"project-cognition query --intent {intent}" in content
         for state in readiness_states:
@@ -35,6 +48,36 @@ def test_workflows_use_project_cognition_query_instead_of_raw_graph_reads() -> N
         assert ".specify/project-cognition/graph/edges.json" not in content
         assert ".specify/project-cognition/graph/claims.json" not in content
         assert ".specify/project-cognition/graph/conflicts.json" not in content
+        assert ".specify/project-cognition/slices/change.json" not in content
+        assert ".specify/project-cognition/slices/debug.json" not in content
+        for phrase in obsolete_primary_input_phrases:
+            assert phrase not in content, f"{name} contains obsolete runtime input phrase: {phrase}"
+
+
+def test_included_workflow_partials_use_query_backed_runtime_inputs() -> None:
+    partials = [
+        "templates/command-partials/specify/shell.md",
+        "templates/command-partials/plan/shell.md",
+        "templates/command-partials/tasks/shell.md",
+        "templates/command-partials/implement/shell.md",
+        "templates/command-partials/debug/shell.md",
+        "templates/command-partials/test/shell.md",
+        "templates/command-partials/test-scan/shell.md",
+        "templates/command-partials/quick/shell.md",
+        "templates/command-partials/analyze/shell.md",
+        "templates/command-partials/common/navigation-check.md",
+    ]
+
+    for path in partials:
+        content = _read(path).lower()
+        assert "specify project-cognition query" in content or "project cognition query" in content
+        assert "task-local bundle" in content
+        assert "readiness" in content
+        assert "minimal_live_reads" in content
+        assert "required slices" not in content
+        assert "graph artifacts" not in content
+        assert "slices/change.json" not in content
+        assert "slices/debug.json" not in content
 
 
 def test_map_scan_template_targets_graph_native_runtime() -> None:

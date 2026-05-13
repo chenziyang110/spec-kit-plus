@@ -6,7 +6,7 @@ Convert the plan package into dependency-aware execution tasks that preserve pla
 
 ## Context
 
-- Primary inputs: `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `context.md`, `plan-contract.json` when present, and the project cognition runtime (`.specify/project-cognition/status.json`, required slices, graph artifacts, and targeted live evidence).
+- Primary inputs: `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `context.md`, `plan-contract.json` when present, and the `specify project-cognition query` task-local bundle with readiness and returned `minimal_live_reads`.
 - Working state lives in `FEATURE_DIR/tasks.md` plus any decomposition metadata needed for later analysis or implementation routing.
 - This command is task-generation-only. It should not cross into execution.
 
@@ -75,4 +75,4 @@ Before finalizing any task, confirm: a single subagent, reading only this task b
 
 - Do not implement code, edit tests, or treat task generation as implicit execution approval.
 - Do not emit raw task lists that lose boundary rules, locked decisions, or verification expectations.
-- Do not assume stale or overly broad repository-map coverage is good enough for decomposition.
+- Do not assume stale or overly broad project cognition query coverage is good enough for decomposition.

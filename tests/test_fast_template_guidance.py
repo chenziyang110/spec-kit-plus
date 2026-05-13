@@ -31,15 +31,14 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "delegated change" not in content
     assert "delegate it through" not in content
     assert "project cognition gate" in content
-    assert "must pass the cognition gate before" in content
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/slices/change.json" in content
+    assert "project-cognition query --intent implement" in content
+    assert "minimal_live_reads" in content
     assert "build-handbook.md" not in content
     assert "debug-handbook.md" not in content
     assert "build-workflow-contract" not in content
     assert "product-and-capability-map" not in content
     assert "change-entrypoints" not in content
-    assert "pass the cognition gate" in content
+    assert "returned task-local bundle" in content
     assert "map-update" in content
     assert ".specify/project-map/index/status.json" not in content
     assert "shared surfaces" in content
@@ -63,7 +62,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "manual override/fallback" in content
     assert "skip all learning hooks" in content
     assert "skip all learning hooks" in content
-    assert "pass the cognition gate" in content
+    assert "returned task-local bundle" in content
 
 
 def test_fast_template_uses_leader_direct_contract() -> None:

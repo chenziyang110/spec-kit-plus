@@ -7,7 +7,7 @@ Deep-scan the repository's testing surface and produce a build-ready unit-test s
 ## Context
 
 - This command is project-level, not feature-level. It operates on repository modules, test frameworks, public contracts, risk tiers, and coverage gaps.
-- Primary inputs are live source/test files, manifest/config files, the project cognition runtime (`status.json`, `slices/change.json`, and targeted live evidence), existing `.specify/testing/` artifacts, and project memory.
+- Primary inputs are live source/test files, manifest/config files, the `specify project-cognition query` task-local bundle with readiness and returned `minimal_live_reads`, existing `.specify/testing/` artifacts, and project memory.
 - Primary outputs are `TEST_SCAN.md`, `TEST_BUILD_PLAN.md`, `TEST_BUILD_PLAN.json`, `UNIT_TEST_SYSTEM_REQUEST.md`, and `testing-state.md`.
 - Treat bundled `*-testing` skills as built-in language testing guidance, not as external recommendations.
 
